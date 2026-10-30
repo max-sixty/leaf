@@ -1,8 +1,9 @@
 """Render Promptfoo runs as one Leaf browser of scores, judgments and outputs.
 
-Every sample remains visible, including single arms, unequal repetitions and failed
-attempts. Execution checks, authoring grades, pairwise preferences and exploratory
-observations retain their distinct meanings. An optional authored review names the
+Every native result remains visible, including single arms, unequal repetitions and
+failed attempts. Identical native results appear once, with every source-run alias
+retained; changed grades remain distinct. Execution checks, authoring grades, pairwise
+preferences and exploratory observations retain their distinct meanings. An optional authored review names the
 latest run group and experiment decisions; scores never infer either. Requests,
 viewports and phases come from retained results, never today's catalog.
 The assessment also supplies the current implementation summary and changes selected
@@ -157,9 +158,17 @@ def condition_labels(columns: dict) -> dict[str, str]:
 def report_samples(runs: tuple[Path, ...]) -> dict:
     """Read every Promptfoo result, including failed attempts with no saved page."""
     found = defaultdict(lambda: defaultdict(list))
+    retained: dict[str, dict] = {}
     for run in runs:
         results = json.loads((run / "results.json").read_text())["results"]["results"]
         for index, result in enumerate(results):
+            # A copied native result is reusable; a revised grade is a new record.
+            identity = hashlib.sha256(
+                json.dumps(result, sort_keys=True).encode()
+            ).hexdigest()
+            if identity in retained:
+                retained[identity]["runs"].append(run)
+                continue
             response = result.get("response") or {}
             metadata = response.get("metadata") or {}
             diagnostics = metadata.get("diagnostics") or {}
@@ -174,22 +183,24 @@ def report_samples(runs: tuple[Path, ...]) -> dict:
                 if metadata.get("work")
                 else run / f"unsaved-{index}"
             )
-            found[subject][result["provider"]["label"]].append(
-                {
-                    "sample": work.name,
-                    "subject": subject,
-                    "title": result.get("testCase", {}).get("description") or subject,
-                    "work": work,
-                    "diagnostics": diagnostics,
-                    "checks": metadata.get("checks") or {},
-                    "shots": run / "screenshots" / work.name,
-                    "run": run,
-                    "gradingResult": result.get("gradingResult"),
-                    "error": result.get("error")
-                    or response.get("error")
-                    or (result.get("gradingResult") or {}).get("reason"),
-                }
-            )
+            sample = {
+                "result_id": result["id"],
+                "identity": identity,
+                "sample": work.name,
+                "subject": subject,
+                "title": result.get("testCase", {}).get("description") or subject,
+                "work": work,
+                "diagnostics": diagnostics,
+                "checks": metadata.get("checks") or {},
+                "shots": run / "screenshots" / work.name,
+                "runs": [run],
+                "gradingResult": result.get("gradingResult"),
+                "error": result.get("error")
+                or response.get("error")
+                or (result.get("gradingResult") or {}).get("reason"),
+            }
+            retained[identity] = sample
+            found[subject][result["provider"]["label"]].append(sample)
     for columns in found.values():
         for members in columns.values():
             for number, sample in enumerate(members, 1):
@@ -533,7 +544,11 @@ def pair_section(
             else "This pair has no repeated comparison judgment; any experiment assessment is under Changes tested."
         )
         + "</p><p>Runs: "
-        + escape(" / ".join(dict.fromkeys(s["run"].name for _, _, s in columns)))
+        + escape(
+            " / ".join(
+                dict.fromkeys(run.name for _, _, s in columns for run in s["runs"])
+            )
+        )
         + "</p></details></section>"
     )
 
@@ -559,12 +574,7 @@ def shown(value, form: str, unit: str = "") -> str:
 
 
 def sample_anchor(sample: dict) -> str:
-    return (
-        "sample-"
-        + hashlib.sha256(
-            f"{sample.get('run', '')}:{sample['work']}".encode()
-        ).hexdigest()[:12]
-    )
+    return "sample-" + sample["identity"][:12]
 
 
 def phase_label(sample: dict, phase: str) -> str:
@@ -767,8 +777,9 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     anchor = sample_anchor(sample)
     diagnostics = sample["diagnostics"]
     if not diagnostics.get("comparison"):
-        result_link = linked_file(
-            page, sample["run"] / "results.json", output_url, "Recorded result"
+        result_link = " · ".join(
+            linked_file(page, run / "results.json", output_url, run.name)
+            for run in sample["runs"]
         )
         return (
             f'<section id="{anchor}"><h3>{escape(sample["title"][:1].upper() + sample["title"][1:])} · {escape(label)} · Output {sample.get("attempt", 1)}</h3>'
@@ -915,8 +926,9 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         for path in sorted(sample["work"].glob("*"))
         if path.is_file() and path.suffix in {".json", ".jsonl", ".txt", ".log"}
     ]
-    evidence = linked_file(
-        page, sample["run"] / "results.json", output_url, "Promptfoo results"
+    evidence = " · ".join(
+        linked_file(page, run / "results.json", output_url, run.name)
+        for run in sample["runs"]
     )
     metrics = measures(sample)
     phases_view = final_view + (
@@ -942,7 +954,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         "no agent is connected and edits stay in this browser.</p>"
         f"<p>Captured sizes: {escape(widths)}.</p><ul>{''.join(sources)}</ul>"
         f"<dl><dt>Case ID</dt><dd>{escape(sample['subject'])}</dd>"
-        f"<dt>Run</dt><dd>{escape(str(sample['run']))}</dd>"
+        f"<dt>Result ID</dt><dd>{escape(sample['result_id'])}</dd>"
         f"<dt>Output ID</dt><dd>{escape(sample['sample'])}</dd>"
         f"<dt>Author time</dt><dd>{shown(metrics['minutes'], '.1f')} minutes</dd>"
         f"<dt>Input tokens</dt><dd>{shown(metrics['input_tokens'], ',.0f')}</dd>"
@@ -1006,14 +1018,16 @@ def task_section(
         # Unjudged outputs from a newer run remain comparable when older runs
         # already have judgments. Match within a run, never across its revisions.
         matches = []
-        for run in dict.fromkeys(sample["run"] for sample in xs):
+        for run in dict.fromkeys(run for sample in xs for run in sample["runs"]):
             left = [
-                s for s in xs if s["run"] == run and sample_anchor(s) not in compared
+                s for s in xs if run in s["runs"] and sample_anchor(s) not in compared
             ]
             right = [
-                s for s in ys if s["run"] == run and sample_anchor(s) not in compared
+                s for s in ys if run in s["runs"] and sample_anchor(s) not in compared
             ]
-            matches.extend(zip(left, right))
+            for x, y in zip(left, right):
+                if (x, y) not in matches:
+                    matches.append((x, y))
         for number, (x, y) in enumerate(matches, len(judged) + 1):
             try:
                 saved_comparison([x, y])
@@ -1341,7 +1355,7 @@ def judge_preferences(
         return result
 
     for _, pair in records:
-        for provider, (condition, sample) in participants(pair).items():
+        for condition, sample in participants(pair).values():
             if condition == "html" and sample:
                 html_uses[sample["work"].resolve()].add(
                     json.dumps(pair["samples"], sort_keys=True)
@@ -1672,7 +1686,7 @@ def review_sections(
     findings = []
     for finding in latest["findings"]:
         sample = sample_for(samples, finding)
-        if sample["run"].resolve() not in latest_runs:
+        if not latest_runs.intersection(run.resolve() for run in sample["runs"]):
             raise click.ClickException(
                 f"Latest finding is outside the latest run group: {finding['sample']}"
             )
@@ -1817,10 +1831,11 @@ def eval_report(
     assessment = json.loads(review.read_text()) if review else None
     # The story owns the reader's sequence; input-file order carries no task meaning.
     subjects_by_sample = {
-        (sample["run"].resolve(), sample["sample"]): subject
+        (run.resolve(), sample["sample"]): subject
         for subject, columns in found.items()
         for members in columns.values()
         for sample in members
+        for run in sample["runs"]
     }
     task_order = {}
     for lane in (assessment or {}).get("journey", []):
@@ -1858,12 +1873,20 @@ def eval_report(
             for members in columns.values():
                 for sample in members:
                     sample["review_context"] = assessment.get("review_context", "")
-                    sample["comparisons"] = comparison_links[
-                        sample["run"].resolve(), sample["sample"]
-                    ]
+                    sample["comparisons"] = list(
+                        dict.fromkeys(
+                            link
+                            for run in sample["runs"]
+                            for link in comparison_links[
+                                run.resolve(), sample["sample"]
+                            ]
+                        )
+                    )
                     sample["run_group"] = (
                         "Latest run"
-                        if sample["run"].resolve() in latest_runs
+                        if latest_runs.intersection(
+                            run.resolve() for run in sample["runs"]
+                        )
                         else "Reference output"
                     )
     records = pair_records(runs)
@@ -1892,10 +1915,11 @@ def eval_report(
         for subject, columns in found.items()
     )
     samples = {
-        (sample["run"].resolve(), sample["sample"]): sample
+        (run.resolve(), sample["sample"]): sample
         for columns in found.values()
         for members in columns.values()
         for sample in members
+        for run in sample["runs"]
     }
     changes, introduction = (
         review_sections(page, assessment, samples, output_url)

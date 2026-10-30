@@ -1,3 +1,4 @@
+// @ts-check
 /* Operations on durable anchor coordinates. */
 
 // Anchors are shallow records of primitive coordinates. When an emitter identifies a
@@ -10,6 +11,9 @@
 // record.
 const RENDERING = new Set(["source_revision", "datum"]);
 const PRIMITIVE = new Set(["string", "number", "boolean"]);
+/** @typedef {Readonly<Record<string, unknown>>} Anchor */
+
+/** @param {Anchor | null | undefined} anchor */
 export const anchorKey = (anchor) => {
   const identified = typeof anchor?.identity === "string";
   return JSON.stringify(
@@ -22,5 +26,6 @@ export const anchorKey = (anchor) => {
   );
 };
 
+/** @param {Anchor | null | undefined} a @param {Anchor | null | undefined} b */
 export const sameAnchor = (a, b) =>
   a === b || (Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b));

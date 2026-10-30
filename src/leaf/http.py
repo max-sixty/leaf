@@ -38,6 +38,7 @@ from starlette.responses import FileResponse, Response
 from .data import (
     DataError,
     StaleDataError,
+    browser_data_from,
     deferred_value,
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
@@ -774,7 +775,7 @@ class PageEndpoint:
                 self.posted, self.posted_error = prepare()
                 prepared = True
             return route()
-        except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+        except Exception as error:
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
@@ -928,9 +929,16 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary."""
+        """Serve one immutable document with an initial data reading.
+
+        This reads no state projection: authored HTML remains available if a later
+        state fold fails. The first API state answer reuses these data bytes by
+        version, or supplies a newer value, and owns their admission timestamp.
+        """
         self.response_layer = artifact.registry["$layer"]["generation"]
         artifact = executing(artifact)
+        with self.source.state_read() as (context, _reading, _error):
+            data = browser_data_from(context.data, artifact.registry)
         projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
@@ -938,7 +946,7 @@ class PageEndpoint:
             executable=artifact.executable,
             resources=artifact.resources,
             registry=artifact.registry,
-            delivery=self._delivery(artifact, revision),
+            delivery=replace(self._delivery(artifact, revision), data=data),
         )
         response = self._content(200, "text/html; charset=utf-8", projected.encode())
         response.headers["Leaf-Document"] = str(revision)

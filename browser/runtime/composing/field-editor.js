@@ -884,8 +884,8 @@ function fieldEditor(
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
-   * line, and `field.revealed(view, pos)` shows the row holding `pos` in the field's
-   * host. */
+   * line, `field.revealed(view, pos)` shows the row holding `pos` in the field's
+   * host, and `field.focused()` hears the editor take or lose focus. */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -941,6 +941,9 @@ function fieldEditor(
         EditorView.scrollHandler.of((view, range) => {
           field.revealed(view, range.head);
           return false;
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.focusChanged) field.focused();
         }),
         histories.of(history()),
         // A one-line field holds one line, so a line break pasted or inserted by the

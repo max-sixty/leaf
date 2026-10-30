@@ -42,22 +42,26 @@ Elements are keyed by their path of tags, ids and first two classes. A state wit
 differing property, or a subtree only one arm has, also counts as changed, and its
 `styles.txt` lists them (`style_changes`). The properties are the cascade's own, not
 the geometry it produces, which the stills show; width, height and offsets stay out
-because they move with every reflow. A widget inside a tab or disclosure the page
-opens shut, such as a chart, may or may not have drawn by the reading, in either arm,
-so rerun a state before taking a difference confined to one as a change.
+because they move with every reflow. Below them, for each group's first element, it
+lists the declarations Chromium's inspector reads as matching it in only one arm, or
+in another order, each with its sheet, layers, scope and selector
+(`declaration_changes`): the rule a change added, removed, edited or moved. Where none
+differ, the element inherits the difference or reads it from a custom property.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
+import json
 import re
 import tempfile
 import traceback
-from collections.abc import Callable
-from contextlib import contextmanager
+from collections.abc import Callable, Generator, Iterable
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import click
@@ -162,11 +166,13 @@ STYLED = [
     "box-sizing",
     "z-index",
 ]
-# Every element's `STYLED` values by its path, sharing each distinct set of values.
+# Every element's `STYLED` values by its path, sharing each distinct set of values, and
+# the elements themselves by the same path on `window.stillsRead`, for `declarations`.
 STYLES = """(properties) => {
   const skip = new Set(["head", "script", "style", "template", "link", "meta"]);
   const faces = new Map();
   const elements = {};
+  const read = (window.stillsRead = new Map());
   const walk = (parent, prefix) => {
     const seen = {};
     for (const element of parent.children) {
@@ -180,6 +186,7 @@ STYLES = """(properties) => {
       const face = JSON.stringify(properties.map((name) => style.getPropertyValue(name)));
       if (!faces.has(face)) faces.set(face, faces.size);
       elements[key] = faces.get(face);
+      read.set(key, element);
       walk(element, `${key} > `);
       if (element.shadowRoot) walk(element.shadowRoot, `${key} >> `);
     }
@@ -3034,17 +3041,20 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive  # noqa: B009 - Callable does not expose function attributes to ty.
+    for state in STATES
 }
 
 
+@contextmanager
 def capture(
     browser, address: str, state: State, path: Path
-) -> tuple[dict | None, dict[str, list[str]]]:
+) -> Generator[tuple[dict | None, dict[str, list[str]], Page]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
-    as the reader's screen draws them. Return the state's region in the screenshot,
-    if it names one, and its elements' styles (`STYLES`)."""
+    as the reader's screen draws them. Yield the state's region in the screenshot,
+    if it names one, its elements' styles (`STYLES`), and the tab, open until the
+    block ends so `declaration_changes` can read it."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -3073,17 +3083,18 @@ def capture(
             key: reading["faces"][face] for key, face in reading["elements"].items()
         }
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        return region, styles
+        yield region, styles, page
 
 
 def style_changes(
     base: dict[str, list[str]], head: dict[str, list[str]]
-) -> tuple[int, list[str]]:
+) -> tuple[int, list[str], list[str]]:
     """Each `STYLED` property whose value differs between an element's base and head
     readings, grouped by property and values with up to four of its elements, then
     the subtrees only one arm has, each named by its outermost element, since a widget
     that draws in one arm and not the other adds every node of its drawing. Return how
-    many element properties differ, plus those subtrees, and the lines that list them."""
+    many element properties differ, plus those subtrees, the lines that list them, and
+    each group's first element."""
     groups: dict[tuple[str, str, str], list[str]] = {}
     for key in base.keys() & head.keys():
         for name, before, after in zip(STYLED, base[key], head[key]):
@@ -3099,16 +3110,106 @@ def style_changes(
         )
     }
     lines = []
+    firsts = {}
     for (name, before, after), keys in sorted(
         groups.items(), key=lambda group: -len(group[1])
     ):
+        keys.sort()
+        firsts[keys[0]] = None
         lines.append(f"{name}: {before} -> {after}  x{len(keys)}")
-        lines.extend(f"    {key}" for key in sorted(keys)[:4])
+        lines.extend(f"    {key}" for key in keys[:4])
     for heading, keys in alone.items():
         if keys:
             lines.append(f"{heading}  x{len(keys)}")
             lines.extend(f"    {key}" for key in keys[:4])
-    return sum(map(len, groups.values())) + sum(map(len, alone.values())), lines
+    count = sum(map(len, groups.values())) + sum(map(len, alone.values()))
+    return count, lines, list(firsts)
+
+
+def declarations(page: Page) -> Callable[[str], list[str]]:
+    """Read an element `STYLES` read, by its key, through Chromium's inspector: every
+    authored declaration of the rules that match it and of its style attribute, in the
+    order the inspector lists them, each with its sheet, layers, scope and selector."""
+    session = page.context.new_cdp_session(page)
+    sheets: dict[str, dict] = {}
+    session.on(
+        "CSS.styleSheetAdded",
+        lambda event: sheets.update({event["header"]["styleSheetId"]: event["header"]}),
+    )
+    session.send("DOM.enable")
+    session.send("CSS.enable")
+    session.send("DOM.getDocument")
+
+    def label(rule: dict) -> str:
+        header = sheets.get(rule.get("styleSheetId"), {})
+        if rule["origin"] != "regular":
+            sheet = rule["origin"]
+        elif header.get("isConstructed"):
+            sheet = "constructed"
+        # An inline sheet's URL is its document's, which names the arm's port.
+        elif header.get("isInline") or not header.get("sourceURL"):
+            sheet = "<style>"
+        else:
+            sheet = header["sourceURL"].rsplit("/", 1)[-1]
+        layers = ".".join(layer["text"] or "anonymous" for layer in rule["layers"])
+        return " ".join(
+            [
+                sheet,
+                *([f"@layer {layers}"] if layers else []),
+                *(f"@scope {scope['text']}" for scope in rule["scopes"]),
+                rule["selectorList"]["text"],
+            ]
+        )
+
+    def read(key: str) -> list[str]:
+        element = session.send(
+            "Runtime.evaluate", {"expression": f"stillsRead.get({json.dumps(key)})"}
+        )
+        node = session.send(
+            "DOM.requestNode", {"objectId": element["result"]["objectId"]}
+        )
+        matched = session.send("CSS.getMatchedStylesForNode", node)
+        rules = [
+            (label(entry["rule"]), entry["rule"]["style"])
+            for entry in matched["matchedCSSRules"]
+        ]
+        if matched.get("inlineStyle"):
+            rules.append(("style attribute", matched["inlineStyle"]))
+        return [
+            f"{rule} {{ {' '.join(declaration['text'].split())} }}"
+            for rule, style in rules
+            for declaration in style["cssProperties"]
+            if "text" in declaration
+        ]
+
+    return read
+
+
+def declaration_changes(pages: dict[str, Page], keys: Iterable[str]) -> list[str]:
+    """For each element, the declarations (`declarations`) that match it in only one
+    of the arms' `pages`, or in another order, as lines under its key."""
+    read = {arm: declarations(page) for arm, page in pages.items()}
+    lines = ["declarations that differ, on each group's first element"]
+    for key in keys:
+        before, after = read["base"](key), read["head"](key)
+        changes = [
+            line
+            for tag, i, j, k, m in SequenceMatcher(
+                None, before, after, autojunk=False
+            ).get_opcodes()
+            if tag != "equal"
+            for line in [
+                *(f"- {row}" for row in before[i:j]),
+                *(f"+ {row}" for row in after[k:m]),
+            ]
+        ]
+        lines.append(f"    {key}")
+        lines.extend(
+            f"        {line}"
+            for line in changes
+            or ["none: it inherits the difference or reads it from a custom property"]
+        )
+    return lines
 
 
 @contextmanager
@@ -3247,41 +3348,52 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 folder.mkdir()
                 crop_regions = []
                 styles = {}
-                for arm, arm_dir in arms.items():
-                    # Every state starts from its authored fixture. A prior Send or
-                    # Resolve must not become the next state's initial event log.
-                    # The base refuses a source written in vocabulary only the head
-                    # declares; that state has no base still, and the head's still
-                    # stands alone in its folder.
-                    try:
-                        with serving_source(
-                            arm_dir,
-                            source_roots[arm] / "examples" / f"{state.source}.html",
-                            scratch / f"{arm}-{state.name}",
-                        ) as address:
-                            region, styles[arm] = capture(
-                                browser, address, state, folder / f"{arm}.png"
+                pages = {}
+                # Both arms stay open through the comparison, which reads their tabs.
+                with ExitStack() as held:
+                    for arm, arm_dir in arms.items():
+                        # Every state starts from its authored fixture. A prior Send
+                        # or Resolve must not become the next state's initial event
+                        # log. The base refuses a source written in vocabulary only
+                        # the head declares; that state has no base still, and the
+                        # head's still stands alone in its folder.
+                        try:
+                            address = held.enter_context(
+                                serving_source(
+                                    arm_dir,
+                                    source_roots[arm]
+                                    / "examples"
+                                    / f"{state.source}.html",
+                                    scratch / f"{arm}-{state.name}",
+                                )
+                            )
+                            region, styles[arm], pages[arm] = held.enter_context(
+                                capture(browser, address, state, folder / f"{arm}.png")
                             )
                             if region:
                                 crop_regions.append(region)
-                    except Exception as error:  # noqa: BLE001 - isolate each capture
-                        failure(state, arm, error)
-                if state.name in failed:
-                    continue
-                try:
-                    difference = compare(state.name)
-                    if difference["changed"]:
-                        crop(
-                            folder, difference["regions"], framing=crop_regions or None
+                        except Exception as error:
+                            failure(state, arm, error)
+                    if state.name in failed:
+                        continue
+                    try:
+                        difference = compare(state.name)
+                        if difference["changed"]:
+                            crop(
+                                folder,
+                                difference["regions"],
+                                framing=crop_regions or None,
+                            )
+                        difference["styles"], lines, firsts = style_changes(
+                            styles["base"], styles["head"]
                         )
-                    difference["styles"], lines = style_changes(
-                        styles["base"], styles["head"]
-                    )
-                    if lines:
-                        (folder / "styles.txt").write_text("\n".join(lines) + "\n")
-                    read[state.name] = difference
-                except Exception as error:  # noqa: BLE001 - isolate each comparison
-                    failure(state, "comparison", error)
+                        if firsts:
+                            lines += declaration_changes(pages, firsts)
+                        if lines:
+                            (folder / "styles.txt").write_text("\n".join(lines) + "\n")
+                        read[state.name] = difference
+                    except Exception as error:
+                        failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in states:

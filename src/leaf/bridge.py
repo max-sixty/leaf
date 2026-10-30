@@ -183,7 +183,7 @@ def live_sessions() -> bool:
 
 
 def serve(lease_fd: int) -> None:
-    lease = open(lease_fd, "rb")  # noqa: SIM115 - held until the bridge retires
+    lease = open(lease_fd, "rb")
     token = secrets.token_urlsafe(32)
     running: set[int] = set()
 

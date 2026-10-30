@@ -4213,33 +4213,24 @@ ROW_CENTRES = """() => {
       ?.getBoundingClientRect().toJSON(),
   };
 }"""
-# The right end of each line of words in the field, top to bottom.
-WORD_LINES = """host => {
-  const rows = [];
-  for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
-    const range = document.createRange();
-    range.selectNodeContents(line);
-    for (const r of range.getClientRects()) {
-      if (r.width < 0.5) continue;
-      const row = rows.find(o => Math.abs(o.top - r.top) < 4);
-      if (row) row.right = Math.max(row.right, r.right);
-      else rows.push({top: r.top, right: r.right});
-    }
-  }
-  return rows.sort((a, b) => a.top - b.top).map((row) => row.right);
-}"""
 
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf, Dictate, the counts, and Send while the user types, each centred on the
-    field's last line of words, however many lines it holds. Send floats in the field's
-    end corner, as an anchored comment box's does, and every line keeps room for it."""
+    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    they type, each centred on the field's last line of words, however many lines it
+    holds. Send floats in the field's end corner, as an anchored comment box's does,
+    and under a mouse the words take its column (drafts/test_send_corner.py follows
+    Send out of their way)."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    settled(page)
+    seats = page.evaluate(ROW_CENTRES)
+    for mark in ("leaf", "count"):
+        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "dictate", "count"):
+    for mark in ("leaf", "dictate"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     page.keyboard.type(
         "Could the rollback cover the weekend, and the mobile cohort as well, and"
@@ -4251,8 +4242,11 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
-    lines = field(page).evaluate(WORD_LINES)
-    assert max(lines) <= seats["press"]["left"], (lines, seats)
+    column = field(page).evaluate(
+        """host => window.editorRoots.get(host).querySelector('.cm-content')
+          .getBoundingClientRect().right"""
+    )
+    assert column > seats["press"]["left"], (column, seats)
 
 
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
@@ -5351,19 +5345,26 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
 
 
 def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, serve):
-    """Typing puts Send where the mark stood, wearing every composer's accent arrow
-    rather than the panel's own press face, and the field runs to the row's end, past
-    the empty seat a view's Close would take; a line break is a draft as a word is. A
-    press that takes the caret away leaves the draft as it stands, Send and every line
-    in place, and so does a press back into it; the mark comes back once the field
-    empties."""
+    """Opening the field steps the mark aside, so the field's end and the corner's
+    action stand where typing will leave them; typing puts Send in that corner, wearing
+    every composer's accent arrow rather than the panel's own press face, and the field
+    runs to the row's end, past the empty seat a view's Close would take; a line break
+    is a draft as a word is. A press that takes the caret away leaves the draft as it
+    stands, Send and every line in place, and so does a press back into it; the mark
+    comes back once the field is empty and the user has left it."""
     page = floating(browser, serve(LONG_PAGE))
+    on_user = page.locator(".lf-fp-on-user")
+    expect(on_user).to_be_visible()
     field(page).click()
+    expect(on_user).to_be_hidden()
+    settled(page)
+    opened = field(page).bounding_box()
     send = page.locator(".lf-fp-send")
     page.keyboard.press("Shift+Enter")
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     page.keyboard.press("Backspace")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    settled(page)
+    assert field(page).bounding_box() == opened
     page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
@@ -5372,7 +5373,7 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
         " probe.remove(); return seen; }"
     )
     expect(send).to_have_css("color", accent)
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     settled(page)
     short = page.evaluate(
         "() => { const row = document.querySelector('.lf-fp-row');"
@@ -5386,14 +5387,16 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
     expect(field(page)).not_to_be_focused()
     settled(page)
     expect(send).to_be_visible()
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     assert field(page).bounding_box() == words
     field(page).click()
     settled(page)
     assert field(page).bounding_box() == words
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(on_user).to_be_hidden()
+    page.mouse.click(5, 5)
+    expect(on_user).to_be_visible()
 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):

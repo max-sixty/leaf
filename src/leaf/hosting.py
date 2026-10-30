@@ -647,7 +647,8 @@ def cmd_serve(
         ).start()
         try:
             httpd.serve_forever()
-        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+        except BaseException:
+            # exit_serving skips the interpreter's exception report.
             traceback.print_exc()
         exit_serving(1)
     finally:
@@ -924,7 +925,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     try:
         start_server(page_dir, persistent=persistent, revive=True, harness=harness)
     except StartRefused as error:
-        raise Refused(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}") from error
 
 
 def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:

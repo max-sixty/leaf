@@ -906,7 +906,7 @@ class WebsiteCodexHarness:
                             restarted = self._resume_and_start(
                                 page_dir, turn.session_id, process, turn.event_ids[0]
                             )
-                    except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
+                    except Exception as error:
                         log_agent(
                             "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
@@ -958,7 +958,7 @@ class WebsiteCodexHarness:
             try:
                 if self.attach(page_dir, continuation) is not None:
                     return
-            except Exception:  # noqa: BLE001 - receipted, never raised
+            except Exception:
                 # `attach` has already recorded the fault; what this adds is which of
                 # the two owners answered for it. Every class, because what the user
                 # is owed does not depend on which one: this is the top of a daemon
@@ -1033,7 +1033,7 @@ class WebsiteCodexHarness:
                 {"threadId": thread_id, "turnId": turn_id},
             )
             log_agent("turn_interrupted", turnId=turn_id or None, **fields)
-        except Exception as error:  # noqa: BLE001 - reported, never raised
+        except Exception as error:
             # This runs where a turn is already ending badly, so a fault of its own
             # would replace the ending its caller is in the middle of accounting for.
             log_agent(

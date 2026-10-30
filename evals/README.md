@@ -165,40 +165,32 @@ to an unavailable server. Regenerate the same report with additional run directo
 to keep one entry point for a hill-climbing journey.
 
 For a hill-climbing journey, pass `--review FILE` with an agent-authored JSON
-assessment. The report is a workspace: its title and navigation stay in view
-while the selected result scrolls. **Introduction** opens with the latest run's
-summary and findings, followed by the visible navigation and evidence guide. **Changes
-tested** opens one intervention or diagnostic at a time: Leaf code and authoring
-instructions, or evaluation tooling and the hill-climb skill, with an explicit
-recommendation. Its evidence can include an unchanged plain HTML reference.
-Task tabs identify a wholly latest or reference run group beside the saved case
-title, so repeated case titles do not hide which run they open.
+assessment. **Introduction** gives a short summary and links to the work.
+**Cases & outputs** opens the case tasks and their generated pages; the campaign
+author’s commentary appears separately as **Assessment**. Output captions identify
+the format, author model and saved phase. Links and screenshots open that same phase.
+The output index, task tabs and judge preferences retain the underlying results.
+
+**Changes to Leaf** holds changes selected for review. An experiment with
+`"review": true` gets **Approve change** and **Revisit change** choices on On me.
+Checks, measurements and rejected trials belong in supporting evidence and carry
+no approval. The author selects actual changes explicitly; recommendations and
+scores never infer that selection. Detailed implementation notes follow the changes
+in a disclosure. Existing authorization and landing rules still govern actions.
+
 Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,
-with shared scale and synchronized scrolling at 100%. Output links sit below the
-viewer. HTML-versus-Leaf references use labeled **Plain HTML** and **Leaf** columns,
-without implying a before/after intervention. Other paired captures share caption and image rows, including when their
-links wrap. **Outputs** has one overview and a browser for every saved output;
-rows distinguish this journey from reference outputs reused from other runs.
-With an authored `journey`, **Hill-climbing journey** contains **Story
-& outputs** before the output index. The story explains what each attempt revealed and
-why it led to the next, with the saved screenshots and interactive pages beside
-each attempt, while **Changes tested** keeps the proposed changes and
-retention decisions separate. An experiment tests one hypothesis; the journey connects
-those experiments and their outputs. A run is one eval execution, identified in the
-output’s details. Each lane preserves its supplied step order;
-parallel lanes need no invented global chronology. Steps link to existing output revisions
-or comparisons, so the story and result browser share the evidence.
-The horizontal row starts with **Story & outputs** and **Output index**, followed by
-the saved task tabs. These are views of the same outputs, not additional experiments. Task tabs and
-the output index follow their first appearance in the journey; tasks outside the
-journey follow alphabetically. Without a journey, tasks are alphabetical.
-Single-choice groups appear directly, with tabs only for alternatives. Run identifiers,
-costs, source code and methodology sit in details beside the output they describe.
-Checks distinguish a finished author, a saved output and render validation;
-each saved revision names an incomplete author turn beside its output, including
-when it occupies the scheduled final phase. Quality assessments retain their criteria and reasons. The agent supplies the
-causal interpretation; the renderer never infers improvement from a passing score
-or calls feedback turns independent before/after authors.
+with shared scale and synchronized scrolling at 100%. HTML-versus-Leaf references
+use labeled columns without implying a before/after intervention. Missing captures,
+incomplete author turns and unscored outputs remain visible beside the results.
+Checks, quality grades and pairwise preferences retain their distinct meanings.
+
+A case is the task given to an author; an output is one saved authored page. An
+experiment tests a hypothesis, and a run is an eval execution identified in the
+output’s details. Reusing an output in a comparison does not create another author
+attempt. Each journey lane preserves its supplied step order; parallel lanes need
+no invented global chronology. Task tabs and the output index follow the outputs’
+first appearance in the journey, with remaining tasks in alphabetical order.
+Run identifiers, costs, source code and methodology sit in details beside the output.
 
 Keep the review beside the run results. Paths below are absolute, and every run
 referenced by the review is also an argument to `eval-report`. The `latest.runs`
@@ -245,12 +237,13 @@ executions, such as a short case and a longer workflow.
     {
       "id": "journey-navigation",
       "title": "Patch navigation",
-      "summary": "What this path set out to learn and where it ended.",
+      "summary": "The task given to the authors.",
       "steps": [
         {
           "id": "journey-navigation-baseline",
-          "title": "The baseline changed the question",
+          "title": "Baseline outputs",
           "body": "What we observed, tried, learned, and chose to do next.",
+          "assessment_by": "Campaign author",
           "outputs": [
             {
               "label": "Leaf baseline",
@@ -280,6 +273,8 @@ executions, such as a short case and a longer workflow.
       "id": "change-name",
       "label": "Short navigation label",
       "title": "The change tested",
+      "kind": "UI change",
+      "review": true,
       "period": "When this experiment ran",
       "change": "The intervention and its intended effect.",
       "recommendation": "Keep, revise or reject",
@@ -308,16 +303,17 @@ with the full `finding` visible below. Use empty comparison/evidence arrays wher
 no such evidence exists, and say why in the assessment. Screenshot evidence
 renders inline; other files are linked.
 
-For a hill-climb report that changes code or instructions, supply
-`implementation`, including its `human_review` assessment even when the selection
-is empty. An eval-only report can omit it. This field supplies **What the current
-code changes** in Introduction: summary paragraphs, weaknesses, remaining work
-and an authored **For your review** selection. Select changes whose intent or consequences the
-human should examine personally, such as material changes to goals, agent
-instructions, defaults, guarantees, permissions or data handling. Leave routine
-visual polish in the implementation summary and evidence. This selection is agent
-judgment; file names, diff size and scores do not settle it. Existing authorization
-and landing rules still govern actions.
+The optional experiment `kind` is a visible description such as “UI change”,
+“Documentation”, “Check” or “Rejected trial”. `review` defaults to false; only
+actual changes selected for the user’s decision set it to true. Use concrete
+behavior in titles, so a reader can tell what changed without knowing the campaign’s
+internal terminology.
+
+For a hill-climb report that changes code or instructions, `implementation`
+supplies the collapsed implementation record: summary, weaknesses, remaining work
+and the rationale and evidence in `human_review`. An eval-only report can omit it.
+The experiment’s `review` field owns the interactive decision; implementation notes
+add no second approval for the same change.
 
 For each selected change, explain the before/after implications, why it deserves
 attention, and link reviewable source or a scoped exact diff in `evidence`.
@@ -328,7 +324,7 @@ When inserting a summary into an existing report outside `eval-report`, select
 that package with `leaf page init` before checking, stamping and exporting it.
 
 Use optional `links` with `label` and `target` to connect a selected code change
-to its corresponding **Changes tested** experiment (`#experiment-<id>`), or a
+to its corresponding **Changes to Leaf** experiment (`#experiment-<id>`), or a
 specific comparison (`#experiment-<id>-comparison-<number>`). Select these links
 from the actual relationship; evaluation-contract and report changes may have no
 corresponding product experiment. Keep the original grades when explaining
@@ -387,7 +383,11 @@ scores or file timestamps. Its lane and step IDs are stable page anchors; link
 targets are report fragments such as an experiment or a saved sample revision.
 Each step's optional `outputs` references retained samples in the supplied runs,
 using the same `run`, `sample` and optional `phase` fields as a comparison, plus a
-visible `label`. Their screenshots and direct interactive-page links appear inline.
+visible `label` and optional recorded `model`. A missing model is labeled as
+unrecorded; current harness defaults are not historical evidence. A step’s `body`
+is its assessment, attributed by `assessment_by` (default “Report author”), after
+the generated outputs. The lane’s `summary` supplies the case task. Output
+screenshots and direct interactive-page links appear inline.
 The first shared captured viewport is shown when available; otherwise each output
 shows its first viewport at its labelled recorded dimensions. Other viewports are
 disclosures, not extra tabs. Pair a Leaf attempt with the retained HTML control to

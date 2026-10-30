@@ -116,7 +116,9 @@ function presentViewer(model) {
   render(
     html`
       <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
+        <strong id="lf-media-viewer-title" class="lf-dialog-title"
+          >Image preview</strong
+        >
         <div class="lf-media-viewer-actions">
           ${
             model

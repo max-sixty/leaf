@@ -247,7 +247,7 @@ lf-visual-review {
   flex: 1 1 20rem;
   margin: 0;
   color: var(--muted);
-  font: 12px/1.4 var(--sans);
+  font: var(--t-6)/1.4 var(--sans);
 }
 /* The capture takes the desk's spare height, but never less than its toolbar and a
    frame worth reading: in a short window, where the desk's other regions leave it
@@ -319,11 +319,11 @@ lf-visual-review {
   }
   .lf-vr-progress {
     gap: 10px;
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-vr-case-button {
     padding-block: 8px;
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-vr-case-number {
     display: none;
@@ -332,10 +332,10 @@ lf-visual-review {
     font-size: var(--t-3);
   }
   .lf-vr-claim p {
-    font-size: 13px;
+    font-size: var(--t-working-label);
   }
   .lf-vr-claim .lf-vr-action {
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-vr-decision {
     gap: 8px;
@@ -374,7 +374,7 @@ lf-visual-review {
 }
 .lf-vr-inspection-heading h4 {
   margin: 0;
-  font: 600 15px/1.4 var(--sans);
+  font: 600 var(--t-5)/1.4 var(--sans);
 }
 
 .lf-vr-open-threads {

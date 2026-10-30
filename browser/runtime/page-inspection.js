@@ -35,8 +35,8 @@ import {
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
-const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "About this page"));
+const head = el("div", "lf-dialog-head");
+head.append(el("strong", "lf-dialog-title", "About this page"));
 const copy = copyControl("", {
   label: "Copy diagnostics",
   success: "Diagnostics copied",

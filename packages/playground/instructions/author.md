@@ -208,10 +208,11 @@ in ordinary or custom elements (`references/page-behavior.md`, "A page script").
 The playground owns working values. Its immutable `values` aggregate can hold scalar
 controls, contributor slices, or both. Declare a named structured slice with
 `playground.registerContributor(name, defaults, editor)`.
-Pass the DOM root containing the controls that edit this slice. Clicking another
-playground control moves focus from that editor to the control pressed. Keep visual
-candidates outside the editor root: their focus stays in place while a control changes
-the design, so the user can compare focus treatments, including an input's.
+Pass the DOM root containing the controls that edit this slice. After using that
+editor, pressing another playground control follows the browser's native focus
+behavior. Keep visual candidates outside the editor root: their focus stays in place
+while a control changes the design, so the user can compare focus treatments,
+including an input's.
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a

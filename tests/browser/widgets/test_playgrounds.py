@@ -228,6 +228,125 @@ def test_playground_controls_take_focus_from_editors_and_keep_candidate_focus(
                 )
 
 
+@pytest.mark.parametrize(
+    "browser_fixture", ["browser", "firefox_browser", "webkit_browser"]
+)
+def test_playground_range_preserves_preview_focus_without_cancelling_native_drag(
+    request, browser_fixture, serve, subtests
+):
+    source = CONTRIBUTOR_PAGE.replace(
+        "  <lf-playground-preview>",
+        """  <lf-playground-control name="limit" label="Maximum results"
+          kind="range" value="1" min="1" max="6" step="1"></lf-playground-control>
+  <lf-playground-preview>""",
+    ).replace(
+        "  </lf-playground-preview>",
+        """  <label>Candidate<input id="candidate-input" value="Focus treatment"></label>
+  <lf-sample id="candidate-sample" label="Sample candidate">
+    <template id="candidate-document" data-sample>
+      <input id="sample-input" value="Sample focus treatment">
+    </template>
+  </lf-sample>
+  </lf-playground-preview>""",
+    )
+    page = open_page(request.getfixturevalue(browser_fixture), serve(source))
+
+    def expect_focused(target):
+        node = target.element_handle()
+        node.owner_frame().wait_for_function(
+            "element => element.matches(':focus')", arg=node
+        )
+
+    slider = page.get_by_role("slider", name="Maximum results")
+    editor = page.get_by_role("textbox", name="Region filter")
+    candidate = page.locator("#candidate-input")
+    sample = page.frame_locator("#candidate-sample iframe").locator("#sample-input")
+    # Operate the fresh sample before keyboard focus has visited any parent control.
+    sample.click()
+    page.wait_for_function("document.querySelector('#candidate-sample').focusedContent")
+    box = slider.bounding_box()
+    slider.click(position={"x": box["width"] - 2, "y": box["height"] / 2})
+    expect(slider).to_have_value("6")
+    expect_focused(sample)
+    sample.element_handle().owner_frame().wait_for_function("document.hasFocus()")
+    for target in (candidate, sample):
+        with subtests.test(candidate="sample" if target is sample else "input"):
+            slider.focus()
+            page.keyboard.press("Home")
+            target.click()
+            if target is sample:
+                page.wait_for_function(
+                    "document.querySelector('#candidate-sample').focusedContent",
+                )
+            expect_focused(target)
+            box = slider.bounding_box()
+            slider.click(position={"x": box["width"] - 2, "y": box["height"] / 2})
+            expect(slider).to_have_value("6")
+            expect_focused(target)
+            slider.focus()
+            page.keyboard.press("Home")
+            target.click()
+            if target is sample:
+                page.wait_for_function(
+                    "document.querySelector('#candidate-sample').focusedContent",
+                )
+            page.mouse.move(box["x"] + 8, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            expect_focused(target)
+            page.mouse.move(
+                box["x"] + box["width"] - 8, box["y"] + box["height"] / 2, steps=5
+            )
+            expect(slider).to_have_value("6")
+            expect_focused(target)
+            page.mouse.move(box["x"] + box["width"] + 20, box["y"] + box["height"] / 2)
+            page.mouse.up()
+            expect_focused(target)
+            if target is sample:
+                target.element_handle().owner_frame().wait_for_function(
+                    "document.hasFocus()"
+                )
+                for _ in range(10):
+                    page.keyboard.press("Shift+Tab")
+                    if editor.evaluate("e => e.matches(':focus')"):
+                        break
+            else:
+                editor.click()
+            edited = "sample-value" if target is sample else "native-value"
+            page.keyboard.press("ControlOrMeta+A")
+            page.keyboard.type(edited)
+            expect(editor).to_be_focused(timeout=5000)
+            expect(editor).to_have_value(edited)
+            if target is sample:
+                # An already queued restore delivered after the user leaves cannot
+                # reactivate its child window or reclaim the editor's focus.
+                assert not page.locator("#candidate-sample").evaluate(
+                    "e => e.restoreCurrentLocation()"
+                )
+                expect(editor).to_be_focused(timeout=5000)
+    # A cancelled native default can leave the preview in place. Neither a cancelled
+    # press nor replacing its candidate may claim a later deliberate editor arrival.
+    for ending in ("cancel", "replace"):
+        with subtests.test(ending=ending):
+            candidate.click()
+            slider.evaluate(
+                "e => e.addEventListener('mousedown', event => event.preventDefault(), {once:true})"
+            )
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            if ending == "cancel":
+                slider.dispatch_event("pointercancel")
+            else:
+                candidate.evaluate(
+                    "e => {const replacement=e.cloneNode(true);replacement.setAttribute('value','Second candidate');e.replaceWith(replacement)}"
+                )
+            page.mouse.up()
+            editor.click()
+            page.keyboard.press("ControlOrMeta+A")
+            page.keyboard.type(ending)
+            expect(editor).to_be_focused(timeout=5000)
+            expect(editor).to_have_value(ending)
+
+
 def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, serve):
     script = CONTRIBUTOR_PAGE.index('<script type="module">')
     end = CONTRIBUTOR_PAGE.index("</script>", script) + len("</script>")

@@ -12,12 +12,12 @@
     "x-example": "<span class=\"tag\">experimental</span>"
   },
   ".callout": {
-    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
+    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip can accompany its passage in a layout-note row. Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },
   "section.panel": {
     "description": "A titled region on a sidebar page (`<main class=\"layout-sidebar\">`) holding one thing, such as a table, a log or a list of steps, under a short heading that names it. The heading and spacing group the region without an enclosing card; its contents keep their own visual structure.",
-    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
+    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>\u2026</table>\n</section>"
   },
   ".facts": {
     "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",

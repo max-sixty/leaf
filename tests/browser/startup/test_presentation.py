@@ -1,4 +1,4 @@
-"""How a page dresses what it shows: authored paint before the runtime, link treatment
+"""How a page dresses what it shows: immediate reading, link treatment
 and reduced motion beyond light DOM, reading regions, and the effective colour
 scheme."""
 
@@ -11,7 +11,6 @@ from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_cases_navigation import DATA_PROJECTION_MODULE, data_projection_page
 from render_harness import (
     PANEL,
-    displayed,
     leaf_page,
     open_page,
     stamp_page,
@@ -30,11 +29,9 @@ pytestmark = pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize(
     ("width", "has_touch"), [(390, True), (740, True), (800, False), (1724, False)]
 )
-def test_authored_html_paints_while_runtime_startup_is_held(
+def test_the_document_is_readable_before_runtime_at_its_authored_position(
     browser, serve, width, has_touch
 ):
-    """Immediate authored paint is the contract for every page, not an example mode.
-    No chrome stands over the window's head, so the page starts at its top."""
     boot = []
     context = browser.new_context(
         viewport={"width": width, "height": 900}, has_touch=has_touch
@@ -42,39 +39,24 @@ def test_authored_html_paints_while_runtime_startup_is_held(
     page = context.new_page()
     watched(page)
     page.route("**/leaf.js", lambda route: boot.append(route))
-
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(
-                serve(leaf_page("Startup", "<h1>Startup</h1>")),
-                wait_until="commit",
+                serve(leaf_page("Startup", "<h1>Startup</h1>")), wait_until="commit"
             )
-        displayed(page)
         expect(page.locator("h1")).to_be_visible()
-        assert page.locator("h1").evaluate(
-            "element => element.checkVisibility({"
-            "opacityProperty: true, visibilityProperty: true})"
-        ), "authored words occupied a box but did not paint"
-
-        assert boot, "the positive control did not hold the preview boot module"
-        expect(page.locator("html")).to_have_attribute("data-lf-live", "")
-        expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         initial = page.locator("body > main").bounding_box()
-        assert initial["y"] == pytest.approx(0, abs=1)
-        assert page.locator("body").bounding_box()["height"] == pytest.approx(
-            900, abs=1
-        )
-        assert (
-            page.evaluate("() => getComputedStyle(document.body, '::after').content")
-            == "none"
-        ), "a startup sheet replaced the authored document before runtime arrived"
-
+        assert boot, "the positive control did not hold the boot module"
         boot.pop().continue_()
         wait_until_ready(page)
         presented = page.locator("body > main").bounding_box()
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
-        ), f"runtime startup moved the {width}px shell"
+        ), "runtime startup moved the shell"
+        expect(page.locator("h1")).to_be_visible()
+        assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
+            0, abs=1
+        )
         assert page.locator("body").bounding_box()["height"] == pytest.approx(
             900, abs=1
         )
@@ -84,8 +66,9 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         page.unroute_all(behavior="wait")
 
 
-def test_external_link_geometry_is_complete_before_runtime_startup(browser, serve):
-    """The inline mark must not rewrap prose when the module graph arrives."""
+def test_external_links_have_their_navigation_treatment_when_the_page_reveals(
+    browser, serve
+):
     source = leaf_page(
         "External link",
         '<h1>Read the change</h1><p id="copy">'
@@ -95,72 +78,15 @@ def test_external_link_geometry_is_complete_before_runtime_startup(browser, serv
         "the supervisor owns the sandbox process tree, and bounded files cross back."
         "</span></p>",
     )
-    boot = []
-    page = browser.new_page(viewport={"width": 678, "height": 900})
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    geometry = """() => {
-      const range = document.createRange();
-      range.selectNodeContents(document.querySelector('#after'));
-      return [...range.getClientRects()].map(rect => rect.toJSON());
-    }"""
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
-        displayed(page)
-        expect(page.locator("#copy")).to_be_visible()
-        before = page.evaluate(geometry)
-        assert before, "the authored words did not have visible geometry"
-        assert boot, "the positive control did not hold the boot module"
-        authored = page.locator("#link").evaluate(
-            "link => document.documentElement.lfInitial.authoredCopy(link).outerHTML"
-        )
-        assert authored == (
-            '<a id="link" href="https://example.com/change" target="_self" rel="author">'
-            "Pull request with <strong>evidence</strong></a>"
-        )
-        boot.pop().continue_()
-        wait_until_ready(page)
-        expect(page.locator("#link > svg.lf-external-mark")).to_be_visible()
-        expect(page.locator("#link")).to_have_attribute("target", "_blank")
-        assert page.evaluate(geometry) == before
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
-
-
-def test_a_later_map_only_sidebar_keeps_its_flow_spacing_before_startup(browser, serve):
-    source = leaf_page(
-        "Later contents",
-        """
-<h1>Contents</h1>
-<aside class="sidebar">First sidebar</aside>
-<p>Before the later outline.</p>
-<aside class="sidebar" id="later"><lf-toc id="contents"></lf-toc></aside>
-<h2 id="after">After the outline</h2>
-""",
+    page = open_page(
+        browser,
+        serve(source),
+        context=browser.new_context(viewport={"width": 678, "height": 900}),
     )
-    boot = []
-    page = browser.new_page(viewport={"width": 1724, "height": 900})
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
-        displayed(page)
-        assert boot, "the positive control did not hold the boot module"
-        later = page.locator("#later")
-        expect(later).to_have_css("display", "flow-root")
-        expect(later).to_have_css("margin-top", "24px")
-        expect(later).to_have_css("margin-bottom", "30px")
-
-        boot.pop().continue_()
-        wait_until_ready(page)
-        expect(later).to_have_css("display", "flow-root")
-        expect(later).to_have_css("margin-bottom", "30px")
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
+    expect(page.locator("#copy")).to_be_visible()
+    expect(page.locator("#link")).to_have_attribute("data-lf-external", "")
+    expect(page.locator("#link")).to_have_attribute("target", "_blank")
+    expect(page.locator("#link")).to_have_attribute("rel", "author noopener")
 
 
 def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
@@ -223,7 +149,7 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
     expect(links.first).to_have_attribute("target", "_blank")
-    expect(links.first.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(links.first).to_have_attribute("data-lf-external", "")
     api = page.locator('[data-lf-datum="api"] a')
     api.evaluate("link => { link.target = '_parent'; link.rel = 'author next'; }")
     expect(api).to_have_attribute("target", "_blank")
@@ -243,7 +169,7 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     expect(api).to_have_attribute("target", "_parent")
     expect(api).to_have_attribute("rel", "author next")
     expect(api).not_to_have_attribute("aria-describedby", re.compile(".+"))
-    expect(api.locator(":scope > .lf-external-mark")).to_have_count(0)
+    expect(api).not_to_have_attribute("data-lf-external", "")
 
     worker = page.locator('[data-lf-datum="worker"] a')
     detached_worker = worker.element_handle()
@@ -258,9 +184,9 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           target: link.getAttribute('target'),
           rel: link.getAttribute('rel'),
           describedBy: link.getAttribute('aria-describedby'),
-          mark: link.querySelector('.lf-external-mark'),
+          mark: link.hasAttribute('data-lf-external'),
         })"""
-    ) == {"target": "_self", "rel": "author", "describedBy": None, "mark": None}
+    ) == {"target": "_self", "rel": "author", "describedBy": None, "mark": False}
 
     api.evaluate("link => { link.href = 'https://example.com/again'; }")
     expect(api).to_have_attribute("target", "_blank")
@@ -271,9 +197,9 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           target: link.getAttribute('target'),
           rel: link.getAttribute('rel'),
           describedBy: link.getAttribute('aria-describedby'),
-          mark: link.querySelector('.lf-external-mark'),
+          mark: link.hasAttribute('data-lf-external'),
         })"""
-    ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
+    ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": False}
 
 
 @pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
@@ -484,13 +410,15 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_accessible_name(name)
         expect(link).to_have_accessible_description("opens in a new tab")
-        expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
-    expect(shadow_link.locator(":scope > .lf-external-mark")).to_have_css(
-        "display", "inline-block"
+        expect(link).to_have_attribute("data-lf-external", "")
+    assert (
+        shadow_link.evaluate("link => getComputedStyle(link, '::after').display")
+        == "inline-block"
     )
 
     stamp_page(serve.page_dir, authored.replace("Late links", "Later links"), "later")
     wait_for_revision(page, 2)
+    expect(page.locator("#settled-link")).to_have_attribute("data-lf-external", "")
     expect(page.locator("#settled-link")).to_have_accessible_name("settled destination")
     expect(page.locator("#settled-link")).to_have_accessible_description(
         "opens in a new tab"

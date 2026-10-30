@@ -43,13 +43,15 @@ import { build } from "rolldown";
 import { parse } from "acorn";
 
 import { signalsPath } from "./browser/build.mjs";
+import kernel from "../browser/runtime/kernel-registry.json" with { type: "json" };
 
 export const runtimeEntries = [
   "leaf.js",
   "runtime/layer-client.js",
   "runtime/media.js",
-  "runtime/widget-api.js",
-  "runtime/portable-api.js",
+  ...kernel["$public-modules"].paths
+    .filter((path) => path.startsWith("/runtime/"))
+    .map((path) => path.slice(1)),
   "runtime/check-api.js",
 ];
 
@@ -100,6 +102,17 @@ function moduleUrlReads(source) {
   return ranges.sort(([a], [b]) => a - b);
 }
 
+/** Module sources are strings by Acorn's grammar; its general Literal type is wider.
+ * @param {import("acorn").Program} module
+ */
+function moduleSources(module) {
+  return module.body.flatMap((node) =>
+    "source" in node && node.source
+      ? [/** @type {import("acorn").Literal & { value: string }} */ (node.source)]
+      : [],
+  );
+}
+
 /** Static declarations of one captured native module, resolved by layer path. */
 async function nativeImports(layerRoot, local, assetRoot) {
   const path = join(layerRoot, local);
@@ -107,16 +120,13 @@ async function nativeImports(layerRoot, local, assetRoot) {
     ecmaVersion: "latest",
     sourceType: "module",
   });
-  return module.body
-    .filter((node) => node.source)
-    .map((node) => {
-      const specifier = node.source.value;
-      return specifier.startsWith("/")
-        ? (layerPath(specifier, assetRoot) ?? specifier)
-        : specifier.startsWith(".")
-          ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
-          : specifier;
-    });
+  return moduleSources(module).map(({ value: specifier }) => {
+    return specifier.startsWith("/")
+      ? (layerPath(specifier, assetRoot) ?? specifier)
+      : specifier.startsWith(".")
+        ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
+        : specifier;
+  });
 }
 
 /** The modules `runtime/portable-api.js` re-exports, which the compiler captures with
@@ -131,9 +141,7 @@ async function portableHomes(layerRoot) {
     sourceType: "module",
   });
   return new Set(
-    module.body
-      .filter((node) => node.source)
-      .map((node) => resolve(dirname(entry), node.source.value)),
+    moduleSources(module).map(({ value }) => resolve(dirname(entry), value)),
   );
 }
 
@@ -235,10 +243,10 @@ function kernelFacts(layerRoot, read) {
     async load(path) {
       if (path !== facts) return null;
       let source = await readFile(path, "utf8");
-      const imports = parse(source, { ecmaVersion: "latest", sourceType: "module" })
-        .body.filter((node) => node.source)
-        .reverse();
-      for (const { source: specifier } of imports) {
+      const imports = moduleSources(
+        parse(source, { ecmaVersion: "latest", sourceType: "module" }),
+      ).reverse();
+      for (const specifier of imports) {
         if (!specifier.value.endsWith(".json"))
           throw new Error(`${path} may import only JSON, not ${specifier.value}`);
         const file = resolve(dirname(path), specifier.value);
@@ -284,7 +292,14 @@ async function compile(layerRoot, entries, assetRoot, minify) {
     },
     write: false,
   });
-  return { ...result, nativeImports: native.imports, inlined };
+  // Native resources stay external; neither plugin emits assets, and this build
+  // enables neither asset loaders nor source maps, so its outputs are JS chunks.
+  return {
+    ...result,
+    output: /** @type {import("rolldown").OutputChunk[]} */ (result.output),
+    nativeImports: native.imports,
+    inlined,
+  };
 }
 
 /** The website's minified rebundle and static dependency graph, by layer path.

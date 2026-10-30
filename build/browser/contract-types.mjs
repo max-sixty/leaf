@@ -213,7 +213,7 @@ print(json.dumps({"references": leaf_resources(), "records": records}))
  * kernel event records and browser commands (`$events`), the served state, the x-state
  * verb, and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
-  const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
+  const read = async (file) => JSON.parse(await readFile(new URL(file, root), "utf8"));
   const { $events } = await read("browser/runtime/kernel-registry.json");
   const { references, records } = pythonSchemas(root);
   return {
@@ -256,7 +256,7 @@ function written(schema, references) {
 
 export async function contractTypes(root, { events, served, verb }) {
   const registry = JSON.parse(
-    await readFile(new URL("browser/runtime/kernel-registry.json", root)),
+    await readFile(new URL("browser/runtime/kernel-registry.json", root), "utf8"),
   );
   return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
 }

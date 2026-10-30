@@ -91,9 +91,10 @@ a record or system page, put each question in the part of the page it decides: a
 question about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a question about the whole record comes last.
 
-Where a table, chart or playground inside the question, or the pictures in
-its options, can't be read at the prose's width, give that block, or the `lf-options`,
-its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
+Where evidence or option pictures need more than the prose's width, set `data-width`
+on the `lf-ask` or, for a question without one, its answering widget. Nested blocks
+with their own prose limit, such as `lf-options`, also need `data-width`
+(`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how

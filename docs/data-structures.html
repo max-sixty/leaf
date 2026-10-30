@@ -41,84 +41,91 @@
     </style>
   </head>
   <body class="site-page">
-    <main class="layout-column">
-      <nav class="sitenav" aria-label="Site"></nav>
-
-      <header id="top">
-        <p class="eyebrow">reference</p>
-        <h1>Data structures</h1>
-        <p class="lede" id="lede">
-          Leaf uses JSON for the state the server sends to the browser, the events in a
-          page's log, and the records stored beside the log. Each table below lists one
-          structure's fields with their types, whether each is required, and what it
-          means.
-        </p>
-        <p id="lede-source">
-          The tables are generated from the schemas Leaf validates and tests against, so
-          they change when the code does. An event kind's meaning is written once, in
-          <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
-            >Events and threads</a
-          >, which each kind below links to. How the pieces fit together is on
-          <a href="/how-it-works/">How it works</a>.
-        </p>
-      </header>
-
-      <aside class="sidebar" id="data-structures-route">
-        <lf-toc id="data-structures-contents"></lf-toc>
+    <main class="layout-sidebar">
+      <aside id="data-structures-route">
+        <div class="layout-track">
+          <lf-toc id="data-structures-contents"></lf-toc>
+        </div>
       </aside>
+      <div class="layout-column">
+        <nav class="sitenav" aria-label="Site"></nav>
 
-      <section id="served">
-        <h2>Served state</h2>
-        <p id="served-lede">
-          The page's runtime reads the state from <code>GET /api/state</code>. The
-          definitions at the end of this section describe JSON responses to POST
-          requests. The user-view and interaction endpoints return no response body.
-          <code>leaf page state</code> prints selected fields from the same state.
-        </p>
-        <div class="schema-list" data-schemas="served"></div>
-      </section>
+        <header id="top">
+          <p class="eyebrow">reference</p>
+          <h1>Data structures</h1>
+          <p class="lede" id="lede">
+            Leaf uses JSON for the state the server sends to the browser, the events in
+            a page's log, and the records stored beside the log. Each table below lists
+            one structure's fields with their types, whether each is required, and what
+            it means.
+          </p>
+          <p id="lede-source">
+            The tables are generated from the schemas Leaf validates and tests against,
+            so they change when the code does. An event kind's meaning is written once,
+            in
+            <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
+              >Events and threads</a
+            >, which each kind below links to. How the pieces fit together is on
+            <a href="/how-it-works/">How it works</a>.
+          </p>
+        </header>
 
-      <section id="events">
-        <h2>Events</h2>
-        <p id="events-lede">
-          Each line of a page's <code>events.jsonl</code> is one event, validated
-          against the schema for its kind before it is appended. The first table lists
-          the fields every kind shares; each kind's table lists the rest.
-        </p>
-        <div class="schema-list" data-schemas="events"></div>
-      </section>
+        <section id="served" class="layout-flow">
+          <h2>Served state</h2>
+          <p id="served-lede">
+            The page's runtime reads the state from <code>GET /api/state</code>. The
+            definitions at the end of this section describe JSON responses to POST
+            requests. The user-view and interaction endpoints return no response body.
+            <code>leaf page state</code> prints selected fields from the same state.
+          </p>
+          <div class="schema-list" data-schemas="served"></div>
+        </section>
 
-      <section id="records">
-        <h2>Records</h2>
-        <p id="records-lede">
-          Leaf keeps these JSON files outside a page's log and document, in the page
-          directory, the machine's state home, or the browser's storage. Each carries a
-          <code>format</code> naming the protocol at which its shape last changed.
-          <code>delivery</code> is the envelope an agent reads with
-          <code>leaf delivery read</code>.
-        </p>
-        <div class="schema-list" data-schemas="records"></div>
-      </section>
+        <section id="events" class="layout-flow">
+          <h2>Events</h2>
+          <p id="events-lede">
+            Each line of a page's <code>events.jsonl</code> is one event, validated
+            against the schema for its kind before it is appended. The first table lists
+            the fields every kind shares; each kind's table lists the rest.
+          </p>
+          <div class="schema-list" data-schemas="events"></div>
+        </section>
 
-      <section id="interactions">
-        <h2>Interaction batch</h2>
-        <p id="interactions-lede">
-          The browser posts what it observed of the user's session, such as DOM events,
-          to the page's diagnostic trace, <code>observations.jsonl</code>. Nothing in
-          the page's state is read from it.
-        </p>
-        <div class="schema-list" data-schemas="interactions"></div>
-      </section>
+        <section id="records" class="layout-flow">
+          <h2>Records</h2>
+          <p id="records-lede">
+            Leaf keeps these JSON files outside a page's log and document, in the page
+            directory, the machine's state home, or the browser's storage. Each carries
+            a
+            <code>format</code> naming the protocol at which its shape last changed.
+            <code>delivery</code> is the envelope an agent reads with
+            <code>leaf delivery read</code>.
+          </p>
+          <div class="schema-list" data-schemas="records"></div>
+        </section>
 
-      <footer class="site-footer" id="colophon">
-        <p id="links">
-          <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> ·
-          <a href="/extending/">Extending</a> ·
-          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
-          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
-        </p>
-      </footer>
+        <section id="interactions" class="layout-flow">
+          <h2>Interaction batch</h2>
+          <p id="interactions-lede">
+            The browser posts what it observed of the user's session, such as DOM
+            events, to the page's diagnostic trace, <code>observations.jsonl</code>.
+            Nothing in the page's state is read from it.
+          </p>
+          <div class="schema-list" data-schemas="interactions"></div>
+        </section>
+
+        <footer class="site-footer" id="colophon">
+          <p id="links">
+            <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+            <a href="/how-it-works/">How it works</a> ·
+            <a href="/extending/">Extending</a> ·
+            <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+            <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE"
+              >MIT license</a
+            >
+          </p>
+        </footer>
+      </div>
     </main>
   </body>
 </html>

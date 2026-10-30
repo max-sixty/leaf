@@ -385,7 +385,6 @@ EXTENSION_SCHEMA = {
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-margin-content": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
@@ -453,14 +452,15 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic script registering a synchronous Lit view factory. Delivery
-        # supplies lfInitial.lit before it runs, then draws each complete host;
-        # the module continues that view in its existing rendering root.
-        "x-initial": {
-            "type": "string",
-            "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
+        "x-views": {
+            "type": "object",
+            "properties": {
+                "members": {"type": "string", "minLength": 1},
+                "parts": {"const": True},
+            },
+            "required": ["members"],
+            "additionalProperties": False,
         },
-        "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",

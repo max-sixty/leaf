@@ -27,12 +27,14 @@ lf-trace {
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
-/* Before its module connects, reserve the waiting line without generating copy.
- * The live template owns the actual waiting message. */
-lf-trace:not(:defined)::before {
-  content: "";
-  display: block;
-  block-size: 1lh;
+
+/* The module's waiting line replaces this fixed-height slot when it connects. */
+@scope (html[data-lf-interactive]) {
+  lf-trace:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: 1lh;
+  }
 }
 .lf-trace-view {
   display: contents;
@@ -163,10 +165,6 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--r);
   font: var(--lf-trace-small-type) / 1 var(--sans);
   font-variant-numeric: tabular-nums;
-}
-.lf-trace-timeline[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 .lf-trace-lane-names {
   display: grid;
@@ -531,11 +529,6 @@ lf-trace[hidden="until-found"] {
   margin: 0;
   min-inline-size: 0;
 }
-.lf-trace-moments-heading {
-  margin: 0;
-  font-size: var(--lf-trace-small-type);
-  color: var(--muted);
-}
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
@@ -569,12 +562,10 @@ lf-trace[hidden="until-found"] {
   --lf-top: 0px;
   --lf-holds-height: 1;
 }
-.lf-trace-metadata[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-metadata > details > summary[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+/* The scroller and the rows it holds stand their rings inside their edges, which the
+   scroller clips (base.css, "Where it stands"). */
+:is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-readout {
   margin-block: var(--sp-1) var(--sp-2);
@@ -782,9 +773,8 @@ lf-trace-bookmark {
   block-size: var(--lf-trace-control-size);
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button[data-lf-focus-visible],
-.lf-trace-bookmark[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+.lf-trace-transport-button {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);
@@ -891,13 +881,7 @@ lf-trace-bookmark {
   z-index: 3;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-no-moments {
-  margin: 0;
-  padding: var(--sp-2);
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  outline-offset: var(--focus-ring-inset);
 }
 
 @container (max-width: 480px) {
@@ -962,6 +946,7 @@ lf-trace-compare {
   flex-direction: column;
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
+  --lf-trace-chooser-padding: var(--sp-2);
   font: var(--t-5) / 1.45 var(--sans);
 }
 .lf-trace-compare-controls {
@@ -970,17 +955,19 @@ lf-trace-compare {
   --lf-head-inset: var(--sp-2);
   z-index: 4;
   background: var(--paper);
-  padding-block: var(--sp-2);
+  padding-block: var(--lf-trace-chooser-padding);
   border-block-end: 1px solid var(--border-2);
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
 }
 @media (max-width: 600px) {
+  lf-trace-compare {
+    --lf-trace-chooser-padding: var(--sp-1);
+  }
   .lf-trace-compare-controls {
     position: static;
     --lf-head-inset: initial;
-    padding-block: var(--sp-1);
   }
 }
 lf-trace-compare > *,
@@ -988,20 +975,15 @@ lf-trace-compare lf-trace {
   margin-block: 0;
 }
 
-/* Prepaint chooses the same recording as the upgraded workspace. Without an
- * interactive runtime, every labeled recording remains available in page flow. */
-@scope (html[data-lf-interactive] lf-trace-compare) {
-  :scope:is(lf-trace-compare):not(:defined) {
-    &::before {
-      content: "";
-      display: block;
-      /* Match the upgraded chooser's bottom border as well as its control and padding. */
-      block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1) + 1px);
-      margin-block-end: var(--sp-2);
-    }
-    & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) {
-      display: none;
-    }
+/* The chooser has fixed apparatus geometry; its native slot holds that room
+ * while the module loads. View selection remains the shared view owner's job. */
+@scope (html[data-lf-interactive]) {
+  lf-trace-compare:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: calc(
+      var(--lf-trace-control-size) + 2 * var(--lf-trace-chooser-padding) + 1px
+    );
   }
 }
 

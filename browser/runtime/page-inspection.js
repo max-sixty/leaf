@@ -5,6 +5,7 @@
  * here changes authored content, starts a website session, or polls for updates.
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
+import { describeFailure } from "./exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -35,8 +36,8 @@ import {
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
-const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "About this page"));
+const head = el("div", "lf-dialog-head");
+head.append(el("strong", "lf-dialog-title", "About this page"));
 const copy = copyControl("", {
   label: "Copy diagnostics",
   success: "Diagnostics copied",
@@ -357,7 +358,7 @@ async function loadSource() {
     report = { ...source, current_view: report.current_view };
   } catch (error) {
     if (request !== attempt || !dialog.open) return;
-    sourceError = `Source inspection unavailable: ${error.message}`;
+    sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
   } finally {
     if (request === attempt && dialog.open) {
       loading = false;

@@ -217,10 +217,8 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-margin-content": "map",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-toc-initial.js",
-    "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
+    "x-example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
   "lf-activity": {
     "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
@@ -238,7 +236,6 @@
     "x-bound": "start",
     "x-history": true,
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-activity-initial.js",
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {
@@ -466,7 +463,6 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-shot-initial.js",
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
@@ -560,7 +556,7 @@
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `class=\"layout-flow\"` to share the document tracks without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {
@@ -577,7 +573,7 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-patch": "members",
-    "x-views": true,
+    "x-views": { "members": "lf-tab" },
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
@@ -601,11 +597,11 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-initial": "/vendor/lf-tally-initial.js",
     "x-refers": {
       "for": {}
     },
     "x-upgrade": true,
+    "x-shadow": true,
     "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
@@ -649,7 +645,7 @@
     "x-content": "members",
     "x-upgrade": true,
     "x-patch": "members",
-    "x-views": "parts",
+    "x-views": { "members": "lf-part", "parts": true },
     "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
   },
   "lf-part": {

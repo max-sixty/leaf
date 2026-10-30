@@ -6,7 +6,7 @@
  * link as a link, a heading in bold, a list item at the message's inset under the
  * message's own marker, a picture as the picture, drawn after its source while the
  * caret is in it, and a link that leaves the page with the mark the page draws after
- * one (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
+ * one (declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
  * hashes, list markers, a picture's source) is hidden unless the selection touches the
  * construct. List markers reveal their source only inside the marker: the caret after
  * its trailing space is ready to type content, so even an empty new item already shows
@@ -256,8 +256,8 @@ sheet.replaceSync(`
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
-    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
-    stroke-linejoin: round; overflow: visible; user-select: none;
+    background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
+    user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
      and code with no fence lines takes that padding at its ends instead. A field that

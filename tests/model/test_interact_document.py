@@ -268,7 +268,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     (authored / "nested").mkdir(parents=True)
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
-        'import "/runtime/widget-api.js"; window.result = value;'
+        'import "/runtime/widget-api.js"; import "/vendor/lit.js"; window.result = value;'
     )
     (authored / "nested" / "value.js").write_text(
         'export { value } from "../value.js";'
@@ -305,6 +305,8 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     # The public module app.js imports is the runtime's, which the delivering Leaf
     # supplies, so the revision holds none of it.
     assert "/runtime/widget-api.js" not in artifact.resources
+    assert "/vendor/lit.js" not in artifact.resources
+    assert "/vendor/lit.js" in executing(artifact).resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
@@ -477,7 +479,6 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./data.json?variant";', "dependency-not-local"),
         ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
-        ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./notes.txt";', "module-type"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
         # A symlink out of page/ is refused whether or not anything names it, since

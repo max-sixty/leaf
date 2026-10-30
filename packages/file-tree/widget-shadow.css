@@ -18,9 +18,8 @@
 }
 /* Rows touch one another and their viewport clips at either edge. Draw Leaf's
  * one actual-focus ring inside the row instead of adding it around Trees' ring. */
-:host(lf-file-tree) [role="treeitem"][data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-file-tree) [role="treeitem"] {
+  outline-offset: var(--focus-ring-inset);
 }
 :host(lf-file-tree) [role="treeitem"][data-lf-focus]::before {
   display: none;

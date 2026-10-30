@@ -371,8 +371,6 @@ lf-option[chosen] > .lf-pick::before {
   }
 }
 lf-option .lf-pick[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
   border-radius: var(--r-s);
 }
 /* The obligation's action keys, on the cells they bind. The gutter reads status, badge, then
@@ -482,7 +480,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     }
     /* Every cell paints its own ground, joined or apart, and its state changes that
      * ground. The add cell states nothing: it opens at the cells' column (the floor
-     * above) and paints the shared `--fill`, so it follows both when they change. */
+     * above) and paints the shared `--fill`, so it follows both when they change. A
+     * row stands its ring, and every mark on it, one band inside its edge (base.css,
+     * "Where it stands"), so the joined group's clip leaves it whole. */
+    & > lf-option {
+      outline-offset: var(--focus-ring-inset);
+    }
     & > * {
       --fill: var(--card);
       --lf-ground: var(--fill);
@@ -541,10 +544,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * are joined for the rules that dress an option standing alone. */
     --lf-block-frame: 1;
     --lf-joined: 1;
-    /* The group clips to its frame, so a control's ring is drawn inset (base.css,
-     * --focus-ring) or the clip cuts it. */
-    & .lf-btn[data-lf-focus-visible] {
-      outline-offset: calc(-1 * var(--focus-ring-w));
+    /* The group clips to its frame, so its controls stand their rings, and every mark
+     * on them, inside their edges (base.css, "Where it stands"), or the clip cuts
+     * them. */
+    & .lf-btn {
+      outline-offset: var(--focus-ring-inset);
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -656,7 +660,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   /* Focus inside the control is carried by the exact row, so the obligation's location ring
    * around it is suppressed rather than reading as a second border. The obligation is matched
    * as a widget root as well as a descendant, so an obligation at the page's top level is
-   * reached too. */
+   * reached too, and so is a choosing lf-options that is the obligation itself. */
   :is(
       lf-activity,
       lf-ask,
@@ -709,13 +713,15 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         *
     )[data-lf-obligation]:has(
       lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus-visible]
+    ),
+  lf-options[choose][data-lf-obligation]:not(:where([data-lf-exhibit]) *):has(
+      [data-lf-focus-visible]
     ) {
     --lf-obligation-ring: none;
   }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* The landing reads the row's ring carrier in the focus task, before the
    * visible-focus marker is painted. */
@@ -728,10 +734,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
     > .lf-another:has(leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
     --lf-wears-ring: 1;
   }
   .lf-another {
+    outline-offset: var(--focus-ring-inset);
     --lf-option-add-seat-inset: var(--sp-1);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
@@ -947,6 +953,7 @@ lf-options[settled] > .lf-settled {
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: var(--r);
+  outline-offset: var(--focus-ring-inset);
 }
 /* The row's gap parts its disclosure arrow from its words. */
 lf-options[settled] > .lf-settled::before {
@@ -958,10 +965,6 @@ lf-options[settled] > .lf-settled[aria-expanded="false"] {
 }
 lf-options[settled] > .lf-settled:hover {
   border-color: var(--border-2);
-}
-lf-options[settled] > .lf-settled[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-settled-diff {
   margin-inline-start: auto;

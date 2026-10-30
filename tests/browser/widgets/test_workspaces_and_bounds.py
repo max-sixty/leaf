@@ -785,7 +785,8 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
 def test_workspace_end_room_stays_inside_the_last_reading_region(
     browser, serve, container
 ):
-    """The frame reaches the window's foot; its final control scrolls clear of chrome.
+    """The frame and its focus-ring clearance reach the window's foot; its final
+    control scrolls clear of chrome.
 
     Nested page and side views exercise the transfer: reserving clearance on the
     outside view instead leaves a band below the actual reading pane. Keyboard travel
@@ -810,7 +811,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         scroller = "#reading"
     elif container == "views":
         content = (
-            '<lf-tabs id="outer"><lf-tab id="review" label="Review">'
+            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review" label="Review">'
             '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
             + reading
             + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'
@@ -887,11 +888,22 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             const frame = document.querySelector(selector).getBoundingClientRect();
             const end = document.getElementById('reading-end').getBoundingClientRect();
             const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
-            return {frameBottom: frame.bottom, endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
+            const outer = document.getElementById('outer');
+            const style = getComputedStyle(outer ?? document.documentElement);
+            const outside = outer ? parseFloat(style.paddingBottom) : 0;
+            const ringRoom = parseFloat(style.getPropertyValue('--focus-region-gap'))
+              + parseFloat(style.getPropertyValue('--focus-ring-w'));
+            return {frameBottom: frame.bottom, outside, ringRoom,
+                    endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
         }""",
             frame,
         )
-        assert geometry["frameBottom"] == pytest.approx(height, abs=6), geometry
+        # A containing view may keep its ring outside the frame, but must pass
+        # the floating panel's much larger clearance into the reading region.
+        assert geometry["outside"] <= geometry["ringRoom"], geometry
+        assert geometry["frameBottom"] + geometry["outside"] == pytest.approx(
+            height, abs=1
+        ), geometry
         assert geometry["endBottom"] <= geometry["panelTop"] + 1, geometry
 
 
@@ -996,11 +1008,14 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
       const left = box.left + parseFloat(style.paddingLeft);
       const right = box.right - parseFloat(style.paddingRight);
       read.main = {{left, right, width: right - left}};
-      const track = document.querySelector('[data-lf-track-body]');
+      const track = document.querySelector('#lp-rail > .layout-track');
       const trackBox = track.getBoundingClientRect();
       const trackStyle = getComputedStyle(track);
       read.track = {{
         right: trackBox.right,
+        width: trackBox.width,
+        contentWidth: trackBox.width - parseFloat(trackStyle.paddingLeft)
+          - parseFloat(trackStyle.paddingRight),
         contentRight: trackBox.right - parseFloat(trackStyle.paddingRight),
       }};
       return read;
@@ -1038,7 +1053,8 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     narrow = page.evaluate(boxes)
     assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
     assert narrow["lp-checks"]["top"] >= narrow["lp-steps"]["bottom"]
-    assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
+    assert narrow["track"]["width"] == narrow["lp-log"]["width"]
+    assert narrow["lp-steps"]["width"] == narrow["track"]["contentWidth"]
 
     page.emulate_media(media="print")
     assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"

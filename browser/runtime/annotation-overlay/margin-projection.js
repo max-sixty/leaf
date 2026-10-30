@@ -1312,6 +1312,14 @@ export function createMarginProjection({
   // that target and the card stays up beside it, since the user is still there,
   // and letting go of the target is the next press. From the entry it hangs from, the
   // press takes the card down.
+  // That step is the keyboard's way to work the target with its discussion beside it,
+  // as when an ask's thread is up while the user moves among its options. It is the
+  // same whichever way the card opened, though a click leaves focus in the card with no
+  // ring, so its first press shows the ring arriving on the target. The user chose
+  // this (2026-10-29) over closing the card on the first press, which leaves no way
+  // onto the target with the card up, and over stepping out only while the card wears
+  // the ring, which made Escape the one key to read the ring while the card's other
+  // keys act on its thread either way.
   // A cluster the user unfolded themselves and opened the card from is a level of
   // their own under the card, and the card hands back to it instead (below).
   const unfoldedUnder = () => {

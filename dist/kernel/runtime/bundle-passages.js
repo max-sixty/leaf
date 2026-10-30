@@ -240,18 +240,20 @@ const authored = (root) => {
 	const frame = frameOf(root);
 	return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
 };
-function walk(root, onText, skip = null, onBreak = null) {
+function walk(root, onText, skip = null, onBreak = null, onElement = null) {
 	const frame = frameOf(root);
 	const passed = /* @__PURE__ */ new Map();
 	const contextOver = (node) => {
 		const over = elementOver(node);
 		return passed.get(over) ?? contextAt(over, frame);
 	};
-	const visit = (node, ctx) => {
+	const visit = (node, ctx, host = null) => {
+		const element = host ?? (node.nodeType === Node.ELEMENT_NODE ? node : null);
 		if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
 			onBreak?.(ctx);
 			return;
 		}
+		if (element) onElement?.(element, ctx, true);
 		for (let child = node.firstChild; child; child = child.nextSibling) {
 			if (child.nodeType === Node.TEXT_NODE) {
 				if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
@@ -262,34 +264,57 @@ function walk(root, onText, skip = null, onBreak = null) {
 			const inner = enter(ctx, child);
 			if (child.localName === "slot") {
 				passed.set(child, inner);
+				onElement?.(child, inner, true);
 				for (const assigned of child.assignedNodes({ flatten: true })) assigned.nodeType === Node.TEXT_NODE ? onText(assigned, contextOver(assigned)) : visit(assigned, enter(contextOver(assigned), assigned));
+				onElement?.(child, inner, false);
 			} else {
 				const declared = declaredRoot(child);
 				if (declared && !refusesBareText(declared)) {
 					passed.set(child, inner);
-					visit(declared, crossed(inner));
+					visit(declared, crossed(inner), child);
 				} else visit(child, inner);
 			}
 		}
+		if (element) onElement?.(element, ctx, false);
 	};
 	const host = shadowHost(root);
 	visit(root, root.nodeType === Node.ELEMENT_NODE ? contextAt(root, frame) : host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
-function textNodesUnder(root, reading = "says", boundary = null) {
+function textNodesUnder(root, reading = "says", boundary = null, format = "prose") {
 	const keeps = READINGS[reading];
 	const segments = [];
 	let breakBefore = false;
+	let lineBefore = "";
+	const styles = /* @__PURE__ */ new Map();
+	const style = (element) => {
+		if (!styles.has(element)) styles.set(element, getComputedStyle(element));
+		return styles.get(element);
+	};
 	walk(root, (node, ctx) => {
 		if (keeps(ctx)) {
 			segments.push({
 				...segmentIn(node, ctx),
-				breakBefore
+				breakBefore,
+				...format === "lines" && {
+					lineBefore,
+					whiteSpace: style(renderedParent(node)).whiteSpaceCollapse
+				}
 			});
 			breakBefore = false;
+			lineBefore = "";
 		}
 	}, boundary && ((child) => boundary(child, segments.length)), (ctx) => {
-		if (keeps(ctx)) breakBefore = true;
-	});
+		if (keeps(ctx)) {
+			breakBefore = true;
+			lineBefore = "\n";
+		}
+	}, format === "lines" ? (element, ctx, entering) => {
+		if (!keeps(ctx)) return;
+		const display = style(element).display;
+		if (display === "table-cell") {
+			if (!entering && lineBefore !== "\n") lineBefore = "	";
+		} else if (/^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)) lineBefore = "\n";
+	} : null);
 	return segments;
 }
 function closestAcross(node, selector) {
@@ -463,7 +488,29 @@ function readSegments(segments, mapCharacters) {
 const quoteFrom = (segments) => readSegments(segments, false);
 const readingFrom = (segments) => readSegments(segments, true);
 const cut = (text, from, to) => [...text].slice(from, to).join("");
-const says = (el) => quoteFrom(textNodesUnder(el));
+function linesFrom(segments) {
+	let text = "";
+	let separator = "";
+	for (const segment of segments) {
+		if (segment.lineBefore && text) separator = segment.lineBefore === "\n" || separator === "\n" ? "\n" : "	";
+		const { whiteSpace } = segment;
+		const collapses = whiteSpace === "preserve" || whiteSpace === "break-spaces" ? null : whiteSpace === "preserve-breaks" ? /[\t\r\f ]/ : /[\t\n\r\f ]/;
+		for (const character of segment.node.data.slice(segment.start, segment.end)) {
+			if (collapses?.test(character)) {
+				if (text && !text.endsWith("\n")) separator ||= " ";
+				continue;
+			}
+			if (whiteSpace === "preserve-breaks" && character === "\n" && separator === " ") separator = "";
+			text += separator + character;
+			separator = "";
+		}
+	}
+	return text;
+}
+const says = (el, options = {}) => {
+	const segments = textNodesUnder(el, "says", null, options.format);
+	return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
+};
 const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 function rangeOf(segments) {
 	const range = document.createRange();

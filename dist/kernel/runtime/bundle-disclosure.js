@@ -5890,12 +5890,12 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 async function readState(bound) {
 	countTraffic("asked");
 	try {
+		const held = runtime.data.version === null ? document.documentElement.lfInitial.initialData() ?? runtime.data : runtime.data;
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: completeData(offlineState(), held),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);
-		const held = runtime.data;
 		let res;
 		try {
 			res = await fetch(pageUrl("api/state"), {
@@ -6673,7 +6673,7 @@ const messageAt = (node) => (node instanceof Element ? node : node?.parentElemen
 function messageCopy(thread) {
 	if (!thread) return null;
 	const caret = getSelection().anchorNode;
-	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-copy") ?? null;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
 }
 function prepareLanding({ held = null, box, route = null }) {
 	if (!box) return false;

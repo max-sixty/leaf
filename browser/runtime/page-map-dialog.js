@@ -68,8 +68,8 @@ const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
 dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
-const dialogHead = el("div", "lf-page-map-head");
-dialogHead.append(el("strong", "", "Page Map"));
+const dialogHead = el("div", "lf-dialog-head");
+dialogHead.append(el("strong", "lf-dialog-title", "Page Map"));
 const dialogClose = closeControl({
   name: "Close Page Map",
   title: "Close Page Map (Esc)",
@@ -90,8 +90,8 @@ const place = placeKeeper(dialogList, {
 });
 const dialogEmpty = el(
   "p",
-  "lf-page-map-empty",
-  "No matching actions, statuses, or locations",
+  "lf-rows-empty",
+  "No matching actions, statuses, or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -274,11 +274,11 @@ export function createPageMapDialog({
 
   const sheetGroupTemplate = (group, query) => html`
     <section
-      class="lf-page-map-group"
+      class="lf-page-map-group lf-rows-group"
       data-lf-map-group=${group.key}
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
-      <h3>${group.entry.title}</h3>
+      <h3 class="lf-rows-head">${group.entry.title}</h3>
       <div class="lf-page-map-actions lf-rows">
         ${repeat(
           group.actions,
@@ -343,8 +343,8 @@ export function createPageMapDialog({
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations"
-        : "No margin controls, status indicators, or locations yet",
+        ? "No matching actions, statuses, or locations."
+        : "No margin controls, status indicators, or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }

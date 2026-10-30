@@ -108,10 +108,7 @@
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-}
-:is(.lf-mark-note, .lf-visual-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-mark-note[data-lf-focus] {
   opacity: 1;
@@ -198,7 +195,7 @@ html[data-lf-region-capture] main * {
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-obligation] {
   outline: var(--lf-obligation-ring, var(--focus-ring));
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: var(--focus-region-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
@@ -369,11 +366,16 @@ html[data-lf-region-capture] main * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  /* Flush outside: brackets are two 8px end strips of the same 2px outline
-     keyboard focus draws whole. Neither state changes bounds, radius or offset.
-     The placement owner supplies the target rectangle and its corner shape.
+  /* On the target's perimeter, where its focus ring and location ring stand too
+     (base.css, "Where it stands"): brackets are two 8px end strips of the outline
+     keyboard focus draws whole there. No state changes bounds, radius or offset, and
+     an outline drawn at the gap rounds its corners as the location ring's does. The
+     placement owner (target-paint-geometry.js, `standOver`) supplies the target
+     rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
+     how far the band reaches outside the target, which each strip's clip starts from.
      Keep this in shared chrome so Aim and an optional annotation painter agree. */
   :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+    --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
     &::before,
     &::after {
       content: "";
@@ -381,32 +383,26 @@ html[data-lf-region-capture] main * {
       inset: 0;
       border-radius: inherit;
       outline: var(--lf-target-outline, var(--focus-ring));
-      outline-offset: 0;
+      outline-offset: var(--lf-mark-offset);
       pointer-events: none;
     }
     &::before {
       clip-path: inset(
-        calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
-          calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+        calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
+          calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
       );
     }
-    /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
-       perimeter just inside its edge, as a control packed into a list does (base.css). */
-    &.lf-visual-mark-inset::before,
-    &.lf-visual-mark-inset::after {
-      outline-offset: calc(-1 * var(--focus-ring-w));
+    &::after {
+      clip-path: inset(
+        calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
+          calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
+      );
     }
     &.lf-visual-mark-focus::after {
       clip-path: none;
     }
     &.lf-visual-mark-focus::before {
       content: none;
-    }
-    &::after {
-      clip-path: inset(
-        calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
-          calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
-      );
     }
   }
   .lf-target-trace-shape {
@@ -472,17 +468,13 @@ html[data-lf-region-capture] main * {
     padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2);
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--t-working-label);
     font-style: normal;
     cursor: pointer;
     overflow-wrap: anywhere;
   }
   .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
-  }
-  .lf-quote[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
   }
 
   .lf-quote.detached {
@@ -522,6 +514,13 @@ html[data-lf-region-capture] main * {
       var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
     );
   }
+  /* Under a mouse the empty reply box is its one row tall (response.css), which comes
+     to the response line with its frame, so the row reserves no frame beyond it. */
+  @media (hover: hover) and (pointer: fine) {
+    :is(.lf-fab-bar, .lf-margin-preview) {
+      --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
+    }
+  }
   /* The ⌥ aim's promise: the item a press would take, whole, drawn in the chrome's layer
      rather than on the element, since no band of a page element is reliably the
      runtime's to paint (a scroller clips outside, a group's cells paint over inside, and
@@ -537,7 +536,10 @@ html[data-lf-region-capture] main * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    background: color-mix(in srgb, var(--accent) 4%, transparent);
+    /* The veil fills the perimeter its brackets stand on, so the two read as one box. */
+    --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
+    background: var(--lf-aim-veil);
+    box-shadow: 0 0 0 var(--lf-mark-offset) var(--lf-aim-veil);
   }
   .lf-aim-shape {
     display: block;
@@ -550,6 +552,7 @@ html[data-lf-region-capture] main * {
      the same specificity, and its placement writes no corner (`standOver` is given 0). */
   .lf-shaped {
     background: none;
+    box-shadow: none;
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -749,14 +752,7 @@ html[data-lf-region-capture] main * {
     overflow: auto;
   }
   .lf-command-reference-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
     margin-bottom: 8px;
-  }
-  .lf-command-reference-title {
-    font-weight: 600;
   }
   .lf-command-reference-close {
     flex: none;
@@ -827,13 +823,14 @@ html[data-lf-region-capture] main * {
     margin-inline: -10px;
     padding-inline: 10px;
   }
-  .lf-command-reference-empty {
-    padding: 20px 0 8px;
-    color: var(--muted);
-    text-align: center;
-  }
+  /* The reference's rows reach past its words by their wash's room, so its heading and
+     its empty line, standing where the rows' words start, keep no inset of their own. */
   .lf-command-reference h3 {
     margin: 16px 0 4px;
+    padding: 0;
+  }
+  .lf-command-reference .lf-rows-empty {
+    padding-inline: 0;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
      each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
@@ -967,17 +964,19 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 1px;
   }
-  .lf-page-map-head,
-  .lf-inspection-head {
+  /* A dialog's head holds its title, then its other controls, with Close last. Every
+     dialog the chrome opens sets its title in one face, the chrome's sans at weight
+     600, as a list's group heading and the floating panel's view title are. Three
+     dialogs set their titles in the browser's bold until they shared this. */
+  .lf-dialog-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong,
-  .lf-inspection-head > strong {
+  .lf-dialog-title {
     flex: 1;
+    font-weight: 600;
   }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
@@ -1004,15 +1003,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  /* Inset, because a row here fills the list to its own edge and the list is a
-     scroller: there is nothing outside the row for a ring to be drawn in, and an
-     outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints. The ring's width is the inset,
-     so the band lands just inside the row's own edge. */
-  .lf-page-map-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
@@ -1110,23 +1100,6 @@ html[data-lf-region-capture] main * {
     margin-top: 6px;
     overflow: auto;
     min-height: 0;
-  }
-  .lf-page-map-empty {
-    margin: 18px 8px 8px;
-    color: var(--muted);
-    text-align: center;
-  }
-  .lf-page-map-group {
-    padding: 10px 0;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-page-map-group:first-child {
-    border-top: 0;
-  }
-  .lf-page-map-group h3 {
-    margin: 0 8px 4px;
-    font-size: var(--t-5);
-    line-height: 1.35;
   }
   .lf-page-map-actions {
     row-gap: 2px;

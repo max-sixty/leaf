@@ -128,6 +128,14 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
+Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
+token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
+the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
+packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
+marks over the page read the same value where it isn't `0`, so a comment's or an aim's
+frame stands where the ring does.
+
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
 scrolls that box rather than the control into view with room for its ring.

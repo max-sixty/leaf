@@ -35,6 +35,7 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
+import { describeFailure } from "../exception.js";
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
@@ -168,7 +169,9 @@ export async function pageImage(clip, { exclude = [] } = {}) {
       img.style.cssText = `display:block;position:relative;left:${crop.x}px;top:${crop.y}px;width:${crop.width}px;height:${crop.height}px`;
       box.append(img);
     } catch (error) {
-      warnings.add(`A live sample in this area could not be drawn: ${error.message}`);
+      warnings.add(
+        `A live sample in this area could not be drawn: ${describeFailure(error)}`,
+      );
     }
     return box;
   }

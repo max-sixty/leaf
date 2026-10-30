@@ -103,6 +103,7 @@ const exactClosures = {
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
+    "exception.js",
     "page-paint.js",
   ],
 };
@@ -235,6 +236,7 @@ export default {
         "^/checks/",
         "^/runtime/framework\\.js$",
         "\\.json$",
+        "\\.ts$",
       ],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,

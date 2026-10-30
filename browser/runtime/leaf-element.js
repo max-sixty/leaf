@@ -1,7 +1,8 @@
 /* A widget that draws what it reads: the one paint route of a `LeafElement`.
 
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
-   into the element itself unless `createRenderRoot()` names a part it generated.
+   into its staged shadow root when the registry declares `x-shadow`, otherwise the
+   element itself, unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), obligations, reports, work, the time (`ago`,
    `clockValue`), and a bound data source through the property Leaf sets ("Bound
@@ -24,8 +25,8 @@
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. A move draws in the presentation pass the publication starts,
-   parents first and every widget before the document-wide renderers
+   nothing after it. A move draws in the presentation pass the
+   publication starts, parents first and every widget before the document-wide renderers
    (`queueWidgetUpdate`, semantic-state.js): a suggestion measures the slot it folds
    before the layer marks it retired.
 
@@ -96,6 +97,7 @@ import {
   suppliedSnapshot,
 } from "./data.js";
 import { registry } from "./registry.js";
+import { adoptShadowStage } from "./shadow-stage.js";
 import { projectMarked } from "./projection/data.js";
 
 let regions = 0;
@@ -178,7 +180,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #sent = new Map();
 
   createRenderRoot() {
-    return this;
+    return registry[this.localName]?.["x-shadow"]
+      ? adoptShadowStage(super.createRenderRoot())
+      : this;
   }
 
   scheduleUpdate() {

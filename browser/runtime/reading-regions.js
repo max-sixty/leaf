@@ -95,6 +95,8 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
+/** @param {{id: string, host: Element, body: Element,
+ * paintContinuation?: (above: boolean) => void}} options */
 export function registerReadingRegion({
   id,
   host,
@@ -125,9 +127,8 @@ export function registerReadingRegion({
 }
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the box a sidebar page's track holds its blocks in
-// (prepaint.js, `holdTrack`), which scrolls while it stands beside the body
+// which scrolls as a whole where a pane in it does not bound itself, and a sidebar
+// page's authored track, which scrolls while it stands beside the body
 // (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
@@ -145,14 +146,14 @@ export function syncLayoutRegion() {
   const main = layoutBox();
   const bodies = main
     ? [...main.children].flatMap((child) => {
-        if (marked(child)) return [[child, child.id]];
+        if (marked(child)) return [{ body: child, name: child.id }];
         const only = child.childElementCount === 1 ? child.firstElementChild : null;
-        return only && marked(only) ? [[only, only.id || child.id]] : [];
+        return only && marked(only) ? [{ body: only, name: only.id || child.id }] : [];
       })
     : [];
   let unnamed = 0;
   const ids = new Map(
-    bodies.map(([body, name]) => [
+    bodies.map(({ body, name }) => [
       body,
       name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
     ]),

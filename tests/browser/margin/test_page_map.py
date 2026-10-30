@@ -544,10 +544,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
-    # Out of the thread onto what it is about, then letting go of that takes the card.
-    page.keyboard.press("Escape")
-    expect(page.locator("#map-11")).to_be_focused()
-    expect(preview).to_be_visible()
+    # Out of the thread, beside what it is about, in one press.
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
@@ -1319,13 +1316,15 @@ def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
     """An automatic map measurement leaves an outline where its reader scrolled it."""
     source = leaf_page(
         "Crowded outline",
-        '<h1 id="title">Crowded outline</h1>'
-        '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>'
+        '<div class="layout-column"><h1 id="title">Crowded outline</h1>'
         + "".join(
             f'<section id="row-{index}"><h2>Section {index:02}</h2>'
             '<div style="height:120px"></div></section>'
             for index in range(40)
-        ),
+        )
+        + "</div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 700)

@@ -138,6 +138,9 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
+/** @param {{target: Element | null, point?: Element | null,
+ * passage?: Partial<NonNullable<ReturnType<typeof import("../resolved-target.js").passageGeometry>>> | null,
+ * boundary?: ReturnType<typeof commentBoundary> | null}} options */
 export function commentAttachment({
   target,
   point = null,
@@ -228,6 +231,8 @@ export const LEAST_HEIGHT = 96;
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
 // none of its height (`shownWindow`).
+/** @param {{region?: ReturnType<typeof containingReadingRegionFor> | null,
+ * right?: number}} [options] */
 export function commentBoundary({ region = null, right = Infinity } = {}) {
   const room = (within) => {
     const across = (columns) =>

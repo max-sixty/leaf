@@ -71,6 +71,7 @@ from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -1617,7 +1618,9 @@ def is_problem(problem, expected):
         if name in {"node", "field", "place"} and isinstance(value, list):
             if not isinstance(actual, list) or len(actual) != len(value):
                 return False
-            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+            if not all(
+                place_step_matches(a, e) for a, e in zip(actual, value, strict=True)
+            ):
                 return False
         elif actual != value:
             return False
@@ -2095,13 +2098,9 @@ def open_page(
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
     its own medium instead, just as it owns the rest of its browser state.
 
-    False is for the one test whose subject is the interval between them, which holds the
-    registry fetch open and so never earns either. It waits on the panel instead, which
-    says only that the runtime's module evaluated — long before the anchor pass has run,
-    and so before the Comment button can answer a selection at all. A test that reads
-    there without an auto-retrying wait is racing the upgrade and loses on a loaded
-    machine: the passage sweep lost it on the corpus, the heaviest page here, and what
-    it reported was a passage it had not tested rather than one that failed."""
+    False waits only for panel construction, after registry loading and before
+    presentation. A reader there must await the particular state its assertion uses;
+    chrome existing does not say that the anchor pass can answer a selection."""
     page = (
         context.new_page()
         if context
@@ -2500,6 +2499,13 @@ def live_leaf(tmp_path, monkeypatch):
         # even while no browser has visited this neighboring page.
         url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
+        # The address is announced before the row producer starts. All pages can
+        # discover this neighbour only after that producer publishes its first row.
+        wait_for(
+            lambda: presence_model.live_leaves({d.resolve()}),
+            lambda leaves: len(leaves) == 1,
+            failure=f"{name} never published its live neighbour row",
+        )
         return url.split("?")[0].rstrip("/"), d
 
     yield go

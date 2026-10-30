@@ -17,7 +17,8 @@ lf-code {
   inherits: true;
   initial-value: 38px;
 }
-lf-code.lf-rendered pre {
+lf-code.lf-rendered > pre {
+  margin: 0;
   padding: var(--lf-code-inset-block) 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
@@ -112,12 +113,13 @@ lf-code :is(.lf-code-line, .lf-code-elided).hi::before {
 lf-code lf-note {
   display: block;
 }
-/* The note wears this box wherever it stands: docked at its line inside the frame, or
-   before the module docks it, after the source (below). */
+/* The note wears this box wherever it stands: docked at its line inside the frame,
+   or after the source before upgrade. Its spacing is padding, so frame-edge margin
+   trimming cannot change the box when the note moves between source lines. */
 lf-code > lf-note,
 lf-code > pre > lf-note {
-  margin: 5px 0 6px;
-  padding: 7px var(--lf-code-inset-inline) 8px
+  margin: 0;
+  padding: 12px var(--lf-code-inset-inline) 14px
     calc(var(--lf-code-gutter) + var(--lf-code-gap));
   background: var(--pre-bg);
   border-block: 1px solid var(--code-border);

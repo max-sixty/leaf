@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/widget-api.js";
-import { initialRender } from "/runtime/initial-render.js";
 import { assignRows } from "/runtime/time-axis.js";
-import "../../packages/timeline/initial/lf-timeline.js";
+import {
+  render as timelineView,
+  timelineModel,
+} from "../../packages/timeline/widgets/timeline-view.js";
 
 const timeline = (lanes) => {
   const host = document.createElement("lf-timeline");
@@ -21,7 +23,36 @@ const timeline = (lanes) => {
     )
     .join("");
   document.body.append(host);
-  return initialRender(host);
+  const model = timelineModel(host);
+  let current = 0;
+  const drawing = {
+    model,
+    get current() {
+      return current;
+    },
+    set current(value) {
+      current = Math.max(0, Math.min(model.steps.length - 1, value));
+    },
+    render: () => timelineView(host, current, model, null),
+    get rows() {
+      return [...host.querySelectorAll(".lf-timeline-step")];
+    },
+    get controls() {
+      return host.querySelector(".lf-timeline-controls");
+    },
+    get chart() {
+      return host.querySelector(".lf-timeline-chart");
+    },
+    get previous() {
+      return host.querySelector(".lf-timeline-previous");
+    },
+    get next() {
+      return host.querySelector(".lf-timeline-next");
+    },
+    eventElement: (id) => host.querySelector(`[data-event="${id}"]`),
+  };
+  render(drawing.render(), host, { host });
+  return drawing;
 };
 
 test("Steps visit starts in order: ties share a step and a span's end is no step", () => {

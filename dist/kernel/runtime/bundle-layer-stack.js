@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterScript, bindQueuedWork, excludedByInert, isNativeLayer, isStage, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
-import { AsyncDirective, Directive, LitElement, PartType, directive, guard, html, keyed, live, noChange, nothing, ref, render as render$1, repeat } from "/vendor/lit.js";
+import { afterScript, bindQueuedWork, excludedByInert, isNativeLayer, isStage, keeps, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
+import { AsyncDirective, LitElement, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live, noChange, nothing as nothing$1, ref, render, repeat } from "/vendor/lit.js";
 
 //#region vendor/signals-core.js
 var j = Symbol.for("preact-signals");
@@ -295,20 +295,6 @@ function q(t) {
 		}
 	};
 }
-
-//#endregion
-//#region runtime/keeps.js
-const keeps = (...args) => document.documentElement.lfInitial.keepsAttribute(...args);
-function keepsHidden(node, hidden) {
-	if (node && node.hidden !== hidden) node.hidden = hidden;
-}
-function keepsText(node, text) {
-	const said = String(text ?? "");
-	if (node && node.textContent !== said) node.textContent = said;
-}
-const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
-const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
-const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 
 //#endregion
 //#region runtime/control-selectors.js
@@ -1165,9 +1151,8 @@ const onLetGo = (read) => {
 	letGoReaders.add(read);
 	return () => letGoReaders.delete(read);
 };
-function letGo() {
+function letGo(from = focused()) {
 	letGoes++;
-	const from = focused();
 	const block = readingBlock(from);
 	if (!block?.isConnected) releaseFocus();
 	else {
@@ -1215,7 +1200,7 @@ function move(parent, node, before) {
 	}
 	return node;
 }
-document.documentElement.lfInitial.move = move;
+window.lfMove = move;
 
 //#endregion
 //#region runtime/framework/snapshot.js
@@ -1256,9 +1241,9 @@ function share(prior, next) {
 	if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object") return next;
 	if (Array.isArray(next)) {
 		if (!Array.isArray(prior)) return next;
-		const children = next.map((child, index) => share(prior[index], child));
-		if (prior.length === next.length && children.every((child, index) => child === prior[index])) return prior;
-		return children.every((child, index) => child === next[index]) ? next : children;
+		const children2 = next.map((child, index) => share(prior[index], child));
+		if (prior.length === next.length && children2.every((child, index) => child === prior[index])) return prior;
+		return children2.every((child, index) => child === next[index]) ? next : children2;
 	}
 	if (next instanceof Map) {
 		if (!(prior instanceof Map)) return next;
@@ -1281,7 +1266,7 @@ function share(prior, next) {
 	const children = keys.map((key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
 	if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])) return prior;
 	if (keys.every((key, index) => children[index] === after[key])) return next;
-	const copy = Object.getPrototypeOf(next) === null ? Object.create(null) : {};
+	const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
 	keys.forEach((key, index) => Object.defineProperty(copy, key, {
 		value: children[index],
 		writable: true,
@@ -1698,10 +1683,6 @@ const marks = {
 		"paint": "data-lf-reading-role",
 		"message": true
 	},
-	"x-margin-content": {
-		"paint": "data-lf-margin-content",
-		"message": false
-	},
 	"x-views": {
 		"paint": "data-lf-views",
 		"message": true
@@ -1745,6 +1726,14 @@ const anchorKey = (anchor) => {
 	return JSON.stringify(Object.entries(anchor ?? {}).filter(([key, value]) => PRIMITIVE.has(typeof value) && !(identified && RENDERING.has(key))).sort(([left], [right]) => left.localeCompare(right)));
 };
 const sameAnchor = (a, b) => a === b || Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b);
+const fragmentId = (fragment) => {
+	const raw = fragment.slice(1);
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return raw;
+	}
+};
 
 //#endregion
 //#region runtime/thread/identity.js
@@ -2242,21 +2231,21 @@ function localQueues(served, workflows, todos, items, local) {
 	const todoRecord = new Map([...todos.open, ...todos.ended].map((todo) => [todo.id, todo]));
 	const sentIn = new Set(workflows.flatMap((workflow) => workflow.stage === "sending" && workflow.condition === null && workflow.subject.kind === "thread" ? [workflow.thread] : []));
 	const obligationOf = (item) => {
-		const current = record.get(item.id);
-		if (!current) throw new Error(`Queue item ${item.id} names no obligation`);
-		return current;
+		const current2 = record.get(item.id);
+		if (!current2) throw new Error(`Queue item ${item.id} names no obligation`);
+		return current2;
 	};
 	const standsOpen = (item) => {
 		if (!namesRecord(item)) return open.has(item.id);
-		const current = obligationOf(item);
-		return current.next_actor === item.owner && !(current.source.kind === "update" && current.thread !== null && sentIn.has(current.thread));
+		const current2 = obligationOf(item);
+		return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
 	};
 	const reopened = (item) => namesRecord(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner : open.has(item.id);
 	const endedHere = (item) => namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
 	const todoOf = (item) => {
-		const local = todoRecord.get(item.id);
-		if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
-		return local;
+		const local2 = todoRecord.get(item.id);
+		if (!local2) throw new Error(`Queue item ${item.id} names no to-do`);
+		return local2;
 	};
 	const current = (item) => namesRecord(item) ? {
 		...item,
@@ -2454,26 +2443,26 @@ function createSemanticApplication({ presentation } = {}) {
 	if (presentation) presentation.seal(presentation.begin());
 	function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
 		const receipts = state?.browser.receipts ?? [];
-		const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
-		const refused = unresolved.filter((entry) => entry.state === "refused");
+		const local = unresolved.filter((entry2) => DRAWN_LOCALLY.has(entry2.state));
+		const refused = unresolved.filter((entry2) => entry2.state === "refused");
 		const served = state?.browser.views[String(document.revision)];
 		const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
 		const admitted = normalizedProjection(view);
 		const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
 		const drawsAction = (e) => {
 			const descriptor = document.descriptors.get(e.widget);
-			const state = descriptor && stampedState(document.registry, descriptor.tag, e);
-			return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
+			const state2 = descriptor && stampedState(document.registry, descriptor.tag, e);
+			return Boolean(state2 && sameStateDefinition(e.meaning?.state, state2.definition));
 		};
-		const localProjections = local.flatMap((entry) => {
-			const projection = entry.projection;
-			if (!projection) return [];
-			if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
-			const { target } = projection;
-			const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+		const localProjections = local.flatMap((entry2) => {
+			const projection2 = entry2.projection;
+			if (!projection2) return [];
+			if (projection2.kind !== "undo") return drawsAction(projection2.e) ? [projection2] : [];
+			const { target } = projection2;
+			const targetId = admittedId(entry2.undoTarget, unresolved, receipts);
 			const pending = !Number.isInteger(target.e.seq);
 			return classifiedIds.has(targetId ?? target.e.id) || pending && drawsAction(target.e) ? [{
-				...projection,
+				...projection2,
 				targetId
 			}] : [];
 		});
@@ -2487,19 +2476,19 @@ function createSemanticApplication({ presentation } = {}) {
 			...namedParent ? { localParent: namedParent } : {}
 		}] : event.kind === "undo" ? [event] : []);
 		const folded = foldThreads(view?.thread.threads ?? [], gestures);
-		const widgets = foldWidgetStates(document.authored, projection);
-		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
+		const widgets2 = foldWidgetStates(document.authored, projection);
+		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets2, projection);
 		const todos = ready ? localTodos(state, local) : {
 			open: [],
 			ended: []
 		};
-		const servedItems = ready ? normalizedObligations(view, widgets, document, projection, todos) : NO_OBLIGATIONS;
+		const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, todos) : NO_OBLIGATIONS;
 		const named = threadNames(folded);
-		const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
-			const drawnIn = drawn && named.get(drawn.id)?.id;
+		const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
+			const drawnIn = drawn2 && named.get(drawn2.id)?.id;
 			if (drawnIn) return drawnIn;
 			switch (event.kind) {
-				case "comment": return drawn?.id ?? null;
+				case "comment": return drawn2?.id ?? null;
 				case "reply": return named.get(event.parent)?.id ?? event.parent;
 				case "edit": return named.get(event.message)?.id ?? null;
 				case "resolve":
@@ -2512,22 +2501,22 @@ function createSemanticApplication({ presentation } = {}) {
 			}
 		};
 		const logged = state?.browser.thread_memberships ?? {};
-		const threadsOfEntry = (entry) => {
-			const filed = entry.admitted ? logged[entry.admitted.id] : void 0;
+		const threadsOfEntry = (entry2) => {
+			const filed = entry2.admitted ? logged[entry2.admitted.id] : void 0;
 			if (filed) return filed;
-			const { event } = entry;
+			const { event } = entry2;
 			if (event.kind === "undo") {
 				const target = unresolved.find((each) => each.localId === event.undoes || each.admitted?.id === event.undoes);
 				return target ? threadsOfEntry(target) : logged[event.undoes] ?? [];
 			}
-			const thread = threadOfEntry(entry);
+			const thread = threadOfEntry(entry2);
 			return thread ? [thread] : [];
 		};
 		const recovery = /* @__PURE__ */ new Map();
-		for (const entry of refused) {
-			if (!isTurnEvent(entry.event) && entry.event.kind !== "action") continue;
-			const thread = threadOfEntry(entry);
-			if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
+		for (const entry2 of refused) {
+			if (!isTurnEvent(entry2.event) && entry2.event.kind !== "action") continue;
+			const thread = threadOfEntry(entry2);
+			if (thread) recovery.set(thread, `rejected:${entry2.event.attempt}`);
 		}
 		const obligated = folded.map((thread) => {
 			const retry = recovery.get(thread.id);
@@ -2540,27 +2529,27 @@ function createSemanticApplication({ presentation } = {}) {
 				}
 			} : thread;
 		});
-		const localWorkflow = (entry, rejected) => {
-			const turn = isTurnEvent(entry.event) ? entry.thread : null;
-			const thread = threadOfEntry(entry);
+		const localWorkflow = (entry2, rejected) => {
+			const turn = isTurnEvent(entry2.event) ? entry2.thread : null;
+			const thread = threadOfEntry(entry2);
 			const subject = turn ? thread === null ? null : {
 				kind: "thread",
 				id: thread
-			} : entry.event.kind === "action" ? {
+			} : entry2.event.kind === "action" ? {
 				kind: "widget",
-				id: entry.event.widget
+				id: entry2.event.widget
 			} : null;
 			if (!subject) return null;
 			return {
-				id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
-				revision: entry.event.revision ?? document.revision,
-				seq: entry.order,
-				input: turn?.id ?? entry.localId,
+				id: `${rejected ? "rejected" : "pending"}:${entry2.event.attempt}`,
+				revision: entry2.event.revision ?? document.revision,
+				seq: entry2.order,
+				input: turn?.id ?? entry2.localId,
 				message: turn ? turnMessage(turn) : null,
 				subject,
 				thread,
 				at_work: false,
-				coordinate: turn ? ["thread", thread] : entry.projection ? coordinateOf(entry.projection.coordinate) : null,
+				coordinate: turn ? ["thread", thread] : entry2.projection ? coordinateOf(entry2.projection.coordinate) : null,
 				obligation: null,
 				stage: "sending",
 				ts: turn?.ts ?? null,
@@ -2582,8 +2571,8 @@ function createSemanticApplication({ presentation } = {}) {
 		};
 		const sends = localUpdates([
 			...state ? state.workflows : [],
-			...local.flatMap((entry) => isTurnEvent(entry.event) ? localWorkflow(entry, false) ?? [] : []),
-			...refused.flatMap((entry) => localWorkflow(entry, true) ?? [])
+			...local.flatMap((entry2) => isTurnEvent(entry2.event) ? localWorkflow(entry2, false) ?? [] : []),
+			...refused.flatMap((entry2) => localWorkflow(entry2, true) ?? [])
 		]);
 		const workflows = sends.workflows;
 		const localRecords = ready ? sends.records : [];
@@ -2592,11 +2581,11 @@ function createSemanticApplication({ presentation } = {}) {
 			user: [...servedItems.user, ...localRecords.filter((item) => item.next_actor === "user")],
 			unanswered: [...servedItems.unanswered, ...localRecords]
 		};
-		const threads = readThreadRecords(obligated, document, widgets, workflows, todos.open, items.all, markingRead, ready);
+		const threads = readThreadRecords(obligated, document, widgets2, workflows, todos.open, items.all, markingRead, ready);
 		const selectedQueues = localQueues(ready ? view?.queues ?? NO_QUEUES : NO_QUEUES, workflows, todos, items, localRecords);
 		const serving = /* @__PURE__ */ new Map();
 		for (const workflow of workflows) if (workflow.obligation !== null && !serving.has(workflow.obligation)) serving.set(workflow.obligation, workflow);
-		const contextual = (items, onUser = false) => items.map((item) => ({
+		const contextual = (items2, onUser = false) => items2.map((item) => ({
 			...item,
 			workflow: serving.get(item.id) ?? null,
 			offers: queueOffers(item, ready, onUser)
@@ -2604,7 +2593,7 @@ function createSemanticApplication({ presentation } = {}) {
 		return {
 			hostAvailable,
 			projection,
-			widgets,
+			widgets: widgets2,
 			thread: {
 				all: threads,
 				collection: {
@@ -2627,7 +2616,7 @@ function createSemanticApplication({ presentation } = {}) {
 			view,
 			memberships,
 			widgetParents,
-			sending: unresolved.filter((entry) => SENDING.has(entry.state)).map((entry) => entry.event.attempt),
+			sending: unresolved.filter((entry2) => SENDING.has(entry2.state)).map((entry2) => entry2.event.attempt),
 			workflows,
 			activity: state?.activity ?? null
 		};
@@ -2707,7 +2696,7 @@ function createSemanticApplication({ presentation } = {}) {
 			const wanted = new Set(eventIds);
 			return publisher.select((root) => foldWidgetStates(root.document.authored, {
 				...root.effective.projection,
-				desired: new Map([...root.effective.projection.desired].filter(([, entry]) => wanted.has(entry.e.id)))
+				desired: new Map([...root.effective.projection.desired].filter(([, entry2]) => wanted.has(entry2.e.id)))
 			})).read();
 		},
 		selectWidget(descriptor) {
@@ -2884,9 +2873,9 @@ function createSemanticApplication({ presentation } = {}) {
 			const item = entry(attempt);
 			if (!item) return true;
 			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndReceipts()));
-			if (event !== item.event) update(attempt, (item) => ({
-				...item,
-				...event.parent !== item.event.parent && typeof item.event.parent === "string" ? { namedParent: item.event.parent } : {},
+			if (event !== item.event) update(attempt, (item2) => ({
+				...item2,
+				...event.parent !== item2.event.parent && typeof item2.event.parent === "string" ? { namedParent: item2.event.parent } : {},
 				event
 			}));
 			return !(event.kind === "undo" && namesPending(event));
@@ -2896,10 +2885,6 @@ function createSemanticApplication({ presentation } = {}) {
 
 //#endregion
 //#region runtime/framework/presentation.js
-function describeFailure(reason) {
-	const message = reason instanceof Error ? reason.message : String(reason);
-	return reason instanceof AggregateError && reason.errors.length ? `${message}: ${reason.errors.map(describeFailure).join("; ")}` : message;
-}
 function createPresentationCoordinator({ reportFailure }) {
 	const changes = Z(0);
 	let wake = Promise.withResolvers();
@@ -3065,8 +3050,8 @@ function createPresentationSchedule(bindJob) {
 			scheduled = false;
 			const round = queued;
 			queued = [];
-			for (const run of round) {
-				const started = run();
+			for (const run2 of round) {
+				const started = run2();
 				started.catch(() => void 0);
 				running.push(started);
 			}
@@ -3131,7 +3116,7 @@ function createPresentationSchedule(bindJob) {
 				presentation: handle.present(failSoft)
 			};
 		}
-		async function run({ claimed, value, presentation, dom }) {
+		async function run({ claimed, value, presentation, dom: dom2 }) {
 			if (claimed !== generation) return;
 			let painted;
 			try {
@@ -3139,7 +3124,7 @@ function createPresentationSchedule(bindJob) {
 			} catch (error) {
 				painted = Promise.reject(error);
 			}
-			dom.resolve();
+			dom2.resolve();
 			presentation.resolve(painted);
 			await presentation.ready;
 		}
@@ -3181,10 +3166,7 @@ const tick = (version) => {
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({ reportFailure: (reason) => reportPresentationFailure(reason) });
 const schedule = createPresentationSchedule(bindQueuedWork);
-const applicationState = createSemanticApplication({ presentation: {
-	begin: () => presentation.begin(),
-	seal: (publication) => presentation.seal(publication)
-} });
+const applicationState = createSemanticApplication({ presentation });
 const readApplication = applicationState.read;
 const readPart = (derive) => applicationState.select(derive).read;
 const agent = readPart((root) => root.authoritative?.agent ?? null);
@@ -3207,8 +3189,8 @@ const queueWidgetUpdate = (widget, update, committed) => {
 		for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
 			if (seen.has(parent)) return [];
 			seen.add(parent);
-			const dom = widgetCommits.get(parent);
-			if (dom) pending.push(dom);
+			const dom2 = widgetCommits.get(parent);
+			if (dom2) pending.push(dom2);
 		}
 		return pending;
 	}, update, committed);
@@ -3250,17 +3232,17 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			forget();
 			const generation = following;
 			const stretch = (run) => {
-				let first = true;
+				let first2 = true;
 				let outcome;
 				const stop = x$1(() => {
-					if (!first) {
+					if (!first2) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
 							if (next !== null) claim(next);
 						});
 						return;
 					}
-					first = false;
+					first2 = false;
 					try {
 						outcome = { value: run() };
 					} catch (error) {
@@ -3545,27 +3527,6 @@ const uiInside = (el, within) => {
 };
 const inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 let shadowRules = "";
-const SHADOW_LEADING_CSS = `
-@layer {
-  [hidden]:not([hidden="until-found"]),
-  :host([hidden]:not([hidden="until-found"])) {
-    display: none !important;
-  }
-  @media screen {
-    @container style(--lf-before-presentation: 1) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
-    }
-    @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
-        visibility: hidden !important;
-      }
-    }
-  }
-}`;
 let loading = null;
 function loadShadowRules() {
 	loading ??= readShadowRules();
@@ -3778,4 +3739,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, atLayoutPrecision, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, layoutPx, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render$1 as render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, roomPx, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };
+export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };

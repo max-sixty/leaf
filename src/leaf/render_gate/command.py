@@ -99,7 +99,8 @@ def _launch(read):
     with ExitStack() as stack:
         try:
             p = stack.enter_context(sync_playwright())
-        except Exception as error:  # noqa: BLE001 - Playwright raises bare Exception on driver EOF
+        except Exception as error:
+            # Playwright raises bare Exception on driver EOF.
             return f"Playwright's driver did not start: {error}"
         try:
             browser, browser_name = launch_browser(p)
@@ -156,7 +157,6 @@ class BrowserCheck:
         if self.render is not None:
             assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
-            reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
             into, saved = self.screens
             reading["screens"] = {

@@ -2,12 +2,20 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": false,
+    "alwaysStrict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "strictBuiltinIteratorReturn": true,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
     "checkJs": true
   },
   "include": [
     "runtime-globals.d.ts",
+    "../../dev/browser-globals.d.ts",
+    "../../dev/leaf_dev/**/*.js",
     "../../node_modules/@awesome.me/webawesome/dist/components/comparison/comparison.d.ts",
     "../../node_modules/@awesome.me/webawesome/dist/components/copy-button/copy-button.d.ts",
     "../../node_modules/@awesome.me/webawesome/dist/components/input/input.d.ts",
@@ -15,7 +23,6 @@
     "../leaf.js",
     "../runtime/**/*.js",
     "../widgets/*.js",
-    "../../packages/*/initial/*.js",
     "../../packages/*/widgets/**/*.js",
     "../../src/leaf/render-checks/*.js"
   ]

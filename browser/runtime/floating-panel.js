@@ -405,7 +405,7 @@ export function createFloatingPanel({
     // the seat moving with it moves nothing the user didn't ask to move.
     const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
     const quickHidden =
-      initial || closeAbove || (search ? !exit : drafted && !seatHeld);
+      initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -819,6 +819,11 @@ export function createFloatingPanel({
     paint();
     focusDestination(shownView(), "return");
   }
+  // While the user writes, the field runs to the row's end, the mark and the row's
+  // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
+  // the one corner, and the first key moves nothing. The user chose this on 29
+  // October over the field widening at the first key, which moved its end and the
+  // action under it by the mark's width as typing began.
   let writing = false;
   // Whether the field holds a draft, as the row last showed it: Send in the field's
   // corner, the mark stepped aside. The row takes that posture, or gives it up, only
@@ -829,8 +834,7 @@ export function createFloatingPanel({
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
   // Dictate's, until the user types again; emptying the field always ends it. A draft is
-  // anything typed, a line break included: a new line grows the field as words do, so
-  // the field takes its room from the first key (20 October).
+  // anything typed, a line break included.
   let drafted = false;
   let seatHeld = false;
   let postureMoved = true;
@@ -1438,6 +1442,9 @@ export function createFloatingPanel({
     transition(before);
   }
   function close({ handedOn = false } = {}) {
+    // Closing the view ends the writing posture too. A saved page draft keeps
+    // its own posture; entering the field starts writing again.
+    writing = false;
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;
@@ -1709,7 +1716,10 @@ export function createFloatingPanel({
   }
   stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   stage.addEventListener("click", judgePress);
-  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const inRewrite = (node) =>
+    Boolean(
+      node && closestAcross(node, ".lf-msg:has(> .lf-msg-body > .lf-msg-editor)"),
+    );
   // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
   // is a layer the user steps into from the panel, which hands them back as it closes:
   // standing in it leaves them rewriting, so the view keeps the height it holds for the
@@ -2341,7 +2351,7 @@ export function createFloatingPanel({
       ${
         versions.length
           ? nothing
-          : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`
+          : html`<p class="lf-rows-empty" role="none">Showing ${picker.token}</p>`
       }
     `;
   }
@@ -2355,7 +2365,8 @@ export function createFloatingPanel({
   // error's press, or on the way back once none is left.
   function errorsList({ errors }) {
     const live = new Set(errorsReading().map((error) => error.id));
-    if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
+    if (!errors.length)
+      return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
     const movePast = (dismissed) => {
       const presses = [...menu.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
@@ -2549,15 +2560,14 @@ export function createFloatingPanel({
   // user unfolds, so a page whose conversations have all settled takes one row rather
   // than a row for each. The heading is a row of the list, which the arrows walk to and
   // Enter opens, and a section stays unfolded while the panel stays open (`unfolded`).
-  // It takes the list's group heading (`.lf-fp-on-group`), and its disclosure arrow
-  // stands in the rows' first column, so its name starts where theirs do. The user
-  // chose the fold on
-  // 27 October over the newest three resolved with the rest behind a row, which put a
-  // second order in a list read in the page's, and over resolved threads only searched
-  // for, which left them nothing to browse.
+  // It takes the list's group heading (controls.css, `.lf-rows-head`), and its
+  // disclosure arrow stands in the rows' first column, so its name starts where theirs
+  // do. The user chose the fold on 27 October over the newest three resolved with the
+  // rest behind a row, which put a second order in a list read in the page's, and over
+  // resolved threads only searched for, which left them nothing to browse.
   function settledHeading(key, title, count) {
     const open = unfolded.has(key);
-    return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+    return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
@@ -2570,7 +2580,7 @@ export function createFloatingPanel({
         }}
       >
         <span class="lf-fp-label lf-row-main">${title}</span
-        ><span class="lf-fp-count lf-row-end">${count}</span>
+        ><span class="lf-row-end">${count}</span>
       </button>
     </h3>`;
   }
@@ -2606,7 +2616,7 @@ export function createFloatingPanel({
         listed.length
           ? rowsOf(listed)
           : inventoried()
-            ? html`<p class="lf-fp-empty">
+            ? html`<p class="lf-rows-empty">
                 ${
                   searched
                     ? "Nothing matches."
@@ -2617,9 +2627,8 @@ export function createFloatingPanel({
       }
       ${
         resolved.length
-          ? html`<hr class="lf-fp-on-rule" />
-              ${settledHeading("resolved", "Resolved", resolved.length)}
-              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}`
+          ? html`${settledHeading("resolved", "Resolved", resolved.length)}
+            ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}`
           : nothing
       }
       ${
@@ -2627,7 +2636,7 @@ export function createFloatingPanel({
         // the list says after the rows it has, so their arrival moves none of them.
         inventoried()
           ? nothing
-          : html`<p class="lf-fp-empty">
+          : html`<p class="lf-rows-empty">
               ${
                 readThreads().phase === "offline"
                   ? "Current threads are unavailable while the server is offline."
@@ -3391,7 +3400,7 @@ export function createFloatingPanel({
       >
         ${
           about.length
-            ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>`
+            ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>`
             : nothing
         }${
           message
@@ -3498,8 +3507,9 @@ export function createFloatingPanel({
   }
   // Groups of items, each under its heading, which counts them (`count`, else all of
   // them), unless the group says `headed: false`: its items then stand on their own,
-  // and a run of such groups reads as one. A rule parts each headed group, and each
-  // run, from what stands before it. One keyed list of rules, headings and items, so an
+  // and a run of such groups reads as one. A headed group is parted from what stands
+  // before it by its heading's room (controls.css, `.lf-rows-head`), and a run, which
+  // has no heading, by a rule. One keyed list of rules, headings and items, so an
   // item that moves to another group, as one whose place leaves the page does, keeps
   // its node, and the focus and drawing in it. `line` draws an item, given the group it
   // stands in. A rule belongs to its group, so replacing the group's first item
@@ -3509,7 +3519,7 @@ export function createFloatingPanel({
     let running = false;
     for (const group of groups) {
       const headed = group.headed !== false;
-      if (rows.length && (headed || !running))
+      if (rows.length && !headed && !running)
         rows.push({ key: `rule:${group.key}`, rule: true });
       running = !headed;
       if (headed) rows.push({ key: group.key, group });
@@ -3525,9 +3535,9 @@ export function createFloatingPanel({
             ? html`<hr class="lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
-              : html`<h3 class="lf-label lf-fp-on-group">
+              : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
-                  ><span class="lf-fp-count"
+                  ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span
                   >
                 </h3>`,
@@ -3626,7 +3636,7 @@ export function createFloatingPanel({
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
     return html`${
-      items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`
+      items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
     }${keyedBy(
       grouping,
       groupedItems(
@@ -3666,7 +3676,7 @@ export function createFloatingPanel({
         : html`${
             inHand.length || queued.length
               ? nothing
-              : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`
+              : html`<p class="lf-rows-empty">Nothing waiting on ${agentName()}.</p>`
           }${groupedItems(groups, (item, group) =>
             onItemCard(item, group.key === "done" ? "done" : "agent"),
           )}`
@@ -3725,7 +3735,7 @@ export function createFloatingPanel({
   // page's row says it is this page and goes nowhere, so the walk passes it by.
   function pagesView() {
     const rows = leavesRows(runtime.state);
-    if (!rows.length) return html`<p class="lf-fp-empty">No pages are live.</p>`;
+    if (!rows.length) return html`<p class="lf-rows-empty">No pages are live.</p>`;
     return html`<div class="lf-fp-list">
       ${repeat(
         rows,
@@ -4145,12 +4155,13 @@ export function createFloatingPanel({
     if (exit) seatHeld = true;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
-    keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", !search && reading.offers ? "" : null);
+    // Only the page field competes with the seated annotation composer. An open
+    // view already keeps that seat out, regardless of what its reply field says.
+    keeps(host, "data-offers", !top && !search && reading.offers ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
 

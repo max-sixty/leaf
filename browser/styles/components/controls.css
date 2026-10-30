@@ -39,13 +39,6 @@
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(
-  .lf-page-thread :is(.lf-btn, summary),
-  .lf-resolved-summary
-)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
 /* Paper prints every thread open, resolved ones included, as words the page keeps,
    though the card, its messages and the resolved group carry data-lf-offer, which
    paper otherwise drops (state.css); their presses and status still go. */
@@ -60,7 +53,9 @@
   }
 }
 /* Thread reactions keep the chip's compact metrics. Their shared reaction state
-   below owns the face; no general chip wrapper supplies a second one. */
+   below owns the face; no general chip wrapper supplies a second one. A strip's
+   reactions stand 4px apart, closer than a control's ring reaches, so the ring stands
+   on a reaction's edge (base.css, "Where it stands"). */
 :where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
@@ -72,9 +67,7 @@
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
-}
-.lf-react-strip .lf-react[data-lf-focus-visible] {
-  outline-offset: 1px;
+  outline-offset: 0;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
@@ -165,107 +158,95 @@
 .lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
   display: none;
 }
-/* A message offers its controls at its header's right edge and centre: Copy, which
-   copies the message as Markdown, at the end, and before it the message's own: an
-   agent's reply its reactions, the user's own words their rewrite (below). They follow
-   the header's end when thread actions narrow the header; the full-width message body
-   does not place them. They appear only for the message under pointer or focus
-   (`--lf-msg-offered`). A reply with no feedback keeps no row. The reaction picker is
-   an overlaid menu below its control; opening it never moves this message or the
-   threads after it. At rest only feedback already left earns flow space. */
-.lf-msg {
-  anchor-scope: --lf-msg-head;
-}
-.lf-msg > .lf-msg-head {
-  anchor-name: --lf-msg-head;
-}
-/* A progress disclosure precedes the completed answer's feedback control. Hold that
-   control's room from the first disclosure paint so its arrival moves no label. */
-.lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
-  --lf-msg-control: var(--lf-msg-control-width);
-}
-/* The header's last box is its controls' room (`--lf-msg-control`), before any room
-   another head control holds (`--lf-msg-head-room`). The room counts in the header's
-   size, so a card sized to its words is as wide as with the room held, and it is the
-   first thing a short header gives up, so the words run on into it. When the controls
-   show, they stand over the words' end on the message's ground, which fades in over
-   the room's first pixels (`::before`), as an open rewrite's Discard and Save do
-   (response.css); nothing re-lays out or moves. Its margin takes back the header's gap
-   before it (surfaces.css), so a room given up leaves no gap. Holding the room whole
-   for controls nobody could see cut a queued message's receipt to "Qu…". Rejected
-   (the user's choice, 28 October 2026): the words giving the room back, cut with their
-   ellipsis, while the controls show, which kept every word clear of them but changed
-   the words' size under the pointer. */
-.lf-msg > .lf-msg-head {
-  position: relative;
-}
-.lf-msg > .lf-msg-head::after {
-  content: "";
+/* A message's own controls stand as one group at its head's end, centred on its line:
+   an agent's reply its reactions, the user's own words their rewrite, and an open
+   rewrite its Discard and Save, with Copy last. A control is one more child of the
+   group. They appear only for the message under pointer or focus. A reply with no
+   feedback keeps no row below its words. The reaction picker is an overlaid menu below
+   its trigger; opening it never moves this message or the threads after it. At rest
+   only feedback already left earns flow space.
+
+   The group stands in its room (`.lf-msg-control-room`), the head's last item, as wide
+   as the group. The room counts in the head's size, so a card sized to its words is
+   as wide as with the room held, and it is the first thing a short head gives up, so
+   the words run on into it while the controls hide. The group keeps its own width,
+   end-aligned in the room, so it then stands over the words' end, and when it shows,
+   it does so on the message's ground, which fades in over its first pixels; nothing
+   re-lays out or moves. The room's margin takes back the head's gap before it, since
+   a control's face stands inside its box. Neither takes height, so a control taller
+   than the head's line stands over its edges rather than growing it. Holding the room
+   whole for controls nobody could see cut a queued message's receipt to "Qu…".
+   Rejected (the user's choice, 28 October 2026): the words giving the room back, cut
+   with their ellipsis, while the controls show, which kept every word clear of them
+   but changed the words' size under the pointer. */
+.lf-msg-control-room {
+  display: flex;
   flex: 0 1e12 auto;
-  inline-size: var(--lf-msg-control);
+  justify-content: flex-end;
+  align-items: center;
   min-inline-size: 0;
+  block-size: 0;
   margin-inline-start: calc(-1 * var(--sp-2));
 }
-.lf-msg > .lf-msg-head::before {
-  content: "";
-  position: absolute;
+.lf-msg-control-room:has(> .lf-msg-controls:empty) {
+  display: none;
+}
+.lf-msg-controls {
+  position: relative;
   z-index: 2;
-  inset-block: 0;
-  inset-inline-end: 0;
-  inline-size: var(--lf-msg-control);
-  background:
-    linear-gradient(to right, transparent, var(--lf-msg-ground) 6px),
-    linear-gradient(to right, transparent, var(--lf-ground) 6px);
-  opacity: var(--lf-msg-offered, 0);
-  pointer-events: none;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--lf-msg-edit-gap);
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset-inline: -6px 0;
+    inset-block-start: 50%;
+    block-size: var(--lf-msg-head-height);
+    translate: 0 -50%;
+    background:
+      linear-gradient(to right, transparent, var(--lf-msg-ground) 6px),
+      linear-gradient(to right, transparent, var(--lf-ground) 6px);
+    opacity: var(--lf-msg-offered, 0);
+    pointer-events: none;
+  }
 }
 /* The room stays whole where something stands before it that the words would
-   otherwise run under: a notice of news (surfaces.css, `.lf-primary-news` and
-   `--lf-thread-message-control-room`). */
-.lf-msg > .lf-msg-head:has(> .lf-primary-news)::after,
+   otherwise run under, a notice of news (surfaces.css), and under a finger, where the
+   controls always show. A progress disclosure comes before the completed answer's
+   reaction trigger, so the room holds the trigger's width from the disclosure's first
+   paint and its arrival moves no label. */
+.lf-msg-head:has(> .lf-primary-news) > .lf-msg-control-room,
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-  > .lf-msg-head::after {
-  min-inline-size: var(--lf-msg-control);
-}
-/* Copy stands at the head's end on every message with words, and the message's own
-   control just before it. That control comes and goes as the message changes, an
-   answer's reactions or the user's rewrite, so the head's room is for both from the
-   first paint and neither moves when it arrives; an open rewrite's Discard and Save
-   stand in the same room. Under a finger, with no hover to hide it, Copy would stand on
-   every message for good, two controls a head too narrow for them at the aim floor,
-   so it is left out there, and a finger copies a message's words by selecting them. */
-@media (hover: hover) and (pointer: fine) {
-  .lf-msg:has(> .lf-msg-copy, > .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-    --lf-msg-control: var(--lf-msg-controls-width);
-  }
-  .lf-msg:has(> .lf-msg-copy) > .lf-msg-edit,
-  .lf-msg:has(> .lf-msg-copy) > .lf-react-strip > .lf-react-trigger {
-    inset-inline-end: calc(
-      anchor(right) + var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
-    );
-  }
+  > .lf-msg-head
+  > .lf-msg-control-room {
+  min-inline-size: auto;
 }
 @media (pointer: coarse), (hover: none) {
-  .lf-msg > .lf-msg-copy {
+  .lf-msg-control-room {
+    min-inline-size: auto;
+  }
+}
+.lf-msg-head:has(> .lf-progress-expand)
+  > .lf-msg-control-room:has(> .lf-msg-controls:empty) {
+  display: flex;
+  inline-size: var(--lf-msg-control-width);
+}
+/* Under a finger, with no hover to hide it, Copy would stand on every message for
+   good, and a head is too narrow for two controls at the aim floor, so it is left out
+   there, and a finger copies a message's words by selecting them. */
+@media (pointer: coarse), (hover: none) {
+  .lf-msg-controls > .lf-msg-copy {
     display: none;
   }
 }
-/* An open rewrite's Discard and Save stand in its Edit control's room and cover the
-   head beyond it (response.css, `.lf-msg-edit-actions`), so the head keeps its author,
-   time and labels where the message showed them. */
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
-  scroll-margin-block-end: var(--sp-2);
-}
 .lf-msg-control {
   appearance: none;
-  position: absolute;
   z-index: 2;
-  position-anchor: --lf-msg-head;
-  inset-block-start: anchor(center);
-  inset-inline-end: anchor(right);
-  translate: 0 -50%;
   box-sizing: border-box;
   inline-size: var(--lf-msg-control-width);
   block-size: var(--lf-msg-control-size);
@@ -312,26 +293,29 @@ svg[data-lf-icon] {
    on that message's head line, a rule stands in the gap between them while the
    message's show: the controls before it act on the message, those after it on the
    whole thread. An open rewrite's Discard and Save take the thread's place past the
-   gap (response.css), so the rule leaves with it. */
+   gap (response.css), so the rule leaves with it. It stands past the head's end rather
+   than its controls', since a card short of room for a held notice of news lets them
+   run past the head into that gap (thread-card.js, `#fitMarginNews`). */
 :is(.lf-thread-content, .lf-page-thread):has(
     > :is(.lf-thread-controls, .lf-margin-thread-controls)
   )
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint):has(
-    > :is(.lf-react-strip, .lf-msg-control)
-  ):not(:has(> .lf-msg-body > .lf-msg-editor))::after {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  position-anchor: --lf-msg-head;
-  inset-inline-start: calc(anchor(right) + var(--sp-2) / 2);
-  inset-block-start: anchor(center);
-  translate: -50% -50%;
-  inline-size: 1px;
-  block-size: 16px;
-  background: var(--border-2);
-  opacity: var(--lf-msg-offered, 0);
-  pointer-events: none;
+    > .lf-msg-head > .lf-msg-control-room
+  ):not(:has(> .lf-msg-body > .lf-msg-editor))
+  > .lf-msg-head {
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: calc(100% + var(--sp-2) / 2);
+    inset-block-start: 50%;
+    translate: -50% -50%;
+    inline-size: 1px;
+    block-size: 16px;
+    background: var(--border-2);
+    opacity: var(--lf-msg-offered, 0);
+    pointer-events: none;
+  }
 }
 .lf-react-strip {
   display: flex;
@@ -339,12 +323,14 @@ svg[data-lf-icon] {
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 0;
-  anchor-scope: --lf-react-trigger;
 }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) {
   margin-top: 4px;
 }
-.lf-react-strip > .lf-react-trigger {
+.lf-msg {
+  anchor-scope: --lf-react-trigger;
+}
+.lf-msg-controls > .lf-react-trigger {
   anchor-name: --lf-react-trigger;
 }
 /* The list is an auto popover, in the top layer: open, it stands over everything in
@@ -395,17 +381,6 @@ svg[data-lf-icon] {
 @media (hover: none) {
   .lf-msg {
     --lf-msg-offered: 1;
-  }
-}
-/* Under a finger a message's control reaches the aim floor around its face
-   (surfaces.css), and with no hover to reveal it, it stands on every message for good.
-   The common header row already holds its height; hold its inline room whole too. */
-@media (pointer: coarse), (hover: none) {
-  .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: var(--lf-msg-control-width);
-  }
-  .lf-msg:is(.agent, .user) > .lf-msg-head::after {
-    min-inline-size: var(--lf-msg-control);
   }
 }
 .lf-msg-meta {
@@ -624,7 +599,7 @@ summary,
   }
 }
 /* The faces of Leaf's control roles, one face each. A widget builds a control by its
- * role (`offerAction`), and prepaint.js (`ACTION_FACES`) lists the roles, is the one
+ * role (`offerAction`), and control-faces.js (`ACTION_FACES`) lists the roles, is the one
  * place a role's classes are spelled and says what each role is for. Each face holds
  * across document and shadow trees; a package places a control and may set its
  * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
@@ -662,8 +637,8 @@ summary,
 /* A native radio or checkbox and its label form one compact target. The native
  * mark carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
- * so a choice at a clipped toolbar edge keeps all four sides. Used by authored
- * controls and packages alike. */
+ * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
+ * does every mark on it. Used by authored controls and packages alike. */
 .choice {
   display: inline-flex;
   align-items: center;
@@ -675,6 +650,7 @@ summary,
   box-sizing: border-box;
   cursor: pointer;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  outline-offset: var(--focus-ring-inset);
 }
 .choice > input {
   flex: none;
@@ -686,7 +662,6 @@ summary,
 }
 .choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
 }
 
@@ -811,24 +786,6 @@ wa-copy-button.lf-icon-action {
   background: var(--paper);
   border-color: var(--border-2);
 }
-/* Standing on a press, in the band everything else the user is on is drawn in
-   (--focus-ring). This was the last place on the product still wearing the browser's own
-   ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
-   a decision wearing the page's accent, with nothing saying the two rectangles meant
-   one thing.
-
-   The gap is its own, because these shapes stand at different densities and the ring
-   may not reach its neighbour: the default gap is what a box with room around it
-   takes, the composer's row puts 6px between two buttons, a chip takes 1px below, and
-   margin entries sit 4px apart out in the margin.
-
-   Beside the face above it, so a button inside a declared widget tree wears this ring
-   too. In chrome.css, where it was, it reached neither that button nor a
-   package wanting to answer it. */
-:is(.lf-btn, .button, .lf-icon-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
-}
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's
    removal and a drawing's Undo last stroke do, or stands in a toolbar on its border
@@ -862,15 +819,14 @@ wa-copy-button.lf-icon-action {
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow: none;
   cursor: pointer;
+  outline-offset: 0;
 }
 :where(button).lf-mark-action:hover,
 .lf-mark-action.lf-ui::part(button):hover {
   color: var(--ink);
 }
-:where(button).lf-mark-action[data-lf-focus-visible],
 .lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
-  outline-offset: 0;
 }
 .lf-mark-action > svg {
   inline-size: 12px;
@@ -896,6 +852,106 @@ wa-copy-button.lf-icon-action {
     border: 1px solid ButtonText;
   }
 }
+
+/* The general leaf text box, in one rule. It is stated page-side like the rest of the
+   shared vocabulary's faces (chrome.css), so a widget's own box that names the same
+   property wins. The compact response field is excluded because it shares its complete
+   control geometry with the response buttons (chrome.css). The box grows with its
+   words — a textarea through field-sizing, a text field through its own content — so
+   no script measures one: the JS that did had to reset height to auto to re-measure,
+   which made the box briefly too small for its own text on every keystroke — and a
+   box that overflows, however briefly, flashes a scrollbar. Past max-height the
+   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
+   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
+   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
+   class itself. */
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: inherit;
+  resize: none;
+  field-sizing: content;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
+   button's height, so a row of them beside .lf-btn reads as one set of controls. With
+   no face the browser drew its own: a 2px inset border and square corners, 21px tall
+   beside 30px buttons. At a class's weight, so a component rule naming its own field
+   still wins by coming later. */
+:where(
+  select,
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"]
+  )
+):is(.lf-ui, .field) {
+  --lf-field-pad-inline: 8px;
+  box-sizing: border-box;
+  min-height: var(--lf-line);
+  padding: 4px var(--lf-field-pad-inline);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  outline-offset: 0;
+  &[data-lf-focus-visible] {
+    border-color: transparent;
+  }
+}
+/* Native picker arrows ignore padding. Draw only the closed control's chevron;
+   the browser still owns opening, selection and keyboard input. Listboxes keep
+   their native face. The two strokes use the text color in either scheme. */
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
+  .lf-ui,
+  .field
+) {
+  --lf-select-arrow-wing: 4px;
+  appearance: none;
+  padding-inline-end: calc(
+    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
+  );
+  background-image:
+    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
+    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
+  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
+  background-repeat: no-repeat;
+  background-position:
+    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
+    right var(--lf-field-pad-inline) center;
+  &:dir(rtl) {
+    background-position:
+      left var(--lf-field-pad-inline) center,
+      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea):is(.lf-ui, .field)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  outline-offset: 0;
+  &[data-lf-focus-visible] {
+    border-color: transparent;
+  }
+}
+
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
@@ -934,10 +990,6 @@ wa-copy-button.lf-icon-action {
     text-underline-offset: 3px;
   }
 }
-:where(button).lf-inline-action[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
 /* The row face: one row of a list or menu, such as the floating panel's Threads, menu
    and Versions, the command reference, the Page Map, a timeline's steps, a recording's
    moments and a visual review's cases. Its words are what the reader scans, so they
@@ -954,7 +1006,9 @@ wa-copy-button.lf-icon-action {
    and underline in a visual review, accent words on the tint for a recording's
    moments), until the user chose this one on 28 October. A list adds only what is
    its own: Threads lights a thread's passage under the pointer, a timeline mutes the
-   steps still ahead, and the Page Map tints a thread on the user's turn. */
+   steps still ahead, and the Page Map tints a thread on the user's turn. Rows meeting
+   edge to edge leave no room outside one for its ring, so the ring stands inside its
+   edge (base.css, "Where it stands"). */
 .lf-row {
   border: 0;
   border-inline-start: 2px solid transparent;
@@ -964,6 +1018,7 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   text-align: start;
   text-decoration: none;
+  outline-offset: var(--focus-ring-inset);
 }
 /* It declines the shadow every generated press takes under the pointer (surfaces.css),
    which, inset, would leave the stripe's room unwashed. */
@@ -989,8 +1044,8 @@ wa-copy-button.lf-icon-action {
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
    end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
-   on the name's first line, its numbers ending together; the end is muted, a step
-   smaller, on the first line's baseline. Every row has the same padding, at least 30px
+   on the name's first line, its numbers ending together; the end is muted, at `--t-6`
+   as every qualifier in the chrome is, on the first line's baseline. Every row has the same padding, at least 30px
    tall, and reaches the aim floor under a finger. A row takes this layout by naming its
    main part, so a way back or a command in the reference keeps its own; one that offers
    nothing, such as a Page Map status, lays out as a row with `.lf-row-plain`.
@@ -1048,7 +1103,51 @@ wa-copy-button.lf-icon-action {
   justify-self: end;
   margin-inline-start: 12px;
   color: var(--muted);
-  font-size: calc(1em - 1px);
+  font-size: var(--t-6);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+/* A list's group heading (`.lf-rows-head`) names the rows under it, and says at its
+   end how many they are (`.lf-row-end`). It is the sans at weight 600 in the muted
+   ink, a step smaller than the rows so it never reads as one of them, in its author's
+   capitalization, since a group is often named in the page's own words, a heading or
+   a goal, which small capitals would mangle ("IOS"). In a list it stands as a line:
+   its name starts where the rows' marks do and its count ends at the rows' end, with
+   more room above it, parting its group from the rows before, than below, tying it to
+   its own. It is no row of the list's columns, since a count there would size the
+   column the rows' ends share, and a list whose ends stand inside their names' column,
+   as On me's lines do, would see every end step back. A heading that folds its group
+   is instead a row press wearing the voice, its arrow in the rows' lead; where a list
+   holds each group in a box of its own (`.lf-rows-group`), the room stands above the
+   box; elsewhere a wearer keeps only where it stands. Lists drew their headings four
+   ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
+   short of the rows' ends, until they shared this one. */
+.lf-rows-head {
+  margin: 0;
+  font: 600 var(--t-6) / 1.45 var(--sans);
+  color: var(--muted);
+}
+.lf-rows-head:where(:not(:has(> .lf-row))) {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 5px 8px 1px;
+}
+.lf-rows > .lf-rows-head:not(:first-child),
+.lf-rows-group:not(:first-child) {
+  margin-block-start: 10px;
+}
+.lf-rows-head .lf-row-end {
+  color: inherit;
+}
+/* What a list says in its rows' place when it has none, such as that nothing matches
+   a search or that its rows are still to come (`.lf-rows-empty`): a muted line where
+   the first row would stand, starting where the rows' marks do, so it reads as the
+   list's one line rather than a notice about it. Lists that take the height of their
+   rows set it three ways, centred in a dialog and inset in the panel, until they
+   shared this one; a box of fixed height, as a file tree's is, centres it instead. */
+.lf-rows-empty {
+  margin: 0;
+  padding: 5px 8px;
+  color: var(--muted);
 }

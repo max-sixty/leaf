@@ -390,7 +390,6 @@ def test_an_external_link_says_and_opens_where_it_goes(
     )
     page = open_page(browser, url, context=one_user)
     external = page.locator("#external")
-    mark = external.locator(":scope > .lf-external-mark")
 
     expect(external).to_have_attribute("target", "_blank")
     expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
@@ -398,13 +397,17 @@ def test_an_external_link_says_and_opens_where_it_goes(
     expect(external).to_have_accessible_description("curated source opens in a new tab")
     # The treatment stands inside the link, so the paragraph ends where it was written.
     expect(page.locator("#external ~ *")).to_have_count(0)
-    expect(mark).to_be_visible()
-    assert mark.evaluate("node => node.localName") == "svg"
-    expect(mark.locator(":scope > path")).to_have_count(1)
-    expect(mark).to_have_attribute("aria-hidden", "true")
-    expect(page.locator("#fragment > .lf-external-mark")).to_have_count(0)
+    expect(external).to_have_attribute("data-lf-external", "")
+    mark = external.evaluate("""link => {
+      const style = getComputedStyle(link, '::after');
+      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+    }""")
+    assert mark["display"] == "inline-block"
+    assert mark["width"] > 0
+    assert "data:image/svg+xml" in mark["mask"]
+    expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
     expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
-    expect(page.locator("#svg-external > .lf-external-mark")).to_have_count(0)
+    expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
     expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
 
     tab = opened_tab(page, destination, external.click)

@@ -165,10 +165,11 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
             expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
-def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """Space adds no blank line when the words fit beside Send. The text keeps
-    the shared comment inset before Send's hit box, without reserving its width
-    a second time."""
+def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the words
+    still fit. Under a mouse the words keep no room for Send, which takes the corner
+    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    as they start."""
     page = open_page(
         browser,
         serve(
@@ -197,19 +198,13 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
-    reservation = field.evaluate("""el => {
-      const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit');
-      // The shared comment column keeps the action inset before Send, plus
-      // the frame between the field and the action's containing box.
-      const gap = parseFloat(getComputedStyle(send).insetInlineEnd)
-        + send.parentElement.getBoundingClientRect().right - box.right;
-      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        textLimit: send.getBoundingClientRect().left - gap};
+    insets = field.evaluate("""el => {
+      const style = getComputedStyle(el);
+      return [parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart),
+        parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd)
+        + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["textLimit"], abs=0.1)
+    assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -259,8 +254,8 @@ CARET_ROOM = rf"""box => {{{CARET_AT}
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     """The caret after a line's last character stands at the very end of the text
-    column: in a box that grows with its words, and after a trailing space that fits
-    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    column: in a box that grows with its words, and in a narrow allocation. Firefox
+    paints the caret a pixel wide from that offset onward, pulled
     inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
     clipping its words at the column's end hid it, and it read as gone under Send.
     Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
@@ -288,11 +283,14 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     })""")
     assert field.evaluate(CARET_ROOM) >= 1
     finish_held(page)
-    # At a narrow allocation the trailing space fits beside Send (see above).
+    # Check the last ink at a narrow allocation too. A trailing pre-wrap space can
+    # hang outside the line: its Range box is not the native caret's painted box,
+    # which Chromium pulls back inside the line. Read before that space instead.
     resized(page, 346, 900)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
     page.keyboard.press("Space")
+    page.keyboard.press("ArrowLeft")
     rendered(page)
     assert field.evaluate(CARET_ROOM) >= 1
 
@@ -389,8 +387,10 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 navLeft: box('.lf-margin-preview-nav').left,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
                 overflow: actions.scrollWidth - actions.clientWidth
-                  + head.scrollWidth - head.clientWidth,
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
               };
             }"""
         )
@@ -416,7 +416,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='sidenote'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "
@@ -1340,7 +1340,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     def find(node):
         attrs = node.get("attributes", [])
-        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+        if (
+            dict(zip(attrs[::2], attrs[1::2], strict=True)).get("id")
+            == "draft-face-editor"
+        ):
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):

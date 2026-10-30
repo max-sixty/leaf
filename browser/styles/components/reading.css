@@ -180,15 +180,15 @@
   inset-inline-start: 0;
   max-inline-size: 100cqi;
 }
-/* A cell the user is on, as a thread's target once its card closes, wears the ring
- * inside its own box. The table scrolls its columns, so it clips to its own edges, and
- * the outer columns, the header row and the last row stand flush with them: the layer's
- * outward ring there lost the side on the table's edge. Room outside the table would
- * have to come from a negative margin, which overflows any scroller holding the table
- * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
- * outlined the cell. */
-:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+/* A cell's marks, the ring of a cell the user is on, as a thread's target once its card
+ * closes, among them, stand inside its own box: cells meet edge to edge, and the table
+ * scrolls its columns, so it clips to its own edges, and the outer columns, the header
+ * row and the last row stand flush with them. The layer's outward ring there lost the
+ * side on the table's edge. Room outside the table would have to come from a negative
+ * margin, which overflows any scroller holding the table flush, as an x-bound box
+ * does. */
+:where(:root, .lf-thread-transcript) :is(th, td) {
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge
@@ -739,4 +739,31 @@ leaf-text.lf-fab-input,
   /* Visible overflow releases the formatting context pre's scrolling establishes.
      Keep its scrollbar-clearance float inside the source's own box. */
   display: flow-root;
+}
+
+/* A disclosure arranged in columns gives its evidence the whole row. Keep this
+   native pseudo-element rule outside package scopes: Firefox computes scoped
+   ::details-content declarations but does not use them for grid placement. */
+details::details-content {
+  grid-column: 1 / -1;
+}
+
+/* Frame edges propagate through generated shadow wrappers and their slots by the
+ * same rule as ordinary document wrappers (theme.css, block-flow frames). */
+@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
+  * {
+    --lf-block-frame: 0;
+  }
+}
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+}
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
 }

@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { anchorKey } from "./anchor-coordinate.js";
+import { anchorKey, fragmentId } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
   resolvedElement,
@@ -60,7 +60,6 @@ import {
   addressableWord,
   ownName,
 } from "./addressable-names.js";
-import { fragmentId } from "./initial-render.js";
 
 // Every route that mints an anchor starts after the shown document's widgets and
 // selectable words have settled. Private history can still be loading: the gesture

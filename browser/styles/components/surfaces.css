@@ -16,10 +16,10 @@
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
  * option instead of the accent. It keeps a class's specificity, so the element rules of the
  * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
- * win over every layer. And it matches only under the document's root: a declared tree copies this
- * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
- * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
- * and a plain `.lf-ui` repainted them at the control's size and ink.
+ * win over every layer. It applies under both the document root and a declared shadow
+ * host, so native controls share one face in either tree. It does not select the
+ * general `lf-ui` apparatus: lf-diff's line numbers and hunk separators retain their
+ * component's type and ink.
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
@@ -38,17 +38,18 @@
  * A native control the page writes without either class takes the type from that
  * weightless rule too, so a page that styles it anywhere still wins. Left to the
  * browser it drew 13.33px Arial beside the page's own type (#2559). */
-:where(:root) :is(.lf-ui-face, .button, .field) {
+:where(:root, :host) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
   line-height: var(--lf-ui-lh);
   color: var(--ink);
 }
 :where(
-  :root .lf-ui-face,
-  :root .button,
-  :root .field,
-  :root main :is(button, input, select, textarea)
+  :is(:root, :host) .lf-ui-face,
+  :is(:root, :host) .button,
+  :is(:root, :host) .field,
+  :root main :is(button, input, select, textarea),
+  :host :is(button, input, select, textarea)
 ) {
   font: var(--t-5) / var(--lf-ui-lh) var(--sans);
   font-feature-settings: normal;
@@ -192,18 +193,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-binding-seat {
   position: absolute;
 }
+:root,
+:host {
+  --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
+}
+a[data-lf-external]::after,
 .lf-external-mark {
+  content: "";
   display: inline-block;
   width: 0.75em;
   height: 0.75em;
   margin-inline-start: 0.24em;
   vertical-align: 0.03em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  overflow: visible;
+  background: currentColor;
+  mask: var(--lf-external-icon) center / contain no-repeat;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -250,15 +253,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
- * The ring is the fallback rather than the rule: every control with a ring of its own
- * outranks this, and what is left is the controls that were wearing the platform's
- * outline or, where a widget had restyled them, nothing at all.
+ * The ring is the layer's floor (below), which every box holding visible focus wears,
+ * an offer or not.
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
- * costs nothing, which leaves each rule at the weight of the thing it is answering — the
- * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
- * ring both still win and keep their names. A floor is only a floor if what is built on
- * it comes out on top.
+ * costs nothing, which leaves each rule at the weight of the thing it is answering, a
+ * plain attribute and a state, so a widget's own face still wins. A floor is only a
+ * floor if what is built on it comes out on top.
  *
  * The value and not the bare attribute, because `offer` writes two different facts into
  * one dataset key: "button" or a native choice's input type for a press it built, the
@@ -274,12 +275,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Controls and reading destinations follow browser focus visibility.
+   a carrier, or a mark over the page carries it (`.lf-projected-mark`,
+   visual-mark-paint.js), which reads the gap the destination states rather than this
+   one. Controls and reading destinations follow browser focus visibility.
    Current location remains separate, so pointer focus can reveal controls without
    drawing a ring.
-   At no weight, each control's own band wins. Retargeting shadow hosts and a
-   label press's intermediate nodes get no band. */
-:where([data-lf-focus-visible]) {
+   At no weight, so a box that states where its marks stand (base.css, "Where it
+   stands") keeps that place, and a carrier's band wins. Retargeting shadow hosts and
+   a label press's intermediate nodes get no band. */
+:where([data-lf-focus-visible]:not(.lf-projected-mark)) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -340,10 +344,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default;
   opacity: 0.55;
-}
-[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
@@ -517,14 +517,14 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
 }
 .lf-say {
@@ -578,19 +578,11 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
-  /* A message's control, a symbol as tall as the thread's own: the head keeps its
-     room (controls.css), and so does the thread's own controls' row beside a first
-     message (below). An open rewrite's Discard and Save stand in that room, covering
-     the head's labels beyond it (response.css), but never a notice of news, a press of
-     its own, which the head keeps clear of the pair's whole width. */
+  /* A message's controls, symbols as tall as the thread's own, one group at its
+     head's end (controls.css). */
   --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  /* A message's Copy beside its own control. */
-  --lf-msg-controls-width: calc(
-    2 * var(--lf-msg-control-width) + var(--lf-msg-edit-gap)
-  );
-  --lf-msg-edit-width: calc(var(--lf-msg-controls-width) + var(--sp-2));
   /* The room a held-news notice keeps at its end for the count of facts it drops
      (`.lf-thread-news > span[data-lf-more]`, below), in the notice's own size. */
   --lf-news-count-room: 1.6em;
@@ -604,16 +596,16 @@ summary {
   padding-inline: var(--lf-thread-text-inset) 0;
 }
 /* Conversation flow is separate from the outer flex body that retains reply room.
-   The positioning parent stays outside the transcript's scroll clip, so a message
-   control's focus ring can extend past the transcript's top edge. */
+   The positioning parent stays outside the transcript's scroll clip, so the thread's
+   controls and its notice of news, placed beside the first head, keep their focus
+   rings past the transcript's top edge. */
 .lf-thread-content {
   display: flow-root;
   position: relative;
   min-width: 0;
-  anchor-scope: --lf-thread-headline;
+  anchor-scope: --lf-thread-headline, --lf-thread-message-controls;
   --lf-thread-action-room: max(var(--lf-msg-head-height), var(--aim-floor));
   --lf-thread-notice-room: var(--lf-msg-head-height);
-  --lf-thread-message-control-room: 0px;
 }
 
 /* One animated phase feeds every painted part of a message. Animating the
@@ -623,13 +615,6 @@ summary {
   syntax: "<color>";
   inherits: true;
   initial-value: transparent;
-}
-/* The room a head keeps for its message's controls (controls.css), typed so the
-   runtime reads it as a length (thread-card.js, `#fitMarginNews`). */
-@property --lf-msg-control {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
 }
 @property --lf-msg-arrival {
   syntax: "<number>";
@@ -651,7 +636,16 @@ summary {
 }
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap.
-   An author may ellipsize while time and receipt use their own intrinsic room. */
+   An author may ellipsize while time and receipt use their own intrinsic room. A
+   head too narrow for what it holds, as a first message's beside a narrow card's
+   actions can be, cuts it at its end, a gap past it, so it never runs under them; it
+   cuts nothing above or below, where its controls' rings and a finger's reach stand.
+   It holds what is placed against its own box, such as the rule past a first
+   message's controls (controls.css), unless it sticks. */
+:where(.lf-msg-head) {
+  position: relative;
+  clip-path: inset(-100vh calc(-1 * var(--sp-2)) -100vh -100vw);
+}
 :is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
@@ -659,26 +653,28 @@ summary {
   min-block-size: var(--lf-msg-head-height);
   box-sizing: border-box;
   min-width: 0;
-  overflow: hidden;
   white-space: nowrap;
   font-size: var(--t-6);
-  --lf-msg-name-size: 13px;
+}
+.lf-thread-working-head {
+  overflow: hidden;
 }
 :is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta {
   flex: 0 1 auto;
   overflow: hidden;
 }
-/* A primary reader's first message part, or the first message of its transcript part,
-   holds its thread's news notice at the head's end, beside the message's own control
-   rather than under it (controls.css), unless its presentation stands the notice
-   elsewhere (thread/primary-reader.js). */
-.lf-msg > .lf-msg-head:has(> .lf-primary-news) {
-  position: relative;
-  --lf-msg-head-room: var(--lf-news-width);
-  padding-inline-end: var(--lf-msg-head-room);
+/* The words stand at the head's start, and what follows them at its end. */
+.lf-msg-head > .lf-msg-meta {
+  margin-inline-end: auto;
 }
-.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head:has(> .lf-primary-news) {
-  --lf-msg-control: var(--lf-msg-edit-width);
+/* A primary reader's first message part, or the first message of its transcript part,
+   holds its thread's news notice at the head's end, before the message's own controls
+   (controls.css), unless its presentation stands the notice elsewhere
+   (thread/primary-reader.js). It stays positioned, at no offset, so its reach
+   (`::after`) covers the notice rather than the whole message. */
+.lf-msg-head > .lf-primary-news {
+  position: relative;
+  flex: 0 1 auto;
 }
 .lf-primary-part {
   position: relative;
@@ -691,7 +687,7 @@ summary {
   position: absolute;
   box-sizing: border-box;
   inset-block-start: 0;
-  inset-inline-end: var(--lf-msg-control, 0px);
+  inset-inline-end: 0;
   max-inline-size: var(--lf-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -764,7 +760,7 @@ summary {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: 500 11px/1.3 var(--sans);
+  font: 500 var(--t-6)/1.3 var(--sans);
 }
 .lf-summary-text {
   color: var(--ink-2);
@@ -809,7 +805,7 @@ summary {
 .lf-summary-required {
   margin-top: 6px;
   color: var(--turn-ink);
-  font: 600 11px/1.4 var(--sans);
+  font: 600 var(--t-6)/1.4 var(--sans);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -914,8 +910,15 @@ summary {
   > .lf-msg-head {
   anchor-name: --lf-thread-headline;
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
-  --lf-msg-control: var(--lf-thread-message-control-room);
+}
+/* The header's words leave a notice of news its room before the message's controls. */
+.lf-thread-content:has(> .lf-thread-controls)
+  > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > .lf-msg-head
+  > .lf-msg-control-room {
+  anchor-name: --lf-thread-message-controls;
+  margin-inline-start: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -928,36 +931,6 @@ summary {
   margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
-.lf-thread-content:has(> .lf-thread-controls):has(
-    > .lf-thread-transcript
-      > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-      > :is(.lf-react-strip, .lf-msg-control)
-  ) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-control-width) + var(--sp-2));
-}
-@media (hover: hover) and (pointer: fine) {
-  .lf-thread-content:has(> .lf-thread-controls):has(
-      > .lf-thread-transcript
-        > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-        > .lf-msg-copy
-    ) {
-    --lf-thread-message-control-room: calc(var(--lf-msg-controls-width) + var(--sp-2));
-  }
-}
-.lf-thread-content:has(> .lf-thread-controls):has(
-    > .lf-thread-transcript
-      > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-      > .lf-msg-body
-      > .lf-msg-editor
-  ) {
-  --lf-thread-message-control-room: calc(var(--lf-msg-edit-width) + var(--sp-2));
-}
-.lf-thread-content:has(> .lf-thread-controls)
-  > .lf-thread-transcript
-  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-  > .lf-msg-head {
-  anchor-name: --lf-thread-headline, --lf-msg-head;
-}
 .lf-thread-meta-actions {
   display: inline-flex;
   flex: none;
@@ -968,6 +941,13 @@ summary {
 }
 .lf-thread-meta-actions > button {
   block-size: 100%;
+}
+/* Under a finger each control is already a finger's width, its symbol a third of that,
+   so a gap between them only spreads the symbols further apart. */
+@media (pointer: coarse) {
+  .lf-thread-meta-actions {
+    gap: 0;
+  }
 }
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);
@@ -987,8 +967,8 @@ summary {
     0px,
     min(
       calc(
-        anchor-size(width) - var(--lf-thread-news-start, 0px) - var(--sp-2) -
-          var(--lf-thread-message-control-room)
+        anchor-size(width) - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) -
+          anchor-size(--lf-thread-message-controls width, calc(-1 * var(--sp-2)))
       ),
       calc(
         var(--lf-thread-news-visible-end, anchor-size(width)) -

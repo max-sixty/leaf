@@ -103,19 +103,24 @@ Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
 none.
 
-Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar` directly inside the box carrying `layout-column`, near the top:
+Write an empty `lf-toc` with a stable id in the authored sidebar track. A reading
+page composes the route and its document as siblings:
 
 ```html
-<aside class="sidebar" id="contents-sidebar">
-  <lf-toc id="contents"></lf-toc>
-</aside>
+<main class="layout-sidebar">
+  <aside id="contents-sidebar">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
+  </aside>
+  <article id="document" class="layout-column">…</article>
+</main>
 ```
 
-On a sidebar page, put the
-contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
-to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. Workspaces and root page tabs have their own navigation, and so does a
+The browser places that route before JavaScript runs and wraps it with the document
+when narrow. Keep contents and a short verdict or status in the track, and put detailed
+evidence and history in the body or behind a disclosure. See `page-layout.md`,
+"A sidebar page", for the shared composition and width contract.
+
+Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
 
 ## Style the page

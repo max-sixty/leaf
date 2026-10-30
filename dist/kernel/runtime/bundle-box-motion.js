@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
+import { afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
+import { PRESSES, TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
@@ -17,7 +17,7 @@ const paints$1 = (shape, property) => {
 	}) && style[property] !== "none" && Number.parseFloat(style[`${property}Opacity`]) !== 0 && (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0);
 };
 function paintGeometry(surface) {
-	if (!(surface instanceof SVGElement)) return null;
+	if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
 	const geometry = [surface, ...surface.querySelectorAll("*")].filter((child) => child instanceof SVGGeometryElement);
 	const fill = geometry.filter((shape) => paints$1(shape, "fill"));
 	const paintedStroke = geometry.filter((shape) => paints$1(shape, "stroke"));
@@ -99,7 +99,6 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
-	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);
@@ -171,11 +170,38 @@ function standOver(stand, placed, borderRadius) {
 		display: "block",
 		borderRadius
 	});
+	const band = token("--focus-ring-w");
+	const outside = markGap(placed.surface);
+	const gap = cramped(placed, band + outside) ? -band : outside;
+	stand.box.style.setProperty("--lf-mark-offset", layoutPx(gap));
+	const room = Math.max(0, band + gap);
+	for (const side of [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
 	return {
 		...stood,
 		anchor,
-		at
+		at,
+		room
 	};
+}
+const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+function markGap(surface) {
+	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
+	if (stated) return stated;
+	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
+}
+function cutsAt({ rect, levels }, side) {
+	const axis = side === "top" || side === "bottom" ? "y" : "x";
+	const low = side === "top" || side === "left";
+	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
+}
+function cramped({ rect, levels }, room) {
+	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
+	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
 }
 function paintSet(root, { onNear = () => {} } = {}) {
 	const stands = /* @__PURE__ */ new Map();
@@ -475,9 +501,10 @@ function clearAim() {
 	aimBox.removeAttribute("data-for");
 	delete aimStand.root.dataset.lfPaintPlane;
 }
-function paintAim(element, surface = null) {
-	const geometry = surface ? paintGeometry(surface) : null;
-	const placed = element && placement(surface ?? element, Boolean(geometry), inChrome(element));
+function paintAim(element, surface) {
+	surface ??= element;
+	const geometry = surface && paintGeometry(surface);
+	const placed = element && placement(surface, Boolean(geometry), inChrome(element));
 	if (!placed?.shown) {
 		clearAim();
 		return null;
@@ -490,14 +517,14 @@ function paintAim(element, surface = null) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface ?? element).borderRadius);
+	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
 	aimPlaced = placed;
 	return placed.shown;
 }
 function labelAim(node) {
 	if (!aimPlaced) return;
 	const { rect, shown, levels } = aimPlaced;
-	const above = shown.top - node.offsetHeight - 2;
+	const above = shown.top - node.offsetHeight - aimStood.room;
 	const room = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));
 	const cutTop = shown.top > rect.top;
 	const at = {

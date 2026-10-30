@@ -4,22 +4,32 @@
     "x-instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. Keep each `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "aria-label": { "type": "string", "minLength": 1 }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "aria-label": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "required": ["id", "aria-label"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-timeline-initial.js",
-    "x-visual": { "prefixes": ["event:"] },
+    "x-visual": {
+      "prefixes": ["event:"]
+    },
     "x-example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane label=\"Build\"><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\" label=\"Compile\"></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\" label=\"Artifact ready\"></lf-event></lf-lane><lf-lane label=\"Release\"><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\" label=\"Roll out\"></lf-event></lf-lane></lf-timeline>"
   },
   "lf-lane": {
     "description": "One actor's row in an `lf-timeline`, holding its events.",
     "type": "object",
     "properties": {
-      "label": { "type": "string", "minLength": 1 }
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "required": ["label"],
     "additionalProperties": false,
@@ -32,10 +42,22 @@
     "description": "One event in a timeline lane: an instant at `at`, or a span from `at` to `end`, in milliseconds.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "label": { "type": "string", "minLength": 1 },
-      "at": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
-      "end": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "at": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+      },
+      "end": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+      }
     },
     "required": ["id", "label", "at"],
     "additionalProperties": false,

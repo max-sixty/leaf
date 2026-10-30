@@ -195,7 +195,7 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
             "console", lambda message: console.append(f"{message.type}: {message.text}")
         )
         page.goto(f"http://127.0.0.1:{httpd.server_port}/")
-        assert page.evaluate("() => !document.documentElement.lfInitial"), (
+        assert page.evaluate("() => !document.documentElement.lfRootState"), (
             "the page must run none of Leaf's runtime"
         )
         for widget in PORTABLE:

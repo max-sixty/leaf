@@ -39,9 +39,10 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
+import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
 import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
-import { pageRange, selectEnds, selectionBackward } from "./passages.js";
+
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";

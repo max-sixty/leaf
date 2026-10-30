@@ -484,10 +484,14 @@ customElements.define(
         const resizer = sizeObserver(this.#resize);
         resizer.observe(this.#viewport.value);
         const stopReading = [
-          ["recording", this, this.#body.value],
-          ["point-details", this.#metadata.value, this.#metadata.value],
-          ["saved-elements", this.#tree.value, this.#tree.value],
-        ].map(([name, host, body]) =>
+          { name: "recording", host: this, body: this.#body.value },
+          {
+            name: "point-details",
+            host: this.#metadata.value,
+            body: this.#metadata.value,
+          },
+          { name: "saved-elements", host: this.#tree.value, body: this.#tree.value },
+        ].map(({ name, host, body }) =>
           registerReadingRegion({
             id: compoundReadingRegionId(this, name),
             host,
@@ -1930,9 +1934,7 @@ customElements.define(
         </div>
         <section class="lf-trace-bookmarks">
           <div class="lf-trace-options">
-            <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
-              Moments
-            </p>
+            <p class="lf-rows-head" ?hidden=${!this.#moments.length}>Moments</p>
             <a
               ${offered("lf-trace-viewer")}
               target="_blank"
@@ -1966,7 +1968,7 @@ customElements.define(
               },
             )}
             <p
-              class="lf-trace-no-moments"
+              class="lf-rows-empty"
               ?hidden=${!!available.length || !!unavailable.length}
             >
               No saved moments in this stream.

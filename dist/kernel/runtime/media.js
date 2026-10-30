@@ -1,6 +1,6 @@
-import { foldDuration, inBaseLayer, reducedMotion } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, focusDestination, handBack, html, keeps, keepsHidden, keepsText, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, keys, offerAction, offered, paintKeys } from "./bundle-layer-client.js";
+import { describeFailure, foldDuration, inBaseLayer, keeps, keepsHidden, keepsText, offerAction, offered, reducedMotion } from "./bundle-portable.js";
+import { closeLayer, closeNativeLayer, focusDestination, handBack, html, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
+import { closeControl, keys, paintKeys } from "./bundle-layer-client.js";
 import { says } from "./bundle-passages.js";
 
 //#region runtime/media.js
@@ -52,7 +52,9 @@ function imageTools() {
 function presentViewer(model) {
 	render(html`
       <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
+        <strong id="lf-media-viewer-title" class="lf-dialog-title"
+          >Image preview</strong
+        >
         <div class="lf-media-viewer-actions">
           ${model ? html`<a
                   ${offered("lf-media-viewer-original", true)}
@@ -123,7 +125,7 @@ const cellHeads = (from) => {
 			if ((rtl ? at.left >= box.right - 1 : at.right <= box.left + 1) && at.top <= y && y < at.bottom) rows.push(head);
 		} else if (at.bottom <= box.top + 1 && at.left <= x && x < at.right) columns.push(head);
 	}
-	return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+	return [...new Set([...columns, ...rows].map((head) => says(head)).filter(Boolean))].join(" · ");
 };
 const open = async (source, alt, from) => {
 	const attempt = ++opening;
@@ -153,7 +155,7 @@ const open = async (source, alt, from) => {
 			if (!blob) throw new Error("the drawing could not be encoded");
 		} catch (error) {
 			if (attempt !== opening || !mediaViewer.open) return;
-			render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+			render(html`<p>Image preview unavailable: ${describeFailure(error)}.</p>`, stage);
 			return;
 		}
 		if (attempt !== opening || !mediaViewer.open) return;
@@ -236,7 +238,7 @@ const open = async (source, alt, from) => {
 		paintKeys();
 	}, (error) => {
 		if (attempt !== opening || !mediaViewer.open) return;
-		keepsText(caption, `Image preview unavailable: ${error.message}. Open Original to see the file.`);
+		keepsText(caption, `Image preview unavailable: ${describeFailure(error)}. Open Original to see the file.`);
 		keepsHidden(caption, false);
 	});
 };

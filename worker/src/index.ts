@@ -42,7 +42,7 @@ import type {
 import {
   CHUNK_BYTES,
   PageStore,
-  dateStateDelivery,
+  prepareStateDelivery,
   readPublication,
   readPublicationCommit,
 } from "./storage";
@@ -230,11 +230,7 @@ export class LeafWebsiteSession extends Container<Env> {
             key: url.searchParams.get("key") ?? "",
           })}`;
         }
-        const response = await this.pages.response(
-          route.root,
-          path,
-          request.method === "HEAD",
-        );
+        const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;
       }
     }
@@ -581,7 +577,7 @@ async function staticState(
   const response = await env.ASSETS.fetch(new Request(url));
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as ServedState;
-  dateStateDelivery(state);
+  prepareStateDelivery(state, request);
   const answer = Response.json(state, {
     headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });

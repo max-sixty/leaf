@@ -82,7 +82,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     link = body.locator('a[href="https://example.com/notes"]')
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
-    expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(
         body.locator(
             'a[href^="javascript:"], a[href^="data:"], '

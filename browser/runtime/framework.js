@@ -35,5 +35,4 @@ export { share, untracked } from "./framework/snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,
-  describeFailure,
 } from "./framework/presentation.js";

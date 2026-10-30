@@ -17,13 +17,6 @@
 /** @typedef {{ complete: boolean; active: boolean; latest: object | null; release: (() => void) | null }} RegionRecord */
 import { signal } from "/vendor/signals-core.js";
 import { untracked } from "./snapshot.js";
-/** @param {unknown} reason @returns {string} */
-export function describeFailure(reason) {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  return reason instanceof AggregateError && reason.errors.length
-    ? `${message}: ${reason.errors.map(describeFailure).join("; ")}`
-    : message;
-}
 /** @param {{reportFailure: (reason: unknown) => void}} options */
 export function createPresentationCoordinator({ reportFailure }) {
   const changes = signal(0);

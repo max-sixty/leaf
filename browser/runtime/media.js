@@ -24,6 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
+import { describeFailure } from "./exception.js";
 import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { inBaseLayer } from "./base-layer.js";
@@ -250,7 +251,7 @@ const open = async (source, alt, from) => {
       if (!blob) throw new Error("the drawing could not be encoded");
     } catch (error) {
       if (attempt !== opening || !mediaViewer.open) return;
-      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      render(html`<p>Image preview unavailable: ${describeFailure(error)}.</p>`, stage);
       return;
     }
     if (attempt !== opening || !mediaViewer.open) return;
@@ -344,7 +345,7 @@ const open = async (source, alt, from) => {
       if (attempt !== opening || !mediaViewer.open) return;
       keepsText(
         caption,
-        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
+        `Image preview unavailable: ${describeFailure(error)}. Open Original to see the file.`,
       );
       keepsHidden(caption, false);
     },

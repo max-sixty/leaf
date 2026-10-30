@@ -117,19 +117,16 @@ export function startupLayoutShifts() {
   return [
     {
       code: "startup-layout-shift",
-      severity: "advice",
-      values: {
-        cls,
-        entries: entries.map((entry) => ({
-          at: entry.startTime,
-          value: entry.value,
-          sources: entry.sources.map((source) => ({
-            node: at(source.node),
-            before: source.previousRect.toJSON(),
-            after: source.currentRect.toJSON(),
-          })),
+      cls,
+      entries: entries.map((entry) => ({
+        at: entry.startTime,
+        value: entry.value,
+        sources: entry.sources.map((source) => ({
+          node: at(source.node),
+          before: source.previousRect.toJSON(),
+          after: source.currentRect.toJSON(),
         })),
-      },
+      })),
     },
   ];
 }

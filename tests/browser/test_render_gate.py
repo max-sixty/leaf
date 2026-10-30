@@ -153,6 +153,56 @@ def test_the_render_gate_reports_a_compact_spill(browser, serve):
     ], reading.failures
 
 
+def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
+    """Platform entries survive the real JS probe and report boundary as advice.
+
+    Supply deterministic PerformanceObserver readings rather than depending on
+    whether the compositor happened to paint before a particular module loaded.
+    """
+    probe = render_gate_scheme.evaluate_probe
+
+    def with_shifts(page, name, *args, **kwargs):
+        if name == "startupLayoutShifts":
+            page.evaluate("""() => {
+                const driver = globalThis.__leafRenderDriver;
+                globalThis.__leafRenderDriver = {
+                    ...driver,
+                    startupLayoutShifts: () => [
+                        {startTime: 0, value: .1, sources: []},
+                        {startTime: 500, value: .2, sources: [{
+                            node: document.querySelector('#shifted'),
+                            previousRect: new DOMRect(0, 10, 100, 20),
+                            currentRect: new DOMRect(0, 60, 100, 20),
+                        }]},
+                        {startTime: 2000, value: .15, sources: []},
+                    ],
+                };
+            }""")
+        return probe(page, name, *args, **kwargs)
+
+    monkeypatch.setattr(render_gate_scheme, "evaluate_probe", with_shifts)
+    findings, _, completed = render_gate_scheme._render_scheme(
+        browser,
+        serve(leaf_page("Shift evidence", '<p id="shifted">Reading.</p>'), packages=()),
+        "light",
+        {"width": 1200, "height": 900},
+        3_000,
+        [],
+    )
+    assert completed
+    shifts = [
+        finding.json() for finding in findings if finding.code == "startup-layout-shift"
+    ]
+    assert len(shifts) == 1
+    shift = shifts[0]
+    assert shift["severity"] == "advice"
+    assert shift["values"]["cls"] == pytest.approx(0.3)
+    assert "startup CLS 0.3000" in shift["text"]
+    movement = shift["values"]["entries"][1]["sources"][0]
+    assert movement["node"] == "<p id=shifted>"
+    assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
+
+
 def _panel(name: str) -> str:
     return f'<section class="panel" id="{name}"><h2>{name}</h2><p>Words.</p></section>'
 

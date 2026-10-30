@@ -324,7 +324,8 @@ def _render_scheme(
             moving = evaluate_probe(page, "moving")
             unsettled = [Finding("never-settled", values={"moving": moving})]
     errors.extend(
-        Finding.read(finding) for finding in evaluate_probe(page, "startupLayoutShifts")
+        Finding.read(finding, severity="advice")
+        for finding in evaluate_probe(page, "startupLayoutShifts")
     )
     replayed = _projection_was_applied(failed_stage)
     context = _SchemeContext(

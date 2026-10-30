@@ -5921,7 +5921,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			})),
 			{
 				key: "",
-				draw: () => html`<hr />`
+				draw: () => html`<hr class="lf-fp-rule" />`
 			},
 			...[keyboard, fold].filter(Boolean).map(seat)
 		];
@@ -6011,7 +6011,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >
             Dismiss
           </button>
-        </div>`)}${errors.length > 1 ? html`<hr />
+        </div>`)}${errors.length > 1 ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
 	function shownThreads() {
@@ -6149,7 +6149,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
-      ${resolved.length ? html`<hr class="lf-fp-on-rule" />
+      ${resolved.length ? html`<hr class="lf-fp-rule lf-fp-on-rule" />
               ${settledHeading("resolved", "Resolved", resolved.length)}
               ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-fp-empty">
@@ -6692,7 +6692,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-fp-count"
                     >${row.group.count ?? row.group.items.length}</span

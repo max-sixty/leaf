@@ -1346,7 +1346,7 @@ function standBlocks(state, blocks, out, line) {
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
+function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
@@ -1486,7 +1486,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		const boxes = [];
 		const lists = [];
 		const leads = [];
-		const code = [];
+		const whole = [];
 		const opening = [];
 		const held = [];
 		const after = (line, level) => Math.max(line, ...opening.filter((m) => m.line === line && m.level < level).map((m) => m.to));
@@ -1543,11 +1543,12 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				const start = after(rule.from, token.level);
 				if (touches(state, rule.from, rule.to)) add(start, rule.to, dim);
 				else {
+					whole.push([rule.from, rule.to + 1]);
 					out.push(line("lf-md-rule").range(rule.from));
 					add(start, rule.to, unseen);
 				}
 			} else if (token.type === "fence") {
-				code.push([from, to]);
+				whole.push([from, to]);
 				const body = token.content.split("\n");
 				if (body.at(-1) === "") body.pop();
 				const opened = state.doc.lineAt(from).number + 1;
@@ -1629,7 +1630,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		}
 		const indents = /* @__PURE__ */ new Set();
 		for (const [from, level] of leads) {
-			if (code.some(([a, b]) => from >= a && from < b)) continue;
+			if (whole.some(([a, b]) => from >= a && from < b)) continue;
 			const start = after(from, level);
 			if (indents.has(start)) continue;
 			if (opening.some((m) => m.kind === "item" && m.line === from && m.from === start)) continue;
@@ -1658,6 +1659,40 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 			boxes: BlockWrapper.set(boxes, true)
 		};
 	}
+	const lineStep = (forward, extend) => (view) => {
+		const { selection, doc } = view.state;
+		const moved = EditorSelection.create(selection.ranges.map((range) => {
+			if (!extend && !range.empty) return EditorSelection.cursor(forward ? range.to : range.from);
+			let step = view.moveVertically(range, forward);
+			const here = view.lineBlockAt(range.head);
+			const at = forward ? here.to + 1 : here.from - 1;
+			if ((step.head < here.from || step.head > here.to) && at >= 0 && at <= doc.length) {
+				const beside = view.lineBlockAt(at);
+				if (beside.height < view.defaultLineHeight) {
+					const column = range.head - doc.lineAt(range.head).from;
+					const head = Math.min(beside.from + column, doc.lineAt(at).to);
+					step = EditorSelection.cursor(head, 0, void 0, step.goalColumn);
+				}
+			}
+			return extend ? EditorSelection.range(range.anchor, step.head, step.goalColumn) : step;
+		}), selection.mainIndex);
+		if (moved.eq(selection)) return false;
+		view.dispatch({
+			selection: moved,
+			scrollIntoView: true,
+			userEvent: "select"
+		});
+		return true;
+	};
+	const LINE_STEPS = [{
+		key: "ArrowUp",
+		run: lineStep(false, false),
+		shift: lineStep(false, true)
+	}, {
+		key: "ArrowDown",
+		run: lineStep(true, false),
+		shift: lineStep(true, true)
+	}];
 	const livePreview = ViewPlugin.fromClass(class {
 		constructor(view) {
 			this.live = true;
@@ -1679,7 +1714,12 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		}
 	}, {
 		decorations: (plugin) => plugin.drawn.decorations,
-		provide: (plugin) => [EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none), EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]))]
+		provide: (plugin) => [
+			EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none),
+			EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([])),
+			EditorState.tabSize.of(8),
+			Prec.high(keymap.of(LINE_STEPS))
+		]
 	});
 	const editable = new Compartment();
 	const histories = new Compartment();
@@ -1929,6 +1969,10 @@ sheet.replaceSync(`
   /* A rule's line, while the caret is away, is the sent hr: its stroke, as tall as the
      stroke, its source unseen on it. */
   .lf-md-rule { line-height: 0; border-block-start: 1px solid var(--rule); }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;

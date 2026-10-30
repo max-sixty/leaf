@@ -261,6 +261,10 @@ sheet.replaceSync(`
   /* A rule's line, while the caret is away, is the sent hr: its stroke, as tall as the
      stroke, its source unseen on it. */
   .lf-md-rule { line-height: 0; border-block-start: 1px solid var(--rule); }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;

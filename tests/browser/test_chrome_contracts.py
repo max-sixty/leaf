@@ -1472,11 +1472,13 @@ def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
     assert draft == sent
 
 
-# A rule under a line, entities, a backslash's break, spaces leading a paragraph and a
-# quoted line, and task items, each followed by a word.
+# A rule under a line and in a list item, entities, a backslash's break, spaces
+# leading a paragraph and a quoted line, a tab in code, and task items, each followed
+# by a word.
 SPELLED = (
     "alpha &amp; bravo &copy; charlie\ndelta\\\necho\n---\n   foxtrot\n"
-    "> golf\n>    hotel\n\n- [ ] india\n- [x] juliet\n- kilo"
+    "> golf\n>    hotel\n\n- lima\n  ***\n  mike\n- november\n\noscar\n\n"
+    "```\n\tpapa\n```\n\n- [ ] india\n- [x] juliet\n- kilo"
 )
 # The words a root shows, the source the editor leaves unseen aside, a box's state as
 # its word.
@@ -1499,13 +1501,17 @@ def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
     The preview left as source a rule, which the message draws as a line no taller than
     its stroke, an entity, which it shows as the character named, a break's backslash
     and the spaces leading a paragraph or a quoted line, which it drops, and a task
-    item's brackets, which it draws as a disabled checkbox."""
+    item's brackets, which it draws as a disabled checkbox. A rule in a list item kept
+    the height of the item's line, and code drew a tab four columns wide where the
+    message draws it eight. A press on a task's box puts the caret in its brackets,
+    which then show, as a press on any drawn source does: in Chromium the disabled box
+    took the press, and nothing happened."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, SPELLED, {"section": "p0"})
     page = open_page(browser, url, init_script=KEEP_ROOTS)
     view = open_panel_thread(page, root)
     words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"]
-    words += ["india", "juliet", "kilo"]
+    words += ["lima", "mike", "november", "oscar", "papa", "india", "juliet", "kilo"]
     message = view.locator(".lf-msg-text").first
     sent = message.evaluate(WORDS_AND_RULES, words)
     sent_words = message.evaluate(SHOWN_WORDS)
@@ -1528,6 +1534,42 @@ def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
         for place in read.values():
             del place["y"]
     assert draft == sent
+    task = box.evaluate(f"""box => {{
+      const r = {content}.querySelector('input[type=checkbox]').getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    }}""")
+    page.mouse.click(*task)
+    expect(box).to_be_focused()
+    rendered(page)
+    brackets = SPELLED.index("[ ]")
+    pressed = box.evaluate(
+        f"box => [box.selectionStart, {content}.querySelectorAll('input').length]"
+    )
+    assert brackets <= pressed[0] <= brackets + 3 and pressed[1] == 1, pressed
+
+
+# Rules between paragraphs, with and without blank lines around them.
+@pytest.mark.parametrize(
+    "source", ["P\n\n---\n\nQ", "P\n***\nQ"], ids=["apart", "close"]
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
+    """Up and Down step onto a rule's line, which then shows its source. The rule's line
+    is a stroke's height while the caret is away, shorter than CodeMirror's vertical
+    motion aims past, so the arrows skipped it."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    write(field, source)
+    rule = next(at for at in range(len(source)) if source[at] in "-*")
+    landed = []
+    for key in ["ArrowUp"] * source[rule:].count("\n") + ["ArrowUp", "ArrowDown"]:
+        page.keyboard.press(key)
+        landed.append(field.evaluate("box => box.selectionStart"))
+    on_rule = [rule <= at <= rule + 3 for at in landed]
+    # Up from the last line reaches the rule, Up leaves it, Down comes back.
+    assert on_rule[-3:] == [True, False, True], landed
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

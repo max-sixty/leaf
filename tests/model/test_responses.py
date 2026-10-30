@@ -228,7 +228,7 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
     payload = delivery_model.freeze_delivery(batches)
     refs = [batch["events"][0]["answer"]["ref"] for batch in payload["batches"]]
     assert refs[0] != refs[1]
-    for page, reference in zip((page_dir, other), refs):
+    for page, reference in zip((page_dir, other), refs, strict=True):
         posted = CliRunner().invoke(
             cli_model.cli,
             ["thread", "reply", "--done", reference, "--text", str(page)],

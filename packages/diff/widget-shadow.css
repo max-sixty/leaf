@@ -1,3 +1,4 @@
+@import "./styles/notes.css";
 @import "./styles/disclosure.css";
 
 /* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
@@ -704,6 +705,20 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     width: 100%;
   }
   .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
+    position: static;
+    inline-size: 100%;
+  }
+}
+
+/* Author prose follows a source row without taking its code face or change tint.
+   Like conversations, its width and sideways position belong to the reader. */
+.lf-diff-rows > lf-diff-note {
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: 100cqw;
+}
+@media print {
+  .lf-diff-rows > lf-diff-note {
     position: static;
     inline-size: 100%;
   }

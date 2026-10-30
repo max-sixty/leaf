@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
 #               verbs, which is where `obligations` reads them from.
+#   x-owners with x-content markup  direct prose members remain readable inside a
+#               data widget; its other body content is source notation, withheld.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (a widget's render is
@@ -461,7 +463,27 @@ class _PassageParser:
         # Silenced from above: the element shows nothing of its own, so a rewrite of
         # its body has nothing to stand in for — an edited draft inside a slot the
         # user accepted away left the page with the slot.
-        silenced = bool((parent and parent["skip"]) or own_wall)
+        silenced = bool(
+            (
+                parent
+                and (
+                    parent["silenced"] or (parent["skip"] and parent["sub"] is not None)
+                )
+            )
+            or own_wall
+        )
+        # Data notation is withheld, but a declared prose member is authored text
+        # the widget preserves independently of that notation. Only a direct member
+        # reopens that reading; nesting a member tag in source does not.
+        prose_member = bool(
+            parent
+            and parent["tag"] in entry.get("x-owners", [])
+            and entry.get("x-content") == "markup"
+        )
+        withheld = bool(
+            (parent and parent["withheld"] and not prose_member)
+            or (opaque and entry.get("x-content") == "data")
+        )
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
         # enclosing id in _write.
@@ -476,9 +498,9 @@ class _PassageParser:
             "id": attrs_d.get("id"),
             "added": "data-lf-added" in attrs_d,
             "ids": ids,
-            "skip": silenced
-            or sub is not None
-            or (opaque and entry.get("x-content") == "data"),
+            "skip": silenced or sub is not None or withheld,
+            "withheld": withheld,
+            "silenced": silenced,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,

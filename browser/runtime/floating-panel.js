@@ -1442,6 +1442,9 @@ export function createFloatingPanel({
     transition(before);
   }
   function close({ handedOn = false } = {}) {
+    // Closing the view ends the writing posture too. A saved page draft keeps
+    // its own posture; entering the field starts writing again.
+    writing = false;
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;

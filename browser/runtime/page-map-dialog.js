@@ -91,7 +91,7 @@ const place = placeKeeper(dialogList, {
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
-  "No matching actions, statuses, or locations",
+  "No matching actions, statuses, or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -343,8 +343,8 @@ export function createPageMapDialog({
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations"
-        : "No margin controls, status indicators, or locations yet",
+        ? "No matching actions, statuses, or locations."
+        : "No margin controls, status indicators, or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }

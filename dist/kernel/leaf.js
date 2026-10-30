@@ -5971,7 +5971,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function errorsList({ errors }) {
 		const live = new Set(errorsReading().map((error) => error.id));
-		if (!errors.length) return html`<p class="lf-rows-empty" role="none">No errors</p>`;
+		if (!errors.length) return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
 		const movePast = (dismissed) => {
 			const presses = [...menu.querySelectorAll(".lf-fp-error button")];
 			const at = errors.findIndex((error) => error.id === dismissed);
@@ -6604,7 +6604,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-thread=${thread.key}
@@ -7603,7 +7603,7 @@ const place$1 = placeKeeper(dialogList, {
 	identity: (row) => row.dataset.lfMapKey,
 	active: () => dialog.open
 });
-const dialogEmpty = el("p", "lf-rows-empty", "No matching actions, statuses, or locations");
+const dialogEmpty = el("p", "lf-rows-empty", "No matching actions, statuses, or locations.");
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
 dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
@@ -7747,7 +7747,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		for (const group of groups) for (const offered of group.entry.offers) clearContributionControls(contributionSource(offered), "map", new Set(group.controls.filter((candidate) => candidate.offered === offered).map(({ record }) => record.key)));
 		trackedOffers = liveOffers;
 		const shown = groups.filter((group) => !query || group.search.includes(query)).length;
-		keepsText(dialogEmpty, query ? "No matching actions, statuses, or locations" : "No margin controls, status indicators, or locations yet");
+		keepsText(dialogEmpty, query ? "No matching actions, statuses, or locations." : "No margin controls, status indicators, or locations yet.");
 		keepsHidden(dialogEmpty, shown !== 0);
 	}
 	function renderPageMapDialog(nextEntries) {
@@ -9851,7 +9851,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">No matching commands</div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;

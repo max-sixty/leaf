@@ -807,7 +807,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">No matching commands</div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;

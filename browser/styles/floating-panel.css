@@ -1485,12 +1485,21 @@
   .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
-    font: inherit;
-    font-size: 12px;
-    color: var(--lf-fp-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* A card alone in its group names the group over its question in the group heading's
+     voice (controls.css, `.lf-rows-head`), as a heading names the group of two or more,
+     standing where the card's words start. */
+  .lf-fp-on-place {
+    display: block;
+    padding: 0;
+  }
+  .lf-fp-on-title {
+    font: inherit;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
   }
   .lf-fp-prompt {
     margin: 0;

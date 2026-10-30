@@ -2355,7 +2355,8 @@ export function createFloatingPanel({
   // error's press, or on the way back once none is left.
   function errorsList({ errors }) {
     const live = new Set(errorsReading().map((error) => error.id));
-    if (!errors.length) return html`<p class="lf-rows-empty" role="none">No errors</p>`;
+    if (!errors.length)
+      return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
     const movePast = (dismissed) => {
       const presses = [...menu.querySelectorAll(".lf-fp-error button")];
       const at = errors.findIndex((error) => error.id === dismissed);
@@ -3389,7 +3390,7 @@ export function createFloatingPanel({
       >
         ${
           about.length
-            ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>`
+            ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>`
             : nothing
         }${
           message

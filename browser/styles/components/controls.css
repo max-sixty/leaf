@@ -1053,34 +1053,34 @@ wa-copy-button.lf-icon-action {
   white-space: nowrap;
 }
 /* A list's group heading (`.lf-rows-head`) names the rows under it, and says at its
-   end how many they are (`.lf-row-end`). It speaks as a table's and a board's column
-   headings do (reading.css, board.css): the sans at weight 600 and the shared compact
-   size, in the muted ink and its author's capitalization, since a group is often named
-   in the page's own words, a heading or a goal, which capitals would mangle. It stands
-   as a line of its list, its name starting where the rows' marks do and its count
-   ending at the rows' end. It is no row of the list's columns: a count there would
-   size the column the rows' ends share, and a list whose ends stand inside their
-   names' column, as On me's lines do, would see every end step back. A heading that
-   folds its group is instead a row press wearing the voice, its arrow in the rows'
-   lead. The room above a heading parts its group from the rows before it, and where a
-   list holds each group in a box of its own (`.lf-rows-group`), the room stands above
-   the box. Lists drew their headings four ways, in small capitals, bold in the ink,
-   muted at the rows' weight and with counts short of the rows' ends, until they shared
-   this one. */
+   end how many they are (`.lf-row-end`). It is the sans at weight 600 in the muted
+   ink, a step smaller than the rows so it never reads as one of them, in its author's
+   capitalization, since a group is often named in the page's own words, a heading or
+   a goal, which small capitals would mangle ("IOS"). In a list it stands as a line:
+   its name starts where the rows' marks do and its count ends at the rows' end, with
+   more room above it, parting its group from the rows before, than below, tying it to
+   its own. It is no row of the list's columns, since a count there would size the
+   column the rows' ends share, and a list whose ends stand inside their names' column,
+   as On me's lines do, would see every end step back. A heading that folds its group
+   is instead a row press wearing the voice, its arrow in the rows' lead; where a list
+   holds each group in a box of its own (`.lf-rows-group`), the room stands above the
+   box; elsewhere a wearer keeps only where it stands. Lists drew their headings four
+   ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
+   short of the rows' ends, until they shared this one. */
 .lf-rows-head {
   margin: 0;
-  font: 600 var(--t-working-label) / 1.45 var(--sans);
+  font: 600 var(--t-6) / 1.45 var(--sans);
   color: var(--muted);
 }
-.lf-rows-head:not(:has(> .lf-row)) {
+.lf-rows-head:where(:not(:has(> .lf-row))) {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 5px 8px;
+  padding: 5px 8px 1px;
 }
 .lf-rows > .lf-rows-head:not(:first-child),
 .lf-rows-group:not(:first-child) {
-  margin-block-start: 8px;
+  margin-block-start: 10px;
 }
 .lf-rows-head .lf-row-end {
   color: inherit;

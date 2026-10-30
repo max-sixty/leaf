@@ -675,7 +675,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
-    expect(page.locator(".lf-rows-empty")).to_have_text("Nothing waiting on Claude.")
+    expect(page.locator(".lf-floating-panel .lf-rows-empty")).to_have_text(
+        "Nothing waiting on Claude."
+    )
     expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_text(
         re.compile(r"^\s*Done\s*1\s*$")
     )

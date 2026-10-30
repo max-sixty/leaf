@@ -272,7 +272,12 @@ let forkAgain = false;
  * after it. `$.model.fork` resends the main thread's own last request, its model,
  * system prompt, tools and effort, so the cache serves the conversation; it takes
  * no answer schema, so Leaf checks the answer against its own (`read_answer`).
- * What the fork cost goes to the debug log. */
+ * What Leaf wrote goes to the debug log, beside Claude Code's own line for the
+ * fork's tokens (`Forked agent [plugin_model_fork] finished`); the module logs no
+ * usage of its own, since the debug log redacts a `*_tokens` field. In the
+ * claude-code journey on 2026-10-29, twelve forks over a 48–79k-token
+ * conversation read it all from the cache, cost $0.02–0.04 each at list price and
+ * took 3–11 s. */
 async function clerk($: EngineInterface, session: string) {
   if (forking) {
     forkAgain = true;
@@ -297,7 +302,7 @@ async function clerk($: EngineInterface, session: string) {
           basis: asked.basis,
         });
         $.ui.log(
-          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `wrote ${applied?.wrote?.length ?? 0} records and told ${applied?.told?.length ?? 0} lines`}; usage ${JSON.stringify(reply.usage)}`,
+          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `wrote ${applied?.wrote?.length ?? 0} records and told ${applied?.told?.length ?? 0} lines`}`,
           { to: "debug" },
         );
       } catch (error) {

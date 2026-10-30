@@ -7618,6 +7618,7 @@ function marginMapGroups(entries, faceFor, searchTextByKey) {
 				label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
 				visibleLabel,
 				context: item.mapContext,
+				contextVoice: item.contextVoice ?? null,
 				receipt: item.workflowReceipt,
 				awaitsUser: Boolean(item.userAttention)
 			};
@@ -7710,11 +7711,15 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const thread = item && inventory.sourceItem(item)?.thread;
 		return thread ? threadHeading(thread) : visibleLabel;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`<span class="lf-row-lead"
+	const sheetFace = ({ icon, glyph, item, visibleLabel, context, contextVoice }) => html`<span class="lf-row-lead"
         >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
       ><span class="lf-page-map-action-label-word lf-row-main"
         >${sheetName(item, visibleLabel)}</span
-      >${context ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>` : nothing}`;
+      >${context ? html`<span
+              class="lf-page-map-action-context lf-row-end"
+              data-voice=${contextVoice ?? nothing}
+              >${context}</span
+            >` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
 		if (record.behavior === "status" || record.disabled) return;

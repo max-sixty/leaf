@@ -1494,13 +1494,15 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const items = choice?.items ?? [];
 		const face = readingFace(choice);
 		const behavior = readingBehavior(face);
+		const line = readingContext(choice);
 		node.lfEntry = entry;
 		presentContributionEntry(node, contributionEntry({
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
 			voice: face.voice ?? "agent",
-			context: readingContext(choice),
+			context: line?.text ?? null,
+			contextVoice: line?.voice ?? null,
 			behavior,
 			rank: "reading",
 			state: readingState(choice),

@@ -1754,11 +1754,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Leaf's words about an update stand apart from the agent's, as the panel's italic
-   does (`workflowVoice`). */
-.lf-margin-entry-label-word[data-voice="leaf"] {
-  font-style: italic;
-}
 .lf-margin-entry-context,
 .lf-margin-entry-more {
   margin-block-start: 2px;

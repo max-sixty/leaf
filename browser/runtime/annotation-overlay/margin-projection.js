@@ -842,6 +842,7 @@ export function createMarginProjection({
     const items = choice?.items ?? [];
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
+    const line = readingContext(choice);
     node.lfEntry = entry;
     presentContributionEntry(
       node,
@@ -852,7 +853,8 @@ export function createMarginProjection({
         // A lone receipt's label is its workflow's word, said in that workflow's voice;
         // a group's is its kind's.
         voice: face.voice ?? "agent",
-        context: readingContext(choice),
+        context: line?.text ?? null,
+        contextVoice: line?.voice ?? null,
         behavior,
         rank: "reading",
         state: readingState(choice),

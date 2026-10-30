@@ -225,8 +225,8 @@ test("thread aggregation preserves canonical user attention and obligation prece
     userAttention: { label: "On you", reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }), "Not answered");
-  assert.equal(readingContext({ items: [recovery, item] }), "On you");
+  assert.equal(readingContext({ items: [recovery] }).text, "Not answered");
+  assert.equal(readingContext({ items: [recovery, item] }).text, "On you");
 });
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
@@ -252,7 +252,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   const said = (held) => {
     const item = marker("thread", "comment", threadMarks(held, "Claude"));
     const [row] = map([inventory({ items: [item] })])[0].actions;
-    return [readingContext({ items: [item] }), row.context];
+    return [readingContext({ items: [item] })?.text, row.context];
   };
   assert.deepEqual(said(thread(waitingOnTodo, { todos: todo() })), [
     "Still to do",
@@ -285,6 +285,21 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     ),
     ["Not answered", "Not answered"],
   );
+  // The line keeps the voice of whoever said it: Leaf's for what it observed of the
+  // failed response, on the margin entry and the Page Map row alike.
+  const failedThread = thread(
+    { kind: "waiting", reason: "workflow", workflow: "f" },
+    { workflows: [failed] },
+  );
+  const failedItem = marker("thread", "comment", threadMarks(failedThread, "Claude"));
+  const [failedRow] = map([inventory({ items: [failedItem] })])[0].actions;
+  assert.deepEqual(
+    [readingContext({ items: [failedItem] }).voice, failedRow.contextVoice],
+    ["leaf", "leaf"],
+  );
+  // An unread count is the interface's, in no one's voice.
+  const busyItem = marker("thread", "comment", threadMarks(busy, "Claude"));
+  assert.equal(readingContext({ items: [busyItem] }).voice, null);
   const onUser = thread(
     { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
@@ -292,6 +307,7 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   assert.deepEqual(threadMarks(onUser, "Claude").userAttention, {
     label: "Your turn",
     reason: "obligation",
+    voice: "agent",
   });
   assert.deepEqual(said(onUser), ["Your turn", "Your turn"]);
 });

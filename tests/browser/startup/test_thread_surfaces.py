@@ -211,7 +211,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
         },
     )
     strip = broken.locator(".lf-react-strip")
-    trigger = strip.locator(".lf-react-trigger")
+    trigger = broken.locator(".lf-react-trigger")
     if activation == "pointer":
         # Exercise retirement of a saved draft separately from active continuations.
         input.press("Escape")

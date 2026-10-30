@@ -13,8 +13,8 @@ measurement, and plain HTML for numbers with no repeatable source.
 For an existing interface, capture the relevant panel, card or menu with enough
 surrounding background to preserve its whole shadow. Crop or mark the capture so
 the eye lands on the point, cutting through background rather than text. Use
-`lf-shot` for before-and-after captures and a table for captures that vary along
-other axes ("Source files and media").
+`lf-shot` for before-and-after captures. Captures that vary along other axes need each
+axis labelled once, which a table does by default ("Source files and media").
 
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
@@ -110,12 +110,13 @@ for example from a badge or transparent logo, give the image
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
-or the colour scheme, put them in a `<table>` with one linked capture per cell, a
+or the colour scheme, the reader should be able to tell each capture's value on every
+axis from where it stands rather than from prose away from the images, with each axis
+labelled once. The default is a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Captures of an option's outcome go inside that
-option, in such a table where there are several (`authoring-on-me.md`). Place
-captures the reader compares side by side or one above the other, so whatever moved
-shows as a misalignment.
+row's. Captures of an option's outcome go inside that option, in such a table where
+there are several (`authoring-on-me.md`). Place captures the reader compares side by
+side or one above the other, so whatever moved shows as a misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`

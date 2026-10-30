@@ -27,7 +27,8 @@ def test_browser_health_rejects_an_unconsumed_problem():
 
     with (
         pytest.raises(
-            AssertionError, match="https://leaf.test/example: unexpected browser fault"
+            AssertionError,
+            match=r"https://leaf\.test/example: unexpected browser fault",
         ),
         clean_browser(),
     ):
@@ -60,7 +61,7 @@ def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
             raise AssertionError("the expired wait listened for another paint")
 
     page = BusyPage()
-    page.lf_traffic = Traffic(page)
+    monkeypatch.setattr(page, "lf_traffic", Traffic(page), raising=False)
     expired = SERVED_TIMEOUT_MS / 1000 + 1
     times = iter((0, expired, expired, expired))
     monkeypatch.setattr(time, "monotonic", lambda: next(times))

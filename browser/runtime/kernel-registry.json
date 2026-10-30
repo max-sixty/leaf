@@ -1,4 +1,13 @@
 {
+  "$public-modules": {
+    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities.",
+    "paths": [
+      "/vendor/lit.js",
+      "/runtime/widget-api.js",
+      "/runtime/portable-api.js",
+      "/vendor/floating-ui.esm.js"
+    ]
+  },
   "$authored": {
     "description": "The page-wide declarations an author writes for the runtime to read. `allocations` lists the attributes of `body` and their permitted values; a sample template carries them onto its child's body. `data-rail` says whether the page cedes its right margin to the overlay rail or keeps it for its own margin content, `data-annotations` whether Leaf's overlay or the page presents annotations. `page check` holds a page to this table (`structure.AUTHORED_ALLOCATIONS`), build/browser/contract-types.mjs types the runtime's readers by it, and `build/registry.test.mjs` holds every stylesheet selector that spells an allocation to it.",
     "allocations": {
@@ -12,7 +21,7 @@
     "widget": "lf-[a-z0-9]+(?:-[a-z0-9]+)*"
   },
   "$marks": {
-    "description": "The declarations a stylesheet reads, each painted on the element as `paint`, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound), draws into a box of a stated height (x-height), the reading structure it supplies (x-reading-role), the margin placement it takes where it stands in a column's sidebar (x-margin-content), whether it shows one member at a time (x-views), and whether it draws a picture (x-visual). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room and the margin placement, which are the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). The paint names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
+    "description": "The declarations a stylesheet reads, each painted on the element as `paint`, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound), draws into a box of a stated height (x-height), the reading structure it supplies (x-reading-role), whether it shows one member at a time (x-views), and whether it draws a picture (x-visual). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room, which is the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). The paint names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
     "x-content": { "paint": "data-lf-content", "message": true },
     "x-verbatim": { "paint": "data-lf-verbatim", "message": true },
     "x-space": {
@@ -36,7 +45,6 @@
       "message": true
     },
     "x-reading-role": { "paint": "data-lf-reading-role", "message": true },
-    "x-margin-content": { "paint": "data-lf-margin-content", "message": false },
     "x-views": { "paint": "data-lf-views", "message": true },
     "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true },
     "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true }
@@ -465,7 +473,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it, write the answer into the markup, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
         }
       ]
     },

@@ -1,7 +1,6 @@
-import { nativeLayerHolding, nextRender, renderedParent, renderedUnder } from "./bundle-portable.js";
-import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-dom-move.js";
-import "./bundle-layer-stack.js";
-import { actionElement, iconElement, notice, offer, raiseError } from "./bundle-layer-client.js";
+import { actionElement, iconElement, nativeLayerHolding, nextRender, offer, offeredActionElement, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
+import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
+import { notice, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
 import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 
@@ -47,9 +46,10 @@ function restrictUserIntent(retained, available) {
 //#endregion
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
-	if (behavior !== "instant") startScroll(box);
-	box.scrollBy({
-		...by,
+	startScroll(box);
+	setScroll(box, {
+		top: box.scrollTop + (by.top ?? 0),
+		left: box.scrollLeft + (by.left ?? 0),
 		behavior
 	});
 };
@@ -249,9 +249,10 @@ function copyThroughSelection(value, trigger) {
 	}
 }
 function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
-	const copy = role ? document.documentElement.lfInitial.offerActionElement(document.createElement("wa-copy-button"), role, className) : offer("wa-copy-button", className);
+	const copy = role ? offeredActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
+	const symbol = copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon");
 	for (const [icon, slot] of [
-		[actionElement(action, "lf-copy-icon"), "copy-icon"],
+		[symbol, "copy-icon"],
 		[iconElement("check", "lf-copy-icon"), "success-icon"],
 		[iconElement("cross", "lf-copy-icon"), "error-icon"]
 	]) copy.append(Object.assign(icon, { slot }));

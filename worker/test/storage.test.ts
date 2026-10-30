@@ -1,3 +1,4 @@
+import type { ServedState } from "../../browser/types/contract.js";
 import { describe, expect, it } from "vitest";
 import { unpackTar } from "modern-tar";
 import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
@@ -94,9 +95,13 @@ describe("durable website page records", () => {
         .toArray();
       expect(sizes[0].bytes).toBeLessThan(2_000_000);
       const last = Object.keys(publication.responses).at(-1)!;
-      expect(await (await store.response(publication.root, last, false))!.text()).toBe(
-        "immutable module",
-      );
+      expect(
+        await (await store.response(
+          publication.root,
+          last,
+          new Request("https://leaf.page/"),
+        ))!.text(),
+      ).toBe("immutable module");
     } finally {
       await new Promise((resolve) => setImmediate(resolve));
       close();
@@ -115,6 +120,10 @@ describe("durable website page records", () => {
         new TextEncoder().encode(
           JSON.stringify({
             saved: "choice",
+            data: {
+              version: "v1",
+              sources: { notes: { contract: "text", value: "Saved" } },
+            },
             taken: 1,
             now: "1970-01-01T00:00:01.000Z",
             activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
@@ -153,38 +162,55 @@ describe("durable website page records", () => {
       const response = (await restored.response(
         "/examples/board",
         "media/private.png",
-        false,
+        new Request("https://leaf.page/"),
       ))!;
       expect(Buffer.from(await response.arrayBuffer()).equals(body)).toBe(true);
       expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-      expect(await restored.response("/", "api/state", false)).toBeNull();
+      expect(
+        await restored.response("/", "api/state", new Request("https://leaf.page/")),
+      ).toBeNull();
       expect(
         await (await restored.response(
           "/examples/board",
           "media/private.png",
-          true,
+          new Request("https://leaf.page/", { method: "HEAD" }),
         ))!.text(),
       ).toBe("");
       expect(
         await (await restored.response(
           "/examples/board",
           "revisions/leaf.js",
-          false,
+          new Request("https://leaf.page/"),
         ))!.text(),
       ).toBe('import "./runtime/private.js";');
       const requestedAt = Date.now();
       const savedState = (await restored.response(
         "/examples/board",
         "api/state",
-        false,
+        new Request("https://leaf.page/"),
       ))!;
       expect(savedState.headers.has("Content-Length")).toBe(false);
-      const delivered = (await savedState.json()) as {
-        saved: string;
-        taken: number;
-        now: string;
-        activity: { status: string; since: string };
-      };
+      for (const version of ["v1", "stale"]) {
+        const response = (await restored.response(
+          "/examples/board",
+          "api/state",
+          new Request("https://leaf.page/api/state", {
+            headers: { "Leaf-Data-Version": version },
+          }),
+        ))!;
+        const reading = await response.json<Pick<ServedState, "taken" | "data">>();
+        expect(reading).toMatchObject({ saved: "choice" });
+        expect(reading.taken).toBeGreaterThan(1);
+        expect(reading.data).toEqual(
+          version === "v1"
+            ? { version: "v1" }
+            : {
+                version: "v1",
+                sources: { notes: { contract: "text", value: "Saved" } },
+              },
+        );
+      }
+      const delivered = await savedState.json<Pick<ServedState, "taken" | "now">>();
       expect(delivered).toMatchObject({
         saved: "choice",
         activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
@@ -205,7 +231,11 @@ describe("durable website page records", () => {
         "missing page storage chunk",
       );
       expect(
-        await (await restored.response("/examples/board", "api/state", false))!.json(),
+        await (await restored.response(
+          "/examples/board",
+          "api/state",
+          new Request("https://leaf.page/"),
+        ))!.json(),
       ).toMatchObject({ saved: "choice" });
       expect((await records(restored))["/examples/board"]).toEqual(publication.record);
       await expect(
@@ -325,8 +355,16 @@ describe("durable website page records", () => {
       const neighbor = page("/other", chunks);
       const neighborCommit = await stage(store, neighbor, blobs);
       store.publish(neighborCommit, manifest);
-      const reading = (await store.response("/", "media/file", false))!;
-      const cancelled = (await store.response("/", "media/file", false))!;
+      const reading = (await store.response(
+        "/",
+        "media/file",
+        new Request("https://leaf.page/"),
+      ))!;
+      const cancelled = (await store.response(
+        "/",
+        "media/file",
+        new Request("https://leaf.page/"),
+      ))!;
       const restored = store.records();
       const cancelledRestore = store.records();
       const next = page("/", []);

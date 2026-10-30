@@ -24,6 +24,7 @@
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
+import { describeFailure } from "./exception.js";
 import { html, render } from "/runtime/framework.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { inBaseLayer } from "./base-layer.js";
@@ -116,7 +117,9 @@ function presentViewer(model) {
   render(
     html`
       <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
+        <strong id="lf-media-viewer-title" class="lf-dialog-title"
+          >Image preview</strong
+        >
         <div class="lf-media-viewer-actions">
           ${
             model
@@ -213,7 +216,9 @@ const cellHeads = (from) => {
       columns.push(head);
   }
   // A header row repeated before a later section stands above the capture twice.
-  return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+  return [
+    ...new Set([...columns, ...rows].map((head) => says(head)).filter(Boolean)),
+  ].join(" · ");
 };
 
 // The viewer hands the user back to the image they opened it from (focus.js,
@@ -248,7 +253,7 @@ const open = async (source, alt, from) => {
       if (!blob) throw new Error("the drawing could not be encoded");
     } catch (error) {
       if (attempt !== opening || !mediaViewer.open) return;
-      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      render(html`<p>Image preview unavailable: ${describeFailure(error)}.</p>`, stage);
       return;
     }
     if (attempt !== opening || !mediaViewer.open) return;
@@ -342,7 +347,7 @@ const open = async (source, alt, from) => {
       if (attempt !== opening || !mediaViewer.open) return;
       keepsText(
         caption,
-        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
+        `Image preview unavailable: ${describeFailure(error)}. Open Original to see the file.`,
       );
       keepsHidden(caption, false);
     },

@@ -207,7 +207,11 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 else None
             )
-            if called in owners and named not in owners[called][1]:
+            if (
+                isinstance(node, ast.Call)
+                and called in owners
+                and named not in owners[called][1]
+            ):
                 owner = owners[called][0]
                 bypassed.append(f"{named}:{node.lineno} {called} — {owner} owns it")
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
@@ -327,9 +331,11 @@ def test_a_wait_takes_the_suites_deadline():
     def defaults(arguments):
         positional = arguments.posonlyargs + arguments.args
         yield from zip(
-            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+            positional[len(positional) - len(arguments.defaults) :],
+            arguments.defaults,
+            strict=True,
         )
-        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults, strict=True)
 
     fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
@@ -429,14 +435,16 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
         (config / "leaf", "xdg"),
     ):
         (package / "widgets").mkdir(parents=True)
-        (package / "theme.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
+        (package / "overrides.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
         (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
     def composed(page):
-        return selected(layer_record(page), page)
+        layer_2 = layer_record(page)
+        assert layer_2 is not None
+        return selected(layer_2, page)
 
     assert composed(page) == composed(baseline)
     assert load_registry(page)["$layer"]["packages"] == []
@@ -551,13 +559,13 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     add_test_widget(source, "lf-installed", upgrade=True)
-    (source / "theme.css").write_text("lf-installed { color: teal; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: teal; }\n")
     first = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert first.exit_code == 0, first.output
     held = layer_model.named_package(name)
     assert held == Path(json.loads(first.output)["package"])
     first_registry = (held / "registry.json").read_bytes()
-    (source / "theme.css").write_text("lf-installed { color: purple; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: purple; }\n")
     source_registry = source / "registry.json"
     updated = json.loads(source_registry.read_text())
     updated["lf-installed"]["description"] = "Replacement snapshot."
@@ -568,7 +576,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     def at_publication(staged, destination):
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
-            assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+            assert (
+                held / "overrides.css"
+            ).read_text() == "lf-installed { color: teal; }\n"
         replace(staged, destination)
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
@@ -580,14 +590,17 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     current = layer_model.named_package(name)
     assert observations == [held, current] and held != current
     assert (held / "registry.json").read_bytes() == first_registry
-    assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+    assert (held / "overrides.css").read_text() == "lf-installed { color: teal; }\n"
+    assert current is not None
     assert (
         json.loads((current / "registry.json").read_text())["lf-installed"][
             "description"
         ]
         == "Replacement snapshot."
     )
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
     page = tmp_path / "page"
     vendored = runner.invoke(
@@ -595,13 +608,17 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     )
     assert vendored.exit_code == 0, vendored.output
     assert load_registry(page)["lf-installed"]["description"] == "Replacement snapshot."
-    theme = selected(layer_record(page), page).top_files["theme.css"].decode()
+    layer_3 = layer_record(page)
+    assert layer_3 is not None
+    theme = selected(layer_3, page).top_files["theme.css"].decode()
     assert "lf-installed { color: purple; }" in theme
-    (source / "theme.css").write_text(".bad { color red; }\n")
+    (source / "overrides.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert refused.exit_code != 0 and "syntax error" in refused.output
     assert layer_model.named_package(name) == current
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
@@ -626,7 +643,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "widgets.css").read_bytes() == b""
+    assert (package_root / "defaults.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
@@ -645,7 +662,9 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         ],
     )
     assert initialized.exit_code == 0, initialized.output
-    widgets = selected(layer_record(page), page).directory_files["widgets"]
+    layer_4 = layer_record(page)
+    assert layer_4 is not None
+    widgets = selected(layer_4, page).directory_files["widgets"]
     assert widgets["lf-risk-note.js"].decode() == module
     (page / "index.html").write_text(
         PAGE.replace(
@@ -787,7 +806,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
 
     package = tmp_path / ".leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "theme.css").is_file()
+    assert (package / "overrides.css").is_file()
     assert list((package / "instructions").iterdir()) == []
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
@@ -809,11 +828,13 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    layer = selected(layer_record(page), page)
+    layer_5 = layer_record(page)
+    assert layer_5 is not None
+    layer = selected(layer_5, page)
     # The package's widget rule reaches the page among its defaults, unscoped.
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
-    assert theme.index("lf-callout {") < theme.index("@layer lf-theme")
+    assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
     assert load_registry(page)["lf-callout"] == entry
     assert (
         "Use them for short notices."
@@ -865,12 +886,18 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert plain_registry["$layer"]["packages"] == []
     assert packaged_registry["$layer"]["packages"] == ["diagram"]
     diagram = "widgets/lf-diagram.js"
-    assert diagram not in layer_widgets(layer_record(plain), plain)
-    assert diagram in layer_widgets(layer_record(composed), composed)
+    layer_6 = layer_record(plain)
+    assert layer_6 is not None
+    assert diagram not in layer_widgets(layer_6, plain)
+    layer_7 = layer_record(composed)
+    assert layer_7 is not None
+    assert diagram in layer_widgets(layer_7, composed)
     revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
     assert revendor.exit_code == 0, revendor.output
     assert load_registry(composed)["$layer"]["packages"] == ["diagram"]
-    assert diagram in layer_widgets(layer_record(composed), composed)
+    layer_8 = layer_record(composed)
+    assert layer_8 is not None
+    assert diagram in layer_widgets(layer_8, composed)
     removed = runner.invoke(
         cli_model.cli, ["page", "init", "--no-packages", str(composed)]
     )
@@ -878,7 +905,9 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     removed_registry = load_registry(composed)
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
-    assert diagram not in layer_widgets(layer_record(composed), composed)
+    layer_9 = layer_record(composed)
+    assert layer_9 is not None
+    assert diagram not in layer_widgets(layer_9, composed)
 
 
 def _replying_after(page, server, edit):
@@ -926,7 +955,9 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     )
     assert read.returncode == 0, read.stderr
     assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = layer_record(claimed)["generation"]
+    layer_10 = layer_record(claimed)
+    assert layer_10 is not None
+    before = layer_10["generation"]
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -941,7 +972,9 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert layer_record(claimed)["generation"] == before
+    layer_11 = layer_record(claimed)
+    assert layer_11 is not None
+    assert layer_11["generation"] == before
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],

@@ -53,7 +53,7 @@ def test_the_page_is_marked_since_the_newest_revision_a_tab_showed(page_dir):
 
 def test_a_tab_can_say_it_showed_only_a_revision_the_page_holds(page_dir):
     revisioning_model.activate_source(page_dir)
-    with pytest.raises(EventRefused, match="unknown-revision|revision"):
+    with pytest.raises(EventRefused, match="revision"):
         append_command(page_dir, {"kind": "seen", "author": "user", "revision": 9})
 
 

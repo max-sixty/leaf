@@ -95,7 +95,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         state = {
             "activity": {"obligations": [obligation]},
             "cursor": 1,
-            "claim_turn": "leaf-turn",
+            "turn": "leaf-turn",
         }
         return activity_model.blocking_obligations(state, watched=watched)
 
@@ -113,9 +113,10 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     page = codex_claimed_page
     session_model.cmd_waiting(page)
     session = service_model.page_claim(page)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
 
     # A live watcher lets Claude end its turn, but Codex must keep this one active
@@ -163,9 +164,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     comment = append_carried_log_record(
         page, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page, session["id"])
-    )
+    lease_path_2 = leases_model.waiter_lease_path(page, session["id"])
+    assert lease_path_2 is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
     hooks_model.cmd_hook(
         "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
@@ -209,9 +210,10 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
-        assert not leases_model.lock_is_held(
-            leases_model.waiter_lease_path(page_dir, claim["id"])
-        )
+        assert claim is not None
+        lease_path_4 = leases_model.waiter_lease_path(page_dir, claim["id"])
+        assert lease_path_4 is not None
+        assert not leases_model.lock_is_held(lease_path_4)
         assert leases_model.lock_is_held(page_dir / "waiter.lock")
         assert not page_state(page_dir)["listening"]
 
@@ -403,9 +405,11 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     session_model.cmd_waiting(claimed)
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed)["id"])
-    )
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    lease_path_8 = leases_model.waiter_lease_path(claimed, claim_record["id"])
+    assert lease_path_8 is not None
+    lease = leases_model.take_wait_lease(lease_path_8)
     assert lease
     asked = append_carried_log_record(
         claimed,
@@ -465,9 +469,10 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path_5 = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path_5 is not None
+    lease = leases_model.take_wait_lease(lease_path_5)
     assert lease
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
@@ -479,7 +484,9 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     assert "decision" not in answer
     assert "1 acknowledged user update with no answer" in continued(answer)
     assert asked["id"] in continued(answer)
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    claim_record_2 = service_model.page_claim(claimed)
+    assert claim_record_2 is not None
+    assert claim_record_2["turn_closed"] is None
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
@@ -493,6 +500,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     # A bound move can be answered by its provider final or an explicit addressed
     # reply. The proactive thread writer still refuses an owed move.
     with service_model.PageTransaction(claimed) as page:
+        assert session is not None
         page.reserve_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
@@ -507,6 +515,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
         thread_model.post_response(ref, "gave up", failure="turn_failed")
     assert f"with `leaf thread reply {ref}`" in str(refused.value)
     with service_model.PageTransaction(claimed) as page:
+        assert session is not None
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
     # A reply clears it, and the thread stays open behind it: closing one is the
@@ -608,9 +617,10 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     reading the published version to settle threads loaded that page's registry."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path_6 = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path_6 is not None
+    lease = leases_model.take_wait_lease(lease_path_6)
     assert lease
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
@@ -619,6 +629,7 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     record = registry_storage.layer_record(claimed)
     layer = claimed / schema_model.LAYER_FILE
     layer.unlink()
+    assert record is not None
     registry_storage.LAYER.write(
         layer, {**record, "packages": [*record["packages"], "./moved-package"]}
     )
@@ -760,7 +771,9 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
     pickup("opened")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert "1 acknowledged user update with no answer" in capsys.readouterr().out
-    assert "1 acknowledged user update with no answer" in idle()
+    value = idle()
+    assert value is not None
+    assert "1 acknowledged user update with no answer" in value
 
 
 def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
@@ -774,9 +787,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     """
     session_model.cmd_waiting(page_dir)
     marker = page_dir / "status-lock-requested"
-    events = open(  # noqa: SIM115 - held across the child transition
-        page_dir / "events.jsonl", "a+b"
-    )
+    events = open(page_dir / "events.jsonl", "a+b")
     fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
 from leaf import service as service_model
@@ -850,9 +861,10 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     to the agent — a reaction is not the user speaking. The user's words are."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path_7 = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path_7 is not None
+    lease = leases_model.take_wait_lease(lease_path_7)
     assert lease
     append_carried_log_record(
         claimed,
@@ -897,9 +909,9 @@ def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot)
         return json.loads(output) if output else None
 
     observations["no adapter"] = hook()
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page, "codex-thread")
-    )
+    lease_path_3 = leases_model.waiter_lease_path(page, "codex-thread")
+    assert lease_path_3 is not None
+    lease = leases_model.take_wait_lease(lease_path_3)
     assert lease
     try:
         observations["direct wait still running"] = hook()
@@ -948,11 +960,15 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     # A page task's start names no move, so the move is still not started.
     working(claimed, "sketching both")
     assert "1 acknowledged user update with no answer" in _stop(capsys)
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    claim_record_3 = service_model.page_claim(claimed)
+    assert claim_record_3 is not None
+    assert claim_record_3["turn_closed"] is None
 
     assert _start(claimed, asked["id"], "sketching both").exit_code == 0
     assert _stop(capsys) is None
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_4 = service_model.page_claim(claimed)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn_closed"]
     assert "1 acknowledged user update with no answer" in _idle(claimed).output
 
     # A worker's result wakes the next turn, whose prompt and Stop name the start
@@ -1083,7 +1099,9 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}
     )
     assert _stop(capsys) is None
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_5 = service_model.page_claim(claimed)
+    assert claim_record_5 is not None
+    assert claim_record_5["turn_closed"]
     assert [
         event["id"]
         for event in service_model.unacknowledged(
@@ -1268,9 +1286,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any(
-        "write the answer into the markup, and stamp a version" in text for text in told
-    )
+    assert any("such as a choice group marked `settled`" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)

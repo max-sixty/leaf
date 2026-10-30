@@ -10,9 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from leaf.findings import Finding
+from leaf.page_snapshot import PageSnapshot, capture_page_snapshot
 from leaf.render_checks import RENDER_VIEWPORT
-from leaf.revision_artifact import RevisionArtifact
-from leaf.structure import SourceDocument
 from leaf.user_views import read_user_views
 
 from .browser import browser_hint, launch_browser
@@ -100,7 +99,8 @@ def _launch(read):
     with ExitStack() as stack:
         try:
             p = stack.enter_context(sync_playwright())
-        except Exception as error:  # noqa: BLE001 - Playwright raises bare Exception on driver EOF
+        except Exception as error:
+            # Playwright raises bare Exception on driver EOF.
             return f"Playwright's driver did not start: {error}"
         try:
             browser, browser_name = launch_browser(p)
@@ -120,8 +120,8 @@ class BrowserCheck:
     code that fails ends the check before the render reading, so `render` is None
     there as well as where it was not asked for, and `ran` names only the gates that
     read the page. `screens` is the directory and each
-    saved screen with what it shows, for a page the render gate passed. `desktop` is
-    the window the render check reads the desktop at, where it was asked for."""
+    saved screen with what it shows, including when the render gate found failures.
+    `desktop` is the window the render check reads the desktop at, where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
@@ -155,8 +155,8 @@ class BrowserCheck:
         if self.unavailable is not None:
             reading["unavailable"] = self.unavailable
         if self.render is not None:
+            assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
-            reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
             into, saved = self.screens
             reading["screens"] = {
@@ -171,9 +171,7 @@ class BrowserCheck:
 
 def browser_check(
     page_dir: Path,
-    document: SourceDocument,
-    revision: int,
-    artifact: RevisionArtifact,
+    snapshot: PageSnapshot,
     *,
     page_code: bool,
     render: bool,
@@ -181,8 +179,9 @@ def browser_check(
     """Serve the candidate source once and, in one browser, run the page's own code
     (`page_code` says which run and which errors fail it), then the render invariants
     at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
-    the pre-handover review reads for a page they pass. Page code that fails ends the
+    the author reads, including when there are findings. Page code that fails ends the
     check before the render reading."""
+    artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
         gate
         for gate, wanted in (("page code", page_code), ("render check", render))
@@ -194,6 +193,7 @@ def browser_check(
         errors = run_page_code(browser, url) if page_code else None
         if errors or not render:
             return errors, None, None
+        assert desktop is not None
         reading = render_version(
             browser,
             url,
@@ -201,14 +201,10 @@ def browser_check(
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
         )
-        if reading.failures:
-            return errors, reading, None
         screens = save_screens(browser, url, reading, page_dir, desktop.viewport)
         return errors, reading, screens
 
-    with preview_server(
-        page_dir, document, revision, transition_held=True, artifact=artifact
-    ) as url:
+    with preview_server(page_dir, snapshot) as url:
         try:
             (errors, reading, screens), browser_name = run_in_browser(
                 lambda browser: read(browser, url)
@@ -252,9 +248,10 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     if not places_judged_widget(document, artifact):
         return
     revision = (latest_revision(page_dir) or 0) + 1
-    ran = browser_check(
-        page_dir, document, revision, artifact, page_code=True, render=False
+    snapshot = capture_page_snapshot(
+        page_dir, document, revision, url="/", artifact=artifact
     )
+    ran = browser_check(page_dir, snapshot, page_code=True, render=False)
     if ran.status:
         raise Rejected(ran.findings(), f"{kind} markup doesn't draw")
 

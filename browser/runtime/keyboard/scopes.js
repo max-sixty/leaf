@@ -24,7 +24,7 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
-import { focusRevision } from "../focus.js";
+import { focusDestination, focusRevision } from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -236,6 +236,13 @@ function claimButton(control) {
   if (control.disabled) control.disabled = false;
   rememberScopedElement(control);
 }
+// Run a row's result and put the user where it says they land (`lands`, bindings.js),
+// given the element the press came from.
+export function runLanding(row, run, from) {
+  run();
+  const to = row.lands?.(from);
+  if (to) focusDestination(to, "move");
+}
 function wireButton(control) {
   claimButton(control);
   if (wiredButtons.has(control)) return;
@@ -253,8 +260,16 @@ function wireButton(control) {
       )
     )
       return;
-    command.row.run(
-      commandBinding(command.row, command.entry === command.row ? null : command.entry),
+    runLanding(
+      command.row,
+      () =>
+        command.row.run(
+          commandBinding(
+            command.row,
+            command.entry === command.row ? null : command.entry,
+          ),
+        ),
+      control,
     );
   });
 }
@@ -576,7 +591,7 @@ function declaredScope(title, rows, options) {
     typeof options === "function" ? { when: options } : (options ?? {});
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
-      `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
+      `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
     );
   // `claims` takes the bindings it answers true for from every scope further out
   // while the user is in this one, as a menu standing over the page does.

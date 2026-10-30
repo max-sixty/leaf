@@ -1,15 +1,14 @@
-import { LAYOUT, PendingTaskEvent, afterScript, bodyText, cancelAnimation, cancelRender, commandsChanged, dataBody, ensureSyntaxLanguage, failSoft, frameFor, inBaseLayer, isNativeLayer, layoutChanged, measure, nextAnimation, nextFrame, nextRender, once, placesFailure, reportFailure, sizeObserver, stagesFailure, synNodes, syntax, tabStore, tokenLines, under, watchArrivalsIn, whileConnected } from "./bundle-portable.js";
-import { TEXT_BOX, TEXT_FIELD, Z, atLayoutPrecision, closeLayer, currentLocationIn, focusDestination, focused, handBack, holdFocus, keeps, keepsHidden, keepsText, layoutPx, move, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, rove, watchCurrentLocationIn, whenLeft } from "./bundle-dom-move.js";
-import { SHADOW_LEADING_CSS, agentName, annotationMarkSheets, applicationRegionsPresented, applicationState, classMap, closeNativeLayer, createRef, declarationFor, elementsDeclaring, guard, html, keyed, layerFact, live, marksSheet, matchesWhen, noChange, nothing, offlineInteractive, pageUrl, projectionRegionsPresented, rankAt, readPart, ref, registry, render, repeat, revisionLabel, shadowRules, showNativeLayer, styleMap, turns, unsafeHTML, watchLayers } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionTemplate, announce, commandScope, commandsOn, cycledRow, dragging, el, generated, generatedElement, iconElement, iconTemplate, labelOf, motionPreview, nameAction, namedAction, notice, offer, offerAction, offered, offeredAction, plainPress, pressIsKeyboardActivation, raiseError, reachedForWords, relabel, requestJson, rowArrows, saying, searchField, selectableOffer, selectableOffered, worksInside } from "./bundle-layer-client.js";
-import { PAGE_INTERFACE, PRESENTATION, addressableLabel, addressableName, addressableWord, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, fragmentTarget, initialRender, pageScroller, preserveReadingRegions, projectedDatum, quietSince, regionScrollBehavior, registerReadingRegion, registerVisualParts, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions, whileInterfaceConnected } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldReading, aborted, allButCommandReference, anchorLabel, answeredInWords, beginWalk, capturePlace, claimTraversals, clearDraft, comparisonChanges, copyBlock, heldGrowth, highlightBlocks, inlineMarkdownFragment, keepView, langForPath, listWalkPosition, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, obligationsIn, openingView, paintMarkdown, placeKeeper, placeOf, publishOutput, pushEntry, quoted, readObligations, readThreads, releaseOutlets, renderMarkdown, replaceEntry, restorePlace, rowWalk, saveDraft, sendDraft, setChildLists, setChildren, setRenderedChildren, threadSummary, threadSurface, watchDraft, widgetDescriptor } from "./bundle-data.js";
+import { LAYOUT, PendingTaskEvent, actionClass, actionName, actionTemplate, afterScript, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bodyText, cancelAnimation, cancelRender, commandsChanged, dataBody, describeFailure, ensureSyntaxLanguage, failSoft, flashDuration, foldBlock, foldDuration, frameFor, generated, generatedElement, iconElement, iconTemplate, inBaseLayer, isNativeLayer, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, measure, motion, nextAnimation, nextFrame, nextRender, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onMotionPreferenceChange, once, placesFailure, reducedMotion, registerVisualParts, reportFailure, returnDuration, scrollBehavior, selectableOffer, selectableOffered, setScroll, sizeObserver, synNodes, syntax, tabStore, textWidth, tokenLines, under, whileConnected } from "./bundle-portable.js";
+import { TEXT_BOX, TEXT_FIELD, Z, agentName, applicationRegionsPresented, applicationState, closeLayer, closeNativeLayer, currentLocationIn, declarationFor, elementsDeclaring, focusDestination, focused, handBack, holdFocus, layerFact, matchesWhen, move, offlineInteractive, onCurrentLocation, onPressAway, onUserInput, openLayer, openerOf, pageUrl, plainPress, pressIsKeyboardActivation, projectionRegionsPresented, rankAt, readPart, registry, revisionLabel, rove, showNativeLayer, turns, whenLeft } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, PRESSABLE, RequestError, commandScope, commandsOn, cycledRow, dragging, el, holdAuthoredBody, labelOf, motionPreview, nameAction, namedAction, notice, raiseError, reachedForWords, relabel, requestJson, rowArrows, saying, searchField, worksInside } from "./bundle-layer-client.js";
+import { PAGE_INTERFACE, PRESENTATION, addressableLabel, addressableName, addressableWord, afterPresentation, ago, atScrollEnd, clockValue, compoundReadingRegionId, deferredArrival, fragmentTarget, pageScroller, preserveReadingRegions, projectedDatum, quietSince, regionScrollBehavior, registerReadingRegion, scrollLimit, scrollerFor, shortAgo, showReadingSubject, watchReadingRegionTransitions, whileInterfaceConnected } from "./bundle-content-layout.js";
+import { HOLDS_WORD, HeldReading, aborted, allButCommandReference, anchorLabel, answeredInWords, beginWalk, capturePlace, claimTraversals, clearDraft, comparisonChanges, copyBlock, heldGrowth, highlightBlocks, inlineMarkdownFragment, keepView, langForPath, listWalkPosition, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, obligationsIn, openingView, paintMarkdown, placeKeeper, placeOf, publishOutput, pushEntry, quoted, readObligations, readThreads, releaseOutlets, renderMarkdown, replaceEntry, restorePlace, rowWalk, saveDraft, sendDraft, setChildLists, setChildren, setRenderedChildren, threadSummary, threadSurface, viewMembers, watchDraft, widgetDescriptor } from "./bundle-data.js";
 import { growthIsSeen, landingInsets, shownWindow } from "./bundle-geometry.js";
-import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, says, watchPassageRoot, wrote } from "./bundle-passages.js";
+import { alignText, authoredScope, closestAcross, elementById, excerptWords, inChrome, says, wrote } from "./bundle-passages.js";
 import { copyControl, fitsWhole, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { backgroundFlash, flashDuration, foldBlock, foldDuration, isCanonicalMediaUrl, motion, onMotionPreferenceChange, reducedMotion, returnDuration, scopedMediaUrl, scrollBehavior } from "./bundle-media.js";
-import { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, LeafElement, answerWords, consumeAnnotations, contributionEntry, contributionItemKey, currentProjection, landInThread, leafEditorView, navigateToDatum, obligationActions, placePageThreads, presentContributionEntry, presentContributionReceipts, queueActions, queueItemKey, queueTitle, readQueues, registerContribution, registerRootHeader, registerThreadPresentation, threadActions, threadBox, threadInput, watchDisclosures, widgetController, wireInput } from "./bundle-disclosure.js";
-import "./portable-api.js";
+import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+import { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, LeafElement, answerWords, consumeAnnotations, contributionEntry, contributionItemKey, currentProjection, landInThread, leafEditorView, navigateToDatum, obligationActions, placePageThreads, presentContributionEntry, presentContributionReceipts, queueActions, queueItemKey, queueTitle, readQueues, registerContribution, registerRootHeader, registerThreadPresentation, shadowStage, threadActions, threadBox, threadInput, widgetController, wireInput } from "./bundle-page-layout.js";
+import { classMap, createRef, guard, html, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "./portable-api.js";
 import { wear } from "./bundle-dress.js";
 
 //#region runtime/shown-answer.js
@@ -236,40 +235,6 @@ function readWork(scope) {
 }
 
 //#endregion
-//#region runtime/shadow-stage.js
-const stageStyles = /* @__PURE__ */ new WeakMap();
-function shadowStage(host, nodes) {
-	const root = host.shadowRoot ?? stageFor(host);
-	watchArrivalsIn(root);
-	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
-		...root.adoptedStyleSheets,
-		...annotationMarkSheets,
-		marksSheet
-	])];
-	watchDisclosures(root);
-	watchLayers(root);
-	watchCurrentLocationIn(root);
-	const rules = SHADOW_LEADING_CSS + shadowRules;
-	let style = stageStyles.get(root);
-	if (style?.textContent !== rules) {
-		style = document.createElement("style");
-		style.textContent = rules;
-		stageStyles.set(root, style);
-	}
-	setChildren(root, [style, ...nodes]);
-	for (const child of [...host.childNodes]) child.remove();
-	watchPassageRoot(root);
-	return root;
-}
-function stageFor(host) {
-	stagesFailure(host, (box) => {
-		shadowStage(host, [box]);
-		return true;
-	});
-	return host.attachShadow({ mode: "open" });
-}
-
-//#endregion
 //#region runtime/file-api.js
 const live$3 = readPart((root) => root.document.live);
 function boundFile(binding) {
@@ -282,8 +247,8 @@ function boundFile(binding) {
 				...options
 			}, "file");
 		} catch (error) {
-			if (error instanceof LayerRefused) throw new Error("Leaf changed while accessing the file.");
-			if (error.status === void 0) throw new Error("The page's server did not answer.", { cause: error });
+			if (error instanceof LayerRefused) throw new Error("Leaf changed while accessing the file.", { cause: error });
+			if (!(error instanceof RequestError)) throw new Error("The page's server did not answer.", { cause: error });
 			if (error.said === void 0) throw new Error(error.status < 400 ? "The page's server answered in a form the page cannot read." : `The page's server answered HTTP ${error.status}.`, { cause: error });
 			throw error;
 		}
@@ -360,62 +325,10 @@ function tallyWords({ onUser, onAgent, open, total }, agent) {
 }
 
 //#endregion
-//#region runtime/time-axis.js
-const TICK_SPACING = 84;
-const STEPS = [
-	1,
-	2,
-	5
-];
-function tickStep(pxPerMs) {
-	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
-	return 1e9;
-}
-function tickLabel(time, step) {
-	if (time === 0) return "0 s";
-	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
-	return `${(time / 1e3).toFixed(digits)} s`;
-}
-function axisTicks(from, to, duration, pxPerMs) {
-	const step = tickStep(pxPerMs);
-	const minor = step / (String(step)[0] === "2" ? 4 : 5);
-	const ticks = [];
-	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
-		const rounded = Math.round(time * 1e3) / 1e3;
-		if (rounded < 0 || rounded > duration) continue;
-		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
-		ticks.push({
-			time: rounded,
-			major,
-			label: major ? tickLabel(rounded, step) : null,
-			step
-		});
-	}
-	return ticks;
-}
-function assignRows(items, start, end) {
-	const rows = [];
-	const rowOf = /* @__PURE__ */ new Map();
-	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
-		let row = rows.findIndex((last) => last <= start(item));
-		if (row < 0) row = rows.push(-Infinity) - 1;
-		rows[row] = end(item);
-		rowOf.set(item.id, row);
-	}
-	return rowOf;
-}
-let measuring = null;
-function textWidth(text, font) {
-	measuring ??= document.createElement("canvas").getContext("2d");
-	measuring.font = font;
-	return measuring.measureText(text).width;
-}
-
-//#endregion
 //#region runtime/widget-api.js
 async function mountSample(frame, options) {
 	return (await import("./bundle-sample.js")).mountSample(frame, options);
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, PendingTaskEvent, TEXT_BOX, TEXT_FIELD, aborted, actionTemplate, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, assignRows, atLayoutPrecision, atScrollEnd, authoredScope, axisTicks, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, commandsChanged, commandsOn, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, copyControl, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, directWorkElements, dragging, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, flashDuration, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, initialRender, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, leafEditorView, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, nameAction, namedAction, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offerAction, offered, offeredAction, onCurrentLocation, onMotionPreferenceChange, onPressAway, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintMarkdown, placeKeeper, placeOf, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerRootHeader, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, render, renderMarkdown, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownAnswer, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, tally, tallyWords, textWidth, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, whileInterfaceConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, HOLDS_WORD, HeldReading, LAYOUT, LeafElement, PAGE_INTERFACE, PRESENTATION, PRESS, PRESSABLE, PendingTaskEvent, RequestError, TEXT_BOX, TEXT_FIELD, aborted, actionClass, actionName, actionTemplate, addressableLabel, addressableWord, afterPresentation, afterScript, agentName, ago, alignText, allButCommandReference, anchorLabel, announce, answerWords, answeredInWords, assignRows, atLayoutPrecision, atScrollEnd, authoredScope, axisTicks, backgroundFlash, beginWalk, bodyText, boundFile, cancelAnimation, cancelRender, capturePlace, claimTraversals, classMap, clearDraft, clockValue, closeLayer, closeNativeLayer, commandScope, commandsChanged, commandsOn, comparisonChanges, compoundReadingRegionId, connection, consumeAnnotations, contributionEntry, contributionItemKey, copyBlock, copyControl, createRef, currentLocationIn, cycledRow, dataBody, declarationFor, deferredArrival, describeFailure, directWorkElements, dragging, el, elementById, elementsDeclaring, ensureSyntaxLanguage, excerptWords, failSoft, fitsWhole, flashDuration, focusDestination, focused, foldBlock, foldDuration, fragmentTarget, frameFor, generate, generated, generatedElement, growthIsSeen, guard, handBack, heldGrowth, highlightBlocks, holdAuthoredBody, holdFocus, html, iconElement, iconTemplate, inBaseLayer, inChrome, inlineMarkdownFragment, isCanonicalMediaUrl, isNativeLayer, keepView, keeps, keepsHidden, keepsText, keyed, labelOf, landInThread, landingInsets, langForPath, layerFact, layoutChanged, layoutPx, leafEditorView, listWalkPosition, live, loadDeferred, loadDraft, loadMarkdown, markdownReady, markdownSourceOffset, markdownWords, matchesWhen, measure, motion, motionPreview, mountSample, move, nameAction, namedAction, navigateToDatum, nextAnimation, nextFrame, nextRender, noChange, nothing, notice, obligationActions, obligationsIn, offer, offerAction, offeredActionElement as offerActionElement, offerElement, offered, offeredAction, onCurrentLocation, onMotionPreferenceChange, onPressAway, onUserInput, once, openLayer, openerOf, openingView, pageScroller, paintMarkdown, placeKeeper, placeOf, placePageThreads, placesFailure, plainPress, presentContributionEntry, presentContributionReceipts, preserveReadingRegions, pressIsKeyboardActivation, projectedDatum, publishOutput, pushEntry, queueActions, queueItemKey, queueTitle, quietSince, quoted, raiseError, rankAt, reachedForWords, readHistory, readObligations, readQueues, readThreads, readWork, reducedMotion, ref, regionScrollBehavior, registerContribution, registerReadingRegion, registerRootHeader, registerThreadPresentation, registerVisualParts, relabel, releaseOutlets, render, renderMarkdown, repeat, replaceEntry, reportFailure, reportSequence, reportsPresented, reportsReady, restorePlace, retainUserIntent, returnDuration, revisionLabel, rove, rowArrows, rowWalk, saidAt, saveDraft, saying, says, scopedMediaUrl, scrollBehavior, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollerFor, searchField, selectableOffer, selectableOffered, sendDraft, setChildLists, setChildren, setRenderedChildren, setScroll, shadowStage, shortAgo, showNativeLayer, showReadingSubject, shownAnswer, shownWindow, Z as signal, sizeObserver, styleMap, synNodes, syntax, tabStore, tally, tallyWords, textWidth, threadActions, threadBox, threadInput, threadSummary, threadSurface, turns as threadTurns, tokenLines, under, unsafeHTML, viewMembers, watchDraft, watchReadingRegionTransitions, wear, whenLeft, whileConnected, whileInterfaceConnected, widgetController, wireInput, workAncestor, workElements, workRole, worksInside, wrote };

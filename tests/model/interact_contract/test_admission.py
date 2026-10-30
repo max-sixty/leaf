@@ -147,7 +147,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
         '<lf-suggestion id="proposal" resolves="e1">'
         '<lf-new><p id="new">Proposed work.</p></lf-new></lf-suggestion>'
     )
-    commands = [{"kind": "comment", "text": "Review it."}]
+    commands: list[dict] = [{"kind": "comment", "text": "Review it."}]
     for outcome, answers in (("accept", False), ("reject", True)):
         commands.append(
             {
@@ -326,7 +326,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
 def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
     instance_input_registry,
 ):
-    commands = [
+    commands: list[dict] = [
         {"kind": "comment", "text": "Choose a count."},
         {
             "kind": "reply",
@@ -954,6 +954,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     assert json.loads(retried)["state"]["events"][-1]["id"] == accepted["id"]
     assert set(accepted["meaning"]["depends"]) == {"picks", "flag-first"}
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
+    assert revision is not None
     assert event_folds_model.action_retracted(
         accepted, {"flag-first": revision + 1}, within
     )
@@ -967,7 +968,7 @@ def test_created_ids_cannot_collide_across_page_and_frozen_content():
     markup = (
         '<p id="reserved">Page</p><lf-options id="page-options" choose></lf-options>'
     )
-    commands = [
+    commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},
         {
             "kind": "reply",

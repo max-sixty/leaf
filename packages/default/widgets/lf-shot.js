@@ -1,3 +1,4 @@
+import { ShotView } from "./shot-view.js";
 /* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
  * outlines, scale, crop and scrolling. A containing package supplies only capture
  * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
@@ -35,8 +36,8 @@
  * scrolling them never opens the viewer. Image options holds scale and the pixel key.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
-import "/vendor/lf-shot-initial.js";
 import {
+  setScroll,
   afterPresentation,
   announce,
   once,
@@ -48,7 +49,6 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  initialRender,
   render,
   nextFrame,
   isCanonicalMediaUrl,
@@ -98,7 +98,7 @@ customElements.define(
 
     inspect(metadata) {
       if (!this.#capture) {
-        initialRender(this).metadata = metadata;
+        (this.#drawing ??= new ShotView(this)).metadata = metadata;
         return;
       }
       if (JSON.stringify(metadata) === JSON.stringify(this.#capture.metadata)) return;
@@ -118,7 +118,10 @@ customElements.define(
         this.append(box);
         return true;
       });
-      const drawing = (this.#drawing = initialRender(this));
+      const drawing = (this.#drawing ??= new ShotView(this));
+      render(drawing.render(), drawing.root ?? this, { host: this });
+      drawing.fit();
+      render(drawing.render(), this, { host: this });
       Object.assign(drawing, {
         chooseView: (view) => this.#chooseView(view),
         chooseScale: (scale) => {
@@ -158,7 +161,7 @@ customElements.define(
               peer.scrollLeft !== viewport.scrollLeft ||
               peer.scrollTop !== viewport.scrollTop
             )
-              peer.scrollTo({
+              setScroll(peer, {
                 left: viewport.scrollLeft,
                 top: viewport.scrollTop,
                 behavior: "instant",

@@ -70,8 +70,7 @@ def test_page_round_trip(browser, serve):
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
-    page.keyboard.press("Escape")  # from the sent card to its passage
-    page.keyboard.press("Escape")  # off the passage, dismissing its card
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
@@ -244,7 +243,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         ("sentence", by_sentence),
         ("inline", inline),
     ):
-        for (before, after), runs in zip(cases, walked):
+        for (before, after), runs in zip(cases, walked, strict=True):
             joined = "".join(run["text"] for run in runs if run["kind"] != "insert")
             assert joined == before, (unit, joined, before)
             joined = "".join(run["text"] for run in runs if run["kind"] != "delete")
@@ -278,7 +277,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         "Run the migration before deploying. It takes one minute.",
         "Run the migration after the backup. It takes two minutes.",
     ]
-    for index, text in enumerate(edits, 1):
+    for text in edits:
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
         draft_control(page, "save", "draft-ops").click()

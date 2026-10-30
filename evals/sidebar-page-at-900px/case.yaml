@@ -47,7 +47,8 @@ variants:
         metric: judgment
         value: |
           Read the HTML and its `<style>`. Pass only if all of these hold. `main` has class
-          `layout-sidebar` and the checklist is in its track. The page's own CSS leaves the
+          `layout-sidebar` and the checklist is inside a `layout-track` child of its
+          direct `aside`. The page's own CSS leaves the
           Layout's widths alone: fail if it sets `flex`, `flex-basis`, `grid-template-columns`
           or `display` on `main`, the body or the track, or adds a media or container query to
           keep them side by side. The Layout keeps what the track holds in view as the log

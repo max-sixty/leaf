@@ -1,12 +1,11 @@
-import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, layoutChanged, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
-import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
-import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, live as live$1, nameAction, namedAction, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, actionTemplate, afterScript, backgroundFlash, bindQueuedWork, cancelRender, dataBody, flashDuration, foldBlock, frameFor, generatedElement, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
+import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focused, foldWidgetStates, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, move, moved, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
-import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
+import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/document-identity.js
@@ -352,11 +351,12 @@ function pageReading({ bodies }) {
 }
 const pageReadingBlock = () => pageReading({ bodies: false });
 function landingPlace(from = null) {
-	if (from && !inChrome(from)) {
+	if (from && from !== document.body && !inChrome(from)) {
 		const blocks = textBlocks(from);
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
 		if (shown) return shown;
+		if (!own.length && seenRect(from, /* @__PURE__ */ new Map())) return from;
 	}
 	return pageReading({ bodies: true });
 }
@@ -604,7 +604,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 	const currentLocation = destination && under(destination, body) ? destination : null;
 	if (!currentLocation || !sameScroller(view, box)) {
 		if (view.end) scrollToEnd(box);
-		else if (view.start && sameScroller(view, box)) box.scrollTo({
+		else if (view.start && sameScroller(view, box)) setScroll(box, {
 			top: 0,
 			behavior: "instant"
 		});
@@ -618,12 +618,12 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 				const found = targetElement(resolveAnchor({ section: view.section }));
 				const section = found && drawsLandmark(found) ? found : null;
 				if (section) {
-					if (under(box, section)) box.scrollTo({
+					if (under(box, section)) setScroll(box, {
 						top: rawOffsetFits(view, box) ? view.y : 0,
 						behavior: "instant"
 					});
 					else moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
-				} else if (rawOffsetFits(view, box)) box.scrollTo({
+				} else if (rawOffsetFits(view, box)) setScroll(box, {
 					top: view.y,
 					behavior: "instant"
 				});
@@ -894,13 +894,13 @@ function prepareEntry() {
 		}
 		const arrival = [scrollX, scrollY];
 		if (window.location.href !== sourceUrl || history.state !== sourceState) replaceEntry(sourceUrl, sourceState);
-		window.scrollTo({
+		setScroll(pageScroller, {
 			left: offset[0],
 			top: offset[1],
 			behavior: "instant"
 		});
 		pushEntry(url, state);
-		window.scrollTo({
+		setScroll(pageScroller, {
 			left: arrival[0],
 			top: arrival[1],
 			behavior: "instant"
@@ -944,7 +944,7 @@ function mountHistory({ followFragment, returnToFragment }) {
 					const placed = await work;
 					if (!mayReturn()) return;
 					if (!handler || placed === false) {
-						if (place) window.scrollTo({
+						if (place) setScroll(pageScroller, {
 							left: place.offset[0],
 							top: place.offset[1],
 							behavior: "instant"
@@ -1018,6 +1018,39 @@ async function highlightBlocks(root) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+function viewMembers(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return [];
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	for (const child of holder.children) {
+		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
+		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
+		child.toggleAttribute("data-lf-view", member);
+	}
+	return document.documentElement.lfViews.members(holder);
+}
+function openingView(holder, ...fallback) {
+	viewMembers(holder);
+	return document.documentElement.lfViews.opening(holder, ...fallback);
+}
+function keepView(holder, member, leaving = null) {
+	viewMembers(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/declared-words.js
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 const isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(marks).some((mark) => mark.paint === name);
@@ -1044,12 +1077,104 @@ function watchQuietWords() {
 		leave: (el) => quietWord(el, "")
 	});
 }
-const isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
+const EXTERNAL_LINK_ATTRIBUTES = [
+	"target",
+	"rel",
+	"aria-describedby"
+];
+const externalLinkState = /* @__PURE__ */ new WeakMap();
+let externalDescriptionSequence = 0;
+const externalDescriptions = /* @__PURE__ */ new WeakMap();
+const opensElsewhere = (href) => document.documentElement.lfLinks.opensElsewhere(href);
+const isExternalPageLink = (link) => link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+function externalMark() {
+	return Object.assign(document.createElement("span"), {
+		className: "lf-ui lf-external-mark",
+		ariaHidden: "true"
+	});
+}
+function externalDescription(link) {
+	const root = link.getRootNode();
+	let description = externalDescriptions.get(root);
+	if (!description) {
+		description = generatedElement(document.createElement("span"), { says: false });
+		description.id = `lf-external-description-${++externalDescriptionSequence}`;
+		description.hidden = true;
+		description.dataset.lfRuntime = "";
+		description.textContent = "opens in a new tab";
+		externalDescriptions.set(root, description);
+	}
+	const holder = root instanceof Document ? root.body : root;
+	if (description.parentNode !== holder) move(holder, description);
+	return description.id;
+}
+const linkAttributes = (link) => Object.fromEntries(EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]));
+const tokens$2 = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+function withToken(value, token, insensitive = false) {
+	const values = tokens$2(value);
+	const wanted = insensitive ? token.toLowerCase() : token;
+	if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted)) values.push(token);
+	return values.join(" ");
+}
+function withoutToken(value, token, insensitive = false) {
+	if (value === null) return null;
+	const unwanted = insensitive ? token.toLowerCase() : token;
+	return tokens$2(value).filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted).join(" ");
+}
+function writeLinkAttributes(link, values) {
+	for (const [name, value] of Object.entries(values)) keeps(link, name, value);
+}
+function rememberExternalLinkChanges(link, state) {
+	if (!state.painted) return;
+	const current = linkAttributes(link);
+	for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+		if (current[name] === state.painted[name]) continue;
+		let value = current[name];
+		if (name === "rel" && state.addedNoopener) value = withoutToken(value, "noopener", true);
+		if (name === "aria-describedby") value = withoutToken(value, state.markId);
+		state.baseline[name] = value;
+	}
+}
+function clearExternalLink(link, state) {
+	rememberExternalLinkChanges(link, state);
+	writeLinkAttributes(link, state.baseline);
+	link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
+	externalLinkState.delete(link);
+}
+function leaveExternalLink(link) {
+	const state = externalLinkState.get(link);
+	if (state) clearExternalLink(link, state);
+}
+function renderExternalLink(link) {
+	if (!(link instanceof HTMLAnchorElement)) return;
+	document.documentElement.lfLinks.markExternalLink(link);
+	if (!isExternalPageLink(link)) {
+		leaveExternalLink(link);
+		return;
+	}
+	let state = externalLinkState.get(link);
+	if (!state) {
+		state = {
+			baseline: linkAttributes(link),
+			painted: null,
+			markId: null,
+			addedNoopener: false
+		};
+		externalLinkState.set(link, state);
+	} else rememberExternalLinkChanges(link, state);
+	state.markId = externalDescription(link);
+	state.addedNoopener = !tokens$2(state.baseline.rel).some((value) => value.toLowerCase() === "noopener");
+	writeLinkAttributes(link, {
+		target: "_blank",
+		rel: withToken(state.baseline.rel, "noopener", true),
+		"aria-describedby": withToken(state.baseline["aria-describedby"], state.markId)
+	});
+	state.painted = linkAttributes(link);
+}
 function watchExternalLinks() {
-	const links = document.documentElement.lfInitial.externalLinks;
-	watchArrivals("a", ["href", ...links.attributes], {
-		arrive: links.arrive,
-		leave: links.leave
+	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: renderExternalLink,
+		leave: leaveExternalLink
 	});
 }
 function paintDeclaredWords(root) {
@@ -1070,6 +1195,10 @@ function markDeclared(root) {
 			const declared = registry$1[tag][key];
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
+				if (key === "x-views") {
+					viewMembers(el);
+					continue;
+				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
 			}
 		}
@@ -1933,9 +2062,14 @@ function domValue(el, record) {
 	if (record.kind === "position") return el.closest(record.within)?.id ?? null;
 	return elementReading(el);
 }
-function rememberAuthoredParents(root = document, parent = root.parentElement) {
-	if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root)) authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
-	for (const element of root.querySelectorAll("*")) if (!authoredParents.has(element)) authoredParents.set(element, initialParent(element));
+function rememberAuthoredParents(root = document, parent = root.parentElement, original = (node) => node) {
+	const remember = (element) => {
+		const live = original(element);
+		if (authoredParents.has(live)) return;
+		authoredParents.set(live, element.parentElement ? original(element.parentElement) : parent ?? live.parentElement);
+	};
+	if (root.nodeType === Node.ELEMENT_NODE) remember(root);
+	for (const element of root.querySelectorAll("*")) remember(element);
 }
 function initialState(widget, spec) {
 	const record = spec.record;
@@ -1968,7 +2102,6 @@ function initialState(widget, spec) {
 	};
 }
 function stageAuthoredStates(root = document, existing = authoredStates()) {
-	root = initialSource(root);
 	const captured = /* @__PURE__ */ new Map();
 	const byTag = /* @__PURE__ */ new Map();
 	for (const { tag, verb, spec } of stateSpecs()) {
@@ -2005,12 +2138,7 @@ const candidates = (root) => {
 	if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) found.unshift(root);
 	return found;
 };
-const parentOf = (element) => {
-	if (authoredParents.has(element)) return authoredParents.get(element);
-	if (element.parentElement) return element.parentElement;
-	const live = initialOrigin(element);
-	return authoredParents.has(live) ? authoredParents.get(live) : initialParent(live);
-};
+const parentOf = (element) => authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 const declaredAncestors = (element) => {
 	const ancestors = [];
 	for (let parent = parentOf(element); parent; parent = parentOf(parent)) if (parent.id && isElementName(parent.localName) && runtime.registry[parent.localName]) ancestors.push({
@@ -2029,10 +2157,9 @@ function stageWidgetDescriptors(root = document, documentContext = {
 }) {
 	const captured = /* @__PURE__ */ new Map();
 	const bindings = [];
-	for (const element of candidates(initialSource(root))) {
+	for (const element of candidates(root)) {
 		if (!element.id) continue;
-		const live = initialOrigin(element);
-		const existing = byElement.get(live);
+		const existing = byElement.get(element);
 		if (existing && existing.document.kind === documentContext.kind && (documentContext.kind === "thread" || existing.document.revision === documentContext.revision)) {
 			captured.set(element.id, existing);
 			continue;
@@ -2049,7 +2176,7 @@ function stageWidgetDescriptors(root = document, documentContext = {
 			quoted: quotedBy(element)
 		};
 		bindings.push({
-			element: live,
+			element,
 			descriptor
 		});
 		captured.set(element.id, descriptor);
@@ -2551,19 +2678,10 @@ function registeredTags(scope, registry) {
 	return [.../* @__PURE__ */ new Set([...scope.localName ? [scope.localName] : [], ...[...scope.querySelectorAll("*")].map((element) => element.localName)])].filter((tag) => isElementName(tag) && Object.hasOwn(registry, tag));
 }
 function widgetImports(scope, registry) {
-	const initializers = [];
 	const modules = [];
 	const tags = registeredTags(scope, registry);
-	for (const tag of tags) {
-		const entry = registry[tag];
-		if (entry?.["x-initial"]) initializers.push({
-			tag,
-			path: entry["x-initial"]
-		});
-		if (entry?.["x-upgrade"]) modules.push(tag);
-	}
+	for (const tag of tags) if (registry[tag]?.["x-upgrade"]) modules.push(tag);
 	return {
-		initializers,
 		modules,
 		shadow: tags.some((tag) => registry[tag]["x-shadow"] || Object.values(registry[tag]["x-state"] ?? {}).some((state) => state.creates && registry[state.creates.child]["x-shadow"]))
 	};
@@ -2573,27 +2691,26 @@ function widgetImports(scope, registry) {
 //#region runtime/widget-loader.js
 const rememberedPassageRoots = /* @__PURE__ */ new WeakSet();
 const within = (scope, selector) => [...scope.matches?.(selector) ? [scope] : [], ...scope.querySelectorAll(selector)];
-function rememberPassageParts(scope = document, source = ["page", null]) {
-	scope = initialSource(scope);
+function rememberPassageParts(scope = document, source = ["page", null], original = (node) => node) {
 	for (const tag of tagsDeclaring((entry) => entry["x-upgrade"] && !entry["x-verbatim"])) for (const root of within(scope, tag)) {
-		const live = initialOrigin(root);
+		const live = original(root);
 		if (rememberedPassageRoots.has(live)) continue;
 		rememberedPassageRoots.add(live);
-		fencePassageParts(live, [...root.children].map(initialOrigin));
+		fencePassageParts(live, [...root.children].map(original));
 	}
 	for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-		const live = initialOrigin(root);
+		const live = original(root);
 		if (rememberedPassageRoots.has(live)) continue;
 		rememberedPassageRoots.add(live);
-		identifyPreserving(root, [...source, ownerIndex]);
+		identifyPreserving(root, [...source, ownerIndex], original);
 	}
 }
 const preservingOwners = (scope) => within(scope, "*").filter((root) => registry$1[root.localName]?.["x-verbatim"]);
-function identifyPreserving(root, owner) {
-	verbatimOwnerIdentity.set(initialOrigin(root), owner);
+function identifyPreserving(root, owner, original = (node) => node) {
+	verbatimOwnerIdentity.set(original(root), owner);
 	let boundaryIndex = 0;
 	const visit = (parent) => {
-		for (const child of parent.children) if (registry$1[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(initialOrigin(child), {
+		for (const child of parent.children) if (registry$1[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(original(child), {
 			owner,
 			index: boundaryIndex++
 		});
@@ -2602,7 +2719,7 @@ function identifyPreserving(root, owner) {
 	visit(root);
 }
 function reindexPassageOwners(scope = document, source = ["page", null]) {
-	for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries()) identifyPreserving(root, [...source, ownerIndex]);
+	for (const [ownerIndex, root] of preservingOwners(scope).entries()) identifyPreserving(root, [...source, ownerIndex]);
 }
 const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`) : runtimeResource(`/widgets/${tag}.js`);
@@ -2611,10 +2728,6 @@ async function loadWidgetDependencies(scope) {
 }
 async function importWidgetModules(scope) {
 	const required = widgetImports(scope, registry$1);
-	await Promise.all(required.initializers.map(({ tag, path }) => {
-		if (document.documentElement.lfInitial.has(tag)) return;
-		return offlineInteractive ? import(runtimeModule(path)) : import(runtimeResource(path));
-	}));
 	await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 async function preloadWidgets(scope) {
@@ -2629,18 +2742,6 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		rememberPassageParts(scope);
-		rememberAuthoredParents(scope);
-		const descriptors = stageWidgetDescriptors(scope);
-		const authored = stageAuthoredStates(scope, /* @__PURE__ */ new Map());
-		const prior = readApplication().document;
-		applicationState.captureDocument({
-			...prior,
-			registry: { ...registry$1 },
-			authored: new Map([...prior.authored, ...authored]),
-			descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
-		});
-		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
 		watchQuietWords();
 		watchCodeBlocks();
@@ -2670,34 +2771,40 @@ async function settle(presentation, scope, arrived, presented) {
 	await presented();
 	reachScrollers(scope);
 }
-async function upgradeWidgets({ buildReactionBar }) {
+async function prepareDocument(captured) {
 	const response = await fetch(registryUrl());
 	if (!admitResponse(response)) return false;
 	if (!response.ok) throw new Error(`leaf: registry failed to load (${response.status})`);
 	adoptRegistry(await response.json());
 	if (!sameLayer(registry$1.$layer.generation)) return false;
+	const scope = captured.source;
+	const original = (node) => captured.pairs.get(node);
+	rememberPassageParts(scope, ["page", null], original);
+	rememberAuthoredParents(scope, null, original);
+	const descriptors = stageWidgetDescriptors(scope);
+	const authored = stageAuthoredStates(scope, /* @__PURE__ */ new Map());
+	const prior = readApplication().document;
+	applicationState.captureDocument({
+		...prior,
+		registry: { ...registry$1 },
+		authored: new Map([...prior.authored, ...authored]),
+		descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
+	});
+	commitWidgetDescriptors({
+		...descriptors,
+		bindings: descriptors.bindings.map(({ element, descriptor }) => ({
+			element: original(element),
+			descriptor
+		}))
+	});
+	return true;
+}
+async function upgradeWidgets({ buildReactionBar }) {
 	revealLayer();
 	buildReactionBar();
 	await installDocument(document.body);
 	return true;
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-const views$1 = (holder) => holder.ownerDocument.documentElement.lfViews;
-const openingView = (holder, members, fallback) => views$1(holder).opening(holder, members, fallback);
-const keepView = (holder, member) => views$1(holder).keep(holder, member);
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/drafts.js
@@ -3386,10 +3493,10 @@ function followBoxGrowth(input) {
 	const grew = height - (rowHeights.get(input) ?? height);
 	rowHeights.set(input, height);
 	const by = Math.max(0, Math.min(grew, covered(reply)));
-	if (by) scrollerFor(reply).scrollBy({
-		top: by,
-		behavior: "instant"
-	});
+	if (by) {
+		const box = scrollerFor(reply);
+		setScroll(box, { top: box.scrollTop + by });
+	}
 	if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
 function readBoxPlace(input) {
@@ -3550,14 +3657,13 @@ var MessageEditor = class {
 		this.node = offer("div", "lf-msg-editor lf-comment-box");
 		this.input = offer(TEXT_FIELD);
 		this.input.name = "edit";
-		const actions = offer("span", "lf-msg-edit-actions");
-		const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
+		const actions = this.actions = offer("span", "lf-msg-edit-actions");
+		const cancel = offerAction("symbol", "lf-msg-control lf-msg-edit-cancel", void 0, { action: "discard" });
 		cancel.type = "button";
-		nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
 		actions.append(cancel);
 		this.foot = document.createElement("span");
 		this.foot.className = "lf-msg-edit-foot";
-		this.node.append(this.input, actions);
+		this.node.append(this.input);
 		this.input.value = loadDraft(ctx) || said();
 		const whole = () => sync.value();
 		let opened = null;
@@ -3624,7 +3730,7 @@ var MessageEditor = class {
 					base
 				}));
 				leave(false, { painting: false });
-				let sent = null;
+				let sent;
 				try {
 					sent = await flight;
 				} finally {
@@ -3651,7 +3757,7 @@ var MessageEditor = class {
 		});
 		opened = whole();
 		this.input.after(this.foot);
-		keys(this.node, "Editing a message", [{
+		for (const where of [this.node, actions]) keys(where, "Editing a message", [{
 			id: "message.edit.close",
 			keys: ["Escape"],
 			title: "discard",
@@ -3851,46 +3957,45 @@ var ReactionStripView = class {
 		this.#commands = commands;
 		this.node = document.createElement("div");
 		this.node.classList.add("lf-react-strip", "lf-react-surface");
-		this.node.setAttribute("role", "group");
-		this.node.setAttribute("aria-label", "React to this reply");
 	}
 	present(model) {
 		this.#model = model;
 		this.node.classList.toggle("lf-open", model.latest);
-		render$1(html` <button
-          ${offered("lf-msg-control lf-react-trigger")}
-          aria-expanded="false"
-          aria-controls=${this.#paletteId}
-          ${namedAction("react", { className: "lf-msg-control-icon" })}
-          @click=${() => this.#registration.toggle()}
-        ></button>
-        <span
-          class="lf-react-palette"
-          id=${this.#paletteId}
-          popover="auto"
-          role="group"
-          @toggle=${(event) => {
+		render$1(html`<span
+        class="lf-react-palette"
+        id=${this.#paletteId}
+        popover="auto"
+        role="group"
+        @toggle=${(event) => {
 			if (event.newState === "closed") this.#registration.close();
 		}}
-          aria-label="Reactions for this reply"
-        >
-          ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
-                ${offered(`lf-react ${HOLDS_WORD}`)}
-                data-token=${choice.name}
-                title=${choice.label}
-                aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.inForce))}
-                @click=${() => this.#press(choice.name)}
-              >
-                <span class="lf-react-glyph">${choice.glyph}</span>
-              </button>`)}
-        </span>`, this.node);
-		this.#registration ??= this.#commands.registerSurface(this.node, {
-			trigger: this.node.querySelector(".lf-react-trigger"),
-			palette: this.node.querySelector(".lf-react-palette")
-		});
+        aria-label="Reactions for this reply"
+      >
+        ${repeat(model.choices, (choice) => choice.name, (choice) => html` <button
+              ${offered(`lf-react ${HOLDS_WORD}`)}
+              data-token=${choice.name}
+              title=${choice.label}
+              aria-label=${choice.label}
+              aria-pressed=${String(Boolean(choice.inForce))}
+              @click=${() => this.#press(choice.name)}
+            >
+              <span class="lf-react-glyph">${choice.glyph}</span>
+            </button>`)}
+      </span>`, this.node);
 		return this.node;
 	}
+	trigger = html`<button
+    ${offeredAction("symbol", "lf-msg-control lf-react-trigger", void 0, { action: "react" })}
+    aria-expanded="false"
+    aria-controls=${this.#paletteId}
+    @click=${() => this.#registration.toggle()}
+    ${ref((trigger) => {
+		if (trigger) this.#registration = this.#commands.registerSurface(this.node, {
+			trigger,
+			palette: this.node.querySelector(".lf-react-palette")
+		});
+	})}
+  ></button>`;
 	#press(name) {
 		const model = this.#model;
 		this.#commands.actions.setReaction(model.thread, model.message, name, !model.choices.find((choice) => choice.name === name).inForce);
@@ -3953,6 +4058,7 @@ function prepareAuthoredMessage(message, thread) {
 	if (!authoredMessages.has(key)) {
 		const template = document.createElement("template");
 		template.innerHTML = message.markup ?? "";
+		markDeclared(template.content);
 		rememberAuthoredParents(template.content);
 		const descriptors = stageWidgetDescriptors(template.content, {
 			kind: "thread",
@@ -4067,6 +4173,7 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 			glyph: token?.glyph ?? "",
 			authored: message.body.kind === "authored"
 		}),
+		markdown: kind === "reaction" ? null : [message.text, message.markup].filter(Boolean).join("\n\n"),
 		authoredRank,
 		reactions
 	});
@@ -4075,6 +4182,7 @@ var MessageView = class {
 	#commands;
 	#model = null;
 	#reaction = null;
+	#copy = null;
 	#authored = null;
 	#authoredTake = 0;
 	#dressed = false;
@@ -4099,7 +4207,7 @@ var MessageView = class {
 			generatedElement(this.node, { says: false });
 			this.node.dataset.lfOffer = "";
 			this.node.addEventListener("dblclick", (event) => {
-				if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+				if (event.target.closest?.(".lf-msg-editor, .lf-msg-controls, a[href]")) return;
 				if (!this.#model?.editable) return;
 				window.getSelection()?.removeAllRanges();
 				this.openEdit();
@@ -4154,6 +4262,13 @@ var MessageView = class {
 		if (holds && this.#authored.some((node) => !this.node.contains(node))) this.#authoredTake++;
 		if (!model.reactions) this.#reaction?.retire();
 		const strip = model.reactions ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(model.reactions) : nothing;
+		const rewrite = editing ? this.#editor.actions : model.editable ? html`<button
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", { action: "edit" })}
+            tabindex="-1"
+            @click=${() => this.openEdit()}
+          ></button>` : nothing;
+		const react = model.reactions ? this.#reaction.trigger : nothing;
+		const copy = model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
 		const receipt = model.workflowLabel ? html`<span
           class="lf-msg-sending"
           title=${model.workflowTitle}
@@ -4178,18 +4293,11 @@ var MessageView = class {
                   >unsaved edit</span
                 >` : nothing}
         </span>
-        ${headerControls}
+        ${headerControls}<span class="lf-msg-control-room"
+          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+        >
       </div>
     `;
-		const rewrite = model.editable && !editing ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
-            tabindex="-1"
-            ${namedAction("edit", {
-			label: "Edit message",
-			className: "lf-msg-control-icon"
-		})}
-            @click=${() => this.openEdit()}
-          ></button>` : nothing;
 		render$1(html`
         ${header}
         <div
@@ -4199,7 +4307,7 @@ var MessageView = class {
           ${model.body.drawing ? html`<span class="lf-drawing-reference">Drawing comment</span>` : nothing}
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${strip} ${rewrite}
+        ${strip}
       `, this.node);
 		if (this.#authored && !this.#dressed) {
 			markDeclared(this.node);
@@ -4238,6 +4346,20 @@ var MessageView = class {
 	}
 	get editing() {
 		return this.#editor !== null;
+	}
+	#copyControl(markdown) {
+		if (!this.#copy) {
+			this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+				role: "symbol",
+				label: "Copy as Markdown",
+				success: "Message copied as Markdown",
+				error: "Message not copied · select its words to copy"
+			});
+			this.#copy.tabIndex = -1;
+			this.#copy.title = "Copy as Markdown";
+		}
+		if (this.#copy.value !== markdown) this.#copy.value = markdown;
+		return this.#copy;
 	}
 	#body(body) {
 		if (body.kind === "reaction") return html`<div class="lf-msg-text">
@@ -5242,9 +5364,7 @@ const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (
 
 //#endregion
 //#region runtime/thread/folding.js
-const pendingSettlement = (entries, id) => pendingForParent(entries, id, ["resolve", "unresolve"]);
 async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
-	if (pendingSettlement(pendingEntries(), parent())) return;
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
@@ -5255,7 +5375,7 @@ async function settleThread({ parent, key, resolved, prepareLanding, pendingEntr
 	await landGesture({
 		land,
 		answer,
-		pending: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+		pending: () => pendingEntries().some((entry) => entry.event.attempt === attempt),
 		refused: async () => {
 			const mayReturn = retainUserIntent({ since });
 			await whenDocumentPresented();
@@ -5551,19 +5671,43 @@ const newsParts = ({ settled, replies, messages, edits, reactions, summaries, th
 ].filter(Boolean);
 const said = (news) => {
 	const parts = newsParts(news).map((part, index) => index ? ` · ${part}` : part);
+	const { settled, replies, messages, edits, reactions, summaries, threads } = news;
+	const total = [
+		replies,
+		messages,
+		edits,
+		reactions,
+		summaries,
+		threads
+	].reduce((sum, count) => sum + (count ?? 0), settled ? 1 : 0);
 	return {
 		parts,
-		label: parts.join("")
+		label: parts.join(""),
+		total
 	};
 };
 function newsNotice(header = false) {
-	const node = offer("button", header ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news" : "lf-thread-notice lf-thread-notice-news lf-thread-news");
+	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
+	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
 	node.append(words);
+	let total = 0;
 	const dropped = sizeObserver(() => {
-		const [first, ...later] = [...words.children];
-		const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+		const facts = [...words.children];
+		const shown = facts.filter((fact) => fact.offsetTop === facts[0].offsetTop);
+		const count = facts.length - shown.length;
 		keeps(words, "data-lf-more", count ? `+${count}` : null);
+		let short = null;
+		if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
+			const style = getComputedStyle(node);
+			const room = node.clientWidth - parseFloat(style.paddingInlineStart);
+			const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+			short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
+		}
+		keeps(words, "data-lf-short", short);
+		const last = shown.at(-1);
+		if (!count) words.style.removeProperty("--lf-news-shown");
+		else words.style.setProperty("--lf-news-shown", layoutPx(getComputedStyle(words).direction === "rtl" ? words.clientWidth - last.offsetLeft : last.offsetLeft + last.offsetWidth));
 	});
 	let open = () => null;
 	const show = () => {
@@ -5588,6 +5732,7 @@ function newsNotice(header = false) {
 			}
 			keeps(node, "title", news.label);
 			node.classList.toggle("lf-reopen", news.reopened);
+			total = news.total ?? news.parts.length;
 			open = news.open;
 		}
 	};
@@ -6380,7 +6525,7 @@ var Transcript = class {
 		const label = `${expanded ? "Hide" : "Show"} ${subject}`;
 		return html`<button
       type="button"
-      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      ${offeredAction("inline", `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${progress ? " lf-progress-expand" : ""}`)}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges.flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id)).filter(Boolean).join(" ")}
@@ -6446,6 +6591,7 @@ const STOPPED = /* @__PURE__ */ new Set([
 	"stale",
 	"interrupted"
 ]);
+const words = (header) => [...header.querySelectorAll(":scope > :not(.lf-msg-control-room)")];
 function workingMessage(thread, attention, messages) {
 	if (thread.resolved || messages.at(-1)?.provisional) return null;
 	const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
@@ -6526,7 +6672,6 @@ function threadTodos(todos, done) {
 }
 function threadReading(thread, surface, commands) {
 	const resolved = Boolean(thread.resolved);
-	const settling = Boolean(thread.settling);
 	const kind = resolved ? "unresolve" : "resolve";
 	const word = resolved ? "Reopen" : "Resolve";
 	const label = resolved ? word : "Resolve thread";
@@ -6558,8 +6703,7 @@ function threadReading(thread, surface, commands) {
 		settlement: Object.freeze({
 			kind,
 			word,
-			label,
-			pending: settling
+			label
 		}),
 		reply: replyAvailable(thread),
 		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
@@ -6572,6 +6716,12 @@ function threadReading(thread, surface, commands) {
 		source: thread,
 		reread: (held) => threadReading(held, surface, commands)
 	});
+}
+function wordsWidth(node) {
+	if (!node) return 0;
+	const range = document.createRange();
+	range.selectNodeContents(node);
+	return range.getBoundingClientRect().width;
 }
 var ThreadView = class {
 	#commands;
@@ -6596,6 +6746,7 @@ var ThreadView = class {
 	#headerSlot = null;
 	#observedHeader = null;
 	#sizes = sizeObserver(() => this.#retainHeaderSlot());
+	#marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
 	constructor(commands) {
 		this.#commands = commands;
 		this.#rewrites = threadRewrites({
@@ -6751,9 +6902,57 @@ var ThreadView = class {
       `, this.node);
 		if (!marginControls && model.news) measure(this.node, () => this.#retainHeaderSlot());
 		else this.#releaseHeaderSlot();
+		if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
+		else this.#releaseMarginNews();
 		this.#continuity?.after(bodyPlace);
 		restoreFocus?.(handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node));
 		return this.node;
+	}
+	#fitMarginNews() {
+		const notice = this.#news.node;
+		const heads = [];
+		for (const head of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head")) {
+			if (!head.checkVisibility()) continue;
+			const style = getComputedStyle(head);
+			const name = head.querySelector(":scope > b");
+			const time = head.querySelector(":scope > .lf-msg-meta > time");
+			const room = head.querySelector(":scope > .lf-msg-control-room");
+			const controls = room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect().width ?? 0;
+			const held = room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
+			const need = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd) + controls + wordsWidth(name) + (name && time ? parseFloat(style.columnGap) : 0) + wordsWidth(time);
+			heads.push({
+				name,
+				need,
+				spare: head.getBoundingClientRect().width - need,
+				yields: controls - held + wordsWidth(time)
+			});
+		}
+		if (!heads.length || !notice.isConnected) {
+			this.#clearMarginNews();
+			return;
+		}
+		const width = notice.getBoundingClientRect().width;
+		const spare = Math.min(...heads.map((head) => head.spare));
+		notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
+		const taken = notice.getBoundingClientRect().width - width;
+		for (const { name, spare, yields } of heads) {
+			if (!name) continue;
+			const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
+			keeps(name, "data-lf-nameless", shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null);
+		}
+	}
+	#watchMarginNews() {
+		this.#marginNews.disconnect();
+		for (const time of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time")) this.#marginNews.observe(time);
+		this.#fitMarginNews();
+	}
+	#releaseMarginNews() {
+		this.#marginNews.disconnect();
+		this.#clearMarginNews();
+	}
+	#clearMarginNews() {
+		this.#news.node.style.removeProperty("--lf-news-room");
+		for (const name of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]")) keeps(name, "data-lf-nameless", null);
 	}
 	#releaseHeaderSlot() {
 		if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
@@ -6801,15 +7000,15 @@ var ThreadView = class {
 					margin: "0",
 					anchorName: "none"
 				});
-				for (const node of reading.children) {
+				for (const node of words(reading)) {
 					node.classList.toggle("lf-held-header-item", false);
 					node.style.removeProperty("--lf-held-header-width");
 				}
 				header.after(reading);
 			} else this.#releaseHeaderItems();
-			const widths = [...reading.children].map((node) => node.getBoundingClientRect().width);
+			const widths = words(reading).map((node) => node.getBoundingClientRect().width);
 			if (resizing) reading.remove();
-			const items = [...header.children].map((node, index) => ({
+			const items = words(header).map((node, index) => ({
 				node,
 				width: widths[index]
 			}));
@@ -6852,13 +7051,11 @@ var ThreadView = class {
 		const label = reopen && model.resolvedBy ? `${model.resolvedBy} · ${state.label}` : state.label;
 		return html`<button
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, { action: reopen ? "reopen" : "resolve" })}
-      aria-busy=${state.pending ? "true" : nothing}
       ${commandsOn(`On a thread's ${word} button`, (button) => [{
 			id: reopen ? "thread.reopen" : "thread.resolve",
 			keys: PRESS,
 			title: word.toLowerCase(),
 			control: button,
-			when: () => !this.#shown.value.settlement?.pending,
 			run: this.#settle
 		}])}
     ></button>`;
@@ -6898,8 +7095,8 @@ var ThreadView = class {
 	};
 	#createReply(model) {
 		const replyChanged = () => {
-			if (!this.#reply) return;
-			this.#draftFrame ||= nextRender(() => {
+			if (!this.#reply || this.#draftFrame) return;
+			this.#draftFrame = nextRender(() => {
 				this.#draftFrame = 0;
 				if (!this.#reply) return;
 				if (this.#model.resolved) this.repaint();
@@ -6941,6 +7138,7 @@ var ThreadView = class {
 	dispose() {
 		this.#sizes.disconnect();
 		this.#releaseHeaderSlot();
+		this.#marginNews.disconnect();
 		this.#continuity?.release();
 		this.retire();
 		this.#reply?.dispose();
@@ -6980,7 +7178,7 @@ var ResolvedThreads = class {
 		const notice = held.length > 1 ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}` : held[0]?.label ?? null;
 		render$1(html`Resolved ·
       ${threads.length}${notice ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>` : ""}`, this.summary);
+              <span data-lf-news>${notice}</span>` : ""}`, this.summary);
 		setChildren(this.node, [this.summary, ...nodes]);
 	}
 };
@@ -7617,8 +7815,10 @@ function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = 
 	return () => {
 		for (const [arrived, record] of positions) {
 			if (!arrived.isConnected) continue;
-			if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-			if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+			if (record.scrollTop || record.scrollLeft) setScroll(arrived, {
+				top: record.scrollTop || arrived.scrollTop,
+				left: record.scrollLeft || arrived.scrollLeft
+			});
 		}
 		restoreFocus(true);
 	};
@@ -8086,7 +8286,6 @@ const latestVersionLabel = ({ failed = false, activeLabel = null } = {}) => fail
 //#region runtime/version.js
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 function authoredAttributes(root) {
-	root = document.documentElement.lfInitial.authoredShell(root);
 	const attributes = /* @__PURE__ */ new Map();
 	for (const { name, value } of root.attributes) {
 		if (name.startsWith("data-lf-")) continue;
@@ -8098,29 +8297,53 @@ function authoredAttributes(root) {
 	return attributes;
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
+const authoredMarkup = (root) => {
+	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
+	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
+	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	return root;
+};
 const pairSources = (source, live, pairs) => {
-	live = initialOrigin(source) === source ? live : initialOrigin(source);
 	pairs.set(source, live);
 	const held = source.localName === "template" ? source.content : source;
-	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"));
+	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.("[data-lf-prepaint]"));
 	for (const [at, child] of [...held.childNodes].entries()) {
-		const original = initialOrigin(child);
-		const peer = original === child ? children[at] : original;
+		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
 	}
 	return pairs;
 };
 let initialDocument = (() => {
 	const main = pageDocument();
-	const source = main ? unmarkedCopy(main) : null;
+	const inert = document.implementation.createHTMLDocument("");
+	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	for (const input of source?.querySelectorAll("input") ?? []) {
+		if (![
+			"file",
+			"checkbox",
+			"radio"
+		].includes(input.type) && input.value !== input.defaultValue) input.value = input.defaultValue;
+		input.checked = input.defaultChecked;
+	}
+	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
+	const pairs = main ? pairSources(source, main, /* @__PURE__ */ new WeakMap()) : /* @__PURE__ */ new WeakMap();
+	for (const disclosure of source?.querySelectorAll("details") ?? []) {
+		const open = document.documentElement.lfStorage.initialDisclosureOpen(pairs.get(disclosure));
+		if (open !== void 0) disclosure.toggleAttribute("open", open);
+	}
 	return {
 		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
-		pairs: main ? pairSources(source, main, /* @__PURE__ */ new WeakMap()) : /* @__PURE__ */ new WeakMap()
+		pairs
 	};
 })();
+function takeInitialDocument() {
+	const captured = initialDocument;
+	initialDocument = null;
+	return captured;
+}
 const stamped = (version) => runtime.versions.find((candidate) => candidate.version === version);
 const revisionBase = ({ revision, version, url, activated_at }) => Object.freeze({
 	revision,
@@ -8631,7 +8854,7 @@ async function authoredDocument(url) {
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
 	const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-	return restoreInitialSource(doc);
+	return authoredMarkup(doc);
 }
 const revisionDocuments = /* @__PURE__ */ new Map();
 function revisionDocument(revision) {
@@ -8641,10 +8864,9 @@ function revisionDocument(revision) {
 	}));
 	return revisionDocuments.get(revision.revision);
 }
-function createVersionController({ compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation = () => null, restoreRetainedCurrentLocation = () => false, captureObligationCurrentLocation = () => null, restoreObligationCurrentLocation = () => {}, versions }) {
+function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation = () => null, restoreRetainedCurrentLocation = () => false, captureObligationCurrentLocation = () => null, restoreObligationCurrentLocation = () => {}, versions }) {
 	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
-	initialDocument = null;
 	versionSource = () => ({
 		source: authoredSource,
 		pairs: sourcePairs
@@ -8760,8 +8982,9 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		return copy;
 	};
 	const reachesMembers = (before, after, arrivingRoot) => {
-		if (registry$1[before.localName]?.["x-patch"] !== "members") return false;
-		const members = !authoredBody(sourcePairs.get(before));
+		const entry = registry$1[before.localName];
+		if (entry?.["x-patch"] !== "members") return false;
+		const members = !authoredBody(sourcePairs.get(before)) && (entry["x-content"] === "members" || entry["x-views"]);
 		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
 	};
 	function patchRules(doc) {
@@ -8894,7 +9117,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			},
 			land: () => landContinuity(async () => {
 				releaseHolds();
-				settleMarginContentLayout();
+				settleDocumentLayout();
 				syncLayout();
 				if (currentIntent()) {
 					restoreView(view, currentIntent);
@@ -9597,4 +9820,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };

@@ -2,6 +2,7 @@
 
 import json
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from ..findings import Finding, Rejected, element_at
 from .kernel import verb_writers
 
 
-def matches_when(attrs: dict, when: dict) -> bool:
+def matches_when(attrs: dict, when: dict | None) -> bool:
     """Every attribute `when` names holds one of the matching values, a flag's
     two values being its presence and its absence."""
     return all(
@@ -183,20 +184,47 @@ class RegistryError(Rejected):
     and no words. The CLI renders it with Click's standard Error prefix, while the
     server catches the same rejection and answers the request.
 
-    It carries the one finding the check stopped at, which `page check` and `package
-    check` report as it is."""
+    It carries the first finding in each unit the check holds independent of the
+    others (`gathering`), which `page check` and `package check` report as they are,
+    so an author repairs them all from one check."""
 
-    def __init__(self, finding: Finding):
-        super().__init__([finding])
+
+def registry_finding(code: str, registry=None, tag: str = "", /, **values) -> Finding:
+    """One registry problem: `code` names it, `registry` the file or composition it
+    was read in, `tag` the element declaration it concerns, and `values` what the
+    check read there."""
+    if registry is not None:
+        values["registry"] = str(registry)
+    return Finding(code, element_at(tag) if tag else "", values)
 
 
 def registry_error(code: str, registry=None, tag: str = "", /, **values):
-    """The refusal of one registry problem: `code` names it, `registry` the file or
-    composition it was read in, `tag` the element declaration it concerns, and
-    `values` what the check read there."""
-    if registry is not None:
-        values["registry"] = str(registry)
-    return RegistryError(Finding(code, element_at(tag) if tag else "", values))
+    """The refusal of one registry problem (`registry_finding`)."""
+    return RegistryError([registry_finding(code, registry, tag, **values)])
+
+
+@contextmanager
+def gathering():
+    """Run independent registry checks and refuse once with what each refused.
+
+    Each check runs inside the `unit()` this yields and stops at its own first
+    finding; the next unit still runs, and leaving the block refuses with every
+    unit's findings. A unit is independent when nothing it reads depends on another
+    passing, such as each element declaration once the layer's facts hold. A check
+    whose readings depend on an earlier one runs after that one's block, which
+    refuses before it starts."""
+    found: list[Finding] = []
+
+    @contextmanager
+    def unit():
+        try:
+            yield
+        except RegistryError as error:
+            found.extend(error.findings)
+
+    yield unit
+    if found:
+        raise RegistryError(found)
 
 
 def read_registry_declarations(path: Path):
@@ -281,6 +309,7 @@ def detail_schema(
             }
         binding = spec.get("contract")
         if binding and attrs and (name := attrs.get(binding["attribute"])):
+            assert registry is not None
             contract = registry["$data"]["contracts"].get(name)
             selected = (
                 {"$id": f"leaf:contract/{name}", **contract["schema"]}
@@ -335,11 +364,15 @@ def deciding_verb(entry: dict) -> str | None:
 
 
 def deciding_outcomes(entry: dict) -> list[str]:
-    """The outcomes the deciding verb may stand under; empty without one."""
+    """The outcomes the deciding verb may stand under; empty without one, or where
+    the verb declares no `outcome` words. Validation reads it before holding the
+    verb to its shape (`state.validate_deciding_verb`), and a declaration reads it
+    of another whose own check may have failed."""
     verb = deciding_verb(entry)
     if verb is None:
         return []
-    schema = entry["x-state"][verb]["detail"]["properties"]["outcome"]
+    detail = entry["x-state"][verb].get("detail") or {}
+    schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
 
@@ -530,11 +563,19 @@ def stamp_words(registry: dict) -> dict:
     validation refuses any other word, and an author reading the entry sees which it
     may write.
 
+    An attribute's schema may be `true`, which then becomes the words alone, or
+    `false`, which admits no word already and is left as it is.
+
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for key, fact in DECLARED_WORDS:
         for tag, entry in registry.items():
-            if is_element_name(tag) and (attr := entry.get(key)):
-                entry["properties"][attr]["enum"] = list(registry[fact]["names"])
+            if not (is_element_name(tag) and (attr := entry.get(key))):
+                continue
+            properties = entry["properties"]
+            if properties[attr] is True:
+                properties[attr] = {}
+            if isinstance(properties[attr], dict):
+                properties[attr]["enum"] = list(registry[fact]["names"])
     return registry
 
 

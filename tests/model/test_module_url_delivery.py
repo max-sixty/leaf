@@ -290,6 +290,8 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     """Entry URLs resolve to logical captured modules, including native URL syntax."""
     from urllib.parse import quote
 
+    from model_folds import served_reading
+
     from leaf.exporting import _module_urls, export_document
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
@@ -315,7 +317,6 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
                 "/runtime/widget-api.js",
                 "/runtime/offline-delivery.js",
                 "/runtime/prepaint.js",
-                "/vendor/lit-initial.js",
                 "/runtime/annotation-overlay/annotation-theme.css",
                 "/runtime/annotation-overlay/annotation-chrome.css",
                 "/runtime/annotation-overlay/annotation-marks.css",
@@ -334,19 +335,21 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     exported = export_document(
         artifact,
         document,
-        {"events": []},
+        served_reading(document.html),
         {},
         1,
         1,
         {},
     )
-    package = json.loads(
-        SourceDocument(exported).tree.select_one("script[data-lf-export]").text
+    select_one_result = SourceDocument(exported).tree.select_one(
+        "script[data-lf-export]"
     )
+    assert select_one_result is not None
+    package = json.loads(select_one_result.text)
     composed = SourceDocument(package["document"])
-    import_map = json.loads(composed.tree.select_one('script[type="importmap"]').text)[
-        "imports"
-    ]
+    select_one_result_2 = composed.tree.select_one('script[type="importmap"]')
+    assert select_one_result_2 is not None
+    import_map = json.loads(select_one_result_2.text)["imports"]
     entry = next(
         script
         for script in composed.authoring.external_scripts
@@ -355,55 +358,48 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]
 
 
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_export_selects_one_lit_implementation_from_the_initial_document(
-    tmp_path, early_lit
-):
-    """A later message producer uses normal module Lit; an early one uses the facade."""
+def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
+    """Widgets introduced by a later message use the page's one ordinary Lit module."""
     import base64
 
     from leaf.exporting import _module_urls
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
-    # The serving Leaf supplies the runtime and its Lit, and the layer the widget and
-    # the package's producer.
     runtime = {
         "/leaf.js": 'import { render } from "/vendor/lit.js";',
         "/vendor/lit.js": 'export const render = "module implementation";',
-        "/vendor/lit-shared.js": 'export const render = "shared facade";',
-        "/vendor/lit-initial.js": "window.classicLit = true;",
     }
-    layer = {
-        "/vendor/producer.js": "window.producer = true;",
-        "/widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
-    }
-    document = SourceDocument(
-        "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
-    )
-    vocabulary = {"lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True}}
+    layer = {"/widgets/lf-later.js": 'import { render } from "/vendor/lit.js";'}
+    document = SourceDocument("<main>Plain</main>")
+    vocabulary = {"lf-later": {"x-upgrade": True}}
     artifact = running(
         capture_artifact(tmp_path, document, vocabulary), runtime, layer, vocabulary
     )
     modules = _module_urls(
-        artifact, [document, SourceDocument("<lf-early></lf-early>")]
+        artifact, [document, SourceDocument("<lf-later></lf-later>")]
     )
     implementation = base64.b64decode(
         modules["/vendor/lit.js"].split(",", 1)[1]
     ).decode()
-    assert (
-        implementation
-        == runtime["/vendor/lit-shared.js" if early_lit else "/vendor/lit.js"]
-    )
-    assert "/vendor/lit-shared.js" not in modules
-    assert "/vendor/lit-initial.js" not in modules
-    widget = base64.b64decode(modules["/widgets/lf-early.js"].split(",", 1)[1]).decode()
+    assert implementation == runtime["/vendor/lit.js"]
+    widget = base64.b64decode(modules["/widgets/lf-later.js"].split(",", 1)[1]).decode()
     assert '"leaf:/vendor/lit.js"' in widget
+
+
+# A name the page serves under media/ (`schema.MEDIA_DIGEST`), so either prefix
+# captures it; the last reference spells its first letter as an escape.
+IMAGE = "abcdef0123456789.svg"
 
 
 @pytest.mark.parametrize("prefix", ["page", "media"])
 @pytest.mark.parametrize(
-    "reference", [" {prefix}/image.svg ", r"{prefix}\image.svg", "{prefix}/im%61ge.svg"]
+    "reference",
+    [
+        " {prefix}/abcdef0123456789.svg ",
+        r"{prefix}\abcdef0123456789.svg",
+        "{prefix}/%61bcdef0123456789.svg",
+    ],
 )
 def test_document_resources_capture_the_paths_delivery_rewrites(
     tmp_path, prefix, reference
@@ -414,18 +410,16 @@ def test_document_resources_capture_the_paths_delivery_rewrites(
 
     (tmp_path / "leaf.js").write_text("export {};")
     (tmp_path / prefix).mkdir()
-    (tmp_path / prefix / "image.svg").write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg"/>'
-    )
+    (tmp_path / prefix / IMAGE).write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     source = f'<img src="{reference.format(prefix=prefix)}">'
     document = SourceDocument(source)
     artifact = capture_artifact(tmp_path, document, {})
-    assert f"/{prefix}/image.svg" in artifact.resources
+    assert f"/{prefix}/{IMAGE}" in artifact.resources
     if prefix == "media":
-        assert document.authoring.media_refs == {"/media/image.svg"}
+        assert document.authoring.media_refs == {f"/media/{IMAGE}"}
     delivered = rebase_document(source, DeliveryAddress("/root", "/revision"))
     expected = (
-        "/root/media/image.svg" if prefix == "media" else "/revision/page/image.svg"
+        f"/root/media/{IMAGE}" if prefix == "media" else f"/revision/page/{IMAGE}"
     )
     assert expected in delivered
 

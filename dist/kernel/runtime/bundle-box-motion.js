@@ -1,11 +1,10 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, nextRender } from "./bundle-portable.js";
-import { TEXT_FIELD, keeps, move, onUserInput } from "./bundle-dom-move.js";
+import { afterSettling, cancelRender, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { contentRides } from "./bundle-content-layout.js";
 import { inChrome } from "./bundle-passages.js";
-import { motionEasing, motionPlays, motionTime, playMotion } from "./bundle-media.js";
-import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-disclosure.js";
+import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js
 var target_paint_exports = /* @__PURE__ */ __exportAll({
@@ -72,7 +71,7 @@ function paintAim(element, surface = null) {
 function labelAim(node) {
 	if (!aimPlaced) return;
 	const { rect, shown, levels } = aimPlaced;
-	const above = shown.top - node.offsetHeight - 2;
+	const above = shown.top - node.offsetHeight - aimStood.room;
 	const room = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));
 	const cutTop = shown.top > rect.top;
 	const at = {

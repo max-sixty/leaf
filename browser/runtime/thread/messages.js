@@ -14,7 +14,7 @@
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
 import { html, keyed, render, nothing } from "/runtime/framework.js";
-import { generatedElement, namedAction, offered } from "../widget-elements.js";
+import { generatedElement, offeredAction } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -60,6 +60,7 @@ import { keeps } from "../keeps.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
+import { copyControl } from "../copy-control.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -163,6 +164,7 @@ export function prepareAuthoredMessage(message, thread) {
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
+    markDeclared(template.content);
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
@@ -323,6 +325,12 @@ export function messageReading(
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored",
     }),
+    // The message as its Copy control copies it: its words as written, then any markup
+    // an agent sent after them, which Markdown carries as HTML. A reaction has none.
+    markdown:
+      kind === "reaction"
+        ? null
+        : [message.text, message.markup].filter(Boolean).join("\n\n"),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -334,6 +342,7 @@ export class MessageView {
   #commands;
   #model = null;
   #reaction = null;
+  #copy = null;
   #authored = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
@@ -373,11 +382,11 @@ export class MessageView {
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A
-      // link keeps its own double click.
+      // link keeps its own double click, and a control its own presses.
       this.node.addEventListener("dblclick", (event) => {
         if (
           /** @type {Partial<Element>} */ (event.target).closest?.(
-            ".lf-msg-editor, a[href]",
+            ".lf-msg-editor, .lf-msg-controls, a[href]",
           )
         )
           return;
@@ -457,6 +466,23 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    // The message's own controls, one group at its head's end (controls.css): the user's
+    // own words offer their rewrite, or, open, its Discard and Save; an agent's reply
+    // its reactions; and every message with words its Copy, last.
+    const rewrite = editing
+      ? this.#editor.actions
+      : model.editable
+        ? html`<button
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
+              action: "edit",
+            })}
+            tabindex="-1"
+            @click=${() => this.openEdit()}
+          ></button>`
+        : nothing;
+    const react = model.reactions ? this.#reaction.trigger : nothing;
+    const copy =
+      model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
     const receipt = model.workflowLabel
       ? html`<span
           class="lf-msg-sending"
@@ -511,23 +537,11 @@ export class MessageView {
               : nothing
           }
         </span>
-        ${headerControls}
+        ${headerControls}<span class="lf-msg-control-room"
+          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+        >
       </div>
     `;
-    // The user's own words offer their rewrite where an agent's reply offers its
-    // reactions: the message's one control, at its header's right edge (shadow.css).
-    const rewrite =
-      model.editable && !editing
-        ? html`<button
-            ${offered("lf-msg-control lf-msg-edit")}
-            tabindex="-1"
-            ${namedAction("edit", {
-              label: "Edit message",
-              className: "lf-msg-control-icon",
-            })}
-            @click=${() => this.openEdit()}
-          ></button>`
-        : nothing;
     render(
       html`
         ${header}
@@ -542,7 +556,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${strip} ${rewrite}
+        ${strip}
       `,
       this.node,
     );
@@ -610,6 +624,25 @@ export class MessageView {
   // Whether this view draws an open rewrite.
   get editing() {
     return this.#editor !== null;
+  }
+
+  // Copy stands at the head's end, after the message's own control (controls.css), and
+  // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
+  // one to every message between a thread's controls; the keyboard presses it with the
+  // copy key in the thread (landing.js, `message.copy`).
+  #copyControl(markdown) {
+    if (!this.#copy) {
+      this.#copy = copyControl("lf-msg-control lf-msg-copy", {
+        role: "symbol",
+        label: "Copy as Markdown",
+        success: "Message copied as Markdown",
+        error: "Message not copied · select its words to copy",
+      });
+      this.#copy.tabIndex = -1;
+      this.#copy.title = "Copy as Markdown";
+    }
+    if (this.#copy.value !== markdown) this.#copy.value = markdown;
+    return this.#copy;
   }
 
   #body(body) {

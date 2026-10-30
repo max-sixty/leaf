@@ -8,6 +8,7 @@ import {
   onCurrentLocation,
   onUserInput,
 } from "./focus.js";
+import { exceptionRecord } from "./exception.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { whenArrived, whenArriving } from "./presentation.js";
 import { afterSettling, sizeObserver } from "./rendering.js";
@@ -39,7 +40,7 @@ if (child)
     } catch (error) {
       child.send({
         id,
-        error: { name: error.name, message: error.message, stack: error.stack },
+        error: exceptionRecord(error),
       });
     }
   });
@@ -95,7 +96,7 @@ if (child) {
   });
   registerSampleCommand("window", async ({ window: asWindow }) => {
     child.settings.window = asWindow;
-    document.documentElement.lfInitial.setRuntimeRootAttribute(
+    document.documentElement.lfRootState.setRuntimeRootAttribute(
       document.documentElement,
       "data-lf-sample-block",
       asWindow ? null : "",

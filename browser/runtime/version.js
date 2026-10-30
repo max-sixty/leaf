@@ -112,6 +112,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
@@ -143,16 +144,11 @@ import {
 } from "./reading-regions.js";
 import { PAGE_SCOPE } from "./storage.js";
 import { tabStore } from "./tab-store.js";
-import {
-  authoredBody,
-  initialOrigin,
-  restoreInitialSource,
-  unmarkedCopy,
-} from "./initial-render.js";
+import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, reveal } from "./widget-elements.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { settleMarginContentLayout } from "./content-layout.js";
+import { settleDocumentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
@@ -199,13 +195,12 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. Most arrive after this module, but the server's prepaint
-// bootstrap deliberately runs before the module graph and has already written the live
-// shell and provisional user layout. Authored markup cannot use the `data-lf-` or
+// bootstrap deliberately runs before the module graph and has already written sample
+// presentation facts. Authored markup cannot use the `data-lf-` or
 // `lf-` namespaces, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
-  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -230,48 +225,78 @@ const versionedHeadNode = (node) =>
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
     node.localName === "link");
-// This document as its author wrote it, kept inert beside the page it became. A patch
-// applies the difference between two revisions, so it needs the revision the page is
-// standing on as source — not the page, which by then carries a tokenizer's spans, a
-// user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The early coordinator keeps the source of each initially rendered host
-// before its package moves or replaces anything. unmarkedCopy uses those sources
-// and removes delivery's placeholders and invocation scripts. Each copied source
-// node retains its route to the original live node, so pairing still works when a
-// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
-// and are excluded from the separate head baseline above. A later arriving source
-// that has not been initially rendered pairs by the ordinary parallel walk.
+// Keep one inert authored baseline before Leaf mounts or upgrades anything. Live
+// revisions compare against it and pair retained source nodes with their live peers.
+// Delivery's Markdown preview is presentation, so neither baseline includes it.
+const authoredMarkup = (root) => {
+  // Prepaint can already have painted the first document. Both source snapshots
+  // exclude runtime-owned attributes; their live values stay with their writers.
+  for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
+    for (const element of root.querySelectorAll(`[${name}]`))
+      element.removeAttribute(name);
+  for (const member of root.querySelectorAll("[data-lf-view]"))
+    member.removeAttribute("hidden");
+  for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+  return root;
+};
 const pairSources = (source, live, pairs) => {
-  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
+    (child) => !child.matches?.("[data-lf-prepaint]"),
   );
   for (const [at, child] of [...held.childNodes].entries()) {
-    const original = initialOrigin(child);
-    const peer = original === child ? children[at] : original;
+    const peer = children[at];
     if (peer) pairSources(child, peer, pairs);
   }
   return pairs;
 };
-// The served baseline is read here, before any widget upgrades, and the version
-// controller takes it whole, replacing each part with every revision. Nothing else
-// keeps it: its source routes each copied node back to the live node it came from
-// (its pairs, and prepaint.js's `origins`), so a reference kept past the first revision
-// would hold every node the page was served with after that revision removed it.
+// Only the version controller keeps this baseline; replacing a revision releases
+// its source and the source/live node pairs together.
 let initialDocument = (() => {
   const main = pageDocument();
-  const source = main ? unmarkedCopy(main) : null;
+  const inert = document.implementation.createHTMLDocument("");
+  const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+  // Cloning transfers native dirty properties too. Read the initial condition from
+  // the defaults, leaving markup and its exact text intact (reparsing drops a leading
+  // newline in pre/textarea). Native setters apply each control's sanitization.
+  for (const input of source?.querySelectorAll("input") ?? []) {
+    if (
+      !["file", "checkbox", "radio"].includes(input.type) &&
+      input.value !== input.defaultValue
+    )
+      input.value = input.defaultValue;
+    input.checked = input.defaultChecked;
+  }
+  for (const textarea of source?.querySelectorAll("textarea") ?? [])
+    textarea.value = textarea.defaultValue;
+  const pairs = main ? pairSources(source, main, new WeakMap()) : new WeakMap();
+  // Native disclosures can already have been used while modules were loading.
+  // Their parse-time owner supplies the authored default for the source baseline;
+  // the live node keeps the user's choice, as it does for every later revision.
+  for (const disclosure of source?.querySelectorAll("details") ?? []) {
+    const open = document.documentElement.lfStorage.initialDisclosureOpen(
+      pairs.get(disclosure),
+    );
+    if (open !== undefined) disclosure.toggleAttribute("open", open);
+  }
   return {
     authoredBodyAttributes: authoredAttributes(document.body),
     authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
     authoredHtmlAttributes: authoredAttributes(document.documentElement),
     source,
-    pairs: main ? pairSources(source, main, new WeakMap()) : new WeakMap(),
+    pairs,
   };
 })();
+
+// Boot lends this same captured source and its original node pairs to typed
+// capture, then transfers ownership to the version controller.
+export function takeInitialDocument() {
+  const captured = initialDocument;
+  initialDocument = null;
+  return captured;
+}
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.
@@ -1151,8 +1176,7 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  // First-paint delivery wrappers have no place in the authored revision.
-  return restoreInitialSource(doc);
+  return authoredMarkup(doc);
 }
 // Repeated comparisons of the same immutable revision share its document fetch.
 const revisionDocuments = new Map();
@@ -1168,7 +1192,11 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
-/** @param {{
+/**
+ * @template RetainedLocation
+ * @template ObligationLocation
+ * @param {{
+ *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: any,
  *   openThread: any,
  *   refreshThread: any,
@@ -1176,13 +1204,14 @@ function revisionDocument(revision) {
  *   hasPending: any,
  *   readAndApply: any,
  *   syncLayout: any,
- *   captureRetainedCurrentLocation?: () => unknown,
- *   restoreRetainedCurrentLocation?: (currentLocation: unknown) => boolean,
- *   captureObligationCurrentLocation?: () => unknown,
- *   restoreObligationCurrentLocation?: (currentLocation: unknown) => void,
+ *   captureRetainedCurrentLocation?: () => RetainedLocation,
+ *   restoreRetainedCurrentLocation?: (currentLocation: RetainedLocation) => boolean,
+ *   captureObligationCurrentLocation?: () => ObligationLocation,
+ *   restoreObligationCurrentLocation?: (currentLocation: ObligationLocation) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
+  initialDocument,
   compositionInput,
   openThread,
   refreshThread,
@@ -1205,7 +1234,6 @@ export function createVersionController({
   } = initialDocument;
   // Every revision pairs its own source here; a superseded source's pairs leave with it.
   const sourcePairs = initialDocument.pairs;
-  initialDocument = null;
   versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
   // The delivery root removed when comparing this revision with the next.
   let authoredRoot = layerRoot(document);
@@ -1375,12 +1403,12 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // A widget declaring `x-patch: members` builds its controls beside its members and
-  // reads nothing of them but their attributes. So what it built stands for its own
-  // attributes and each member's tag and attributes, in order, and while two revisions
-  // agree on that much, the rest of the difference is inside members the author owns.
-  // One that moved them all into an authored body reads none of them, so there its own
-  // attributes stand for everything it built.
+  // An x-patch container retains authored markup while the inputs its renderer
+  // consumes stay the same. A structured member list, or a declared x-views list,
+  // consumes its direct members' identities and attributes. A markup container
+  // without views consumes only its own attributes: the patch owns its evidence,
+  // including native attributes. A generated authored body likewise separates that
+  // evidence from the renderer's inputs.
   const shell = (element, members) => {
     const copy = element.cloneNode(false);
     if (members)
@@ -1388,8 +1416,11 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) => {
-    if (registry[before.localName]?.["x-patch"] !== "members") return false;
-    const members = !authoredBody(sourcePairs.get(before));
+    const entry = registry[before.localName];
+    if (entry?.["x-patch"] !== "members") return false;
+    const members =
+      !authoredBody(sourcePairs.get(before)) &&
+      (entry["x-content"] === "members" || entry["x-views"]);
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1635,7 +1666,7 @@ export function createVersionController({
           // A revision ends every hold, whether or not the reader's intent lets the
           // view be restored: its own handoff places the reader.
           releaseHolds();
-          settleMarginContentLayout();
+          settleDocumentLayout();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);

@@ -1,0 +1,391 @@
+/* Leaf's reading look, the bundled `reading` theme a page takes unless it names
+ * another or none (`leaf page init --theme`, `--no-theme`). It holds the body's type
+ * and colour, the page's ground, a wide page's and a page of parts' title, and the class
+ * idioms its registry declares. As the package's
+ * `defaults.css`, its rules stand in `lf-base` beside widgets' defaults and below
+ * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
+ * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
+ * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
+ * and the root's colour scheme, which lets
+ * the tokens' light-dark() pairs follow the reader's preference.
+ *
+ * Three voices, because the page already has three kinds of words and the norms
+ * turn on telling them apart. What the page *says* is set in a text serif: prose
+ * a user reads closely and points at. Dense working surfaces such as tables
+ * use the sans too: their words are compared across rows rather than read in sequence.
+ * A table's own column headings go with them, quieter rather than tracked.
+ * What the page *labels* — an eyebrow, a chip, a metric's caption — is
+ * apparatus, set in the UI sans at small sizes with tracking, so it reads as
+ * machinery around the argument rather than as part of it. What it *shows* is mono:
+ * code, diffs, trees, timestamps.
+ *
+ * The serif is stacked, not shipped. The layer's sheet is inlined whole into every
+ * `page export` and parsed by `page check` on every version, so a webfont
+ * would have to arrive as a base64 blob in both — and referenced by URL instead
+ * it silently falls back in exactly the medium (an exported file, mailed on) that
+ * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
+ * else; each is a screen serif with a large x-height, which is the property that
+ * matters at 17px. */
+
+:root {
+  color-scheme: light dark;
+  --lf-reading-face: 1;
+}
+body {
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
+  color: var(--ink);
+  font: var(--t-4)/1.6 var(--serif);
+}
+/* A container is contained, and containment keeps the body's background off the canvas,
+ * so the root paints the page's colour itself: a page shorter than the window, with no
+ * live body stretched to fill it, otherwise ended in white. */
+html {
+  background: var(--paper);
+}
+/* A callout keeps the prose measure, including on a wider sidebar page.
+ * Its own data-width requests room for wider evidence inside the frame. */
+@media screen {
+  :where(.callout) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
+/* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
+ * sets its title a size up and tighter, to hold its line above panels as wide as the
+ * window. The Layout says how wide the page is; the size is answered here. A page at
+ * working density keeps the working title, since it is a surface the reader operates
+ * or glances at, such as a rollout dashboard, whose first window the panels need: a
+ * 46px title and its air took a tenth of a 1000px window above them. */
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
+  h1 {
+    font-size: clamp(36px, 3.2cqi, 46px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+}
+/* A page of parts' title heads the narrow column its list of parts stands in
+ * (layouts.css, "A page of parts"), so it is set as that column's heading. */
+@container style(--lf-parts-title: 1) {
+  h1 {
+    font-size: var(--t-3);
+    line-height: 1.25;
+    letter-spacing: normal;
+  }
+}
+/* The apparatus voice (`reading.css`, beside `summary`) for the theme's idioms. */
+.eyebrow,
+.tag,
+dl.facts dt {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The compact face a small label rides in, set in the chip tokens (base.css) that every
+ * layer's chips read, so a band of chips and an inline .tag stand the same height —
+ * they drifted four pixels apart once, when the inline label padded itself and
+ * nobody had decided that. A wearer keeps only where it sits, and a tint of its
+ * own where the tint is the point. A long word breaks only where it would overflow
+ * (break-word): `anywhere` also made each letter a place the chip could shrink to, so
+ * a table's automatic layout squeezed a status column down to "pas" over "sed". */
+.tag {
+  display: inline-block;
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  padding: var(--chip-pad);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+}
+
+/* ---------- class idioms ---------- */
+
+.eyebrow {
+  font-size: var(--t-6);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+  margin: 0 0 10px;
+}
+/* An eyebrow and the heading below it are one title: the heading level's large top
+   margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
+   inside it. */
+.eyebrow:has(+ h2) {
+  margin-top: var(--h2-start);
+}
+.eyebrow:has(+ h3) {
+  margin-top: var(--h3-start);
+}
+.eyebrow + :is(h1, h2, h3) {
+  margin-top: 10px;
+}
+/* The one paragraph a user is guaranteed to read, so it is set as one: larger
+   than the body, looser, and in the ink the body isn't. */
+h1 + .lede {
+  margin-block-start: 12px;
+}
+.lede {
+  color: var(--ink-2);
+  font-size: var(--t-3);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+/* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
+ * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
+ * the height of a link a size up beside it, its text at the top of a tall box. */
+.tag {
+  vertical-align: middle;
+  align-self: center;
+}
+/* A callout's tint carries its emphasis. Its prose keeps the page's own size. */
+.callout {
+  --lf-ground: var(--field);
+  background: var(--lf-ground);
+  padding: 12px 16px;
+  margin: var(--callout-margin-block) 0;
+  --lf-block-frame: 1;
+}
+/* A panel groups one working region by its heading and spacing. The content owns
+   any frame it needs; a table or log does not need a second card around it. */
+section.panel {
+  margin: 18px 0;
+  --lf-block-frame: trim;
+}
+section.panel > :is(h2, h3):first-child {
+  margin: 0 0 10px;
+}
+/* A panel's name takes the label voice (base.css, `.lf-label`). */
+section.panel > :is(h2, h3):first-child {
+  font: 600 var(--t-6)/1.3 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* A status a label or a callout carries, in the three tones every status on the page is
+   drawn in (a tag or a check's result). The tint is the whole
+   of the marking and the ink its text, so a tone never needs a word of its own to be
+   read, and never stands in for one. */
+.tag.ok,
+.callout.ok {
+  --lf-tone-tint: var(--ok-tint);
+  --lf-tone-ink: var(--ok-ink);
+}
+.tag.warn,
+.callout.warn {
+  --lf-tone-tint: var(--warn-tint);
+  --lf-tone-ink: var(--warn-ink);
+}
+.tag.danger,
+.callout.danger {
+  --lf-tone-tint: var(--danger-tint);
+  --lf-tone-ink: var(--danger-ink);
+}
+.tag:is(.ok, .warn, .danger) {
+  background: var(--lf-tone-tint);
+  color: var(--lf-tone-ink);
+}
+/* A callout's prose stays in the body's ink; its title takes the tone. */
+.callout:is(.ok, .warn, .danger) {
+  --lf-ground: var(--lf-tone-tint);
+}
+.callout:is(.ok, .warn, .danger) > strong:first-child {
+  color: var(--lf-tone-ink);
+}
+/* A sidenote is a small indented block where it was written, and on paper; where it hangs
+   in the column's margin is the column Layout's (layouts.css). */
+aside.note {
+  font-size: var(--t-5);
+  line-height: 1.45;
+  color: var(--muted);
+}
+dl.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 14px 0;
+}
+dl.facts dt {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: var(--t-5);
+}
+dl.facts dd {
+  margin: 0;
+}
+/* A metric tile: one figure under the label naming it, with an optional change beside
+   the figure, written as a one-term definition list. It is type and a hairline above,
+   not a card, so a row of them reads as figures; a page restyles it through the
+   tokens it reads. The figure and its change each go to a new line whole, and a figure
+   too long for the tile breaks anywhere rather than overflow it.
+
+   In a grid, a tile containing just its term and definition takes two of its parent's
+   tracks (subgrid), so peer figures align however many lines a neighbour's label wraps to.
+   Other content keeps its natural rows: a shared two-row span would overlap a third
+   block, such as an authored baseline note. */
+dl.metric {
+  margin: 0;
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--rule);
+  display: grid;
+  row-gap: 0;
+}
+dl.metric:has(> dt:first-child + dd:last-child) {
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+}
+dl.metric dt {
+  color: var(--muted);
+  font: 600 var(--t-6) / 1.3 var(--sans);
+}
+dl.metric dd {
+  margin: var(--sp-1) 0 0;
+  font: 600 var(--t-2) / 1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+dl.metric dd > :is(strong, small) {
+  display: inline-block;
+}
+dl.metric dd small {
+  font: 500 var(--t-6) / 1.3 var(--sans);
+}
+@media screen {
+  @container (width <= 640px) {
+    /* A long term must not spend most of a narrow box's line on the first column and
+       leave its explanation as a one-word ribbon. Stack each fact while the box holding
+       the facts is narrow, a phone's column or a narrow pane alike; later terms keep the
+       ordinary block rhythm through the row gap. */
+    dl.facts {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+    }
+    dl.facts dd + dt {
+      margin-top: var(--sp-2);
+    }
+  }
+}
+/* A column of quantities lines up on its last digit — the comparison a table of
+   numbers is there for, and one tabular figures alone don't make. Said per cell,
+   heading included, because which column holds quantities is the author's to
+   declare: "60" and "60 sessions" are one shape and two different things, and a
+   pass that read the text would be guessing at the difference. */
+th.num,
+td.num {
+  text-align: right;
+}
+/* Steps keep native list numbers and add space between entries. */
+ol.steps {
+  margin-block-start: 0;
+}
+ol.steps > li {
+  margin: 10px 0;
+}
+
+/* A schematic drawing the page makes itself: every mark takes a theme token, so the
+   figure follows the palette as the prose does, which an SVG loaded as an image cannot.
+   Sizes are in the drawing's own units and scale with its viewBox. One without a width
+   of its own fills its figure; a thumbnail states one.
+
+   TODO: revisit whether this set is too specific. It ships as taken from one page's
+   drawings of Leaf's own layout, less the marks only that subject used (its rail, pins
+   and suggestion tints). If later pages leave most of it unused, or keep adding local
+   classes beside it, trim it to the text defaults and let each page draw its own. */
+svg.drawing {
+  display: block;
+  height: auto;
+  font-family: var(--sans);
+  font-size: 11px;
+}
+svg.drawing:not([width]) {
+  width: 100%;
+}
+svg.drawing text {
+  fill: var(--muted);
+}
+svg.drawing .strong {
+  fill: var(--ink);
+  font-weight: 600;
+  font-size: 12px;
+}
+svg.drawing .small {
+  font-size: 10px;
+}
+svg.drawing .mono {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  fill: var(--ink-2);
+}
+svg.drawing .frame {
+  fill: var(--paper);
+  stroke: var(--border-2);
+}
+svg.drawing .frame-head {
+  fill: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+svg.drawing .box {
+  fill: var(--card);
+  stroke: var(--border-2);
+}
+svg.drawing .box.hot {
+  fill: color-mix(in srgb, var(--accent) 9%, var(--card));
+  stroke: var(--accent);
+}
+svg.drawing .line {
+  fill: color-mix(in srgb, var(--ink) 20%, transparent);
+}
+svg.drawing .line.soft {
+  fill: color-mix(in srgb, var(--ink) 11%, transparent);
+}
+svg.drawing .highlight {
+  fill: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+svg.drawing .ghost {
+  fill: none;
+  stroke: var(--muted-2);
+  stroke-dasharray: 3 3;
+}
+svg.drawing .guide {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 2 3;
+}
+svg.drawing .dim {
+  fill: none;
+  stroke: var(--ink-2);
+}
+svg.drawing .arrow {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+}
+svg.drawing .tip {
+  fill: var(--muted);
+}
+svg.drawing .mark,
+svg.drawing .tip.hot {
+  fill: var(--accent);
+}
+svg.drawing .glyph {
+  fill: var(--paper);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+svg.drawing .ok {
+  fill: var(--ok);
+}
+svg.drawing .warn {
+  fill: var(--warn);
+}
+svg.drawing .danger {
+  fill: var(--danger);
+}

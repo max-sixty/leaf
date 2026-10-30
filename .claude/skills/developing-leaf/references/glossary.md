@@ -121,7 +121,7 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
-| **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
+| **Margin sidebar** | An `aside > .layout-track` beside a `.layout-column` body in `.layout-sidebar`: supporting material in the left margin where both fit, stacked otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
 | **Part** | One `lf-part` of a page of parts, listed down the window's left edge under the page's title (`page-layout.md`, "A page of parts"). Not a **view**, which is Leaf's panel's |
 | **Full-height** | A workspace that exactly fills the window, where the window is large enough (`--lf-full-height: 1` on `main`); the web calls it a full-height or app-shell layout |
@@ -160,7 +160,7 @@ dialog**. The margin projection has its own terms:
 | Term | Identity criterion |
 |---|---|
 | **Rail** | The strip right of `main` where margin rows sit beside their targets, where there is room, without moving the column (`page-layout.md`, "The rail and the margin") |
-| **Margin content** | Something the margin holds where there is room beside `main`: the rail, the contents map, a column page's first sidebar, its sidenotes (`marginContentLayout` in `prepaint.js`) |
+| **Margin content** | Something beside the prose: annotations read its native track; CSS arranges the contents map, sidebar and notes (`page-layout.md`) |
 | **Margin row** | One row tied to a target and aligned with it, placed in the `rail`, as a `pin`, or `withheld` (`groupFor` in `annotation-inventory.js` says which rows a target gets) |
 | **Pin** | A margin row drawn over the page beside its target, used where the row can't sit in the rail (`rowPlacement`; `seatRows` in `margin-placement.js` places it) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
@@ -209,7 +209,7 @@ the headings over the document's height.
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `theme.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `base.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 

@@ -41,9 +41,9 @@
  * stand over it there can give way first (floating-panel.js, `clearFor`).
  *
  * A landing is the reader's choice of where each box it moves stands (scrolling.js).
- * One in motion is counted as it starts, since the navigation that lands often changes
- * layout first, as opening a disclosure hands a region to a scroller of its own, and
- * the keeper's restore for that change runs before the motion ends.
+ * Count it as it starts, including an instant landing: navigation can change layout
+ * in the same task, so its scroll end alone cannot distinguish the landing from
+ * anchoring or a clamp before the keeper restores that layout change.
  *
  * A destination the user is on is measured by the box that wears its focus ring
  * (focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
@@ -82,10 +82,15 @@ import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
+import { setScroll } from "./arrivals.js";
 
 const land = (box, by, behavior) => {
-  if (behavior !== "instant") startScroll(box);
-  box.scrollBy({ ...by, behavior });
+  startScroll(box);
+  setScroll(box, {
+    top: box.scrollTop + (by.top ?? 0),
+    left: box.scrollLeft + (by.left ?? 0),
+    behavior,
+  });
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the

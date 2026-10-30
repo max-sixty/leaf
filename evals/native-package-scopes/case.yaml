@@ -9,7 +9,7 @@ metadata:
     - styles
 vars:
   prompt: |
-    I'm writing theme.css and shadow.css for a Leaf package declaring lf-notice
+    I'm writing defaults.css and widget-shadow.css for a Leaf package declaring lf-notice
     and lf-meter. The notice itself needs a 3px green border, and paragraphs
     inside either widget need green text. A notice should use orange text while
     Leaf is interactive. Its shadow-tree host needs 4px padding when it wears

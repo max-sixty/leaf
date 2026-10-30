@@ -26,7 +26,7 @@ from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, page_vocabulary, served_layer
-from ..revision_artifact import read_revision
+from ..revision_artifact import RevisionReading, read_revision
 from ..state import now_iso
 
 
@@ -82,6 +82,9 @@ class PageRead:
         if self.active is not None and revision == self.active["revision"]:
             return self.active
         reading = self.revision(revision)
+        # Only a check's candidate is read without being stored, and it is never one
+        # the user was shown.
+        assert isinstance(reading, RevisionReading)
         return document_descriptor(
             revision,
             self.events,

@@ -3,8 +3,11 @@
 
 The corpus is `tests/fixtures/plain/`: standalone pages, each written as an author
 writes for the open web and showing a pattern the others don't, whose one
-Leaf-specific edit is that the body's content sits in one `main`. A new ordinary
-pattern gets a page of its own, as small as shows it. They stay out of the example
+Leaf-specific edit is that the body's content sits in one `main`. Each brings its own
+design, so each takes no theme, as `page-authoring.md`, "Style the page", tells such
+a page to: what the comparison holds is Leaf's core sheet and runtime, never the
+reading look a page takes by default. A new ordinary pattern gets a page of its own,
+as small as shows it. They stay out of the example
 corpus (`examples/AGENTS.md`), whose sweeps also hold Leaf's own pages to the suite's
 rules, such as writing nothing that changes nothing (`write_watch.js`), which an
 author's script owes nobody.
@@ -22,8 +25,9 @@ included, computes the same in both. A theme default showing through on a proper
 the author left alone is Leaf's documented offer (`page-authoring.md`, "Style the
 page") and is not compared. Four readings beyond the properties follow the same rule:
 a box the author positions (sticky, fixed or absolute) stands in the same place at
-rest and after the page scrolls; the canvas around `body`, where it shows, keeps the
-author's root background; an open `dialog` keeps its look; and the root keeps the
+rest and after the page scrolls; where `body` ends short of the window, what shows
+past it, the canvas or the body itself, keeps the author's root background; an open
+`dialog` keeps its look; and the root keeps the
 colour scheme the author left it at, since that decides every system colour under the
 page. Leaf's chrome and what it generates (`.lf-ui`, `[data-lf-gen]`) are not the
 page's; an element of the author's missing from the Leaf page, or one Leaf adds among
@@ -51,6 +55,7 @@ from interact_support import running_http_server
 from render_harness import ROOT
 
 from leaf.event_log import read_events
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.page_code import needs_browser, run_page_code
 from leaf.render_gate.preview import preview_server
@@ -61,112 +66,17 @@ SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
 OBSTACLES = {
-    "inherited": (
-        "Leaf's theme sets type and colour on body, on semantic elements (headings'"
-        " line-height, table cells, code and pre, blockquote, figcaption) and on class"
-        " idioms whose names pages also use (.lede, .facts dt), and a rule on an"
-        " element outranks whatever the author set on an ancestor, so type and colour"
-        " a page sets on :root or body lose on each element the theme names"
-    ),
-    "color-scheme": (
-        "theme.css declares color-scheme: light dark on :root, so a page that never"
-        " opted into dark gets the browser's dark controls, dialogs and system colours"
-        " in a dark medium"
-    ),
-    "canvas": (
-        "body is a size container (theme.css, container: lf-shell), which keeps its"
-        " background off the canvas, and html paints Leaf's --paper there, so a page"
-        " shorter than the window ends in Leaf's paper below the body the author"
-        " coloured"
+    "scroll-clearance": (
+        "Leaf makes a table or pre scroll inside itself rather than widen the page"
+        " (reading.css), and keeps 8px under its last row for an overlay scrollbar,"
+        " so a grid row holding a table is that much taller"
     ),
 }
 KNOWN = {
-    "article": {
-        "inherited": {
-            "dark inherited color on body and 46 more #dfba8c06",
-            "dark inherited font-family on body and 43 more #38373dea",
-            "dark inherited font-size on body and 23 more #ab5e1941",
-            "dark inherited font-style on main > blockquote:0 and 2 more #854bcf57",
-            "dark inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
-            "dark inherited line-height on body and 40 more #6a23811c",
-            "light inherited color on body and 46 more #dfba8c06",
-            "light inherited font-family on body and 43 more #38373dea",
-            "light inherited font-size on body and 23 more #ab5e1941",
-            "light inherited font-style on main > blockquote:0 and 2 more #854bcf57",
-            "light inherited font-variant-numeric on main > table:0 and 18 more #d0599126",
-            "light inherited line-height on body and 40 more #6a23811c",
-        },
-    },
     "dashboard": {
-        "inherited": {
-            "dark inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
-            "dark inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
-            "dark inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
-            "light inherited font-family on main > div:0 > section:5 > table:0 and 89 more #a7a90862",
-            "light inherited font-variant-numeric on main > div:0 > section:5 > table:0 and 109 more #64d52e9b",
-            "light inherited line-height on main > header:0 > h1:0 and 117 more #66a50cd8",
-        },
-    },
-    "editorial": {
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
-            "dark inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
-            "light inherited color on main > figure:0 > figcaption:0 and 2 more #8aec8976",
-            "light inherited font-variant-numeric on main > dl:0 > div:0 > dt:0 and 2 more #17f31538",
-        },
-    },
-    "form": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-    },
-    "instrument": {
-        "inherited": {
-            "dark inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
-            "dark inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
-            "light inherited font-size on main > section:1 > div:3 > code:0 #63f91bb0",
-            "light inherited line-height on main > section:0 > h1:0 and 2 more #8e05b5be",
-        },
-    },
-    "module": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
-            "light inherited line-height on main > header:0 > h1:0 and 3 more #66fbabf9",
-        },
-    },
-    "motion": {
-        "canvas": {
-            "canvas around body",
-        },
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited font-size on main > p:0 #5fa0b4aa",
-            "dark inherited line-height on main > h1:0 and 5 more #1be9666f",
-            "light inherited font-size on main > p:0 #5fa0b4aa",
-            "light inherited line-height on main > h1:0 and 5 more #1be9666f",
-        },
-    },
-    "script": {
-        "color-scheme": {
-            "color-scheme on the root",
-        },
-        "inherited": {
-            "dark inherited line-height on main > h1:0 #0199a976",
-            "light inherited line-height on main > h1:0 #0199a976",
+        "scroll-clearance": {
+            "dark overridden grid-template-rows on main #0d6e4079",
+            "light overridden grid-template-rows on main #0d6e4079",
         },
     },
 }
@@ -266,10 +176,16 @@ READ = """({props, within, mark}) => {
   const cs = (el) => getComputedStyle(el);
   const [html, body] = [document.documentElement, document.body];
   const propagates = cs(body).containerType === 'normal' && cs(body).contain === 'none';
-  const htmlPaints = cs(html).backgroundColor !== 'rgba(0, 0, 0, 0)'
-    || cs(html).backgroundImage !== 'none';
+  const paints = (style) => style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+    || style.backgroundImage !== 'none';
+  const htmlPaints = paints(cs(html));
   const canvas = cs(htmlPaints || !propagates ? html : body);
   const box = body.getBoundingClientRect();
+  const short = box.top > 0.5 || box.left > 0.5 || box.right < innerWidth - 0.5
+    || box.bottom < innerHeight - 0.5;
+  // Where the body ends short of the window, the canvas shows past it; where it
+  // fills the window, a body that paints shows there instead.
+  const ground = short || !paints(cs(body)) ? canvas : cs(body);
   const styles = elements.map((el) => {
     const style = cs(el);
     return Object.fromEntries(props.map((p) => [p, style.getPropertyValue(p)]));
@@ -284,9 +200,8 @@ READ = """({props, within, mark}) => {
   document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== untransformed);
   return {
     elements: elements.map((el, at) => ({key: key(el), style: styles[at], rect: rects[at]})),
-    canvas: `${canvas.backgroundColor} ${canvas.backgroundImage}`,
-    canvasShows: box.top > 0.5 || box.left > 0.5 || box.right < innerWidth - 0.5
-      || box.bottom < innerHeight - 0.5,
+    ground: `${ground.backgroundColor} ${ground.backgroundImage}`,
+    short,
     scrollMax: document.scrollingElement.scrollHeight - innerHeight,
   };
 }"""
@@ -444,8 +359,10 @@ def _scaled(was: str, now: str, font: tuple[str, str] | None) -> bool:
     lengths = [_px(value) for value in (was, now, *font)]
     if None in lengths or not lengths[0] or not lengths[2]:
         return False
-    was, now, font_was, font_now = lengths
-    return abs(now / was - font_now / font_was) < 0.005
+    was_px, now_px, font_was, font_now = lengths
+    assert was_px is not None and now_px is not None
+    assert font_was is not None and font_now is not None
+    return abs(now_px / was_px - font_now / font_was) < 0.005
 
 
 def _styles(plain, served):
@@ -564,19 +481,19 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
             note("added", f"added {key}", f"{label}: Leaf adds {key}")
         backgrounds = {"background-color", "background-image"}
         if (
-            (plain["canvasShows"] or served["canvasShows"])
+            (plain["short"] or served["short"])
             and any(
                 backgrounds & set(e["authored"])
                 for e in plain["elements"]
                 if e["key"] in ("html", "body")
             )
-            and plain["canvas"] != served["canvas"]
+            and plain["ground"] != served["ground"]
         ):
             note(
                 "canvas",
                 "canvas around body",
-                f"{label}: the canvas around body is {served['canvas']!r},"
-                f" not {plain['canvas']!r}",
+                f"{label}: the window past the body's end is {served['ground']!r},"
+                f" not {plain['ground']!r}",
             )
 
     for medium, plain, served in zip(MEDIA, readings, leaf.media, strict=True):
@@ -623,7 +540,7 @@ def static_site():
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, directory=str(directory), **kwargs)
 
-                def log_message(self, *args):
+                def log_message(self, format, *args):
                     pass
 
             httpd = servers.enter_context(
@@ -653,19 +570,22 @@ def checked(browser, page_dir: Path):
     if result.errors:
         yield [(e.code, f"{e.code} {e.at}", str(e)) for e in result.errors], None
         return
-    with preview_server(
+    snapshot = capture_page_snapshot(
         page_dir,
         result.document,
         result.revision.candidate,
-        transition_held=True,
+        url="/",
         artifact=result.artifact,
-    ) as url:
+    )
+    with preview_server(page_dir, snapshot) as url:
+        assert result.artifact is not None
         found = (
             run_page_code(browser, url)
             if needs_browser(result.document, result.artifact)
             else []
         )
         if not found:
+            assert result.artifact is not None
             found = render_version(
                 browser,
                 url,
@@ -684,7 +604,7 @@ def test_an_ordinary_page_is_drawn_as_written(
     plain.wait_for_function(f"document.fonts.status === 'loaded' && {LOADED}")
     alone = Arm(plain, standalone=True)
 
-    page_dir = site_of(source, initialized_page(tmp_path / "page", ()))
+    page_dir = site_of(source, initialized_page(tmp_path / "page", (), theme=False))
     with checked(browser.unwatched, page_dir) as (found, url):
         if url is not None:
             page = browser.unwatched.new_page(viewport=VIEWPORT, color_scheme="light")

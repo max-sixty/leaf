@@ -23,6 +23,8 @@
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
    a visibility behind for the other to undo. */
+import { pageRange } from "../../native-selection.js";
+import { setScroll } from "../../arrivals.js";
 import { cancelRender, nextFrame, nextRender, sizeObserver } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
@@ -35,7 +37,7 @@ import {
   targetParts,
   targetRange,
 } from "../../resolved-target.js";
-import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
+import { blockAt, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
 import { closeLayer, drawn, holdFocus } from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
@@ -573,7 +575,7 @@ export function createFloatingResponsePlacement({
     fabInput.addEventListener("input", () => {
       if (beforeInputScroll === null) return;
       if (pageScroller.scrollTop !== beforeInputScroll) {
-        pageScroller.scrollTo({ top: beforeInputScroll, behavior: "instant" });
+        setScroll(pageScroller, { top: beforeInputScroll, behavior: "instant" });
         placeKept(pageScroller);
       }
     });

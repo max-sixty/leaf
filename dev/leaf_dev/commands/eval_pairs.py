@@ -28,7 +28,7 @@ VERDICT = DEFINITION["output_schema"]
 
 def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
     """Each authored task's samples by column, in the order they started."""
-    found = defaultdict(lambda: defaultdict(list))
+    found: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
     for run in runs:
         results = json.loads((run / "results.json").read_text())["results"]["results"]
         for result in results:
@@ -136,7 +136,7 @@ def eval_pairs(runs: tuple[Path, ...]):
                 f"{subject}: {first} has {len(firsts)} samples and {second} has "
                 f"{len(seconds)}; run each column the same number of times"
             )
-        for n, (x, y) in enumerate(zip(firsts, seconds), 1):
+        for n, (x, y) in enumerate(zip(firsts, seconds, strict=True), 1):
             orders = []
             for order, (a, b, names) in enumerate(
                 ((x, y, {"A": first, "B": second}), (y, x, {"A": second, "B": first})),

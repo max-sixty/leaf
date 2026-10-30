@@ -45,9 +45,10 @@
    where it stood and broken where it broke, its pictures under them as the message
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
    frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
-   and Save stand at the message's head as glyphs, where its own control stood
-   (`.lf-msg-edit-actions`), covering the end of the head's labels while they show, so
-   the head's words stay where they stood. The thread's Resolve leaves its row while the
+   and Save stand among the message's head controls as glyphs, where its Edit stood
+   (`.lf-msg-edit-actions`), standing over the end of a short head's labels on the
+   message's ground (controls.css), so the head's words stay where they stood. The
+   thread's Resolve leaves its row while the
    rewrite is open (response.css), and a message of pictures alone gains the line the
    caret needs for words.
    Rejected, by the user on 2026-10-22: the thread's reply box at its own width and
@@ -104,7 +105,7 @@ import { announce, notice } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-import { nameAction, offer } from "../widget-elements.js";
+import { offer, offerAction } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
 import { signal } from "/runtime/framework.js";
 
@@ -356,16 +357,23 @@ export class MessageEditor {
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
     this.input.name = "edit";
-    const actions = offer("span", "lf-msg-edit-actions");
-    const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
+    // Discard and Save, which the message draws among its head's controls.
+    const actions = (this.actions = offer("span", "lf-msg-edit-actions"));
+    const cancel = offerAction(
+      "symbol",
+      "lf-msg-control lf-msg-edit-cancel",
+      undefined,
+      {
+        action: "discard",
+      },
+    );
     cancel.type = "button";
-    nameAction(cancel, "discard", { className: "lf-msg-control-icon" });
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
     // in a closed tree, so a mark of no size after it is what a reveal can aim at.
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
-    this.node.append(this.input, actions);
+    this.node.append(this.input);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
     // Until the user changes them, the words are the message's, so a rewrite the view
@@ -448,7 +456,7 @@ export class MessageEditor {
         // words between the box and the new ones.
         const flight = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
         leave(false, { painting: false });
-        let sent = null;
+        let sent;
         try {
           sent = await flight;
         } finally {
@@ -487,26 +495,27 @@ export class MessageEditor {
         },
       ],
     });
-    // Escape answers on the editor's controls as in its words, so it is the editor's
-    // own scope, around both, rather than a row of the text box alone; closing is a step
-    // ahead of the ladder's way out of a text box.
     opened = whole();
     // The foot follows the words, ahead of the message's pictures under them.
     this.input.after(this.foot);
-    keys(
-      this.node,
-      "Editing a message",
-      [
-        {
-          id: "message.edit.close",
-          keys: ["Escape"],
-          title: "discard",
-          run: () => close(),
-          keep,
-        },
-      ],
-      { escape: "inner" },
-    );
+    // Escape answers on the editor's controls as in its words, so it is a scope of the
+    // editor's own, on the box and on its controls, rather than a row of the text box
+    // alone; closing is a step ahead of the ladder's way out of a text box.
+    for (const where of [this.node, actions])
+      keys(
+        where,
+        "Editing a message",
+        [
+          {
+            id: "message.edit.close",
+            keys: ["Escape"],
+            title: "discard",
+            run: () => close(),
+            keep,
+          },
+        ],
+        { escape: "inner" },
+      );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
     this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });

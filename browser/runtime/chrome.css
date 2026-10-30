@@ -941,7 +941,8 @@ html[data-lf-region-capture] main * {
     height: auto;
     min-height: var(--lf-key-badge-size);
     padding-block: 1px;
-    font: var(--voice-code);
+    /* The badge's own line (surfaces.css) less the padding that lets it wrap. */
+    line-height: calc(var(--lf-key-badge-size) - 4px);
     white-space: normal;
   }
   .lf-command-reference-scope {
@@ -1072,7 +1073,9 @@ html[data-lf-region-capture] main * {
   }
   /* A section of the report is a group of what the dialog says, so its heading is a
      list's group heading (controls.css, `.lf-rows-head`), ranking below the dialog's
-     title, where the browser's h2 drew "Page details" at 17px bold over a 14px one. */
+     title, where the browser's h2 drew "Page details" at 17px bold over a 14px one. A
+     disclosure in a section is one of its items, in the dialog's own voice rather
+     than the reading theme's bold summary, which outranked the section's heading. */
   .lf-inspection-body :is(h2, h3) {
     font: var(--voice-heading);
     color: var(--muted);
@@ -1086,6 +1089,7 @@ html[data-lf-region-capture] main * {
   .lf-inspection-body summary {
     cursor: pointer;
     padding-block: 4px;
+    font: var(--voice-ui);
   }
   .lf-inspection-body pre {
     white-space: pre-wrap;

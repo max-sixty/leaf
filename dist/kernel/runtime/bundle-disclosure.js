@@ -1209,7 +1209,26 @@ const read = (state) => {
 	if (!/^[\s>]*$/.test(state.doc.line(state.doc.lines).text)) return placedMarkdownTokens(source);
 	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
 };
-const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+const DRAWN = /* @__PURE__ */ new Set([
+	"paragraph_open",
+	"heading_open",
+	"blockquote_open",
+	"bullet_list_open",
+	"ordered_list_open",
+	"list_item_open",
+	"fence",
+	"hr",
+	"text",
+	"hardbreak",
+	"code_inline",
+	"em_open",
+	"strong_open",
+	"s_open",
+	"link_open",
+	"image",
+	"html_inline"
+]);
+const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><hr><ul><li></li><li></li></ul><ol></ol><div></div>";
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
 const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
 function readFaces(field, display) {
@@ -1327,7 +1346,7 @@ function standBlocks(state, blocks, out, line) {
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
+function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
@@ -1423,14 +1442,51 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		widget: new ExternalMark(),
 		side: -1
 	});
+	class Spelled extends WidgetType {
+		constructor(shown) {
+			super();
+			this.shown = shown;
+		}
+		eq(other) {
+			return other.shown === this.shown;
+		}
+		toDOM() {
+			const words = document.createElement("span");
+			words.textContent = this.shown;
+			return words;
+		}
+		ignoreEvent() {
+			return false;
+		}
+	}
+	class TaskBox extends WidgetType {
+		constructor(checked) {
+			super();
+			this.checked = checked;
+		}
+		eq(other) {
+			return other.checked === this.checked;
+		}
+		toDOM() {
+			const box = document.createElement("input");
+			box.type = "checkbox";
+			box.className = "task-list-item-checkbox";
+			box.disabled = true;
+			box.checked = this.checked;
+			return box;
+		}
+		ignoreEvent() {
+			return false;
+		}
+	}
 	const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 	function decorate(state, placed) {
 		const out = [];
 		const runs = [];
 		const boxes = [];
 		const lists = [];
-		const continued = [];
-		const code = [];
+		const leads = [];
+		const whole = [];
 		const opening = [];
 		const held = [];
 		const after = (line, level) => Math.max(line, ...opening.filter((m) => m.line === line && m.level < level).map((m) => m.to));
@@ -1446,8 +1502,15 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				at = current.to + 1;
 			}
 		};
-		for (const { token, from, to, contentFrom, contentTo, escapes, markers, words: said } of placed) {
+		for (const { token, from, to, contentFrom, contentTo, spelled, markers, words: said } of placed) {
+			if (!DRAWN.has(token.type)) continue;
 			const syntax = touches(state, from, to) ? dim : hide;
+			for (const [a, b, shown] of spelled ?? []) {
+				const touched = touches(state, a, b);
+				if (state.doc.sliceString(a, b).endsWith(shown)) add(a, b - shown.length, touched ? dim : hide);
+				else if (touched) add(a, b, dim);
+				else out.push(Decoration.replace({ widget: new Spelled(shown) }).range(a, b));
+			}
 			if (token.type === "code_inline" || contentFrom !== void 0) {
 				const words = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
 				if (words[0] > words[1]) continue;
@@ -1465,14 +1528,27 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					widget,
 					side: 1
 				}).range(to) : Decoration.replace({ widget }).range(from, to));
-			} else if (token.type === "text") for (const at of escapes ?? []) add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+			} else if (token.type === "html_inline") {
+				if (touches(state, from, to)) add(from, to, dim);
+				else out.push(Decoration.replace({ widget: new TaskBox(token.content.includes("checked")) }).range(from, to));
+			} else if (token.type === "paragraph_open") lines(from, to, (each) => leads.push([each.from, token.level]));
 			else if (token.type === "heading_open") {
 				lines(from, to, (each) => {
 					out.push(line("lf-md-heading").range(each.from));
+					leads.push([each.from, token.level]);
 				});
 				for (const [a, b] of markers) add(a, b, syntax);
+			} else if (token.type === "hr") {
+				const rule = state.doc.lineAt(from);
+				const start = after(rule.from, token.level);
+				if (touches(state, rule.from, rule.to)) add(start, rule.to, dim);
+				else {
+					whole.push([rule.from, rule.to + 1]);
+					out.push(line("lf-md-rule").range(rule.from));
+					add(start, rule.to, unseen);
+				}
 			} else if (token.type === "fence") {
-				code.push([from, to]);
+				whole.push([from, to]);
 				const body = token.content.split("\n");
 				if (body.at(-1) === "") body.pop();
 				const opened = state.doc.lineAt(from).number + 1;
@@ -1512,6 +1588,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 						level: token.level,
 						line
 					});
+					leads.push([line, token.level]);
 				}
 			} else if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
 				while (lists.at(-1)?.to <= from) lists.pop();
@@ -1527,7 +1604,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				const head = state.doc.lineAt(from);
 				const [at, end] = markers[0];
 				const start = Math.max(at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length, after(head.from, token.level));
-				lines(head.to + 1, to, (each) => continued.push([each.from, token.level]));
+				lines(head.to + 1, to, (each) => leads.push([each.from, token.level]));
 				const kind = list.next === null ? BULLETS[Math.min(depth, BULLETS.length) - 1] : "lf-md-number";
 				const shown = state.selection.ranges.some((range) => range.from < end && range.to >= start);
 				boxes.push(box(head.from, to, token.level, shown ? { class: "lf-md-item" } : {
@@ -1552,11 +1629,11 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 			}
 		}
 		const indents = /* @__PURE__ */ new Set();
-		for (const [from, level] of continued) {
-			if (code.some(([a, b]) => from >= a && from < b)) continue;
-			if (opening.some((m) => m.kind === "item" && m.line === from)) continue;
+		for (const [from, level] of leads) {
+			if (whole.some(([a, b]) => from >= a && from < b)) continue;
 			const start = after(from, level);
 			if (indents.has(start)) continue;
+			if (opening.some((m) => m.kind === "item" && m.line === from && m.from === start)) continue;
 			indents.add(start);
 			const { to } = state.doc.lineAt(from);
 			add(start, start + state.doc.sliceString(start, to).match(/^[ \t]*/)[0].length, hide);
@@ -1582,6 +1659,40 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 			boxes: BlockWrapper.set(boxes, true)
 		};
 	}
+	const lineStep = (forward, extend) => (view) => {
+		const { selection, doc } = view.state;
+		const moved = EditorSelection.create(selection.ranges.map((range) => {
+			if (!extend && !range.empty) return EditorSelection.cursor(forward ? range.to : range.from);
+			let step = view.moveVertically(range, forward);
+			const here = view.lineBlockAt(range.head);
+			const at = forward ? here.to + 1 : here.from - 1;
+			if ((step.head < here.from || step.head > here.to) && at >= 0 && at <= doc.length) {
+				const beside = view.lineBlockAt(at);
+				if (beside.height < view.defaultLineHeight) {
+					const column = range.head - doc.lineAt(range.head).from;
+					const head = Math.min(beside.from + column, doc.lineAt(at).to);
+					step = EditorSelection.cursor(head, 0, void 0, step.goalColumn);
+				}
+			}
+			return extend ? EditorSelection.range(range.anchor, step.head, step.goalColumn) : step;
+		}), selection.mainIndex);
+		if (moved.eq(selection)) return false;
+		view.dispatch({
+			selection: moved,
+			scrollIntoView: true,
+			userEvent: "select"
+		});
+		return true;
+	};
+	const LINE_STEPS = [{
+		key: "ArrowUp",
+		run: lineStep(false, false),
+		shift: lineStep(false, true)
+	}, {
+		key: "ArrowDown",
+		run: lineStep(true, false),
+		shift: lineStep(true, true)
+	}];
 	const livePreview = ViewPlugin.fromClass(class {
 		constructor(view) {
 			this.live = true;
@@ -1603,7 +1714,12 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		}
 	}, {
 		decorations: (plugin) => plugin.drawn.decorations,
-		provide: (plugin) => [EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none), EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]))]
+		provide: (plugin) => [
+			EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none),
+			EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([])),
+			EditorState.tabSize.of(8),
+			Prec.high(keymap.of(LINE_STEPS))
+		]
 	});
 	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", "list_item_open"]);
 	const CHECKBOX = "[ ] ";
@@ -1920,6 +2036,13 @@ sheet.replaceSync(`
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  /* A rule's line, while the caret is away, is the sent hr: its stroke, as tall as the
+     stroke, its source unseen on it. */
+  .lf-md-rule { line-height: 0; border-block-start: 1px solid var(--rule); }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;

@@ -36,11 +36,35 @@ const read = (state) => {
   );
 };
 
+/** The renderer's token types the preview draws (`decorate`), each as close to the
+ * message as the editor's lines allow; it reads no other, so the source of any other
+ * stays as typed. tests/runtime/markdown-preview.test.mjs holds every rule the renderer
+ * enables to this list or to its recorded exceptions, such as a table. */
+export const DRAWN = new Set([
+  "paragraph_open",
+  "heading_open",
+  "blockquote_open",
+  "bullet_list_open",
+  "ordered_list_open",
+  "list_item_open",
+  "fence",
+  "hr",
+  "text",
+  "hardbreak",
+  "code_inline",
+  "em_open",
+  "strong_open",
+  "s_open",
+  "link_open",
+  "image",
+  "html_inline",
+]);
+
 // The elements the renderer sends each block as, in an order that stands each one
 // between others, as a block inside a body stands.
 const FACE_PROBE =
   "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre>" +
-  "<blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
+  "<blockquote></blockquote><hr><ul><li></li><li></li></ul><ol></ol><div></div>";
 // The gap two blocks' margins leave between them, collapsed as the platform collapses
 // adjoining margins, in px or as CSS over the two a gap line names (`standBlocks`).
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
@@ -216,6 +240,8 @@ function fieldEditor(
   {
     EditorView,
     EditorState,
+    EditorSelection,
+    Prec,
     StateEffect,
     Compartment,
     WidgetType,
@@ -346,6 +372,46 @@ function fieldEditor(
     }
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
+  // The character an entity names, where the message shows it.
+  class Spelled extends WidgetType {
+    constructor(shown) {
+      super();
+      this.shown = shown;
+    }
+    eq(other) {
+      return other.shown === this.shown;
+    }
+    toDOM() {
+      const words = document.createElement("span");
+      words.textContent = this.shown;
+      return words;
+    }
+    ignoreEvent() {
+      return false;
+    }
+  }
+  // A task item's box, as the message draws it: disabled, so it shows the state the
+  // source writes, which only the source changes.
+  class TaskBox extends WidgetType {
+    constructor(checked) {
+      super();
+      this.checked = checked;
+    }
+    eq(other) {
+      return other.checked === this.checked;
+    }
+    toDOM() {
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "task-list-item-checkbox";
+      box.disabled = true;
+      box.checked = this.checked;
+      return box;
+    }
+    ignoreEvent() {
+      return false;
+    }
+  }
   const opensElsewhere = (href) =>
     document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 
@@ -354,12 +420,13 @@ function fieldEditor(
     const out = [];
     const runs = [];
     const boxes = [];
-    // The ends of the lists open at the token being read, an item's later lines by its
-    // level, the code blocks, whose lines their own reading indents, the containers'
-    // markers, and the containers.
+    // The ends of the lists open at the token being read, the lines whose leading
+    // spaces the message drops, by the level of the block they lead, the blocks whose
+    // lines draw their own leading spaces (code, by its reading, and a rule the caret is
+    // away from, unseen), the containers' markers, and the containers.
     const lists = [];
-    const continued = [];
-    const code = [];
+    const leads = [];
+    const whole = [];
     const opening = [];
     const held = [];
     // Where the markers end that open the line starting at `line` for the containers
@@ -388,11 +455,21 @@ function fieldEditor(
       to,
       contentFrom,
       contentTo,
-      escapes,
+      spelled,
       markers,
       words: said,
     } of placed) {
+      if (!DRAWN.has(token.type)) continue;
       const syntax = touches(state, from, to) ? dim : hide;
+      // Source the message shows as other characters: an escape's backslash and a
+      // break's are hidden, and an entity is the character it names.
+      for (const [a, b, shown] of spelled ?? []) {
+        const touched = touches(state, a, b);
+        if (state.doc.sliceString(a, b).endsWith(shown))
+          add(a, b - shown.length, touched ? dim : hide);
+        else if (touched) add(a, b, dim);
+        else out.push(Decoration.replace({ widget: new Spelled(shown) }).range(a, b));
+      }
       if (token.type === "code_inline" || contentFrom !== undefined) {
         const words =
           token.type === "code_inline"
@@ -419,16 +496,38 @@ function fieldEditor(
             ? Decoration.widget({ widget, side: 1 }).range(to)
             : Decoration.replace({ widget }).range(from, to),
         );
-      } else if (token.type === "text") {
-        for (const at of escapes ?? [])
-          add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
+      } else if (token.type === "html_inline") {
+        // A task item's box (markdown.js), drawn in place of its brackets.
+        if (touches(state, from, to)) add(from, to, dim);
+        else
+          out.push(
+            Decoration.replace({
+              widget: new TaskBox(token.content.includes("checked")),
+            }).range(from, to),
+          );
+      } else if (token.type === "paragraph_open") {
+        lines(from, to, (each) => leads.push([each.from, token.level]));
       } else if (token.type === "heading_open") {
         lines(from, to, (each) => {
           out.push(line("lf-md-heading").range(each.from));
+          leads.push([each.from, token.level]);
         });
         for (const [a, b] of markers) add(a, b, syntax);
+      } else if (token.type === "hr") {
+        // A rule, while the caret is away from its line, is the line the message
+        // draws, its source and leading spaces unseen on a line no taller than the
+        // rule: a hidden range would hold the line at a line's height. With the caret
+        // on it, its source at a line's height.
+        const rule = state.doc.lineAt(from);
+        const start = after(rule.from, token.level);
+        if (touches(state, rule.from, rule.to)) add(start, rule.to, dim);
+        else {
+          whole.push([rule.from, rule.to + 1]);
+          out.push(line("lf-md-rule").range(rule.from));
+          add(start, rule.to, unseen);
+        }
       } else if (token.type === "fence") {
-        code.push([from, to]);
+        whole.push([from, to]);
         // Each line of code keeps the indent the parser's reading of it keeps; the rest,
         // a list item's indent after its containers' markers, the message drops. The code's reading ends each line it holds with a
         // break, except a last line the draft's end ends, and holds none for a fence
@@ -464,6 +563,7 @@ function fieldEditor(
         for (const [a, b] of markers) {
           const line = state.doc.lineAt(a).from;
           opening.push({ from: a, to: b, kind: "quote", level: token.level, line });
+          leads.push([line, token.level]);
         }
       } else if (
         token.type === "bullet_list_open" ||
@@ -488,7 +588,7 @@ function fieldEditor(
           at - head.text.slice(0, at - head.from).match(/[ \t]*$/)[0].length,
           after(head.from, token.level),
         );
-        lines(head.to + 1, to, (each) => continued.push([each.from, token.level]));
+        lines(head.to + 1, to, (each) => leads.push([each.from, token.level]));
         const kind =
           list.next === null
             ? BULLETS[Math.min(depth, BULLETS.length) - 1]
@@ -523,14 +623,18 @@ function fieldEditor(
         });
       }
     }
-    // Each item's indent on its later lines stands after its containers' markers there;
-    // a nested item's own line keeps its indent in its marker.
+    // The spaces that lead a line, after its containers' markers, the message drops: an
+    // item's indent on its later lines, and the spaces before a paragraph's or a
+    // heading's words or a quote's marker. They stay hidden, never revealed, so the
+    // words don't jump as the caret arrives or leaves. A nested item's own line keeps
+    // its indent in its marker.
     const indents = new Set();
-    for (const [from, level] of continued) {
-      if (code.some(([a, b]) => from >= a && from < b)) continue;
-      if (opening.some((m) => m.kind === "item" && m.line === from)) continue;
+    for (const [from, level] of leads) {
+      if (whole.some(([a, b]) => from >= a && from < b)) continue;
       const start = after(from, level);
       if (indents.has(start)) continue;
+      if (opening.some((m) => m.kind === "item" && m.line === from && m.from === start))
+        continue;
       indents.add(start);
       const { to } = state.doc.lineAt(from);
       add(
@@ -576,6 +680,46 @@ function fieldEditor(
     };
   }
 
+  // Up and Down step to the next line, however short the preview draws it. CodeMirror's
+  // vertical motion aims half a line of text past the caret's line, so it passes over a
+  // line the preview shortens, as a rule's or a fence's while the caret is away, and a
+  // rule's 1px is its border, which no aim lands in. A step that leaves the caret's
+  // line for a line shorter than text goes to that line, at the caret's column, which
+  // the line then shows at its height. Without Shift, a selection collapses to its end
+  // that way, as CodeMirror's own step does.
+  const lineStep = (forward, extend) => (view) => {
+    const { selection, doc } = view.state;
+    const moved = EditorSelection.create(
+      selection.ranges.map((range) => {
+        if (!extend && !range.empty)
+          return EditorSelection.cursor(forward ? range.to : range.from);
+        let step = view.moveVertically(range, forward);
+        const here = view.lineBlockAt(range.head);
+        const at = forward ? here.to + 1 : here.from - 1;
+        const left = step.head < here.from || step.head > here.to;
+        if (left && at >= 0 && at <= doc.length) {
+          const beside = view.lineBlockAt(at);
+          if (beside.height < view.defaultLineHeight) {
+            const column = range.head - doc.lineAt(range.head).from;
+            const head = Math.min(beside.from + column, doc.lineAt(at).to);
+            step = EditorSelection.cursor(head, 0, undefined, step.goalColumn);
+          }
+        }
+        return extend
+          ? EditorSelection.range(range.anchor, step.head, step.goalColumn)
+          : step;
+      }),
+      selection.mainIndex,
+    );
+    if (moved.eq(selection)) return false;
+    view.dispatch({ selection: moved, scrollIntoView: true, userEvent: "select" });
+    return true;
+  };
+  const LINE_STEPS = [
+    { key: "ArrowUp", run: lineStep(false, false), shift: lineStep(false, true) },
+    { key: "ArrowDown", run: lineStep(true, false), shift: lineStep(true, true) },
+  ];
+
   // The draft is read by the renderer that will send it, so the preview styles exactly what
   // the message will: the same constructs, the same links. The reading is taken again when
   // the words change and the styling when the selection moves. The renderer loads lazily;
@@ -607,7 +751,8 @@ function fieldEditor(
     },
     {
       decorations: (plugin) => plugin.drawn.decorations,
-      // A run of markers holds its markers, even one with the same range.
+      // A run of markers holds its markers, even one with the same range. A tab is as
+      // wide as the message draws it, the platform's eight columns.
       provide: (plugin) => [
         EditorView.outerDecorations.of(
           (view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none,
@@ -615,6 +760,8 @@ function fieldEditor(
         EditorView.blockWrappers.of(
           (view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]),
         ),
+        EditorState.tabSize.of(8),
+        Prec.high(keymap.of(LINE_STEPS)),
       ],
     },
   );

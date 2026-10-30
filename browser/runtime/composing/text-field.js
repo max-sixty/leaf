@@ -4,13 +4,18 @@
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
  * message will read: inline code in code type, emphasis and strong in their weights, a
  * link as a link, a heading in bold, a quote and a list item at the message's insets at
- * every level, an item under the message's own marker, a picture as the picture, drawn after its source while the
- * caret is in it, and a link that leaves the page with the mark the page draws after
- * one (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers, a picture's source) is hidden unless the selection touches the
- * construct. List markers reveal their source only inside the marker: the caret after
- * its trailing space is ready to type content, so even an empty new item already shows
- * its bullet or number. The user can move back into the marker to edit every source
+ * every level, an item under the message's own marker, a task item's box as the
+ * message's disabled checkbox, a rule as the rule, an entity as the character it
+ * names, a picture as the picture, drawn after its source while the caret is in it,
+ * and a link that leaves the page with the mark the page draws after one
+ * (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
+ * hashes, list markers, a rule's dashes, an escape's or a break's backslash, an
+ * entity's name, a picture's source) is hidden unless the selection touches the
+ * construct; the spaces that lead a line, which the message drops, stay hidden. A
+ * table and a link's reference definition stay as typed (`DRAWN` in field-editor.js
+ * lists what is drawn). List markers reveal their source only inside the marker: the
+ * caret after its trailing space is ready to type content, so even an empty new item
+ * already shows its bullet or number. The user can move back into the marker to edit every source
  * character. Nothing is converted: the value is always the source the user typed,
  * which is what the agent reads. The constructs come from the renderer that sends the
  * message (`markdownTokens`), never from a second grammar, so the preview and the
@@ -254,6 +259,13 @@ sheet.replaceSync(`
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  /* A rule's line, while the caret is away, is the sent hr: its stroke, as tall as the
+     stroke, its source unseen on it. */
+  .lf-md-rule { line-height: 0; border-block-start: 1px solid var(--rule); }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;

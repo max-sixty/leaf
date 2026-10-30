@@ -316,13 +316,14 @@ def _import(
     return path, layer
 
 
-# What a package's chrome.css rules are nested under: the chrome, at two ids' weight,
-# which no rule of Leaf's chrome carries.
-CHROME_RESTYLE = ".lf-chrome:not(#\\#):not(#\\#)"
-# The at-rules a style rule may hold. Any other, such as @keyframes or @font-face,
-# stands at the top of the chrome's sheet, where a rule nested here can name it.
-NESTABLE_AT_RULES = frozenset(
-    {"media", "supports", "container", "layer", "scope", "starting-style"}
+# Where each style rule of a package's chrome.css stands: in the chrome's scope, so it
+# matches only what the chrome holds, and under its root at two ids' weight, which no
+# rule of Leaf's chrome carries.
+CHROME_RESTYLE = "@scope (.lf-chrome) {{ :scope:not(#\\#):not(#\\#) {{ {} }} }}"
+# The group rules whose own rules are rewritten too. Every other at-rule, such as
+# @font-face, @keyframes or a @layer statement, stays as written where it stands.
+CHROME_RESTYLE_GROUPS = frozenset(
+    {"media", "supports", "container", "layer", "starting-style"}
 )
 
 
@@ -330,26 +331,36 @@ def chrome_restyle(sheet: str) -> str:
     """A package's chrome.css as the chrome's sheet takes it, above Leaf's own rules.
 
     The chrome's rules stand outside every layer, so they beat the page and every
-    package; a theme restyles the chrome on purpose only from here. Each rule is nested
-    under `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over
-    Leaf's chrome rules whatever selector either writes. A package names what it
-    restyles by part (`[part~="panel"]`), the chrome's public names for its surfaces;
-    its other classes are private and change without notice.
+    package; a theme restyles the chrome on purpose only from here. Each style rule,
+    in its place and inside whatever conditions hold it, is nested in
+    `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over Leaf's
+    chrome rules whatever selector either writes. A rule inside a @layer stays layered,
+    and so loses to every unlayered chrome rule. A package names what it restyles by
+    part (`[part~="panel"]`), the chrome's public names for its surfaces; its other
+    classes are private and change without notice.
     """
     import tinycss2
 
     from .styles import css_stylesheet
 
-    nested, top = [], []
-    for node in css_stylesheet(sheet):
-        if node.type == "at-rule" and (
-            node.content is None or node.lower_at_keyword not in NESTABLE_AT_RULES
-        ):
-            top.append(node)
-        elif node.type != "whitespace":
-            nested.append(node)
-    rules = f"{CHROME_RESTYLE} {{\n{tinycss2.serialize(nested)}\n}}\n" if nested else ""
-    return tinycss2.serialize(top) + rules
+    def restyled(nodes):
+        parts = []
+        for node in nodes:
+            if node.type == "qualified-rule":
+                parts.append(CHROME_RESTYLE.format(tinycss2.serialize([node])))
+            elif (
+                node.type == "at-rule"
+                and node.content is not None
+                and node.lower_at_keyword in CHROME_RESTYLE_GROUPS
+            ):
+                inner = restyled(tinycss2.parse_rule_list(node.content))
+                prelude = tinycss2.serialize(node.prelude)
+                parts.append(f"@{node.at_keyword}{prelude}{{{inner}}}")
+            else:
+                parts.append(tinycss2.serialize([node]))
+        return "".join(parts)
+
+    return restyled(css_stylesheet(sheet))
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:

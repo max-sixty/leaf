@@ -639,7 +639,8 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
 def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, engine):
     """A theme restyles Leaf's chrome on purpose from its chrome.css, naming surfaces
     by part (`layer.chrome_restyle`). Its rules beat the chrome's own whatever either's
-    selector, inside a condition too, and reach nothing outside the chrome. A page's
+    selector, inside a condition too, and reach nothing outside the chrome, even by a
+    selector naming the page around it. A page's
     own rule naming a part sets the tokens there and nothing else, which the guard
     rolls back as it does any light page rule (styles/chrome-guard.css)."""
     package = tmp_path / "chrome-look"
@@ -648,6 +649,7 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
         '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
+        "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
     )
     page = open_page(
         request.getfixturevalue(engine),
@@ -672,6 +674,7 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             prose: cs(document.querySelector('main p')).color,
+            body: cs(document.body).borderTopWidth,
         };
     }""")
     assert faces == {
@@ -680,6 +683,7 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
         "corner": "0px",
         "composer": "3px",
         "prose": faces["prose"],
+        "body": "0px",
     }, faces
     assert faces["prose"] != "rgb(255, 0, 0)", faces
 

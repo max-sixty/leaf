@@ -2149,11 +2149,12 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     assert tinycss2.serialize(later[0].prelude).strip() == ".y"
 
 
-def test_a_chrome_sheet_nests_its_rules_and_keeps_the_rest_at_the_top(tmp_path):
-    """A package's chrome.css rules nest under the chrome, conditions included, at a
-    weight the chrome's own rules don't reach. An at-rule no style rule may hold, such
-    as @keyframes, stays at the top of the chrome's sheet, where a nested rule can
-    still name it. A layer whose packages restyle nothing adds no rule."""
+def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
+    """Each style rule of a package's chrome.css is wrapped in the chrome's scope at a
+    weight the chrome's own rules don't reach, inside the conditions and layers that
+    hold it. Every other at-rule stays as written where it stood, so a @font-face under
+    @media keeps its condition and a @layer statement keeps its place in the order. A
+    layer whose packages restyle nothing adds no rule."""
     kernel, package = tmp_path / "kernel", tmp_path / "package"
     for root in (kernel, package):
         root.mkdir()
@@ -2162,23 +2163,22 @@ def test_a_chrome_sheet_nests_its_rules_and_keeps_the_rest_at_the_top(tmp_path):
     (package / "chrome.css").write_text(
         '[part~="panel"] { animation: turn 1s; }\n'
         "@keyframes turn { to { rotate: 1turn; } }\n"
-        '@media screen { [part~="card"] { display: none; } }\n'
+        "@layer one { .a { color: blue; } }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        '[part~="card"] { display: none; } }\n'
     )
 
-    composed = layer_model.composed_sheets([kernel, package])["chrome.css"].decode()
-    rules = tinycss2.parse_stylesheet(
-        composed, skip_whitespace=True, skip_comments=True
+    scoped = layer_model.CHROME_RESTYLE.format
+    assert layer_model.composed_sheets([kernel, package])["chrome.css"].decode() == (
+        scoped('[part~="panel"] { animation: turn 1s; }') + "\n"
+        "@keyframes turn { to { rotate: 1turn; } }\n"
+        "@layer one { " + scoped(".a { color: blue; }") + " }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        + scoped('[part~="card"] { display: none; }')
+        + " }\n"
     )
-    assert [rule.type for rule in rules] == ["at-rule", "qualified-rule"]
-    assert rules[0].lower_at_keyword == "keyframes"
-    assert tinycss2.serialize(rules[1].prelude).strip() == layer_model.CHROME_RESTYLE
-    nested = tinycss2.parse_blocks_contents(
-        rules[1].content, skip_whitespace=True, skip_comments=True
-    )
-    assert [
-        rule.lower_at_keyword if rule.type == "at-rule" else rule.type
-        for rule in nested
-    ] == ["qualified-rule", "media"]
 
 
 def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):

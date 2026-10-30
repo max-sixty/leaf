@@ -153,23 +153,34 @@ with the page. To restyle one of them alone, name it by its part:
 
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
-cards their own ground and corners. Any other property, such as `font-family` or
-`display`, goes in the package's `chrome.css`. Leaf adds that sheet to the chrome's,
-nested inside the chrome with more weight than any of the chrome's own selectors, so
-its rules win over Leaf's whatever selectors either writes and reach nothing outside
-the chrome:
+cards their own ground and corners. The chrome sets its controls in `--sans` and what
+people wrote in `--msg-font`, which resolves on `:root`, so a part that changes the face
+sets both.
+
+Any other property, such as `letter-spacing` or `display`, goes in the package's
+`chrome.css`. Leaf wraps each of its style rules in the chrome's scope, with more weight
+than any of the chrome's own selectors, so the rule wins over Leaf's stylesheets
+whatever selectors either writes and reaches nothing outside the chrome. A rule inside
+`@layer` loses to them, as every layered rule does.
 
 ```css
-[part~="panel"] {
-  font-family: var(--mono);
+[part~="panel"],
+[part~="card"] {
+  --sans: var(--mono);
+  --msg-font: var(--msg-size) / 1.5 var(--mono);
   --r-l: 0;
+}
+[part~="panel"] {
+  letter-spacing: -0.01em;
 }
 ```
 
-Leaf places and sizes each surface itself, so leave its position and size alone. The
-part names are the chrome's public interface. Its classes are private and change
-between Leaf versions, so a rule naming one can stop applying after an update. A page
-that restyles the chrome beyond tokens does it through a package of its own, such as
+Leaf places and sizes each surface itself, so leave its position and size alone. A
+comment box a widget seats in its own shadow tree, as `lf-diff` does for a line, takes
+the widget's look rather than the theme's `chrome.css`. The part names are the
+chrome's public interface. Its classes are private and change between Leaf versions,
+so a rule naming one can stop applying after an update. A page that restyles the
+chrome beyond tokens does it through a package of its own, such as
 `leaf page init <page> --package ./chrome-look`.
 
 ## Theme colors

@@ -281,7 +281,7 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
   return {
     notice: box(notice).left,
     head: box(head).right,
-    edit: box(head.parentElement.querySelector(':scope > .lf-msg-edit svg'))?.left ?? null,
+    edit: box(head.querySelector('.lf-msg-controls > .lf-msg-edit svg')).left,
     time: box(head.querySelector('time')).right,
   };
 }"""
@@ -335,7 +335,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
         NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
     )
     assert stands["notice"] >= stands["head"] - 0.5, stands
-    assert stands["edit"] is None or stands["time"] <= stands["edit"] + 0.5, stands
+    assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
     assert times and all(time["whole"] != phone for time in times), times
     name = head.locator("b")

@@ -18,7 +18,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS, native authoring sessions use
-`authoring_sandbox` to isolate shared `/tmp` and host plugin payloads. Read-only probes use
+`authoring_sandbox` to isolate shared `/tmp`, host plugin payloads and other processes. Read-only probes use
 their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbox.
 """
 
@@ -599,7 +599,7 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
 
 
 def authoring_sandbox(*owned: Path) -> str:
-    """Isolate shared scratch files and installed instructions on macOS.
+    """Isolate shared scratch files, installed instructions and processes on macOS.
 
     The child's `TMPDIR` and zsh's `TMPPREFIX` are already private, but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
@@ -612,7 +612,8 @@ def authoring_sandbox(*owned: Path) -> str:
     runtime directory traversal. The sandbox resolves `/tmp` to `/private/tmp`,
     so the rules name that. Host plugin payloads are inaccessible: a guessed global
     cache path must not replace the sample's installed instructions. Credentials
-    outside those payloads remain available.
+    outside those payloads remain available. Signals stay within the inherited sandbox:
+    an author's browser cleanup cannot terminate another sample's or the host's browser.
     """
     uid = os.getuid()
     names = (
@@ -628,6 +629,8 @@ def authoring_sandbox(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
             '(deny file-read-data file-write* (subpath "/private/tmp"))',
             f'(allow file-read-data file-write* (regex #"^/private/tmp/({names})"))',
             *(
@@ -979,7 +982,7 @@ class LiveSession:
                 if self.stopping:
                     return
         # The driver's thread raises what the child's records raised.
-        except BaseException as error:  # noqa: BLE001
+        except BaseException as error:
             self.handed.put(error)
             return
         self.handed.put(_ENDED)
@@ -1080,7 +1083,7 @@ class LiveSession:
             try:
                 done.put((True, action()))
             # Raised again in the driver's thread.
-            except BaseException as error:  # noqa: BLE001
+            except BaseException as error:
                 done.put((False, error))
 
         worker = threading.Thread(target=run, daemon=True)

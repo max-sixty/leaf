@@ -238,8 +238,8 @@ def replay(checkout: Checkout, branch: str) -> None:
         f"{CHANGE}^",
         CHANGE,
         cwd=path,
-    ).split("\0")
-    changed = dict(zip(fields[1::2], fields[0::2]))
+    ).split("\0")[:-1]
+    changed = dict(zip(fields[1::2], fields[0::2], strict=True))
     if kept := [name for name, status in changed.items() if status != "D"]:
         run("git", "checkout", CHANGE, "--", *kept, cwd=path)
     if removed := [name for name, status in changed.items() if status == "D"]:

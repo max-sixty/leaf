@@ -244,7 +244,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         ("sentence", by_sentence),
         ("inline", inline),
     ):
-        for (before, after), runs in zip(cases, walked):
+        for (before, after), runs in zip(cases, walked, strict=True):
             joined = "".join(run["text"] for run in runs if run["kind"] != "insert")
             assert joined == before, (unit, joined, before)
             joined = "".join(run["text"] for run in runs if run["kind"] != "delete")
@@ -278,7 +278,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
         "Run the migration before deploying. It takes one minute.",
         "Run the migration after the backup. It takes two minutes.",
     ]
-    for index, text in enumerate(edits, 1):
+    for text in edits:
         draft.locator(".lf-draft-body").dblclick()
         write(draft.locator("leaf-text"), text)
         draft_control(page, "save", "draft-ops").click()

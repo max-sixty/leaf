@@ -167,6 +167,16 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="folded" collapsed><pre>'
     + _patch_file("src/app.py", 1, ["x = 1"])
     + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # A selected-file reader opens only its first file, even when authored collapsed.
+    # A later metadata-only file contributes no height to that first reading.
+    + '<lf-diff id="file-view" view="file" collapsed><pre>'
+    + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
+    + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + _patch_file(
+        "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
+    )
     + "</pre></lf-diff><p id='after'>After the diffs.</p>",
 )
 
@@ -195,6 +205,8 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
+        # First paint can precede later patches; measure their complete authored input.
+        page.wait_for_function("document.readyState !== 'loading'")
         first = page.evaluate(heights)
         boot.pop().continue_()
         wait_until_ready(page)
@@ -754,10 +766,12 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
     )
     url = two_diff_page(serve)
-    for (_, source, value), initial in zip(DIFF_FORMS, (rename, MULTI_HUNK_PATCH)):
+    for (_, source, value), initial in zip(
+        DIFF_FORMS, (rename, MULTI_HUNK_PATCH), strict=True
+    ):
         data_model.cmd_data_set(serve.page_dir, source, value(initial))
     page = open_page(browser, url)
-    for form, starts_as_rename in zip(DIFF_FORMS, (True, False)):
+    for form, starts_as_rename in zip(DIFF_FORMS, (True, False), strict=True):
         diff_file_keeps_focus(page, serve, *form, rename, starts_as_rename)
 
 

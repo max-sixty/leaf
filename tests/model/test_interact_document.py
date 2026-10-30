@@ -157,7 +157,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(Refused, match="missing.js"):
+        with pytest.raises(Refused, match=r"missing\.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -3944,7 +3944,9 @@ def _apart(a, b, vision=None):
         rgb = _linear(colour)
         if vision is None:
             return _oklab(rgb)
-        return _oklab([sum(w * c for w, c in zip(row, rgb)) for row in _CVD[vision]])
+        return _oklab(
+            [sum(w * c for w, c in zip(row, rgb, strict=True)) for row in _CVD[vision]]
+        )
 
     return math.dist(seen(a), seen(b)) * 100
 

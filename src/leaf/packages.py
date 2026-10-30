@@ -88,7 +88,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                 raise Refused(
                     f"package member {path.relative_to(package)} was created "
                     "while package init was running; nothing was replaced"
-                )
+                ) from None
             with os.fdopen(descriptor, "wb") as stream:
                 identity = os.fstat(stream.fileno())
                 stream.write(contents)

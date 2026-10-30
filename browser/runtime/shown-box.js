@@ -75,8 +75,14 @@ export function elementBox(el) {
 // The observation ends at the reading it was waiting for, so what a measurement writes
 // cannot return through what triggered it: after the unobserve there is no second
 // delivery to the element that was just written.
+//
+// Skipped content, a shut tab's panel or a closed disclosure, has no box either, though
+// asking for its rect would lay it out and answer with one (`skipped`). A widget there
+// waits until the user opens the panel, whichever of its module and the panel's upgraded
+// first, and a chart's bundle waits with it.
 const measurements = new WeakMap();
 const drawn = (el) => {
+  if (skipped(el)) return false;
   const box = elementBox(el);
   return Boolean(box.width || box.height);
 };

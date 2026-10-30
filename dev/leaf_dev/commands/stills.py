@@ -46,10 +46,7 @@ because they move with every reflow. Below them, for each group's first element,
 lists the declarations Chromium's inspector reads as matching it in only one arm, or
 in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
-differ, the element inherits the difference or reads it from a custom property. A
-widget inside a tab or disclosure the page opens shut, such as a chart, may or may not
-have drawn by the reading, in either arm, so rerun a state before taking a difference
-confined to one as a change.
+differ, the element inherits the difference or reads it from a custom property.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
@@ -3044,7 +3041,8 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive  # noqa: B009 - Callable does not expose function attributes to ty.
+    for state in STATES
 }
 
 
@@ -3099,7 +3097,7 @@ def style_changes(
     each group's first element."""
     groups: dict[tuple[str, str, str], list[str]] = {}
     for key in base.keys() & head.keys():
-        for name, before, after in zip(STYLED, base[key], head[key]):
+        for name, before, after in zip(STYLED, base[key], head[key], strict=True):
             if before != after:
                 groups.setdefault((name, before, after), []).append(key)
     alone = {
@@ -3374,7 +3372,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             )
                             if region:
                                 crop_regions.append(region)
-                        except Exception as error:  # noqa: BLE001 - isolate each capture
+                        except Exception as error:
                             failure(state, arm, error)
                     if state.name in failed:
                         continue
@@ -3394,7 +3392,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                         if lines:
                             (folder / "styles.txt").write_text("\n".join(lines) + "\n")
                         read[state.name] = difference
-                    except Exception as error:  # noqa: BLE001 - isolate each comparison
+                    except Exception as error:
                         failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0

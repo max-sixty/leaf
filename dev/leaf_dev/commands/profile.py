@@ -31,6 +31,7 @@ import statistics
 import tempfile
 from collections import Counter
 from contextlib import contextmanager
+from itertools import pairwise
 from pathlib import Path
 
 import click
@@ -104,8 +105,8 @@ class Profile:
         self.samples = []  # (timestamp µs, duration µs, frames leaf-first)
         at = profile["startTime"]
         deltas = profile["timeDeltas"]
-        for sample, delta, following in zip(
-            profile["samples"], deltas, deltas[1:] + [0]
+        for sample, (delta, following) in zip(
+            profile["samples"], pairwise([*deltas, 0]), strict=True
         ):
             at += delta
             chain, node_id = [], sample

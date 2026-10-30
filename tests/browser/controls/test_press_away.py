@@ -51,13 +51,13 @@ def swipe(page, start, end):
     cdp = page.context.new_cdp_session(page)
     cdp.send(
         "Input.dispatchTouchEvent",
-        {"type": "touchStart", "touchPoints": [dict(zip("xy", start))]},
+        {"type": "touchStart", "touchPoints": [dict(zip("xy", start, strict=True))]},
     )
     for step in range(1, 9):
-        at = [a + (b - a) * step / 8 for a, b in zip(start, end)]
+        at = [a + (b - a) * step / 8 for a, b in zip(start, end, strict=True)]
         cdp.send(
             "Input.dispatchTouchEvent",
-            {"type": "touchMove", "touchPoints": [dict(zip("xy", at))]},
+            {"type": "touchMove", "touchPoints": [dict(zip("xy", at, strict=True))]},
         )
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     cdp.detach()

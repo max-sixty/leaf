@@ -522,6 +522,13 @@ html[data-lf-region-capture] main * {
       var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
     );
   }
+  /* Under a mouse the empty reply box is its one row tall (response.css), which comes
+     to the response line with its frame, so the row reserves no frame beyond it. */
+  @media (hover: hover) and (pointer: fine) {
+    :is(.lf-fab-bar, .lf-margin-preview) {
+      --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
+    }
+  }
   /* The ⌥ aim's promise: the item a press would take, whole, drawn in the chrome's layer
      rather than on the element, since no band of a page element is reliably the
      runtime's to paint (a scroller clips outside, a group's cells paint over inside, and

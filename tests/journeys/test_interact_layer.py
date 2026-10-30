@@ -331,9 +331,11 @@ def test_a_wait_takes_the_suites_deadline():
     def defaults(arguments):
         positional = arguments.posonlyargs + arguments.args
         yield from zip(
-            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+            positional[len(positional) - len(arguments.defaults) :],
+            arguments.defaults,
+            strict=True,
         )
-        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults, strict=True)
 
     fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):

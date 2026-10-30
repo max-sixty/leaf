@@ -127,6 +127,108 @@ leaf-composition-field {
     var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
+/* Under a mouse, where Return sends, the words run the whole line and Send shows in
+   its corner while no words reach it (`:state(corner-taken)`, text-field.js). Once
+   words reach it, Send waits unseen in the corner, letting presses through to the
+   words. It shows over them as soon as the pointer comes to it (`data-send-pointed`,
+   input.js), with its tint and pointing hand at once, since a browser may not read a
+   still pointer as over the newly shown Send until it moves; and it takes presses
+   only once the pointer has rested there (`data-send-armed`), so a press aimed at
+   the words' end still places the caret. Focus shows it too. Words can stand above
+   Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
+   at least), centred on the last row and clear of the row above, whether or not the
+   corner is free; the box is as tall as its rows, so that row stands at the same
+   place above its foot however many there are. Send reads that line as the field's
+   own, so a composer sets its words' face on the field, which the words inherit.
+   Over the words Send's box is the field's paper (`--lf-field-ground`), which a field
+   standing on other paper than a card's restates. Rejected: showing it
+   on hovering the whole box, since the pointer rests there while typing and Send
+   would cover the words at the corner most of the time; and taking presses as soon
+   as it shows, which sent a press meant to place the caret.
+
+   Experimental: the user chose on 29 October 2026 to try this although it departs
+   from common practice, where a chat or comment box keeps Send drawn beside or below
+   its words and gives up the column above it. Keeping Send's room on every line,
+   main's layout before this, is the established alternative to return to. */
+@property --lf-field-row {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
+    --lf-field-end-room: 0px;
+    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+    min-height: 0;
+  }
+  .lf-compose-field:has(> .lf-compose-submit) {
+    --lf-field-row: 1lh;
+    --lf-field-ground: var(--card);
+  }
+  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit {
+    --lf-send-height: max(var(--aim-floor), var(--lf-field-row));
+    height: var(--lf-send-height);
+    min-height: 0;
+    inset-block-end: calc(
+      var(--lf-compose-pad-block) + (var(--lf-field-row) - var(--lf-send-height)) / 2
+    );
+  }
+  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit::before {
+    /* An even number of pixels, so the arrow centres in it. */
+    --lf-send-square: round(
+      down,
+      min(var(--lf-icon-action-face), var(--lf-field-row)),
+      2px
+    );
+    inline-size: var(--lf-send-square);
+    block-size: var(--lf-send-square);
+  }
+  /* Focus draws the hover disc with the ring inside its edge: a ring outside the
+     square, which fills its line, reaches into the line above. */
+  .lf-compose-field > .lf-compose-submit[data-lf-focus-visible] {
+    outline: none;
+  }
+  .lf-compose-field:has(> .lf-compose-submit)
+    > .lf-compose-submit[data-lf-focus-visible]::before {
+    background: var(--accent-tint);
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-pointed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
+    opacity: 0;
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-armed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
+    pointer-events: none;
+  }
+  /* Over the words, Send's box is the field's paper, and the letters before it fade
+     into that paper across an em, so the words it covers end softly rather than in a
+     cut stroke beside its square. */
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
+    background: var(--lf-field-ground);
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: auto 100%;
+    inline-size: 1em;
+    background: linear-gradient(to left, var(--lf-field-ground), transparent);
+    pointer-events: none;
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
+    background: var(--lf-field-ground);
+  }
+  .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
+    > .lf-compose-submit::before {
+    background: var(--accent-tint);
+  }
+  .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
+    > leaf-text {
+    cursor: pointer;
+  }
+}
 .lf-action-icon {
   position: relative;
   z-index: 1;
@@ -426,13 +528,17 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
+/* The words wear the message's face, so a box's lines break where its message's
+   will. */
+.lf-comment-box > leaf-composition-field > .lf-compose-field {
+  font: var(--msg-font);
+}
 .lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
   max-height: 50vh;
   overflow-y: auto;
 }
@@ -579,16 +685,27 @@ button.lf-media-open {
   --lf-response-height: var(--lf-line);
 }
 /* The comment box, card and card reply share one text column, so Send moves no
-   word. Each starts at the thread text inset and ends past Send, which stands
-   centred in one response line. The field spends one pixel on its frame. */
+   word. Each starts at the thread text inset and ends `--lf-comment-text-end` inside
+   its edge: past Send, which stands centred in one response line, or under a mouse,
+   where Send takes only a free corner (above), at the thread text inset, as at the
+   start. The field spends one pixel of each inset on its frame. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
+  --lf-comment-text-end: calc(var(--lf-compose-send-end) + 1px);
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.lf-fab-bar, .lf-margin-preview) {
+    --lf-comment-text-end: var(--lf-thread-text-inset);
+  }
+  leaf-text.lf-fab-input {
+    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+  }
 }
 .lf-margin-preview .lf-msg {
-  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
+  --lf-msg-text-end: var(--lf-comment-text-end);
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
    the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
@@ -619,7 +736,8 @@ leaf-text.lf-fab-input {
   display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start) var(--lf-compose-send-end);
+  padding-inline: var(--lf-compose-pad-inline-start)
+    calc(var(--lf-comment-text-end) - 1px);
   overflow-y: auto;
 }
 /* Other responses stands one action further in, while the field holds no words

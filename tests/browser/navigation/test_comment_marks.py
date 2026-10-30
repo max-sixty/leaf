@@ -346,9 +346,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
-    page.keyboard.press("Escape")  # onto the element the thread is about
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # the card, in one press
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
@@ -364,9 +362,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")  # onto the element the thread is about
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # the card, in one press
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     comment_note(page, "#p").press("Enter")
     expect(thread).to_be_focused()
@@ -378,9 +374,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("Escape")
     expect(second).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")  # onto the element the thread is about
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # the card, in one press
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # Enter the known source before testing the directional walk. After Escape,
     # that walk starts from the visible passage rather than a saved card cursor.

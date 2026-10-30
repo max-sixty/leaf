@@ -95,6 +95,8 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
+/** @param {{id: string, host: Element, body: Element,
+ * paintContinuation?: (above: boolean) => void}} options */
 export function registerReadingRegion({
   id,
   host,
@@ -145,14 +147,14 @@ export function syncLayoutRegion() {
   const main = layoutBox();
   const bodies = main
     ? [...main.children].flatMap((child) => {
-        if (marked(child)) return [[child, child.id]];
+        if (marked(child)) return [{ body: child, name: child.id }];
         const only = child.childElementCount === 1 ? child.firstElementChild : null;
-        return only && marked(only) ? [[only, only.id || child.id]] : [];
+        return only && marked(only) ? [{ body: only, name: only.id || child.id }] : [];
       })
     : [];
   let unnamed = 0;
   const ids = new Map(
-    bodies.map(([body, name]) => [
+    bodies.map(({ body, name }) => [
       body,
       name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
     ]),

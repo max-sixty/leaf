@@ -198,6 +198,11 @@ action sends every control in `detail.values` anyway. After submission, the butt
 working values and instruction match the saved choice. Editing either restores the
 submit action; Undo withdraws the choice and keeps the working values.
 
+The page keeps the working values before the user submits them, as the playground's
+`tune` actions, which ask nothing of you. When a comment is about what the preview
+shows, the configuration the user was looking at is the last `tune` before the
+comment's `seq` in `leaf page events <page>`; `leaf page state` holds the current one.
+
 ## Stateful previews
 
 Write a preview's script as an inline `<script type="module">`, and put the candidates
@@ -209,8 +214,8 @@ controls, contributor slices, or both. Declare a named structured slice with
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
 Names are unique and distinct from control names. Retain the handle rather than a
-second configuration object. Reset restores the authored defaults, and a new choice
-loads its configuration. Undo withdraws a submitted decision while keeping the current
+second configuration object. Reset restores the authored defaults, and settings made in another tab
+load here. Undo withdraws a submitted decision while keeping the current
 working values, including edits made since submission, so the user can adjust and
 resubmit them.
 
@@ -252,8 +257,8 @@ structured data only subscribes; one without its own instruction keeps
 ```
 
 Keep native editors mounted and avoid writing their value when it already matches.
-The playground owns tab persistence, presets, Reset, instruction copying and submission;
-views draw the values they receive. For a structured configuration, set that
+The playground owns recording the working values, presets, Reset, instruction copying
+and submission; views draw the values they receive. For a structured configuration, set that
 playground's `contract` attribute to a named `$data.contracts` entry in
 `page/registry.json`. Its `schema` describes the complete `values` object: scalar
 controls and contributor slices, required names and any bounds. Each instance can

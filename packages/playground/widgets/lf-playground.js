@@ -3,9 +3,8 @@ import { createPlayground } from "./playground-view.js";
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
  * DOM. The retained view owns their DOM and typed control values;
- * this module owns the live mechanics: working state,
- * tab-local persistence, CSS reflection, instruction copying, commands, and
- * the final recordless action. Intermediate changes never enter Leaf's event log.
+ * this module owns the live mechanics: working state and its record,
+ * CSS reflection, instruction copying, commands, and the final recordless action.
  * The instruction opens from its actions in a popover over the page, so reading it
  * moves nothing the user set or pressed, in any Layout; the log never records it. The
  * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
@@ -24,21 +23,24 @@ import { createPlayground } from "./playground-view.js";
  * --playground-NAME properties and data-playground-NAME attributes on the host and
  * its sample roots.
  *
- * Projection is deliberately separate from working state. Only a newly chosen action,
- * made in this tab or elsewhere, replaces the working values. A repeated projection
- * keeps them, and so does an undo, which withdraws the decision and leaves the controls
- * as the user set them, ready to adjust and resubmit; Reset returns to the authored
- * defaults. Where an undo or a refused choice makes an earlier choice current again,
- * the controls show values that differ from the decided ones, as any unsent edit does.
- * Two facts identify a new choice. Its identity differs from the last one drawn, which
- * tells it from a repeated projection, equal-valued choices included; the attempt
- * stays stable when a local gesture receives its durable event id. And it is later in
- * the log than any choice this tab has drawn, which tells it from an earlier choice an
- * undo makes current again: a pending choice is this tab's newest gesture, and a
- * durable one compares by its seq. The submit control withdraws the current choice
- * while its values and instruction match the working configuration; editing either
- * makes it submit a replacement. Its face derives from that comparison, never from
- * delivery timing or a separate saved flag. */
+ * The working configuration is page state: the `tune` verb records it, and declares
+ * `attention: false`, since it is what the user hasn't sent. So a reload, every tab,
+ * another browser and the agent's page state all read the same settings, and a comment
+ * on the preview names a configuration the log holds. The controls draw
+ * `#values` at once and record them when a gesture ends: a press, a committed edit
+ * (`change`), or a second without input, which catches typing a field hasn't
+ * committed and a contributor's editor whose events never reach the host. So a drag or
+ * a word being typed records once, and submitting records them first. Only a tune the controls haven't drawn replaces `#values`: another tab's,
+ * or one an undo makes current, which steps the controls back a gesture. It leaves the
+ * edits this tab hasn't recorded yet (`#unsent`), so words being typed stay put. Choosing
+ * never changes them, so undoing a choice leaves the controls as the user set them,
+ * ready to adjust and resubmit; Reset records the authored defaults. Rejected: tab-local
+ * storage, which lost the settings with the tab and kept them from the agent, who
+ * answered comments on the preview without knowing what it showed (2026-10-30).
+ * The submit control withdraws the current choice while its values and instruction
+ * match the working configuration; editing either makes it submit a replacement. Its
+ * face derives from that comparison, never from delivery timing or a separate saved
+ * flag. */
 import {
   compoundReadingRegionId,
   closeNativeLayer,
@@ -54,7 +56,6 @@ import {
   reachedForWords,
   says,
   sizeObserver,
-  tabStore,
   wear,
   whileConnected,
   focused,
@@ -64,6 +65,8 @@ import {
 import "./lf-playground-output.js";
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
+// How long the settings wait without input before an edit no event ended is recorded.
+const PAUSE_MS = 1000;
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
 const ONE_PRESS = [
@@ -129,12 +132,13 @@ customElements.define(
     #defaults = Object.freeze({});
     #values = Object.freeze({});
     #pendingValues = {};
+    #unsent = new Set();
+    #pause = 0;
     #instructionProvider = null;
     #preview = null;
     #submit = null;
     #reset = null;
-    #projected = undefined;
-    #drawnThrough = -Infinity;
+    #drawn = undefined;
     #ready = false;
     #interactive = false;
     #regions = [];
@@ -174,6 +178,7 @@ customElements.define(
         return () => {
           observer.disconnect();
           for (const stop of stops) stop();
+          clearTimeout(this.#pause);
         };
       });
     }
@@ -227,12 +232,7 @@ customElements.define(
       const initial = this.#view;
       this.#controlByName = initial.controlByName;
       this.#defaults = initial.defaults;
-      this.#values = initial.values;
-      this.#pendingValues = Object.fromEntries(
-        Object.entries(initial.storedCandidate ?? {}).filter(
-          ([name]) => !Object.hasOwn(this.#defaults, name),
-        ),
-      );
+      this.#values = initial.defaults;
       this.#preview = initial.preview;
       this.#interactive = Boolean(initial.submit);
       this.#submit = initial.submit;
@@ -255,6 +255,10 @@ customElements.define(
           focusDestination(radio, "press");
           radio.click();
         });
+        // A gesture records the settings when it ends (the header says why). These
+        // reach the host after the handlers inside it, a contributor's included.
+        for (const type of ["change", "click"])
+          this.addEventListener(type, () => this.#commit());
         for (const control of initial.controls)
           control.addEventListener("input", (event) => {
             if (!initial.isInput(control, event.target)) return;
@@ -339,14 +343,15 @@ customElements.define(
         );
       return Object.freeze(
         Object.fromEntries(
-          names.map((name) => {
-            const control = this.#controlByName.get(name);
-            const value = candidate[name];
-            if (!control) return [name, jsonSnapshot(value, `contributor ${name}`)];
-            return [name, this.#view.typed(control, value)];
-          }),
+          names.map((name) => [name, this.#typed(name, candidate[name])]),
         ),
       );
+    }
+
+    #typed(name, value) {
+      const control = this.#controlByName.get(name);
+      if (!control) return jsonSnapshot(value, `contributor ${name}`);
+      return this.#view.typed(control, value);
     }
 
     // Whether the user is in the preview, where a candidate can draw on the element
@@ -391,6 +396,7 @@ customElements.define(
             run: () => {
               this.#restore(this.#defaults);
               this.#draw();
+              this.#commit();
             },
           },
         ],
@@ -400,7 +406,10 @@ customElements.define(
 
     #set(name, value) {
       this.#values = Object.freeze({ ...this.#values, [name]: value });
+      this.#unsent.add(name);
       this.#draw();
+      clearTimeout(this.#pause);
+      this.#pause = setTimeout(() => this.#commit(), PAUSE_MS);
     }
 
     #draw() {
@@ -409,11 +418,21 @@ customElements.define(
     }
 
     #restore(candidate) {
-      // A chosen snapshot can arrive before its structured editor declares its slice.
-      const known = Object.entries(candidate).filter(([name]) =>
-        Object.hasOwn(this.#defaults, name),
+      // A recorded snapshot can arrive before its structured editor declares its slice,
+      // and can predate a revision that added a control or dropped a choice: those
+      // controls show their authored default.
+      this.#values = Object.freeze(
+        Object.fromEntries(
+          Object.entries(this.#defaults).map(([name, authored]) => {
+            if (!Object.hasOwn(candidate, name)) return [name, authored];
+            try {
+              return [name, this.#typed(name, candidate[name])];
+            } catch {
+              return [name, authored];
+            }
+          }),
+        ),
       );
-      this.#values = this.#normalize(Object.fromEntries(known));
       this.#pendingValues = Object.fromEntries(
         Object.entries(candidate).filter(
           ([name]) => !Object.hasOwn(this.#defaults, name),
@@ -421,14 +440,34 @@ customElements.define(
       );
     }
 
+    // The tune in force, whose values are the settings the log holds; without one, it
+    // holds the authored defaults.
+    #tune() {
+      return (
+        Object.values(this.reading.provenance).find(
+          ({ event }) => event.action === "tune",
+        )?.event ?? null
+      );
+    }
+
+    #commit() {
+      clearTimeout(this.#pause);
+      const values = { ...this.#pendingValues, ...this.#values };
+      const recorded = this.#tune()?.detail.values ?? this.#defaults;
+      if (!this.reading.actions.tune?.available) return;
+      this.#unsent.clear();
+      if (configurationJSON(values) === configurationJSON(recorded)) return;
+      this.controller.dispatch({
+        kind: "action",
+        verb: "tune",
+        detail: { values },
+        says: "Changed the playground's settings",
+      });
+    }
+
     #paint() {
       const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
-      // Keep not-yet-declared tab values without another copy of known working slices.
-      tabStore.set(
-        `lf-playground:${this.id}`,
-        JSON.stringify({ ...this.#pendingValues, ...this.#values }),
-      );
       for (const paint of this.#views) paint(this.#values);
       layoutChanged(this);
       commandsChanged(this);
@@ -452,6 +491,7 @@ customElements.define(
       const chosen = this.#chosen();
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
+      if (!chosen) this.#commit();
       this.controller.dispatch(
         chosen
           ? { kind: "undo", target: undo.attempt ?? undo.id }
@@ -484,21 +524,20 @@ customElements.define(
       return this.reading.actions.choose?.available ?? false;
     }
 
-    // Only a new choice replaces local edits (the header says why). A change to the
-    // reading's availability draws again too, and paints the keys.
+    // Only a tune the controls haven't drawn replaces their values (the header says
+    // why); its attempt stays its identity once the server gives it an id. A change to
+    // the reading's availability draws again too, and paints the keys.
     render() {
-      const configuration = this.state.choose;
-      const choice = Object.values(this.reading.provenance).find(
-        ({ event }) => event.action === "choose",
-      )?.event;
-      const projected = choice ? (choice.attempt ?? choice.id) : null;
-      if (this.#projected !== projected) {
-        this.#projected = projected;
-        if (choice && !(choice.seq <= this.#drawnThrough))
-          this.#restore(configuration.detail.values);
+      const tune = this.#tune();
+      const drawn = tune ? (tune.attempt ?? tune.id) : null;
+      if (this.#drawn !== drawn) {
+        this.#drawn = drawn;
+        const unsent = [...this.#unsent].map((name) => [name, this.#values[name]]);
+        this.#restore({
+          ...(tune?.detail.values ?? this.#defaults),
+          ...Object.fromEntries(unsent),
+        });
       }
-      if (Number.isInteger(choice?.seq))
-        this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
       const template = this.#view.render({
         values: this.#values,
         instruction: this.#providedInstruction(),

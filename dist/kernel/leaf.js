@@ -7131,7 +7131,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);
 		const reading = fieldReading(replying ? top.thread : null, input);
-		keeps(host, "data-offers", !search && reading.offers ? "" : null);
+		keeps(host, "data-offers", !top && !search && reading.offers ? "" : null);
 		keeps(host, "data-tone", status().tone || null);
 		keeps(host, "data-asks", status().asks ? "" : null);
 		render(panelTemplate(), host);

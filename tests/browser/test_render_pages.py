@@ -137,7 +137,10 @@ def test_sort_film_readout_and_narration(browser, serve):
           };
         }"""
     )
-    assert all(max(values) - min(values) < 0.1 for values in zip(*readings["widths"]))
+    assert all(
+        max(values) - min(values) < 0.1
+        for values in zip(*readings["widths"], strict=True)
+    )
     note = page.locator("#sort-film .sort-narration > span:first-of-type")
     scrub = page.locator("#sort-film .sort-scrub")
     scrub.evaluate(
@@ -717,11 +720,15 @@ def _bracket_ink_changes(quiet, painted, target, clip, ink):
     changed = {
         name: sum(
             delta != (0, 0, 0)
-            and max(abs(channel - expected) for channel, expected in zip(pixel, ink))
+            and max(
+                abs(channel - expected)
+                for channel, expected in zip(pixel, ink, strict=True)
+            )
             <= 40
             for pixel, delta in zip(
                 painted.crop(edge).get_flattened_data(),
                 difference.crop(edge).get_flattened_data(),
+                strict=True,
             )
         )
         for name, edge in boxes.items()
@@ -853,11 +860,13 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     shot = page.locator("#rn-console-shot")
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
+    # Room for the trace, which stands at the region's gap outside the target.
+    room = 12
     clip = {
-        "x": math.floor(box["x"]) - 2,
-        "y": math.floor(box["y"]) - 2,
-        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
-        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+        "x": math.floor(box["x"]) - room,
+        "y": math.floor(box["y"]) - room,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 2 * room,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 2 * room,
     }
 
     def screenshot():

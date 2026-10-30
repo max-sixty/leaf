@@ -356,6 +356,7 @@ function landingPlace(from = null) {
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
 		if (shown) return shown;
+		if (!own.length && seenRect(from, /* @__PURE__ */ new Map())) return from;
 	}
 	return pageReading({ bodies: true });
 }
@@ -3619,7 +3620,7 @@ var MessageEditor = class {
 					base
 				}));
 				leave(false, { painting: false });
-				let sent = null;
+				let sent;
 				try {
 					sent = await flight;
 				} finally {
@@ -6983,8 +6984,8 @@ var ThreadView = class {
 	};
 	#createReply(model) {
 		const replyChanged = () => {
-			if (!this.#reply) return;
-			this.#draftFrame ||= nextRender(() => {
+			if (!this.#reply || this.#draftFrame) return;
+			this.#draftFrame = nextRender(() => {
 				this.#draftFrame = 0;
 				if (!this.#reply) return;
 				if (this.#model.resolved) this.repaint();

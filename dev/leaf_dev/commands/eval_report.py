@@ -9,8 +9,9 @@ viewports and phases come from retained results, never today's catalog.
 The assessment also supplies the current implementation summary and changes selected
 for personal review. Native preferences remain per-order ordinal judgments; explicit
 checkpoints label their sequence, while authored repair observations stay separate.
-An optional journey explains why one attempt led to the next in authored order
-within each lane; parallel lanes do not imply a single global timeline.
+An optional journey separates each case's task, generated outputs and the report
+author's assessment. Only explicitly selected changes create review obligations;
+checks and rejected trials remain supporting evidence.
 
 Saved Leaf phases export through the standard exporter on disposable copies, retaining
 the page's layer and state. Plain HTML keeps its authored files. PAGE/evidence is
@@ -114,6 +115,10 @@ STYLE = """
 .journey-steps > li { margin-block: var(--sp-4); }
 .journey-steps h4 { margin-block: 0 var(--sp-2); }
 .journey-links { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); }
+.report-kind { font-family: var(--sans); font-size: .75rem; color: var(--muted); margin-block: 0 .5rem; }
+.generated-output { border: 1px solid var(--rule); padding: var(--sp-3); }
+.report-assessment { border-block-start: 1px solid var(--rule); padding-block-start: var(--sp-3); margin-block: var(--sp-3); }
+.report-support { margin-block: var(--sp-5); }
 """
 
 
@@ -1025,7 +1030,7 @@ def task_section(
             right = [
                 s for s in ys if run in s["runs"] and sample_anchor(s) not in compared
             ]
-            for x, y in zip(left, right):
+            for x, y in zip(left, right, strict=False):
                 if (x, y) not in matches:
                     matches.append((x, y))
         for number, (x, y) in enumerate(matches, len(judged) + 1):
@@ -1215,6 +1220,13 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
     outputs = []
     for index, (reference, sample) in enumerate(selected, 1):
         phase = reference_phase(sample, reference)
+        condition = {"html": "HTML control", "leaf": "Leaf"}.get(
+            sample["diagnostics"].get("condition"), "Generated page"
+        )
+        model = reference.get("model") or (
+            f"{sample['diagnostics'].get('harness', 'Author')} · model not recorded"
+        )
+        provenance = f"{condition} · {model} · {phase_label(sample, phase)}"
         anchor = f"{step['id']}-output-{index}"
         captures = screens(page, sample, phase)
         widths = sample["diagnostics"]["comparison"]["widths"]
@@ -1236,7 +1248,8 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
                 else f"<details><summary>{escape(label)}</summary>{figure}</details>"
             )
         outputs.append(
-            f'<section id="{anchor}"><h5>{escape(reference["label"])}</h5>'
+            f'<section id="{anchor}" class="generated-output"><p class="report-kind">Generated output</p>'
+            f'<h5>{escape(reference["label"])}</h5><p class="report-meta">{escape(provenance)}</p>'
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
             + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
@@ -1257,24 +1270,29 @@ def journey_view(page: Path, lanes: list[dict], samples: dict) -> str:
     sections = []
     for lane in lanes:
         steps = "".join(
-            f'<li id="{escape(step["id"])}"><h4>{escape(step["title"])}</h4>'
-            f"<p>{escape(step['body'])}</p>"
+            f'<li id="{escape(step["id"])}">'
+            + f'<p class="report-kind">{"Author attempt" if step.get("outputs") else "Supporting observation"}</p>'
+            + f"<h4>{escape(step['title'])}</h4>"
             + journey_outputs(page, step, samples)
+            + f'<aside id="{escape(step["id"])}-assessment" class="report-assessment">'
+            + f'<p class="report-kind">Assessment · {escape(step.get("assessment_by", "Report author"))}</p>'
+            + f"<p>{escape(step['body'])}</p>"
             + '<p class="journey-links">'
             + "".join(
                 f'<a href="{escape(link["target"])}">{escape(link["label"])}</a>'
                 for link in step["links"]
             )
-            + "</p></li>"
+            + "</p></aside></li>"
             for step in lane["steps"]
         )
         sections.append(
             f'<section id="{escape(lane["id"])}" class="journey-lane">'
+            '<p class="report-kind">Case · Task given to the author</p>'
             f"<h3>{escape(lane['title'])}</h3><p>{escape(lane['summary'])}</p>"
             f'<ol class="journey-steps">{steps}</ol></section>'
         )
     return (
-        '<lf-tab id="run-story" label="Story &amp; outputs" group="Overview"><h2>What we tried and produced</h2>'
+        '<lf-tab id="run-story" label="Cases" group="Overview"><h2>Cases and generated outputs</h2>'
         '<nav aria-label="Journey sections"><ul>'
         + "".join(
             f'<li><a href="#{escape(lane["id"])}">{escape(lane["title"])}</a></li>'
@@ -1482,7 +1500,7 @@ def judge_preferences(
             for item in repairs
         )
         repair_table = (
-            '<section id="repair-outcomes"><h3>Same-source repair outcomes</h3><p>These authored observations compare behavior around repairs. They are separate from format preferences and carry no numeric score.</p><table><thead><tr><th scope="col">Change</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Evidence</th></tr></thead><tbody>'
+            '<section id="repair-outcomes"><h3>Same-source implementation comparisons</h3><p>These report-author observations compare the same page before and after a change to Leaf. They are separate from format preferences and carry no numeric score.</p><table><thead><tr><th scope="col">Change</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Evidence</th></tr></thead><tbody>'
             + repair_rows
             + "</tbody></table></section>"
         )
@@ -1495,7 +1513,7 @@ def judge_preferences(
             else ""
         )
         + (
-            "<p>Checkpoint labels and their order come from the assessment. Missing comparisons are explicit below. Different author samples and reused controls do not establish a causal before/after repair effect.</p>"
+            "<p>Checkpoint labels and their order come from the assessment. Missing comparisons are explicit below. Different author samples and reused controls do not establish the effect of a change to Leaf.</p>"
             if checkpoints
             else "<p>No checkpoints were supplied. These are unordered retained comparisons.</p>"
         )
@@ -1560,65 +1578,17 @@ def implementation_summary(
     )
 
 
-def report_introduction(
-    found: dict, latest: str, *, story: bool, discovery: bool, implementation: str = ""
-) -> str:
-    """Explain the visible navigation and distinguish interventions from evidence."""
-    outputs_label = "Hill-climbing journey" if story else "Outputs"
-    navigation = (
-        [
-            '<a href="#run-story">Story &amp; outputs</a>',
-            '<a href="#scores">Output index</a>',
-        ]
-        if story
-        else ['<a href="#scores">Overview</a>']
+def report_introduction(found: dict, latest: str) -> str:
+    """Keep the opening to the result, with evidence in the views it describes."""
+    count = sum(
+        len(members) for columns in found.values() for members in columns.values()
     )
-    navigation.insert(0, '<a href="#judge-preferences">Judge preferences</a>')
-    navigation.extend(
-        f'<a href="#{task_anchor(subject)}-view">{escape(task_title(columns))}</a>'
-        for subject, columns in found.items()
-    )
-    if discovery:
-        navigation.append('<a href="#observations">Exploration</a>')
     return (
         '<lf-tab id="report-introduction" label="Introduction">'
         + latest
-        + '<section id="report-map"><h2>How this report is organized</h2>'
-        "<p>We are testing changes to Leaf and its authoring instructions, and improving "
-        "the hill-climb process used to evaluate them.</p>"
-        '<table id="report-destinations"><thead><tr><th>View</th><th>What it shows</th></tr></thead><tbody>'
-        f'<tr><th scope="row"><a href="#all-results">{outputs_label}</a></th>'
-        "<td>"
-        + (
-            "The sequence of attempts, what each revealed, and the pages the authors produced."
-            if story
-            else "The pages the authors produced, with their execution checks and quality reviews."
-        )
-        + '</td></tr><tr><th scope="row"><a href="#changes-tested">Changes tested</a></th>'
-        "<td>Changes to Leaf code or instructions, and to the evaluation tools and skill. "
-        "Each intervention or diagnostic has its evidence and a keep, revise or reject recommendation.</td>"
-        "</tr></tbody></table></section>"
-        '<section id="report-evidence-guide"><h3>Changes and their evidence</h3>'
-        "<p><strong>Before / After</strong> compares outputs around an intervention. "
-        "<strong>Plain HTML / Leaf</strong> compares approaches to the same task. "
-        "The HTML output is reference evidence, not a change to Leaf; it appears beside "
-        "the experiment whose question it helps answer. A recommendation applies to the "
-        "stated change, not every detail of its generated page.</p></section>"
-        '<section id="report-output-navigation"><h3>Finding a saved output</h3>'
-        f"<p>Inside <strong>{outputs_label}</strong>, the tabs run left to right:</p>"
-        '<p class="sample-links">'
-        + " → ".join(navigation)
-        + "</p><p>"
-        + (
-            "<strong>Story &amp; outputs</strong> explains the experiments in sequence. "
-            "<strong>Output index</strong> and the task tabs open the same saved outputs "
-            "by task; they are not additional experiments."
-            if story
-            else "<strong>Overview</strong> lists the results; the task tabs open their saved outputs."
-        )
-        + "</p></section>"
-        + implementation
-        + "</lf-tab>"
+        + f'<p class="report-meta">{len(found)} cases · {count} saved result records</p>'
+        + '<p class="sample-links"><a href="#changes-tested">Review changes to Leaf</a>'
+        ' · <a href="#all-results">Inspect cases and outputs</a></p></lf-tab>'
     )
 
 
@@ -1694,6 +1664,7 @@ def review_sections(
             f"<li><p>{escape(finding['finding'])}</p><p>{output_link(sample, sample['title'])}</p></li>"
         )
     experiments = []
+    supporting = []
     for experiment in review["experiments"]:
         anchor = "experiment-" + experiment["id"]
         comparisons = []
@@ -1762,25 +1733,66 @@ def review_sections(
             if comparisons
             else ""
         )
-        experiments.append(
-            f'<lf-tab id="{anchor}" label="{escape(experiment.get("label", experiment["title"]))}" summary="{escape(experiment["recommendation"])}">'
-            '<div class="experiment-heading">'
+        selected = experiment.get("review", False)
+        kind = experiment.get("kind", "Change" if selected else "Supporting evidence")
+        content = (
+            '<header class="experiment-heading">'
+            f'<p class="report-kind">{escape(kind)}</p>'
             f"<h2>{escape(experiment['title'])}</h2>"
-            f'<p class="experiment-recommendation"><span>Recommendation:</span> <strong>{escape(experiment["recommendation"])}</strong></p></div>'
+            f'<p class="experiment-recommendation"><span>Recommendation:</span> <strong>{escape(experiment["recommendation"])}</strong></p></header>'
             f'<p class="experiment-change">{escape(experiment["change"])}</p>'
-            f"<p><strong>What the evidence supports.</strong> {escape(experiment['reason'])}</p>"
             + comparisons_view
             + evidence_links(
                 experiment["evidence"], f"{anchor}-evidence", "Change sources"
             )
+            + (
+                f'<lf-options id="{anchor}-approval" choose>'
+                f'<lf-option id="{anchor}-approve" value="approved"><strong>Approve change</strong></lf-option>'
+                f'<lf-option id="{anchor}-revisit" value="revisit"><strong>Revisit change</strong></lf-option>'
+                "</lf-options>"
+                if selected
+                else ""
+            )
+            + f'<aside id="{anchor}-assessment" class="report-assessment"><p class="report-kind">Assessment · Report author</p>'
+            + f"<p>{escape(experiment['reason'])}</p></aside>"
             + f"<details><summary>Scope and limitations</summary><p>{escape(experiment['period'])}</p><p>{escape(experiment['limits'])}</p></details>"
-            + "</lf-tab>"
         )
+        if selected:
+            experiments.append(
+                f'<lf-tab id="{anchor}" label="{escape(experiment.get("label", experiment["title"]))}" summary="{escape(experiment["recommendation"])}">'
+                f'<lf-ask id="{anchor}-question">{content}</lf-ask></lf-tab>'
+            )
+        else:
+            supporting.append(
+                f'<section id="{anchor}" class="report-support">{content}</section>'
+            )
+    implementation = implementation_summary(
+        page, review.get("implementation"), output_url
+    )
     return (
-        '<lf-tab id="changes-tested" label="Changes tested">'
-        '<lf-tabs id="experiments" data-width="available">'
-        + "".join(experiments)
-        + "</lf-tabs></lf-tab>",
+        '<lf-tab id="changes-tested" label="Changes to Leaf">'
+        + (
+            '<lf-tabs id="experiments" data-width="available">'
+            + "".join(experiments)
+            + "</lf-tabs>"
+            if experiments
+            else "<p>No changes selected for review.</p>"
+        )
+        + (
+            '<details id="supporting-checks"><summary>Checks and other trials</summary>'
+            + "".join(supporting)
+            + "</details>"
+            if supporting
+            else ""
+        )
+        + (
+            '<details id="implementation-record"><summary>Implementation and validation record</summary>'
+            + implementation
+            + "</details>"
+            if implementation
+            else ""
+        )
+        + "</lf-tab>",
         f'<section id="latest-run"><h2>{escape(latest["title"])}</h2>'
         + f"<p>{escape(latest['summary'])}</p>"
         + f"<details><summary>Review findings</summary><ul>{''.join(findings)}</ul></details>"
@@ -1932,8 +1944,8 @@ def eval_report(
     index_label = "Output index" if story else "Overview"
     body = (
         '<lf-tabs id="report-views" data-width="available">'
-        + judge_preferences(page, records, found, assessment, output_url)
         + story
+        + judge_preferences(page, records, found, assessment, output_url)
         + f'<lf-tab id="scores" label="{index_label}" group="Overview">'
         + overview(found)
         + f"<details><summary>Runs and score definitions</summary>{runs_text}"
@@ -1952,19 +1964,10 @@ def eval_report(
     title = "Authoring comparisons"
     if assessment:
         title = assessment["title"]
-        outputs_label = "Hill-climbing journey" if story else "Outputs"
         body = (
             '<lf-tabs id="review-views" data-width="available">'
-            + report_introduction(
-                found,
-                introduction,
-                story=bool(story),
-                discovery=bool(discovery),
-                implementation=implementation_summary(
-                    page, assessment.get("implementation"), output_url
-                ),
-            )
-            + f'<lf-tab id="all-results" label="{outputs_label}">{body}</lf-tab>'
+            + report_introduction(found, introduction)
+            + f'<lf-tab id="all-results" label="Cases &amp; outputs">{body}</lf-tab>'
             + changes
             + "</lf-tabs>"
         )

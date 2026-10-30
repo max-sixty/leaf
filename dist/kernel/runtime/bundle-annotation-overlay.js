@@ -1771,7 +1771,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		card.focusThread(showPreview(entry, button));
 	}
 	const landOnEntry = layerLanding((button) => handBack(button, ...button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
-	function closePreview(land = letGo) {
+	function closePreview(land = () => letGo()) {
 		const button = card.selection()?.control;
 		const at = focused();
 		const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
@@ -1793,27 +1793,23 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const entry = card.selection()?.control?.lfEntry;
 		return Boolean(entry && expandedOptionsKey === entry.key && expandedOptionsKey !== forcedInlineOptionsKey() && optionsRung());
 	};
-	const stepsOut = (from = focused()) => {
+	const besideTarget = () => {
 		const target = targetFor(card.selection()?.entry);
-		return preview.contains(from) && !unfoldedUnder() && target?.isConnected && target.checkVisibility() ? target : null;
+		return currentLocationIn(preview) && target?.isConnected && target.checkVisibility() ? target : void 0;
 	};
 	function keyboardRung({ atFocus = true } = {}) {
 		const active = focused();
 		const host = closestAcross(active, "[data-lf-margin-for]");
 		const nowhere = !active || active === document.body;
 		if (!previewOpen() || atFocus && !nowhere && !renderedUnder(active, preview) && !(card.selection()?.control && host?.contains(card.selection()?.control))) return null;
-		if (stepsOut()) return {
-			root: preview,
-			title: "back to element",
-			out: () => focusDestination(stepsOut(), "return")
-		};
 		return {
 			root: preview,
 			title: "dismiss thread",
 			out: () => {
 				const currentLocation = unfoldedUnder();
 				const button = card.selection()?.control;
-				closeLayer(() => closePreview(), currentLocation ? () => landOnEntry(button) : letGo);
+				const target = besideTarget();
+				closeLayer(() => closePreview(), currentLocation ? () => landOnEntry(button) : () => letGo(target));
 			}
 		};
 	}
@@ -2352,14 +2348,6 @@ const STATE_CLASSES = {
 	focus: "lf-visual-mark-focus",
 	here: "lf-visual-mark-here"
 };
-const INSET = "lf-visual-mark-inset";
-function ringRoom() {
-	return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"));
-}
-function cramped({ rect, levels }, room) {
-	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
-	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
-}
 function createVisualMarkPaint() {
 	const layer = el("div", "lf-ui lf-visual-marks");
 	layer.setAttribute("aria-hidden", "true");
@@ -2375,7 +2363,6 @@ function createVisualMarkPaint() {
 		}
 	}
 	function paintTargets(rebuildGeometry = true) {
-		const room = ringRoom();
 		for (const element of [...overlays.keys()]) if (!targets.has(element)) {
 			element.classList.toggle(PROJECTED, false);
 			dropStand(overlays.get(element).stand);
@@ -2415,7 +2402,6 @@ function createVisualMarkPaint() {
 			element.classList.toggle(PROJECTED, true);
 			keeps(overlay, "data-for", element.id || null);
 			overlay.classList.toggle("lf-shaped", Boolean(geometry));
-			overlay.classList.toggle(INSET, !geometry && cramped(placed, room));
 			if (rebuildGeometry || record.geometry !== geometry || record.shapeKey !== shapeKey) {
 				if (geometry) paintShape(shape, geometry, rect);
 				else shape.replaceChildren();

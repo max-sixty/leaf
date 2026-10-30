@@ -56,6 +56,10 @@
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
  * running; a request while one runs starts another once it exits.
+ *
+ * Claude Code generates declarations under .claude-plugin/types/ and a root
+ * tsconfig.json when it loads the plugin. Those declarations are absent from
+ * its npm package, so CI's hooks/tsconfig.json checks Pi and its watch owner.
  */
 
 import type {

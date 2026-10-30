@@ -205,8 +205,13 @@ const rings = (style) =>
 // chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
 // outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
 // for one drawn inside its edge as a border is. observer: reads the box again when any
-// part changes size. held(): the root's edges that hold it in its plane, as
-// `{x: "left" | "right", y: "top" | "bottom"}`, or null for a box fixed in the window.
+// part changes size. held(): the root's edges that hold it in its plane, or null
+// for a box fixed in the window.
+/** @param {{
+ * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
+ * observer: ResizeObserver,
+ * held?: () => {x: "left" | "right", y: "top" | "bottom"} | null,
+ * }} options */
 export function boxMotion({
   root,
   box,
@@ -236,6 +241,7 @@ export function boxMotion({
   room.append(ring, fill, ringLayer, ringFill);
   const shadowReach = () => liftReach(room, lift);
   // Each layer, how far past the outline it is cut, and what it paints besides.
+  /** @returns {[HTMLElement, number, string][]} */
   const surface = () => [
     [room, shadowReach(), `filter: drop-shadow(var(--raise-${lift})); `],
     [ring, outset, ""],

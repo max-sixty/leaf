@@ -766,10 +766,12 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
     )
     url = two_diff_page(serve)
-    for (_, source, value), initial in zip(DIFF_FORMS, (rename, MULTI_HUNK_PATCH)):
+    for (_, source, value), initial in zip(
+        DIFF_FORMS, (rename, MULTI_HUNK_PATCH), strict=True
+    ):
         data_model.cmd_data_set(serve.page_dir, source, value(initial))
     page = open_page(browser, url)
-    for form, starts_as_rename in zip(DIFF_FORMS, (True, False)):
+    for form, starts_as_rename in zip(DIFF_FORMS, (True, False), strict=True):
         diff_file_keeps_focus(page, serve, *form, rename, starts_as_rename)
 
 

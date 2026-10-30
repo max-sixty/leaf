@@ -458,10 +458,14 @@
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
     box-sizing: border-box;
-    /* The message's face, so each line of a draft stands where the message's will. */
-    font: var(--msg-font);
     /* At rest no press stands in the field, so the status takes its whole width. */
     --lf-field-end-room: 0px;
+  }
+  /* The message's face, so each line of a draft stands where the message's will; the
+     field wears it, and its words with it, so Send reads their line (response.css). */
+  .lf-fp-field .lf-compose-field {
+    font: var(--msg-font);
+    --lf-field-ground: var(--lf-fp-surface);
   }
   /* Words running past the field's top or bottom edge fade into it, so a glance says
      there is more above or below, in place of a scrollbar, whose overlay flashed with
@@ -609,9 +613,10 @@
      `--lf-field-end-room`), so where the words wrap turns on nothing but the words.
      The user chose the corner on 15 October, with only the last line keeping that
      room, and on 23 October gave the other lines' width up for wrapping that no
-     keystroke at the end of the words can change above it. Each is a line tall,
-     standing on the row's foot, and as wide as the floor, as the row's other presses
-     are. */
+     keystroke at the end of the words can change above it; on 29 October, under a
+     mouse, the words took that room back with Send in a corner they leave free
+     (below). Each is a line tall, standing on the row's foot, and as wide as the
+     floor, as the row's other presses are. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: 0;
     inset-block-end: 0;
@@ -631,6 +636,22 @@
     > leaf-text,
   .lf-fp-field .lf-compose-field > leaf-text[data-says="turn"] {
     --lf-field-end-room: var(--lf-fp-send-room);
+  }
+  /* Under a mouse, once the field holds words they run the whole line and Send takes
+     its corner only while the row beside it leaves it free, as in every composer
+     (response.css, `:state(corner-taken)`). Send is then as tall as the row it stands
+     beside, centred on the field's last line, so over the words it stands clear of
+     the row above. The empty field keeps the room, where the status and an open
+     thread's Reply stand. */
+  @media (hover: hover) and (pointer: fine) {
+    .lf-floating-panel .lf-fp-field .lf-compose-field[data-words] > leaf-text {
+      --lf-field-end-room: 0px;
+      --lf-field-corner: max(var(--lf-line), var(--aim-floor));
+    }
+    .lf-fp-field .lf-compose-submit {
+      height: var(--lf-send-height);
+      inset-block-end: calc((var(--lf-line) - var(--lf-send-height)) / 2);
+    }
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
      not a press of its own, in Dictate's seat. While the user writes or the field
@@ -1401,10 +1422,6 @@
     background: var(--lf-fp-faint);
     margin: 4px 8px;
   }
-  .lf-fp-empty {
-    margin: 14px 8px;
-    color: var(--lf-fp-muted);
-  }
   .lf-fp-quiet {
     color: var(--lf-fp-muted);
   }
@@ -1413,19 +1430,6 @@
   }
 
   /* ---------- On: a card or a line per item ---------- */
-  /* A group's heading over its items, in the label voice (`.lf-label`), with how many
-     it holds. */
-  .lf-fp-on-group {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0;
-    padding: 10px 8px 2px;
-  }
-  .lf-fp-on-group:first-child,
-  .lf-fp-on-rule + .lf-fp-on-group {
-    padding-top: 2px;
-  }
   /* Each line is a list row (`.lf-fp-item`) that shares its first column, what each
      item is, with every line, so every title starts on one edge: the line takes the
      list's columns (`subgrid`), the widest word setting the first up to a share of the
@@ -1485,30 +1489,21 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
+  /* A card's question stands as close under its group's heading as a lone card's
+     stands under the group's name, so a group's name sits one way over its card. */
+  .lf-rows-head + .lf-fp-on-item[data-card] {
+    padding-top: 2px;
+  }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row of the list (controls.css,
-     `.lf-rows`), so its disclosure arrow (controls.css) stands in the column the rows'
-     news mark takes, its name starts where their names do, and its count ends where
-     their status does. The heading element only names it a heading and stands aside
-     from the layout; as a grid of its own between list and press, it moved the press's
-     words 4px past the rows'. */
-  .lf-fp-settled-group {
-    display: contents;
-  }
+     `.lf-rows`) in the heading's voice, so its disclosure arrow (controls.css) stands
+     in the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
   .lf-fp-settled {
     align-items: center;
     font: inherit;
-    letter-spacing: inherit;
-    text-transform: inherit;
     color: inherit;
     text-align: start;
-  }
-  /* Its count ends where the rows' status does, in the heading's own voice, as On me's
-     group counts are. */
-  .lf-fp-settled > .lf-fp-count {
-    color: inherit;
-    font-size: inherit;
-    text-align: end;
   }
   .lf-fp-settled::before {
     grid-column: lead;
@@ -1518,12 +1513,21 @@
   .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
-    font: inherit;
-    font-size: 12px;
-    color: var(--lf-fp-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* A card alone in its group names the group over its question in the group heading's
+     voice (controls.css, `.lf-rows-head`), as a heading names the group of two or more,
+     standing where the card's words start. */
+  .lf-fp-on-place {
+    display: block;
+    padding: 0;
+  }
+  .lf-fp-on-title {
+    font: inherit;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
   }
   .lf-fp-prompt {
     margin: 0;

@@ -62,6 +62,7 @@ import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
 import { upFrom, renderedParent } from "../shadow.js";
 
+/** @type {Promise<typeof import("/vendor/floating-ui.esm.js")> | null} */
 let floatingUiModule = null;
 export const floatingUi = () =>
   (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));

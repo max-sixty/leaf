@@ -28,19 +28,17 @@ body > main > lf-tabs:nth-child(1 of lf-tabs):not([list="side"]) {
 :is(lf-tab, lf-parts, lf-part) {
   display: block;
 }
-/* A stacked panel's name and a queue's group label (below) are one face: a small
- * heading over what follows it. */
-:is(lf-tab, lf-part)::before,
-.lf-tabstrip .lf-tab-group {
-  font-size: var(--t-6);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
+/* A stacked panel's name takes the label voice (base.css, `.lf-label`), which a
+ * generated name can't wear as a class. A side list's group label is a list's group
+ * heading (controls.css, `.lf-rows-head`). */
 :is(lf-tab, lf-part)::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
+  font: 600 var(--t-6) / 1.3 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 lf-tabs.lf-rendered > lf-tab {
   margin-top: 14px;
@@ -260,7 +258,7 @@ lf-tabs.lf-rendered > lf-tab {
     --lf-end-room: inherit;
     --lf-block-frame: 1;
   }
-  /* The set carries its panel's inset ring, anchored to the panel's border box.
+  /* The set carries its panel's ring, anchored to the panel's border box.
      An outline on the panel paints below positioned reading content; an absolute
      overlay inside it scrolls with that content. Keeping the frame outside the
      reader handles both without reserving space or clipping wide page exhibits.
@@ -294,6 +292,20 @@ lf-tabs.lf-rendered > lf-tab {
     pointer-events: none;
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
+  }
+  /* A boxed set and a side list pad their panel inside the set's frame, and a page's
+     parts pad theirs, so the band stands inside its edge there. A page's tabs draw no
+     frame and pad no side of their panel, and inside its edge the band ran down the
+     first letter of every line, so there it stands a region's gap out (base.css) on
+     the three sides the text meets, and keeps its top on the strip's rule, which the
+     panel hangs from. Out on that side too, the strip covered the band and left three
+     sides of a box (the user's choice, 29 October 2026). */
+  lf-tabs.lf-rendered[data-lf-views-flow="page"]:has(
+      > lf-tab[data-lf-focus-visible]
+    )::after {
+    inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
+      calc(anchor(bottom) - var(--focus-region-room))
+      calc(anchor(left) - var(--focus-region-room));
   }
   /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
@@ -730,7 +742,7 @@ lf-tabs.lf-rendered > lf-tab {
   @container style(--lf-full-height: 1) {
     /* The set is the body's scroller here, and a block filling it, such as the
      * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
-     * keeps the ring's room inside them; its margin gives the inline room back, so the
+     * keeps a region's ring room inside them (base.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     lf-tabs.lf-rendered[data-lf-views-flow="page"],
     html[data-lf-interactive]
@@ -739,8 +751,8 @@ lf-tabs.lf-rendered > lf-tab {
       flex-direction: column;
       min-block-size: 0;
       margin-block: 0;
-      margin-inline: calc(-1 * var(--focus-ring-room));
-      padding: 0 var(--focus-ring-room) var(--focus-ring-room);
+      margin-inline: calc(-1 * var(--focus-region-room));
+      padding: 0 var(--focus-region-room) var(--focus-region-room);
       --lf-full-height: inherit;
     }
     lf-tabs.lf-rendered[data-lf-views-flow="page"] > .lf-tabstrip,

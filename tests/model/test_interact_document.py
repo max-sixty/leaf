@@ -3944,7 +3944,9 @@ def _apart(a, b, vision=None):
         rgb = _linear(colour)
         if vision is None:
             return _oklab(rgb)
-        return _oklab([sum(w * c for w, c in zip(row, rgb)) for row in _CVD[vision]])
+        return _oklab(
+            [sum(w * c for w, c in zip(row, rgb, strict=True)) for row in _CVD[vision]]
+        )
 
     return math.dist(seen(a), seen(b)) * 100
 

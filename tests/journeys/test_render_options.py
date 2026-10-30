@@ -370,7 +370,7 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 rows.reverse()  # both edges read from the far end of the strip inward
             painted = 0
             while painted < len(rows) and all(
-                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
+                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink, strict=True)
             ):
                 painted += 1
             assert painted, (

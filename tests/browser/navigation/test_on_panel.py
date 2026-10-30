@@ -994,7 +994,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     panel_settled(page, view="queue")
     cards = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(cards).to_have_count(1)
-    note = page.locator(f"{panel_view('queue')} .lf-fp-empty")
+    note = page.locator(f"{panel_view('queue')} .lf-rows-empty")
     expect(note).to_have_count(0)
 
     stamp_page(
@@ -1009,7 +1009,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
     page.locator(".lf-fp-filters button").nth(1).click()
-    expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-fp-empty")).to_have_text(
+    expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-rows-empty")).to_have_text(
         re.compile(r"Nothing waiting on \S+\.")
     )
 

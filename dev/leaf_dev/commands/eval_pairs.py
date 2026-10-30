@@ -136,7 +136,7 @@ def eval_pairs(runs: tuple[Path, ...]):
                 f"{subject}: {first} has {len(firsts)} samples and {second} has "
                 f"{len(seconds)}; run each column the same number of times"
             )
-        for n, (x, y) in enumerate(zip(firsts, seconds), 1):
+        for n, (x, y) in enumerate(zip(firsts, seconds, strict=True), 1):
             orders = []
             for order, (a, b, names) in enumerate(
                 ((x, y, {"A": first, "B": second}), (y, x, {"A": second, "B": first})),

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { URL, fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";

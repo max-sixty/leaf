@@ -240,7 +240,7 @@ def test_a_send_moves_the_panel_s_view_as_one_stream(browser, serve):
                 .map(node => node.getBoundingClientRect().top)""",
             [title, turns],
         )
-        return [d - r for d, r in zip(drawn, rest)]
+        return [d - r for d, r in zip(drawn, rest, strict=True)]
 
     page.evaluate("() => {" + HOLD_MOTION + "}")
     write(field(page), "Could the rollback cover the weekend?")
@@ -672,11 +672,13 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
-    expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
-    expect(page.locator(".lf-fp-on-group")).to_have_text(
+    expect(page.locator(".lf-floating-panel .lf-rows-empty")).to_have_text(
+        "Nothing waiting on Claude."
+    )
+    expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_text(
         re.compile(r"^\s*Done\s*1\s*$")
     )
     sent = page.locator(".lf-fp-on-item")
@@ -1651,7 +1653,10 @@ def risen(before, after, by):
         (seat is None) == (after[name] is None)
         and (
             seat is None
-            or all(abs(a - b) < 0.5 for a, b in zip(after[name], moved(name, seat)))
+            or all(
+                abs(a - b) < 0.5
+                for a, b in zip(after[name], moved(name, seat), strict=True)
+            )
         )
         for name, seat in before.items()
     )
@@ -3529,7 +3534,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item, so neither stands under a heading: each card says
     # its group's name before its place, and no kind.
-    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     expect(view.locator(".lf-fp-on-place")).to_have_text(
         ["Ship the migration · Ask", "Not in the plan · Ask"]
     )
@@ -3605,7 +3610,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     page.locator(".lf-fp-on-user").click()
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     view = page.locator(panel_view("queue"))
-    expect(view.locator(".lf-fp-on-group")).to_have_text(
+    expect(view.locator(".lf-fp-on-list > .lf-rows-head")).to_have_text(
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),
@@ -4213,21 +4218,6 @@ ROW_CENTRES = """() => {
       ?.getBoundingClientRect().toJSON(),
   };
 }"""
-# The right end of each line of words in the field, top to bottom.
-WORD_LINES = """host => {
-  const rows = [];
-  for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
-    const range = document.createRange();
-    range.selectNodeContents(line);
-    for (const r of range.getClientRects()) {
-      if (r.width < 0.5) continue;
-      const row = rows.find(o => Math.abs(o.top - r.top) < 4);
-      if (row) row.right = Math.max(row.right, r.right);
-      else rows.push({top: r.top, right: r.right});
-    }
-  }
-  return rows.sort((a, b) => a.top - b.top).map((row) => row.right);
-}"""
 
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
@@ -4235,7 +4225,8 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     leaf and the counts at rest, Dictate as the user opens the field, and Send while
     they type, each centred on the field's last line of words, however many lines it
     holds. Send floats in the field's end corner, as an anchored comment box's does,
-    and every line keeps room for it."""
+    and under a mouse the words take its column (drafts/test_send_corner.py follows
+    Send out of their way)."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
@@ -4256,8 +4247,11 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
-    lines = field(page).evaluate(WORD_LINES)
-    assert max(lines) <= seats["press"]["left"], (lines, seats)
+    column = field(page).evaluate(
+        """host => window.editorRoots.get(host).querySelector('.cm-content')
+          .getBoundingClientRect().right"""
+    )
+    assert column > seats["press"]["left"], (column, seats)
 
 
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
@@ -4632,7 +4626,7 @@ def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
     open_threads(page)
     threads = page.locator(panel_view("threads"))
     expect(threads.locator(".lf-fp-thread")).to_have_text([re.compile(words)])
-    expect(threads.locator(".lf-fp-empty")).to_have_text("Loading current threads…")
+    expect(threads.locator(".lf-rows-empty")).to_have_text("Loading current threads…")
 
     page.locator(".lf-fp-close").click()
     expect(page.locator(".lf-fp-view")).to_have_count(0)

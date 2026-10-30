@@ -46,10 +46,7 @@ because they move with every reflow. Below them, for each group's first element,
 lists the declarations Chromium's inspector reads as matching it in only one arm, or
 in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
-differ, the element inherits the difference or reads it from a custom property. A
-widget inside a tab or disclosure the page opens shut, such as a chart, may or may not
-have drawn by the reading, in either arm, so rerun a state before taking a difference
-confined to one as a change.
+differ, the element inherits the difference or reads it from a custom property.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
@@ -3100,7 +3097,7 @@ def style_changes(
     each group's first element."""
     groups: dict[tuple[str, str, str], list[str]] = {}
     for key in base.keys() & head.keys():
-        for name, before, after in zip(STYLED, base[key], head[key]):
+        for name, before, after in zip(STYLED, base[key], head[key], strict=True):
             if before != after:
                 groups.setdefault((name, before, after), []).append(key)
     alone = {

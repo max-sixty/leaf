@@ -9,6 +9,7 @@ import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
+import { typedHeader } from "../runtime-sources.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -133,6 +134,14 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
+  // Renaming a TypeScript owner must not leave its old delivery file as authored JS.
+  const orphan = "browser/runtime/removed.js";
+  await writeFile(
+    path.join(scratch, orphan),
+    typedHeader + "export const removed = 1;\n",
+  );
+  await assert.rejects(checkOutputs(outputs, scratch), /runtime\/removed\.js/);
+  await rm(path.join(scratch, orphan));
   // A kernel left behind by a merge names the command that rebuilds it.
   const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");

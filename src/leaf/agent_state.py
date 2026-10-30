@@ -294,11 +294,17 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                item["source"]["kind"] == "widget"
-                and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
-                or item["source"]["kind"] in {"update", "todo"}
-                and item["source"]["subject"]["kind"] == "widget"
-                and inside(item["source"]["subject"]["id"])
+                (
+                    item["source"]["kind"] == "widget"
+                    and (
+                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
+                    )
+                )
+                or (
+                    item["source"]["kind"] in {"update", "todo"}
+                    and item["source"]["subject"]["kind"] == "widget"
+                    and inside(item["source"]["subject"]["id"])
+                )
             )
         ],
         "todos": [

@@ -602,3 +602,38 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     drawn = page.evaluate(CHART_MARKS, "msg-chart")
     assert drawn["room"] > 100, drawn
     assert len(drawn["marks"]["bar"]) == 2, drawn
+
+
+def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
+    """A shut tab's panel is skipped content, whose rect the browser lays out on request,
+    so a chart there must not take that rect as its room: it waits for the user to open
+    the tab, and its bundle waits with it, whichever of its module and the tab set's
+    upgrades first."""
+    url = serve(
+        leaf_page(
+            "chart in a shut tab",
+            '<h1 id="t">Views</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers" label="Numbers">'
+            f"{chart_markup('tab-chart', MESSAGE_CHART)}</lf-tab></lf-tabs>",
+        )
+    )
+    context = browser.new_context()
+
+    # The chart upgrades after the tab set has hidden its panel, the order in which
+    # reading its rect would draw it.
+    def late(route):
+        route.request.frame.page.wait_for_timeout(300)
+        route.continue_()
+
+    context.route("**/lf-chart.js", late)
+    page = open_page(browser, url, context=context)
+    expect(page.locator("#views.lf-rendered")).to_be_attached()
+    expect(page.locator("#tab-chart svg")).to_have_count(0)
+    assert not page.evaluate(
+        "() => performance.getEntriesByType('resource')"
+        ".some((entry) => entry.name.includes('plot.esm'))"
+    ), "the shut tab's chart loaded its bundle"
+
+    page.get_by_role("tab", name="Numbers").click()
+    expect(page.locator("#tab-chart svg[role=img]")).to_be_visible()

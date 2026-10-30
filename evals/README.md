@@ -543,10 +543,10 @@ and these cases do not establish compaction as the cause of reply delays.
 
 `sidebar-page-at-900px` runs the complete authoring and render loop. Its
 `/instructions` diagnostic retains the read-only source probe, and `/live` checks
-the contrasting bounded live stream. The final live judge reads the rendered record: the completed log grows in
-document flow, and checks and navigation stay reachable while reading, including
-in the short window. Source-property checks in the
-instruction diagnostic do not establish that rendered behavior.
+the contrasting bounded live stream. The final live judge assesses complete chronological
+reading, usable space, and access to checks and navigation, including the cost of managing
+scroll positions in a short window. The instruction diagnostic assesses the source;
+it does not establish rendered behavior.
 
 ## Isolation and models
 

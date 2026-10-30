@@ -236,12 +236,13 @@ works on column and sidebar pages:
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
 
-A `table` with either value is only as wide as its columns need, up to that width. A
-block inside an `lf-ask` or callout breaks out only with its own `data-width`; the
-`lf-ask` keeps the column. A block takes a wider track when it is a child of `layout-column` or `layout-flow`.
-Inside an ordinary holder it fills that holder; a table scrolls sideways when needed.
-Use `layout-flow` on the section wrappers that should share the document's tracks,
-not on boxes that arrange their own contents.
+A `table` with either value is only as wide as its columns need, up to that width.
+A block takes a wider track when it is a child of `layout-column` or `layout-flow`.
+A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
+its children use the room inside it. A wide child alone does not widen its holder,
+and a table scrolls sideways when needed. Use `layout-flow` on unframed section
+wrappers that should share the document's tracks, not on boxes that arrange their
+own contents.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets

@@ -1025,7 +1025,11 @@ function viewMembers(holder) {
 	const declaration = registry$1[holder.localName]?.["x-views"];
 	if (!declaration) return [];
 	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-	for (const child of holder.children) child.toggleAttribute("data-lf-view", !child.hasAttribute("data-lf-gen") && child.matches(declaration.members));
+	for (const child of holder.children) {
+		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
+		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
+		child.toggleAttribute("data-lf-view", member);
+	}
 	return document.documentElement.lfViews.members(holder);
 }
 function openingView(holder, ...fallback) {

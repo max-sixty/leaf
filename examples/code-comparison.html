@@ -246,13 +246,12 @@
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <lf-ask id="code-comparison-ask">
+          <lf-ask id="code-comparison-ask" data-width="available">
             <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
               id="code-comparison-playground"
               contract="code-comparison-values"
               submit-label="Apply treatment"
-              data-width="available"
             >
               <lf-playground-preview id="code-comparison-preview">
                 <code-reader-comparison id="code-reader-comparison">

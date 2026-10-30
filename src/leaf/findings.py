@@ -658,8 +658,8 @@ _TEXT = {
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
-        + "; if it should use the document's wider tracks, give those holders"
-        ' class="layout-flow"'
+        + "; to widen the enclosing box, put data-width on that holder; to share"
+        ' document tracks through unframed section wrappers, give them class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (

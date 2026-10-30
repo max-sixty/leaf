@@ -33,25 +33,12 @@ lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
-/* An lf-ask frames prose, so it keeps the reading measure as its text does (base.css),
- * its outer width the measure, and in a flow wider than the column (a sidebar page's
- * body) its ring stands round the prose rather than the flow. It widens to the widest
- * allocation among its own blocks, so a chart or table of its own that declares `wide`
- * or `available` stands inside it rather than clipped to the measure. Only its children
- * count.
- *
- * The document grid grants the wrapper its widest child's requested track;
- * ordinary holders constrain both naturally. */
+/* An lf-ask keeps the prose measure, including on a wider sidebar page.
+ * The holder's own data-width requests room for wider evidence inside its ring. */
 @media screen {
   lf-ask {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
-  }
-  lf-ask:has(> [data-lf-space="wide"]) {
-    max-inline-size: max(var(--lf-measure), var(--wide));
-  }
-  lf-ask:has(> [data-lf-space="available"]) {
-    max-inline-size: none;
   }
 }
 /* An lf-ask whose evidence is a figure before its option list outruns a window when its

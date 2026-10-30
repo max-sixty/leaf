@@ -3674,6 +3674,12 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
           </section>
+          <aside id="framed" class="callout">
+            <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
+          </aside>
+          <section id="wrapper"><section class="layout-flow">
+            <table id="nested-table" data-width="wide"><tr><td>Nested evidence.</td></tr></table>
+          </section></section>
           <section id="flow" class="layout-flow">
             <div id="wide-flow" data-width="wide">Shared tracks.</div>
             <div id="allocated" data-width="available"><section id="inside-wide">
@@ -3696,23 +3702,21 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
         "<table id=wide-table>": ["<section id=plain>"],
         "<lf-diff id=declared-wide>": ["<section id=plain>"],
         "<div id=grid-wide>": ["<div id=custom-grid>"],
+        "<table id=framed-table>": ["<aside id=framed>"],
+        "<table id=nested-table>": ["<section id=wrapper>"],
     }
     findings = render_gate_readings.swept_faults([(1280, reading)])
     advice = [finding for finding in findings if finding.code == "contained-space"]
-    assert len(advice) == 3
+    assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
+    assert "put data-width on that holder" in str(advice[0])
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """An obligation allocated the column spans the wide block it holds, so its ring goes
-    round the block, and the gate named it as set out in the margin on every page with
-    one. The theme says which boxes it lets stand past their holders, so the gate reads
-    the obligation as the breakout it is. A page width on an obligation moves its edges off the
-    column's, so its block keeps to it and neither stands past the column. A box padded
-    or sized past the column without that leave is named, whether or not it paints there
-    or a breakout fills it."""
-    item = """<lf-ask id="{id}"><h2>Which one?</h2>
+    """An explicitly widened obligation keeps its evidence inside the ring. Boxes
+    pulled or sized past the actual page edge remain render-gate findings."""
+    item = """<lf-ask id="{id}" data-width="wide"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
@@ -3724,9 +3728,9 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
 <p>Prose sets the column.</p>
 {item.format(id="ask")}
 {item.format(id="sized-ask")}
-<div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
-<div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
-<div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
+<div id="bare" style="margin: 0 -600px; padding: 0 600px; text-indent: -600px">Out.</div>
+<div id="tinted" style="margin: 0 -600px; padding: 0 600px; background: #eee">Tint.</div>
+<div id="sized" style="width: calc(100% + 600px); background: #eee; --lf-block-frame: 1">
   <figure data-width="wide"><p>Evidence that fills the box.</p></figure>
 </div>
 """,
@@ -3744,6 +3748,9 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
+        ("clipped-out", "<div id=bare>"),
+        ("clipped-out", "<div id=sized>"),
+        ("clipped-out", "<div id=tinted>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),
         ("past-column", "<div id=tinted>"),

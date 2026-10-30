@@ -1452,15 +1452,9 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a sidebar page an obligation and a callout keep the prose's width and left edge, so
-    the obligation's ring and pin stand beside what it asks, as on a column page. One granted
-    `data-width`, or holding a block of its own that declares one, takes that room for
-    the evidence. On a column page the wide block breaks out of the column, as it would
-    from a section, and the obligation spans it, so the ring it wears goes round the block
-    rather than cutting across it, while its heading keeps the column; the table's
-    twelve columns need the room, since a table granted it takes only what its columns
-    need. A workspace states neither width, so there every one of them, and a board,
-    fills the region it stands in."""
+    """Framed holders request their own width on column and sidebar pages. Their
+    evidence stays inside that frame; a wide child alone does not widen it. Workspace
+    holders and explicitly bounded cells keep the room their containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
@@ -1471,15 +1465,22 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", width="", table="")
         + item.format(id="granted", width=' data-width="wide"', table="")
-        + item.format(id="holds", width="", table=table.format(id="holds"))
+        + item.format(
+            id="holds", width=' data-width="wide"', table=table.format(id="holds")
+        )
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
-        + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
+        + '<aside class="callout" id="granted-c" data-width="wide">'
+        + table.format(id="granted-c")
+        + "</aside>"
+        + '<aside class="callout" id="contained-c">'
+        + table.format(id="contained-c")
+        + "</aside>"
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
         + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'granted-c', 'holds', 'holds-t', 'callout', 'list']
+      ['prose', 'ask', 'granted', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
         .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
@@ -1494,7 +1495,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
-    for boxed in ("ask", "callout", "list"):
+    for boxed in ("ask", "callout", "contained-c", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
     for granted in ("granted", "granted-c", "holds"):
@@ -1523,7 +1524,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div id="wrapper" data-width="wide">'
         + item.format(
             id="wrapped",
-            width="",
+            width=' data-width="available"',
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
         )
         + "</div>"
@@ -1550,6 +1551,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
     assert at["ask"] == at["prose"], at
+    assert at["contained-c"]["width"] == at["prose"]["width"], at
+    assert at["granted-c"]["width"] == wide, at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
     assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (

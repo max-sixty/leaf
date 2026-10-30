@@ -47,7 +47,7 @@ test("generated package views resolve declarations before opening or keeping a v
       <article id="${id}-first" class="view">First</article>
       <article id="${id}-second" class="view">Second</article>
       <article class="view" data-lf-gen>Apparatus</article>
-      <p data-lf-view>Former member</p>
+      <p data-lf-view hidden="until-found">Former member</p>
       <section><article class="view">Nested view</article></section>`;
     document.body.append(holder);
     return holder;
@@ -61,6 +61,7 @@ test("generated package views resolve declarations before opening or keeping a v
     assert.equal(opening.getAttribute("data-lf-views"), "parts");
     assert.equal(apparatus.hasAttribute("data-lf-view"), false);
     assert.equal(former.hasAttribute("data-lf-view"), false);
+    assert.equal(former.hasAttribute("hidden"), false);
 
     first.classList.remove("view");
     assert.equal(openingView(opening), second);

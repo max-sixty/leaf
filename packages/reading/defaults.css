@@ -44,24 +44,12 @@ body {
 html {
   background: var(--paper);
 }
-/* A callout frames prose, so it keeps the reading measure a Layout states, as text
- * does (base.css, "The column"). */
+/* A callout keeps the prose measure, including on a wider sidebar page.
+ * Its own data-width requests room for wider evidence inside the frame. */
 @media screen {
   :where(.callout) {
-    max-inline-size: var(--lf-measure);
-  }
-  /* A callout's measure is its outer width, its border and padding inside, and it
-   * widens to the widest allocation among its own blocks, so it frames a chart or table
-   * that declares `wide` or `available` rather than clipping it to the measure. Only
-   * its children count. */
-  :where(.callout) {
     box-sizing: border-box;
-  }
-  :where(.callout:has(> [data-lf-space="wide"])) {
-    max-inline-size: max(var(--lf-measure), var(--wide));
-  }
-  :where(.callout:has(> [data-lf-space="available"])) {
-    max-inline-size: none;
+    max-inline-size: var(--lf-measure);
   }
 }
 /* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)

@@ -364,18 +364,12 @@
     }
   }
   :is(.layout-column, .layout-flow) {
-    > :is(
-      [data-lf-space="wide"],
-      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="wide"])
-    ) {
+    > [data-lf-space="wide"] {
       grid-column: prose-start / full-end;
       max-inline-size: min(100%, var(--wide));
       --lf-breakout: 1;
     }
-    > :is(
-      [data-lf-space="available"],
-      [data-lf-content="markup"]:not(.layout-flow):has(> [data-lf-space="available"])
-    ) {
+    > [data-lf-space="available"] {
       grid-column: full;
       max-inline-size: 100%;
       --lf-breakout: 1;

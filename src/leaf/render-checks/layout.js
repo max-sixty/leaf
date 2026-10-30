@@ -18,11 +18,8 @@ import { coveredWords, shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A box the theme lets stand past its holder, which says so where it lets it
-// (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
-// lf-ask spanning such a block (ask.css). Every other box keeps to the column, as text
-// does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
-// holding authored blocks (`data-lf-content="markup"`) break out.
+// A direct document child granted a wider track by its own declared width.
+// Holders request their own width; a wide child alone stays inside its holder.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
@@ -47,9 +44,8 @@ export function geometryReading(open) {
   };
 }
 
-// Advice about the document track chain: a reading flow shares all its parent's
-// columns, and declared breakouts reach them through ordinary holders. Other
-// document Layouts own their room; workspace flows without a measure stay flex. Existing
+// Advice about document tracks: flows directly inside another flow or column share
+// its tracks. A flow under an ordinary holder owns only that holder's room. Existing
 // containment may be deliberate, so these readings never refuse a page.
 export function containedSpace() {
   const main = pageDocument();
@@ -57,6 +53,7 @@ export function containedSpace() {
   const flows = [...main.querySelectorAll(".layout-flow")].flatMap((el) => {
     if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
     const parent = el.parentElement;
+    if (!parent.matches(".layout-column, .layout-flow")) return [];
     if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
     const style = getComputedStyle(el);
     const start = style.gridColumnStart;
@@ -80,7 +77,7 @@ export function containedSpace() {
     ];
   });
   const contained = [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
-    if (skipped(el) || !el.checkVisibility() || breaksOut(el)) return [];
+    if (skipped(el) || !el.checkVisibility()) return [];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
       if (holder.matches(".layout-column"))
@@ -334,9 +331,7 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isMarginContent, left, marginElements, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
-      breaksOut,
-    ),
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
   );
   // A widget the registry declares wide is answered for out here, the way
   // absolutely-positioned margin content is: standing past the column is what it was

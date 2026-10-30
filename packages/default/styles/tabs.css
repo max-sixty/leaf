@@ -288,15 +288,6 @@ lf-tabs[data-lf-views] > lf-tab {
       outline: var(--focus-ring);
       outline-offset: calc(-1 * var(--focus-ring-w));
     }
-    /* Page tabs have no panel padding. Keep the ring outside the three text edges,
-     * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
-    lf-tabs[data-lf-views][data-lf-views-flow="page"]:has(
-        > lf-tab[data-lf-focus-visible]
-      )::after {
-      inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
-        calc(anchor(bottom) - var(--focus-region-room))
-        calc(anchor(left) - var(--focus-region-room));
-    }
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
     lf-tabs[data-lf-views] > lf-tab[hidden] {
@@ -853,6 +844,13 @@ lf-tabs[data-lf-views] > lf-tab {
 @media screen {
   @scope (html[data-lf-interactive]) {
     @scope (lf-tabs.layout-flow) {
+      /* Page tabs have no panel padding. Keep the ring outside the three text edges,
+     * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
+      :scope:is(lf-tabs)[data-lf-views]:has(> lf-tab[data-lf-focus-visible])::after {
+        inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
+          calc(anchor(bottom) - var(--focus-region-room))
+          calc(anchor(left) - var(--focus-region-room));
+      }
       :scope:is(lf-tabs) > lf-tab {
         container-type: normal;
       }

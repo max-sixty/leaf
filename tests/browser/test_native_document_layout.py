@@ -156,6 +156,7 @@ def test_reading_flow_track_chain_names_only_visible_broken_flows(
           <section id="explicit" class="layout-flow" style="grid-column:full-start / full-end"><p>Explicit full-track names.</p></section>
           <section id="no-subgrid" class="layout-flow" style="grid-template-columns:1fr"><p>Independent columns.</p></section>
           <section id="numeric" class="layout-flow" style="grid-column:1 / -1"><p>Equivalent numeric span.</p></section>
+          <div><section id="standalone" class="layout-flow"><p>Owns the wrapper's room.</p></section></div>
           <section id="hidden-own" class="layout-flow" hidden="until-found" style="grid-column:prose"><p>Hidden own box.</p></section>
           <div hidden="until-found"><section id="hidden" class="layout-flow" style="container-type:inline-size"><p>Hidden.</p></section></div>
         </section>

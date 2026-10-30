@@ -1,6 +1,6 @@
-import { frameVisibility, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
+import { exceptionRecord, frameVisibility, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
 import { inputInFrame, keeps, move, pageUrl, runtime } from "./bundle-layer-stack.js";
-import { recordInteraction, requestJson } from "./bundle-layer-client.js";
+import { RequestError, recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
@@ -88,11 +88,11 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 	});
 	const recordFailure = (error, detail = {}) => record("failed", {
 		error: {
-			name: error.name,
-			message: error.message,
-			stack: error.stack,
-			status: error.status,
-			body: error.body
+			...exceptionRecord(error),
+			...error instanceof RequestError && {
+				status: error.status,
+				body: error.body
+			}
 		},
 		...detail
 	});
@@ -134,11 +134,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 				type: "visibility-reading",
 				detail: {
 					id,
-					error: {
-						name: error.name,
-						message: error.message,
-						stack: error.stack
-					}
+					error: exceptionRecord(error)
 				}
 			});
 			reportError(error);
@@ -166,7 +162,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 		try {
 			return await work;
 		} catch (error) {
-			if (error.name !== "AbortError") {
+			if (exceptionRecord(error).name !== "AbortError") {
 				recordFailure(error);
 				await retire("failure", error);
 			}

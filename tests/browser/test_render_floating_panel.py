@@ -18,9 +18,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf_dev import browser as dev_browser
-from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -40,6 +37,7 @@ from render_harness import (
     panel_control,
     panel_view,
     resized,
+    rgb_pixels,
     round_trip,
     select_words,
     sending,
@@ -59,6 +57,9 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -2720,7 +2721,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
-    alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
+    match = re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink))
+    assert match is not None
+    alpha = float(match.group(1))
     assert alpha < 0.7, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
@@ -3148,6 +3151,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
             "L"
         )
         low, high = pixels.getextrema()
+        assert isinstance(low, (int, float)) and isinstance(high, (int, float))
         assert high - low > 32, (low, high)
 
     def words_follow_leaf():
@@ -3168,8 +3172,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         attachment = shelf.bounding_box()
         pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
         assert any(
-            r > 200 and 90 < g < 170 and b < 100
-            for r, g, b in pixels.get_flattened_data()
+            r > 200 and 90 < g < 170 and b < 100 for r, g, b in rgb_pixels(pixels)
         )
 
     row = reading()
@@ -3316,7 +3319,9 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     settled(page)
     after = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
     difference = ImageChops.difference(before, after)
-    assert max(channel[1] for channel in difference.getextrema()) <= 8
+    extrema = difference.getextrema()
+    assert all(isinstance(channel, tuple) for channel in extrema)
+    assert max(channel[1] for channel in extrema if isinstance(channel, tuple)) <= 8
 
 
 def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
@@ -3703,7 +3708,9 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     other = view.locator(".lf-fp-version:not([data-current]) .lf-fp-label")
-    number = re.search(r"v\d+", other.inner_text()).group(0)
+    match_2 = re.search(r"v\d+", other.inner_text())
+    assert match_2 is not None
+    number = match_2.group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
@@ -4225,14 +4232,19 @@ WORD_LINES = """host => {
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf, Dictate, the counts, and Send while the user types, each centred on the
-    field's last line of words, however many lines it holds. Send floats in the field's
-    end corner, as an anchored comment box's does, and every line keeps room for it."""
+    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    they type, each centred on the field's last line of words, however many lines it
+    holds. Send floats in the field's end corner, as an anchored comment box's does,
+    and every line keeps room for it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
+    settled(page)
+    seats = page.evaluate(ROW_CENTRES)
+    for mark in ("leaf", "count"):
+        assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "dictate", "count"):
+    for mark in ("leaf", "dictate"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     page.keyboard.type(
         "Could the rollback cover the weekend, and the mobile cohort as well, and"
@@ -5339,19 +5351,26 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
 
 
 def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, serve):
-    """Typing puts Send where the mark stood, wearing every composer's accent arrow
-    rather than the panel's own press face, and the field runs to the row's end, past
-    the empty seat a view's Close would take; a line break is a draft as a word is. A
-    press that takes the caret away leaves the draft as it stands, Send and every line
-    in place, and so does a press back into it; the mark comes back once the field
-    empties."""
+    """Opening the field steps the mark aside, so the field's end and the corner's
+    action stand where typing will leave them; typing puts Send in that corner, wearing
+    every composer's accent arrow rather than the panel's own press face, and the field
+    runs to the row's end, past the empty seat a view's Close would take; a line break
+    is a draft as a word is. A press that takes the caret away leaves the draft as it
+    stands, Send and every line in place, and so does a press back into it; the mark
+    comes back once the field is empty and the user has left it."""
     page = floating(browser, serve(LONG_PAGE))
+    on_user = page.locator(".lf-fp-on-user")
+    expect(on_user).to_be_visible()
     field(page).click()
+    expect(on_user).to_be_hidden()
+    settled(page)
+    opened = field(page).bounding_box()
     send = page.locator(".lf-fp-send")
     page.keyboard.press("Shift+Enter")
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     page.keyboard.press("Backspace")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    settled(page)
+    assert field(page).bounding_box() == opened
     page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
@@ -5360,7 +5379,7 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
         " probe.remove(); return seen; }"
     )
     expect(send).to_have_css("color", accent)
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     settled(page)
     short = page.evaluate(
         "() => { const row = document.querySelector('.lf-fp-row');"
@@ -5374,14 +5393,16 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
     expect(field(page)).not_to_be_focused()
     settled(page)
     expect(send).to_be_visible()
-    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
+    expect(on_user).to_be_hidden()
     assert field(page).bounding_box() == words
     field(page).click()
     settled(page)
     assert field(page).bounding_box() == words
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(on_user).to_be_hidden()
+    page.mouse.click(5, 5)
+    expect(on_user).to_be_visible()
 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):

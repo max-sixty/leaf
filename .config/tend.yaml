@@ -32,6 +32,8 @@ setup:
       CLOUDFLARE_API_TOKEN: "${{ (github.workflow == 'tend-triage' || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
+  triage:
+    max_parallel: 10
   # Review acts on completed checks; tend-land owns later CI and landing.
   review:
     await_ci: false

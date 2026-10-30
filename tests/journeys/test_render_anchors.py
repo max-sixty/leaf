@@ -12,7 +12,6 @@ from browser.test_render_anchors import (
 )
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim, wait_for
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -54,6 +53,7 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -657,7 +657,7 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     versions = panel_menu(page, "versions")
     rows = versions.locator(".lf-fp-version > .lf-fp-item")
     expect(rows).to_have_count(10)
-    assert [re.match(r"v\d+", t).group() for t in rows.all_inner_texts()] == [
+    assert [next(re.finditer(r"^v\d+", t)).group() for t in rows.all_inner_texts()] == [
         f"v{n}" for n in range(10, 0, -1)
     ]
     # The bases a diff can run against are every version older than this one, so the
@@ -1129,7 +1129,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_settled(page, open=False)
 
     strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    strip.locator(".lf-react-trigger").click()
+    thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
         strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]

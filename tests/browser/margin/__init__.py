@@ -361,8 +361,8 @@ CARD_AND_REPLY = """async () => {
           send: card.querySelector('.lf-thread-reply .lf-compose-field > button:not([hidden])')
             .getBoundingClientRect().top,
           placement: card.dataset.lfThreadPlacement,
-          head: geometry.shownWindow({gap: 8}).top,
-          foot: geometry.shownWindow({gap: 8}).bottom};
+          head: geometry.shownWindow({gap: 8, across: box}).top,
+          foot: geometry.shownWindow({gap: 8, across: box}).bottom};
 }"""
 
 

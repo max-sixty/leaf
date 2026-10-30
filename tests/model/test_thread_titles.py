@@ -659,7 +659,9 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
             "anchor": {"section": None, "quote": "Export runs nightly"},
         },
     )
-    _, request = thread_titles.title_request(page_dir, comment["id"])
+    title_request_result = thread_titles.title_request(page_dir, comment["id"])
+    assert title_request_result is not None
+    _, request = title_request_result
 
     programs = tmp_path / "programs"
     programs.mkdir()

@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
-import leaf_website as website_server
 import pytest
 from interact_support import (
     PAGE,
@@ -23,6 +22,7 @@ from interact_support import (
 )
 from interact_support import append_carried_log_record as append_event
 
+import leaf_website as website_server
 from leaf.codex import delivery_records
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
@@ -92,7 +92,9 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     assert (reply["responds"], reply["failure"]) == (comment["id"], "turn_failed")
     # The turn ended by itself, so there is nothing to stop.
     assert interrupts == []
-    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    claim_record = website_server.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["turn_closed"] is not None
     assert owed_answers(page_dir) == []
 
 
@@ -415,6 +417,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     events = read_events(page_dir)
     assert not any(event["kind"] == "reply" for event in events)
     claim = website_server.page_claim(page_dir)
+    assert claim is not None
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
@@ -519,8 +522,10 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
     harness._run_follow_turn(turn)
     if restart in {"transferred", "reacquired"}:
         claim = website_server.page_claim(page_dir)
+        replacement_claim = replacement[0]
+        assert claim is not None and replacement_claim is not None
         assert all(
-            claim[key] == replacement[0][key]
+            claim[key] == replacement_claim[key]
             for key in ("id", "generation", "acquisition")
         )
         assert restarted == []
@@ -534,6 +539,7 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
         assert website_server.stream_reply_target(repair) == turn.reply_target
 
     claim = website_server.page_claim(page_dir)
+    assert claim is not None
     assert claim["turn_closed"] is not None
     reply = read_stream(page_dir)["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
@@ -620,7 +626,7 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
         def __exit__(self, *args):
             self.lock.release()
 
-    harness.lock = ObservedLock()
+    monkeypatch.setattr(harness, "lock", ObservedLock())
     monkeypatch.setattr(harness, "_ensure_server", lambda: process)
 
     def start_thread(page, process, event_id):

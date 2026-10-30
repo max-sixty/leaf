@@ -9,10 +9,11 @@ import os
 import subprocess
 
 from interact_support import PAGE
+from playwright.sync_api import expect
+
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
-from playwright.sync_api import expect
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(

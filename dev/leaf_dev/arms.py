@@ -18,7 +18,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS, native authoring sessions use
-`authoring_sandbox` to isolate shared `/tmp` and host plugin payloads. Read-only probes use
+`authoring_sandbox` to isolate shared `/tmp`, host plugin payloads and other processes. Read-only probes use
 their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbox.
 """
 
@@ -32,6 +32,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -44,7 +45,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import IO, NamedTuple, Self
+from typing import IO, NamedTuple, Self, overload
 
 import click
 
@@ -62,6 +63,7 @@ from leaf_dev.page_fixtures import (
     read_event_lines,
     read_fixture,
     record_run_context,
+    refresh_composition,
 )
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
@@ -114,7 +116,7 @@ def run_directory(parent: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
 
 
-def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
+def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:
     """This process's environment without the agent session it may be running in.
 
     A harness run from a Claude Code or Codex session inherits that session's
@@ -127,8 +129,10 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
     When supplied, `payload` puts that arm's bin directory first on the clean PATH.
-    The dependency cache stays in the host's home when a child changes HOME,
-    so isolated plugin installations can reuse the downloaded dependencies.
+    An isolated HOME keeps agent settings and state private, while uv shares the
+    host's dependency cache and the interpreter running this harness. Otherwise
+    hiding the host's managed Python can select a different system interpreter
+    and compile dependencies again for every sample.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -155,6 +159,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
         env[browser_model.VARIABLE] = shell_executable()
     env.setdefault(render_command_model.PIN_VARIABLE, "fixed")
     env.setdefault("UV_CACHE_DIR", str(Path.home() / ".cache/uv"))
+    env.setdefault("UV_PYTHON", sys.executable)
     venv = os.environ.get("VIRTUAL_ENV")
     env["PATH"] = os.pathsep.join(
         entry
@@ -163,7 +168,7 @@ def environment(*, payload: Path | None = None, **extra: str) -> dict[str, str]:
         and not (Path(entry).parent / "skills" / "leaf").is_dir()
     )
     if payload is not None:
-        env["PATH"] = os.pathsep.join((str(payload / "bin"), env["PATH"]))
+        env["PATH"] = os.pathsep.join((str(Path(payload) / "bin"), env["PATH"]))
     return {**env, **extra}
 
 
@@ -217,6 +222,7 @@ def serving(arm: Path, state: Path, page: Path):
         text=True,
         start_new_session=True,
     )
+    assert server.stdout is not None
     try:
         yield json.loads(server.stdout.readline())["url"]
     finally:
@@ -228,7 +234,9 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. Callers make the arm's kernel current
     before building (`current_kernel`), then serve or check the page from that arm.
+    A generated source, such as the corpus, is generated first (`refresh_composition`).
     """
+    refresh_composition(source)
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
@@ -591,7 +599,7 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
 
 
 def authoring_sandbox(*owned: Path) -> str:
-    """Isolate shared scratch files and installed instructions on macOS.
+    """Isolate shared scratch files, installed instructions and processes on macOS.
 
     The child's `TMPDIR` and zsh's `TMPPREFIX` are already private, but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
@@ -604,7 +612,8 @@ def authoring_sandbox(*owned: Path) -> str:
     runtime directory traversal. The sandbox resolves `/tmp` to `/private/tmp`,
     so the rules name that. Host plugin payloads are inaccessible: a guessed global
     cache path must not replace the sample's installed instructions. Credentials
-    outside those payloads remain available.
+    outside those payloads remain available. Signals stay within the inherited sandbox:
+    an author's browser cleanup cannot terminate another sample's or the host's browser.
     """
     uid = os.getuid()
     names = (
@@ -620,6 +629,8 @@ def authoring_sandbox(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
             '(deny file-read-data file-write* (subpath "/private/tmp"))',
             f'(allow file-read-data file-write* (regex #"^/private/tmp/({names})"))',
             *(
@@ -715,7 +726,7 @@ def run_agent(
     harness: str = ClaudeCodeHarness.name,
     model: str | None = None,
     limit: float = TURN_LIMIT,
-    **options: str | bool,
+    sandbox: bool = True,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
@@ -724,8 +735,8 @@ def run_agent(
     have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
     tightly; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion. `model`
-    overrides either harness's author default; `options` passes Claude Code's
-    remaining child options (`claude_child`).
+    overrides either harness's author default; `sandbox` controls Claude Code's
+    child isolation (`claude_child`).
     """
     if harness == CodexHarness.name:
         with (
@@ -759,7 +770,7 @@ def run_agent(
                     dirs=dirs,
                     env=env,
                     model=model or MODELS[harness],
-                    **options,
+                    sandbox=sandbox,
                 ),
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
@@ -829,6 +840,8 @@ class ClaudeSession:
             self.raw.close()
             self.stderr_stream.close()
             raise
+        assert self.proc.stdin is not None and self.proc.stdout is not None
+        self.stdin, self.stdout = self.proc.stdin, self.proc.stdout
         self.deadline.start()
         try:
             self.send(self.prompt)
@@ -840,12 +853,12 @@ class ClaudeSession:
     def send(self, text: str) -> None:
         """Send the user's next chat message; a turn still running takes it next."""
         message = {"type": "user", "message": {"role": "user", "content": text}}
-        self.proc.stdin.write(json.dumps(message) + "\n")
-        self.proc.stdin.flush()
+        self.stdin.write(json.dumps(message) + "\n")
+        self.stdin.flush()
 
     def records(self):
         """The native stream; malformed output and unexpected exits raise."""
-        for line in self.proc.stdout:
+        for line in self.stdout:
             self.raw.write(line)
             self.raw.flush()
             yield {**json.loads(line), "received_at": now()}
@@ -886,18 +899,18 @@ class ClaudeSession:
         try:
             self.close()
             # The caller joins its sole observer before leaving this context.
-            shutil.copyfileobj(self.proc.stdout, self.raw)
+            shutil.copyfileobj(self.stdout, self.raw)
         finally:
             try:
-                self.proc.stdin.close()
+                self.stdin.close()
             except BrokenPipeError:
                 pass
-            self.proc.stdout.close()
+            self.stdout.close()
             self.stderr_stream.close()
             self.raw.close()
 
 
-def child_class(harness: str) -> type:
+def child_class(harness: str):
     """The live session class that runs `harness`, and so the transport it takes."""
     if harness == CodexHarness.name:
         from leaf_dev.eval_codex import CodexChild
@@ -1225,10 +1238,20 @@ def completed(trace: list[dict]) -> bool:
     return trace_result(trace).get("is_error") is False
 
 
+@overload
+def observed_sum(values: Iterable[int | None]) -> int | None: ...
+
+
+@overload
+def observed_sum(values: Iterable[float | None]) -> float | None: ...
+
+
 def observed_sum(values: Iterable[int | float | None]) -> int | float | None:
     """Sum complete measurements; absent or incomplete evidence stays unknown."""
     observed = list(values)
-    return sum(observed) if observed and all(v is not None for v in observed) else None
+    if not observed or any(v is None for v in observed):
+        return None
+    return sum(v for v in observed if v is not None)
 
 
 def token_counts(trace: list[dict]) -> dict[str, int | None]:

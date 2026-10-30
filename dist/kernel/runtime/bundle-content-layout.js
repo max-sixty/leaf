@@ -749,7 +749,7 @@ function watchLayout(box) {
 	extents.set(box, extentOf(box));
 	const root = box === pageScroller ? document.documentElement : box;
 	const sizes = /* @__PURE__ */ new WeakMap();
-	const measure = (node) => [
+	const measure = (node) => skipped(node) ? null : [
 		node.clientWidth,
 		node.clientHeight,
 		node.scrollHeight
@@ -760,7 +760,7 @@ function watchLayout(box) {
 			const next = measure(target);
 			const before = sizes.get(target);
 			sizes.set(target, next);
-			if (before?.some((value, index) => value !== next[index])) changed = true;
+			if (next && (!before || before.some((value, index) => value !== next[index]))) changed = true;
 		}
 		if (changed) {
 			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -823,6 +823,7 @@ document.addEventListener("beforematch", () => {
 const eventScroller = (target) => target === document ? pageScroller : target;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) return;
 	watchLayout(box);
 	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
 	if (moving.get(box)?.glide) return;
@@ -840,6 +841,12 @@ function placeKept(...boxes) {
 }
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) {
+		moving.delete(box);
+		scrollSteps.delete(box);
+		layoutMoved.delete(box);
+		return;
+	}
 	watchLayout(box);
 	const wasMoving = moving.get(box);
 	moving.delete(box);
@@ -1351,7 +1358,7 @@ const actedAt = (at, arriving) => {
 	if (region) {
 		recentRegionId = region.id;
 		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing())) recentRegionId = pageRegionId = null;
+	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",
@@ -1394,7 +1401,7 @@ const asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.ge
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 const regionScrollBehavior = (regionOrNode) => {
 	const region = asRegion(regionOrNode);
-	return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+	return region && live(region) && !concealed(region) && !skipped(region.body) && scrolls(region.body) ? "bounded" : "flow";
 };
 function effectiveScroller(regionOrNode) {
 	const region = asRegion(regionOrNode);
@@ -1545,7 +1552,7 @@ function holdBlock(bounded) {
 	};
 	let stopRegion = null;
 	const onScroll = () => {
-		if (bounded.hasAttribute("hidden")) return;
+		if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
 		hold.left = !atScrollEnd(hold.box);
 		if (!hold.left) hold.pinned = hold.box.scrollTop;
 	};
@@ -2409,6 +2416,7 @@ function watchHead() {
 }
 function readMarginContentLayout() {
 	const { changed } = document.documentElement.lfInitial.marginContentLayout();
+	syncLayoutRegion();
 	watchHead();
 	if (changed) layoutChanged(pageDocument());
 	readFinished?.(changed);
@@ -2456,4 +2464,4 @@ function openMarginContentLayout({ onRead }) {
 }
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };

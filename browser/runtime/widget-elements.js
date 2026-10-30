@@ -303,11 +303,13 @@ export const namedAction = elementDirective("namedAction", nameAction);
 // few controls deliberately remain spans and their owning widget supplies the complete
 // key contract. Keeping this constructor separate makes selectable control text a visible
 // design decision instead of the behavior of every injected control.
-const selectableOfferElement = (node, role, cls) =>
-  document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
+// `face` names the action role whose face it wears, as a `row` whose words are the
+// page's own does; left out, it wears the generated control's default face.
+const selectableOfferElement = (node, role, cls, face) =>
+  document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
 
-export const selectableOffer = (role, cls, label) =>
-  document.documentElement.lfInitial.selectableOffer(role, cls, label);
+export const selectableOffer = (role, cls, label, face) =>
+  document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
 
 // The selectable offer's template form; Lit owns its label and tab stop.
 export const selectableOffered = elementDirective(

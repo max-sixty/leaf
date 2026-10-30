@@ -5,7 +5,6 @@ import json
 import re
 
 import pytest
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_widgets import (
@@ -44,6 +43,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -167,6 +167,16 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="folded" collapsed><pre>'
     + _patch_file("src/app.py", 1, ["x = 1"])
     + _patch_file("src/util.py", 1, ["z = 3"])
+    + "</pre></lf-diff>"
+    # A selected-file reader opens only its first file, even when authored collapsed.
+    # A later metadata-only file contributes no height to that first reading.
+    + '<lf-diff id="file-view" view="file" collapsed><pre>'
+    + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
+    + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + _patch_file(
+        "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
+    )
     + "</pre></lf-diff><p id='after'>After the diffs.</p>",
 )
 
@@ -195,6 +205,8 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
+        # First paint can precede later patches; measure their complete authored input.
+        page.wait_for_function("document.readyState !== 'loading'")
         first = page.evaluate(heights)
         boot.pop().continue_()
         wait_until_ready(page)
@@ -1423,7 +1435,7 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     )
     # The pane's body is a Tab stop because it scrolls, and it fills its pane, so its
     # band stays inside the pane: the pane draws it inset over the body's cell
-    # (theme.css), where outset on the body the workspace body clipped its right and
+    # (base.css), where outset on the body the workspace body clipped its right and
     # lower runs.
     # The selected row retargets document focus to this host. Leave it first so
     # focusing the host itself publishes a new location and its pane band.

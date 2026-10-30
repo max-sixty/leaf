@@ -1,27 +1,26 @@
-/* An inline patch first paints as its source, a different height from the drawing
+/* A patch first paints before its renderer, a different height from the drawing
  * that replaces it. This counts what the drawing stands on and writes the counts on
  * the host, where the theme turns them into its reserved height ("First paint",
- * theme.css): each file's frame, and a row per source line and hunk separator, but
+ * base.css): each file's frame, and a row per source line and hunk separator, but
  * none for header lines or for a first hunk that starts the file. Prose files wrap
  * their rows (`overflowFor`), which only the width can say, so for those rows the
  * count is the greedy wrap of each row's text at the column the drawing will give
- * it. It draws nothing. A diff it can't count the way the drawing will (a `source`
- * diff, whose patch arrives later, a whole-file view, a file with no hunk) gets no
+ * it. It draws nothing. Source-bound patches read their declared input from the
+ * initial data delivery. A diff it cannot count (an unavailable input, a files
+ * manifest or a shown file with no hunk) gets no
  * counts, and its box is its source's until the drawing lands; an authored
  * `data-height` holds the box instead, so it is left alone. */
 import { overflowFor } from "../widgets/overflow.js";
 
-document.documentElement.lfInitial.register("lf-diff", (host) => {
+document.documentElement.lfInitial.register("lf-diff", (host, tools) => {
   const pre = host.querySelector(":scope > pre");
-  if (
-    !pre ||
-    host.hasAttribute("source") ||
-    (host.getAttribute("view") ?? "patch") !== "patch" ||
-    host.getAttribute("data-lf-height")
-  )
-    return null;
+  if (!pre || host.getAttribute("data-lf-height")) return null;
+  const value = host.hasAttribute("source")
+    ? tools.inputValue("document")
+    : pre?.textContent;
+  if (typeof value !== "string") return null;
   const authored = host.getAttribute("overflow");
-  const lines = pre.textContent.replace(/^\n+|\n+$/g, "").split("\n");
+  const lines = value.replace(/^\n+|\n+$/g, "").split("\n");
   const files = [];
   let file = null;
   let old = 0;
@@ -50,17 +49,23 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
       if (named && named[1] !== "/dev/null") file.path = named[1];
     }
   }
-  if (!files.length || files.some((each) => !each.hunks)) return null;
-  // Folded files draw their name rows alone.
-  const open = !host.hasAttribute("collapsed");
+  // A selected-file reader starts on the first file, open even when `collapsed`
+  // was authored. The other files have no box until the reader selects them.
+  const singleFile = host.getAttribute("view") === "file";
+  const shown = singleFile ? files.slice(0, 1) : files;
+  if (!shown.length || shown.some((each) => !each.hunks)) return null;
+  // Folded patch listings draw their name rows alone.
+  const open = singleFile || !host.hasAttribute("collapsed");
   let rows = 0;
   let style = null;
   let width = 0;
   let ch = 0;
-  for (const each of open ? files : []) {
+  for (const each of open ? shown : []) {
     rows += each.rows;
     if (overflowFor(each.path, authored) !== "wrap") continue;
     if (!style) {
+      // Both inline and source-bound patches have a pre. Let that code context
+      // resolve CSS units; canvas resolves raw em tokens in its own context.
       style = getComputedStyle(pre);
       const context = document.createElement("canvas").getContext("2d");
       context.font = `${style.fontSize} ${style.fontFamily}`;
@@ -76,7 +81,7 @@ document.documentElement.lfInitial.register("lf-diff", (host) => {
     const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);
     if (cols > 0) for (const text of each.texts) rows += wraps(text, cols);
   }
-  host.style.setProperty("--lf-diff-files", String(files.length));
+  host.style.setProperty("--lf-diff-files", String(shown.length));
   host.style.setProperty("--lf-diff-rows", String(rows));
   host.style.setProperty("--lf-diff-open", open ? "1" : "0");
   return null;

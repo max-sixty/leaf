@@ -290,6 +290,8 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     """Entry URLs resolve to logical captured modules, including native URL syntax."""
     from urllib.parse import quote
 
+    from model_folds import served_reading
+
     from leaf.exporting import _module_urls, export_document
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
@@ -334,19 +336,21 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     exported = export_document(
         artifact,
         document,
-        {"events": []},
+        served_reading(document.html),
         {},
         1,
         1,
         {},
     )
-    package = json.loads(
-        SourceDocument(exported).tree.select_one("script[data-lf-export]").text
+    select_one_result = SourceDocument(exported).tree.select_one(
+        "script[data-lf-export]"
     )
+    assert select_one_result is not None
+    package = json.loads(select_one_result.text)
     composed = SourceDocument(package["document"])
-    import_map = json.loads(composed.tree.select_one('script[type="importmap"]').text)[
-        "imports"
-    ]
+    select_one_result_2 = composed.tree.select_one('script[type="importmap"]')
+    assert select_one_result_2 is not None
+    import_map = json.loads(select_one_result_2.text)["imports"]
     entry = next(
         script
         for script in composed.authoring.external_scripts

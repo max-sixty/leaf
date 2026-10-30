@@ -29,7 +29,7 @@ interface LeafReading {
 }
 
 /** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark";
+type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
 
 /** A package's retained template and optional rendering root. Node references and
  * mechanical inputs remain package-owned; the same render is used after upgrade. */
@@ -43,6 +43,7 @@ interface LeafInitialView {
 type LeafInitialRenderer = (
   host: HTMLElement,
   tools: {
+    inputValue(input: string): any;
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     selectableOffer: LeafInitial["selectableOffer"];
@@ -59,6 +60,15 @@ type LeafInitialRenderer = (
 
 /** The prepaint's initial drawing and root-state registries (`prepaint.js`). */
 interface LeafInitial {
+  inputReading(
+    declaration: any,
+    reading: any,
+    incompatible?: (reading: any) => void,
+  ): any;
+  initialData(): any;
+  releaseData(): void;
+  inputDeclaration(host: Element, input: string): any;
+  source(source: string | null): any;
   /** The single Lit namespace initialized by the classic delivery, before modules. */
   lit?: typeof import("lit") & Record<string, any>;
   /** Initial insertion, replaced by dom-move.js before live module rendering. */
@@ -101,8 +111,18 @@ interface LeafInitial {
     inputType?: string,
     pressable?: boolean,
   ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
-  selectableOffer(role: string, cls?: string, label?: string): HTMLSpanElement;
-  selectableOfferElement(node: Element, role: string, cls?: string): void;
+  selectableOffer(
+    role: string,
+    cls?: string,
+    label?: string,
+    face?: LeafActionRole,
+  ): HTMLSpanElement;
+  selectableOfferElement(
+    node: Element,
+    role: string,
+    cls?: string,
+    face?: LeafActionRole,
+  ): void;
   offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
   offerAction(
     role: LeafActionRole,

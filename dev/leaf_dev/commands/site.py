@@ -54,13 +54,6 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
-from leaf_website import (
-    SITE_MANIFEST,
-    SITE_ORIGIN,
-    initial_state,
-    published_page,
-    site_metadata,
-)
 
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
@@ -84,6 +77,13 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     source_packages,
+)
+from leaf_website import (
+    SITE_MANIFEST,
+    SITE_ORIGIN,
+    initial_state,
+    published_page,
+    site_metadata,
 )
 
 EXAMPLES = ROOT / "examples"
@@ -310,7 +310,9 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
     )
 
 
-def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
+def deduplicate_tree(
+    root: Path, *, mutable_names: frozenset[str] | set[str] = frozenset()
+) -> None:
     """Hard-link identical build outputs without changing their public paths.
 
     `mutable_names` names files, or directories whose files, a served page rewrites;
@@ -417,6 +419,7 @@ def publish_live_shells(
         asset_root = f"/_leaf-release/{release}/{key}"
         kind = "example" if page_root.startswith("/examples/") else "product"
         states = {}
+        initial_data = {}
         current = latest_revision(page_dir)
         for revision in list_revisions(page_dir):
             state_path = f"/_leaf/state/{key}--r{revision}.json"
@@ -427,6 +430,7 @@ def publish_live_shells(
                 json.dumps(state, ensure_ascii=False), encoding="utf-8"
             )
             states[str(revision)] = state_path
+            initial_data[revision] = state["data"]
         state_path = states[str(current)]
         state = initial_state(page_dir, page_root, kind, release)
         title, description = document_metadata(page_dir / "index.html")
@@ -445,6 +449,7 @@ def publish_live_shells(
         write_live_shell(
             page_dir,
             destination,
+            initial_data=initial_data,
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,

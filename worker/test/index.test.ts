@@ -161,6 +161,10 @@ function environment(overrides: Partial<Env> = {}): Env {
     if (pathname.startsWith("/_leaf/state/")) {
       return Response.json({
         reading: "published",
+        data: {
+          version: "v1",
+          sources: { notes: { contract: "text", value: "Published" } },
+        },
         layer: { generation: LAYER },
         publication: { kind: pathname.includes("examples--") ? "example" : "product" },
         release: RELEASE,
@@ -1507,23 +1511,37 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
-  it("serves initial page state at the edge without creating a session", async () => {
-    const env = environment();
+  it.each([null, "v1", "stale"])(
+    "serves fresh initial state while reusing only matching data (%s)",
+    async (version) => {
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/state"),
-      env,
-    );
+      const response = await worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/state", {
+          headers: version ? { "Leaf-Data-Version": version } : {},
+        }),
+        env,
+      );
 
-    expect(getContainer).not.toHaveBeenCalled();
-    expect(response.headers.get("Set-Cookie")).toBeNull();
-    expect(response.headers.get("Leaf-Session")).toBe("passive");
-    expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    const state = await response.json();
-    expect(state).toMatchObject({ reading: "published", release: RELEASE });
-    expect(state.taken).toBeGreaterThan(0);
-  });
+      expect(getContainer).not.toHaveBeenCalled();
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+      expect(response.headers.get("Leaf-Session")).toBe("passive");
+      expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      const state = await response.json();
+      expect(state).toMatchObject({ reading: "published", release: RELEASE });
+      expect(state.taken).toBeGreaterThan(0);
+      expect(state.now).not.toBe("2000-01-01T00:00:00Z");
+      expect(state.data).toEqual(
+        version === "v1"
+          ? { version: "v1" }
+          : {
+              version: "v1",
+              sources: { notes: { contract: "text", value: "Published" } },
+            },
+      );
+    },
+  );
 
   it("keeps an identified but inactive user on passive edge state", async () => {
     const sessionId = "1a".repeat(16);
@@ -1954,6 +1972,50 @@ describe("page faults", () => {
 });
 
 describe("website page agent", () => {
+  it("identifies silent container disconnect responses without logging private data", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const session = new LeafWebsiteSession(
+        { storage, container: { running: true } } as never,
+        environment(),
+      );
+      for (const [body, headers, expected] of [
+        ["Container suddenly disconnected, try again", {}, "disconnected"],
+        ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
+        ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
+      ] as const) {
+        forwardedContainerFetch.mockResolvedValueOnce(
+          new Response(body, { status: 500, headers }),
+        );
+        const response = await session.fetch(
+          new Request(
+            "https://leaf.page/examples/triage-board/api/state?private=secret",
+          ),
+        );
+        expect(response.status).toBe(500);
+        expect(await response.text()).toBe(body);
+        expect(log).toHaveBeenLastCalledWith({
+          component: "leaf-container",
+          event: "http_error",
+          method: "GET",
+          status: 500,
+          source: expected,
+        });
+      }
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
+      log.mockClear();
+      forwardedContainerFetch.mockResolvedValueOnce(new Response("healthy"));
+      expect(
+        await (await session.fetch(new Request("https://leaf.page/"))).text(),
+      ).toBe("healthy");
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
   it("recalls saved content and private resources without starting the container", async () => {
     const { storage, close } = sqliteStorage();
     try {
@@ -1967,7 +2029,14 @@ describe("website page agent", () => {
       for (const [path, body] of [
         [
           "api/state?revision=2",
-          JSON.stringify({ saved: "comment and choice", taken: 1 }),
+          JSON.stringify({
+            saved: "comment and choice",
+            taken: 1,
+            data: {
+              version: "v1",
+              sources: { notes: { contract: "text", value: "Saved" } },
+            },
+          }),
         ],
         ["api/news", "saved-reading"],
         ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
@@ -2001,11 +2070,14 @@ describe("website page agent", () => {
       forwardedContainerFetch.mockClear();
       const state = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/state", {
-          headers: { "Leaf-View-Revision": "2" },
+          headers: { "Leaf-View-Revision": "2", "Leaf-Data-Version": "v1" },
         }),
       );
       expect(state.headers.get("Leaf-State-Source")).toBe("durable");
-      expect(await state.json()).toMatchObject({ saved: "comment and choice" });
+      expect(await state.json()).toMatchObject({
+        saved: "comment and choice",
+        data: { version: "v1" },
+      });
       expect(
         await (
           await session.fetch(

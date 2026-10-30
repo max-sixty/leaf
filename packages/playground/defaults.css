@@ -4,13 +4,13 @@
  * beside it. A control written inside the preview stands there, beside the item it
  * changes, and the rail then holds only what is left. With all controls inline, presets
  * precede the full-width preview and the bar follows. Its regions are up to three generated panes
- * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
+ * (data-lf-reading-role="pane", the kernel's base.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
- * (theme.css, section.panel), so a candidate the page draws on the stage is the only
+ * (the reading theme's section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
@@ -381,6 +381,11 @@ lf-playground-output {
   margin: 0;
   color: var(--ink-2);
   font: var(--t-5)/1.55 var(--sans);
+}
+
+/* A provider supplies plain text; authored output keeps ordinary HTML whitespace. */
+lf-playground-output[data-lf-gen] {
+  white-space: pre-wrap;
 }
 
 lf-playground-value {

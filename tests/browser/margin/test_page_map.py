@@ -323,7 +323,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     assert action.evaluate("node => node.tagName") == "BUTTON"
     expect(action).not_to_have_attribute("role", re.compile(".+"))
     expect(action).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    icon = action.locator(":scope > .lf-margin-kind")
+    icon = action.locator(":scope > .lf-row-lead > .lf-margin-kind")
     box = icon.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()

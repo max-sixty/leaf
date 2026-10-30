@@ -175,6 +175,8 @@ customElements.define(
         };
         window.addEventListener("resize", putAway, { signal });
         this.#draw();
+        // An edit left unrecorded across a disconnection records once input pauses.
+        if (this.#unsent.size) this.#recordLater();
         return () => {
           observer.disconnect();
           for (const stop of stops) stop();
@@ -408,6 +410,10 @@ customElements.define(
       this.#values = Object.freeze({ ...this.#values, [name]: value });
       this.#unsent.add(name);
       this.#draw();
+      this.#recordLater();
+    }
+
+    #recordLater() {
       clearTimeout(this.#pause);
       this.#pause = setTimeout(() => this.#commit(), PAUSE_MS);
     }

@@ -200,8 +200,10 @@ submit action; Undo withdraws the choice and keeps the working values.
 
 The page keeps the working values before the user submits them, as the playground's
 `tune` actions, which ask nothing of you. When a comment is about what the preview
-shows, the configuration the user was looking at is the last `tune` before the
-comment's `seq` in `leaf page events <page>`; `leaf page state` holds the current one.
+shows, the configuration the user was looking at is the `tune` in force at the
+comment's `seq` in `leaf page events <page>`: the newest one before it that no earlier
+`undo` withdrew and no earlier version restated, or the authored defaults without one.
+`leaf page state` holds the current one.
 
 ## Stateful previews
 

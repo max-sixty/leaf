@@ -6020,7 +6020,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		versions: {
 			title: () => "Versions",
 			draw: () => versionsList(),
-			rows: ".lf-fp-version > .lf-fp-item",
+			rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
 			row: true,
 			over: ["menu"]
 		},
@@ -6060,7 +6060,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		quoteExpanded: false,
 		openItem: null,
 		seatHeights: /* @__PURE__ */ new Map(),
-		planShown: false
+		planShown: false,
+		menuSeats: null,
+		menuLines: null
 	});
 	let opening = freshOpening();
 	const pathTo = (route) => {
@@ -6148,6 +6150,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const before = trail.value.at(-1);
 		trail.value = trail.value.slice(0, -1);
 		transition(before);
+		if (trail.value.at(-1)?.view !== "menu" || !currentLocationIn(host)) return;
+		const door = shownView()?.querySelector(`[data-row="${CSS.escape(routeKey(before))}"]`);
+		if (door) focusDestination(door, "return");
 	}
 	function close({ handedOn = false } = {}) {
 		writing = false;
@@ -6260,6 +6265,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		paint();
 	});
+	function holdMenu() {
+		if (opening.menuLines || !showing({ view: "menu" }) || !statusReading()) return false;
+		const state = shownView()?.querySelector(".lf-fp-state");
+		if (!state) return false;
+		const lines = (part) => {
+			const line = state.querySelector(`.lf-fp-${part}`);
+			return line ? Math.round(line.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(line).lineHeight)) : 0;
+		};
+		opening.menuLines = {
+			summary: lines("summary"),
+			explain: lines("explain")
+		};
+		return true;
+	}
 	function holdRoom() {
 		const top = trail.value.at(-1);
 		if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -6519,30 +6538,64 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             rel="noopener"
             >${publication.install}</a
           >` : said;
-		const part = (name, text) => text ? html`<span class="lf-fp-${name}">${text}</span>` : nothing;
+		const held = opening.menuLines;
+		const part = (name, text) => (held ? held[name] : text) ? html`<span
+            class="lf-fp-${name}"
+            style=${held ? `--lines: ${held[name]}` : nothing}
+            >${text}</span
+          >` : nothing;
+		const seat = (entry) => ({
+			key: entry.key,
+			draw: (gone) => rowFor(gone ? {
+				...entry,
+				disabled: true
+			} : entry)
+		});
 		const errors = errorsReading();
-		return html`<div class="lf-fp-state" data-tone=${tone || nothing}>
+		const offered = [
+			...errors.length ? [{
+				key: "errors",
+				draw: (gone) => menuItem("Errors", html`<span class="lf-fp-value">${errors.length}</span>`, () => {
+					open({
+						view: "errors",
+						errors
+					});
+					seeErrors();
+				}, {
+					opens: true,
+					urgent: errors.some((error) => !error.seen),
+					disabled: gone,
+					row: "errors"
+				})
+			}] : [],
+			...page.map(seat),
+			...groups.map((group) => ({
+				key: `group:${group}`,
+				draw: (gone) => menuItem(GROUPS[group], groupValue(group) ? html`<span class="lf-fp-value">${groupValue(group)}</span>` : nothing, () => open({
+					view: "group",
+					group
+				}), {
+					opens: true,
+					disabled: gone,
+					row: `group:${group}`
+				})
+			})),
+			{
+				key: "",
+				draw: () => html`<hr />`
+			},
+			...[keyboard, fold].filter(Boolean).map(seat)
+		];
+		const now = new Map(offered.map((row) => [row.key, row]));
+		const seats = showing({ view: "menu" }) ? opening.menuSeats ??= offered : offered;
+		return html`<div
+        class="lf-fp-state"
+        data-tone=${tone || nothing}
+        ?data-held=${held !== null}
+      >
         ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part("explain", explains)}
       </div>
-      ${errors.length ? menuItem("Errors", html`<span class="lf-fp-value">${errors.length}</span>`, () => {
-			open({
-				view: "errors",
-				errors
-			});
-			seeErrors();
-		}, {
-			opens: true,
-			urgent: errors.some((error) => !error.seen),
-			row: "errors"
-		}) : nothing}${page.map(rowFor)}${groups.map((group) => menuItem(GROUPS[group], groupValue(group) ? html`<span class="lf-fp-value">${groupValue(group)}</span>` : nothing, () => open({
-			view: "group",
-			group
-		}), {
-			opens: true,
-			row: `group:${group}`
-		}))}
-      <hr />
-      ${[keyboard, fold].filter(Boolean).map(rowFor)}`;
+      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
 	}
 	const groupValue = (group) => group === "annotate" ? rows().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
 	function groupList(group) {
@@ -7616,6 +7669,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (top?.thread && !threadOf(top)) close();
 			holdRoom();
 			paintNow();
+			if (holdMenu()) paintNow();
 		} finally {
 			painting = false;
 		}

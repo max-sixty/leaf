@@ -1228,7 +1228,7 @@ export function createFloatingPanel({
     versions: {
       title: () => "Versions",
       draw: () => versionsList(),
-      rows: ".lf-fp-version > .lf-fp-item",
+      rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
       row: true,
       over: ["menu"],
     },
@@ -1287,6 +1287,8 @@ export function createFloatingPanel({
    *   openItem: string | null,
    *   seatHeights: Map<string, number>,
    *   planShown: boolean,
+   *   menuSeats: { key: string, draw: (gone: boolean) => unknown }[] | null,
+   *   menuLines: { summary: number, explain: number } | null,
    * }} Opening
    */
   /** @returns {Opening} */
@@ -1305,6 +1307,8 @@ export function createFloatingPanel({
     openItem: null,
     seatHeights: new Map(),
     planShown: false,
+    menuSeats: null,
+    menuLines: null,
   });
   let opening = freshOpening();
 
@@ -1417,6 +1421,12 @@ export function createFloatingPanel({
     const before = trail.value.at(-1);
     trail.value = trail.value.slice(0, -1);
     transition(before);
+    // Back in the menu, the user stands on the row that opened the list.
+    if (trail.value.at(-1)?.view !== "menu" || !currentLocationIn(host)) return;
+    const door = shownView()?.querySelector(
+      `[data-row="${CSS.escape(routeKey(before))}"]`,
+    );
+    if (door) focusDestination(door, "return");
   }
   function close({ handedOn = false } = {}) {
     // Closing the view ends the writing posture too. A saved page draft keeps
@@ -1671,6 +1681,33 @@ export function createFloatingPanel({
   // A list takes its room as it stands before the paint that would change it, once
   // this opening has drawn it (`drawn`): what it holds then is what it fits, so taking
   // it writes only the height the list already stands at.
+  // The menu grows upward from the row, so news that adds a row to it, or takes one
+  // away, would carry every row above up or down the window under the reader: a row a
+  // revision offers, such as the newer version, or a status re-wrapping the head. So
+  // while one opening of it stands it holds what it showed with the first status it said
+  // (Connecting… is not yet one). Its rows keep their seats (`menuSeats`): a row news
+  // takes off offer stands disabled, and one news offers joins at the next opening.
+  // Each part of its head keeps its lines (`menuLines`): a later status re-wraps inside
+  // them, ending in an ellipsis where it runs past them. Turning back to the menu shows
+  // everything as it is. Rejected: holding the head's height and scrolling what runs
+  // past it, which still moves the words a re-wrap carries across its edge.
+  function holdMenu() {
+    if (opening.menuLines || !showing({ view: "menu" }) || !statusReading())
+      return false;
+    const state = shownView()?.querySelector(".lf-fp-state");
+    if (!state) return false;
+    const lines = (part) => {
+      const line = state.querySelector(`.lf-fp-${part}`);
+      return line
+        ? Math.round(
+            line.getBoundingClientRect().height /
+              Number.parseFloat(getComputedStyle(line).lineHeight),
+          )
+        : 0;
+    };
+    opening.menuLines = { summary: lines("summary"), explain: lines("explain") };
+    return true;
+  }
   function holdRoom() {
     const top = trail.value.at(-1);
     if (!top || top.thread || opening.room !== null || refitting) return false;
@@ -2129,43 +2166,73 @@ export function createFloatingPanel({
             >${publication.install}</a
           >`
       : said;
+    const held = opening.menuLines;
     const part = (name, text) =>
-      text ? html`<span class="lf-fp-${name}">${text}</span>` : nothing;
+      (held ? held[name] : text)
+        ? html`<span
+            class="lf-fp-${name}"
+            style=${held ? `--lines: ${held[name]}` : nothing}
+            >${text}</span
+          >`
+        : nothing;
+    const seat = (entry) => ({
+      key: entry.key,
+      draw: (gone) => rowFor(gone ? { ...entry, disabled: true } : entry),
+    });
     const errors = errorsReading();
-    return html`<div class="lf-fp-state" data-tone=${tone || nothing}>
+    const offered = [
+      ...(errors.length
+        ? [
+            {
+              key: "errors",
+              draw: (gone) =>
+                menuItem(
+                  "Errors",
+                  html`<span class="lf-fp-value">${errors.length}</span>`,
+                  () => {
+                    open({ view: "errors", errors });
+                    seeErrors();
+                  },
+                  {
+                    opens: true,
+                    urgent: errors.some((error) => !error.seen),
+                    disabled: gone,
+                    row: "errors",
+                  },
+                ),
+            },
+          ]
+        : []),
+      ...page.map(seat),
+      ...groups.map((group) => ({
+        key: `group:${group}`,
+        draw: (gone) =>
+          menuItem(
+            GROUPS[group],
+            groupValue(group)
+              ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
+              : nothing,
+            () => open({ view: "group", group }),
+            { opens: true, disabled: gone, row: `group:${group}` },
+          ),
+      })),
+      { key: "", draw: () => html`<hr />` },
+      ...[keyboard, fold].filter(Boolean).map(seat),
+    ];
+    const now = new Map(offered.map((row) => [row.key, row]));
+    // Only the menu standing holds its seats; a menu fading out draws what it showed.
+    const seats = showing({ view: "menu" }) ? (opening.menuSeats ??= offered) : offered;
+    return html`<div
+        class="lf-fp-state"
+        data-tone=${tone || nothing}
+        ?data-held=${held !== null}
+      >
         ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part(
           "explain",
           explains,
         )}
       </div>
-      ${
-        errors.length
-          ? menuItem(
-              "Errors",
-              html`<span class="lf-fp-value">${errors.length}</span>`,
-              () => {
-                open({ view: "errors", errors });
-                seeErrors();
-              },
-              {
-                opens: true,
-                urgent: errors.some((error) => !error.seen),
-                row: "errors",
-              },
-            )
-          : nothing
-      }${page.map(rowFor)}${groups.map((group) =>
-        menuItem(
-          GROUPS[group],
-          groupValue(group)
-            ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
-            : nothing,
-          () => open({ view: "group", group }),
-          { opens: true, row: `group:${group}` },
-        ),
-      )}
-      <hr />
-      ${[keyboard, fold].filter(Boolean).map(rowFor)}`;
+      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
   const groupValue = (group) =>
     group === "annotate"
@@ -3930,6 +3997,7 @@ export function createFloatingPanel({
       if (top?.thread && !threadOf(top)) close();
       holdRoom();
       paintNow();
+      if (holdMenu()) paintNow();
     } finally {
       painting = false;
     }

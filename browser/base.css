@@ -550,8 +550,9 @@
      - A control standing on its own: outside its edge at --focus-ring-gap, or at a
        smaller gap of its own where its neighbours stand closer (controls.css).
      - A field: on its border, which the ring replaces.
-     - A box packed into a list, or one whose clip leaves no room outside it, region
-       or control: one band inside its edge (`calc(-1 * var(--focus-ring-w))`).
+     - A box packed into a list, padded inside a frame it fills, or whose clip leaves
+       no room outside it, region or control: one band inside its edge
+       (`calc(-1 * var(--focus-ring-w))`).
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

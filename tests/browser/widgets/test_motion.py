@@ -285,20 +285,21 @@ document.getElementById('sketch').renderFrame = time => {
     expect(box).to_have_count(0)
 
 
-# Each study's Play availability as the parser finishes, before any module runs.
+# Record each Play button's first observable availability when its widget draws.
+# Authored content precedes modules; generated controls arrive with their behavior.
 FIRST_PAINT_PLAY = """
-document.addEventListener('readystatechange', () => {
-  if (document.readyState !== 'interactive') return;
-  window.firstPlay = Object.fromEntries([...document.querySelectorAll('lf-motion')].map(
-    (study) => [study.id, study.querySelector('.lf-motion-play')?.getAttribute('aria-disabled')
-      ?? null]));
-});
+window.firstPlay = {};
+new MutationObserver(() => {
+  for (const study of document.querySelectorAll('lf-motion')) {
+    const play = study.querySelector('.lf-motion-play');
+    if (play && !(study.id in window.firstPlay))
+      window.firstPlay[study.id] = play.getAttribute('aria-disabled');
+  }
+}).observe(document, {childList:true, subtree:true});
 """
 
 
-def test_play_is_available_from_first_paint_only_where_there_is_something_to_play(
-    browser, serve
-):
+def test_play_arrives_available_only_where_there_is_something_to_play(browser, serve):
     context = browser.new_context()
     context.add_init_script(FIRST_PAINT_PLAY)
     page = open_page(

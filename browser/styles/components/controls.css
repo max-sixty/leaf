@@ -39,13 +39,6 @@
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-:is(
-  .lf-page-thread :is(.lf-btn, summary),
-  .lf-resolved-summary
-)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
 /* Paper prints every thread open, resolved ones included, as words the page keeps,
    though the card, its messages and the resolved group carry data-lf-offer, which
    paper otherwise drops (state.css); their presses and status still go. */
@@ -60,7 +53,9 @@
   }
 }
 /* Thread reactions keep the chip's compact metrics. Their shared reaction state
-   below owns the face; no general chip wrapper supplies a second one. */
+   below owns the face; no general chip wrapper supplies a second one. A strip's
+   reactions stand 4px apart, closer than a control's ring reaches, so the ring stands
+   on a reaction's edge (base.css, "Where it stands"). */
 :where(.lf-react-strip) .lf-react {
   appearance: none;
   margin: 0;
@@ -72,9 +67,7 @@
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
-}
-.lf-react-strip .lf-react[data-lf-focus-visible] {
-  outline-offset: 1px;
+  outline-offset: 0;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
@@ -607,7 +600,7 @@ summary,
   }
 }
 /* The faces of Leaf's control roles, one face each. A widget builds a control by its
- * role (`offerAction`), and prepaint.js (`ACTION_FACES`) lists the roles, is the one
+ * role (`offerAction`), and control-faces.js (`ACTION_FACES`) lists the roles, is the one
  * place a role's classes are spelled and says what each role is for. Each face holds
  * across document and shadow trees; a package places a control and may set its
  * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
@@ -645,8 +638,8 @@ summary,
 /* A native radio or checkbox and its label form one compact target. The native
  * mark carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
- * so a choice at a clipped toolbar edge keeps all four sides. Used by authored
- * controls and packages alike. */
+ * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
+ * does every mark on it. Used by authored controls and packages alike. */
 .choice {
   display: inline-flex;
   align-items: center;
@@ -658,6 +651,7 @@ summary,
   box-sizing: border-box;
   cursor: pointer;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  outline-offset: var(--focus-ring-inset);
 }
 .choice > input {
   flex: none;
@@ -669,7 +663,6 @@ summary,
 }
 .choice:has(> input:is(:focus-visible, [data-lf-focus-visible])) {
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-wears-ring: 1;
 }
 
@@ -794,24 +787,6 @@ wa-copy-button.lf-icon-action {
   background: var(--paper);
   border-color: var(--border-2);
 }
-/* Standing on a press, in the band everything else the user is on is drawn in
-   (--focus-ring). This was the last place on the product still wearing the browser's own
-   ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
-   a decision wearing the page's accent, with nothing saying the two rectangles meant
-   one thing.
-
-   The gap is its own, because these shapes stand at different densities and the ring
-   may not reach its neighbour: the default gap is what a box with room around it
-   takes, the composer's row puts 6px between two buttons, a chip takes 1px below, and
-   margin entries sit 4px apart out in the margin.
-
-   Beside the face above it, so a button inside a declared widget tree wears this ring
-   too. In chrome.css, where it was, it reached neither that button nor a
-   package wanting to answer it. */
-:is(.lf-btn, .button, .lf-icon-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
-}
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's
    removal and a drawing's Undo last stroke do, or stands in a toolbar on its border
@@ -845,15 +820,14 @@ wa-copy-button.lf-icon-action {
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   box-shadow: none;
   cursor: pointer;
+  outline-offset: 0;
 }
 :where(button).lf-mark-action:hover,
 .lf-mark-action.lf-ui::part(button):hover {
   color: var(--ink);
 }
-:where(button).lf-mark-action[data-lf-focus-visible],
 .lf-mark-action.lf-ui::part(lf-focus-visible) {
   outline: var(--focus-ring);
-  outline-offset: 0;
 }
 .lf-mark-action > svg {
   inline-size: 12px;
@@ -879,6 +853,106 @@ wa-copy-button.lf-icon-action {
     border: 1px solid ButtonText;
   }
 }
+
+/* The general leaf text box, in one rule. It is stated page-side like the rest of the
+   shared vocabulary's faces (chrome.css), so a widget's own box that names the same
+   property wins. The compact response field is excluded because it shares its complete
+   control geometry with the response buttons (chrome.css). The box grows with its
+   words — a textarea through field-sizing, a text field through its own content — so
+   no script measures one: the JS that did had to reset height to auto to re-measure,
+   which made the box briefly too small for its own text on every keystroke — and a
+   box that overflows, however briefly, flashes a scrollbar. Past max-height the
+   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
+   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
+   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
+   class itself. */
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: inherit;
+  resize: none;
+  field-sizing: content;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
+   button's height, so a row of them beside .lf-btn reads as one set of controls. With
+   no face the browser drew its own: a 2px inset border and square corners, 21px tall
+   beside 30px buttons. At a class's weight, so a component rule naming its own field
+   still wins by coming later. */
+:where(
+  select,
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"]
+  )
+):is(.lf-ui, .field) {
+  --lf-field-pad-inline: 8px;
+  box-sizing: border-box;
+  min-height: var(--lf-line);
+  padding: 4px var(--lf-field-pad-inline);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  outline-offset: 0;
+  &[data-lf-focus-visible] {
+    border-color: transparent;
+  }
+}
+/* Native picker arrows ignore padding. Draw only the closed control's chevron;
+   the browser still owns opening, selection and keyboard input. Listboxes keep
+   their native face. The two strokes use the text color in either scheme. */
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
+  .lf-ui,
+  .field
+) {
+  --lf-select-arrow-wing: 4px;
+  appearance: none;
+  padding-inline-end: calc(
+    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
+  );
+  background-image:
+    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
+    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
+  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
+  background-repeat: no-repeat;
+  background-position:
+    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
+    right var(--lf-field-pad-inline) center;
+  &:dir(rtl) {
+    background-position:
+      left var(--lf-field-pad-inline) center,
+      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea):is(.lf-ui, .field)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  outline-offset: 0;
+  &[data-lf-focus-visible] {
+    border-color: transparent;
+  }
+}
+
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
@@ -917,10 +991,6 @@ wa-copy-button.lf-icon-action {
     text-underline-offset: 3px;
   }
 }
-:where(button).lf-inline-action[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
-}
 /* The row face: one row of a list or menu, such as the floating panel's Threads, menu
    and Versions, the command reference, the Page Map, a timeline's steps, a recording's
    moments and a visual review's cases. Its words are what the reader scans, so they
@@ -937,7 +1007,9 @@ wa-copy-button.lf-icon-action {
    and underline in a visual review, accent words on the tint for a recording's
    moments), until the user chose this one on 28 October. A list adds only what is
    its own: Threads lights a thread's passage under the pointer, a timeline mutes the
-   steps still ahead, and the Page Map tints a thread on the user's turn. */
+   steps still ahead, and the Page Map tints a thread on the user's turn. Rows meeting
+   edge to edge leave no room outside one for its ring, so the ring stands inside its
+   edge (base.css, "Where it stands"). */
 .lf-row {
   border: 0;
   border-inline-start: 2px solid transparent;
@@ -947,6 +1019,7 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   text-align: start;
   text-decoration: none;
+  outline-offset: var(--focus-ring-inset);
 }
 /* It declines the shadow every generated press takes under the pointer (surfaces.css),
    which, inset, would leave the stripe's room unwashed. */
@@ -972,8 +1045,8 @@ wa-copy-button.lf-icon-action {
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
    end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
-   on the name's first line, its numbers ending together; the end is muted, a step
-   smaller, on the first line's baseline. Every row has the same padding, at least 30px
+   on the name's first line, its numbers ending together; the end is muted, at `--t-6`
+   as every qualifier in the chrome is, on the first line's baseline. Every row has the same padding, at least 30px
    tall, and reaches the aim floor under a finger. A row takes this layout by naming its
    main part, so a way back or a command in the reference keeps its own; one that offers
    nothing, such as a Page Map status, lays out as a row with `.lf-row-plain`.
@@ -1031,7 +1104,7 @@ wa-copy-button.lf-icon-action {
   justify-self: end;
   margin-inline-start: 12px;
   color: var(--muted);
-  font-size: calc(1em - 1px);
+  font-size: var(--t-6);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1067,7 +1140,6 @@ wa-copy-button.lf-icon-action {
 }
 .lf-rows-head .lf-row-end {
   color: inherit;
-  font-size: inherit;
 }
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where

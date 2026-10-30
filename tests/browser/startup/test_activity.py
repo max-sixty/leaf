@@ -67,7 +67,7 @@ def thread_row_says(page, thread, resolved=False):
     beside its name, among the open threads or, where `resolved`, under Resolved."""
     open_threads(page)
     state = "[data-resolved]" if resolved else ":not([data-resolved])"
-    return page.locator(f'.lf-fp-thread[data-key="{thread}"]{state} .lf-fp-value')
+    return page.locator(f'.lf-fp-thread[data-key="{thread}"]{state} .lf-row-end')
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):

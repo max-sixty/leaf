@@ -1,6 +1,6 @@
-import { describeFailure, foldDuration, inBaseLayer, reducedMotion } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, focusDestination, handBack, html, keeps, keepsHidden, keepsText, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, keys, offerAction, offered, paintKeys } from "./bundle-layer-client.js";
+import { describeFailure, foldDuration, inBaseLayer, keeps, keepsHidden, keepsText, offerAction, offered, reducedMotion } from "./bundle-portable.js";
+import { closeLayer, closeNativeLayer, focusDestination, handBack, html, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
+import { closeControl, keys, paintKeys } from "./bundle-layer-client.js";
 import { says } from "./bundle-passages.js";
 
 //#region runtime/media.js
@@ -52,7 +52,9 @@ function imageTools() {
 function presentViewer(model) {
 	render(html`
       <div class="lf-media-viewer-head">
-        <strong id="lf-media-viewer-title">Image preview</strong>
+        <strong id="lf-media-viewer-title" class="lf-dialog-title"
+          >Image preview</strong
+        >
         <div class="lf-media-viewer-actions">
           ${model ? html`<a
                   ${offered("lf-media-viewer-original", true)}

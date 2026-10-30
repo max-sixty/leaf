@@ -6,19 +6,19 @@
    from names or serialized values. Each door writes only what changes the root: a
    restated value on `html` or `body` restyles the whole document all the same. */
 
-// Root geometry exists before the module graph. Adopt the initial writers and
-// ownership registries rather than starting a later set of root facts.
-/** @type {LeafInitial["setRuntimeRootAttribute"]} */
+// Bootstrap dresses sample roots before the module graph. Share those writers and
+// ownership registries with later runtime changes.
+/** @type {LeafRootState["setRuntimeRootAttribute"]} */
 export const setRuntimeRootAttribute = (...args) =>
-  document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
-/** @type {LeafInitial["setRuntimeRootStyle"]} */
+  document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
+/** @type {LeafRootState["setRuntimeRootStyle"]} */
 export const setRuntimeRootStyle = (...args) =>
-  document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-/** @type {LeafInitial["removeRuntimeRootStyle"]} */
+  document.documentElement.lfRootState.setRuntimeRootStyle(...args);
+/** @type {LeafRootState["removeRuntimeRootStyle"]} */
 export const removeRuntimeRootStyle = (...args) =>
-  document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
+  document.documentElement.lfRootState.removeRuntimeRootStyle(...args);
 
 export const runtimeRootState = (root) => ({
-  attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),
-  styles: document.documentElement.lfInitial.runtimeRootStyles(root),
+  attributes: document.documentElement.lfRootState.attributes(root),
+  styles: document.documentElement.lfRootState.styles(root),
 });

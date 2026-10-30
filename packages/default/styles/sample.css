@@ -253,10 +253,6 @@ lf-sample:has(> template[data-sample]) {
     border-left-color: Highlight;
   }
 }
-.lf-sample-frame[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
-}
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
  * floating panel in view with the whole frame. */

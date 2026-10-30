@@ -33,9 +33,10 @@ assert:
     value: |
       Read the HTML. Pass only if all of these hold. `main` has class `layout-sidebar`.
       The verdict and the list of areas stand together in an `aside` that is a direct
-      child of `main`, and that `aside` comes before the element holding the six areas in
-      the document's order, so a phone, which stacks the two, shows the verdict and the
-      list first. The page's own CSS does not rebuild the arrangement: fail if it declares
+      child of `main`, in one `layout-track` child that sticks and scrolls them together.
+      That `aside` comes before the element holding the six areas in the document's
+      order, so a phone, which stacks the two, shows the verdict and the list first.
+      The page's own CSS does not rebuild the arrangement: fail if it declares
       a grid or flex layout for `main`, or moves the verdict with `order`. The Layout keeps
       what the `aside` holds in view beside the areas; fail if the page's CSS makes the
       `aside` or a block inside it `position: sticky`, or sets the `top`, `height`,

@@ -21,7 +21,7 @@ from leaf.render_checks import (
     wait_for_probe,
     wait_until_ready,
 )
-from leaf.render_gate.scheme import arm_interception, served
+from leaf.render_gate.scheme import served
 from leaf.render_gate.widget_quality import (
     WRAPPERS,
     example_pages,
@@ -158,7 +158,6 @@ def _example_pages(package):
 def open_served(browser, url):
     """The page a Leaf server serves at `url`, ready to be pressed."""
     page = browser.new_page(viewport=RENDER_VIEWPORT)
-    arm_interception(page)
     page.goto(url)
     wait_until_ready(page, served(page, url, "/api/state").json())
     rendered(page)

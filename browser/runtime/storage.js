@@ -1,10 +1,12 @@
-/* Browser working state has one backing policy, selected by prepaint before widgets
- * draw. Isolated samples keep all stores inside their disposable realm; ordinary
+/* Browser working state has one backing policy, selected by prepaint and shared
+ * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
+import { registry } from "./registry.js";
+import { keeps } from "./keeps.js";
+import { marks } from "./kernel-facts.js";
 
 // ---------- which page the stores are scoped to ----------
-// The same page as a prefix for what the tab keeps, which the prepaint declares on the
-// root before the first paint, since it reads the tab's memory then too (prepaint.js).
+// Prepaint declares the page scope once; widget state and chrome use that same prefix.
 export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 
 // ---------- what the page keeps, and what a store may refuse ----------
@@ -36,16 +38,35 @@ const { stored } = document.documentElement.lfStorage;
 // surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for. It has a module of its own, tab-store.js, because it loads in any
-// document, which these two need Leaf's prepaint to.
-// Which member a holder that shows one at a time (`x-views`) opens on as it upgrades, and
-// the record of each member it shows, which a reload reopens. The prepaint owns both
-// (prepaint.js), since it shows the same member at the first paint, before any module
-// has loaded; a holder's module asks it here, of the holder's own document.
-const views = (holder) => holder.ownerDocument.documentElement.lfViews;
-export const openingView = (holder, members, fallback) =>
-  views(holder).opening(holder, members, fallback);
-export const keepView = (holder, member) => views(holder).keep(holder, member);
+// nobody asked for. tab-store.js owns the portable widget store.
+// Delivery marks authored views before modules load. A package can also construct
+// a view while rendering: resolve the same declaration at this capability boundary,
+// before prepaint's shared selection owner reads its marks.
+export function viewMembers(holder) {
+  const declaration = registry[holder.localName]?.["x-views"];
+  if (!declaration) return [];
+  keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+  for (const child of holder.children) {
+    const member =
+      !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
+    if (
+      !member &&
+      child.hasAttribute("data-lf-view") &&
+      child.getAttribute("hidden") === "until-found"
+    )
+      child.removeAttribute("hidden");
+    child.toggleAttribute("data-lf-view", member);
+  }
+  return document.documentElement.lfViews.members(holder);
+}
+export function openingView(holder, ...fallback) {
+  viewMembers(holder);
+  return document.documentElement.lfViews.opening(holder, ...fallback);
+}
+export function keepView(holder, member, leaving = null) {
+  viewMembers(holder);
+  return document.documentElement.lfViews.keep(holder, member, leaving);
+}
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

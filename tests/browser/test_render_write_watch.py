@@ -2,7 +2,11 @@
 
 from urllib.parse import quote
 
-from render_harness import consume_browser_errors, take_browser_errors
+from render_harness import (
+    WRITE_WATCH_SOURCE,
+    consume_browser_errors,
+    take_browser_errors,
+)
 
 
 def test_child_list_restatements_are_judged_across_one_delivery(browser):
@@ -249,3 +253,34 @@ def test_menu_line_measurement_only_credits_removing_and_restoring_limits(browse
         ("style", "span.lf-fp-summary"),
         ("style", "span.lf-fp-explain"),
     }
+
+
+def test_shadow_observation_does_not_retain_discarded_components(browser):
+    page = browser.unwatched.new_page()
+    page.add_init_script(script=WRITE_WATCH_SOURCE.read_text())
+    findings = []
+    page.expose_binding(
+        "__leafWatchFinding", lambda _source, found: findings.append(found)
+    )
+    page.goto("data:text/html,<body></body>")
+    page.evaluate("""() => {
+      const host = document.createElement('div');
+      host.hidden = true;
+      document.body.append(host);
+      const root = host.attachShadow({mode: 'closed'});
+      root.innerHTML = '<span>Kept</span>';
+      host.remove();
+      window.retainedRoot = root;
+      window.discardedRoot = new WeakRef(root);
+    }""")
+    session = page.context.new_cdp_session(page)
+    try:
+        session.send("HeapProfiler.collectGarbage")
+        # A detached root the page still owns remains watched, including closed roots.
+        page.evaluate("retainedRoot.firstChild.textContent = 'Kept'")
+        assert [finding["code"] for finding in findings] == ["unchanged-write"]
+        page.evaluate("() => { delete window.retainedRoot; }")
+        session.send("HeapProfiler.collectGarbage")
+        assert page.evaluate("discardedRoot.deref() === undefined")
+    finally:
+        session.detach()

@@ -1,5 +1,5 @@
-import { describeFailure, nextRender } from "./bundle-portable.js";
-import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, runtime } from "./bundle-layer-stack.js";
+import { describeFailure, keeps, keepsHidden, keepsText, nextRender } from "./bundle-portable.js";
+import { closeLayer, focusDestination, focused, handBack, runtime } from "./bundle-layer-stack.js";
 import { el, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
 import { clamp, layoutWindow } from "./bundle-geometry.js";
 import { pageImage } from "./bundle-page-image.js";

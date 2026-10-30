@@ -15,8 +15,8 @@ const source = `<!doctype html><html lang="en"><head><title>Generated delivery c
 
 whileConnected(section, (signal) => {
   let host;
-  create.disabled = false;
-  remove.disabled = true;
+  create.toggleAttribute("disabled", false);
+  remove.toggleAttribute("disabled", true);
   if (quoted(section)) return;
   create.addEventListener(
     "click",

@@ -41,9 +41,11 @@ appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
 at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
-several captures, such as several surfaces or states, every option sets them out
-alike, in a table of captures with the same columns (`authoring-evidence.md`, "Source
-files and media"), so the reader compares each one down the options. Vary only what
+several captures, such as several surfaces or states, line each capture up with its
+counterparts in the other options and name each surface or state once, so the reader
+compares one at a time down the options. The default is a table of captures in every
+option with the same columns in the same order (`authoring-evidence.md`, "Source files
+and media"), which the theme draws with no page CSS. Vary only what
 the choice changes, and show today in the option that keeps it, or above the options
 where none does.
 

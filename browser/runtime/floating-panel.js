@@ -356,6 +356,8 @@ export function createFloatingPanel({
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
+  // A public part a theme restyles (`layer.chrome_restyle`), as its ground is below.
+  host.setAttribute("part", "panel");
   // The panel's durations and curves, which its stylesheet declares on it and says why
   // each is what it is (floating-panel.css, "The panel's motion"), read live as every
   // `--lf-motion-*` is.
@@ -1555,6 +1557,9 @@ export function createFloatingPanel({
     observer: follow,
   });
   const { ground } = following;
+  // The ground stands beside the panel rather than in it, so it carries the panel's
+  // part too, and the tokens a theme sets there colour both.
+  ground.setAttribute("part", "panel");
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own

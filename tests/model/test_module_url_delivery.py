@@ -324,6 +324,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
                 "/runtime/marks.css",
                 "/theme.css",
                 "/shadow.css",
+                "/chrome.css",
                 "/widget-theme.css",
             ]
         },

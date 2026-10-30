@@ -316,8 +316,44 @@ def _import(
     return path, layer
 
 
+# What a package's chrome.css rules are nested under: the chrome, at two ids' weight,
+# which no rule of Leaf's chrome carries.
+CHROME_RESTYLE = ".lf-chrome:not(#\\#):not(#\\#)"
+# The at-rules a style rule may hold. Any other, such as @keyframes or @font-face,
+# stands at the top of the chrome's sheet, where a rule nested here can name it.
+NESTABLE_AT_RULES = frozenset(
+    {"media", "supports", "container", "layer", "scope", "starting-style"}
+)
+
+
+def chrome_restyle(sheet: str) -> str:
+    """A package's chrome.css as the chrome's sheet takes it, after Leaf's own rules.
+
+    The chrome's rules stand outside every layer, so they beat the page and every
+    package; a theme restyles the chrome on purpose only from here. Each rule is nested
+    under `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over
+    Leaf's chrome rules whatever selector either writes. A package names what it
+    restyles by part (`[part~="panel"]`), the chrome's public names for its surfaces;
+    its other classes are private and change without notice.
+    """
+    import tinycss2
+
+    from .styles import css_stylesheet
+
+    nested, top = [], []
+    for node in css_stylesheet(sheet):
+        if node.type == "at-rule" and (
+            node.content is None or node.lower_at_keyword not in NESTABLE_AT_RULES
+        ):
+            top.append(node)
+        elif node.type != "whitespace":
+            nested.append(node)
+    rules = f"{CHROME_RESTYLE} {{\n{tinycss2.serialize(nested)}\n}}\n" if nested else ""
+    return tinycss2.serialize(top) + rules
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's two stylesheets: each contribution in its role's cascade tier,
+    """The layer's three stylesheets: each contribution in its role's cascade tier,
     in input order. Leaf places sheets and rewrites none of their rules.
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
@@ -329,7 +365,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     including core views placed there, such as a diff's threads. overrides.css
     holds rules meant to win over every package's defaults and the Layouts, in
     lf-overrides. A theme reaches shadow trees through the custom properties they
-    inherit. Each sheet is read with its relative imports (`stylesheet`).
+    inherit. chrome.css restyles Leaf's chrome, and the chrome's sheet takes it after
+    its own rules (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
+    is read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered.
@@ -340,6 +378,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
+    chrome = []
 
     def place(sheets, tier, root, name):
         source = root / name
@@ -356,6 +395,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(shadow, "lf-shadow", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
         place(theme, "lf-overrides", root, "overrides.css")
+        if (source := root / "chrome.css").is_file():
+            chrome.append(chrome_restyle(stylesheet(source, root)))
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
             sheet = stylesheet(source, kernel)
@@ -365,6 +406,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
+        "chrome.css": "".join(chrome).encode(),
     }
 
 

@@ -635,6 +635,55 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     assert colors["other"] != "rgb(0, 128, 0)", colors
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, engine):
+    """A theme restyles Leaf's chrome on purpose from its chrome.css, naming surfaces
+    by part (`layer.chrome_restyle`). Its rules beat the chrome's own whatever either's
+    selector, inside a condition too, and reach nothing outside the chrome. A page's
+    own rule naming a part sets the tokens there and nothing else, which the guard
+    rolls back as it does any light page rule (styles/chrome-guard.css)."""
+    package = tmp_path / "chrome-look"
+    package.mkdir()
+    (package / "chrome.css").write_text(
+        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
+        '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
+        "p { color: rgb(255, 0, 0); }"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    "<h1>t</h1><p>Words.</p>",
+                    head='<style>[part~="panel"] { font-family: fantasy;'
+                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }</style>",
+                ),
+                packages=(package,),
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const panel = document.querySelector('[part~="panel"].lf-floating-panel');
+        const cs = el => getComputedStyle(el);
+        return {
+            family: cs(panel).fontFamily,
+            color: cs(panel).color,
+            corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
+            composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
+            prose: cs(document.querySelector('main p')).color,
+        };
+    }""")
+    assert faces == {
+        "family": "cursive",
+        "color": "rgb(1, 2, 3)",
+        "corner": "0px",
+        "composer": "3px",
+        "prose": faces["prose"],
+    }, faces
+    assert faces["prose"] != "rgb(255, 0, 0)", faces
+
+
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of

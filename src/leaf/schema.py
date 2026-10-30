@@ -627,7 +627,13 @@ DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 # A page's layer record (`registry.storage.LAYER`): the packages it selects.
 LAYER_FILE = "layer.json"
 # The top-level files a composed layer serves beside the page (`layer.compose_layer`).
-LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+LAYER_TOP_FILES = (
+    "theme.css",
+    "shadow.css",
+    "chrome.css",
+    "registry.json",
+    "icon.svg",
+)
 # The kernel's sheets, each composed into its own cascade tier
 # (`layer.composed_sheets`), and every file of the kernel's a layer reads.
 KERNEL_STYLES = ("shadow.css", "base.css", "layouts.css", "state.css")
@@ -638,6 +644,7 @@ PACKAGE_STYLES = (
     "widget-shadow.css",
     "defaults.css",
     "overrides.css",
+    "chrome.css",
 )
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.

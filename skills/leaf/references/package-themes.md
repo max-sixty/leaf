@@ -139,6 +139,39 @@ the user's machine, not remote ones.
 Startup behavior and transition protection follow
 [module-authoring.md, "Startup and presentation"](module-authoring.md#startup-and-presentation).
 
+## Leaf's chrome
+
+Leaf's panel, thread cards and comment box take the page's look through its tokens, so
+a theme or page that sets `--paper`, `--ink`, `--sans` or `--r` on `:root` changes them
+with the page. To restyle one of them alone, name it by its part:
+
+| Part       | Surface                                             |
+| ---------- | --------------------------------------------------- |
+| `panel`    | the floating panel at the window's foot             |
+| `card`     | a thread card                                       |
+| `composer` | the comment box, and the choices a selection offers |
+
+Tokens set on a part change that surface alone, whether a theme's sheet or the page's
+own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
+cards their own ground and corners. Any other property, such as `font-family` or
+`display`, goes in the package's `chrome.css`. Leaf adds that sheet to the chrome's
+after its own rules, inside the chrome and with more weight than any of the chrome's
+own selectors, so its rules win over Leaf's whatever selectors either writes and reach
+nothing outside the chrome:
+
+```css
+[part~="panel"] {
+  font-family: var(--mono);
+  --r-l: 0;
+}
+```
+
+Leaf places and sizes each surface itself, so leave its position and size alone. The
+part names are the chrome's public interface. Its classes are private and change
+between Leaf versions, so a rule naming one can stop applying after an update. A page
+that restyles the chrome beyond tokens does it through a package of its own, such as
+`leaf page init <page> --package ./chrome-look`.
+
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast

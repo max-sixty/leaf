@@ -4753,6 +4753,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
+	host.setAttribute("part", "panel");
 	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
 	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
@@ -5545,6 +5546,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		observer: follow
 	});
 	const { ground } = following;
+	ground.setAttribute("part", "panel");
 	function streamSend() {
 		following.stream();
 	}

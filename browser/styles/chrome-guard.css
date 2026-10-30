@@ -1,6 +1,8 @@
 /* The page's own rules stop at the chrome unless they mean to reach it. Restyling the
-   chrome on purpose is intended, and Leaf should allow more of it, such as a theme
-   reshaping the panel (#4030). What this rule stops is accidental reach: the page's
+   chrome on purpose is intended: a package's chrome.css follows the chrome's own rules
+   and outweighs them (`chrome_restyle` in layer.py), naming the chrome's surfaces by
+   their public parts (`[part~="panel"]`), and a page sets tokens on those parts, which
+   this rule leaves alone. What this rule stops is accidental reach: the page's
    sheet is unlayered, as this one is, so a page rule for `button`, `summary` or `p`,
    written for the page's own elements, would otherwise dress every chrome element of
    that type, and a page font would set the panel's. Here every chrome element rolls
@@ -30,8 +32,9 @@
    carried across the boundary (spike e7745b70d, #2828). Giving this rule and the
    chrome's own rules an id's weight stops those state faces, but a page rule would then
    need an id to restyle the chrome, and each shared rule that dresses a chrome element
-   would need a branch of that weight too. An engine that resolves higher-tree anchor
-   names, or #4030 settling on named parts, would reopen the shadow root.
+   would need a branch of that weight too. The parts are named as a shadow root would
+   expose them, so an engine that resolves higher-tree anchor names would reopen it with
+   the same names (`::part(panel)`).
 
    A pseudo-element inherits from its element, which the guard covers. The guard once
    also covered `::before`, `::after` and `::placeholder` themselves, but no authored

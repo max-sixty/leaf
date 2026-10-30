@@ -61,13 +61,19 @@ function responseEntries(publication: PagePublication) {
   );
 }
 
-/** Delivery dates calibrate the browser clock and order answers; folded content
- * and its event timestamps stay exactly as Python captured them.
+/** Delivery dates calibrate the clock and order answers; folded content stays as
+ * Python captured it. As on the live Python route, a tab naming the data version it
+ * holds needs only that version back; its request owns completion of those sources.
  */
-export function dateStateDelivery(state: Pick<ServedState, "now" | "taken">): void {
+export function prepareStateDelivery(
+  state: Pick<ServedState, "now" | "taken" | "data">,
+  request: Request,
+): void {
   const delivered = new Date();
   state.now = delivered.toISOString();
   state.taken = delivered.getTime() / 1000;
+  if (request.headers.get("Leaf-Data-Version") === state.data.version)
+    state.data = { version: state.data.version };
 }
 
 export class PageStore {
@@ -337,7 +343,11 @@ export class PageStore {
     );
   }
 
-  async response(root: string, path: string, head: boolean): Promise<Response | null> {
+  async response(
+    root: string,
+    path: string,
+    request: Request,
+  ): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
         headers: string;
@@ -353,11 +363,11 @@ export class PageStore {
     const headers = new Headers(JSON.parse(response.headers));
     headers.set("Cache-Control", "private, no-store");
     headers.set("Leaf-State-Source", "durable");
-    if (head) return new Response(null, { headers });
+    if (request.method === "HEAD") return new Response(null, { headers });
     const body = this.body(JSON.parse(response.chunks));
     if (path === "api/state" || path.startsWith("api/state?")) {
       const state = (await new Response(body).json()) as ServedState;
-      dateStateDelivery(state);
+      prepareStateDelivery(state, request);
       headers.delete("Content-Length");
       return Response.json(state, { headers });
     }

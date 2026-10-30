@@ -70,8 +70,7 @@ def test_page_round_trip(browser, serve):
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
-    page.keyboard.press("Escape")  # from the sent card to its passage
-    page.keyboard.press("Escape")  # off the passage, dismissing its card
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.

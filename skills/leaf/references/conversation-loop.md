@@ -194,9 +194,9 @@ Information they may comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, Leaf checks the conversation for decisions,
 answers or steps you left to the user that On me doesn't hold, adds each to On me as
-a to-do marked as Leaf's, and tells you at your next
-step. That catches what slips; it doesn't register your questions for you, so keep
-asking by the routes below. End a to-do Leaf added that isn't the user's to decide
+your to-do on the user, and tells you at your next step. That catches what slips; it
+doesn't register your questions for you, so keep asking by the routes below. Each
+to-do it adds is yours like any you write: end one that isn't the user's to decide
 with `leaf task end <page> <id> dropped`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as

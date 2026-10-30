@@ -776,7 +776,9 @@ flowchart TD
               update it hasn't answered, arrive from Leaf's hooks. Late in a long
               session the agent's own records slip, so as each Claude Code turn ends
               Leaf forks the conversation, adds to On me what the agent left to the user
-              without putting it there, and tells the agent what it added.
+              without putting it there, as the agent's own to-dos, and tells the agent
+              what it added. Nothing on the page marks the fork, and the agent keeps or
+              ends each to-do as it would one it wrote.
             </p>
             <table id="guidance-channels">
               <thead>
@@ -846,7 +848,8 @@ flowchart TD
                   <th scope="row">Leaf's fork at turn end</th>
                   <td>
                     Each decision, answer or step the agent left to the user that On me
-                    lacked, which Leaf has added there as its own.
+                    lacked, which Leaf has added there as the agent's own to-do, for the
+                    agent to keep or end.
                   </td>
                   <td>
                     In Claude Code, one line each at the next prompt or tool call after

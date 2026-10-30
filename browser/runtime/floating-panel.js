@@ -3386,14 +3386,6 @@ export function createFloatingPanel({
     // card's answers already say.
     if (card) {
       const about = [...new Set([group, where])].filter(Boolean);
-      // A to-do Leaf opened from the agent's reply says so after its place, in Leaf's
-      // voice, so the user knows whose words put it there (`clerk.py`).
-      const byLeaf =
-        record?.source.kind === "todo" && record.source.by === "leaf"
-          ? html`<span data-voice="leaf"
-              >added by Leaf from ${agentName()}'s reply</span
-            >`
-          : null;
       return html`<section
         class="lf-fp-on-item"
         data-card
@@ -3404,10 +3396,8 @@ export function createFloatingPanel({
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
         ${
-          about.length || byLeaf
-            ? html`<p class="lf-fp-on-place lf-rows-head">
-                ${about.join(" · ")}${about.length && byLeaf ? " · " : ""}${byLeaf ?? nothing}
-              </p>`
+          about.length
+            ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>`
             : nothing
         }${
           message

@@ -604,8 +604,7 @@
      the agent (the user's choice, 26 October 2026; `saying`). */
   .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder),
   .lf-compose-placeholder-lead [data-voice="leaf"],
-  .lf-fp-value [data-voice="leaf"],
-  .lf-fp-on-place [data-voice="leaf"] {
+  .lf-fp-value [data-voice="leaf"] {
     font-style: italic;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's

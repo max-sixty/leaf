@@ -6626,9 +6626,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		if (card) {
 			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
-			const byLeaf = record?.source.kind === "todo" && record.source.by === "leaf" ? html`<span data-voice="leaf"
-              >added by Leaf from ${agentName()}'s reply</span
-            >` : null;
 			return html`<section
         class="lf-fp-on-item"
         data-card
@@ -6638,9 +6635,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length || byLeaf ? html`<p class="lf-fp-on-place lf-rows-head">
-                ${about.join(" · ")}${about.length && byLeaf ? " · " : ""}${byLeaf ?? nothing}
-              </p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-thread=${thread.key}

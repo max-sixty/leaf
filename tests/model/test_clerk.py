@@ -39,9 +39,10 @@ def reply(page, *titles: str) -> str:
 
 
 def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
-    """Each ask the fork names lands On me as a to-do marked as Leaf's, and the next
-    tool boundary tells the agent each one, once. An ask On me already holds isn't
-    added again, and one the user drops is shown to the next fork as settled."""
+    """Each ask the fork names lands On me as the agent's own to-do, with nothing
+    marking the fork, and the next tool boundary tells the agent each one, once. An
+    ask On me already holds isn't added again, and one ended is shown to the next fork
+    as settled."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     question = asked()
@@ -57,17 +58,18 @@ def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, 
         question["basis"],
     )["wrote"]
     on_me = [
-        (record["prompt"]["text"], record["source"].get("by"))
+        record["prompt"]["text"]
         for record in cmd_page_state(claimed)["obligations"]
         if record["source"]["kind"] == "todo"
     ]
-    assert on_me == [
-        ("Choose the retry limit: 3 or 5?", "leaf"),
-        ("Open a PR for this branch?", "leaf"),
-    ]
+    assert on_me == ["Choose the retry limit: 3 or 5?", "Open a PR for this branch?"]
+    assert {(record["author"], record["session"]) for record in wrote} == {
+        ("agent", "s1")
+    }
+    assert not any("by" in record for record in wrote)
 
     context = hook(capsys, "PostToolBatch")
-    assert 'Leaf added "Choose the retry limit: 3 or 5?" to On me' in context
+    assert f'Leaf put "Choose the retry limit: 3 or 5?" On me on {page}' in context
     assert f"leaf task end {page} {wrote[1]['id']} dropped" in context
     assert hook(capsys, "PostToolBatch") == ""
 
@@ -76,11 +78,14 @@ def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     )
     assert again["wrote"] == []
 
+    # The agent, keeping its say over the record, ends one as not the user's.
     append_carried_log_record(
         claimed,
         {
             "kind": "todo_end",
-            "author": "user",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
             "todo": wrote[1]["id"],
             "outcome": "dropped",
         },

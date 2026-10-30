@@ -1,21 +1,36 @@
 """Leaf's clerk: a fork of the agent's conversation, made as each of its turns ends,
 that finds what the agent left to the user without putting it On me, and puts it
-there.
+there on the agent's behalf.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left
 the decisions waiting on the user only in their chat replies, so On me read empty, and
 rewording the skill changed 0 of 6 replays of such a session. A fork of the whole
 conversation reads what the agent said, so Leaf asks one, and writes what it finds
-itself rather than prompting the agent, which would cost a turn and invite rework.
-The user chose this shape on 2026-10-29 over a digest of the final reply, an advisor
-that prompts the agent, and a clerk agent that also rewrites the page.
+rather than prompting the agent, which would cost a turn and invite rework. The user
+chose this shape on 2026-10-29 over a digest of the final reply, an advisor that
+prompts the agent, and a clerk agent that also rewrites the page.
+
+Three principles, the user's (2026-10-30), bound what the fork may do:
+
+- It adds attention, not an actor. The fork is the agent looking again at its own
+  bookkeeping, and gives the agent reminders; it does none of the user's work.
+- The user never meets it. What it writes is the agent's own record, authored by the
+  agent's session with nothing marking the fork, and it adds no mark, message, status
+  or control of its own. A first version marked its to-dos "added by Leaf"; the user
+  rejected that as a second entity on the page.
+- The agent stays sovereign. The agent hears each record at its next step, with its
+  id, as its own, and keeps, ends or replaces it as it would one it wrote. The fork
+  never adds again what the page shows ended, and yields whole to any turn that has
+  opened since it read the conversation (`basis`), since that turn's agent, or the
+  user who opened it, has the newer reading.
 
 It asks about one thing: decisions, answers, permissions or steps the agent left to
 the user that no On me item holds. A first version also wrote the status line and
 named missed page steps; the user narrowed it on 2026-10-29 to start from this one
-class, in Leaf's own words, and what the page state alone settles, such as input not
-yet delivered, is code's to report rather than a model's.
+class, in Leaf's own words rather than any one user's markers, and what the page state
+alone settles, such as input not yet delivered, is code's to report rather than a
+model's.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On me as `page_facts` reads it), the answer it must
@@ -25,17 +40,11 @@ calls `$.model.fork` from `turn.complete` (`hooks/claude-code.ts`). Codex would 
 with App Server's `thread/fork` (ephemeral) and Pi's extension by resending its
 session, each handing the answer back the same way; neither does yet.
 
-Leaf opens each ask as a to-do on the user, marked `by: "leaf"`, which the panel shows
-as added by Leaf from the agent's reply, so the user sees where it came from and can
-drop it. One the user has settled is shown to later forks, so it isn't added again.
-Each to-do written is queued as one line for the agent's next step (`QUEUED`), which
-the next prompt or tool-boundary hook adds to its context (`hook_transport.carry_turn`),
-so the agent neither repeats nor contradicts it and spends no turn on it. A line the
+Leaf opens each ask as the agent's to-do on the user. Each one written is queued as
+one line for the agent's next step (`QUEUED`), which the next prompt or tool-boundary
+hook adds to its context (`hook_transport.carry_turn`), so the agent knows its
+records, neither repeats nor contradicts them, and spends no turn on them. A line the
 hook handed over leaves the queue (`heard`); a prompt Escape drops loses it.
-
-The fork's reading is of the turn that ended. Where another turn of the session has
-opened by the time it answers, the user has spoken since, so the answer is dropped
-whole (`basis`): an ask they may be answering that moment would land On me as noise.
 
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`): the fork
@@ -107,7 +116,8 @@ OPENING = "<leaf-fork-check>"
 
 def page_facts(state: dict) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it: its On me, and the to-dos Leaf added that the user has since settled."""
+    it: its On me, and the to-dos on the user that the agent or the user has ended,
+    which the fork must not add again."""
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
     todos = {todo["id"]: todo for todo in state["todos"]}
@@ -134,9 +144,7 @@ def page_facts(state: dict) -> dict:
         + ("dropped" if record["status"] == "withdrawn" else "done")
         + ")"
         for record in state["obligations"]
-        if record["source"]["kind"] == "todo"
-        and record["source"].get("by") == "leaf"
-        and record["status"] != "open"
+        if record["source"]["kind"] == "todo" and record["status"] != "open"
     ]
     return {
         "title": state["title"],
@@ -156,8 +164,8 @@ def _block(facts: dict) -> str:
     ]
     if facts.get("settled"):
         parts.append(
-            "Added by Leaf from earlier replies and since settled by the user; "
-            "don't add these again:\n" + lines(facts["settled"])
+            "Ended on the page by the agent or the user; don't add these again:\n"
+            + lines(facts["settled"])
         )
     return "\n".join(parts)
 
@@ -167,7 +175,7 @@ def fork_prompt(pages: list[dict]) -> str:
     (`page_facts`), the question and the answer's form (`ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
     return f"""{OPENING}
-This message comes from Leaf, not the user. You are a fork of this session, made as the agent's turn ended, to keep the user's On me list complete. The main session carries on separately and never reads this exchange: Leaf adds what you name to On me, where the user sees it, and tells the agent in one line. Don't call tools and don't continue the work; answer from the conversation above and the page state below.
+This message comes from Leaf, not the user. You are a fork of this session, made as the agent's turn ended, to keep the user's On me list complete. The main session carries on separately and never reads this exchange: Leaf adds what you name to On me as the agent's own to-dos, and tells the agent at its next step, which keeps or ends each. Don't call tools and don't continue the work; answer from the conversation above and the page state below.
 
 {blocks}
 
@@ -295,15 +303,15 @@ def apply_answer(session_id: str, answer: dict) -> dict:
                         "owner": "user",
                         "subject": {"kind": "page"},
                         "title": title,
-                        "by": "leaf",
                     },
                 )
                 wrote.append(record)
                 told.append(
-                    f'Leaf added "{record["title"]}" to On me on {path} from your '
-                    f"reply, as to-do {record['id']}; leave it, or end it with "
-                    f"`leaf task end {path} {record['id']} dropped` if it "
-                    "isn't the user's to decide."
+                    f'From your last reply, Leaf put "{record["title"]}" On me on '
+                    f"{path} as your to-do {record['id']} on the user. It is yours "
+                    "like any you write: keep it, or if it isn't the user's to "
+                    f"decide, end it with `leaf task end {path} {record['id']} "
+                    "dropped`, and ask it another way if you'd rather."
                 )
     queue(session_id, told)
     return {"wrote": wrote, "told": told}

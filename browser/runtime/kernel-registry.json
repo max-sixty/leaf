@@ -1053,10 +1053,6 @@
               "pattern": "\\S",
               "not": { "pattern": "[\\r\\n]" }
             },
-            "by": {
-              "description": "Leaf wrote it from the agent's own reply, at the end of the agent's turn (`clerk.py`).",
-              "const": "leaf"
-            },
             "agent": { "type": "string", "minLength": 1 },
             "session": { "type": "string", "minLength": 1 }
           },

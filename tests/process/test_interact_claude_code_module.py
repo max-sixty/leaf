@@ -427,9 +427,9 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     [todo] = [
         event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
     ]
-    assert (todo["owner"], todo["title"], todo["by"]) == (
+    assert (todo["owner"], todo["title"], todo["author"]) == (
         "user",
         "Choose the retry limit: 3 or 5?",
-        "leaf",
+        "agent",
     )
     driven.quit()

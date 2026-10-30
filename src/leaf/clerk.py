@@ -37,9 +37,12 @@ The fork's reading is of the turn that ended. Where another turn of the session 
 opened by the time it answers, the user has spoken since, so the answer is dropped
 whole (`basis`): an ask they may be answering that moment would land On me as noise.
 
-Measured by replaying 21 recorded turn ends three times each on Opus 5.5
-(`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py` for this
-question). Claude Code's fork reuses the session's cached prefix only while its
+Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
+5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`): the fork
+found 59 of the 63 labelled asks missing from On me; 62 of its 64 findings were
+labelled asks and 2 borderline, none false; 2 of 39 runs at clean turn ends named
+anything. Warm, a fork cost $0.08 (median). Claude Code's fork reuses the session's
+cached prefix only while its
 system prompt, tools and effort match the session's, which `$.model.fork` keeps by
 resending the main thread's own last request.
 """

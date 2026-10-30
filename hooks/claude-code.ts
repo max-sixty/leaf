@@ -273,9 +273,9 @@ let forkAgain = false;
  * What Leaf wrote goes to the debug log, beside Claude Code's own line for the
  * fork's tokens (`Forked agent [plugin_model_fork] finished`); the module logs no
  * usage of its own, since the debug log redacts a `*_tokens` field. In the
- * claude-code journey on 2026-10-29, twelve forks over a 48–79k-token
- * conversation read it all from the cache, cost $0.02–0.04 each at list price and
- * took 3–11 s. */
+ * claude-code journey on 2026-10-29, twelve forks over a 46–77k-token
+ * conversation read it all from the cache, cost $0.015–0.026 each at list price and
+ * took 1–6 s. */
 async function clerk($: EngineInterface, session: string) {
   if (forking) {
     forkAgain = true;

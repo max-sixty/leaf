@@ -1311,12 +1311,13 @@ export function createMarginProjection({
   // The card is one step, from inside it as from the entry it hangs from or the target
   // it accompanies: the press takes it down and leaves the user beside its target. Tab
   // goes on from there, so into a target's own controls, such as an ask's options,
-  // with the card coming back beside them, and a walk resumes from that thread. A
-  // middle step out onto the target with the card still up was tried and dropped
-  // (2026-10-29): only the focus ring told it apart from the card, so after a click its
-  // first press left the card up and only drew a ring on the target, and what it
-  // reached is a Tab away, while the keys a target forwards, such as an option's
-  // number, answer from inside the card.
+  // with the card coming back beside them, and a walk resumes from that thread.
+  // One press is on trial from 2026-10-29, while the user tries it in use. It replaced
+  // a middle step out onto the target with the card still up, which only the focus
+  // ring told apart from the card: after a click its first press left the card up and
+  // only drew a ring on the target. What that step reached is a Tab away, and the keys
+  // a target forwards, such as an option's number, answer from inside the card. If
+  // the trial fails, `git log -S '"back to element"'` finds the step to restore.
   // A cluster the user unfolded themselves and opened the card from is a level of
   // their own under the card, and the card hands back to it instead (below).
   const unfoldedUnder = () => {

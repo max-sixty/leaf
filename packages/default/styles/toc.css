@@ -304,7 +304,7 @@ lf-toc a[data-lf-focus] {
         opacity 0.24s ease-out;
     }
     lf-toc .lf-toc-start a {
-      font-weight: 650;
+      font-weight: 600;
       line-height: 1.2;
       max-height: 2.4em;
     }

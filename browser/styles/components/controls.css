@@ -1071,8 +1071,8 @@ wa-copy-button.lf-icon-action {
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
    end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
-   on the name's first line, its numbers ending together; the end is muted, a step
-   smaller, on the first line's baseline. Every row has the same padding, at least 30px
+   on the name's first line, its numbers ending together; the end is muted, at `--t-6`
+   as every qualifier in the chrome is, on the first line's baseline. Every row has the same padding, at least 30px
    tall, and reaches the aim floor under a finger. A row takes this layout by naming its
    main part, so a way back or a command in the reference keeps its own; one that offers
    nothing, such as a Page Map status, lays out as a row with `.lf-row-plain`.
@@ -1130,7 +1130,7 @@ wa-copy-button.lf-icon-action {
   justify-self: end;
   margin-inline-start: 12px;
   color: var(--muted);
-  font-size: calc(1em - 1px);
+  font-size: var(--t-6);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1166,7 +1166,6 @@ wa-copy-button.lf-icon-action {
 }
 .lf-rows-head .lf-row-end {
   color: inherit;
-  font-size: inherit;
 }
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where

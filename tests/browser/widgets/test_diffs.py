@@ -142,7 +142,9 @@ FIRST_PAINT_PAGE = leaf_page(
     # One file draws no filter row.
     + '<lf-diff id="single"><pre>'
     + _patch_file("src/only.py", 1, ["w = 0"])
-    + "</pre></lf-diff>"
+    + '</pre><lf-diff-note file="src/only.py" side="new" at="2">'
+    + "This authored explanation wraps within the reader. " * 4
+    + "</lf-diff-note></lf-diff>"
     # Prose wraps at the drawing's column: words, runs of spaces, and words longer
     # than the column by every count up to a few columns, so a column more or less
     # than the drawing's changes some row's lines at either width.
@@ -208,12 +210,14 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         for source in sources.all():
             expect(source).to_be_visible()
             expect(source).to_contain_text("diff --git")
+        expect(page.locator("#single > lf-diff-note")).to_be_visible()
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
             "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
         )
         expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
+        expect(page.locator("#single lf-diff-note")).to_be_visible()
         expect(page.locator("#folded details[open]")).to_have_count(0)
         expect(page.locator("#file-view [data-line]").last).to_contain_text(
             "The first file remains readable."
@@ -435,7 +439,9 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
             )
         ),
     )
-    file = page.locator('lf-diff [data-lf-datum=\'["app.py","file"]\']')
+    file = page.locator("lf-diff .lf-diff-file").filter(
+        has=page.locator('[data-lf-datum=\'["app.py","file"]\']')
+    )
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(file.locator(".lf-diff-file-comment")).to_have_count(1)
     expect(line).to_have_count(1)
@@ -786,7 +792,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
     if starts_as_rename:
         page.locator(f"{diff} .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
-        assert owner.evaluate("node => node === node.getRootNode().activeElement")
+        assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
     else:
         page.locator(f"{diff} summary").first.click()
         page.keyboard.press("ArrowRight")
@@ -799,8 +805,6 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
         assert owner.evaluate("node => node.isConnected")
         assert comment.evaluate("node => node.isConnected")
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
-        if starts_as_rename:
-            assert owner.evaluate("node => node === node.getRootNode().activeElement")
         assert page.evaluate("() => scrollY") == before, diff
         if patch == regular:
             expect(
@@ -1831,3 +1835,88 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     rendered(page)
     assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
     assert head.evaluate(titled) == path
+
+
+def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, serve):
+    """Author prose is independent of patch data, including when its line disappears."""
+    from leaf import anchor_capture, passages, structure
+    from leaf.registry.storage import read_page_registry
+
+    source = leaf_page(
+        "Annotated patch",
+        '<lf-diff id="patch" source="review-patch" collapsed><pre></pre>'
+        '<lf-diff-note id="old-note" file="app.py" side="old" at="2">'
+        "Explain the old line.</lf-diff-note>"
+        '<lf-diff-note id="new-note" file="app.py" side="new" at="2">'
+        "Explain the new line.</lf-diff-note>"
+        '<lf-diff-note id="context-note" file="app.py" side="new" at="1">'
+        "Explain the context.</lf-diff-note></lf-diff>",
+    )
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n context\n-old line\n+new line\n"
+    )
+    url = serve(source)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
+    registry = read_page_registry(serve.page_dir).registry
+    file_reading = passages.page_passages(structure.SourceDocument(source), registry)
+    assert "Explain the new line." in file_reading.text
+    anchor = anchor_capture.capture_anchor(
+        structure.SourceDocument(source), registry, "Explain the new line.", "new-note"
+    )
+    page = open_page(browser, url)
+    note = page.locator("#new-note")
+    expect(note).to_be_hidden()
+    # The native disclosure gives the same result to keyboard and touch readers.
+    page.locator("lf-diff summary").focus()
+    page.keyboard.press("Enter")
+    expect(note).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff').fileEntries[0].loaded"
+    )
+    placement = page.locator("lf-diff-note").evaluate_all("""notes => notes.map(note => ({
+      id: note.id,
+      datum: note.previousElementSibling?.querySelector('[data-lf-datum]')?.dataset.lfDatum,
+      width: note.getBoundingClientRect().width,
+      reader: note.closest('code').getBoundingClientRect().width,
+    }))""")
+    assert {row["id"]: json.loads(row["datum"]) for row in placement} == {
+        "old-note": ["app.py", "old", 2],
+        "new-note": ["app.py", "new", 2],
+        "context-note": ["app.py", "both", 1, 1],
+    }
+    for row in placement:
+        assert abs(row["width"] - row["reader"]) < 2, row
+    captured = note.evaluate("""async note => {
+      const range = document.createRange();
+      range.selectNodeContents(note);
+      return (await window.__lfCheckApi()).anchorForRange(range);
+    }""")
+    assert captured == anchor
+    # File-side and browser-side anchors agree on the preserved prose node.
+    assert page.evaluate(
+        """async anchor => {
+      const resolved = (await window.__lfCheckApi()).resolveAnchor(anchor);
+      return resolved?.exact === true;
+    }""",
+        anchor,
+    )
+    # Keep the authored object itself through a replacement, not just a copied label.
+    held = note.element_handle()
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch_manifest(
+            patch.replace(
+                "@@ -1,2 +1,2 @@\n context\n-old line\n+new line",
+                "@@ -1 +1 @@\n-context\n+changed context",
+            )
+        ),
+    )
+    told(page)
+    rendered(page)
+    expect(note).to_have_attribute(
+        "data-lf-unmatched", "app.py · new 2 — line unavailable"
+    )
+    assert held.evaluate("node => node.isConnected")
+    expect(note).to_be_visible()

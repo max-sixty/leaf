@@ -27,7 +27,9 @@
  * and its evidence can be represented before any listing metadata appears;
  * closed files retain that parse and defer only textual rendering. Native
  * operations and textual hunks are independent: metadata-only files have a commentable
- * row without an empty disclosure, and a file-type replacement keeps one file identity. */
+ * row without an empty disclosure, and a file-type replacement keeps one file identity.
+ * Author notes use the same source coordinate resolver as cross-widget navigation;
+ * their authored nodes move into the stage, never copied into generated data rows. */
 import {
   DISCLOSE,
   HOLDS_WORD,
@@ -79,6 +81,7 @@ import {
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
+  diffLocationKey,
   findDiffFile,
   findDiffLine,
   readDiffCoordinate,
@@ -174,7 +177,11 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
 };
 
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
-const fileNode = (entry) => entry.node;
+// Only the header represents the file datum. The body contains independently
+// addressed lines and authored prose, whose comments must not inherit its identity.
+const fileNode = (entry) =>
+  entry.details?.firstElementChild ??
+  entry.node.querySelector(":scope > .lf-diff-metadata");
 const fileDatum = (entry) => ({
   file: true,
   path: entry.record.path,
@@ -448,7 +455,9 @@ function replaceFileRendering(entry, row) {
   const restore = holdFileFocus(entry);
   unwatchPathCut(entry.details);
   // Out of the replaced row first, which takes everything still in it.
-  const outlets = [...entry.node.querySelectorAll(".lf-diff-thread-outlet")];
+  const outlets = [
+    ...entry.node.querySelectorAll(".lf-diff-thread-outlet, lf-diff-note"),
+  ];
   for (const outlet of outlets)
     if (outlet.parentNode !== entry.node) move(entry.node, outlet, null);
   setChildren(entry.node, [entry.node.firstElementChild, row, ...outlets]);
@@ -491,6 +500,9 @@ function outletPlaces(content, rows, outlets) {
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, outlets) {
   const restore = holdFileFocus(entry);
+  // These authored members have an independent lifetime from the source rows.
+  const notes = [...entry.node.querySelectorAll("lf-diff-note")];
+  for (const note of notes) move(entry.node, note, null);
   const details = entry.details;
   const pre = details.querySelector("pre");
   const prior = new Map(entry.lines.map((line) => [diffDatumKey(line), line]));
@@ -976,6 +988,8 @@ customElements.define(
         ],
       };
       commandsChanged(this);
+      this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
+      this.unplacedNotes = document.createElement("div");
       if (!this.hasAttribute("source")) {
         // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
         // can be a lone space — so only the closing newline is the <pre>'s layout.
@@ -1045,7 +1059,8 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          shadowStage(this, []);
+          this.placeNotes();
+          shadowStage(this, [this.unplacedNotes]);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
@@ -1158,7 +1173,11 @@ customElements.define(
           this.filesBody ??= diffBody([]);
           // A file the patch dropped goes with its outlets, which core's composer leaves first.
           for (const entry of prior.values())
-            if (!entries.includes(entry)) releaseOutlets(entry.node);
+            if (!entries.includes(entry)) {
+              for (const note of this.authorNotes)
+                if (entry.node.contains(note)) move(this.unplacedNotes, note, null);
+              releaseOutlets(entry.node);
+            }
           setChildren(this.filesBody, [
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
@@ -1254,7 +1273,43 @@ customElements.define(
 
     stageFiles() {
       if (!this.filesBody) return;
-      shadowStage(this, [this.filesBody]);
+      this.placeNotes();
+      shadowStage(this, [this.filesBody, this.unplacedNotes]);
+    }
+
+    // Authored nodes survive source replacement and lazy loading. A closed file
+    // keeps its notes in its disclosure until its source rows exist. Missing
+    // coordinates remain readable at the file's foot (or the diff's foot when the
+    // file itself vanished), with the address that could not be placed.
+    placeNotes() {
+      const after = new Map();
+      for (const note of this.authorNotes) {
+        const coordinate = readDiffCoordinate(
+          diffLocationKey(
+            note.getAttribute("file"),
+            note.getAttribute("side"),
+            Number(note.getAttribute("at")),
+          ),
+        );
+        const entry = findDiffFile(this.fileEntries, coordinate);
+        const line = entry?.loaded && findDiffLine(entry.lines, coordinate);
+        const unmatched = !entry || (entry.loaded && !line);
+        keeps(
+          note,
+          "data-lf-unmatched",
+          unmatched
+            ? `${note.getAttribute("file")} · ${note.getAttribute("side")} ${note.getAttribute("at")} — line unavailable`
+            : null,
+        );
+        if (line) {
+          const row = line.node.parentNode;
+          const previous = after.get(row) ?? row;
+          move(row.parentNode, note, previous.nextSibling);
+          after.set(row, note);
+        } else {
+          move(entry?.details ?? this.unplacedNotes, note, null);
+        }
+      }
     }
 
     // Marks each drawn file row, and each line of a loaded file, as data drawn from
@@ -1304,7 +1359,7 @@ customElements.define(
       const line =
         !file && entry.lines.find((line) => diffDatumKey(line) === anchor.datum);
       if (file) {
-        if (placement.datumElement !== entry.node) return null;
+        if (placement.datumElement !== fileNode(entry)) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
@@ -1521,7 +1576,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => threadSurface(this).open(entry.node),
+        () => threadSurface(this).open(fileNode(entry)),
         "lf-diff-file-comment",
       );
       entry.node

@@ -1030,18 +1030,16 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 0
-    # The figure's id is aim enough for its <table>.
+    # One finding for each reason, listing its blocks in document order. The
+    # figure's id is aim enough for its <table>.
     assert sorted(
-        (f.code, f.at, f.values.get("enclosing"))
+        (f.code, [(e["tag"], e.get("enclosing")) for e in f.values["elements"]])
         for f in findings
         if f.code.startswith("unpointable")
     ) == [
-        ("unpointable", "<h1>", None),
-        ("unpointable", "<p>", None),
-        ("unpointable", "<p>", None),
-        ("unpointable-section", "<section>", None),
-        ("unpointable-wide", "<aside>", "plan"),
-        ("unpointable-wide", "<pre>", "plan"),
+        ("unpointable", [("h1", None), ("p", None), ("p", None)]),
+        ("unpointable-section", [("section", None)]),
+        ("unpointable-wide", [("pre", "plan"), ("aside", "plan")]),
     ]
 
     # Prose inside an identified section needs no id of its own. Standalone

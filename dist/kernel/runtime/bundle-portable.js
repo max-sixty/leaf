@@ -397,6 +397,78 @@ function excludedByInert(node) {
 }
 
 //#endregion
+//#region runtime/exception.js
+const UNREADABLE = "Could not read the error";
+function readException(read, unreadable) {
+	try {
+		return read();
+	} catch {
+		return unreadable;
+	}
+}
+function exceptionFields(reason) {
+	if (reason === null || typeof reason !== "object" && typeof reason !== "function") return {
+		name: void 0,
+		message: String(reason),
+		stack: void 0,
+		cause: void 0,
+		hasMessage: false
+	};
+	const name = "name" in reason ? reason.name : void 0;
+	const message = "message" in reason ? reason.message : void 0;
+	const stack = "stack" in reason ? reason.stack : void 0;
+	const cause = "cause" in reason ? reason.cause : void 0;
+	return {
+		name: typeof name === "string" ? name : void 0,
+		message: typeof message === "string" ? message : String(reason),
+		stack: typeof stack === "string" ? stack : void 0,
+		cause,
+		hasMessage: typeof message === "string"
+	};
+}
+function describeFailure(reason) {
+	return readException(() => {
+		const fields = exceptionFields(reason);
+		const message = fields.message || fields.name || "Error";
+		return reason instanceof AggregateError && reason.errors.length ? `${message}: ${reason.errors.map(describeFailure).join("; ")}` : message;
+	}, UNREADABLE);
+}
+function exceptionRecord(reason) {
+	return readException(() => {
+		const fields = exceptionFields(reason);
+		return {
+			name: fields.name ?? "Error",
+			message: fields.message,
+			stack: fields.stack
+		};
+	}, {
+		name: "Error",
+		message: UNREADABLE,
+		stack: void 0
+	});
+}
+function exceptionError(reason) {
+	return readException(() => reason instanceof Error ? reason : Object.assign(Object.create(Error.prototype), exceptionRecord(reason)), Object.assign(Object.create(Error.prototype), { message: UNREADABLE }));
+}
+function exceptionText(reason, context = "") {
+	return readException(() => {
+		const fields = exceptionFields(reason);
+		const message = fields.message;
+		const text = !fields.hasMessage ? message : `${fields.name || "Error"}: ${message}`;
+		const stack = fields.stack;
+		let evidence = !stack ? text : stack.includes(text) ? stack : `${text}
+${stack}`;
+		if (reason instanceof AggregateError) evidence += reason.errors.map((error) => `
+${exceptionText(error)}`).join("");
+		if (fields.cause !== void 0) evidence += `
+Caused by: ${exceptionText(fields.cause)}`;
+		if (!context) return evidence;
+		return `${context}: ${reason instanceof Error ? describeFailure(reason) : message}${!fields.hasMessage ? "" : `
+${evidence}`}`;
+	}, context ? `${context}: ${UNREADABLE}` : UNREADABLE);
+}
+
+//#endregion
 //#region runtime/page-paint.js
 const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 	external: "data-lf-external",
@@ -1096,12 +1168,12 @@ const refuseCommands = (event, error) => {
 };
 function failSoft(el, err, source) {
 	reportFailure(el, err);
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
+	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`, source);
 }
 function reportFailure(el, err) {
 	const event = new ErrorEvent("error", {
-		error: err instanceof Error ? err : siteless(err),
-		message: err?.message ?? String(err),
+		error: exceptionError(err),
+		message: describeFailure(err),
 		bubbles: true,
 		composed: true
 	});
@@ -1112,7 +1184,6 @@ function reportFailure(el, err) {
 	(el.isConnected ? el : window).dispatchEvent(event);
 }
 const FAILURE = Symbol("failure");
-const siteless = (reason) => Object.assign(Object.create(Error.prototype), { message: String(reason) });
 function failureOf(event) {
 	if (event[FAILURE]) return event[FAILURE];
 	const [origin] = event.composedPath();
@@ -1126,7 +1197,7 @@ function failureContext(el) {
 	return `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`;
 }
 function failSoftUnreported(el, err) {
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
+	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`);
 }
 const widgetOf = (el) => {
 	let owner = el;
@@ -1550,4 +1621,4 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, elementBox, elementDirective, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

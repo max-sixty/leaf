@@ -395,6 +395,12 @@ id. A module keeps any other state in its own store under the element's id. Dela
 revision only for a gesture in progress that has no value to carry, such as an open
 composer or menu (`version.js`).
 
+State a module keeps for one press, or for one view while it stays open, lives in one
+record that starts when the press or view does and is dropped when it ends, rather than
+in variables the module resets by hand. A module keeps its record against the press
+through `focus.js` `pressRecords`. A field added to the record ends with the others,
+where a separate variable needs a reset at every place the press or view can end.
+
 ### One answer for each question
 
 A question the runtime asks in many places has one owner, which every caller asks,

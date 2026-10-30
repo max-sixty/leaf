@@ -131,7 +131,8 @@ to place the box beside them: `place(box)` returns true when it handles the box,
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports.
+`reportFailure(element, error)` only reports. `describeFailure(error)` returns a
+short message for any thrown value when the widget presents its own recovery.
 
 ## Connection lifetimes
 

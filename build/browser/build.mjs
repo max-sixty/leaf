@@ -249,7 +249,7 @@ async function frameworkOptsIn() {
     );
 }
 
-function typecheck(config, reports = () => true) {
+function typecheck(config, reports = (_file) => true) {
   const result = spawnSync(
     process.execPath,
     [
@@ -305,7 +305,10 @@ export async function buildOutputs() {
           write: false,
           logLevel: "silent",
         });
-        return [output, Buffer.from(result.outputFiles[0].contents)];
+        return /** @type {const} */ ([
+          output,
+          Buffer.from(result.outputFiles[0].contents),
+        ]);
       }),
     )),
     [compilerPathsFile, paths],

@@ -78,3 +78,4 @@ export {
   selectableOffered,
   generated,
 } from "./element-markers.js";
+export { describeFailure } from "./exception.js";

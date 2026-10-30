@@ -1,4 +1,4 @@
-import { offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
+import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
 import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
 import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
@@ -258,7 +258,7 @@ async function loadSource() {
 		};
 	} catch (error) {
 		if (request !== attempt || !dialog.open) return;
-		sourceError = `Source inspection unavailable: ${error.message}`;
+		sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
 	} finally {
 		if (request === attempt && dialog.open) {
 			loading = false;

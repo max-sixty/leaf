@@ -1,4 +1,4 @@
-import { foldDuration, inBaseLayer, keeps, keepsHidden, keepsText, offerAction, offered, reducedMotion } from "./bundle-portable.js";
+import { describeFailure, foldDuration, inBaseLayer, keeps, keepsHidden, keepsText, offerAction, offered, reducedMotion } from "./bundle-portable.js";
 import { closeLayer, closeNativeLayer, focusDestination, handBack, html, nativeLayers, offlineInteractive, openLayer, openerOf, pageUrl, plainPress, render, runtimeResource, showNativeLayer } from "./bundle-layer-stack.js";
 import { closeControl, keys, paintKeys } from "./bundle-layer-client.js";
 import { says } from "./bundle-passages.js";
@@ -153,7 +153,7 @@ const open = async (source, alt, from) => {
 			if (!blob) throw new Error("the drawing could not be encoded");
 		} catch (error) {
 			if (attempt !== opening || !mediaViewer.open) return;
-			render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+			render(html`<p>Image preview unavailable: ${describeFailure(error)}.</p>`, stage);
 			return;
 		}
 		if (attempt !== opening || !mediaViewer.open) return;
@@ -236,7 +236,7 @@ const open = async (source, alt, from) => {
 		paintKeys();
 	}, (error) => {
 		if (attempt !== opening || !mediaViewer.open) return;
-		keepsText(caption, `Image preview unavailable: ${error.message}. Open Original to see the file.`);
+		keepsText(caption, `Image preview unavailable: ${describeFailure(error)}. Open Original to see the file.`);
 		keepsHidden(caption, false);
 	});
 };

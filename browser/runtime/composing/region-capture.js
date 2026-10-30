@@ -3,6 +3,7 @@
  * Draw or Design mode. The passive overlay leaves current target hit tests intact. Captures
  * enter the same anchored draft and media admission path as other attached images.
  */
+import { describeFailure } from "../exception.js";
 import {
   pageCommand,
   pageScope,
@@ -137,7 +138,7 @@ export function createRegionCapture({
         await selector.done;
       } catch (error) {
         selector?.cancel();
-        raiseError(`Could not open area capture — ${error.message}`);
+        raiseError(`Could not open area capture — ${describeFailure(error)}`);
       } finally {
         document.removeEventListener("touchstart", claimTouch, true);
         selector = null;

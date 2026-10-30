@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
 import { PAGE_PAINT_ATTRIBUTE } from "./browser/runtime/page-paint.js";
 
-const publicRuntimeModules = kernel["$public-modules"].paths
-  .filter((path) => path.startsWith("/runtime/"))
+const publicRuntimePaths = kernel["$public-modules"].paths.filter((path) =>
+  path.startsWith("/runtime/"),
+);
+const publicRuntimeModules = publicRuntimePaths
   .map((path) => path.slice("/runtime/".length).replaceAll(".", "\\."))
   .join("|");
 
@@ -175,59 +177,82 @@ const entryBoundary = {
 const entryMessage =
   "A fold test imports the owner it is about, never the page's entry.";
 
-const publicRuntimeBoundary = {
-  "no-restricted-imports": [
-    "error",
+const publicRuntimeImports = {
+  paths: [
     {
-      paths: [
-        {
-          name: "/leaf.js",
-          message: "Import Leaf capabilities from /runtime/widget-api.js.",
-        },
-      ],
-      patterns: [
-        {
-          regex: `^/runtime/(?!(?:${publicRuntimeModules})$)`,
-          message: "Use the public package API described in module-authoring.md.",
-        },
-        {
-          regex: "^\\.{1,2}/(?:.*/)?runtime/",
-          message: "Behavior and probe modules use /runtime/widget-api.js.",
-        },
-        {
-          regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
-          message: "Do not create a relative edge to the entry or public facade.",
-        },
-      ],
+      name: "/leaf.js",
+      message: "Import Leaf capabilities from /runtime/widget-api.js.",
     },
   ],
-  "no-restricted-syntax": [
-    "error",
+  patterns: [
     {
-      selector: 'ImportExpression[source.value="/leaf.js"]',
-      message: "Import Leaf capabilities statically from /runtime/widget-api.js.",
-    },
-    {
-      selector:
-        'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"], [source.value="/runtime/portable-api.js"])',
+      regex: `^/runtime/(?!(?:${publicRuntimeModules})$)`,
       message: "Use the public package API described in module-authoring.md.",
     },
     {
-      selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",
+      regex: "^\\.{1,2}/(?:.*/)?runtime/",
       message: "Behavior and probe modules use /runtime/widget-api.js.",
     },
     {
-      selector:
-        "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
+      regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
       message: "Do not create a relative edge to the entry or public facade.",
-    },
-    {
-      selector: 'ImportExpression:not([source.type="Literal"])',
-      message:
-        "Dynamic module paths hide dependency edges; declare a literal public import.",
     },
   ],
 };
+
+const publicRuntimeSyntax = [
+  {
+    selector: 'ImportExpression[source.value="/leaf.js"]',
+    message: "Import Leaf capabilities statically from /runtime/widget-api.js.",
+  },
+  {
+    selector: `ImportExpression[source.value=/^\\/runtime\\//]:not(${publicRuntimePaths.map((path) => `[source.value="${path}"]`).join(", ")})`,
+    message: "Use the public package API described in module-authoring.md.",
+  },
+  {
+    selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",
+    message: "Behavior and probe modules use /runtime/widget-api.js.",
+  },
+  {
+    selector:
+      "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
+    message: "Do not create a relative edge to the entry or public facade.",
+  },
+  {
+    selector: 'ImportExpression:not([source.type="Literal"])',
+    message:
+      "Dynamic module paths hide dependency edges; declare a literal public import.",
+  },
+];
+
+const publicRuntimeBoundary = {
+  "no-restricted-imports": ["error", publicRuntimeImports],
+  "no-restricted-syntax": ["error", ...publicRuntimeSyntax],
+};
+
+const ownerRuntimeSyntax = [
+  {
+    selector: 'ImportExpression:not([source.type="Literal"])',
+    message:
+      "Runtime dependencies must be literal imports; computed paths belong to content loaders.",
+  },
+  {
+    selector:
+      "ImportExpression[source.value=/^\\/(?:leaf|runtime\\/widget-api)\\.js$/]",
+    message: "Private runtime owners never import the entry or public facade.",
+  },
+  {
+    selector:
+      "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
+    message: "Private runtime owners never import the entry or public facade.",
+  },
+  {
+    selector:
+      'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
+    message:
+      "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
+  },
+];
 
 const ownerBoundary = {
   "no-restricted-imports": [
@@ -252,30 +277,7 @@ const ownerBoundary = {
       ],
     },
   ],
-  "no-restricted-syntax": [
-    "error",
-    {
-      selector: 'ImportExpression:not([source.type="Literal"])',
-      message:
-        "Runtime dependencies must be literal imports; computed paths belong to content loaders.",
-    },
-    {
-      selector:
-        "ImportExpression[source.value=/^\\/(?:leaf|runtime\\/widget-api)\\.js$/]",
-      message: "Private runtime owners never import the entry or public facade.",
-    },
-    {
-      selector:
-        "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?(?:leaf|widget-api)\\.js$/]",
-      message: "Private runtime owners never import the entry or public facade.",
-    },
-    {
-      selector:
-        'AssignmentExpression[operator="+="][left.type="MemberExpression"][left.property.name="value"]',
-      message:
-        "`x.value += 1` reads the signal before writing it, and inside a paint subscribes that paint to its own write; advance a version signal with tick() from version-signal.js.",
-    },
-  ],
+  "no-restricted-syntax": ["error", ...ownerRuntimeSyntax],
 };
 
 const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url));
@@ -1313,6 +1315,15 @@ export default [
   { linterOptions: { noInlineConfig: true } },
   js.configs.recommended,
   {
+    rules: {
+      "array-callback-return": ["error", { allowImplicit: true }],
+      "no-constructor-return": "error",
+      "no-new-wrappers": "error",
+      "no-unreachable-loop": "error",
+      "no-unsafe-negation": ["error", { enforceForOrderingRelations: true }],
+    },
+  },
+  {
     files: [
       "*.mjs",
       ".github/scripts/*.mjs",
@@ -1385,11 +1396,9 @@ export default [
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...publicRuntimeBoundary["no-restricted-syntax"]
-          .slice(1)
-          .filter(
-            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
-          ),
+        ...publicRuntimeSyntax.filter(
+          (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+        ),
       ],
     },
   },
@@ -1445,11 +1454,9 @@ export default [
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...publicRuntimeBoundary["no-restricted-syntax"]
-          .slice(1)
-          .filter(
-            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
-          ),
+        ...publicRuntimeSyntax.filter(
+          (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+        ),
       ],
     },
   },
@@ -1475,11 +1482,9 @@ export default [
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...publicRuntimeBoundary["no-restricted-syntax"]
-          .slice(1)
-          .filter(
-            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
-          ),
+        ...publicRuntimeSyntax.filter(
+          (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+        ),
       ],
     },
   },
@@ -1669,11 +1674,9 @@ export default [
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...ownerBoundary["no-restricted-syntax"]
-          .slice(1)
-          .filter(
-            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
-          ),
+        ...ownerRuntimeSyntax.filter(
+          (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+        ),
       ],
     },
   },

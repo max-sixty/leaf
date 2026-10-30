@@ -492,12 +492,12 @@
   /* The interface's own secondary inks, held to 4.5:1 against every surface the layer
      paints, tints and washes included: --muted-2 is what qualifies a line anywhere in
      the interface (a row's end, a status, a group heading, a field's hint), where
-     --muted is the document's and a theme may set it for its prose alone. Its dark
-     value was once darker than --muted's, which put it under 4.5:1 on the accent's
-     tint and under a hovered row. Code owns a near-neutral value because its canvas
-     no longer follows paper. */
+     --muted is the document's and a theme may set it for its prose alone. The
+     darkest ground it meets is a panel row washed by its linked passage's hover
+     (--mark-hover), where it reads 4.6:1 in either scheme. Code owns a near-neutral
+     value because its canvas no longer follows paper. */
   --ink-2: light-dark(#3c3934, #c9c3b6);
-  --muted-2: light-dark(#6d6960, #a09889);
+  --muted-2: light-dark(#676257, #b1aa9d);
   --border-2: light-dark(#d5cfc2, #453f36);
   /* A translucent backdrop is the paper it floats over, so it is derived rather than
      restated: a project that overrides --paper gets a backdrop that follows it, where a

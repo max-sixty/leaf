@@ -9,13 +9,14 @@
    and what anyone wrote (questions, messages, a plan) in a thread's,
    `--voice-message`; none of it takes the page's prose face. It once set its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
-   it shares with the other lists. Its words take the interface's inks: the ink, the
-   interface muted (`--muted-2`, base.css) for what qualifies them and for the empty
-   field's status, and the accent for what is on the user. It once mixed its own 72%
-   and 62% inks, which set its qualifiers a step brighter than every other list's.
-   The user chose a dim status (the 48% it first wore read 3.1:1 against AA's 4.5:1
-   for text), so it wears the dimmest ink the panel's ground holds legible. Every row
-   is one line. */
+   it shares with the other lists. Three inks: the ink, the interface's muted
+   (`--muted-2`, base.css) for what qualifies a line, as every list's does, and the
+   accent for what is on the user, with the empty field's status a step dimmer at 62%
+   (`--lf-fp-quiet`). The panel once mixed its qualifiers' ink too, at 72%, which no
+   theme reached. The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
+   panel's ground in the light scheme: 62% reads 4.7:1 there, where the 48% it first
+   wore read 3.1:1. The user chose a dim status, so it stays the dimmest words in the
+   panel. Every row is one line. */
 @scope (.lf-chrome) {
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
@@ -26,6 +27,8 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
+    /* Words standing in an empty field, a step dimmer than the panel's qualifiers. */
+    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
@@ -513,13 +516,13 @@
      panel's alone: the user kept a card's reply box dim on 27 October, since in a box
      that says nothing but its own hint, an ink Reply read as words already typed. */
   .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--muted-2);
+    color: var(--lf-fp-quiet);
   }
   .lf-fp-field leaf-text[data-offers]::part(placeholder) {
     color: var(--ink);
   }
   .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder-lead {
-    color: var(--muted-2);
+    color: var(--lf-fp-quiet);
   }
   .lf-fp-field leaf-text:not([data-offers]) .lf-compose-placeholder kbd {
     display: none;
@@ -566,8 +569,7 @@
     .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text[data-says="status"]::part(placeholder) {
-      /* At rest the words are ink at 62%, as dim as the interface muted they wear
-         when the work stops. */
+      /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
@@ -597,8 +599,8 @@
     --lf-fp-asks: var(--danger-ink);
   }
   /* A report in the blocked tone, a server the page can't reach or one answering with
-     its own error, reads in the danger's ink at 62%, as dim as the status's other words: red,
-     so the words agree with the leaf, and dim, since the page retries on its own. */
+     its own error, reads in the danger's ink at the quiet face's strength: red, so the
+     words agree with the leaf, and dim, since the page retries on its own. */
   .lf-floating-panel[data-tone="blocked"]:not([data-asks])
     .lf-fp-field
     leaf-text[data-says="status"]::part(placeholder) {
@@ -785,7 +787,7 @@
     );
   }
   .lf-fp-row-notice-sep {
-    color: var(--muted-2);
+    color: var(--lf-fp-quiet);
   }
   .lf-fp-row-notice-act {
     text-decoration: underline;
@@ -1692,7 +1694,7 @@
     align-self: center;
     width: 16px;
     height: 16px;
-    color: var(--muted-2);
+    color: var(--lf-fp-quiet);
   }
   .lf-fp-plan-step[data-state="open"] > .lf-fp-plan-mark::before {
     content: "";

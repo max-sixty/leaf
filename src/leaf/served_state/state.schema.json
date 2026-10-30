@@ -143,6 +143,10 @@
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
+            },
+            "text": {
+              "description": "The line a `waiting` declaration carries, which the status shows while no start holds an item.",
+              "type": "string"
             }
           },
           "required": ["state"],
@@ -1113,7 +1117,11 @@
               "properties": {
                 "kind": { "const": "todo" },
                 "id": { "type": "string" },
-                "subject": { "$ref": "#/$defs/Subject" }
+                "subject": { "$ref": "#/$defs/Subject" },
+                "by": {
+                  "description": "Leaf opened the to-do from the agent's reply at the end of its turn (`clerk.py`).",
+                  "const": "leaf"
+                }
               },
               "required": ["kind", "id", "subject"],
               "additionalProperties": false

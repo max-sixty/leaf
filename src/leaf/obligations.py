@@ -1105,7 +1105,13 @@ def user_task_obligations(
         records.append(
             {
                 "id": todo["id"],
-                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
+                "source": {
+                    "kind": "todo",
+                    "id": todo["id"],
+                    "subject": subject,
+                    # Leaf opened it from the agent's reply (`clerk.py`).
+                    **({"by": "leaf"} if events[todo["id"]].get("by") else {}),
+                },
                 "thread": reading.subject_thread(subject),
                 "message": None,
                 "prompt": {

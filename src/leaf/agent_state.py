@@ -81,7 +81,7 @@ def cmd_page_state(
         raise Refused("--after and --limit page a thread; name one as ID")
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
-        return _page_state(
+        return page_state(
             page_dir,
             page.events,
             activation.error,
@@ -310,7 +310,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def _page_state(
+def page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,

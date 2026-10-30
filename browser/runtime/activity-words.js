@@ -182,7 +182,13 @@ function statusWords({
   // update still on its way says so on its own label and in the explanation's count,
   // so the line keeps the invitation (the user's choice, 26 October 2026, over a
   // separate "listening" while one was).
-  if (kind === "listening") return [invite, invite, ""];
+  // A line the agent's declaration carries (`activity.declaration`) says what it waits
+  // for, and the invitation follows it in the explanation.
+  if (kind === "listening") {
+    if (!detail) return [invite, invite, ""];
+    const sentence = [{ text: detail, source: detailSource }];
+    return [sentence, [...sentence, `. ${invite}`], invite];
+  }
   if (kind === "stalled")
     return [
       dated,
@@ -469,7 +475,7 @@ export function leafRow(entry) {
         ? stated(facts.work)
         : detail || facts.work
       : kind === "listening"
-        ? "Ready"
+        ? detail || "Ready"
         : kind === "stalled"
           ? stated(silence)
           : kind === "away"

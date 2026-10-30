@@ -3980,11 +3980,22 @@ function statusWords({ dated, detail, detailSource, handling, invite, kind, over
 			""
 		];
 	}
-	if (kind === "listening") return [
-		invite,
-		invite,
-		""
-	];
+	if (kind === "listening") {
+		if (!detail) return [
+			invite,
+			invite,
+			""
+		];
+		const sentence = [{
+			text: detail,
+			source: detailSource
+		}];
+		return [
+			sentence,
+			[...sentence, `. ${invite}`],
+			invite
+		];
+	}
 	if (kind === "stalled") return [
 		dated,
 		[
@@ -4181,7 +4192,7 @@ function leafRow(entry) {
 	const stated = (word) => word + (detail ? " — " + detail : "");
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
-	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? detail || "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
 	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
 	return {
 		tone: facts.tone,
@@ -6596,6 +6607,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
 		if (card) {
 			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
+			const byLeaf = record?.source.kind === "todo" && record.source.by === "leaf" ? html`<span data-voice="leaf"
+              >added by Leaf from ${agentName()}'s reply</span
+            >` : null;
 			return html`<section
         class="lf-fp-on-item"
         data-card
@@ -6605,7 +6619,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${about.length || byLeaf ? html`<p class="lf-fp-on-place">
+                ${about.join(" · ")}${about.length && byLeaf ? " · " : ""}${byLeaf ?? nothing}
+              </p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-thread=${thread.key}

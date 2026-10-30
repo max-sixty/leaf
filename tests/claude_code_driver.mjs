@@ -4,7 +4,8 @@
 //
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
-// `$.process.spawn` throw; and `env`, Claude Code's environment, all that `$.env`
+// `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with; and
+// `env`, Claude Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -128,6 +129,22 @@ const $ = {
     toast: (text) => print({ toast: text }),
     // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
+  },
+  // A fork answers with `options.forkReply`, printing the prompt it was asked as
+  // `{"forked": <prompt>}`; with none it has nothing to fork, as before a turn's end.
+  model: {
+    fork: async ({ prompt }) => {
+      print({ forked: prompt });
+      const usage = {
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 1000,
+        cache_creation_input_tokens: 0,
+      };
+      return options.forkReply === undefined
+        ? { isAnswered: false, reason: "nothing-to-fork" }
+        : { isAnswered: true, text: options.forkReply, usage };
+    },
   },
   process: {
     run: (argv, init = {}) =>

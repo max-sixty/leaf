@@ -1,5 +1,6 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) drawing the session's
-pages above the prompt.
+pages above the prompt, and forking the conversation for Leaf's clerk as a turn
+ends.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the follower it runs together."""
@@ -21,6 +22,7 @@ from interact_support import (
     wait_for,
 )
 
+from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -50,6 +52,7 @@ class ClaudeCode:
         self.debug = queue.Queue()
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
+        self.forks = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -62,6 +65,8 @@ class ClaudeCode:
                 self.debug.put(record["debug"])
             elif "band" in record:
                 self.bands.put(record["band"])
+            elif "forked" in record:
+                self.forks.put(record["forked"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -374,4 +379,60 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     )
     driven.settle()
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_turn_end_forks_the_conversation_for_the_clerk(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """As a main-loop turn the model answered ends in a session holding a live page,
+    the module forks the conversation with the clerk's question and hands the answer
+    back, and Leaf writes the ask it names On me. A subagent's turn, or an interrupted
+    one, forks nothing."""
+    page = page_dir.resolve()
+    reply = json.dumps(
+        {
+            "status": {str(page): "Waiting on your pick of the retry limit"},
+            "on_me": [
+                {
+                    "page": str(page),
+                    "title": "Choose the retry limit: 3 or 5?",
+                    "kind": "ask",
+                    "quote": "Should the retry limit be 3 or 5?",
+                }
+            ],
+            "missed": [],
+        }
+    )
+    driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t1"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "a1"})
+    driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
+    driven.emit("turn.complete", {**ended, "reason": "answer"})
+    assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+    told = wait_for(
+        lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+        lambda line: line.startswith("Leaf: the clerk"),
+        failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
+    )
+    assert "wrote 2 records" in told, told
+    assert driven.forks.empty()
+    [todo] = [
+        event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
+    ]
+    assert (todo["owner"], todo["title"], todo["by"]) == (
+        "user",
+        "Choose the retry limit: 3 or 5?",
+        "leaf",
+    )
     driven.quit()

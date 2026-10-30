@@ -52,7 +52,8 @@ def declaration(events: list) -> dict:
     with the page, and every watcher stands down for an idle page. So a start after
     an `idle` (`todos.start_reading`) reads as a bare `waiting` from that start on.
     It has no event of its own, since a declaration puts down every start before
-    it."""
+    it. A `waiting` declaration may carry `text`, the line the page's status shows
+    until a start holds an item (`canonical_activity`)."""
     from .todos import start_reading
 
     reopened = None
@@ -60,7 +61,7 @@ def declaration(events: list) -> dict:
         if event["kind"] == "status":
             if event["state"] == "idle" and reopened is not None:
                 return {"state": "waiting", "ts": reopened["ts"]}
-            return {key: event[key] for key in ("state", "ts")}
+            return {key: event[key] for key in ("state", "ts", "text") if key in event}
         if start_reading(event):
             reopened = event
     return undeclared()
@@ -615,7 +616,7 @@ def canonical_activity(
         assert turn.ended is not None
         observed = {
             "kind": "working",
-            "detail": BACKGROUND_DETAIL,
+            "detail": status.get("text") or BACKGROUND_DETAIL,
             "ts": turn.ended.isoformat(),
         }
     status_dropped = _dropped(status.get("ts"), turn.ended, now)
@@ -784,7 +785,9 @@ def canonical_activity(
         detail_source = {"event_id": start["id"], "item": start["item"]}
         kind = "stalled" if taking_input else "away"
     elif taking_input:
-        kind, dropped = "listening", False
+        # The declaration's line, which says what the agent waits for, where no start
+        # says what it does (`declaration`).
+        kind, detail, dropped = "listening", status.get("text", ""), False
     if dropped and kind != "working":
         # A belief the turn's ending retired is dated by that ending, not by the
         # start's own last word: "last checked in just now" beside an amber dot

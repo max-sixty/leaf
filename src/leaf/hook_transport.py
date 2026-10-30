@@ -98,6 +98,11 @@ line to renew. Whether the work has moved on is the agent's judgement; the hook 
 says how long the line has stood. This was the user's choice (28 October 2026) over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
+The prompt hook and a tool boundary also carry what Leaf's clerk wrote at the last
+turn's end and the steps it found missed, one line each (`clerk.queued`), and take
+them off the queue once printed (`clerk.heard`). Stop carries none: the clerk forks
+only after the turn has ended.
+
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
 inside its timeout, and prints afterwards. It never waits for a lock past that
@@ -112,6 +117,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from .activity import acknowledged_obligations, turn_obligations, unanswered
+from .clerk import heard, queued
 from .delivery import (
     batch_data,
     deliverable,
@@ -560,7 +566,10 @@ def carry_turn(
         if event == "PostToolBatch" and status_check_due(sid)
         else []
     )
-    if event == "PostToolBatch" and not batches and not renewals:
+    # What Leaf's clerk wrote, and the steps it found missed, since the agent last
+    # heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    if event == "PostToolBatch" and not batches and not renewals and not told:
         return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
@@ -613,7 +622,7 @@ def carry_turn(
     context = notices(reconnect_harness, sid, expected)
     if context is None:
         return
-    attention = [*context, *attention, *renewals]
+    attention = [*context, *attention, *renewals, *told]
     if delivery is None:
         message = "\n".join(attention)
     else:
@@ -651,3 +660,4 @@ def carry_turn(
     if message:
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)
+        heard(sid, told)

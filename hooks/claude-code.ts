@@ -1,6 +1,7 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages, and the drawing of Leaf's own rows in the conversation. Claude
+ * session's pages, the drawing of Leaf's own rows in the conversation, and the
+ * fork of the conversation Leaf's clerk asks at each turn's end (`clerk`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -97,7 +98,7 @@ const TONES: Record<string, string> = {
 };
 
 /** What a line says of the agent's work, in the words of an All pages row
- * (`leafRow` in activity-words.js), less its bare Listening and Awaits, since
+ * (`leafRow` in activity-words.js), less its bare Ready and Awaits, since
  * listening is the usual case. */
 function statusOf({ kind, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
@@ -105,6 +106,8 @@ function statusOf({ kind, detail }: Leaf["activity"]) {
   if (kind === "working") return detail || "Working on it";
   if (kind === "stalled") return stated("Quiet");
   if (kind === "away") return "Away";
+  // The line a waiting declaration carries, which says what the agent waits for.
+  if (kind === "listening") return detail;
   return "";
 }
 
@@ -231,6 +234,84 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
+/** Run one half of Leaf's clerk (`leaf hook --fork`, `clerk.cmd_fork`) with
+ * `payload`, and what it printed, or undefined where it printed nothing. */
+async function clerkStep(
+  $: EngineInterface,
+  session: string,
+  payload: Record<string, unknown>,
+) {
+  const ran = await $.process.run(
+    [launcher($), "hook", "--harness", "claude-code", "--if-claimed", "--fork"],
+    {
+      env: environment(session),
+      stdin: JSON.stringify({
+        hook_event_name: "Fork",
+        session_id: session,
+        ...payload,
+      }),
+      timeoutMs: 60_000,
+    },
+  );
+  if (ran.exitCode !== 0)
+    throw new Error(
+      `exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
+    );
+  const printed = ran.stdout.trim();
+  return printed ? JSON.parse(printed) : undefined;
+}
+
+// Whether a fork is out, and whether another main-loop turn ended while it was.
+let forking = false;
+let forkAgain = false;
+
+/** Leaf's clerk: as a main-loop turn ends in a session holding a live page, fork the
+ * conversation with the question Leaf asks of it, and hand the answer back for Leaf
+ * to write (`src/leaf/clerk.py`, whose header says what it writes and why). It runs
+ * off the turn's path, and a turn that ends while a fork is out starts one more
+ * after it. `$.model.fork` resends the main thread's own last request, its model,
+ * system prompt, tools and effort, so the cache serves the conversation; it takes
+ * no answer schema, so Leaf checks the answer against its own (`read_answer`).
+ * What the fork cost goes to the debug log. */
+async function clerk($: EngineInterface, session: string) {
+  if (forking) {
+    forkAgain = true;
+    return;
+  }
+  forking = true;
+  try {
+    do {
+      forkAgain = false;
+      const asked = await clerkStep($, session, {});
+      if (!asked) return;
+      const reply = await $.model.fork({ prompt: asked.prompt });
+      if (!reply.isAnswered) {
+        $.ui.log(`Leaf: the clerk's fork gave no answer (${reply.reason})`, {
+          to: "debug",
+        });
+        continue;
+      }
+      try {
+        const applied = await clerkStep($, session, {
+          answer: reply.text,
+          basis: asked.basis,
+        });
+        $.ui.log(
+          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `wrote ${applied?.wrote?.length ?? 0} records and told ${applied?.told?.length ?? 0} lines`}; usage ${JSON.stringify(reply.usage)}`,
+          { to: "debug" },
+        );
+      } catch (error) {
+        // A refused answer, as one that doesn't fit the schema, writes nothing.
+        $.ui.log(`Leaf: the clerk's answer was not written: ${error}`, { to: "debug" });
+      }
+    } while (forkAgain);
+  } catch (error) {
+    $.ui.log(`Leaf: the clerk failed: ${error}`);
+  } finally {
+    forking = false;
+  }
+}
+
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
@@ -261,7 +342,10 @@ export const register: Register = (on) => {
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
-    follow($, await sessionOf($));
+    const session = await sessionOf($);
+    follow($, session);
+    // Only a turn the model answered: an interrupted one has no reply to read.
+    if (e.reason === "answer" && leaves.length > 0) void clerk($, session);
     return completed;
   });
 

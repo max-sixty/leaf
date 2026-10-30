@@ -6150,7 +6150,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
       ${resolved.length ? html`${settledHeading("resolved", "Resolved", resolved.length)}
-              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
+            ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
       ${inventoried() ? nothing : html`<p class="lf-rows-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
@@ -9851,9 +9851,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">
-          No matching commands
-        </div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands</div>
       </div>
     </div>
   `;

@@ -26,6 +26,7 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
+import { setScroll } from "./arrivals.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./shown-box.js";
@@ -130,11 +131,14 @@ export function restoreCarry(
   return () => {
     for (const [arrived, record] of positions) {
       if (!arrived.isConnected) continue;
-      if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-      if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+      if (record.scrollTop || record.scrollLeft)
+        setScroll(arrived, {
+          top: record.scrollTop || arrived.scrollTop,
+          left: record.scrollLeft || arrived.scrollLeft,
+        });
     }
     // Initial generated controls have boxes but stay hidden until upgrade
-    // (theme.css). Their focus joins the post-layout correction; authored fields
+    // (base.css). Their focus joins the post-layout correction; authored fields
     // already took focus above so typing can continue while presentation is held.
     restoreFocus(true);
   };

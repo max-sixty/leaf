@@ -68,8 +68,8 @@ finished failure doesn't fail every later draw.
 
 State the user arranges but doesn't record, such as which groups they collapsed, stays
 out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
-for this page in this tab; set `null` to remove it. An `x-initial` drawing reads the same
-store, so the first paint can show it (`module-authoring.md`, "First paint").
+for this page in this tab; set `null` to remove it. Read it during setup so the first visible state reflects it
+(`module-authoring.md`, "First paint").
 
 ## Declared widget state
 
@@ -191,7 +191,9 @@ then redraws as the time's reading changes.
 `boundFile(binding)` reads and writes a file the agent granted this page with
 `leaf file bind`. `read()` returns `{label, text, revision}`, with `text` in LF line
 endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws an error whose `current` holds the newer file. `watch(callback)` calls
+otherwise throws a `RequestError` whose `current` holds the newer file.
+`RequestError` also carries the HTTP `status` and response `body`; distinguish it
+with `instanceof` when handling a server refusal. `watch(callback)` calls
 back whenever the file may have changed on disk, the widget's own save included, so read
 it again then. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
@@ -277,12 +279,15 @@ Generation is available only on live pages, not captured documents, exports or l
 samples. It collects no external data and writes no page data or events: the caller
 supplies the context and decides how to use the returned value.
 
+To render generated Leaf source as an isolated working preview, use
+`mountSample(frame, {source})` from the same module. The [generated sample
+workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
+
 The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
 existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
 the user configured for Pi. Pi has no structured-output mode, so it is given the schema
 and its answer is validated against it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
-per call, not retained as a billing ledger. Each page server runs one widget
-generation at a time and rejects overlapping calls as busy (HTTP 429), keeping
-ordinary page interactions responsive.
+per call, not retained as a billing ledger. Independent generation calls run
+concurrently, while ordinary page interactions remain available.

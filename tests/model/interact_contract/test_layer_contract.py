@@ -24,7 +24,6 @@ from interact_support import (
     yaml_block,
     yaml_document,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -40,6 +39,7 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
 
@@ -98,6 +98,40 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
         lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
     assert refused.values["keyword"] == "pattern"
+
+
+def test_one_check_names_the_first_departure_in_each_layer_fact():
+    """Each layer fact holds its schema independently of the others, so one refusal
+    names a departure in each, and only the first within one."""
+    registry = shipped_core_registry()
+    named = {"description": "Build facts.", "schema": {}}
+    registry["$data"] = {"contracts": {"a\n": named, "b\n": named}}
+    registry["$reactions"] = {
+        **registry["$reactions"],
+        "tokens": {"keep\n": {"glyph": "+"}},
+    }
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["path"][0] for finding in refused.value.findings] == [
+        "$data",
+        "$reactions",
+    ]
+
+
+def test_one_check_names_each_missing_layer_fact():
+    """A missing fact is named for itself, not folded into another that is missing."""
+    registry = shipped_core_registry()
+    del registry["$languages"], registry["$tones"]
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["reason"] for finding in refused.value.findings] == [
+        "'$languages' is a required property",
+        "'$tones' is a required property",
+    ]
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
@@ -242,7 +276,9 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
         for index in range(start, len(tokens))
         if tokens[index].type == "table_close"
     )
-    opening = "\n".join(text.splitlines()[: tokens[start].map[0]])
+    source_lines = tokens[start].map
+    assert source_lines is not None
+    opening = "\n".join(text.splitlines()[: source_lines[0]])
     cells = [token.content for token in tokens[start:end] if token.type == "inline"]
     assert cells[:5] == ["Kind", "Author", "Door", "Fields", "Meaning"]
     shared = set.intersection(
@@ -748,7 +784,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     session_model.cmd_waiting(page_dir)
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
-    session = harness_model.session_harness().session
+    harness = harness_model.session_harness()
+    assert harness is not None
+    session = harness.session
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
         monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
@@ -758,15 +796,17 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
 
     # The adapter's queue route: collect the batch, then offer its pointer.
     with service_model.PageTransaction(page_dir) as transaction:
-        path, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "codex-queue-task",
             page_dir,
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="queue"
-    )
+        assert append_batch_result is not None
+        path, _, _ = append_batch_result
+    record_2 = codex_model.read_record(path)
+    assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
+    queued = codex_model.offer_delivery(path, record_2, transport="queue")
     read = json.dumps(
         delivery_model.cmd_delivery_read(queued.payload["id"]), ensure_ascii=False
     )
@@ -785,7 +825,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     # and the next prompt hook hands the delivery over.
     assert service_model.claim_page(page_dir)
     cleanup_model.close_session_turn(session)
-    woke = session_model.watch_between_turns(harness_model.session_harness())
+    harness_2 = harness_model.session_harness()
+    assert harness_2 is not None
+    woke = session_model.watch_between_turns(harness_2)
     assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}

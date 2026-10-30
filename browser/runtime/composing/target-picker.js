@@ -1,5 +1,6 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
+import { selectEnds } from "../native-selection.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, offerAction, searchField } from "../widget-elements.js";
@@ -14,7 +15,6 @@ import {
   pageText,
   quoteFrom,
   rangeOf,
-  selectEnds,
   segmentBlock,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";

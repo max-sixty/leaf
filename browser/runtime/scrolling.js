@@ -22,14 +22,15 @@
    keeper's write returns the reader to a place they already had (reading-place.js,
    `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
-   is the keeper's. A landing in motion counts from its start (`startScroll`), since
-   layout it caused can be announced before its sequence ends. A sequence can end frames
-   after its last `scroll` event, as WebKit's do, so continuity takes a reading at the
-   end too. Like that record, this listens on the document, which a scroll inside a
-   shadow root does not reach. */
+   is the keeper's. An explicit landing counts from its start (`startScroll`), even
+   when instant, since layout it caused can be announced before its sequence ends.
+   A sequence can end frames after its last `scroll` event, as WebKit's do, so
+   continuity takes a reading at the end too. Like that record, this listens on the
+   document, which a scroll inside a shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
-import { watchOwner } from "./arrivals.js";
+import { setScroll, watchOwner } from "./arrivals.js";
+import { skipped } from "./shown-box.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -56,7 +57,9 @@ function watchLayout(box) {
   extents.set(box, extentOf(box));
   const root = box === pageScroller ? document.documentElement : box;
   const sizes = new WeakMap();
-  const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
+  // Observe skipped children too, so revealing them supplies their first reading.
+  const measure = (node) =>
+    skipped(node) ? null : [node.clientWidth, node.clientHeight, node.scrollHeight];
   const observer = sizeObserver(
     (entries) => {
       let changed = false;
@@ -64,7 +67,8 @@ function watchLayout(box) {
         const next = measure(target);
         const before = sizes.get(target);
         sizes.set(target, next);
-        if (before?.some((value, index) => value !== next[index])) changed = true;
+        if (next && (!before || before.some((value, index) => value !== next[index])))
+          changed = true;
       }
       if (changed) {
         if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -111,7 +115,7 @@ export function stopScroll(boxes) {
     .map((box) => [box, moving.get(box)]);
   if (!stopped.length) return null;
   for (const [box] of stopped)
-    box.scrollTo({
+    setScroll(box, {
       left: box.scrollLeft,
       top: box.scrollTop,
       behavior: "instant",
@@ -135,8 +139,8 @@ export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 const chooseScroll = (box) => chosen.set(box, ++choices);
-// Record a native glide before its first compositor frame; scroll events alone
-// cannot report an outgoing placement a new gesture interrupts that early.
+// Record an explicit landing before native scroll events: an instant move can
+// coincide with layout, and a new gesture can interrupt a glide before its first frame.
 export function startScroll(box) {
   moving.set(box, { glide: true });
   chooseScroll(box);
@@ -161,6 +165,7 @@ document.addEventListener(
   "scroll",
   ({ target }) => {
     const box = eventScroller(target);
+    if (skipped(box)) return;
     watchLayout(box);
     scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
@@ -186,6 +191,12 @@ document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = eventScroller(target);
+    if (skipped(box)) {
+      moving.delete(box);
+      scrollSteps.delete(box);
+      layoutMoved.delete(box);
+      return;
+    }
     watchLayout(box);
     const wasMoving = moving.get(box);
     moving.delete(box);
@@ -249,9 +260,10 @@ export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized.
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
+/** @param {Element} box @param {ScrollBehavior} behavior */
 export const scrollToEnd = (box, behavior = "instant") => {
   if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-  box.scrollTo({ top: scrollLimit(box), behavior });
+  setScroll(box, { top: scrollLimit(box), behavior });
 };
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
@@ -267,11 +279,12 @@ export const scrollToEnd = (box, behavior = "instant") => {
 // from where the box landed, each move's rounding would add to the last, and a line
 // would creep across the screen revision by revision, or frame by frame of a fold.
 const aims = new WeakMap();
+/** @param {Element} box @param {number} top @param {ScrollBehavior} behavior */
 export const moveScrollerBy = (box, top, behavior = "instant") => {
   const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) {
     if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-    box.scrollBy({ top, behavior });
+    setScroll(box, { top: aim, behavior });
   }
   if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
     aims.set(box, { aim, at: box.scrollTop });

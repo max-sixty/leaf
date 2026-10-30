@@ -36,6 +36,11 @@ pnpm run eval:view
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
+- **Widget formats.** `--condition formats` runs direct Leaf HTML, a JSON tree
+  compiled to Leaf HTML, and the Adaptive Cards SDK for the retained
+  [widget format cases](widget-formats/README.md). `--condition json` and
+  `--condition adaptive` select either JSON arm alone. `--model MODEL` selects
+  one Codex author model for every selected condition in that run.
 - **Promptfoo options.** Anything after the cases goes to `promptfoo eval`, such as
   `--repeat 3`, `-j 4` or `--filter-pattern`.
 
@@ -160,37 +165,32 @@ to an unavailable server. Regenerate the same report with additional run directo
 to keep one entry point for a hill-climbing journey.
 
 For a hill-climbing journey, pass `--review FILE` with an agent-authored JSON
-assessment. The report is a workspace: its title and navigation stay in view
-while the selected result scrolls. **Introduction** opens first and explains the
-visible navigation, the changes being evaluated and their evidence. **Changes
-tested** opens one intervention or diagnostic at a time: Leaf code and authoring
-instructions, or evaluation tooling and the hill-climb skill, with an explicit
-recommendation. Its evidence can include an unchanged plain HTML reference.
+assessment. **Introduction** gives a short summary and links to the work.
+**Cases & outputs** opens the case tasks and their generated pages; the campaign
+author’s commentary appears separately as **Assessment**. Output captions identify
+the format, author model and saved phase. Links and screenshots open that same phase.
+The output index, task tabs and judge preferences retain the underlying results.
+
+**Changes to Leaf** holds changes selected for review. An experiment with
+`"review": true` gets **Approve change** and **Revisit change** choices on On me.
+Checks, measurements and rejected trials belong in supporting evidence and carry
+no approval. The author selects actual changes explicitly; recommendations and
+scores never infer that selection. Detailed implementation notes follow the changes
+in a disclosure. Existing authorization and landing rules still govern actions.
+
 Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,
-with shared scale and synchronized scrolling at 100%. Output links sit below the
-viewer. HTML-versus-Leaf references use labeled **Plain HTML** and **Leaf** columns,
-without implying a before/after intervention. Other paired captures share caption and image rows, including when their
-links wrap. **Outputs** has one overview and a browser for every saved output;
-rows distinguish this journey from reference outputs reused from other runs.
-With an authored `journey`, **Hill-climbing journey** contains **Story
-& outputs** before the output index. The story explains what each attempt revealed and
-why it led to the next, with the saved screenshots and interactive pages beside
-each attempt, while **Changes tested** keeps the proposed changes and
-retention decisions separate. An experiment tests one hypothesis; the journey connects
-those experiments and their outputs. A run is one eval execution, identified in the
-output’s details. Each lane preserves its supplied step order;
-parallel lanes need no invented global chronology. Steps link to existing output revisions
-or comparisons, so the story and result browser share the evidence.
-The horizontal row starts with **Story & outputs** and **Output index**, followed by
-the saved task tabs. These are views of the same outputs, not additional experiments. Task tabs and
-the output index follow their first appearance in the journey; tasks outside the
-journey follow alphabetically. Without a journey, tasks are alphabetical.
-Single-choice groups appear directly, with tabs only for alternatives. Run identifiers,
-costs, source code and methodology sit in details beside the output they describe.
-Checks distinguish a finished author, a saved output and render validation;
-quality assessments retain their criteria and reasons. The agent supplies the
-causal interpretation; the renderer never infers improvement from a passing score
-or calls feedback turns independent before/after authors.
+with shared scale and synchronized scrolling at 100%. HTML-versus-Leaf references
+use labeled columns without implying a before/after intervention. Missing captures,
+incomplete author turns and unscored outputs remain visible beside the results.
+Checks, quality grades and pairwise preferences retain their distinct meanings.
+
+A case is the task given to an author; an output is one saved authored page. An
+experiment tests a hypothesis, and a run is an eval execution identified in the
+output’s details. Reusing an output in a comparison does not create another author
+attempt. Each journey lane preserves its supplied step order; parallel lanes need
+no invented global chronology. Task tabs and the output index follow the outputs’
+first appearance in the journey, with remaining tasks in alphabetical order.
+Run identifiers, costs, source code and methodology sit in details beside the output.
 
 Keep the review beside the run results. Paths below are absolute, and every run
 referenced by the review is also an argument to `eval-report`. The `latest.runs`
@@ -213,16 +213,37 @@ executions, such as a short case and a longer workflow.
       }
     ]
   },
+  "implementation": {
+    "summary": [
+      "What the retained code changes, its size and interfaces, and how it was validated."
+    ],
+    "human_review": {
+      "summary": "Why these changes merit the human's attention.",
+      "changes": [
+        {
+          "id": "grading-contract",
+          "title": "What the keyboard judgment establishes",
+          "before": "The criterion prescribed one keyboard gesture for every control.",
+          "after": "The judgment follows each control's actual keyboard semantics.",
+          "reason": "This changes how the reader should interpret the recorded judgments.",
+          "evidence": ["/absolute/path/to/grading-contract.diff"]
+        }
+      ]
+    },
+    "weaknesses": "Material limitations and where the assessment is least certain.",
+    "remaining": "What merging would leave undone within the stated scope."
+  },
   "journey": [
     {
       "id": "journey-navigation",
       "title": "Patch navigation",
-      "summary": "What this path set out to learn and where it ended.",
+      "summary": "The task given to the authors.",
       "steps": [
         {
           "id": "journey-navigation-baseline",
-          "title": "The baseline changed the question",
+          "title": "Baseline outputs",
           "body": "What we observed, tried, learned, and chose to do next.",
+          "assessment_by": "Campaign author",
           "outputs": [
             {
               "label": "Leaf baseline",
@@ -252,6 +273,8 @@ executions, such as a short case and a longer workflow.
       "id": "change-name",
       "label": "Short navigation label",
       "title": "The change tested",
+      "kind": "UI change",
+      "review": true,
       "period": "When this experiment ran",
       "change": "The intervention and its intended effect.",
       "recommendation": "Keep, revise or reject",
@@ -279,12 +302,92 @@ title; a comparison's optional `summary` gives a short assessment beside its ima
 with the full `finding` visible below. Use empty comparison/evidence arrays where
 no such evidence exists, and say why in the assessment. Screenshot evidence
 renders inline; other files are linked.
+
+The optional experiment `kind` is a visible description such as “UI change”,
+“Documentation”, “Check” or “Rejected trial”. `review` defaults to false; only
+actual changes selected for the user’s decision set it to true. Use concrete
+behavior in titles, so a reader can tell what changed without knowing the campaign’s
+internal terminology.
+
+For a hill-climb report that changes code or instructions, `implementation`
+supplies the collapsed implementation record: summary, weaknesses, remaining work
+and the rationale and evidence in `human_review`. An eval-only report can omit it.
+The experiment’s `review` field owns the interactive decision; implementation notes
+add no second approval for the same change.
+
+For each selected change, explain the before/after implications, why it deserves
+attention, and link reviewable source or a scoped exact diff in `evidence`.
+Exact `.diff` evidence appears inline in `lf-diff`, with every file initially
+collapsed, alongside its raw source link. Other evidence remains linked. The
+report selects the `diff` package, preserving any packages already on the page.
+When inserting a summary into an existing report outside `eval-report`, select
+that package with `leaf page init` before checking, stamping and exporting it.
+
+Use optional `links` with `label` and `target` to connect a selected code change
+to its corresponding **Changes to Leaf** experiment (`#experiment-<id>`), or a
+specific comparison (`#experiment-<id>-comparison-<number>`). Select these links
+from the actual relationship; evaluation-contract and report changes may have no
+corresponding product experiment. Keep the original grades when explaining
+changes to an evaluation contract. Use stable `id` values for the subsection's anchors. Supply
+`human_review.changes: []` when the assessment finds none, with its reasoning in
+`human_review.summary`; the report explicitly states that no material changes
+were selected. Omitting `implementation` means no implementation assessment was
+supplied, rather than an assessed-empty selection.
+
+The **Judge preferences** view reads each retained native pair judgment and shows
+both presentation orders separately. Its five overall preference categories are
+ordinal, not numerical quality scores or independent author replications. Only
+pairs identified by their saved output metadata as one Leaf and one Plain HTML
+output appear on the format axis; other pairs remain in the exact-outcome table.
+Without checkpoint metadata, comparisons are unordered.
+
+Supply optional `preference_summary` to explain which runtime changes these
+comparisons cover, which remain untested, and any author changes that limit the
+interpretation. To label an explicit progression, add optional
+`preference_checkpoints`:
+
+```json
+{
+  "preference_summary": "Only configuration was compared again; a new author limits causal attribution.",
+  "preference_checkpoints": [
+    {
+      "label": "Original payload",
+      "pairs": [
+        { "run": "/absolute/path/to/pair-producer", "subject": "dashboard", "pair": 1 }
+      ]
+    }
+  ],
+  "repair_comparisons": [
+    {
+      "id": "navigation",
+      "title": "Same-source navigation",
+      "before": "The selected file and visible diff disagree.",
+      "after": "The visible diff follows the keyboard selection.",
+      "evidence": ["/absolute/path/to/matched-observation.json"]
+    }
+  ]
+}
+```
+
+Each pair reference selects exactly one `subject`/`pair` record from that run's
+`pairs.json`, which must also be present among the report's loaded native pairs.
+Supply labels and checkpoint order, never copies of winners, margins or scores.
+The table identifies reused HTML controls and tasks not compared at a checkpoint.
+A fresh author at a later checkpoint does not isolate the effect of a repair.
+The optional `repair_comparisons` instead supplies cited, authored before/after
+behavioral observations in a separate table; it does not turn pass/fail findings
+or recommendations into preference scores.
+
 The optional `journey` is authored interpretation, not a chronology inferred from
 scores or file timestamps. Its lane and step IDs are stable page anchors; link
 targets are report fragments such as an experiment or a saved sample revision.
 Each step's optional `outputs` references retained samples in the supplied runs,
 using the same `run`, `sample` and optional `phase` fields as a comparison, plus a
-visible `label`. Their screenshots and direct interactive-page links appear inline.
+visible `label` and optional recorded `model`. A missing model is labeled as
+unrecorded; current harness defaults are not historical evidence. A step’s `body`
+is its assessment, attributed by `assessment_by` (default “Report author”), after
+the generated outputs. The lane’s `summary` supplies the case task. Output
+screenshots and direct interactive-page links appear inline.
 The first shared captured viewport is shown when available; otherwise each output
 shows its first viewport at its labelled recorded dimensions. Other viewports are
 disclosures, not extra tabs. Pair a Leaf attempt with the retained HTML control to
@@ -355,7 +458,9 @@ Assertions grade the saved `index.html`, with additional `completed` and
 `page-valid` checks; the executor independently runs `page check`, plain and with
 `--render`, and keeps the page, native trace, reply, and check output under the
 sample's evidence. A prompt may reuse a complete task's request by naming it, as
-`file://<task>/request.md`. A `python` assertion naming
+`file://<task>/request.md`. The selected `--viewport` sizes reach the author in its
+request and determine the report captures; the render check retains its own wider
+diagnostic sweep. A `python` assertion naming
 `dev/leaf_dev/page_defects.py` grades the page by the defects its user would notice
 at three widths, beside what the checks reported; its header says what it records,
 and `page-reads-at-every-width` uses it. A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
@@ -443,17 +548,19 @@ instruction diagnostic do not establish that rendered behavior.
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own using only the host's login, so runs spend the signed-in accounts'
-usage and never an API key. Authoring agents write scratch files in `/tmp` under
-names their task suggests, so on macOS a Claude Code child runs under a sandbox
-profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own
-`TMPDIR` takes them. Eval defaults to serial provider calls and assertions for
+usage and never an API key. On macOS, native authoring sessions use
+`authoring_sandbox` in `dev/leaf_dev/arms.py` to isolate shared `/tmp` content and
+host plugin payloads; their own `TMPDIR` holds scratch files. Read-only probes use
+their provider's restrictions. Eval defaults to serial provider calls and assertions for
 browser load. The decision round's user agent drives the page with the pinned
 Playwright CLI from development dependencies. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
-read-only task. `MODELS` in `dev/leaf_dev/arms.py` owns the model pins. Native
-Codex turns use the Codex harness pin, including the final live judge and optional
-pair judges; their reasoning effort is medium. Text grading uses `judge`, the
-browser user uses `user`, and static screenshot grading uses `screenshots`. Hosted response
+read-only task. `MODELS` in `dev/leaf_dev/arms.py` owns author and simulated-user
+pins; `JUDGE_MODELS` owns quality judges independently. Native Codex author turns
+use `MODELS["codex"]`; final live, pair and static screenshot judges use
+`JUDGE_MODELS["codex"]`. Native Codex author, live and pair turns use medium reasoning
+effort. Text grading uses the Claude
+judge pin, and the browser user uses `MODELS["user"]`. Hosted response
 cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container
@@ -478,7 +585,7 @@ partly the judge's. For static screenshot cases, point `screenshot_judge` in
 grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
 That setting does not change complete-task live judges. Their model follows the
-Codex harness pin; `eval-pairs` rejudges saved samples with the current live judge
+Codex judge pin; `eval-pairs` rejudges saved samples with the current live judge
 while retaining their original authored pages and runtimes.
 
 ### Independent live audits
@@ -498,7 +605,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from leaf_dev.arms import MODELS
+from leaf_dev.arms import JUDGE_MODELS
 from leaf_dev.commands.eval_pairs import eval_pairs
 
 audit = Path(tempfile.mkdtemp(prefix="audit-", dir=Path(".tmp/eval").resolve()))
@@ -513,7 +620,7 @@ for index, source in enumerate(sys.argv[2:]):
             (target / name).symlink_to(source / name, target_is_directory=True)
     runs.append(str(target))
 if sys.argv[1] != "-":
-    MODELS["codex"] = sys.argv[1]
+    JUDGE_MODELS["codex"] = sys.argv[1]
 print("Comparison indexes:", *runs, sep="\n")
 eval_pairs.main(args=runs, standalone_mode=False)
 PY

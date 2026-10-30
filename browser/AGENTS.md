@@ -22,7 +22,7 @@ representative desktop viewport.
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`theme.css`) sets type, spacing and form as tokens,
+  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
   and a widget reads only its own box and the theme's tokens. A widget therefore behaves
   the same in a shipped Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
@@ -35,8 +35,9 @@ representative desktop viewport.
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The rail and the
-  margin"). Only the left margin content and sidenotes move the column, through
-  `marginContentLayout` in `prepaint.js`. Checks:
+  margin"). Native document tracks and wrapping rows place the page's own sidebars and notes
+  from the first paint. `runtime/content-layout.js` reads their CSS geometry for
+  annotations and never reallocates document space. Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
@@ -86,8 +87,8 @@ representative desktop viewport.
   a thread's reply and the seated comment box share the floating panel's field.
   The container grows only for content, such as typed words, or an explicit action,
   such as More room. Changing labels (`data-room`, below) and rendering a widget
-  after its first paint (`keeps-first-box`) follow the same sizing rule. A
-  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  after its first visible paint follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (base.css); its touch target meets
   the minimum size set by surfaces.css. A control that instead derives its visible
   height from its font or the touch-target minimum changes the height of every
   container that holds it. Check:
@@ -118,11 +119,11 @@ representative desktop viewport.
   `thread/card-anchor.js` owns what each interaction preserves. A box a scroll carried
   away comes back when the user types into it (`off-flow.js`). Only a field in flow
   scrolls to keep its controls in view (`thread/reply-landing.js`).
-- **A widget paints its final box before it upgrades.** The theme sizes each widget
-  under `html[data-lf-interactive]` as its module will draw it
-  (`../skills/leaf/references/module-authoring.md`, "First paint"). Check: the widget quality check
-  `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
-  doesn't list.
+- **Deliver readable content before activating it.** Authored HTML paints while
+  browser modules load. Each widget owns one Lit view across its lifetime; native
+  slots retain authored children and CSS owns their initial layout. Let each control
+  wait only for the behavior or state it needs. Never hold the whole document behind
+  widget readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
 - **Generated interface appears in its final position, and room is held only for what
   will be drawn**, such as a widget's upgraded controls. A state that may never come,
   such as a failed save, shows in a slot already on screen, as a message's head carries
@@ -206,11 +207,11 @@ representative desktop viewport.
   what its task needs, and the leaf's menu holds the rest.
 - **A control wears its role's face.** Code builds a control by its role, with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
-  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
@@ -234,15 +235,17 @@ representative desktop viewport.
 `leaf.js` only boots the page: it imports the owner modules, each of which exports its
 capability, and starts them in the order "Startup and presentation" lists. Two classic
 scripts run before any module. `runtime/prepaint.js` runs inline in every document,
-served or exported, and sets `data-lf-interactive` so the theme gives widgets their
-upgraded size. When something the page needs fails, it removes that attribute and names
-the reason in `data-lf-startup-error`, and every widget shows its readable fallback.
+served or exported. It marks the interactive document, restores native reading state
+and reports startup failures. Content remains readable while modules load; controls
+activate through their owning widget lifecycle. A failure removes the interactive mark
+and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
 and shows a startup failure.
 
 Content modules import only `runtime/widget-api.js`, the public helper surface, or a
 widget that also runs off Leaf only its part any document loads,
-`runtime/portable-api.js`, whose header says what its homes owe. Owners
+`runtime/portable-api.js`;
+`module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
@@ -391,6 +394,12 @@ and `carry.js` carries the value, focus, caret and scroll of an element with an 
 id. A module keeps any other state in its own store under the element's id. Delay the
 revision only for a gesture in progress that has no value to carry, such as an open
 composer or menu (`version.js`).
+
+State a module keeps for one press, or for one view while it stays open, lives in one
+record that starts when the press or view does and is dropped when it ends, rather than
+in variables the module resets by hand. A module keeps its record against the press
+through `focus.js` `pressRecords`. A field added to the record ends with the others,
+where a separate variable needs a reset at every place the press or view can end.
 
 ### One answer for each question
 
@@ -551,9 +560,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
-modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
-type-checks the runtime and widget modules, strictly where a module is marked
-`// @ts-check`, which the build requires of every framework module; `types/` holds the
-check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
-`types/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). `pnpm run check:browser` type-checks runtime and widget
+modules, strictly for TypeScript owners and JavaScript marked `// @ts-check`;
+every framework owner is strict. TypeScript owners deliver committed JavaScript;
+`../build/browser/build.mjs` owns compilation and checker selection. `types/` holds
+the check's configuration and declarations. Declare a new global, event detail or
+runtime element tag in `types/runtime-globals.d.ts`.

@@ -1,9 +1,8 @@
 /* Geometry for a horizontal time axis, shared by the widgets that draw one: the
  * Playwright recording timeline (`packages/playwright/widgets/timeline.js`) and
- * `lf-timeline` (`packages/timeline/initial/timeline-view.js`, bundled into its
- * initial renderer). Times are milliseconds from the axis origin; positions are
+ * `lf-timeline` (`packages/timeline/widgets/timeline-view.js`). Times are milliseconds from the axis origin; positions are
  * pixels along the drawn span. Nothing here touches the DOM except the canvas
- * that measures text, so both a parser-time drawing and a module can call it.
+ * that measures text, so each widget can call it while drawing.
  *
  * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
  * major ticks TICK_SPACING apart, with four or five minor ticks between them. Rows

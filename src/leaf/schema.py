@@ -385,7 +385,6 @@ EXTENSION_SCHEMA = {
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-margin-content": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
@@ -453,14 +452,15 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic script registering a synchronous Lit view factory. Delivery
-        # supplies lfInitial.lit before it runs, then draws each complete host;
-        # the module continues that view in its existing rendering root.
-        "x-initial": {
-            "type": "string",
-            "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
+        "x-views": {
+            "type": "object",
+            "properties": {
+                "members": {"type": "string", "minLength": 1},
+                "parts": {"const": True},
+            },
+            "required": ["members"],
+            "additionalProperties": False,
         },
-        "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",
@@ -513,96 +513,94 @@ _CLAUSES = {
         "additionalProperties": False,
     },
 }
-# The shape of the shared layer facts a complete vocabulary carries, each read
-# directly by its consumers: a string `$tones.names` would answer the tone check's
-# membership test by substring, and a token without a `glyph` paints nothing. What
-# names another fact, or needs more than a shape (a clause's `when` and a contract's
-# `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
-LAYER_FACTS_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "$events": {
-            "type": "object",
-            "properties": {
-                "kinds": {"type": "object"},
-                "handling": {"type": "object", "additionalProperties": _CLAUSES},
-                "answering": {"type": "object", "additionalProperties": _CLAUSES},
-            },
-            "required": ["kinds", "handling", "answering"],
+# The shape of each shared layer fact a complete vocabulary carries, every one
+# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# Its consumers read each directly: a string `$tones.names` would answer the tone
+# check's membership test by substring, and a token without a `glyph` paints nothing.
+# What names another fact, or needs more than a shape (a clause's `when` and a
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
+# checks.
+LAYER_FACTS = {
+    "$events": {
+        "type": "object",
+        "properties": {
+            "kinds": {"type": "object"},
+            "handling": {"type": "object", "additionalProperties": _CLAUSES},
+            "answering": {"type": "object", "additionalProperties": _CLAUSES},
         },
-        "$languages": {
-            "type": "object",
-            "properties": {
-                "names": _UNIQUE_NAMES,
-                "paths": {"type": "object", "additionalProperties": {"type": "string"}},
-            },
-            "required": ["names", "paths"],
+        "required": ["kinds", "handling", "answering"],
+    },
+    "$languages": {
+        "type": "object",
+        "properties": {
+            "names": _UNIQUE_NAMES,
+            "paths": {"type": "object", "additionalProperties": {"type": "string"}},
         },
-        "$tones": {
-            "type": "object",
-            "properties": {"names": _UNIQUE_NAMES},
-            "required": ["names"],
-        },
-        "$data": {
-            "type": "object",
-            "properties": {
-                "description": _NONEMPTY,
-                "contracts": {
+        "required": ["names", "paths"],
+    },
+    "$tones": {
+        "type": "object",
+        "properties": {"names": _UNIQUE_NAMES},
+        "required": ["names"],
+    },
+    "$data": {
+        "type": "object",
+        "properties": {
+            "description": _NONEMPTY,
+            "contracts": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
+                "additionalProperties": {
                     "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "description": _NONEMPTY,
-                            "schema": {"type": "object"},
-                            "instructions": INSTRUCTIONS_SCHEMA,
-                            # Null reads as absent (`data.deferred_records`).
-                            "records": {
-                                "type": ["object", "null"],
-                                "properties": {
-                                    "items": _NONEMPTY,
-                                    "key": _NONEMPTY,
-                                    "deferred": _NONEMPTY,
-                                },
-                                "required": ["items", "key"],
-                                "additionalProperties": False,
+                    "properties": {
+                        "description": _NONEMPTY,
+                        "schema": {"type": "object"},
+                        "instructions": INSTRUCTIONS_SCHEMA,
+                        # Null reads as absent (`data.deferred_records`).
+                        "records": {
+                            "type": ["object", "null"],
+                            "properties": {
+                                "items": _NONEMPTY,
+                                "key": _NONEMPTY,
+                                "deferred": _NONEMPTY,
                             },
-                            "resources": {"type": "array", "items": _NONEMPTY},
+                            "required": ["items", "key"],
+                            "additionalProperties": False,
                         },
-                        "required": ["description", "schema"],
-                        "additionalProperties": False,
+                        "resources": {"type": "array", "items": _NONEMPTY},
                     },
+                    "required": ["description", "schema"],
+                    "additionalProperties": False,
                 },
             },
-            "required": ["description", "contracts"],
-            "additionalProperties": False,
         },
-        "$reactions": {
-            "type": "object",
-            "properties": {
-                "tokens": {
-                    "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        # A glyph is a mark: at most four code points.
-                        "properties": {
-                            "glyph": {
-                                "type": "string",
-                                "pattern": r"\S",
-                                "maxLength": 4,
-                            },
-                            "settles": {"type": "boolean"},
-                        },
-                        "required": ["glyph"],
-                        "additionalProperties": False,
-                    },
-                }
-            },
-            "required": ["tokens"],
-        },
+        "required": ["description", "contracts"],
+        "additionalProperties": False,
     },
-    "required": ["$events", "$languages", "$tones", "$data", "$reactions"],
+    "$reactions": {
+        "type": "object",
+        "properties": {
+            "tokens": {
+                "type": "object",
+                "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                "additionalProperties": {
+                    "type": "object",
+                    # A glyph is a mark: at most four code points.
+                    "properties": {
+                        "glyph": {
+                            "type": "string",
+                            "pattern": r"\S",
+                            "maxLength": 4,
+                        },
+                        "settles": {"type": "boolean"},
+                    },
+                    "required": ["glyph"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["tokens"],
+    },
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
@@ -630,12 +628,16 @@ DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 LAYER_FILE = "layer.json"
 # The top-level files a composed layer serves beside the page (`layer.compose_layer`).
 LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# The kernel's sheets, each composed into its own cascade tier
+# (`layer.composed_sheets`), and every file of the kernel's a layer reads.
+KERNEL_STYLES = ("shadow.css", "base.css", "layouts.css", "state.css")
+KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
     "widget-shadow.css",
-    "widgets.css",
-    "theme.css",
+    "defaults.css",
+    "overrides.css",
 )
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.

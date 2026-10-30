@@ -155,6 +155,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
+    assert lease_path is not None
     with take_wait_lease(lease_path) as lease:
         page = open_page(browser, url)
         runtime = page.evaluate_handle("""async () =>
@@ -168,6 +169,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
             if urlparse(route.request.url).path != "/api/state" or crossed:
                 route.continue_()
                 return
+            assert lease_path is not None
             with take_wait_lease(lease_path):
                 response = route.fetch()
                 assert response.json()["listening"] is True

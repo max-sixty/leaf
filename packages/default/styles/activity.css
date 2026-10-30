@@ -5,41 +5,37 @@
 lf-activity {
   display: block;
   margin: var(--sp-3) 0;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  /* The feed it draws wears markup's reading face (`reading.css`) whatever theme the
+     page takes, its rows' spacing at working density included. */
+  --lf-reading-face: 1;
 }
+/* The feed's notice ("Show activity · 1 new") is an inline press on the feed's line
+   (controls.css), across the feed and the aim floor tall, so its words changing move
+   no edge of it. */
 lf-activity .lf-activity-news {
   display: block;
   box-sizing: border-box;
   inline-size: 100%;
   block-size: var(--aim-floor);
   min-block-size: var(--aim-floor);
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  color: var(--accent);
-  font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
   text-align: start;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-lf-activity .lf-activity-news[data-lf-news] {
-  color: var(--danger);
 }
 lf-activity .lf-activity-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
 }
 /* A bounded feed scrolls its list under the toggle, which stays in view. Bounded whole,
    the box cut off the toggle's focus ring, since the toggle fills its width and stands
    at its top. */
 @media screen {
+  html[data-lf-interactive] lf-activity {
+    min-block-size: var(--aim-floor);
+  }
   lf-activity[data-lf-bound] {
     --lf-bound-box: .lf-activity-list;
     max-block-size: none;

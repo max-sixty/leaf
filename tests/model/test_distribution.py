@@ -4,12 +4,12 @@ boundary."""
 import shutil
 
 import pytest
-from leaf_dev.commands.distribution import bundle_runtime
 
 from leaf import layer as layer_model
 from leaf import runtime_selection
 from leaf.refusals import Refused
 from leaf.revision_artifact import Resource
+from leaf_dev.commands.distribution import bundle_runtime
 
 
 def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monkeypatch):
@@ -87,6 +87,36 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     chrome = runtime_selection.read_runtime().resources({}, {})["/runtime/chrome.css"]
     assert b".lf-edited" in chrome.data
     assert b"@import" not in chrome.data
+
+
+@pytest.mark.parametrize(
+    "sheet",
+    ["styles/shadow-leading.css", "styles/shared.css", "layouts.css", "state.css"],
+)
+def test_runtime_identity_names_every_composed_core_stylesheet(
+    tmp_path, monkeypatch, sheet
+):
+    """A CSS-only restart cannot reuse the identity of the old rendered page."""
+    assets = tmp_path / "browser"
+    (assets / "styles").mkdir(parents=True)
+    (assets / "base.css").write_text(":root { color: black; }\n")
+    (assets / "shadow.css").write_text('@import "./styles/shared.css";\n')
+    for name in (
+        "styles/shadow-leading.css",
+        "styles/shared.css",
+        "layouts.css",
+        "state.css",
+    ):
+        (assets / name).write_text(".before { color: black; }\n")
+    monkeypatch.setattr(runtime_selection, "ASSETS", assets)
+    monkeypatch.setattr(runtime_selection, "PLUGIN_ROOT", tmp_path)
+
+    def identity():
+        return runtime_selection.ServingRuntime({}, None, frozenset(), {}).identity
+
+    before = identity()
+    (assets / sheet).write_text(".after { color: red; }\n")
+    assert identity() != before
 
 
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])

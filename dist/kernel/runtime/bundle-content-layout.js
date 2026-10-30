@@ -1,8 +1,7 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, layoutChanged, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, whileConnected } from "./bundle-portable.js";
-import { J, LENT_REACH_STOP, PRESSES, TEXT_BOX, WORKS, Z, deepFocus, keeps, layoutPx, move, onCurrentLocation, pressing, tabStops, wearsLentStop } from "./bundle-dom-move.js";
-import { TEXT_BLOCK, anchorKey, applicationPresented, documentChanged, hostIn, inUi, isElementName, marks, registry, shadowRootsIn, tagsDeclaring, tick, uiInside } from "./bundle-layer-stack.js";
-import { PRESSABLE, repaintPage, reportPageError, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shownBox, shownParts, shownRect, userScrollport } from "./bundle-geometry.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, keeps, layoutChanged, layoutPx, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
+import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, fragmentId, hostIn, inUi, isElementName, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
+import { PRESSABLE, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
+import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
@@ -24,11 +23,10 @@ async function tickClock(reportError) {
 const observeServerNow = (now) => {
 	if (now) clockSkew = Date.parse(now) - Date.now();
 };
-const JUST_NOW = "just now";
 const age = (ts, compact) => clockValue((now) => {
 	if (!ts) return "";
 	const secs = Math.max(0, (now - new Date(ts).getTime()) / 1e3);
-	if (secs < 45) return compact ? "now" : JUST_NOW;
+	if (secs < 45) return compact ? "now" : "just now";
 	const [count, unit] = secs < 3600 ? [Math.round(secs / 60), "m"] : secs < 86400 ? [Math.round(secs / 3600), "h"] : [Math.round(secs / 86400), "d"];
 	return `${count}${unit}${compact ? "" : " ago"}`;
 });
@@ -280,18 +278,6 @@ function addressableLabel(element) {
 	return excerptWords(addressableSays(element) || element.querySelector("[aria-label]")?.getAttribute("aria-label"), LABEL_WORDS);
 }
 const sectionLabel = (addressable) => [addressableWord(addressable), addressableLabel(addressable)].filter(Boolean).join(" · ");
-
-//#endregion
-//#region runtime/initial-render.js
-const coordinator = (node) => node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial;
-const initialRender = (host) => coordinator(host).paint(host);
-const initialOrigin = (node) => coordinator(node).origin(node) ?? node;
-const initialParent = (node) => coordinator(node).parent(node);
-const authoredBody = (host) => coordinator(host).authoredBody(host);
-const initialSource = (node) => coordinator(node).reading(node);
-const restoreInitialSource = (root) => coordinator(root).restoreSource(root);
-const unmarkedCopy = (node) => coordinator(node).authoredCopy(node);
-const fragmentId = (fragment) => document.documentElement.lfInitial.fragmentId(fragment);
 
 //#endregion
 //#region runtime/anchor-resolution.js
@@ -763,7 +749,7 @@ function watchLayout(box) {
 	extents.set(box, extentOf(box));
 	const root = box === pageScroller ? document.documentElement : box;
 	const sizes = /* @__PURE__ */ new WeakMap();
-	const measure = (node) => [
+	const measure = (node) => skipped(node) ? null : [
 		node.clientWidth,
 		node.clientHeight,
 		node.scrollHeight
@@ -774,7 +760,7 @@ function watchLayout(box) {
 			const next = measure(target);
 			const before = sizes.get(target);
 			sizes.set(target, next);
-			if (before?.some((value, index) => value !== next[index])) changed = true;
+			if (next && (!before || before.some((value, index) => value !== next[index]))) changed = true;
 		}
 		if (changed) {
 			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -807,7 +793,7 @@ ended.set(pageScroller, pageScroller.scrollTop);
 function stopScroll(boxes) {
 	const stopped = [...boxes].filter((box) => moving.has(box)).map((box) => [box, moving.get(box)]);
 	if (!stopped.length) return null;
-	for (const [box] of stopped) box.scrollTo({
+	for (const [box] of stopped) setScroll(box, {
 		left: box.scrollLeft,
 		top: box.scrollTop,
 		behavior: "instant"
@@ -837,6 +823,7 @@ document.addEventListener("beforematch", () => {
 const eventScroller = (target) => target === document ? pageScroller : target;
 document.addEventListener("scroll", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) return;
 	watchLayout(box);
 	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
 	if (moving.get(box)?.glide) return;
@@ -854,6 +841,12 @@ function placeKept(...boxes) {
 }
 document.addEventListener("scrollend", ({ target }) => {
 	const box = eventScroller(target);
+	if (skipped(box)) {
+		moving.delete(box);
+		scrollSteps.delete(box);
+		layoutMoved.delete(box);
+		return;
+	}
 	watchLayout(box);
 	const wasMoving = moving.get(box);
 	moving.delete(box);
@@ -886,7 +879,7 @@ const SCROLL_SLACK = 2;
 const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 const scrollToEnd = (box, behavior = "instant") => {
 	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
-	box.scrollTo({
+	setScroll(box, {
 		top: scrollLimit(box),
 		behavior
 	});
@@ -896,8 +889,8 @@ const moveScrollerBy = (box, top, behavior = "instant") => {
 	const aim = box.scrollTop + top;
 	if (Math.abs(top) >= .5) {
 		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
-		box.scrollBy({
-			top,
+		setScroll(box, {
+			top: aim,
 			behavior
 		});
 	}
@@ -968,20 +961,20 @@ function returnStop(el, authored) {
 }
 const sideways = /* @__PURE__ */ new Map();
 const downwards = /* @__PURE__ */ new Map();
-const readingScrolled = (event) => paintReadingReach(event.currentTarget);
-const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget, true);
+watchScrolls((box) => {
+	if (downwards.has(box)) paintReadingReach(box);
+	if (sideways.has(box)) paintSidewaysReach(box, true);
+});
 function reachReadingScroller(el, paintContinuation) {
 	el.classList.toggle("scroll", true);
 	downwards.set(el, paintContinuation);
 	sweep(el);
 	paintReach();
 	watchReach(el);
-	el.addEventListener("scroll", readingScrolled, { passive: true });
 	paintReadingReach(el);
 	return () => {
 		downwards.delete(el);
 		if (!watched(el)) unwatchReach(el);
-		el.removeEventListener("scroll", readingScrolled);
 		afterScript(() => {
 			if (!downwards.has(el)) {
 				keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
@@ -991,15 +984,11 @@ function reachReadingScroller(el, paintContinuation) {
 	};
 }
 const readingPaints = /* @__PURE__ */ new Set();
-let readingPaintQueued = false;
 function paintReadingReach(el) {
 	readingPaints.add(el);
-	if (readingPaintQueued) return;
-	readingPaintQueued = true;
-	nextRender(paintReadingReachNow);
+	afterScript(paintReadingReachNow);
 }
 function paintReadingReachNow() {
-	readingPaintQueued = false;
 	const pending = [...readingPaints];
 	readingPaints.clear();
 	for (const el of pending) {
@@ -1082,7 +1071,7 @@ function forgetSurface(el) {
 		mayScroll.delete(el);
 		if (!claimedStops.has(el)) returnStop(el, authored);
 	}
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	waiting.delete(el);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, null);
 	keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
@@ -1100,7 +1089,6 @@ function classify(el, style) {
 	asked.add(el);
 	paintSlot(el, style);
 	if (!userScrollport(style.overflowX) && sideways.delete(el)) {
-		el.removeEventListener("scroll", sidewaysScrolled);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreBefore, null);
 		keeps(el, PAGE_PAINT_ATTRIBUTE.moreAfter, null);
@@ -1114,10 +1102,7 @@ function classify(el, style) {
 		return;
 	}
 	if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX)) {
-		if (!sideways.has(el)) {
-			watchReach(el);
-			el.addEventListener("scroll", sidewaysScrolled, { passive: true });
-		}
+		if (!sideways.has(el)) watchReach(el);
 		sideways.set(el, style.direction);
 	}
 	if (!mayScroll.has(el)) {
@@ -1173,7 +1158,7 @@ function paintSidewaysReach(el, readStyle = false) {
 function gone(el) {
 	if (el.isConnected) return false;
 	mayScroll.delete(el);
-	if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
+	sideways.delete(el);
 	downwards.delete(el);
 	waiting.delete(el);
 	if (queried.delete(el)) queries.unobserve(el);
@@ -1311,12 +1296,18 @@ const marked = (box) => box.checkVisibility() && getComputedStyle(box).getProper
 function syncLayoutRegion() {
 	const main = layoutBox();
 	const bodies = main ? [...main.children].flatMap((child) => {
-		if (marked(child)) return [[child, child.id]];
+		if (marked(child)) return [{
+			body: child,
+			name: child.id
+		}];
 		const only = child.childElementCount === 1 ? child.firstElementChild : null;
-		return only && marked(only) ? [[only, only.id || child.id]] : [];
+		return only && marked(only) ? [{
+			body: only,
+			name: only.id || child.id
+		}] : [];
 	}) : [];
 	let unnamed = 0;
-	const ids = new Map(bodies.map(([body, name]) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
+	const ids = new Map(bodies.map(({ body, name }) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
 	for (const [body, region] of layoutRegions) if (ids.get(body) !== region.id) {
 		region.stop();
 		layoutRegions.delete(body);
@@ -1373,7 +1364,7 @@ const actedAt = (at, arriving) => {
 	if (region) {
 		recentRegionId = region.id;
 		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing())) recentRegionId = pageRegionId = null;
+	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",
@@ -1416,7 +1407,7 @@ const asRegion = (regionOrNode) => typeof regionOrNode === "string" ? regions.ge
 const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 const regionScrollBehavior = (regionOrNode) => {
 	const region = asRegion(regionOrNode);
-	return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+	return region && live(region) && !concealed(region) && !skipped(region.body) && scrolls(region.body) ? "bounded" : "flow";
 };
 function effectiveScroller(regionOrNode) {
 	const region = asRegion(regionOrNode);
@@ -1567,7 +1558,7 @@ function holdBlock(bounded) {
 	};
 	let stopRegion = null;
 	const onScroll = () => {
-		if (bounded.hasAttribute("hidden")) return;
+		if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
 		hold.left = !atScrollEnd(hold.box);
 		if (!hold.left) hold.pinned = hold.box.scrollTop;
 	};
@@ -2132,8 +2123,8 @@ const cutPath = ({ x, y }, band) => {
 	const open = 1e5;
 	const width = band.right - band.left;
 	const height = band.bottom - band.top;
-	const edge = (value) => `calc(${layoutPx(value)} - var(--lf-paint-outset, 0px))`;
-	return `inset(${edge(y ? 0 : -1e5)} ${edge(-width - (x ? 0 : open))} ${edge(-height - (y ? 0 : open))} ${edge(x ? 0 : -1e5)})`;
+	const edge = (value, side) => `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+	return `inset(${edge(y ? 0 : -1e5, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -1e5, "left")})`;
 };
 const nowhere = {
 	left: 0,
@@ -2406,76 +2397,124 @@ function tell() {
 
 //#endregion
 //#region runtime/content-layout.js
-let marginContentLayoutOpen = false;
+let documentLayoutOpen = false;
 let readFinished = null;
-let marginContentLayoutPending = 0;
-let marginContentLayoutRead = -1;
-function marginContentLayoutPass(time) {
-	marginContentLayoutPending = 0;
-	if (time === marginContentLayoutRead) {
-		marginContentLayoutPending = nextFrame(marginContentLayoutPass);
-		return;
-	}
-	marginContentLayoutRead = time;
-	readMarginContentLayout();
-}
+let pending = 0;
+let lastRead = -1;
 let headSizes = null;
 let watchedHead = null;
-function watchHead() {
-	const header = document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ?? null;
-	if (header === watchedHead) return;
-	headSizes ??= sizeObserver(() => scheduleMarginContentLayout());
-	if (watchedHead) headSizes.unobserve(watchedHead);
-	if (header) headSizes.observe(header);
-	watchedHead = header;
-}
-function readMarginContentLayout() {
-	const { changed } = document.documentElement.lfInitial.marginContentLayout();
-	watchHead();
-	if (changed) layoutChanged(pageDocument());
+let railAvailable = null;
+function readDocumentLayout() {
+	const { changed } = readDocumentHeaders();
+	syncLayoutRegion();
+	const header = layoutBox()?.querySelector(":scope > header") ?? null;
+	if (header !== watchedHead) {
+		headSizes ??= sizeObserver(scheduleDocumentLayout);
+		if (watchedHead) headSizes.unobserve(watchedHead);
+		if (header) headSizes.observe(header);
+		watchedHead = header;
+	}
 	readFinished?.(changed);
-	if (!changed) return;
-	repaintPage();
-	pageControlsChanged();
+	const available = railStands();
+	if (available !== railAvailable) {
+		railAvailable = available;
+		pageControlsChanged();
+	}
+	if (changed) {
+		layoutChanged(pageDocument());
+		repaintPage();
+	}
 }
-const railStands = (main = layoutBox()) => (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-function scheduleMarginContentLayout() {
-	if (marginContentLayoutOpen) marginContentLayoutPending ||= nextRender(marginContentLayoutPass);
+function readFrame(time) {
+	pending = 0;
+	if (time === lastRead) {
+		pending = nextFrame(readFrame);
+		return;
+	}
+	lastRead = time;
+	readDocumentLayout();
 }
-function settleMarginContentLayout() {
-	if (marginContentLayoutOpen) readMarginContentLayout();
+function scheduleDocumentLayout() {
+	if (documentLayoutOpen) pending ||= nextRender(readFrame);
 }
-const ROOM = marks["x-space"].paint;
-const BREAKOUT = `[${ROOM}]`;
-const bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-function readBreakouts() {
-	const { changed } = document.documentElement.lfInitial.breakouts();
-	if (!changed) return;
-	layoutChanged(pageDocument());
-	repaintPage();
+function settleDocumentLayout() {
+	if (documentLayoutOpen) readDocumentLayout();
 }
-const mayChangeMarginContentLayout = (node) => node.matches("body > main > *, body > main > [data-lf-views=\"parts\"] > *, [data-lf-views-flow=\"page\"] > *");
-function openMarginContentLayout({ onRead }) {
+function openDocumentLayout({ onRead }) {
 	readFinished = onRead;
-	marginContentLayoutOpen = true;
-	document.addEventListener("toggle", scheduleMarginContentLayout, { capture: true });
-	window.addEventListener("resize", scheduleMarginContentLayout);
-	const main = pageDocument();
-	if (main) new MutationObserver((records) => {
-		if (records.some((record) => record.type === "attributes" && record.attributeName === "hidden" && mayChangeMarginContentLayout(record.target))) readMarginContentLayout();
-		else if (records.some((record) => record.type === "attributes" ? bringsBreakout(record.target) : [...record.addedNodes].some(bringsBreakout))) readBreakouts();
-	}).observe(main, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-		attributeFilter: [
-			ROOM,
-			"hidden",
-			"open"
-		]
-	});
-	readMarginContentLayout();
+	documentLayoutOpen = true;
+	document.addEventListener("toggle", scheduleDocumentLayout, { capture: true });
+	window.addEventListener("resize", scheduleDocumentLayout);
+	readDocumentLayout();
 }
+function proseRect(main = layoutBox()) {
+	if (!main) return null;
+	const grid = [main, ...main.children].find((node) => getComputedStyle(node).gridTemplateColumns.includes("prose-start"));
+	if (!grid) return main.getBoundingClientRect();
+	const style = getComputedStyle(grid);
+	const frame = elementFrame(grid);
+	if (!frame) return grid.getBoundingClientRect();
+	const gap = parseFloat(style.columnGap) || 0;
+	let offset = 0;
+	let start;
+	let end;
+	for (const match of style.gridTemplateColumns.matchAll(/\[([^\]]*)\]|(-?[\d.]+)px/g)) if (match[1] !== void 0) {
+		const names = match[1].split(/\s+/);
+		if (names.includes("prose-start")) start = offset;
+		if (names.includes("prose-end")) end = offset - gap;
+	} else offset += Number(match[2]) + gap;
+	const edge = (side) => parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
+	const left = style.direction === "rtl" ? frame.width - edge("Right") - end : edge("Left") + start;
+	const right = style.direction === "rtl" ? frame.width - edge("Right") - start : edge("Left") + end;
+	return union([
+		[left, 0],
+		[right, 0],
+		[left, frame.height],
+		[right, frame.height]
+	].map(([x, y]) => {
+		const point = frame.matrix.transformPoint({
+			x,
+			y
+		});
+		return {
+			left: point.x,
+			right: point.x,
+			top: point.y,
+			bottom: point.y
+		};
+	}));
+}
+const railStands = (main = layoutBox()) => {
+	if (!main || (document.body.dataset.annotations ?? "overlay") !== "overlay" || document.body.dataset.rail === "none") return false;
+	const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+	return shellRight() - proseRect(main).right >= width;
+};
+const title = () => {
+	const main = document.querySelector("body > main");
+	const parts = main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1" ? main.querySelector(":scope > [data-lf-views=\"parts\"]") : null;
+	let marked = false;
+	for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling) if (!node.classList.contains("scroll")) {
+		node.classList.add("scroll");
+		marked = true;
+	}
+	return marked;
+};
+const HEAD = "--lf-layout-head-h";
+const head = () => {
+	const body = document.body;
+	if (!body) return false;
+	const header = layoutBox()?.querySelector(":scope > header");
+	const value = header && getComputedStyle(header).position === "sticky" ? `${Math.ceil(header.getBoundingClientRect().height)}px` : "";
+	if (body.style.getPropertyValue(HEAD) === value) return false;
+	if (value) setRuntimeRootStyle(body, HEAD, value);
+	else removeRuntimeRootStyle(body, HEAD);
+	return true;
+};
+const readDocumentHeaders = () => {
+	const titled = title();
+	const headed = head();
+	return { changed: titled || headed };
+};
 
 //#endregion
-export { ADDRESSABLE, JUST_NOW, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, authoredBody, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentId, fragmentTarget, headerLevels, holdArrivingBounds, initialOrigin, initialParent, initialRender, initialSource, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openMarginContentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, restoreInitialSource, revealAddressed, saidNow, scheduleMarginContentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleMarginContentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, syncLayoutRegion, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, unmarkedCopy, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whenArriving, whileInterfaceConnected, widgetWord };

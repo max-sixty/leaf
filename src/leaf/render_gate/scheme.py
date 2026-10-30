@@ -16,14 +16,12 @@ from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
+    close_render_page,
     evaluate_probe,
     install_window_errors,
-    is_runtime_entry,
     observe_output_documents,
     output_values,
-    pre_upgrade_findings,
     wait_for_probe,
-    wait_for_theme,
     wait_until_ready,
 )
 
@@ -177,133 +175,6 @@ def collect_page_errors(page, errors: list[Finding]) -> None:
     collect_page_exceptions(page, errors)
 
 
-class PreUpgradeFailed(RuntimeError):
-    """The authored document never reached what the pre-upgrade proof waits for.
-    `finding` says what, with an empty `console` its reader fills in."""
-
-    def __init__(self, code: str, **values):
-        self.finding = Finding(code, values={**values, "console": []})
-        super().__init__(str(self.finding))
-
-
-INTERCEPTION_ARM = "**/__leaf_arms_interception__"
-
-
-def arm_interception(page):
-    """Keep this page's request interception on for the whole of its life.
-
-    Playwright turns interception off the moment a page's route list empties, and
-    requests crossing that transition are lost with nothing said about it: the
-    document stops at `interactive` with no load event, or a read the runtime is
-    waiting on never lands, and neither ending writes a console entry. The gate
-    holds the Leaf entry through a route and takes that route away again, so a page
-    it opens would otherwise see the list empty at the `unroute` — measured on the
-    corpus page, with `/api/state`, `/registry.json` and `/icon.svg` still in
-    flight. A route on a pattern nothing ever asks for keeps the list non-empty, so
-    no such transition is ever sent. The suite's harness arms a page it opens the
-    same way, once something routes it (`render_harness._arm`).
-    """
-    page.route(INTERCEPTION_ARM, lambda route: route.abort())
-
-
-def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
-    """Inspect the authored document while its first Leaf entry request is held, and
-    return what it found there, or raise `PreUpgradeFailed`.
-
-    The hold outlives the entry it holds. Playwright turns a page's request
-    interception off as soon as its last route handler is spent, and a `times=1`
-    handler is spent at the moment the entry is released — which is the moment the
-    module layer starts asking for a hundred-odd files. Turning interception off
-    under that burst loses requests: the document stops at `interactive` with a
-    module still in flight, or with nothing in flight and no load event, and neither
-    ending writes a console entry. So this handler stays registered until after the
-    load event and lets a later entry request through. The `unroute` in the `finally`
-    below is not the safe point either — a loaded document is not an idle one, and the
-    runtime's own `/api/state` read is still open there — so the page carries
-    `arm_interception` and its route list never empties at all.
-
-    Each wait here says which arrival it gave up on, and what the page was still
-    asking for. The caller reads a timeout raised out of this function as one it
-    cannot attribute, and the reading it would otherwise fall back on — that the
-    runtime never injected its chrome — is wrong for the case that actually
-    happens: a subresource the page never receives leaves the document at
-    `interactive` with the runtime already running, no console entry, and no
-    error. The request still open is the only thing that names the file.
-    """
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
-    observe_output_documents(page)
-    held = []
-    released = False
-    open_requests = set()
-
-    def hold_entry(route):
-        # Only the first is held. A later one is passed through rather than left
-        # held, because this handler has to outlive the entry it holds and a
-        # second hold nothing releases would be a wait with no end.
-        if held or not is_runtime_entry(route.request):
-            route.fallback()
-            return
-        held.append(route)
-
-    def opened(request):
-        open_requests.add(request)
-
-    def settled(request):
-        open_requests.discard(request)
-
-    def reaching(arrival, wait):
-        try:
-            return wait()
-        except PlaywrightTimeout:
-            # Minus the entry this function is holding itself, while it is still
-            # holding it: it is open because the gate chose to hold it, and naming it
-            # as something the page is still asking for points a reader at the hold
-            # rather than at the page. Past the release it is the page's own request
-            # like any other, and the load wait below is where it would stall.
-            mine = set() if released else {route.request for route in held}
-            waiting = open_requests - mine
-            asking = sorted({urlsplit(request.url).path for request in waiting})
-            raise PreUpgradeFailed(
-                "never-reached", arrival=arrival, requesting=asking
-            ) from None
-
-    page.on("request", opened)
-    page.on("requestfinished", settled)
-    page.on("requestfailed", settled)
-    page.route("**/leaf.js", hold_entry)
-    try:
-        reaching("its first byte", lambda: page.goto(url, wait_until="commit"))
-        reaching(
-            "an authored main",
-            lambda: page.wait_for_selector("body > main", state="attached"),
-        )
-        if page.locator("script[data-lf-runtime][src]").count() != 1:
-            raise PreUpgradeFailed("entry-not-single")
-        reaching("its theme stylesheet", lambda: wait_for_theme(page))
-        # The held entry is a module script, which runs only once the parser is done,
-        # so the whole authored document is parsed here and not yet upgraded.
-        reaching(
-            "the end of its markup",
-            lambda: page.wait_for_function("document.readyState !== 'loading'"),
-        )
-        findings = [Finding.read(record) for record in pre_upgrade_findings(page)]
-        if len(held) != 1:
-            raise PreUpgradeFailed("entry-not-requested")
-        # The output route subscribes before this entry upgrades the document.
-        held[0].fallback()
-        released = True
-        reaching("load", lambda: page.wait_for_load_state("load"))
-        return findings
-    finally:
-        if held and not released:
-            held[0].fallback()
-        page.unroute("**/leaf.js", hold_entry)
-        page.remove_listener("request", opened)
-        page.remove_listener("requestfinished", settled)
-        page.remove_listener("requestfailed", settled)
-
-
 def _render_scheme(
     browser,
     url,
@@ -326,7 +197,6 @@ def _render_scheme(
 
     page = browser.new_page(viewport=viewport, color_scheme=scheme)
     opened_pages.append(page)
-    arm_interception(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []
     resize_notices = []
@@ -343,7 +213,7 @@ def _render_scheme(
         (resize_notices if problem.code == "resize-loop" else errors).append(problem)
 
     def ended(found, notices=(), complete=False):
-        page.close()
+        close_render_page(page)
         return (
             [finding.but(scheme=scheme) for finding in found],
             [notice.but(scheme=scheme) for notice in notices],
@@ -357,7 +227,7 @@ def _render_scheme(
         return ended([Finding(code, values={**values, "console": console})])
 
     def probe_failure(error):
-        return ended([Finding("probe-failed", values={"error": str(error).strip()})])
+        return explained("probe-failed", error=str(error).strip())
 
     page.on("console", console_message)
     collect_page_exceptions(page, errors)
@@ -367,17 +237,13 @@ def _render_scheme(
     devtools = DevtoolsIssues(page)
     install_window_errors(page, window_error)
     try:
-        # Hold the entry in this navigation: this is the only point at which
-        # pre-upgrade authored structure exists without racing module execution.
-        pre_upgrade = start_with_pre_upgrade_proof(page, url)
+        observe_output_documents(page)
+        page.goto(url)
         wait_for_probe(page, "runtimeStarted")
     except PlaywrightTimeout:
         return explained("no-runtime")
     except PlaywrightError as error:
         return probe_failure(error)
-    except PreUpgradeFailed as error:
-        values = {k: v for k, v in error.finding.values.items() if k != "console"}
-        return explained(error.finding.code, **values)
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
@@ -416,7 +282,7 @@ def _render_scheme(
             # fault of its own, and a presentation the inventory broke is one the
             # user would see.
             return ended(
-                [*errors, *pre_upgrade, *map(Finding.read, visual_provider_problems)],
+                [*errors, *map(Finding.read, visual_provider_problems)],
                 resize_notices,
                 complete=True,
             )
@@ -457,11 +323,15 @@ def _render_scheme(
             failed_stage = "pageSettled"
             moving = evaluate_probe(page, "moving")
             unsettled = [Finding("never-settled", values={"moving": moving})]
+    errors.extend(
+        Finding.read(finding, severity="advice")
+        for finding in evaluate_probe(page, "startupLayoutShifts")
+    )
     replayed = _projection_was_applied(failed_stage)
     context = _SchemeContext(
         page=page,
         light=scheme == "light",
-        errors=[*errors, *pre_upgrade],
+        errors=errors,
         registry=registry,
         declarations=declarations,
         state=state,

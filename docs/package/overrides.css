@@ -1,0 +1,90 @@
+/* Product-site furniture. Published examples keep their authored Leaf layer. */
+
+/* The site's nav opens every product page, so the column starts at the runtime's
+ * narrow-screen top padding at every width. Every Layout reads the room above the page
+ * from this token. */
+body.site-page {
+  --page-pad-start: 28px;
+}
+
+/* The nav holds the reading column whatever Layout the page gives main, so the brand
+ * and routes stay in one place from page to page. */
+body.site-page nav.sitenav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  inline-size: 100%;
+  max-width: var(--col);
+  margin: 0 auto 40px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-5);
+}
+
+body.site-page nav.sitenav .brand {
+  margin-right: auto;
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+body.site-page nav.sitenav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+body.site-page nav.sitenav a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+body.site-page nav.sitenav [aria-current="page"] {
+  color: var(--ink);
+}
+
+body.site-page header.hero {
+  margin-bottom: 40px;
+}
+
+body.site-page header.hero h1 {
+  font-size: 40px;
+  letter-spacing: -0.018em;
+}
+
+body.site-page footer.site-footer {
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: var(--t-5);
+  --lf-block-frame: 1;
+}
+
+body.site-page footer.site-footer p {
+  margin: 0;
+}
+
+body.site-page footer.site-footer p + p {
+  margin-top: 6px;
+}
+/* Native diagrams share caption spacing; the package owns their layout. */
+.diagram-figure {
+  margin-block: var(--sp-4);
+  font: 15px/1.5 var(--sans);
+}
+.diagram-figure figcaption {
+  margin-top: var(--sp-3);
+  color: var(--muted);
+  font: 14px/1.5 var(--sans);
+}
+.topic-outline {
+  margin-block: var(--sp-3) var(--sp-5);
+}
+.topic-outline nav {
+  font: var(--t-5) / 1.5 var(--sans);
+}
+.topic-outline ul {
+  margin-block: var(--sp-2);
+}

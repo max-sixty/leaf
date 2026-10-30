@@ -240,7 +240,7 @@ export function scrollsContent(box) {
 }
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
-// stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
+// stands over (base.css), so where the `--lf-top` computed at `el` exceeds the
 // scroller's own, headers stand over `el`, and their foot is that value below the
 // scroller's padding edge, where a sticky box is measured from. The root's own value is
 // the head room, which is left to `shownWindow`, so with no header over `el` nothing is
@@ -252,7 +252,7 @@ export function scrollsContent(box) {
 // holds, so the value is read past every box between `el` and `scroller` that scrolls,
 // at the parent of the outermost: inside a sideways scroller the value counts from that
 // scroller, and the headers over `scroller`'s band are those outside it. A header's
-// holder puts the stacked value on a box that does not scroll (theme.css, at `--lf-top`).
+// holder puts the stacked value on a box that does not scroll (base.css, at `--lf-top`).
 const slotHolder = (el, scroller) => {
   let at = el;
   for (let box = el; box && box !== scroller; box = upFrom(box))
@@ -269,7 +269,7 @@ const insetAt = (at, scroller, slot, padding) => {
 };
 const TOP = ["--lf-top", "paddingTop"];
 // Where a header sticking at the top of `scroller` stands, below its border edge: past
-// its padding, at the slot it starts (`--lf-top`, theme.css).
+// its padding, at the slot it starts (`--lf-top`, base.css).
 export function slotTop(scroller) {
   const style = getComputedStyle(scroller);
   return (
@@ -283,7 +283,7 @@ const edgeInset = (el, scroller, edge) =>
     ? 0
     : insetAt(slotHolder(el, scroller), scroller, ...edge);
 export const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
-// The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
+// The same reading at the foot, for a box sticking there (`--lf-bottom`, base.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
 const footerInset = (el, scroller) => edgeInset(el, scroller, FOOT);
 export function visibleBand(scroller, item = null) {
@@ -991,7 +991,7 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
-// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (base.css,
 // at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
 // unless it stands in the top layer.
 export function stackLevel(node) {

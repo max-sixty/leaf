@@ -18,8 +18,17 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": false
   },
-  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js"]
+  "include": [
+    "*.d.ts",
+    "../../dev/browser-globals.d.ts",
+    "../../dev/leaf_dev/**/*.js",
+    "domain.test.js",
+    "../runtime/**/*.js",
+    "../runtime/**/*.ts"
+  ]
 }

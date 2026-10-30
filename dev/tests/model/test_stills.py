@@ -5,15 +5,17 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from leaf_dev.commands import stills
 from PIL import Image
+
+from leaf_dev.commands import stills
 
 
 @pytest.fixture
 def stills_catalogue(tmp_path, monkeypatch):
     """Replace build/server/browser boundaries, retaining the command, capture,
-    drivers, screenshots, and crops. Image comparison stands in for its browser
-    module so this tests catalogue orchestration without launching a browser.
+    drivers, screenshots, crops and style comparison. Image comparison stands in for
+    its browser module, and each arm's page computes and declares its name as the
+    root's colour, so this tests catalogue orchestration without launching a browser.
     """
     visited = []
 
@@ -47,10 +49,16 @@ def stills_catalogue(tmp_path, monkeypatch):
 
     @contextmanager
     def tab(browser, viewport, scheme, touch, *, scale):
-        yield SimpleNamespace(
+        page = SimpleNamespace(
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
         )
+        page.evaluate = lambda script, properties: {
+            "faces": [[page.url, *[""] * (len(properties) - 1)]],
+            "elements": {"html": 0},
+            "texts": [],
+        }
+        yield page
 
     compared = []
     catalogue = SimpleNamespace(
@@ -73,12 +81,19 @@ def stills_catalogue(tmp_path, monkeypatch):
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
     monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
     monkeypatch.setattr(stills, "serving_source", serving_source)
-    monkeypatch.setattr(stills, "headless_shell", lambda: nullcontext("browser"))
+    monkeypatch.setattr(
+        stills, "headless_shell", lambda **options: nullcontext("browser")
+    )
     monkeypatch.setattr(stills, "tab", tab)
     monkeypatch.setattr(
         stills, "load", lambda page, address: setattr(page, "url", address)
     )
     monkeypatch.setattr(stills, "settle", lambda page: None)
+    monkeypatch.setattr(
+        stills,
+        "declarations",
+        lambda page: lambda key: [f"{key} {{ color: {page.url}; }}"],
+    )
     monkeypatch.setattr(stills, "differences", differences)
     return catalogue
 
@@ -126,11 +141,19 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
             "diff.png",
         )
     )
+    assert (out / "healthy" / "styles.txt").read_text() == (
+        "color: base -> head  x1\n"
+        "    html\n"
+        "declarations that differ, on each group's first element\n"
+        "    html\n"
+        "        - html { color: base; }\n"
+        "        + html { color: head; }\n"
+    )
     assert result.output.replace(str(out), "<stills>") == (
         "base bbbbbbbbbb vs head aaaaaaaaaa\n"
         "  failed  assertions on base: Missing pasted image; on head: AssertionError\n"
         "  failed  partial on head: Driver lost its target\n"
-        "  changed healthy: 1 px -> <stills>/healthy\n"
+        "  changed healthy: 1 px, 1 styles -> <stills>/healthy\n"
         "0 of 3 states unchanged\n"
         "files in <stills>\n"
     )
@@ -199,7 +222,7 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
     assert result.output.replace(str(out), "<stills>") == (
         "base bbbbbbbbbb vs head aaaaaaaaaa\n"
         f"  failed  broken on comparison: {message}\n"
-        "  changed healthy: 1 px -> <stills>/healthy\n"
+        "  changed healthy: 1 px, 1 styles -> <stills>/healthy\n"
         "0 of 2 states unchanged\n"
         "files in <stills>\n"
     )

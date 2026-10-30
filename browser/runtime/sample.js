@@ -1,7 +1,9 @@
 /* A sample owns a disposable served page in an opaque browsing context. Its
  * unguessable page URL grants native requests to its own document, assets and log;
  * presentation commands and observations cross a private port as values.
- * Allocation captures the owning widget's immutable revision. Reset replaces the
+ * Allocation captures the owning widget's immutable revision and builds either its
+ * named template or a supplied full HTML source. Both become ordinary validated
+ * child pages; supplied source starts with an empty history. Reset replaces the
  * allocation, admitting its initial document with a credentialless HEAD before
  * native navigation. A later authored navigation keeps the frame and disables its
  * private port; an ordinary reload reconnects.
@@ -44,7 +46,7 @@
  * `clipboard-write`, which would let any script an author puts in a sample write the
  * user's clipboard on a press. A failed allocation or admission retires the
  * allocation before `ready` rejects. */
-import { requestJson } from "./layer-client.js";
+import { RequestError, requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
@@ -60,6 +62,7 @@ import { inputInFrame } from "./focus.js";
 import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
+import { exceptionRecord } from "./exception.js";
 import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
@@ -117,8 +120,9 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
-export function mountSample(frame, { template, window: asWindow = false }) {
-  if (!template) throw new Error("a sample needs an authored template id");
+export function mountSample(frame, { template, source, window: asWindow = false }) {
+  if ((template == null) === (source == null))
+    throw new Error("a sample needs either an authored template id or source document");
   // A template is declared in its revision's document or in a message's frozen
   // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
@@ -127,7 +131,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
     if (descriptor.document.kind === "page") revision = descriptor.document.revision;
-    else message = descriptor.document.message;
+    else if (source == null) message = descriptor.document.message;
     break;
   }
   let current = null;
@@ -162,11 +166,11 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   const recordFailure = (error, detail = {}) =>
     record("failed", {
       error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        status: error.status,
-        body: error.body,
+        ...exceptionRecord(error),
+        ...(error instanceof RequestError && {
+          status: error.status,
+          body: error.body,
+        }),
       },
       ...detail,
     });
@@ -213,7 +217,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         type: "visibility-reading",
         detail: {
           id,
-          error: { name: error.name, message: error.message, stack: error.stack },
+          error: exceptionRecord(error),
         },
       });
       reportError(error);
@@ -246,7 +250,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       return await work;
     } catch (error) {
       // Reset and destroy retire allocations themselves.
-      if (error.name !== "AbortError") {
+      if (exceptionRecord(error).name !== "AbortError") {
         recordFailure(error);
         await retire("failure", error);
       }
@@ -411,6 +415,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
 
   // What a pending call rejects with: the failure that retires the allocation, or
   // else the owner's cancellation.
+  /** @param {string} reason @param {unknown} [cause] */
   function retire(reason, cause = new DOMException("sample replaced", "AbortError")) {
     if (!current) return;
     const retiringDocument = connectedNonce;
@@ -449,7 +454,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         /** @type {import("../types/contract.js").ServedSampleAnswer} */
         const { url, page } = await request(
           pageUrl("api/samples"),
-          { template, message },
+          { template, source, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;

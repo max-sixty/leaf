@@ -501,7 +501,7 @@ RING_EXAMPLE_FILES = {
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
-    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
@@ -537,7 +537,7 @@ RING_SCOPE_OPENER = {
     "On me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
-    "a reaction palette": f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger",
+    "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
     "a landed diff line": "#pr-exact-patch summary",
 }
@@ -561,7 +561,7 @@ RING_SCOPE_WIDTH = {
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
     "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
-    "a reaction palette": ".lf-react-strip > .lf-react-trigger",
+    "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
 
@@ -695,7 +695,7 @@ def _each_aim_surface(page, page_dir):
     # The agent's answer in the other thread, with its reaction palette open: its chips
     # show only while it stands.
     open_panel_thread(page, answered)
-    page.locator(f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger").first.click()
+    page.locator(f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger").first.click()
     expect(
         page.locator(".lf-react-palette:popover-open .lf-react").first
     ).to_be_visible()
@@ -1400,15 +1400,16 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
     """The stop reading distinguishes a real ring from a missing one.
 
-    Reach a control by Tab, verify its real indication, then remove that indication. A
-    tab's label supplies the distinct case where a box inside the focused stop carries its
-    ring.
+    Reach a control by Shift+Tab, verify its real indication, then remove that
+    indication. A tab's label supplies the distinct case where a box inside the focused
+    stop carries its ring. The walk runs backward because the mark steps aside while
+    the caret is in the panel's field, which a forward walk passes first.
     """
     url = serve(LONG_PAGE, comments=2)
     page = open_page(browser, url)
     page.evaluate(RING_FOCUS_START)
     for _ in range(60):
-        page.keyboard.press("Tab")
+        page.keyboard.press("Shift+Tab")
         if page.evaluate(
             "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
         ):
@@ -1505,7 +1506,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
         url = serve(example, comments=2, anchored=anchored)
         if name == RING_CHROME:
-            current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+            match = re.search(r"/v(\d+)\.html", url)
+            assert match is not None
+            current_version = int(match.group(1))
             next_version = current_version + 1
             _publish(
                 serve.page_dir,

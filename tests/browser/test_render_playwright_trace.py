@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 
 import pytest
-from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
@@ -21,6 +20,7 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf_dev.page_fixtures import example_media
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -978,20 +978,17 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     with user.expect_request("**/widgets/lf-trace-compare.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
-    user.wait_for_function(
-        "() => document.querySelector('lf-trace-compare > [data-lf-opening]')"
-    )
+    expect(workspace.locator(":scope > figure")).to_have_count(2)
+    expect(workspace.locator(":scope > figure").first).to_be_visible()
+    expect(workspace.locator(":scope > figure").last).to_be_hidden()
     before = workspace.evaluate("""node => ({
         children: [...node.children].map(child => ({
-            opening: child.hasAttribute('data-lf-opening'),
-            drawn: child.checkVisibility()
+            drawn: child.getBoundingClientRect().height > 0
         })),
         reserved: parseFloat(getComputedStyle(node, '::before').height)
     })""")
     assert len(before["children"]) == 2
-    assert [child["drawn"] for child in before["children"]] == [
-        child["opening"] for child in before["children"]
-    ]
+    assert [child["drawn"] for child in before["children"]] == [True, False]
     assert before["reserved"] >= 44
     assert held
     user.unroute("**/widgets/lf-trace-compare.js")
@@ -1080,6 +1077,27 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     # Marks outside the zoomed window are drawing, not controls hidden by a clip.
     assert evaluate_probe(user, "clippedControls") == []
     assert time_window() == before
+    # The capture fits its resized viewport before that update paints. A later
+    # settled reading hides an old-width image clipped by the new viewport.
+    original_width = widget.locator(".lf-trace-canvas").evaluate(
+        "node => node.clientWidth"
+    )
+    widget.evaluate("""node => {
+        window.traceFits = [];
+        window.traceSize = new ResizeObserver(() => {
+            const canvas = node.querySelector('.lf-trace-canvas');
+            const viewer = node.querySelector('.viewer-container');
+            traceFits.push({canvas: canvas.clientWidth, viewer: viewer.clientWidth});
+        });
+        traceSize.observe(node.querySelector('.lf-trace-image-viewport'));
+    }""")
+    resized(user, 390, 520)
+    fits = user.evaluate("""() => {
+        traceSize.disconnect();
+        return traceFits;
+    }""")
+    assert any(fit["canvas"] < original_width for fit in fits), fits
+    assert fits and all(abs(fit["canvas"] - fit["viewer"]) <= 2 for fit in fits), fits
 
 
 def test_trace_images_stand_at_their_own_capture_times(browser, serve):

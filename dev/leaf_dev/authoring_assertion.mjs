@@ -23,7 +23,11 @@ export default async function grade(output, context, load = loadApiProvider) {
   });
   try {
     if (context.providerResponse.error) throw new Error(context.providerResponse.error);
-    const { diagnostics, work } = context.providerResponse.metadata;
+    const { diagnostics, work, checks } = context.providerResponse.metadata;
+    if (!checks.completed)
+      throw new Error(
+        "Native author did not complete; inspect retained native evidence.",
+      );
     const pages = Object.fromEntries(
       Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
         suffix ? "before_decision" : "final",
@@ -43,28 +47,33 @@ export default async function grade(output, context, load = loadApiProvider) {
     const provider = await load(context.config.judge.id, {
       options: context.config.judge,
     });
-    response = await provider.callApi(
-      `Judge the completed task against this criterion:
-${diagnostics.criterion}
+    const prompt = `Judge the completed task against this criterion:
+${diagnostics.criterion ?? ""}
 ${context.config.rubric}
 
-Request, later user messages and original browser decision task:
+Saved request and later user messages:
+${diagnostics.comparison.brief}
+
+Original browser decision task:
+${diagnostics.comparison.decision_task ?? ""}
+
+Author output and feedback:
 ${output}
 
 The final page is the author's result after all user feedback. The optional
 before_decision page is for operating its decision controls. Apply only feedback
 that exists for this task. Use pass when observation establishes the criterion,
 defect for a supported user-facing failure, or insufficient_evidence when
-exploration cannot settle it.`,
-      {
-        vars: {
-          pages,
-          widths: diagnostics.comparison.widths,
-          schema: z.toJSONSchema(Verdict),
-          evidence,
-        },
+exploration cannot settle it.`;
+    response = await provider.callApi(prompt, {
+      prompt: { raw: prompt, label: context.config.rubric },
+      vars: {
+        pages,
+        widths: diagnostics.comparison.widths,
+        schema: z.toJSONSchema(Verdict),
+        evidence,
       },
-    );
+    });
     if (response.error) throw new Error(response.error);
     return result(
       Verdict.parse(

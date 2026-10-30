@@ -23,6 +23,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    press_visible,
     scroll_settled,
     show_resolved,
     write,
@@ -143,9 +144,9 @@ def append_agent_reply(page_dir, parent, text, markup=None):
 def claim_for_codex(page_dir, request):
     """Claim the page for a Codex task listening on it, as App Server's adapter does."""
     claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
     with service_model.PageTransaction(page_dir) as transaction:
@@ -664,10 +665,7 @@ def open_capture_area(page, *, touch=False):
         menu.locator('.lf-fp-item[data-row="group:annotate"]'),
         menu.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
     ):
-        if touch:
-            press.tap()
-        else:
-            press.click()
+        press_visible(page, press, touch=touch)
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
     expect(surface.locator(".lf-region-selection")).to_be_hidden()

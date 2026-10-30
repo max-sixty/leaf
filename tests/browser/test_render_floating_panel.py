@@ -18,9 +18,6 @@ from interact_support import (
     record_claim,
     working,
 )
-from leaf_dev import browser as dev_browser
-from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ink_box, settled
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -40,6 +37,7 @@ from render_harness import (
     panel_control,
     panel_view,
     resized,
+    rgb_pixels,
     round_trip,
     select_words,
     sending,
@@ -59,6 +57,9 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev import browser as dev_browser
+from leaf_dev.browser import panel_tab
+from leaf_dev.panel_paint import ink_box, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -340,8 +341,8 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     view puts the caret back in the reply with its words, `r` resolves the thread from
     the view, a message in it or its Resolve and moves the user on, here back to
     Threads with no other thread open, `z` takes the resolve back and opens the
-    thread again, Enter on a resolved thread reopens it, and `e` on a message opens the
-    agent's reactions."""
+    thread again, Enter on a resolved thread puts the caret in its reply, which a reply
+    reopens, `r` there reopens it, and `e` on a message opens the agent's reactions."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -399,12 +400,18 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     expect(threads).to_be_visible()
 
-    # A resolved thread opened from under Threads' Resolved heading reopens on Enter.
+    # A resolved thread opened from under Threads' Resolved heading keeps its reply.
     show_resolved(page).first.click()
     expect(settle).to_have_accessible_name("Reopen")
     thread.focus()
+    page.keyboard.press("Enter")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(settle).to_have_accessible_name("Reopen")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     with sending(page, "the reopen"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
     expect(settle).to_have_accessible_name("Resolve thread")
 
@@ -2497,8 +2504,8 @@ def test_floating_status_records_feedback_only_when_its_words_show(
 def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     browser, serve, request
 ):
-    """A clock tick cannot move tooltip words; the leaf stays live and reopening
-    reads current status. A notice answering a gesture still shows immediately."""
+    """A clock tick cannot move tooltip words, and reopening reads current status. A
+    notice answering a gesture still shows immediately."""
     from browser.threads import claim_for_codex
 
     url = serve(LONG_PAGE)
@@ -2533,7 +2540,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 
     page.route("**/api/state*", aged_state)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("1m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     assert peek.bounding_box() == before
     page.mouse.move(5, 5)
@@ -2566,7 +2573,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     words = peek.inner_text()
     now += timedelta(minutes=1)
     page.clock.set_fixed_time(now)
-    expect(leaf).to_have_attribute("aria-label", re.compile("2m ago"))
+    ticked(page)
     assert peek.inner_text() == words
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
@@ -2714,7 +2721,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
     sheen(False)
-    alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
+    match = re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink))
+    assert match is not None
+    alpha = float(match.group(1))
     assert alpha < 0.7, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
     sheen(True)
@@ -3142,6 +3151,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
             "L"
         )
         low, high = pixels.getextrema()
+        assert isinstance(low, (int, float)) and isinstance(high, (int, float))
         assert high - low > 32, (low, high)
 
     def words_follow_leaf():
@@ -3162,8 +3172,7 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
         attachment = shelf.bounding_box()
         pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
         assert any(
-            r > 200 and 90 < g < 170 and b < 100
-            for r, g, b in pixels.get_flattened_data()
+            r > 200 and 90 < g < 170 and b < 100 for r, g, b in rgb_pixels(pixels)
         )
 
     row = reading()
@@ -3310,7 +3319,9 @@ def test_the_folded_leaf_keeps_its_badge_and_face_through_motion(browser, serve)
     settled(page)
     after = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
     difference = ImageChops.difference(before, after)
-    assert max(channel[1] for channel in difference.getextrema()) <= 8
+    extrema = difference.getextrema()
+    assert all(isinstance(channel, tuple) for channel in extrema)
+    assert max(channel[1] for channel in extrema if isinstance(channel, tuple)) <= 8
 
 
 def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
@@ -3697,7 +3708,9 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     other = view.locator(".lf-fp-version:not([data-current]) .lf-fp-label")
-    number = re.search(r"v\d+", other.inner_text()).group(0)
+    match_2 = re.search(r"v\d+", other.inner_text())
+    assert match_2 is not None
+    number = match_2.group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
@@ -4020,7 +4033,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    line = re.compile(r"^(\S+ ago · )?Drafting the rollout")
+    line = re.compile(r"^Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("> *")).to_have_count(2)
@@ -4124,26 +4137,6 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(rows.nth(1)).to_be_focused()
     expect(view.locator("[tabindex='0']")).to_have_count(1)
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
-
-
-def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
-    """A resolved thread's field takes no words and says no error, so the leaf's dot
-    marks an error raised there."""
-    url = serve(LONG_PAGE)
-    panel_comment(serve.page_dir, "Is the window long enough?")
-    page = floating(browser, url)
-    page.locator("body").focus()
-    page.keyboard.press("t")
-    settle = page.locator(".lf-fp-settle")
-    with sending(page, "the resolve"):
-        settle.click()
-    show_resolved(page).first.click()
-    expect(settle).to_have_accessible_name("Reopen")
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).raiseError('Couldn\\'t load v1')"
-    )
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
-    expect(field(page)).not_to_have_attribute("data-says", "error")
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):
@@ -4265,9 +4258,9 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     """Past three lines the field offers more room, by a press rather than on its own:
     a mark stands over the leaf, beside the field's first line, taking no room of its
-    own, including with a view open. Pressing it widens the panel, stands the field
-    half the window tall and keeps the caret in the words; emptying the field folds it
-    back."""
+    own, including with a view open. Pressing it widens the panel, keeps the field at
+    least as tall as the draft stood, without standing a short draft half the window
+    tall, and keeps the caret in the words; emptying the field folds it back."""
     page = floating(browser, serve(LONG_PAGE))
     panel = page.locator(".lf-floating-panel")
     expand = page.locator(".lf-fp-expand")
@@ -4296,18 +4289,43 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     page.keyboard.press("Escape")
     field(page).click()
     expect(expand).to_have_attribute("aria-pressed", "false")
+    before = field(page).bounding_box()["height"]
     expand.click()
     expect(expand).to_have_attribute("aria-pressed", "true")
     expect(field(page)).to_be_focused()
     settled(page)
     assert panel.bounding_box()["width"] > narrow + 100
     tall = field(page).bounding_box()["height"]
-    assert tall >= page.viewport_size["height"] / 2 - 1, tall
+    assert before - 1 <= tall < page.viewport_size["height"] / 3, (before, tall)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
     expect(expand).to_be_hidden()
     settled(page)
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
+
+
+def test_a_widened_field_takes_the_row_s_end_from_a_view_s_close(browser, serve):
+    """With a view open, the widened field reaches the row's end: the view's Close
+    stands at its controls' end instead, so no column beside the tall field stands
+    empty but for it, and folding the field back returns Close to the row."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
+    close = page.locator(".lf-fp-close")
+    expect(page.locator(".lf-fp-row .lf-fp-close")).to_be_visible()
+    page.locator(".lf-fp-expand").click()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+    settled(page)
+    row = page.locator(".lf-fp-row").bounding_box()
+    words = page.locator(".lf-fp-field").bounding_box()
+    assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (row, words)
+    page.locator(".lf-fp-expand").click()
+    expect(page.locator(".lf-fp-row .lf-fp-close")).to_be_visible()
+    close.click()
+    expect(page.locator(panel_view("threads"))).to_be_hidden()
 
 
 def test_the_leaf_s_menu_covers_what_the_panel_holds(browser, serve):

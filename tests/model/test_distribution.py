@@ -4,12 +4,12 @@ boundary."""
 import shutil
 
 import pytest
-from leaf_dev.commands.distribution import bundle_runtime
 
 from leaf import layer as layer_model
 from leaf import runtime_selection
 from leaf.refusals import Refused
 from leaf.revision_artifact import Resource
+from leaf_dev.commands.distribution import bundle_runtime
 
 
 def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monkeypatch):

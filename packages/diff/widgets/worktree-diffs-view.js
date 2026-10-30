@@ -16,9 +16,11 @@ export function render(host) {
   const binary = sum("binary-files");
   return html`<div class="lf-worktree-overview" data-lf-gen="1" data-lf-said>
       <strong class="lf-worktree-total"
-        >${members.length
-          ? `${members.length} ${members.length === 1 ? "worktree" : "worktrees"}`
-          : "No worktrees supplied"}</strong
+        >${
+          members.length
+            ? `${members.length} ${members.length === 1 ? "worktree" : "worktrees"}`
+            : "No worktrees supplied"
+        }</strong
       >
       <span class="lf-worktree-stats" ?hidden=${!known.length}>
         <span>${files} ${files === 1 ? "file" : "files"}</span>

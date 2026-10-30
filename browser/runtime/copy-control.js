@@ -8,9 +8,7 @@
  * A control wrapping a trigger of its own wears that trigger's face
  * instead of the icon. A failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
-import { offerActionElement } from "./widget-elements.js";
-
-import { offer } from "./widget-elements.js";
+import { offer, offerActionElement } from "./widget-elements.js";
 import { actionElement, iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
 import { raiseError } from "./errors.js";
@@ -49,16 +47,27 @@ function copyThroughSelection(value, trigger) {
 /** A copy control named `label`, drawn with `action`'s symbol, that says `success` or
  * `error` once pressed, wearing the face of `role` where one is given (`offerAction`).
  * Web Awesome draws the symbol from its slot and names the control from `copyLabel`,
- * so the role lends only its face. */
+ * so the role lends its face and the symbol in that slot. */
 export function copyControl(
   className,
   { label = "", success, error, action = "copy", role = undefined },
 ) {
   const copy = role
-    ? offerActionElement(document.createElement("wa-copy-button"), role, className)
+    ? offerActionElement(
+        document.createElement("wa-copy-button"),
+        role,
+        className,
+        undefined,
+        { action },
+      )
     : offer("wa-copy-button", className);
+  // A role draws its action's symbol as the host's first child, which the copy icon's
+  // slot then takes.
+  const symbol =
+    copy.querySelector(":scope > svg[data-lf-icon]") ??
+    actionElement(action, "lf-copy-icon");
   for (const [icon, slot] of [
-    [actionElement(action, "lf-copy-icon"), "copy-icon"],
+    [symbol, "copy-icon"],
     [iconElement("check", "lf-copy-icon"), "success-icon"],
     [iconElement("cross", "lf-copy-icon"), "error-icon"],
   ])

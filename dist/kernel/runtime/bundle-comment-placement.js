@@ -1,7 +1,5 @@
-import { afterScript, cancelRender, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
-import { TAB_STOP, atLayoutPrecision, keeps, layoutPx, move } from "./bundle-dom-move.js";
-import { renderedChildren } from "./bundle-layer-stack.js";
-import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
+import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
+import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";

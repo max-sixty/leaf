@@ -7,12 +7,15 @@
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
-export const ICONS = {
+const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
   add: '<path d="M8 3v10M3 8h10"/>',
   change:
     '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
   check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
+  // A task app's ticked circle, for the to-do the user ends: a bare check is Resolve's,
+  // and a to-do on a thread stands under its thread's Resolve.
+  checked: '<circle cx="8" cy="8" r="5.5"/><path d="m5.6 8.15 1.7 1.7 3.1-3.3"/>',
   comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
   // The common copy glyph: the front sheet at the bottom right. Mirrored, with the front
   // sheet at the bottom left, two squares read as a window's Restore button.
@@ -99,7 +102,7 @@ export const ACTIONS = {
   "copy-link": { name: "Copy link", icon: "link" },
   dictate: { name: "Dictate", icon: "microphone" },
   discard: { name: "Discard", icon: "cross" },
-  done: { name: "Done", icon: "check" },
+  done: { name: "Done", icon: "checked" },
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },
   find: { name: "Find", icon: "search" },
@@ -125,7 +128,7 @@ export const ACTIONS = {
   retry: { name: "Retry", icon: "retry" },
   save: { name: "Save", icon: "save" },
   send: { name: "Send", icon: "send" },
-  show: { name: "Show on page", icon: "locate" },
+  show: { name: "Show", icon: "locate" },
   start: { name: "Start", icon: "start" },
   suggest: { name: "Suggest", icon: "edit" },
   undo: { name: "Undo", icon: "undo" },
@@ -140,6 +143,12 @@ export const actionIcon = (action) => {
   return named.icon;
 };
 
+/** The name `action` says as its press's tooltip and accessible name. */
+export const actionName = (action) => {
+  actionIcon(action);
+  return ACTIONS[action].name;
+};
+
 /** The element that draws `action`'s symbol. */
 export const actionElement = (action, className) =>
   iconElement(actionIcon(action), className);
@@ -147,17 +156,17 @@ export const actionElement = (action, className) =>
 const SYMBOLIC = new Set(["symbol", "mark"]);
 
 // The name a control of `role` says. A symbol or mark shows its action's symbol and
-// says its name unless `label` says more. Whether a press is a word or a symbol stays
-// the author's call: a page's own "Done" is a word as Leaf's to-do's is.
-export function actionName(role, label, action) {
+// says its name unless `label` says more. Whether a page's own press is a word or a
+// symbol stays its author's call, so a page's "Done" may stay a word.
+function actionFace(role, label, action) {
   if (!SYMBOLIC.has(role)) {
     if (action !== undefined)
       throw new TypeError(`A ${role} says its label and shows no action's symbol`);
     return label;
   }
   if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
-  actionIcon(action);
-  return label ?? ACTIONS[action].name;
+  const name = actionName(action);
+  return label ?? name;
 }
 
 /**
@@ -196,7 +205,7 @@ export function actionOffers(base) {
       const node = base.offerAction(
         role,
         className,
-        actionName(role, label, action),
+        actionFace(role, label, action),
         titled(title),
       );
       if (SYMBOLIC.has(role)) drawAction(node, role, action);
@@ -212,7 +221,7 @@ export function actionOffers(base) {
         node,
         role,
         className,
-        actionName(role, label, action),
+        actionFace(role, label, action),
         titled(title),
       );
       if (SYMBOLIC.has(role)) drawAction(node, role, action);

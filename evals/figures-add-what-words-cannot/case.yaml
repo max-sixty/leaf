@@ -10,6 +10,9 @@
 # "explained much more visually, always" pasted in, both arms drew a figure per item
 # (0 of 4 and 0 of 3), which follows the user's word; the memory that carried it was
 # rewritten instead.
+# A paired run later exposed an answerability false positive: prose saying items
+# could be left out passed despite having no controls. The clarified criterion accepts
+# the saved eight-control page and rejects that list and a page missing one control.
 description: figures-add-what-words-cannot
 metadata:
   purpose:
@@ -77,7 +80,9 @@ assert:
   - type: llm-rubric
     metric: items-stay-answerable
     value: |
-      Pass only if the user can see, for each of the eight switchovers, what changes
-      and why it is worth doing, inside or directly beside the obligation's answering
-      control, and can leave out an individual item. Fail if any item's change or
-      reason is missing, or only appears in a figure.
+      Each of the eight independent switchovers needs an answering control that lets
+      the user accept or leave out that item. Its change and reason must be visible
+      inside or directly beside that control. A prose promise that items can be left
+      out does not supply a control. Pass only when all eight items meet these
+      requirements; fail if any control, change or reason is missing, or if a change
+      or reason appears only in a figure.

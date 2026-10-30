@@ -437,6 +437,12 @@ def sweep(page, widths, open_tags) -> list[tuple[int, dict]]:
     return readings
 
 
+@dataclass
+class _SweepFault:
+    widths: list[int]
+    finding: Finding
+
+
 def _swept(readings, faults) -> list[Finding]:
     """Each unbroken run of sweep steps a fault stands across, widest first, as the
     finding it reads at the narrowest of them with the widths the run spans.
@@ -454,13 +460,13 @@ def _swept(readings, faults) -> list[Finding]:
             last = latest.get(key)
             if last is not None and last[0] == step - 1:
                 run = last[1]
-                run[0].append(width)
-                run[1] = finding
+                run.widths.append(width)
+                run.finding = finding
             else:
-                run = [[width], finding]
+                run = _SweepFault([width], finding)
                 runs.append(run)
             latest[key] = (step, run)
-    return [finding.but(widths=(min(widths), max(widths))) for widths, finding in runs]
+    return [run.finding.but(widths=(min(run.widths), max(run.widths))) for run in runs]
 
 
 def arrangement_changes(readings) -> list[tuple[int, str, str]]:
@@ -581,3 +587,25 @@ def shrunk_label_advice(readings) -> list[Finding]:
         [(width, (width, reading)) for width, reading in readings],
         lambda stepped: drawings(*stepped),
     )
+
+
+# One passive reading on the loaded desktop, rather than a wait in every scheme and
+# sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
+# slowing plain page check or message admission. It promises only this observation.
+PASSIVE_OBSERVATION_MS = 3000
+
+
+def passive_layout_shift_advice(page) -> list[Finding]:
+    """Painted movement while no gate action changes the page, as author advice."""
+    rendered(page)
+    evaluate_probe(page, "startPassiveLayoutShifts")
+    # This is an observation interval, not a readiness wait: let real timers and
+    # Chrome's compositor run, with Playwright still dispatching page events.
+    page.wait_for_timeout(PASSIVE_OBSERVATION_MS)
+    one_frame(page)
+    return [
+        Finding.read(record, severity="advice").but(
+            values={"observed_ms": PASSIVE_OBSERVATION_MS}
+        )
+        for record in evaluate_probe(page, "finishPassiveLayoutShifts")
+    ]

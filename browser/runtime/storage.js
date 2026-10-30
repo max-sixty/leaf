@@ -28,15 +28,14 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
-const { stored, tabStore } = document.documentElement.lfStorage;
+const { stored } = document.documentElement.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while what they typed here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for.
-export { tabStore };
+// nobody asked for. tab-store.js owns the portable widget store.
 export const viewMembers = document.documentElement.lfViews.members;
 export const openingView = document.documentElement.lfViews.opening;
 export const keepView = document.documentElement.lfViews.keep;

@@ -241,6 +241,7 @@ async function boot() {
     targetPaint: visualMarkPaint,
     pointer: pointerAt,
     currentLocationThreadId,
+    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: () => floatingPanel?.hoveredThread() ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -875,7 +876,7 @@ async function boot() {
     ]);
     if (!upgraded) return;
     app.watchThreadSurfaces();
-    // Initial layout and later margin content layout share prepaint's synchronous computation.
+    // Read native document layout and subscribe annotations to its later changes.
     openDocumentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
     if (!offlineInteractive) {
       layout.syncLayout();

@@ -31,6 +31,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    primed,
     resized,
     round_trip,
     select,
@@ -165,9 +166,9 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
 
 
 def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """At a narrow allocation, Space must not create a blank line while the
-    words and Send still fit. The text's right inset already clears part of
-    Send's hit box; reserving its full width again wasted eleven pixels."""
+    """Space adds no blank line when the words fit beside Send. The text keeps
+    the shared comment inset before Send's hit box, without reserving its width
+    a second time."""
     page = open_page(
         browser,
         serve(
@@ -178,23 +179,37 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
+
+    def resting_box():
+        # Layout already has its final width while Send still rides the box's
+        # growth (box-motion.js). Compare their geometry only once it rests.
+        rendered(page)
+        page.wait_for_function(
+            """() => !document.querySelector('.lf-fab-bar')
+              .getAnimations({subtree: true}).some(motion =>
+                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
+        )
+        return field.bounding_box()
+
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
-    rendered(page)
-    before = field.bounding_box()
+    before = resting_box()
     page.keyboard.press("Space")
-    rendered(page)
-    after = field.bounding_box()
+    after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
     reservation = field.evaluate("""el => {
       const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
+      const send = el.parentElement.querySelector('.lf-compose-submit');
+      // The shared comment column keeps the action inset before Send, plus
+      // the frame between the field and the action's containing box.
+      const gap = parseFloat(getComputedStyle(send).insetInlineEnd)
+        + send.parentElement.getBoundingClientRect().right - box.right;
       return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
         - parseFloat(style.paddingInlineEnd)
         - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        sendStart: send.left};
+        textLimit: send.getBoundingClientRect().left - gap};
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+    assert reservation["textEnd"] == pytest.approx(reservation["textLimit"], abs=0.1)
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -649,11 +664,20 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
         " ![blocked *image*](javascript&#58;window.leaked=true)"
         " beside [the page](https://example.com/?a=1&amp;b=2)"
         " and <https://example.com/?a=1&amp;b=2>"
-        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/icon.svg "Sales &amp; revenue")'
+        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/chart.png "Sales &amp; revenue")'
         f" and ![A **media** chart]({media})",
         {"section": "p0"},
     )
-    page = open_page(browser, url)
+    prepared = primed(
+        browser,
+        lambda page: page.route(
+            "**/chart.png",
+            lambda route: route.fulfill(
+                content_type="image/png", body=pixels.getvalue()
+            ),
+        ),
+    )
+    page = open_page(prepared, url)
     view = open_panel_thread(page, root)
 
     prose = view.locator(".lf-msg-text").first

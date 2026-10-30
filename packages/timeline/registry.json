@@ -20,8 +20,7 @@
     "x-visual": {
       "prefixes": ["event:"]
     },
-    "x-example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane label=\"Build\"><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\" label=\"Compile\"></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\" label=\"Artifact ready\"></lf-event></lf-lane><lf-lane label=\"Release\"><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\" label=\"Roll out\"></lf-event></lf-lane></lf-timeline>",
-    "x-shadow": true
+    "x-example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane label=\"Build\"><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\" label=\"Compile\"></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\" label=\"Artifact ready\"></lf-event></lf-lane><lf-lane label=\"Release\"><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\" label=\"Roll out\"></lf-event></lf-lane></lf-timeline>"
   },
   "lf-lane": {
     "description": "One actor's row in an `lf-timeline`, holding its events.",

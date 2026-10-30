@@ -36,6 +36,19 @@ them:
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
   revision.
+- The check captures the revision (`revision_artifact.capture_artifact`) whenever
+  the page's vocabulary reads, whatever the markup holds, so one run reports both.
+  Each problem has one owner. The document's markup is the markup rules'. The
+  capture owns what delivery can't deliver: each reference, a `/media/` file the
+  page won't answer, whether markup or a stylesheet names it, and CSS that
+  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  any sheet delivery rewrites in the document, which the capture finds by
+  delivery's own walk (`structure.delivered_elements`), templates and shadow roots
+  included. What that reader reads whole but a browser drops, such as `broken;`
+  in a rule, the source check reports as `css-dropped` advice, a severity
+  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  reads, asks what the capture would refuse at its own gate
+  (`revision_artifact.uncaptured_errors`).
 
 The effective registry is validated only where it differs from the active revision's
 captured copy. A layer's sheets are validated whenever a Leaf composes it.
@@ -110,7 +123,8 @@ when the agent needs a fresh answer.
 Every check behind `page check` reports a record (`findings.py` owns its fields and
 words), and the browser probes return those records rather than sentences.
 
-A version that passes gets screens for its author to read (`render_gate/screens.py`).
+A render reading gets screens for its author to read, including when it reports
+findings (`render_gate/screens.py`).
 They are the command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running

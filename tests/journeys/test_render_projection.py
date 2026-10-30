@@ -65,6 +65,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
@@ -108,7 +109,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "locale": "en-US",
         "timezone": "America/Los_Angeles",
     }
-    record = {
+    record: dict = {
         "title": "Docs navigation · candidate 7b921ac",
         "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
         "candidate": {
@@ -216,7 +217,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     second.get_by_role("button", name="Slider").click()
 
     inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
-    changed = record | {
+    changed: dict = record | {
         "base": {"revision": record["base"]["revision"]},
         "cases": [
             record["cases"][0],
@@ -397,7 +398,10 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
     document = structure_model.SourceDocument(contradicted)
-    with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+    revision = files_model.latest_revision(d)
+    assert revision is not None
+    snapshot = capture_page_snapshot(d, document, revision + 1, url="/")
+    with preview_server(d, snapshot) as at:
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))

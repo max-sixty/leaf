@@ -3,12 +3,13 @@
 from dataclasses import dataclass, replace
 
 from leaf.findings import Finding
-from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
+from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_page
 
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
     open_widgets,
+    passive_layout_shift_advice,
     settle_at,
     shrunk_label_advice,
     squeezed_table_advice,
@@ -90,8 +91,8 @@ def _render_version_attempt(
     still-showing slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
-    it reads, as advice, whether a widget declaring x-height drew at a height its first
-    paint did not hold; and then, resizing that loaded page through every width from
+    it reads native layout shifts as advice during a three-second passive observation
+    after presentation; and then, resizing that loaded page through every width from
     360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
@@ -141,6 +142,7 @@ def _render_version_attempt(
 
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
+        advice.extend(passive_layout_shift_advice(page))
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
@@ -181,7 +183,7 @@ def _render_version_attempt(
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
-                page.close()
+                close_render_page(page)
         raise
     reading = RenderReading(
         [*_findings_with_viewports(failures, desktop), *swept_faults(samples), *advice],

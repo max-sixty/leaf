@@ -4,6 +4,8 @@ const ACTION_FACES = {
   word: "lf-btn",
   commit: "lf-btn primary",
   mark: "lf-mark-action",
+  inline: "lf-inline-action",
+  row: "lf-row",
 };
 
 export function actionClass(role, className = "") {

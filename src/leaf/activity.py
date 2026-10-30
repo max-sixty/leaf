@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .obligations import response_address
+from .state import turn_closed, turn_open
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
@@ -167,9 +168,11 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 
 
 def reply_reservation_stands(
-    reservation: dict | None, session: str | None, turn: str | None, closed: str | None
+    reservation: dict | None, session: str | None, claim: dict | None
 ) -> bool:
-    """Whether the exact claim turn still reserves an automatic provider answer.
+    """Whether the exact claim turn still reserves an automatic provider answer:
+    `claim` is the claim, or the page's served reading of it, which holds the turn
+    under the session record's names (`state.turn_open`).
 
     Before the provider reply opens, its reservation names the claim turn current
     at reservation; afterward it names the delivery's turn. A different or closed
@@ -178,9 +181,8 @@ def reply_reservation_stands(
     """
     return bool(
         reservation
-        and closed is None
-        and reservation.get("session") == session
-        and reservation.get("turn") == turn
+        and reservation["session"] == session
+        and turn_open(claim, reservation["turn"])
     )
 
 
@@ -254,7 +256,7 @@ def _turn_wrote(obligation: dict, state: dict) -> bool:
             draft["state"] == "withheld"
             or (draft["state"] == "active" and draft["settles"])
         )
-        and draft["turn"] == state["claim_turn"]
+        and draft["turn"] == state["turn"]
     )
 
 
@@ -295,7 +297,7 @@ def started_in_turn(obligation: dict, state: dict) -> bool:
     Read from the covering starts rather than the update's Working stage, which follows
     the one input a start names: a thread's one reply answers every input it holds,
     so a start on an earlier input there covers the newest that carries the answer."""
-    if state["turn_closed"] is not None or state["claim_turn"] is None:
+    if not turn_open(state):
         return False
     return _started_by_turn(obligation, state)
 
@@ -306,7 +308,7 @@ def _started_by_turn(obligation: dict, state: dict) -> bool:
     delivered = obligation["delivery_seq"] or obligation["seq"]
     return any(
         start["session"] == state["claim_session"]
-        and start["turn"] == state["claim_turn"]
+        and start["turn"] == state["turn"]
         and start["seq"] >= delivered
         for start in obligation["started_by"]
     )
@@ -324,7 +326,7 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
     once for each delivery of it rather than after every turn. An update with no
     usable ref is input again, which wakes a turn as input does
     (`delivery.deliverable`)."""
-    if state["turn_closed"] is None or state["claim_turn"] is None:
+    if not turn_closed(state):
         return []
     return [
         obligation
@@ -406,12 +408,15 @@ def claimant_turn(
     since = _moment(live.get("since"))
     stamped = max((moment for moment in (opened, closed) if moment), default=None)
     dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
-    step = {"step": "awaiting_user", "step_since": since} if dialog else {}
-    if closed is not None or opened is None or present.get("claim_turn") is None:
+    step = "awaiting_user" if dialog else None
+    step_since = since if dialog else None
+    if not turn_open(present) or opened is None:
         background = closed is not None and live.get("state") == "busy"
-        return Turn(False, ended=closed, background=background, **step)
+        return Turn(
+            False, ended=closed, background=background, step=step, step_since=step_since
+        )
     if awaiting or dialog:
-        return Turn(True, **step)
+        return Turn(True, step=step, step_since=step_since)
     renewals = [opened, _moment(declared)]
     if stream and stream.get("session") == present.get("claim_session"):
         renewals.append(_moment(stream.get("ts")))
@@ -428,11 +433,11 @@ def declared_at(present: dict, events: list) -> str | None:
     from .todos import last_start
 
     moments = [
-        moment
+        (parsed, moment)
         for moment in (present["status"].get("ts"), last_start(events))
-        if _moment(moment)
+        if (parsed := _moment(moment)) is not None
     ]
-    return max(moments, key=_moment, default=None)
+    return max(moments, key=lambda pair: pair[0])[1] if moments else None
 
 
 def current_turn(
@@ -498,7 +503,7 @@ def _start_age(
 
 def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
-) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
+) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age each workflow's evidence, and return beside them, for each Working update,
     the start that holds it and how quiet and whether dropped that start is, which
     the page reading below dates by."""
@@ -604,8 +609,10 @@ def canonical_activity(
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
+        assert turn.step_since is not None
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
     elif turn.background and status["state"] != "idle":
+        assert turn.ended is not None
         observed = {
             "kind": "working",
             "detail": BACKGROUND_DETAIL,
@@ -640,20 +647,20 @@ def canonical_activity(
         if answer["kind"] == "reply" and reply_reservation_stands(
             reservation,
             present.get("claim_session"),
-            present.get("claim_turn"),
-            present.get("turn_closed"),
+            present,
         ):
+            assert reservation is not None
             answer.update(writer="turn", attempt=reservation["attempt"])
         return answer
 
     # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the page's status shows.
-    in_hand = [
+    in_hand: list[tuple[dict, tuple[bool, bool]]] = [
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
-    ] + [(start, age) for start, *age in todo_aging.values()]
+    ] + [(start, (quiet, dropped)) for start, quiet, dropped in todo_aging.values()]
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
@@ -699,7 +706,7 @@ def canonical_activity(
         item
         for item in opened
         if item.get("delivery_session") == present.get("claim_session")
-        and item.get("delivery_turn") == present.get("claim_turn")
+        and item.get("delivery_turn") == present["turn"]
     ]
     handling = in_this_turn if turn.running else []
     for item in opened:
@@ -782,6 +789,7 @@ def canonical_activity(
         # A belief the turn's ending retired is dated by that ending, not by the
         # start's own last word: "last checked in just now" beside an amber dot
         # would argue with the dot.
+        assert turn.ended is not None
         ts = turn.ended.isoformat()
 
     return {

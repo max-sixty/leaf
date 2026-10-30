@@ -185,7 +185,9 @@ customElements.define(
       // each kind of scroller.
       const scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = sizeObserver(() => this.#scheduleMeasure());
+      // The map writes only its own geometry. Measure during size delivery so
+      // the document and its section lengths paint together.
+      this.#watching = sizeObserver(() => this.#measure());
       this.#watching.observe(this.#main);
       this.#renamed = new MutationObserver(() => {
         this.#reconcile();

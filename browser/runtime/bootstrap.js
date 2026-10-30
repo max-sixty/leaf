@@ -115,7 +115,7 @@
       };
       // What the document wears, its dress and whether it stands as a block, comes in
       // the containing page's answer, which can land frames after the document could
-      // first paint. Until it does the document paints nothing (theme.css), so no frame
+      // first paint. Until it does the document paints nothing (base.css), so no frame
       // shows a playground's candidate undressed. Opened as a window of its own, it
       // has no containing page to answer and paints at once.
       if (window.parent !== window)

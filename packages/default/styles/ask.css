@@ -33,7 +33,7 @@ lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
-/* An lf-ask frames prose, so it keeps the reading measure as its text does (theme.css),
+/* An lf-ask frames prose, so it keeps the reading measure as its text does (base.css),
  * its outer width the measure, and in a flow wider than the column (a sidebar page's
  * body) its ring stands round the prose rather than the flow. It widens to the widest
  * allocation among its own blocks, so a chart or table of its own that declares `wide`
@@ -98,7 +98,7 @@ lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options):not(
  * under the heading. The context keeps its own height, and the answer keeps at least
  * its own: a list of options takes its content's height below a long premise, and the
  * body scrolls, where a playground, which fits its parts to any height it is given,
- * says it may shrink (playground/widgets.css). Every child hears the height the lf-ask is
+ * says it may shrink (playground/defaults.css). Every child hears the height the lf-ask is
  * told, the context's included, so the context is held at its own height: a playground
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */

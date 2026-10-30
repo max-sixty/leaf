@@ -44,12 +44,21 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     marked = mark_declared(source, {"lf-editable": {"x-text-format": "markdown"}}, {})
     document = SourceDocument(marked)
     [host] = document.tree.find_all("lf-editable")
-    assert host.select_one("pre").text == "**Keep** `--dry-run`.\n\n- One\n- Two"
+    select_one_result = host.select_one("pre")
+    assert select_one_result is not None
+    assert select_one_result.text == "**Keep** `--dry-run`.\n\n- One\n- Two"
     body = host.select_one(".lf-markdown-body")
-    assert body.select_one("strong").text == "Keep"
-    assert body.select_one("code").text == "--dry-run"
+    assert body is not None
+    select_one_result_2 = body.select_one("strong")
+    assert select_one_result_2 is not None
+    assert select_one_result_2.text == "Keep"
+    select_one_result_3 = body.select_one("code")
+    assert select_one_result_3 is not None
+    assert select_one_result_3.text == "--dry-run"
     assert len(body.find_all("li")) == 2
-    assert body.attrs["data-lf-source-words"] == host.select_one("pre").text
+    select_one_result_4 = host.select_one("pre")
+    assert select_one_result_4 is not None
+    assert body.attrs["data-lf-source-words"] == select_one_result_4.text
     assert "data-lf-prepaint" in body.attrs
 
 
@@ -59,9 +68,11 @@ def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads
         source, {"lf-editable": {"x-text-format": "markdown"}}, {}
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert body is not None
     assert [link.attrs["href"] for link in body.find_all("a")] == [
         "https://example.com"
     ]
+    assert body is not None
     assert not body.find_all("img")
     assert body.text.strip() == "unsafe link unsafe image safe link"
 
@@ -194,14 +205,22 @@ const lazy = () => import('/page/later.js');
     assert parsed.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
-    assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    find_result = parsed.tree.find("img")
+    assert find_result is not None
+    assert find_result.attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert (
         parsed.tree.find_all("img")[1].attrs["srcset"]
         == f"{ROOT}/page/caf%C3%A9.svg 1x, {ROOT}/page/poster.png 2x"
     )
-    assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
-    assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
-    assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
+    find_result_2 = parsed.tree.find("video")
+    assert find_result_2 is not None
+    assert find_result_2.attrs["poster"] == ROOT + "/page/poster.png"
+    find_result_3 = parsed.tree.find("image")
+    assert find_result_3 is not None
+    assert find_result_3.attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    find_result_4 = parsed.tree.find("feImage")
+    assert find_result_4 is not None
+    assert find_result_4.attrs["href"] == ROOT + "/page/poster.png"
     assert f"{ROOT}/page/background.svg#leaf" in parsed.authoring.style_blocks[0]["css"]
     assert ROOT + "/page/inline.svg" in parsed.authoring.inline_styles[0]["style"]
     for unchanged in (
@@ -229,7 +248,9 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert SourceDocument(exported).tree.find("style").attrs["media"] == "screen"
+    find_result_5 = SourceDocument(exported).tree.find("style")
+    assert find_result_5 is not None
+    assert find_result_5.attrs["media"] == "screen"
     assert "main { color: green; }" in exported
 
 
@@ -342,6 +363,7 @@ def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
         (page_dir / "index.html").write_text(source.replace("Ship dark.", text))
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
+        assert activated.revision is not None
         bundle = revision_path(page_dir, activated.revision).with_suffix("")
         manifest = json.loads((bundle / "manifest.json").read_bytes())
         return {
@@ -415,6 +437,7 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
+    assert activated.revision is not None
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
     assert provider in json.loads(artifact.manifest)["public_modules"]
@@ -449,6 +472,7 @@ def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     assert initialized.exit_code == 0, initialized.output
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
+    assert activated.revision is not None
     artifact = read_artifact(page_dir, activated.revision)
     assert provider not in artifact.resources
     assert executing(artifact).resources[provider].data == own
@@ -539,17 +563,21 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
     )
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
+    find_result_6 = delivered.tree.find("image")
+    assert find_result_6 is not None
+    image = delivered.tree.find("img")
+    assert image is not None
+    srcset = image.attrs["srcset"]
+    assert isinstance(srcset, str)
     entries = [
         delivered.authoring.external_scripts[0]["attrs"]["src"],
         delivered.authoring.links[0]["attrs"]["href"],
-        delivered.tree.find("image").attrs["href"],
-        *(
-            candidate.split()[0]
-            for candidate in delivered.tree.find("img").attrs["srcset"].split(",")
-        ),
+        find_result_6.attrs["href"],
+        *(candidate.split()[0] for candidate in srcset.split(",")),
     ]
     for address in ("/p/user/", "/p/user/versions/v1.html", ROOT + ".html"):
         for entry in entries:
+            assert isinstance(entry, str)
             request = urlsplit(urljoin("https://leaf.example" + address, entry)).path
             assert request.startswith(ROOT + "/")
             logical = request.removeprefix(ROOT)
@@ -654,8 +682,12 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
 
     assert delivered.startswith("﻿<!doctype html>")
     served = SourceDocument(delivered.removeprefix("﻿"))
-    assert "data-lf-contained" in served.tree.find("html").attrs
-    assert "inert" in served.tree.find("body").attrs
+    find_result_7 = served.tree.find("html")
+    assert find_result_7 is not None
+    assert "data-lf-contained" in find_result_7.attrs
+    find_result_8 = served.tree.find("body")
+    assert find_result_8 is not None
+    assert "inert" in find_result_8.attrs
     assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
@@ -709,13 +741,15 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     )
 
     served = SourceDocument(delivered.removeprefix("﻿"))
+    main = served.tree.find("main")
+    assert main is not None
     marks = {
         (element.tag, element.attrs.get("id")): {
             name: value
             for name, value in element.attrs.items()
             if name.startswith("data-lf-")
         }
-        for element in served.tree.find("main").find_all(True)
+        for element in main.find_all(True)
     }
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
@@ -764,11 +798,16 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         {},
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert body is not None
     checks = body.find_all("input")
     assert len(checks) == 2 and all("disabled" in check.attrs for check in checks)
     assert "checked" in checks[0].attrs and "checked" not in checks[1].attrs
-    assert body.select_one("a").attrs["href"] == "https://example.com"
-    assert body.select_one("strong").text == "bold"
+    select_one_result_6 = body.select_one("a")
+    assert select_one_result_6 is not None
+    assert select_one_result_6.attrs["href"] == "https://example.com"
+    select_one_result_7 = body.select_one("strong")
+    assert select_one_result_7 is not None
+    assert select_one_result_7.text == "bold"
     assert not body.find_all("div")
 
 
@@ -781,12 +820,25 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     }
     delivered = mark_declared(source, registry, {})
     soup = SourceDocument(delivered).tree
-    assert soup.find(id="source").attrs["data-lf-content"] == "data"
-    assert soup.find(id="source").attrs["data-lf-awaits"] == ""
-    assert "data-lf-awaits" not in soup.find(id="literal").attrs
-    assert not "data-lf-verbatim" in soup.find(id="source").attrs
-    assert soup.find(id="literal").attrs["data-lf-content"] == "data"
-    assert "data-lf-verbatim" in soup.find(id="literal").attrs
+    find_result_9 = soup.find(id="source")
+    assert find_result_9 is not None
+    assert soup is not None
+    assert find_result_9.attrs["data-lf-content"] == "data"
+    find_result_10 = soup.find(id="source")
+    assert find_result_10 is not None
+    assert find_result_10.attrs["data-lf-awaits"] == ""
+    find_result_11 = soup.find(id="literal")
+    assert find_result_11 is not None
+    assert "data-lf-awaits" not in find_result_11.attrs
+    find_result_12 = soup.find(id="source")
+    assert find_result_12 is not None
+    assert "data-lf-verbatim" not in find_result_12.attrs
+    find_result_13 = soup.find(id="literal")
+    assert find_result_13 is not None
+    assert find_result_13.attrs["data-lf-content"] == "data"
+    find_result_14 = soup.find(id="literal")
+    assert find_result_14 is not None
+    assert "data-lf-verbatim" in find_result_14.attrs
 
 
 def test_an_authored_override_holds_only_where_it_means_something():
@@ -803,11 +855,21 @@ def test_an_authored_override_holds_only_where_it_means_something():
     )
     delivered = mark_declared(source, {"lf-chart": {"x-height": 400}}, {})
     soup = SourceDocument(delivered).tree
-    assert soup.find(id="chart").attrs["data-lf-height"] == "240"
-    assert soup.find(id="table").attrs["data-lf-space"] == "wide"
-    assert "data-lf-height" not in soup.find(id="table").attrs
-    assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
+    find_result_15 = soup.find(id="chart")
+    assert find_result_15 is not None
+    assert soup is not None
+    assert find_result_15.attrs["data-lf-height"] == "240"
+    find_result_16 = soup.find(id="table")
+    assert find_result_16 is not None
+    assert find_result_16.attrs["data-lf-space"] == "wide"
+    find_result_17 = soup.find(id="table")
+    assert find_result_17 is not None
+    assert "data-lf-height" not in find_result_17.attrs
+    find_result_18 = soup.find(id="feed")
+    assert find_result_18 is not None
+    assert find_result_18.attrs["data-lf-bound"] == "end"
     for page in (soup.find("main"), soup.find("body")):
+        assert page is not None
         assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs
 
 
@@ -815,8 +877,12 @@ def test_exhibit_paint_follows_the_occurrence_condition():
     registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
     source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
     tree = SourceDocument(mark_declared(source, registry, {})).tree
-    assert "data-lf-exhibit" in tree.find(id="quote").attrs
-    assert "data-lf-exhibit" not in tree.find(id="working").attrs
+    find_result_19 = tree.find(id="quote")
+    assert find_result_19 is not None
+    assert "data-lf-exhibit" in find_result_19.attrs
+    find_result_20 = tree.find(id="working")
+    assert find_result_20 is not None
+    assert "data-lf-exhibit" not in find_result_20.attrs
 
 
 def test_stylesheet_cors_mark_preserves_an_unquoted_trailing_slash():
@@ -827,4 +893,6 @@ def test_stylesheet_cors_mark_preserves_an_unquoted_trailing_slash():
     delivered = rebase_document(
         '<link rel=stylesheet href="/theme.css" title=a/>', lambda path: path
     )
-    assert turbohtml.parse(delivered).find("link").attr("title") == "a/"
+    link = turbohtml.parse(delivered).find("link")
+    assert link is not None
+    assert link.attr("title") == "a/"

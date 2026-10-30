@@ -5,6 +5,8 @@ when a server is constructed, so stopping or reviving a service doesn't load a
 second server stack in the client process.
 """
 
+from __future__ import annotations
+
 import contextlib
 import errno
 import functools
@@ -21,6 +23,7 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
@@ -56,6 +59,10 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+
+if TYPE_CHECKING:
+    from .record_types import ServiceRecord
+    from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
@@ -182,6 +189,9 @@ class LeafHTTPServer:
     this server's own (`_page_uvicorn`).
     """
 
+    # Initialized by http.page_app while constructing the server application.
+    samples: dict
+
     def __init__(self, address, endpoint) -> None:
         import uvicorn
 
@@ -211,7 +221,7 @@ class LeafHTTPServer:
             )
         )
         self.socket = listening_socket(*address)
-        self.server_address = self.socket.getsockname()[:2]
+        self.server_address: tuple[str, int] = self.socket.getsockname()[:2]
 
     def fileno(self) -> int:
         return self.socket.fileno()
@@ -259,8 +269,8 @@ def _page_uvicorn():
     import uvicorn
 
     class PageUvicorn(uvicorn.Server):
-        _loop = None
-        _woken = None
+        _loop: asyncio.AbstractEventLoop | None = None
+        _woken: asyncio.Event | None = None
 
         async def main_loop(self) -> None:
             self._woken = asyncio.Event()
@@ -272,7 +282,7 @@ def _page_uvicorn():
                     await asyncio.wait_for(self._woken.wait(), 0.1)
 
         def wake(self) -> None:
-            if self._loop is None:
+            if self._loop is None or self._woken is None:
                 return  # not serving yet; the first tick reads `should_exit`
             # A loop that already closed has already stopped: nothing to wake.
             with contextlib.suppress(RuntimeError):
@@ -415,7 +425,7 @@ def started_server(page_dir: Path, url: str) -> dict:
 def _serve_claim(
     page_dir: Path,
     page: PageTransaction,
-    service: dict | None,
+    service: ServiceRecord | None,
     persistent: bool,
     revive: bool,
     harness: Harness | None,
@@ -490,8 +500,12 @@ def _take_server_lease(page_dir: Path):
 
 
 def _service_record(
-    access: dict, httpd, persistent: bool, claimed: bool, runtime: dict
-) -> dict:
+    access: ServiceRecord | PageAddress,
+    httpd: LeafHTTPServer,
+    persistent: bool,
+    claimed: bool,
+    runtime: dict,
+) -> ServiceRecord:
     """The durable desired state for a newly bound server."""
     lifetime = (
         "persistent"
@@ -586,6 +600,7 @@ def cmd_serve(
                         if acquire and claimed:
                             with page.publishing_claim(prepared_claim) as (_, claim):
                                 if httpd is not None:
+                                    assert service is not None
                                     write_service(page_dir, service)
                         else:
                             _serve_claim(
@@ -593,6 +608,7 @@ def cmd_serve(
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
+                                assert service is not None
                                 write_service(page_dir, service)
                 except BaseException:
                     # A freshly bound resource is ours to withdraw. Reused servers
@@ -785,8 +801,10 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER
             else contextlib.nullcontext() as page,
         ):
-            if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
-                return stopped
+            if owner is not _StopScope.ANY_OWNER:
+                assert page is not None
+                if not same_claim(page.claim, owner):
+                    return stopped
             # The server may release its lease immediately after we disable it.
             service = read_service(page_dir)
             # Whether a server runs is the lease's to say: one an older Leaf started
@@ -808,13 +826,11 @@ def cmd_stop(
                 # started over it, which exits once its record is gone.
                 (page_dir / SERVICE_FILE).unlink(missing_ok=True)
             elif first:
-                disabled = {
-                    **{
-                        key: value for key, value in service.items() if key != "restart"
-                    },
-                    "enabled": False,
-                    **({"restart": restart} if restart else {}),
-                }
+                disabled = service.copy()
+                disabled.pop("restart", None)
+                disabled["enabled"] = False
+                if restart:
+                    disabled["restart"] = restart
                 if disabled != service:
                     write_service(page_dir, disabled)
             elif service["enabled"]:

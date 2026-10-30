@@ -140,6 +140,17 @@ def observe_output_documents(page) -> None:
     page.route("**/leaf.js", before_entry)
 
 
+def close_render_page(page) -> None:
+    """Cancel route callbacks before disposing a render check's page and responses.
+
+    Context closure disposes fetched responses before the page reports closed, so
+    callback-local checks of `is_closed()` cannot recognize every cancellation.
+    Playwright's route lifecycle suppresses errors from those cancelled callbacks.
+    """
+    page.unroute_all(behavior="ignoreErrors")
+    page.close()
+
+
 def output_values(page) -> list[dict]:
     """Wait for live realms' reports, then read all publications retained by the check."""
     for frame, document in page._leaf_output_documents.items():

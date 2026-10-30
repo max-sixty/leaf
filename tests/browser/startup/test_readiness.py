@@ -271,6 +271,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(submit).to_be_disabled()
     expect(panel_field(page)).to_have_attribute("placeholder", LOADING)
 
+    playground.get_by_role("radio", name="Status strip", exact=True).check()
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
     expect(compact).to_be_checked()
@@ -280,6 +281,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
+    expect(
+        playground.get_by_role("radio", name="Status strip", exact=True)
+    ).to_be_checked()
     expect(panel_field(page)).not_to_have_attribute("placeholder", LOADING)
 
 

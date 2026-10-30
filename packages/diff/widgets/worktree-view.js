@@ -29,20 +29,24 @@ export function render(host) {
       >
       ${word ? html`<span class="lf-worktree-status">${word}</span>` : nothing}
       <span class="lf-worktree-stats"
-        >${status === "unavailable"
-          ? nothing
-          : html`
-              <span>${files} ${files === 1 ? "file" : "files"}</span>
-              <span class="lf-worktree-additions"
-                >+${host.getAttribute("additions")}</span
-              >
-              <span class="lf-worktree-deletions"
-                >−${host.getAttribute("deletions")}</span
-              >
-              ${binary
-                ? html`<span class="lf-worktree-binary">${binary} binary</span>`
-                : nothing}
-            `}</span
+        >${
+          status === "unavailable"
+            ? nothing
+            : html`
+                <span>${files} ${files === 1 ? "file" : "files"}</span>
+                <span class="lf-worktree-additions"
+                  >+${host.getAttribute("additions")}</span
+                >
+                <span class="lf-worktree-deletions"
+                  >−${host.getAttribute("deletions")}</span
+                >
+                ${
+                  binary
+                    ? html`<span class="lf-worktree-binary">${binary} binary</span>`
+                    : nothing
+                }
+              `
+        }</span
       >
     </summary>
     <div class="lf-worktree-path" data-lf-gen="1" data-lf-said>

@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/widget-api.js";
-import { tabStore } from "/runtime/storage.js";
+import { tabStore } from "/runtime/tab-store.js";
 import {
   ACTIVITY_VIEW,
   createActivity,
 } from "../../packages/default/widgets/activity-view.js";
-
 const row = (id, target) => ({
   id,
   author: "user",

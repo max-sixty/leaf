@@ -1,4 +1,4 @@
-"""A stamped version as one HTML file that opens offline.
+"""A captured revision as one HTML file that opens offline.
 
 The export packages the captured revision, its resources, the exporting Leaf's
 runtime (`runtime_selection`), and the page's authoritative state reading, which that
@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
     version_name,
@@ -46,8 +45,10 @@ from leaf.revision_delivery import (
     rebase_css,
     runtime_settings,
 )
+from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
+from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
 from leaf.thread_context import logged_fragment
 
@@ -175,6 +176,7 @@ class AssetInliner:
             active.remove(frame.base)
             if not stack:
                 return rewritten
+            assert frame.parent_reference is not None
             stack[-1].addresses[frame.parent_reference] = _fragment(
                 self.embed(Resource(rewritten.encode("utf-8"), "text/css")),
                 frame.parent_reference,
@@ -250,7 +252,7 @@ def export_document(
     state: dict,
     data: dict,
     revision: int,
-    version: int,
+    version: int | None,
     data_resources: Mapping[str, Resource],
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
@@ -276,7 +278,7 @@ def export_document(
             ),
         ],
     )
-    resources = artifact.resources | data_resources
+    resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
     # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
@@ -383,35 +385,51 @@ def export_document(
     return fallback[:body] + note + fallback[body:]
 
 
-def cmd_export(page_dir: Path, out: Path, version) -> dict:
-    """One stamped version as a standalone HTML file that opens offline.
+def cmd_export(
+    page_dir: Path, out: Path, version: int | None, *, draft: bool = False
+) -> dict:
+    """Export the selected stamp, or current valid source with `draft`.
 
-    The file carries the captured revision and Leaf's normal runtime, which boots from
-    the embedded authoritative reading. It has no host command or transport capability."""
-    events = read_events(page_dir)
-    published = published_versions(page_dir, events)
-    if not published:
-        raise Refused(
-            f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
+    Draft export activates source through the same check as a live page, preserving
+    decisions and reanchors without adding a version checkpoint. Selection and the
+    authoritative snapshot share one page transaction. The file has no host command
+    or transport capability.
+    """
+    if draft and version is not None:
+        raise Refused("--draft and --version cannot be used together")
+    with PageTransaction(page_dir) as page:
+        if draft:
+            activation = activate_source(page_dir, transaction=page)
+            if activation.error:
+                raise Refused(activation.error)
+            revision = activation.revision
+            assert revision is not None
+            url = "/"
+        else:
+            published = published_versions(page_dir, page.events)
+            if not published:
+                raise Refused(
+                    f"{page_dir} has no stamped version to export; "
+                    "use --draft for current source or run `leaf page stamp` first"
+                )
+            version = published[-1] if version is None else version
+            if version not in published:
+                raise Refused(
+                    f"v{version} is not stamped — stamped: "
+                    + ", ".join(f"v{v}" for v in published)
+                )
+            revision = version_revisions(page.events)[version]
+            url = f"/versions/{version_name(version)}"
+        document = read_revision(page_dir, revision).document
+        if document.samples:
+            raise Refused(
+                "Live samples need a server, so a page that declares one "
+                "cannot be exported."
+            )
+        artifact = executing(read_artifact(page_dir, revision))
+        snapshot = capture_page_snapshot(
+            page_dir, document, revision, url=url, artifact=artifact, transaction=page
         )
-    version = published[-1] if version is None else version
-    if version not in published:
-        raise Refused(
-            f"v{version} is not stamped — stamped: "
-            + ", ".join(f"v{v}" for v in published)
-        )
-    name = version_name(version)
-    revision = version_revisions(events)[version]
-    document = read_revision(page_dir, revision).document
-    if document.samples:
-        raise Refused(
-            "Live samples need a server, so a page that declares one "
-            "cannot be exported."
-        )
-    artifact = executing(read_artifact(page_dir, revision))
-    snapshot = capture_page_snapshot(
-        page_dir, document, revision, url=f"/versions/{name}", artifact=artifact
-    )
     state = PageStateService(
         page_dir,
         source=snapshot,
@@ -428,4 +446,9 @@ def cmd_export(page_dir: Path, out: Path, version) -> dict:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    return {"file": str(out), "version": version, "bytes": out.stat().st_size}
+    return {
+        "file": str(out),
+        "version": version,
+        "revision": revision,
+        "bytes": out.stat().st_size,
+    }

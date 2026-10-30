@@ -1,6 +1,8 @@
 """What registry validation refuses in a widget declaration: detail schemas, extensions,
 formats, patterns, rendering owners, obligations, retirement and references."""
 
+from copy import deepcopy
+
 import pytest
 from interact_support import (
     _agent_verb_answers,
@@ -25,6 +27,7 @@ from interact_support import (
 from leaf.registry import contract as registry_contract
 from leaf.registry import schema as registry_schema
 from leaf.registry import validation as registry_validation
+from leaf.registry.storage import read_page_registry
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -59,7 +62,9 @@ def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
     }
     schema = registry_contract.detail_schema({}, spec)
     assert registry_schema.schema_error(schema, {"item": "a", "also": "b"}) is None
-    assert "non-empty" in registry_schema.schema_error(schema, {"item": ""})
+    value_2 = registry_schema.schema_error(schema, {"item": ""})
+    assert value_2 is not None
+    assert "non-empty" in value_2
     assert spec["detail"]["properties"]["item"] == {"type": "string"}
 
 
@@ -505,6 +510,40 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         assert found(findings, "deciding-verb", "<lf-suggestion>", verb="decide")
     else:
         assert found(findings, "invalid-extensions", "<lf-suggestion>")
+
+
+@pytest.mark.parametrize("schema", [False, True])
+def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, schema):
+    """JSON Schema admits `true` or `false` as an attribute's schema, neither naming a
+    type, so a pane whose `id` is one is refused for it, in the same run as a layer
+    fact's problem."""
+    registry = deepcopy(read_page_registry(page_dir).registry)
+    registry["lf-pane"]["properties"]["id"] = schema
+    registry["$languages"]["paths"][".zz"] = "unnamed"
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "test registry")
+
+    assert [(f.code, f.at) for f in refused.value.findings] == [
+        ("undeclared-language", ""),
+        ("reading-role-attr", "<lf-pane>"),
+    ]
+
+
+def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
+    """The parent and the children retiring under it are checked in one run, so each
+    reads the parent's decision before its own check holds it to an outcome."""
+
+    def drop_outcome(registry):
+        detail = registry["lf-suggestion"]["x-state"]["decide"]["detail"]
+        del detail["properties"]["outcome"]
+        detail["required"].remove("outcome")
+
+    status, findings = _mutated_registry_check(page_dir, drop_outcome)
+
+    assert status != 0
+    assert found(findings, "awaits-blanket", "<lf-suggestion>")
+    assert found(findings, "retired-when", "<lf-old>", owner="lf-suggestion")
 
 
 @pytest.mark.parametrize(

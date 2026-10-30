@@ -188,6 +188,7 @@ def _publish_checked_source(page, checked, event=None):
     if activation.error:
         return activation, None
     revision = activation.revision
+    assert revision is not None
     moves = checked.reanchors or {}
     accepted = None
     publication = (

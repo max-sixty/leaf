@@ -1,31 +1,21 @@
 /* One browser transport draws tab-local playback state.
- * Authored media and illustrations remain native light-DOM nodes in the body slot. */
-import { html, live } from "/vendor/lit.js";
-import { actionClass, actionTemplate } from "/runtime/widget-api.js";
+ * Authored media and illustrations remain native light-DOM siblings of the transport. */
+import { html, live, nothing } from "/vendor/lit.js";
+import { offered, offeredAction } from "/runtime/portable-api.js";
 
-export function render(host, { time, rate, label, playing }) {
+export function render(host, { time, rate, label, playing, playable, failure }) {
   return html`
     <div
-      class="lf-motion-controls lf-ui lf-ui-face"
-      data-lf-gen="1"
-      data-lf-offer=""
+      ${offered("lf-motion-controls")}
       role="group"
       aria-label=${host.getAttribute("aria-label")}
     >
       <button
-        class=${`${actionClass("symbol", "lf-motion-play")} lf-ui lf-ui-face`}
-        data-lf-gen="1"
-        data-lf-offer="button"
-        type="button"
-        aria-label=${label}
-        title=${label}
-      >
-        ${actionTemplate(playing ? "pause" : "play")}
-      </button>
+        ${offeredAction("symbol", "lf-motion-play", label, { action: playing ? "pause" : "play" })}
+        aria-disabled=${playable ? nothing : "true"}
+      ></button>
       <input
-        class="lf-motion-time lf-ui lf-ui-face"
-        data-lf-gen="1"
-        data-lf-offer=""
+        ${offered("lf-motion-time")}
         type="range"
         name="time"
         min="0"
@@ -35,16 +25,9 @@ export function render(host, { time, rate, label, playing }) {
         aria-valuetext=${`${Math.round(time)} milliseconds`}
         .value=${live(String(time))}
       />
-      <span class="lf-motion-clock lf-ui lf-ui-face" data-lf-gen="1" data-lf-offer=""
-        >${Math.round(time)} ms</span
-      >
-      <label class="lf-motion-speed lf-ui lf-ui-face" data-lf-gen="1" data-lf-offer=""
-        >Speed<select
-          class="lf-ui lf-ui-face"
-          data-lf-gen="1"
-          data-lf-offer=""
-          name="speed"
-        >
+      <span ${offered("lf-motion-clock")}>${failure ?? `${Math.round(time)} ms`}</span>
+      <label ${offered("lf-motion-speed")}
+        >Speed<select ${offered("")} name="speed">
           ${[1, 0.5, 0.25].map(
             (value) =>
               html`<option value=${value} .selected=${live(rate === value)}>
@@ -54,6 +37,5 @@ export function render(host, { time, rate, label, playing }) {
         </select></label
       >
     </div>
-    <div class="lf-motion-body"><slot></slot></div>
   `;
 }

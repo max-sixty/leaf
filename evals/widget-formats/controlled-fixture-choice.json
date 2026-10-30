@@ -1,0 +1,34 @@
+{
+  "type": "section",
+  "props": { "id": "decision" },
+  "children": [
+    {
+      "type": "lf-ask",
+      "props": { "id": "ask" },
+      "children": [
+        { "type": "h1", "props": {}, "children": ["Choose a region action"] },
+        {
+          "type": "lf-options",
+          "props": { "id": "action", "choose": true },
+          "children": [
+            {
+              "type": "lf-option",
+              "props": { "id": "resume" },
+              "children": ["Resume EU now"]
+            },
+            {
+              "type": "lf-option",
+              "props": { "id": "hold" },
+              "children": ["Hold EU until checkpoint"]
+            },
+            {
+              "type": "lf-option",
+              "props": { "id": "rollback" },
+              "children": ["Roll back EU"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

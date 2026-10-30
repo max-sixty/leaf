@@ -45,9 +45,14 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
                 serve(leaf_page("Startup", "<h1>Startup</h1>")), wait_until="commit"
             )
         expect(page.locator("h1")).to_be_visible()
+        initial = page.locator("body > main").bounding_box()
         assert boot, "the positive control did not hold the boot module"
         boot.pop().continue_()
         wait_until_ready(page)
+        presented = page.locator("body > main").bounding_box()
+        assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
+            {key: initial[key] for key in ("x", "y", "width")}, abs=1
+        ), "runtime startup moved the shell"
         expect(page.locator("h1")).to_be_visible()
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1
@@ -413,6 +418,7 @@ customElements.define('lf-shadow-link', class extends HTMLElement {
 
     stamp_page(serve.page_dir, authored.replace("Late links", "Later links"), "later")
     wait_for_revision(page, 2)
+    expect(page.locator("#settled-link")).to_have_attribute("data-lf-external", "")
     expect(page.locator("#settled-link")).to_have_accessible_name("settled destination")
     expect(page.locator("#settled-link")).to_have_accessible_description(
         "opens in a new tab"

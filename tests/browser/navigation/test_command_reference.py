@@ -653,13 +653,13 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const { commands, paintKeys } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const control = document.createElement('button');
           control.id = 'changing-command-scope';
           control.textContent = 'Changing command scope';
           control.dataset.phase = 'first';
           document.querySelector('main').append(control);
-          commands(control, 'Changing commands', [
+          control.lfCommands = { title: 'Changing commands', rows: [
             {
               id: 'test.changing.first',
               keys: ['F8'],
@@ -676,8 +676,9 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
               when: () => control.dataset.phase === 'second',
               run: () => { control.dataset.ran = 'second'; },
             },
-          ]);
-          paintKeys();
+          ] };
+          commandsChanged(control);
+          commandsChanged(document.body);
           control.focus();
         }"""
     )
@@ -819,7 +820,8 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
         ("panel.floating.menu.leave-backward", "Leave backward"),
     ], rows
     # The arrows' glyphs read the same on every platform; Tab's modifier does not.
-    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← / →"], rows
+    # Alternatives stand as keys of their own: ← and → each open or leave a list.
+    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← →"], rows
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

@@ -99,7 +99,7 @@ GENERIC_VISUAL_PAGE = leaf_page(
 <lf-test-visual id="visual" parts="all"></lf-test-visual>
 """,
 )
-GENERIC_VISUAL_LAYER = {
+GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
         "type": "object",

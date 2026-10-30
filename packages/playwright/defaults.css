@@ -2,6 +2,9 @@
  * flexible viewport holds empty and captured states; short stages grow in flow.
  * Parents own spacing: theme steps separate groups; smaller steps join their parts. */
 lf-trace {
+  /* The steps, selectors and logs it draws wear markup's reading face whatever look
+     the page takes, since they are the widget's own. */
+  --lf-reading-face: 1;
   --lf-trace-control-size: 44px;
   --lf-trace-small-type: max(12px, var(--t-6));
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
@@ -25,6 +28,14 @@ lf-trace {
   overflow-wrap: anywhere;
 }
 
+/* The module's waiting line replaces this fixed-height slot when it connects. */
+@scope (html[data-lf-interactive]) {
+  lf-trace:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: 1lh;
+  }
+}
 .lf-trace-view {
   display: contents;
 }
@@ -530,20 +541,14 @@ lf-trace[hidden="until-found"] {
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
+/* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
+ * row, led by its number in the ring its marker wears on the track; the ring stands
+ * taller than a line, so the row's parts meet on its middle. */
 .lf-trace-bookmark {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--sp-2);
-  inline-size: 100%;
-  min-block-size: var(--lf-trace-control-size);
-  padding: var(--sp-2);
-  text-align: start;
-  font: inherit;
 }
-.lf-trace-bookmark[aria-current] {
-  color: var(--accent);
-  background: var(--accent-tint);
+.lf-trace-bookmark > .lf-row-lead {
+  align-self: center;
 }
 .lf-trace-clock,
 .lf-trace-readout,
@@ -714,6 +719,7 @@ lf-trace-bookmark {
   border: 1px solid var(--border-2);
   border-radius: 999px;
   background: var(--paper);
+  font-weight: 600;
 }
 .lf-trace-full-image {
   flex: 0 0 auto;
@@ -733,18 +739,6 @@ lf-trace-bookmark {
 }
 .lf-trace-image-loading .lf-trace-image-status {
   display: block;
-}
-.lf-trace-moment-number {
-  justify-self: start;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-.lf-trace-moment-time {
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 /* A sticky header: its controls stand its top padding below where it sticks, which
  * the layer's focus margin reads (`--lf-head-inset`, kernel shadow.css). */
@@ -970,6 +964,7 @@ lf-trace-compare {
   flex-direction: column;
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
+  --lf-trace-chooser-padding: var(--sp-2);
   font: var(--t-5) / 1.45 var(--sans);
 }
 .lf-trace-compare-controls {
@@ -978,22 +973,36 @@ lf-trace-compare {
   --lf-head-inset: var(--sp-2);
   z-index: 4;
   background: var(--paper);
-  padding-block: var(--sp-2);
+  padding-block: var(--lf-trace-chooser-padding);
   border-block-end: 1px solid var(--border-2);
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
 }
 @media (max-width: 600px) {
+  lf-trace-compare {
+    --lf-trace-chooser-padding: var(--sp-1);
+  }
   .lf-trace-compare-controls {
     position: static;
     --lf-head-inset: initial;
-    padding-block: var(--sp-1);
   }
 }
 lf-trace-compare > *,
 lf-trace-compare lf-trace {
   margin-block: 0;
+}
+
+/* The chooser has fixed apparatus geometry; its native slot holds that room
+ * while the module loads. View selection remains the shared view owner's job. */
+@scope (html[data-lf-interactive]) {
+  lf-trace-compare:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: calc(
+      var(--lf-trace-control-size) + 2 * var(--lf-trace-chooser-padding) + 1px
+    );
+  }
 }
 
 .lf-trace-image-scale {

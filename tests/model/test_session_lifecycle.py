@@ -47,6 +47,7 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
 
     assert service_model.claim_page(page_dir)
     renewed = service_model.page_claim(page_dir)
+    assert renewed is not None
     assert renewed["id"] == "reused"
     assert renewed["turn"] != "old-turn"
 
@@ -90,9 +91,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
-    held = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(None, "released")
-    )
+    lease_path = leases_model.waiter_lease_path(None, "released")
+    assert lease_path is not None
+    held = leases_model.take_wait_lease(lease_path)
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
@@ -103,7 +104,9 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
 
     cleanup_model.end_harness_instance("holder")
     assert files("holder") == ["delivery.lock", "lifecycle"]
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
+    claim_record = service_model.page_claim(page_dir)
+    assert claim_record is not None
+    assert claim_record["turn_closed"] is not None
 
 
 def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_codex_chat):
@@ -115,9 +118,16 @@ def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_code
     before = cleanup_model.session_record("s1")
     cleanup_model.end_harness_instance("s1")
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert service_model.page_claim(page_dir)["acquisition"] == claim["acquisition"]
-    assert cleanup_model.session_record("s1")["generation"] == before["generation"]
-    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+    claim_record_2 = service_model.page_claim(page_dir)
+    assert claim_record_2 is not None
+    assert claim_record_2["acquisition"] == claim["acquisition"]
+    turn_record = cleanup_model.session_record("s1")
+    assert turn_record is not None
+    assert before is not None
+    assert turn_record["generation"] == before["generation"]
+    turn_record_2 = cleanup_model.session_record("s1")
+    assert turn_record_2 is not None
+    assert turn_record_2["turn_closed"] is not None
 
 
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
@@ -329,7 +339,10 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         elif case == "obsolete-service":
             cleanup_model.write_json(
                 page_dir / "service.json",
-                {**server_model.SERVICE.stored(service), "format": "leaf-service/0"},
+                {
+                    **files_model.read_json(page_dir / "service.json"),
+                    "format": "leaf-service/0",
+                },
             )
         elif case == "missing-service":
             (page_dir / "service.json").unlink()
@@ -372,7 +385,9 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     record_claim(page_dir, id="successor")
     session_model.cmd_waiting(page_dir)
     cleanup_model.end_harness_instance("predecessor")
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
     assert declared(page_dir)["state"] == "waiting"
@@ -398,9 +413,9 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
     before = {
         page: service_model.claim_path(page).read_bytes() for page in (claimed, sibling)
     }
-    assert {service_model.page_claim(page)["turn"] for page in before} == {
-        "provider-turn"
-    }
+    claims = [service_model.page_claim(page) for page in before]
+    assert all(claim is not None for claim in claims)
+    assert {claim["turn"] for claim in claims if claim is not None} == {"provider-turn"}
     hooks_model.cmd_hook(
         "codex",
         {
@@ -409,7 +424,8 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
             "turn_id": "provider-turn",
         },
     )
-    assert all(service_model.page_claim(page)["turn_closed"] for page in before)
+    claims = [service_model.page_claim(page) for page in before]
+    assert all(claim is not None and claim["turn_closed"] for claim in claims)
     assert {
         page: service_model.claim_path(page).read_bytes() for page in before
     } == before
@@ -427,7 +443,9 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
     )
     service_model.claim_page(sibling)
     assert service_model.claim_is_active(service_model.page_claim(sibling))
-    assert service_model.page_claim(sibling)["turn"] == "resumed-turn"
+    claim_record_4 = service_model.page_claim(sibling)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn"] == "resumed-turn"
     assert not service_model.claim_is_active(service_model.page_claim(claimed))
     assert service_model.claim_path(claimed).read_bytes() == before[claimed]
     capsys.readouterr()
@@ -475,8 +493,12 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
     )
     assert capsys.readouterr().out == ""
     assert events_model.read_events(claimed) == before
-    assert service_model.page_claim(claimed)["turn"] == "new"
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    claim_record_5 = service_model.page_claim(claimed)
+    assert claim_record_5 is not None
+    assert claim_record_5["turn"] == "new"
+    claim_record_6 = service_model.page_claim(claimed)
+    assert claim_record_6 is not None
+    assert claim_record_6["turn_closed"] is None
 
 
 def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
@@ -486,6 +508,7 @@ def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
         _, expected = page.take_claim(harness)
         cleanup_model.prompt_turn("s1", "provider")
         page.restore_claim(expected, previous)
+        assert previous is not None
         assert page.claim["acquisition"] == previous["acquisition"]
         _, first = page.take_claim(harness)
         _, successor = page.take_claim(harness)
@@ -514,6 +537,7 @@ def test_provider_observation_cannot_replace_a_newer_prompt(claimed):
     assert cleanup_model.start_session_turn("s1", "late-start", old) is None
     assert cleanup_model.session_record("s1") == new
     adopted = cleanup_model.start_session_turn("s1", "legitimate-start", new)
+    assert adopted is not None
     assert adopted["turn"] == "legitimate-start"
 
 
@@ -539,13 +563,16 @@ def test_first_claim_enriches_prompt_provenance_without_replacing_it(
         old = cleanup_model.ensure_session("before-claim", {"pid": os.getpid() + 1})
         cleanup_model.end_session("before-claim")
     before = cleanup_model.prompt_turn("before-claim", "provider")
+    assert before is not None
     assert before["lifetime"] == {}
     if resumed:
+        assert before is not None
         assert before["generation"] != old["generation"]
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     after = cleanup_model.session_record("before-claim")
+    assert after is not None
     assert (after["generation"], after["turn"], after["provider"]) == (
         before["generation"],
         "provider",
@@ -568,3 +595,13 @@ def test_closed_provider_prompt_never_reopens_its_identity(claimed, capsys):
     )
     assert cleanup_model.session_record("s1") == ended
     assert capsys.readouterr().out == ""
+
+
+def test_an_unnamed_prompt_after_the_session_ended_opens_a_turn(claimed):
+    """A session resumed after its end, under a harness that names no turn, has a
+    turn of Leaf's from its first prompt, which pickups and starts name."""
+    cleanup_model.prompt_turn("s1")
+    cleanup_model.end_session("s1")
+    assert not cleanup_model.session_live(cleanup_model.session_record("s1"))
+    resumed = cleanup_model.prompt_turn("s1")
+    assert cleanup_model.session_live(resumed) and cleanup_model.turn_open(resumed)

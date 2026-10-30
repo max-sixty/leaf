@@ -74,6 +74,15 @@ verdict, its review captures each of them on the base and the head with
 reaches the surface, looks at the crops, and weighs what changed against every
 state that pays for it. Without captures it can read, the review withholds approval.
 
+## Explaining UI changes and questions
+
+Include screenshots when explaining a UI change or asking the maintainer to judge
+an interface. Put the visual evidence in the PR description or reply where the
+change or question is presented, so the reader can inspect the affected state
+before answering. Show before and after for a change, and the relevant alternatives
+for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
+change**, for capture and delivery.
+
 ## Reading a red suite
 
 When a change turns a test red, merged or still in a pull request, the change and

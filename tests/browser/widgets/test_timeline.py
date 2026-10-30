@@ -29,8 +29,8 @@ RACE = """<h1>Race</h1>
 
 # Each lane's label boxes, and the chart's track, in viewport pixels.
 LABEL_BOXES = """() => {
-  const track = document.querySelector('#race').shadowRoot.querySelector('.lf-timeline-ruler').getBoundingClientRect();
-  const lanes = [...document.querySelector('#race').shadowRoot.querySelectorAll('.lf-timeline-lane')].map((lane) =>
+  const track = document.querySelector('#race').querySelector('.lf-timeline-ruler').getBoundingClientRect();
+  const lanes = [...document.querySelector('#race').querySelectorAll('.lf-timeline-lane')].map((lane) =>
     [...lane.querySelectorAll('.lf-timeline-label')].map((label) => {
       const box = label.getBoundingClientRect();
       return { left: box.left, right: box.right, top: box.top, clipped: label.scrollWidth > label.clientWidth };
@@ -79,6 +79,10 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     assert next_button.bounding_box() == before
     page.keyboard.press("ArrowRight")
     expect(position).to_have_text("Step 3 of 6 · 1 s")
+    # A key's step is said aloud, which Leaf does for the timeline (`announce`).
+    expect(page.locator(".lf-live")).to_have_text(
+        "Step 3 of 6. Job B: Reads balance: 100"
+    )
     page.keyboard.press("End")
     expect(position).to_have_text("Step 6 of 6 · 5.2 s")
     expect(page.get_by_role("button", name="Next")).to_have_attribute(
@@ -201,3 +205,43 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
     expect(page.locator("#arriving .lf-timeline-position")).to_have_text(
         "Step 1 of 1 · 0 s"
     )
+
+
+def test_a_timeline_s_unavailable_arrow_reaches_no_command_around_it(browser, serve):
+    """Next at the last step is unavailable, and its arrow stays the timeline's: a deck
+    around it keeps its card."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Deck with a timeline",
+                """<h1>Deck with a timeline</h1>
+<lf-deck id="deck">
+  <section id="card-one">
+    <h2>First card</h2>
+    <lf-timeline id="tl" aria-label="Two steps">
+      <lf-lane label="Build">
+        <lf-event id="e1" at="0" label="Compile"></lf-event>
+        <lf-event id="e2" at="1000" label="Ship"></lf-event>
+      </lf-lane>
+    </lf-timeline>
+  </section>
+  <section id="card-two"><h2>Second card</h2><p>The deck moved on.</p></section>
+</lf-deck>""",
+            ),
+            packages=("timeline", "deck"),
+        ),
+    )
+    rows = page.locator("#tl .lf-timeline-step")
+    rows.last.click()
+    expect(rows.last).to_have_attribute("aria-current", "step")
+    expect(page.locator("#tl .lf-timeline-next")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    page.keyboard.press("ArrowRight")
+    expect(rows.last).to_be_focused()
+    page.evaluate(NEXT_FRAME)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('#deck > section')]
+          .filter((card) => card.hasAttribute('data-lf-deck-open')).map((card) => card.id)"""
+    ) == ["card-one"]

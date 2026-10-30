@@ -43,7 +43,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
-  showAction,
+  nameAction,
   layoutPx,
   mountSample,
   once,
@@ -207,7 +207,6 @@ customElements.define(
     #build() {
       this.#template = this.querySelector(":scope > template[data-sample]");
       if (!this.#template) return;
-      this.dataset.lfSampleLive = "";
       this.#frame = document.createElement("iframe");
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
@@ -293,10 +292,9 @@ customElements.define(
     }
 
     #paintFull(expanded) {
-      this.#full.ariaLabel = this.#full.title = expanded
-        ? "Return to page"
-        : "Full view";
-      showAction(this.#full, expanded ? "collapse" : "expand");
+      nameAction(this.#full, expanded ? "collapse" : "expand", {
+        label: expanded ? "Return to page" : "Full view",
+      });
     }
 
     #setWindow(value) {

@@ -22,7 +22,7 @@ representative desktop viewport.
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`theme.css`) sets type, spacing and form as tokens,
+  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
   and a widget reads only its own box and the theme's tokens. A widget therefore behaves
   the same in a shipped Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
@@ -88,7 +88,7 @@ representative desktop viewport.
   The container grows only for content, such as typed words, or an explicit action,
   such as More room. Changing labels (`data-room`, below) and rendering a widget
   after its first visible paint follow the same sizing rule. A
-  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  one-line control's visible height is `--lf-line` (base.css); its touch target meets
   the minimum size set by surfaces.css. A control that instead derives its visible
   height from its font or the touch-target minimum changes the height of every
   container that holds it. Check:
@@ -136,11 +136,17 @@ representative desktop viewport.
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
-  for a listener. A gesture that moves the
+  for a listener. The pressed control draws from the same reading, the pending
+  gesture included, so it stays live: no busy or disabled face while the gesture
+  travels, and a second press does what the control then says, such as Undo, which
+  names a pending gesture by its attempt. A refusal restores the server's state, and
+  delivery says why in the notice seat. A gesture that moves the
   user, such as resolving a thread, leaves them at its place again when it is refused
-  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
-  after a delay so a fast answer shows nothing. Persistent status text is for a
-  state the user must return to, such as a failure.
+  or undone (`undo.js` owns where undo leaves the user). Content whose result only
+  the log can supply, such as a message being sent or an upload, waits with
+  `aria-busy`; a control a package marks busy fades after a delay, so a fast answer
+  shows nothing, and keeps its cursor. Persistent status text is for a state the user
+  must return to, such as a failure.
 
 ### Words stay where they were typed
 
@@ -183,7 +189,7 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol where a standard symbol for its
   action exists, and its word where none does.** A standard symbol is one readers
   already know for that action from the software they use, such as ✕ for close, ✓ for
-  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  resolve, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
   smaller and quieter. The control names its action from `ACTIONS` in
@@ -205,7 +211,7 @@ representative desktop viewport.
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
@@ -247,39 +253,39 @@ literal paths; only the widget and interaction loaders compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
-| Concern                                                                                                     | Owners                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                      |
-| Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                  |
-| Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                               |
-| Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                         |
-| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                             |
-| External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                    |
-| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`           |
-| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                   |
-| Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                       |
-| Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                     |
-| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                    |
-| Obligations                                                                                                 | `obligations/`                                                                                                                                           |
-| Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                    |
-| Threads                                                                                                     | `thread/`                                                                                                                                                |
-| Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                               |
-| Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                       |
-| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                    |
-| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`      |
-| Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js` |
-| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                    |
-| Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                         |
-| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                         |
-| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                        |
-| Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
-| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
-| Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                        |
-| Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
-| Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
+| Concern                                                                                                     | Owners                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                        |
+| Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                    |
+| Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                  |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                                 |
+| Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
+| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
+| External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
+| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                     |
+| Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
+| Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
+| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                      |
+| Obligations                                                                                                 | `obligations/`                                                                                                                                             |
+| Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                      |
+| Threads                                                                                                     | `thread/`                                                                                                                                                  |
+| Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                 |
+| Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                         |
+| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                      |
+| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`        |
+| Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`   |
+| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                      |
+| Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                           |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                           |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                          |
+| Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                          |
+| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                 |
+| Child pages                                                                                                 | `sample*.js`                                                                                                                                               |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                          |
+| Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                              |
+| Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `syntax-tokens.js`, `motion.js`, `color-scheme.js`, `storage.js`, `tab-store.js`, `interaction-log.js` |
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses

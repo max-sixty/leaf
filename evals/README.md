@@ -36,6 +36,11 @@ pnpm run eval:view
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
+- **Widget formats.** `--condition formats` runs direct Leaf HTML, a JSON tree
+  compiled to Leaf HTML, and the Adaptive Cards SDK for the retained
+  [widget format cases](widget-formats/README.md). `--condition json` and
+  `--condition adaptive` select either JSON arm alone. `--model MODEL` selects
+  one Codex author model for every selected condition in that run.
 - **Promptfoo options.** Anything after the cases goes to `promptfoo eval`, such as
   `--repeat 3`, `-j 4` or `--filter-pattern`.
 
@@ -161,11 +166,13 @@ to keep one entry point for a hill-climbing journey.
 
 For a hill-climbing journey, pass `--review FILE` with an agent-authored JSON
 assessment. The report is a workspace: its title and navigation stay in view
-while the selected result scrolls. **Introduction** opens first and explains the
-visible navigation, the changes being evaluated and their evidence. **Changes
+while the selected result scrolls. **Introduction** opens with the latest run's
+summary and findings, followed by the visible navigation and evidence guide. **Changes
 tested** opens one intervention or diagnostic at a time: Leaf code and authoring
 instructions, or evaluation tooling and the hill-climb skill, with an explicit
 recommendation. Its evidence can include an unchanged plain HTML reference.
+Task tabs identify a wholly latest or reference run group beside the saved case
+title, so repeated case titles do not hide which run they open.
 Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,
 with shared scale and synchronized scrolling at 100%. Output links sit below the
 viewer. HTML-versus-Leaf references use labeled **Plain HTML** and **Leaf** columns,
@@ -188,7 +195,8 @@ journey follow alphabetically. Without a journey, tasks are alphabetical.
 Single-choice groups appear directly, with tabs only for alternatives. Run identifiers,
 costs, source code and methodology sit in details beside the output they describe.
 Checks distinguish a finished author, a saved output and render validation;
-quality assessments retain their criteria and reasons. The agent supplies the
+each saved revision names an incomplete author turn beside its output, including
+when it occupies the scheduled final phase. Quality assessments retain their criteria and reasons. The agent supplies the
 causal interpretation; the renderer never infers improvement from a passing score
 or calls feedback turns independent before/after authors.
 
@@ -212,6 +220,26 @@ executions, such as a short case and a longer workflow.
         "finding": "Observed outcome."
       }
     ]
+  },
+  "implementation": {
+    "summary": [
+      "What the retained code changes, its size and interfaces, and how it was validated."
+    ],
+    "human_review": {
+      "summary": "Why these changes merit the human's attention.",
+      "changes": [
+        {
+          "id": "grading-contract",
+          "title": "What the keyboard judgment establishes",
+          "before": "The criterion prescribed one keyboard gesture for every control.",
+          "after": "The judgment follows each control's actual keyboard semantics.",
+          "reason": "This changes how the reader should interpret the recorded judgments.",
+          "evidence": ["/absolute/path/to/grading-contract.diff"]
+        }
+      ]
+    },
+    "weaknesses": "Material limitations and where the assessment is least certain.",
+    "remaining": "What merging would leave undone within the stated scope."
   },
   "journey": [
     {
@@ -279,6 +307,81 @@ title; a comparison's optional `summary` gives a short assessment beside its ima
 with the full `finding` visible below. Use empty comparison/evidence arrays where
 no such evidence exists, and say why in the assessment. Screenshot evidence
 renders inline; other files are linked.
+
+For a hill-climb report that changes code or instructions, supply
+`implementation`, including its `human_review` assessment even when the selection
+is empty. An eval-only report can omit it. This field supplies **What the current
+code changes** in Introduction: summary paragraphs, weaknesses, remaining work
+and an authored **For your review** selection. Select changes whose intent or consequences the
+human should examine personally, such as material changes to goals, agent
+instructions, defaults, guarantees, permissions or data handling. Leave routine
+visual polish in the implementation summary and evidence. This selection is agent
+judgment; file names, diff size and scores do not settle it. Existing authorization
+and landing rules still govern actions.
+
+For each selected change, explain the before/after implications, why it deserves
+attention, and link reviewable source or a scoped exact diff in `evidence`.
+Exact `.diff` evidence appears inline in `lf-diff`, with every file initially
+collapsed, alongside its raw source link. Other evidence remains linked. The
+report selects the `diff` package, preserving any packages already on the page.
+When inserting a summary into an existing report outside `eval-report`, select
+that package with `leaf page init` before checking, stamping and exporting it.
+
+Use optional `links` with `label` and `target` to connect a selected code change
+to its corresponding **Changes tested** experiment (`#experiment-<id>`), or a
+specific comparison (`#experiment-<id>-comparison-<number>`). Select these links
+from the actual relationship; evaluation-contract and report changes may have no
+corresponding product experiment. Keep the original grades when explaining
+changes to an evaluation contract. Use stable `id` values for the subsection's anchors. Supply
+`human_review.changes: []` when the assessment finds none, with its reasoning in
+`human_review.summary`; the report explicitly states that no material changes
+were selected. Omitting `implementation` means no implementation assessment was
+supplied, rather than an assessed-empty selection.
+
+The **Judge preferences** view reads each retained native pair judgment and shows
+both presentation orders separately. Its five overall preference categories are
+ordinal, not numerical quality scores or independent author replications. Only
+pairs identified by their saved output metadata as one Leaf and one Plain HTML
+output appear on the format axis; other pairs remain in the exact-outcome table.
+Without checkpoint metadata, comparisons are unordered.
+
+Supply optional `preference_summary` to explain which runtime changes these
+comparisons cover, which remain untested, and any author changes that limit the
+interpretation. To label an explicit progression, add optional
+`preference_checkpoints`:
+
+```json
+{
+  "preference_summary": "Only configuration was compared again; a new author limits causal attribution.",
+  "preference_checkpoints": [
+    {
+      "label": "Original payload",
+      "pairs": [
+        { "run": "/absolute/path/to/pair-producer", "subject": "dashboard", "pair": 1 }
+      ]
+    }
+  ],
+  "repair_comparisons": [
+    {
+      "id": "navigation",
+      "title": "Same-source navigation",
+      "before": "The selected file and visible diff disagree.",
+      "after": "The visible diff follows the keyboard selection.",
+      "evidence": ["/absolute/path/to/matched-observation.json"]
+    }
+  ]
+}
+```
+
+Each pair reference selects exactly one `subject`/`pair` record from that run's
+`pairs.json`, which must also be present among the report's loaded native pairs.
+Supply labels and checkpoint order, never copies of winners, margins or scores.
+The table identifies reused HTML controls and tasks not compared at a checkpoint.
+A fresh author at a later checkpoint does not isolate the effect of a repair.
+The optional `repair_comparisons` instead supplies cited, authored before/after
+behavioral observations in a separate table; it does not turn pass/fail findings
+or recommendations into preference scores.
+
 The optional `journey` is authored interpretation, not a chronology inferred from
 scores or file timestamps. Its lane and step IDs are stable page anchors; link
 targets are report fragments such as an experiment or a saved sample revision.
@@ -355,7 +458,9 @@ Assertions grade the saved `index.html`, with additional `completed` and
 `page-valid` checks; the executor independently runs `page check`, plain and with
 `--render`, and keeps the page, native trace, reply, and check output under the
 sample's evidence. A prompt may reuse a complete task's request by naming it, as
-`file://<task>/request.md`. A `python` assertion naming
+`file://<task>/request.md`. The selected `--viewport` sizes reach the author in its
+request and determine the report captures; the render check retains its own wider
+diagnostic sweep. A `python` assertion naming
 `dev/leaf_dev/page_defects.py` grades the page by the defects its user would notice
 at three widths, beside what the checks reported; its header says what it records,
 and `page-reads-at-every-width` uses it. A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
@@ -443,17 +548,19 @@ instruction diagnostic do not establish that rendered behavior.
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
 own using only the host's login, so runs spend the signed-in accounts'
-usage and never an API key. Authoring agents write scratch files in `/tmp` under
-names their task suggests, so on macOS a Claude Code child runs under a sandbox
-profile that refuses those writes outside its own directories (`private_tmp` in `dev/leaf_dev/arms.py`); its own
-`TMPDIR` takes them. Eval defaults to serial provider calls and assertions for
+usage and never an API key. On macOS, native authoring sessions use
+`authoring_sandbox` in `dev/leaf_dev/arms.py` to isolate shared `/tmp` content and
+host plugin payloads; their own `TMPDIR` holds scratch files. Read-only probes use
+their provider's restrictions. Eval defaults to serial provider calls and assertions for
 browser load. The decision round's user agent drives the page with the pinned
 Playwright CLI from development dependencies. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
-read-only task. `MODELS` in `dev/leaf_dev/arms.py` owns the model pins. Native
-Codex turns use the Codex harness pin, including the final live judge and optional
-pair judges; their reasoning effort is medium. Text grading uses `judge`, the
-browser user uses `user`, and static screenshot grading uses `screenshots`. Hosted response
+read-only task. `MODELS` in `dev/leaf_dev/arms.py` owns author and simulated-user
+pins; `JUDGE_MODELS` owns quality judges independently. Native Codex author turns
+use `MODELS["codex"]`; final live, pair and static screenshot judges use
+`JUDGE_MODELS["codex"]`. Native Codex author, live and pair turns use medium reasoning
+effort. Text grading uses the Claude
+judge pin, and the browser user uses `MODELS["user"]`. Hosted response
 cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container
@@ -478,7 +585,7 @@ partly the judge's. For static screenshot cases, point `screenshot_judge` in
 grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
 That setting does not change complete-task live judges. Their model follows the
-Codex harness pin; `eval-pairs` rejudges saved samples with the current live judge
+Codex judge pin; `eval-pairs` rejudges saved samples with the current live judge
 while retaining their original authored pages and runtimes.
 
 ### Independent live audits
@@ -498,7 +605,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from leaf_dev.arms import MODELS
+from leaf_dev.arms import JUDGE_MODELS
 from leaf_dev.commands.eval_pairs import eval_pairs
 
 audit = Path(tempfile.mkdtemp(prefix="audit-", dir=Path(".tmp/eval").resolve()))
@@ -513,7 +620,7 @@ for index, source in enumerate(sys.argv[2:]):
             (target / name).symlink_to(source / name, target_is_directory=True)
     runs.append(str(target))
 if sys.argv[1] != "-":
-    MODELS["codex"] = sys.argv[1]
+    JUDGE_MODELS["codex"] = sys.argv[1]
 print("Comparison indexes:", *runs, sep="\n")
 eval_pairs.main(args=runs, standalone_mode=False)
 PY

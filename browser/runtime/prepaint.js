@@ -54,10 +54,10 @@
     swapped = false;
     leaving = false;
   });
-  // The runtime will run here and upgrade the page's widgets, so the themes give each
-  // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
-  // with no runtime, a source file or a page with scripts off, keeps the readable
-  // fallback, and only a served page draws the live chrome (`data-lf-live`, bootstrap.js).
+  // The runtime will upgrade the widgets here. Styles reserve fixed control rows;
+  // authored content stays readable while modules load. A source file or a page with
+  // scripts off keeps that content, and only a served page draws the live chrome
+  // (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
 
   // Inputs belong to this document from its first script, even while the module

@@ -522,7 +522,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
-        generation = layer_record(serve.page_dir)["generation"]
+        layer = layer_record(serve.page_dir)
+        assert layer is not None
+        generation = layer["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
         release_the_held_read()
         told(page)

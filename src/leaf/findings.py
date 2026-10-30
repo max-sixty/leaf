@@ -763,6 +763,10 @@ _TEXT = {
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),
+    "css-dropped": lambda at, v: (
+        f"{v['sheet']} syntax error at {v['row']}:{v['column']}, a declaration or"
+        f" rule a browser drops without a word: {v['message']}"
+    ),
     "unserved-media": lambda at, v: (
         f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
     ),
@@ -1525,7 +1529,6 @@ _TEXT = {
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),
     "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
-    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
     "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
     "css-import": _captured(
         lambda v: "CSS @import requires a stylesheet with CSS MIME type"
@@ -1544,6 +1547,12 @@ _TEXT = {
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
+    "passive-layout-shift": lambda at, v: (
+        f"{at} moved without input during a {v['observed_ms']}ms observation after"
+        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
+        " boxes, not necessarily the cause; reserve space for changing content."
+        " Later timers and gesture paths were not checked."
+    ),
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
         f" before upgrade, {_size(v['now'])} once presented"

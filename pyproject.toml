@@ -53,7 +53,7 @@ dependencies = [
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "playwright>=1.63",
+  "playwright>=1.64",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
   "regress>=2026.9",
@@ -81,7 +81,7 @@ module-name = "leaf"
 [dependency-groups]
 dev = [
   # Accessible snapshots with rendered boxes for corpus round-trip checks.
-  "playwright>=1.63",
+  "playwright>=1.64",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
@@ -101,6 +101,9 @@ dev = [
   # The Python server behind leaf.page, in `worker/`.
   "leaf-website",
   "pytest-image-snapshot[pixelmatch]>=0.5.3",
+  "ty>=0.0.94",
+  "ruff>=0.17.3",
+  "datamodel-code-generator>=0.87.0",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
@@ -114,6 +117,7 @@ leaf-dev = { workspace = true }
 leaf-website = { workspace = true }
 
 [tool.ruff]
+target-version = "py312"
 # Apply the same scope to directory scans and filenames passed by pre-commit.
 force-exclude = true
 extend-exclude = [
@@ -121,6 +125,19 @@ extend-exclude = [
   "packages/**/vendor",
   "evals/ui-review-detection/fixtures",
 ]
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "UP"]
+# The formatter owns line wrapping; existing module setup and callable expressions
+# may put imports after setup or use a lambda as a value.
+ignore = ["E402", "E501", "E731"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["leaf", "leaf_dev", "leaf_website"]
+
+[tool.ty.environment]
+# Match pytest's helper imports below, including tests/browser packages.
+extra-paths = ["tests"]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
@@ -193,6 +210,8 @@ ignore_names = [
   "do_*",
   "list_directory",
   "log_message",
+  "protocol_version",
+  "close_connection",
   "daemon_threads",
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.

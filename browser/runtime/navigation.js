@@ -3,7 +3,7 @@
  * it changes only vertical scroll, retaining focus, selection and browser history. */
 import { pageRange } from "./native-selection.js";
 import { cancelRender, nextFrame } from "./rendering.js";
-import { scrollGlides } from "./arrivals.js";
+import { scrollGlides, setScroll } from "./arrivals.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
@@ -227,7 +227,7 @@ function stepAlong(from, amount, unit) {
 export function glideTo(box, goal) {
   goal = Math.max(0, Math.min(scrollLimit(box), goal));
   if (reducedMotion()) {
-    box.scrollTo({ top: goal, behavior: "instant" });
+    setScroll(box, { top: goal, behavior: "instant" });
     return;
   }
   cancelRender(glide?.raf);
@@ -239,7 +239,7 @@ export function glideTo(box, goal) {
       return;
     }
     if (reducedMotion()) {
-      box.scrollTo({ top: goal, behavior: "instant" });
+      setScroll(box, { top: goal, behavior: "instant" });
       setGlide(null);
       return;
     }
@@ -247,7 +247,7 @@ export function glideTo(box, goal) {
     // the press that scheduled the tick, and an unfloored t walks the ease out past the
     // start — to a write the box clamps, which the next tick then read as another hand.
     const t = Math.max(0, Math.min(1, (now - t0) / SCROLL_MS));
-    box.scrollTo({
+    setScroll(box, {
       top: goal - (goal - start) * (1 - t) ** 3,
       behavior: "instant",
     });

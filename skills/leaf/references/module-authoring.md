@@ -44,11 +44,14 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 A widget that must also run on a page without Leaf's runtime, such as a chart another
 app shows, imports only from `/runtime/portable-api.js`, the part of the helper
-surface any document can load; `widget-api.js` re-exports all of it. The host maps
+surface any document can load; `widget-api.js` re-exports all of it.
+The control constructors and template directives under “Generated controls”
+are portable too: use the same offers and generated-word markers on either host. The host maps
 `/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
-page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement`, and
-Leaf hears from it only through standard events it dispatches on itself, which a plain
-page may ignore:
+page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement` and
+draws into the box the page gives it. Leaf hears from it only through standard events
+it dispatches on itself and declarations it leaves on its elements, which a plain page
+ignores:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -56,8 +59,26 @@ page may ignore:
   (`module-state.md`, "The widget controller").
 - A failure: `failSoft` and `reportFailure` dispatch an `error` event ("Upgrade"),
   which Leaf reports to the author as the page's error.
+- Keys: an element's `lfCommands` and `commandsChanged` (`module-input.md`, "Commands
+  and keyboard routes"). A plain page binds none and advertises none. A button that must
+  work off Leaf makes its own press, from its own click listener: its row names it as
+  `control` and has no `run`, and the widget draws it `aria-disabled` while the press
+  can't act, which is the availability Leaf reads. Where a key leaves the user is the
+  row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
+- A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
+  "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
+  "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
+  it builds (`shadowStage`), not in a shadow root a page script attaches itself, where
+  the widget shows neither.
+- Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
+  which only Leaf reads.
+- Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
+  and spoken words"), which only Leaf says.
+- Working state in `tabStore`, which keeps nothing on a plain page: a read there
+  answers null.
 
-`lf-chart` in the default package is the worked example.
+`lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
+`lf-timeline` are the worked examples.
 
 ## What a behavior module owes
 
@@ -78,7 +99,8 @@ script", lists.
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
 - Record the user's choices only through the widget controller, and keep working state
   in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
-- Register commands at upgrade (`module-input.md`, "Commands and keyboard routes").
+- Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
+  "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
 - Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
@@ -376,19 +398,26 @@ ${offered("my-tools")}>` does the same, with an input's `type` binding placed be
 A button that looks like Leaf's own controls is built by its role, so every control of
 one kind wears one face: `offerAction(role, className, label, {title, action})`, or
 `<button ${offeredAction(role, className, label, {action})}></button>` in a template.
-`offerActionElement(node, role, className)` applies the same face to an existing node;
-the caller supplies its label and symbol. The roles are:
+`offerActionElement(node, role, className, label, {title, action})` applies the same
+face, symbol and name to an existing node. The roles are:
 
 - `"symbol"`, a press that shows the symbol of its `action`, one of Leaf's actions
   (`module-reading.md`, "Icons"), and draws it for you. Its tooltip and accessible name
   are the action's name, or `label` where that says more, such as "Retry loading the
   file"; `title` replaces the tooltip where it says more still, such as the key that
   does the same.
-- `"word"`, a press that says what it does, a row of a list or menu included; `label`
-  is its words. A toggle is a word with `aria-pressed`, which draws as selected.
+- `"word"`, a press that says what it does; `label` is its words. A toggle is a word
+  with `aria-pressed`, which draws as selected.
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol seated on the thing it acts on, at its corner, which names
   its `action` as a symbol does.
+- `"inline"`, a press read as part of the line of words it stands in, such as a feed's
+  "Show activity" or a quote's "Full quote"; `label` is its words, drawn in the accent
+  at the line's size. Give one that announces news waiting `data-lf-news`, which draws
+  it in the danger ink.
+- `"row"`, one row of a list or menu, its words in the ink; the row under the pointer
+  or the keys is washed. Give the row the list stands on, such as the step a timeline
+  shows, `aria-current`, which draws it with the accent's stripe and tint.
 
 `className` places the control; don't restyle its face. Use a symbol where a standard
 symbol for the action exists, one readers know from other software, and words where
@@ -399,8 +428,10 @@ generated controls too.
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
 whose keyboard behavior the widget supplies. In a template, use
-`<span ${selectableOffered(role, className)}>${label}</span>`, or apply
-`selectableOfferElement(node, role, className)` to an existing node. Printing drops every
+`<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
+face, such as `"row"` for a list whose rows are the page's words, name the role last:
+`selectableOffer(role, className, label, "row")` or `selectableOffered(role,
+className, "row")`. Printing drops every
 offer, so build structure that isn't injected UI, such as an editor's file, with
 `el(tag, className, text)`.
 

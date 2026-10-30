@@ -24,7 +24,6 @@ import { afterScript, sizeObserver } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 import { scheduleDocumentLayout } from "./content-layout.js";
-import { syncLayoutRegion } from "./reading-regions.js";
 
 // Packages declare the headers they place over the document; this owner alone writes
 // the root landing inset. CSS cannot sum heights across independent header owners.
@@ -69,7 +68,6 @@ export function createPageLayout({
   // boundary changes shape: a resize moves every rect. It is re-placed against its
   // durable anchor so it cannot overhang the shell.
   function syncLayout() {
-    syncLayoutRegion();
     scheduleDocumentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;

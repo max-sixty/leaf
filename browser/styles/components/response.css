@@ -13,10 +13,12 @@
   --lf-compose-action-inset: 6px;
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
-   box with the action inset on either side of it. */
+   box with the action inset on either side of it. A surface that sets its own
+   action inset restates this and the field's height. */
 leaf-composition-field {
   display: contents;
 }
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -30,6 +32,7 @@ leaf-composition-field {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
@@ -230,11 +233,10 @@ leaf-composition-field {
   margin-inline-start: auto;
   color: var(--ink);
 }
-.lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover {
-  color: var(--ok-ink);
-}
+/* Resolve and Reopen are one toggle: only Reopen, its on state, wears the ok tint, so
+   a hovered Resolve never looks already done. */
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
-  background: var(--ok-tint);
+  background: var(--chip);
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon {
   inline-size: 15px;
@@ -504,17 +506,16 @@ button.lf-media-open {
   block-size: 0;
   scroll-margin-block-start: 1lh;
 }
-/* Discard and Save take the message's head while it is open, where its Edit control
-   stood and with its face, as glyphs: Discard's undo, and Save's save. The user chose
-   glyphs that cover on 2026-10-24 over the words, which ran into the head's labels
-   where it kept them no room, and on 2026-10-25 a save glyph over the reply box's send
-   and a check, neither of which reads as saving. A cross would read as the card's
-   Close beside them. The pair is
-   wider than the room the head keeps for its one control, so it covers the head's end
-   with the head's ground, across the labels' line, so the field's frame just below
-   stays whole, and fading in over a gap's width before it: a label there hides under
-   the pair while the rewrite is open rather than showing through it or moving, and
-   one cut part-way fades out. Save keeps its press's ink. */
+/* Discard and Save take the message's head while it is open, where its Edit and Copy
+   controls stood and with their face, as glyphs: Discard's undo, and Save's save. The
+   user chose glyphs that cover on 2026-10-24 over the words, which ran into the head's
+   labels where it kept them no room, and on 2026-10-25 a save glyph over the reply
+   box's send and a check, neither of which reads as saving. A cross would read as the
+   card's Close beside them. The pair covers the head's end with the head's ground,
+   across the labels' line, so the field's frame just below stays whole, and fades in
+   over a gap's width before it, past the room the head keeps for its controls: a label
+   there hides under the pair while the rewrite is open rather than showing through it
+   or moving, and one cut part-way fades out. Save keeps its press's ink. */
 .lf-msg-edit-actions {
   position: absolute;
   z-index: 2;
@@ -544,10 +545,11 @@ button.lf-media-open {
   min-height: 0;
   border: 1px solid transparent;
 }
-/* Both wear the message control's press face, Save's send glyph included. */
+/* Both wear the symbol's chip on a press (controls.css, `.lf-icon-action`), Save's
+   send glyph included. */
 .lf-msg-edit-actions > .lf-msg-control:is(:hover, [data-lf-focus]) {
-  border-color: var(--border-2);
   background: var(--chip);
+  color: var(--ink);
 }
 /* The rewrite's field stands just below its head, so Discard and Save reach the floor
    upward, over the head and the room above it, rather than over the field's top. */
@@ -578,20 +580,17 @@ button.lf-media-open {
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);
 }
-/* The comment box and the card its words become share one text column, so Send
-     moves no word: both start the words `--lf-thread-text-inset` inside the field's or
-     the transcript's edge, and both end them `--lf-comment-text-end` inside it, on
-     every line, the room Send stands in at the box's foot. The editor spends one pixel
-     of each inset on its frame, which the card does not draw. */
+/* The comment box, card and card reply share one text column, so Send moves no
+   word. Each starts at the thread text inset and ends past Send, which stands
+   centred in one response line. The field spends one pixel on its frame. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-send-inset: calc(
+  --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
-  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
 }
 .lf-margin-preview .lf-msg {
-  --lf-msg-text-end: var(--lf-comment-text-end);
+  --lf-msg-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 /* A rewrite in the card is the comment box the card grew from, its frame and padding in
    the room each line of the message already keeps (`.lf-msg-editor`). Rejected: the
@@ -599,6 +598,7 @@ button.lf-media-open {
    (#2985), which made every short card taller than the box it came from for a rewrite
    the user may never open. */
 .lf-fab-bar .lf-compose-field,
+.lf-margin-preview .lf-thread-reply .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
@@ -621,13 +621,8 @@ leaf-text.lf-fab-input {
   display: none;
   width: 100%;
   min-width: 0;
-  padding-inline: var(--lf-compose-pad-inline-start)
-    calc(var(--lf-comment-text-end) - 1px);
+  padding-inline: var(--lf-compose-pad-inline-start) var(--lf-compose-send-end);
   overflow-y: auto;
-}
-.lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
-  inset-inline-end: var(--lf-comment-send-inset);
-  inset-block-end: var(--lf-comment-send-inset);
 }
 /* Other responses stands one action further in, while the field holds no words
    (`data-words`, input.js), and the hint stops short of it. A draft's first word takes
@@ -636,8 +631,8 @@ leaf-text.lf-fab-input {
 .lf-fab-bar .lf-compose-field > .lf-response-trigger {
   position: absolute;
   z-index: 1;
-  inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit));
-  inset-block-end: var(--lf-comment-send-inset);
+  inset-inline-end: calc(var(--lf-compose-action-inset) + var(--lf-icon-action-hit));
+  inset-block-end: var(--lf-compose-action-inset);
 }
 .lf-fab-bar .lf-compose-field[data-words] > .lf-response-trigger {
   display: none;
@@ -645,9 +640,7 @@ leaf-text.lf-fab-input {
 .lf-fab-bar
   .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden]))
   > leaf-text.lf-fab-input {
-  padding-inline-end: calc(
-    var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px
-  );
+  padding-inline-end: calc(var(--lf-compose-send-end) + var(--lf-icon-action-hit));
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));

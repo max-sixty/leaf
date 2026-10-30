@@ -30,7 +30,12 @@
    different text; a measured length written to one goes through `layoutPx` too. */
 
 /** @type {LeafRootState["keeps"]} */
-export const keeps = (...args) => document.documentElement.lfRootState.keeps(...args);
+export const keeps = (node, name, value) => {
+  const next = value == null ? null : String(value);
+  if (!node || node.getAttribute(name) === next) return;
+  if (next === null) node.removeAttribute(name);
+  else node.setAttribute(name, next);
+};
 
 export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;

@@ -203,6 +203,69 @@ def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, s
     assert not [f for f in findings if f.severity == "error"]
 
 
+@pytest.mark.parametrize("reader", ["page", "widgets"])
+def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usable(
+    browser, serve, monkeypatch, reader
+):
+    """A context disposes fetched responses before its page reports itself closed."""
+    import asyncio
+    import time
+
+    from playwright._impl._fetch import APIRequestContext, APIResponse
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    from leaf.render_gate import scheme, widget_quality
+
+    pages = []
+    body, dispose = APIResponse.body, APIRequestContext.dispose
+    reading, released, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    readings = []
+
+    async def held_body(response):
+        reading.set()
+        await asyncio.wait_for(released.wait(), SERVED_TIMEOUT_MS / 1000)
+        readings.append(pages[0].is_closed())
+        try:
+            return await body(response)
+        finally:
+            finished.set()
+
+    async def disposed(context, **kwargs):
+        await dispose(context, **kwargs)
+        # Hold context closure at its real disposal boundary: the page has not
+        # closed yet, but the observer's API response is already unavailable.
+        released.set()
+        await asyncio.wait_for(finished.wait(), SERVED_TIMEOUT_MS / 1000)
+
+    def abandoned_check(page):
+        pages.append(page)
+        observe_output_documents(page)
+        page.goto(url, wait_until="commit")
+        deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
+        while not reading.is_set():
+            assert time.monotonic() < deadline, "the observer never read its entry body"
+            page.evaluate("1")
+        raise PlaywrightTimeout("the check was abandoned during output capture")
+
+    url = serve(leaf_page("closing observer", "<h1>Closing</h1>"), packages=())
+    with monkeypatch.context() as patch:
+        patch.setattr(APIResponse, "body", held_body)
+        patch.setattr(APIRequestContext, "dispose", disposed)
+        owner = scheme if reader == "page" else widget_quality
+        patch.setattr(owner, "observe_output_documents", abandoned_check)
+        if reader == "page":
+            _findings, _notices, complete = _render_scheme(
+                browser.unwatched, url, "light", RENDER_VIEWPORT, SERVED_TIMEOUT_MS, []
+            )
+            assert not complete
+        else:
+            with pytest.raises(widget_quality.UnreadablePage):
+                widget_quality._readings(browser.unwatched, url, [])
+        next_page = browser.unwatched.new_page()
+        assert next_page.evaluate("1 + 1") == 2
+        assert readings == [False]
+
+
 def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
     browser, serve, monkeypatch
 ):

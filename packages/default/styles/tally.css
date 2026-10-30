@@ -1,9 +1,9 @@
-/* lf-tally: a region's obligations still to answer, in the chip face a header's .tag chips wear,
+/* lf-tally: a region's obligations still to answer, in a chip (chip.css) as a header's are,
  * with its Next on me beside it. The count's room stacks the widest labels the count
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
- * the ok tone a .tag ok wears. */
+ * the ok tone (`.lf-chip.ok`). */
 lf-tally {
   display: inline-flex;
   align-items: center;
@@ -24,14 +24,8 @@ lf-tally {
 :host(lf-tally) .lf-tally-count {
   display: inline-grid;
   font-family: var(--sans);
-  font-size: var(--t-6);
-  line-height: var(--chip-lh);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  padding: var(--chip-pad);
-  border-radius: var(--chip-r);
-  background: var(--chip);
-  color: var(--ink-2);
 }
 :host(lf-tally) .lf-tally-count > * {
   grid-area: 1 / 1;
@@ -39,10 +33,6 @@ lf-tally {
 }
 :host(lf-tally) .lf-tally-room {
   visibility: hidden;
-}
-:host(lf-tally) .lf-tally-done {
-  background: var(--ok-tint);
-  color: var(--ok-ink);
 }
 /* Next on me stands in a header row beside the chips at their type size, as tall as
  * the layer's aim floor, so the row keeps the height its title gives it. A chip after

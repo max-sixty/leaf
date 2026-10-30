@@ -2,11 +2,7 @@
  * every surface (browser/AGENTS.md, "Visual grammar"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  offerAction,
-  offerActionElement,
-  offeredAction,
-} from "/runtime/widget-elements.js";
+import { namedAction, offerAction, offeredAction } from "/runtime/widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>
@@ -39,7 +35,7 @@ test("a press can't show a symbol without naming one of Leaf's actions", () => {
     () => offerAction("word", "", "Go", { action: "next" }),
     /shows no action's symbol/,
   );
-  // Words stay the author's: a page's own Done is a word, as Leaf's to-do's is.
+  // Words stay the author's: a page's own Done may be a word.
   assert.equal(offerAction("word", "", "Done").textContent, "Done");
 });
 
@@ -62,24 +58,25 @@ test("a template's symbol is drawn once and swaps only when its action's symbol 
   assert.deepEqual(symbolOf(button), ["play"]);
 });
 
-test("an existing control owns its icon while a template action supplies its symbol", () => {
-  const copy = document.createElement("wa-copy-button");
-  const ownedIcon = document.createElement("span");
-  ownedIcon.slot = "copy-icon";
-  ownedIcon.textContent = "Own copy glyph";
-  copy.append(ownedIcon);
-  assert.equal(offerActionElement(copy, "mark", "copy-control", "Copy code"), copy);
-  assert.equal(copy.firstElementChild, ownedIcon);
-  assert.equal(copy.children.length, 1);
-  assert.equal(copy.classList.contains("lf-mark-action"), true);
-  assert.equal(copy.getAttribute("aria-label"), "Copy code");
-
-  const root = document.createElement("div");
-  render(
-    html`<button ${offeredAction("mark", "", undefined, { action: "copy" })}></button>`,
-    root,
-  );
-  const action = root.querySelector("button");
-  assert.deepEqual(symbolOf(action), ["copy"]);
-  assert.equal(action.getAttribute("aria-label"), "Copy");
+test("a press its surface faces takes its symbol and name from its action too", () => {
+  const box = document.createElement("div");
+  const draw = (action, options, count) =>
+    render(
+      html`<button class="lf-fp-face" ${namedAction(action, options)}>
+        ${count}
+      </button>`,
+      box,
+    );
+  draw("show", undefined, "");
+  const button = box.querySelector("button");
+  assert.equal(button.className, "lf-fp-face");
+  assert.deepEqual(symbolOf(button), ["locate"]);
+  assert.equal(button.getAttribute("aria-label"), "Show");
+  assert.equal(button.title, "Show");
+  // A label says more, a title more again, and the template's own content stays.
+  draw("on-me", { label: "On me: 2", title: "On me: 2 (m)" }, "2");
+  assert.deepEqual(symbolOf(button), ["inbox"]);
+  assert.equal(button.getAttribute("aria-label"), "On me: 2");
+  assert.equal(button.title, "On me: 2 (m)");
+  assert.equal(button.textContent.trim(), "2");
 });

@@ -151,8 +151,9 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     )
     source = leaf_page(
         "sidebar contents",
-        '<header><h1>Review</h1></header><aside id="rail"><section class="panel">'
-        '<lf-toc id="contents"></lf-toc></section></aside>'
+        '<header><h1>Review</h1></header><aside id="rail">'
+        '<div class="layout-track"><section class="panel">'
+        '<lf-toc id="contents"></lf-toc></section></div></aside>'
         f'<div id="body">{sections}</div>',
         layout="sidebar",
     )
@@ -160,11 +161,16 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     resized(page, 1440, 900)
     toc = page.locator("lf-toc")
     disclosure = toc.locator("details")
-    expect(page.locator("#rail")).to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["x"] + rail["width"] <= body["x"], (rail, body)
     expect(toc.locator("summary")).to_be_hidden()
     expect(disclosure).to_have_attribute("open", "")
     expect(toc.get_by_role("link", name="Section 3", exact=True)).to_be_visible()
     resized(page, 700, 900)
-    expect(page.locator("#rail")).not_to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["y"] + rail["height"] <= body["y"], (rail, body)
+    assert rail["x"] == pytest.approx(body["x"], abs=1)
     expect(toc.locator("summary")).to_be_visible()
     expect(disclosure).not_to_have_attribute("open", "")

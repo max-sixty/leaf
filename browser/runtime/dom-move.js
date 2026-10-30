@@ -33,3 +33,6 @@ export function move(parent, node, before) {
   }
   return node;
 }
+
+// Lit inserts natively off Leaf; the runtime installs its focus-preserving mover.
+window.lfMove = move;

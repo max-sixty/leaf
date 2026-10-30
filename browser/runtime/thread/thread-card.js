@@ -43,7 +43,7 @@ import { turns, threadKey } from "./model.js";
 import { anchorLabel, messageReading, threadSummary } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
-import { keeps, layoutPx } from "../keeps.js";
+import { keeps, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
@@ -195,7 +195,8 @@ function workingMessage(thread, attention, messages) {
 }
 
 // The user's open to-dos on a thread, over the conversation about them: each title
-// with its Done in words, since a thread head's check is Resolve. Done is the user's
+// with its Done, the ticked circle it shows wherever Leaf offers it, which tells it from
+// the thread head's Resolve check. A thread card once worded it. Done is the user's
 // `todo_end`, which takes the line away in the turn it is pressed (queue-api.js,
 // `done`). A card draws them at its head, and so does the floating panel's view of a
 // thread, under its quote.
@@ -206,7 +207,10 @@ export function threadTodos(todos, done) {
       (todo) =>
         html`<li class="lf-thread-todo">
           <span class="lf-thread-todo-title">To-do · ${todo.title}</span
-          ><button ${offeredAction("word")} @click=${() => done(todo.id)}>Done</button>
+          ><button
+            ${offeredAction("symbol", "", undefined, { action: "done" })}
+            @click=${() => done(todo.id)}
+          ></button>
         </li>`,
     )}
   </ul>`;
@@ -217,10 +221,9 @@ export function threadReading(thread, surface, commands) {
   const resolved = Boolean(thread.resolved);
   // A settlement in flight has already flipped `resolved`, because what the page can
   // draw of a gesture stands in the turn that sends it. The control the user is left
-  // looking at is therefore the opposite one, offering to take the gesture back, and it
-  // wears the word for that: a delivery status is not the result, so there is no
-  // "Resolving…" state to name.
-  const settling = Boolean(thread.settling);
+  // looking at is therefore the opposite one, live at once: a press sends the opposite
+  // settlement after the first, as the ledger orders them. A delivery status is not the
+  // result, so there is no "Resolving…" state to name.
   const kind = resolved ? "unresolve" : "resolve";
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
@@ -279,7 +282,6 @@ export function threadReading(thread, surface, commands) {
       kind,
       word,
       label,
-      pending: settling,
     }),
     reply: replyAvailable(thread),
     // The user's open to-dos on the thread, each named at the thread's head with its
@@ -296,6 +298,16 @@ export function threadReading(thread, surface, commands) {
     source: thread,
     reread: (held) => threadReading(held, surface, commands),
   });
+}
+
+// The width `node`'s words take, at the fraction of a pixel they are laid out at,
+// whether or not its box cuts them: a cut name's scrollWidth counts its ellipsis, and a
+// whole one's rounds.
+function wordsWidth(node) {
+  if (!node) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  return range.getBoundingClientRect().width;
 }
 
 export class ThreadView {
@@ -324,6 +336,7 @@ export class ThreadView {
   #headerSlot = null;
   #observedHeader = null;
   #sizes = sizeObserver(() => this.#retainHeaderSlot());
+  #marginNews = sizeObserver(() => nextRender(() => this.#fitMarginNews()));
 
   constructor(commands) {
     this.#commands = commands;
@@ -545,10 +558,11 @@ export class ThreadView {
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
     // Where the settlement stands:
-    // - on a margin card, its own controls row, which also stands the notice, whole,
-    //   before Previous and Next: its own place with the thread's facts, as the
-    //   floating panel's head holds it (the user's choice, 16 October), rather than
-    //   over the end of the message head beside it.
+    // - on a margin card, its own controls row, which also stands the notice before
+    //   Previous and Next: its own place with the thread's facts, as the floating
+    //   panel's head holds it (the user's choice, 16 October), rather than over the end
+    //   of the message head beside it. The notice takes the room the heads leave it
+    //   (`#fitMarginNews`).
     // - elsewhere, the head's controls row, which reserves the room of one icon control
     //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
     //   controls. A foot row of its own drew resolved threads unlike open ones.
@@ -611,6 +625,8 @@ export class ThreadView {
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
+    if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
+    else this.#releaseMarginNews();
     this.#continuity?.after(bodyPlace);
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
@@ -624,6 +640,95 @@ export class ThreadView {
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
     return this.node;
+  }
+
+  // A margin card's notice stands in its actions row, whose track takes its width from
+  // the heads' track (annotation-chrome.css), so the notice takes only the room the
+  // heads leave beside each one's name and time, its padding and its controls' room
+  // included. A head lends that room to its words while its controls hide, and the
+  // controls stand over whatever runs into it when they show (controls.css), so the
+  // fit keeps it, and Edit covers no name or time beside news. Where the room is short
+  // of its first fact the notice says one count instead (held-news.js, `newsNotice`).
+  // The room is the notice's width and the narrowest head's spare width together,
+  // which the two tracks trade one for one, so drawing the notice at it changes nothing
+  // it was read from. A notice at a finger's floor can still leave a head short, and
+  // the head then gives up, in order, its controls' room, its time and its name
+  // (annotation-chrome.css): where less than an em of the name would show, none does
+  // (`data-lf-nameless`), so no sliver of a letter or an ellipsis stands in the head.
+  #fitMarginNews() {
+    const notice = this.#news.node;
+    const heads = [];
+    for (const head of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head",
+    )) {
+      if (!head.checkVisibility()) continue;
+      const style = getComputedStyle(head);
+      const name = head.querySelector(":scope > b");
+      const time = head.querySelector(":scope > .lf-msg-meta > time");
+      const need =
+        parseFloat(style.paddingInlineStart) +
+        parseFloat(style.getPropertyValue("--lf-msg-control")) +
+        wordsWidth(name) +
+        (name && time ? parseFloat(style.columnGap) : 0) +
+        wordsWidth(time);
+      heads.push({
+        name,
+        need,
+        spare: head.getBoundingClientRect().width - need,
+        // What the head gives up before its name: its time, and its controls' room
+        // where that isn't held whole (controls.css).
+        yields:
+          parseFloat(style.getPropertyValue("--lf-msg-control")) -
+          parseFloat(getComputedStyle(head, "::after").minInlineSize) +
+          wordsWidth(time),
+      });
+    }
+    if (!heads.length || !notice.isConnected) {
+      this.#clearMarginNews();
+      return;
+    }
+    const width = notice.getBoundingClientRect().width;
+    const spare = Math.min(...heads.map((head) => head.spare));
+    notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
+    const taken = notice.getBoundingClientRect().width - width;
+    for (const { name, spare, yields } of heads) {
+      if (!name) continue;
+      const shown = wordsWidth(name) + Math.min(0, spare - taken + yields);
+      keeps(
+        name,
+        "data-lf-nameless",
+        shown < parseFloat(getComputedStyle(name).fontSize) ? "" : null,
+      );
+    }
+  }
+
+  // A render fits it again, and a head's time changes size while news waits as it
+  // ticks on from "just now". The notice and a name change size
+  // because of the fit itself, so watching them would deliver the fit its own change,
+  // and a time's change fits it in the next frame, since the fit resizes boxes the
+  // observer's delivery has already passed.
+  #watchMarginNews() {
+    this.#marginNews.disconnect();
+    for (const time of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time",
+    ))
+      this.#marginNews.observe(time);
+    this.#fitMarginNews();
+  }
+
+  #releaseMarginNews() {
+    this.#marginNews.disconnect();
+    this.#clearMarginNews();
+  }
+
+  // The fit writes the notice's room and each name it hides, and a message's head
+  // outlives the notice (each MessageView keeps its own, messages.js), so both go together.
+  #clearMarginNews() {
+    this.#news.node.style.removeProperty("--lf-news-room");
+    for (const name of this.node.querySelectorAll(
+      ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
+    ))
+      keeps(name, "data-lf-nameless", null);
   }
 
   #releaseHeaderSlot() {
@@ -764,14 +869,12 @@ export class ThreadView {
       ${offeredAction("symbol", reopen ? "lf-reopen" : "lf-resolve", label, {
         action: reopen ? "reopen" : "resolve",
       })}
-      aria-busy=${state.pending ? "true" : nothing}
       ${commandsOn(`On a thread's ${word} button`, (button) => [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
           title: word.toLowerCase(),
           control: button,
-          when: () => !this.#shown.value.settlement?.pending,
           run: this.#settle,
         },
       ])}
@@ -890,6 +993,7 @@ export class ThreadView {
   dispose() {
     this.#sizes.disconnect();
     this.#releaseHeaderSlot();
+    this.#marginNews.disconnect();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();

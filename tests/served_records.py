@@ -304,7 +304,7 @@ HELD = {
     "listening": True,
     "session_alive": True,
     "claim_session": "served-records",
-    "claim_turn": "turn-1",
+    "turn": "turn-1",
 }
 QUIET = "2026-09-19T11:30:00+00:00"
 
@@ -394,7 +394,7 @@ def obligation_value_cases():
             if record and record["kind"] == "position":
                 state["ranks"] = {
                     part: authored_rank(index)
-                    for parts in initial.values()
+                    for parts in (initial or {}).values()
                     for index, part in enumerate(parts)
                 }
         cases.append(
@@ -503,7 +503,7 @@ def gesture_sequence() -> dict:
         for revision, value in authored.items()
     }
     edits = ("First edit.", "Second edit.", "Authored words.")
-    commands = [
+    commands: list[dict] = [
         {
             "kind": "action",
             "widget": "draft-ops",

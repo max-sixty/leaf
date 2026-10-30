@@ -1,6 +1,10 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
-import { paintDeclaredWords, watchExternalLinks } from "./declared-words.js";
+import {
+  paintDeclaredWords,
+  watchExternalLinks,
+  watchQuietWords,
+} from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
 import { watchHeadingLinks } from "./heading-links.js";
 import { watchVideos } from "./video-controls.js";
@@ -178,6 +182,7 @@ async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation");
   try {
     watchExternalLinks();
+    watchQuietWords();
     watchCodeBlocks();
     watchHeadingLinks();
     watchVideos();

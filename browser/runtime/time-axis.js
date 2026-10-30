@@ -1,8 +1,15 @@
-/* Geometry for the Playwright recording timeline. Times are milliseconds from
- * the axis origin; positions are pixels along the drawn span. Ruler ticks fall
- * on 1, 2 and 5 times powers of ten; greedy rows separate overlapping extents.
- * textWidth is the browser's canvas measurement, so this module is not a pure
- * server-template dependency. The authored timeline uses intrinsic CSS instead. */
+/* Geometry for a horizontal time axis, shared by the widgets that draw one: the
+ * Playwright recording timeline (`packages/playwright/widgets/timeline.js`) and
+ * `lf-timeline` (`packages/timeline/widgets/timeline-view.js`). Times are milliseconds from the axis origin; positions are
+ * pixels along the drawn span. Nothing here touches the DOM except the canvas
+ * that measures text, so each widget can call it while drawing.
+ *
+ * Ruler ticks fall on 1, 2 and 5 × 10^k milliseconds, the smallest step that keeps
+ * major ticks TICK_SPACING apart, with four or five minor ticks between them. Rows
+ * are greedy: an extent takes the first row whose last extent ended at or before
+ * its start, so overlapping extents never share a row and the row count is the
+ * smallest that greedy order allows.
+ */
 
 const TICK_SPACING = 84;
 const STEPS = [1, 2, 5];

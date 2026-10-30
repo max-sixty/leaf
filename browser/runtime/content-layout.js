@@ -4,12 +4,13 @@
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
 import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
-import { layoutChanged } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
 import { shellRight } from "./geometry.js";
 import { union } from "./rect.js";
+import { syncLayoutRegion } from "./reading-regions.js";
 
 let documentLayoutOpen = false;
 let readFinished = null;
@@ -20,6 +21,7 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
+  syncLayoutRegion();
   const header = layoutBox()?.querySelector(":scope > header") ?? null;
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);

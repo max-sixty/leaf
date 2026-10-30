@@ -1,5 +1,6 @@
 import {
   offerElement,
+  offerActionElement,
   fragmentTarget,
   generatedElement,
   keeps,
@@ -44,7 +45,7 @@ export function createActivity(host) {
   const notice = (node) => {
     if (!node) return;
     drawing.notice = node;
-    offerElement(node, "lf-activity-news lf-thread-notice");
+    offerActionElement(node, "inline", "lf-activity-news");
   };
   const target = (row) => {
     if (row.thread)

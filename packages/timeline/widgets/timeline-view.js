@@ -2,13 +2,14 @@
  * actual ruler column; stepping changes states and the playhead, never geometry. */
 import { html, nothing, repeat } from "/vendor/lit.js";
 import {
-  actionClass,
-  actionName,
-  actionTemplate,
+  offered,
+  offeredAction,
+  selectableOffered,
+  generated,
   assignRows,
   axisTicks,
   textWidth,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 
 const EDGE = 12;
 const LABEL_GAP = 8;
@@ -101,20 +102,11 @@ function stateAt(event, now) {
   return { state: done < 1 ? "running" : "past", done };
 }
 
-const stepButton = (action, available) => {
-  const name = actionName("symbol", undefined, action);
-  return html`<button
-    type="button"
-    class=${`${actionClass("symbol", `lf-timeline-${action}`)} lf-ui lf-ui-face`}
-    data-lf-gen="1"
-    data-lf-offer="button"
-    aria-label=${name}
-    title=${name}
+const stepButton = (action, available) =>
+  html`<button
+    ${offeredAction("symbol", `lf-timeline-${action}`, undefined, { action })}
     aria-disabled=${available ? nothing : "true"}
-  >
-    ${actionTemplate(action, "lf-action-icon")}
-  </button>`;
-};
+  ></button>`;
 
 /** One retained template for connection, revision, resizing and stepping. */
 export function render(host, current, model, layout) {
@@ -124,28 +116,20 @@ export function render(host, current, model, layout) {
   const position = model.steps.length
     ? `Step ${current + 1} of ${model.steps.length} · ${clock(now)}`
     : "No events";
-  return html`<div class="lf-timeline-view" data-lf-gen="1">
+  return html`<div class="lf-timeline-view" ${generated({ says: false })}>
     <div
-      class="lf-timeline-controls lf-ui lf-ui-face"
-      data-lf-gen="1"
-      data-lf-offer=""
+      ${offered("lf-timeline-controls")}
       role="group"
       aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
     >
       ${stepButton("previous", current > 0)}
       ${stepButton("next", current < model.steps.length - 1)}
-      <span
-        class="lf-timeline-position lf-ui lf-ui-face"
-        data-lf-gen="1"
-        data-lf-offer=""
-        >${position}</span
-      >
+      <span ${offered("lf-timeline-position")}>${position}</span>
     </div>
     <div
       class="lf-timeline-chart"
       aria-hidden="true"
-      data-lf-gen="1"
-      data-lf-echo
+      ${generated({ says: "echo" })}
       style="--lf-timeline-lanes: ${model.lanes.length}; --lf-timeline-edge: ${EDGE}px"
     >
       ${model.lanes.map(
@@ -215,28 +199,24 @@ export function render(host, current, model, layout) {
         ></span>
       </div>
     </div>
-    <ol class="lf-timeline-steps" data-lf-gen="1" data-lf-said>
+    <ol class="lf-timeline-steps lf-rows" ${generated({ says: true })}>
       ${repeat(
         model.steps,
         (step) => step.time,
         (step, index) =>
           html`<li>
             <span
-              class="lf-timeline-step lf-ui lf-ui-face"
-              role="button"
-              data-lf-gen="1"
-              data-lf-offer="button"
-              data-lf-selectable-offer
-              data-lf-said
+              ${selectableOffered("button", "lf-timeline-step", "row")}
+              ${generated({ says: true })}
               tabindex="0"
               data-step=${index}
               aria-current=${index === current ? "step" : nothing}
               ?data-past=${index < current}
             >
-              <span class="lf-timeline-step-time">${clock(step.time)}</span>
+              <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
               ${step.events.map(
                 (event) =>
-                  html`<span class="lf-timeline-step-event"
+                  html`<span class="lf-timeline-step-event lf-row-main"
                     ><span class="lf-timeline-step-lane"
                       >${model.lanes[event.lane].label}: </span
                     >${event.label}</span

@@ -15,25 +15,27 @@ export function render(
   onNext = null,
 ) {
   return html`<span class="lf-tally-face" data-lf-gen="1" ?data-lf-ready=${ready}>
-    <span class=${done ? "lf-tally-count lf-tally-done" : "lf-tally-count"}>
+    <span class=${done ? "lf-tally-count lf-chip ok" : "lf-tally-count lf-chip"}>
       <span class="lf-tally-room" aria-hidden="true">${generic}</span>
       <span class="lf-tally-room" aria-hidden="true">${named}</span>
       <span class="lf-tally-words">${words}</span>
     </span>
-    ${host.hasAttribute("next")
-      ? html`<button
-          class=${`${actionClass("word", "lf-tally-next")} lf-ui lf-ui-face`}
-          data-lf-gen="1"
-          data-lf-offer="button"
-          type="button"
-          title="Next on me here"
-          aria-controls=${host.getAttribute("for")}
-          ?disabled=${!ready || !onUser}
-          @mousedown=${(event) => event.preventDefault()}
-          @click=${onNext}
-        >
-          Next on me
-        </button>`
-      : nothing}
+    ${
+      host.hasAttribute("next")
+        ? html`<button
+            class=${`${actionClass("word", "lf-tally-next")} lf-ui lf-ui-face`}
+            data-lf-gen="1"
+            data-lf-offer="button"
+            type="button"
+            title="Next on me here"
+            aria-controls=${host.getAttribute("for")}
+            ?disabled=${!ready || !onUser}
+            @mousedown=${(event) => event.preventDefault()}
+            @click=${onNext}
+          >
+            Next on me
+          </button>`
+        : nothing
+    }
   </span>`;
 }

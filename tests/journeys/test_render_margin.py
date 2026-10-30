@@ -502,15 +502,31 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 now,
             )
         assert now["scrolled"] == 0, now
-    wrapped = readings[-1]
+    # Layout is ready before the box's motion has carried Send to its landing.
+    # Keep the per-input stability readings, then measure the completed wrap.
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
+    wrapped = page.evaluate(CARD_AND_REPLY)
     for edge in ("editorBottom", "cardBottom", "send"):
         assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
+
+    source_top = marker.bounding_box()["y"]
 
     # A draft with no room left under the card grows it up from the window's foot,
     # keeping the turn it answers in view, until the card fills the window; then the
     # editor scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
+    page.wait_for_function(
+        """() => !document.querySelector('.lf-margin-preview')
+            .getAnimations({subtree: true}).some(animation =>
+                animation.playState === 'running' &&
+                animation.effect.getComputedTiming().iterations !== Infinity)"""
+    )
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
@@ -522,11 +538,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     assert caret["selection"] == caret["length"], caret
     assert caret["caretTop"] >= caret["boxTop"], caret
 
-    # A short draft brings the card back to its top.
+    # A short draft returns to its attachment. Native insertion may have scrolled
+    # the page, so compare the card with its source rather than the old viewport.
     write(editor, "Sent")
     rendered(page)
     short = page.evaluate(CARD_AND_REPLY)
-    assert short["cardTop"] == pytest.approx(before["cardTop"], abs=0.5), short
+    assert short["cardTop"] - marker.bounding_box()["y"] == pytest.approx(
+        before["cardTop"] - source_top, abs=0.5
+    ), short
     send = preview.get_by_role("button", name="Send", exact=True)
     # rendered() settles Leaf's preparation, while the shrinking draft can still
     # animate. click() waits for a stable Send; measure the same landing it presses.
@@ -546,10 +565,11 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     rendered(page)
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview).to_be_visible()
-    assert preview.locator(".lf-compose-field > button:visible").evaluate(
-        "button => button.getBoundingClientRect().top"
-    ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
+    # The sent turn may need more room above the reply row than the window has.
+    # Hold Send's position unless the window's head clamps the card.
+    expected_send = max(pressed, sent["head"] + sent["send"] - sent["cardTop"])
+    assert sent["send"] == pytest.approx(expected_send, abs=0.5), sent
     append_carried_log_record(
         serve.page_dir,
         {

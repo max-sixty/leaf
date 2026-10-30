@@ -1,3 +1,5 @@
+import { Directive, PartType, directive, html, nothing, unsafeSVG } from "/vendor/lit.js";
+
 //#region runtime/queued-work.js
 const jobObservers = /* @__PURE__ */ new Set();
 const jobCohorts = /* @__PURE__ */ new WeakMap();
@@ -5,14 +7,14 @@ function observeQueuedWork(observer) {
 	jobObservers.add(observer);
 	return () => jobObservers.delete(observer);
 }
-const announce = (phase, job, observers) => {
+const announce$1 = (phase, job, observers) => {
 	for (const observer of observers) observer(phase, job);
 };
 function enqueueWork(callback) {
 	const job = Object.freeze({ callback });
 	const observers = [...jobObservers];
 	jobCohorts.set(job, observers);
-	announce("enqueue", job, observers);
+	announce$1("enqueue", job, observers);
 	return job;
 }
 function claim(job) {
@@ -25,10 +27,10 @@ function runWork(job, ...args) {
 	if (!observers) return;
 	const callback = job.callback;
 	try {
-		announce("run", job, observers);
+		announce$1("run", job, observers);
 		return callback(...args);
 	} finally {
-		announce("finish", job, observers);
+		announce$1("finish", job, observers);
 	}
 }
 function bindQueuedWork(callback) {
@@ -37,7 +39,7 @@ function bindQueuedWork(callback) {
 }
 function cancelWork(job) {
 	const observers = claim(job);
-	if (observers) announce("cancel", job, observers);
+	if (observers) announce$1("cancel", job, observers);
 }
 
 //#endregion
@@ -322,6 +324,25 @@ onFrameVisibility((visibility) => {
 unsettle();
 
 //#endregion
+//#region runtime/keeps.js
+const keeps = (node, name, value) => {
+	const next = value == null ? null : String(value);
+	if (!node || node.getAttribute(name) === next) return;
+	if (next === null) node.removeAttribute(name);
+	else node.setAttribute(name, next);
+};
+function keepsHidden(node, hidden) {
+	if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+function keepsText(node, text) {
+	const said = String(text ?? "");
+	if (node && node.textContent !== said) node.textContent = said;
+}
+const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+
+//#endregion
 //#region runtime/shadow-tree.js
 const shadowHost = (root) => root?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? root.host ?? null : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
@@ -377,10 +398,8 @@ function excludedByInert(node) {
 
 //#endregion
 //#region runtime/page-paint.js
-const PAGE_PAINT_ATTRIBUTE = Object.freeze({
-	class: "class",
+const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 	external: "data-lf-external",
-	viewMember: "data-lf-view",
 	obligation: "data-lf-obligation",
 	done: "data-lf-done",
 	restated: "data-lf-restated",
@@ -402,9 +421,15 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	moreBelow: "data-lf-more-below",
 	goto: "data-lf-go-to-active",
 	traffic: "data-lf-traffic",
-	player: "data-lf-player",
+	player: "data-lf-player"
+});
+const PAGE_PAINT_ATTRIBUTE = Object.freeze({
+	class: "class",
+	viewMember: "data-lf-view",
+	...RUNTIME_PAINT_ATTRIBUTE,
 	mediaWidth: "data-lf-media-width",
-	mediaHeight: "data-lf-media-height"
+	mediaHeight: "data-lf-media-height",
+	quiet: "data-lf-quiet"
 });
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
@@ -587,17 +612,26 @@ const SCROLL = {
 	capture: true,
 	passive: true
 };
+function announceScroll(box) {
+	for (const listener of scrollListeners) listener(box);
+}
+function setScroll(box, options) {
+	const { scrollTop, scrollLeft } = box;
+	const { behavior = "instant" } = options;
+	box.scrollTo({
+		...options,
+		behavior
+	});
+	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
+}
 const heardIn = (stage) => (event) => {
 	if (event.target.getRootNode() !== stage) return;
-	for (const listener of scrollListeners) listener(event);
+	announceScroll(event.target === document ? document.scrollingElement : event.target);
 };
+document.addEventListener("scroll", heardIn(document), SCROLL);
 function watchScrolls(listener) {
 	scrollListeners.add(listener);
-	document.addEventListener("scroll", listener, SCROLL);
-	return () => {
-		scrollListeners.delete(listener);
-		document.removeEventListener("scroll", listener, SCROLL);
-	};
+	return () => scrollListeners.delete(listener);
 }
 const SETTLE_MS = 80;
 const settleListeners = /* @__PURE__ */ new Set();
@@ -641,6 +675,380 @@ function watchScrollEnds(listener) {
 }
 
 //#endregion
+//#region runtime/control-faces.js
+const ACTION_FACES = {
+	symbol: "lf-icon-action",
+	word: "lf-btn",
+	commit: "lf-btn primary",
+	mark: "lf-mark-action",
+	inline: "lf-inline-action",
+	row: "lf-row"
+};
+function actionClass(role, className = "") {
+	const face = ACTION_FACES[role];
+	if (!face) throw new TypeError(`A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`);
+	return className ? `${face} ${className}` : face;
+}
+
+//#endregion
+//#region runtime/icon-paths.js
+const SEND = "<path d=\"M8 13V3M4 7l4-4 4 4\"/>";
+const ICONS = {
+	activity: "<circle cx=\"8\" cy=\"8\" r=\"3\" fill=\"currentColor\" stroke=\"none\"/>",
+	add: "<path d=\"M8 3v10M3 8h10\"/>",
+	change: "<path d=\"M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13\"/>",
+	check: "<path d=\"m3 8.25 3.15 3.15L13 4.75\"/>",
+	checked: "<circle cx=\"8\" cy=\"8\" r=\"5.5\"/><path d=\"m5.6 8.15 1.7 1.7 3.1-3.3\"/>",
+	comment: "<path d=\"M3 3.25h10v7H7.25L4 12.75v-2H3z\"/>",
+	copy: "<rect x=\"6\" y=\"6\" width=\"7\" height=\"7\" rx=\"1.25\"/><path d=\"M10 6V4.25C10 3.56 9.44 3 8.75 3h-4.5C3.56 3 3 3.56 3 4.25v4.5C3 9.44 3.56 10 4.25 10H6\"/>",
+	cross: "<path d=\"m4 4 8 8M12 4l-8 8\"/>",
+	dot: "<circle cx=\"8\" cy=\"8\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
+	down: "<path d=\"m4 6.25 4 4 4-4\"/>",
+	edit: "<path d=\"m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2\"/>",
+	expand: "<path d=\"M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75\"/>",
+	collapse: "<path d=\"M13 3 9.25 6.75M9.25 3.25v3.5h3.5M3 13l3.75-3.75M3.25 9.25h3.5v3.5\"/>",
+	fit: "<path d=\"M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3\"/>",
+	fold: "<path d=\"M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5\"/>",
+	more: "<circle cx=\"3.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12.5\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>",
+	inbox: "<path d=\"M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z\"/>",
+	link: "<path d=\"M6.67 8.67a3.33 3.33 0 0 0 5.03.36l2-2a3.33 3.33 0 0 0-4.71-4.71l-1.15 1.14M9.33 7.33a3.33 3.33 0 0 0-5.03-.36l-2 2a3.33 3.33 0 0 0 4.71 4.71l1.14-1.14\"/>",
+	locate: "<circle cx=\"8\" cy=\"8\" r=\"4\"/><path d=\"M8 1.75v2.5M8 11.75v2.5M1.75 8h2.5M11.75 8h2.5\"/><circle cx=\"8\" cy=\"8\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>",
+	microphone: "<rect x=\"6\" y=\"2\" width=\"4\" height=\"7\" rx=\"2\"/><path d=\"M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4\"/><path class=\"lf-mic-slash\" d=\"M2.5 2.5l11 11\"/>",
+	next: "<path d=\"m6 3.5 4.5 4.5L6 12.5\"/>",
+	pause: "<path d=\"M5 3v10M11 3v10\"/>",
+	play: "<path d=\"m5 3 7 5-7 5z\"/>",
+	previous: "<path d=\"m10 3.5-4.5 4.5 4.5 4.5\"/>",
+	arrange: "<path d=\"M3 4.5h10M3 8h7M3 11.5h4\"/>",
+	all: "<path d=\"M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4\"/>",
+	pickup: "<path d=\"M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2\"/>",
+	question: "<path d=\"M5.6 6.1a2.5 2.5 0 1 1 3.1 2.45c-.7.2-.7.8-.7 1.2\"/><circle cx=\"8\" cy=\"12.35\" r=\".7\" fill=\"currentColor\" stroke=\"none\"/>",
+	reaction: "<circle cx=\"6.5\" cy=\"8.25\" r=\"4.25\"/><circle cx=\"5\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8\" cy=\"7.25\" r=\".55\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M4.75 9.25c.5.75 1.08 1.1 1.75 1.1s1.25-.35 1.75-1.1M11 4h4M13 2v4\"/>",
+	retry: "<path d=\"M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9\"/>",
+	save: "<path d=\"M3 4.25A1.25 1.25 0 0 1 4.25 3h6.5L13 5.25v6.5A1.25 1.25 0 0 1 11.75 13h-7.5A1.25 1.25 0 0 1 3 11.75zM5.5 3v2.5h4V3\"/>",
+	search: "<circle cx=\"7\" cy=\"7\" r=\"3.75\"/><path d=\"m10 10 3 3\"/>",
+	send: SEND,
+	sent: SEND,
+	start: "<path d=\"M3.5 3v10M12.5 3.5 6 8l6.5 4.5z\"/>",
+	subtract: "<path d=\"M3 8h10\"/>",
+	unfold: "<path d=\"M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5\"/>",
+	undo: "<path d=\"M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1\"/>",
+	up: "<path d=\"m4 9.75 4-4 4 4\"/>",
+	waiting: "<circle cx=\"8\" cy=\"8\" r=\"5\"/><path d=\"M8 5v3.25l2 1.25\"/>"
+};
+const SVG = "http://www.w3.org/2000/svg";
+const iconMarkup = (icon) => {
+	const markup = ICONS[icon];
+	if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
+	return markup;
+};
+function iconElement(icon, className = "lf-margin-entry-icon") {
+	const svg = document.createElementNS(SVG, "svg");
+	svg.setAttribute("viewBox", "0 0 16 16");
+	svg.setAttribute("focusable", "false");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("class", className);
+	svg.dataset.lfIcon = icon;
+	svg.innerHTML = iconMarkup(icon);
+	return svg;
+}
+const ACTIONS = {
+	accept: {
+		name: "Accept",
+		icon: "check"
+	},
+	add: {
+		name: "Add",
+		icon: "add"
+	},
+	arrange: {
+		name: "Arrange",
+		icon: "arrange"
+	},
+	cancel: {
+		name: "Cancel",
+		icon: "cross"
+	},
+	close: {
+		name: "Close",
+		icon: "cross"
+	},
+	collapse: {
+		name: "Collapse",
+		icon: "collapse"
+	},
+	comment: {
+		name: "Comment",
+		icon: "comment"
+	},
+	copy: {
+		name: "Copy",
+		icon: "copy"
+	},
+	"copy-link": {
+		name: "Copy link",
+		icon: "link"
+	},
+	dictate: {
+		name: "Dictate",
+		icon: "microphone"
+	},
+	discard: {
+		name: "Discard",
+		icon: "cross"
+	},
+	done: {
+		name: "Done",
+		icon: "checked"
+	},
+	edit: {
+		name: "Edit",
+		icon: "edit"
+	},
+	expand: {
+		name: "Expand",
+		icon: "expand"
+	},
+	find: {
+		name: "Find",
+		icon: "search"
+	},
+	"collapse-all": {
+		name: "Collapse all",
+		icon: "fold"
+	},
+	"expand-all": {
+		name: "Expand all",
+		icon: "unfold"
+	},
+	fit: {
+		name: "Fit",
+		icon: "fit"
+	},
+	minimize: {
+		name: "Minimize",
+		icon: "subtract"
+	},
+	more: {
+		name: "More options",
+		icon: "more"
+	},
+	next: {
+		name: "Next",
+		icon: "next"
+	},
+	"next-match": {
+		name: "Next match",
+		icon: "down"
+	},
+	"on-me": {
+		name: "On me",
+		icon: "inbox"
+	},
+	pause: {
+		name: "Pause",
+		icon: "pause"
+	},
+	play: {
+		name: "Play",
+		icon: "play"
+	},
+	previous: {
+		name: "Previous",
+		icon: "previous"
+	},
+	"previous-match": {
+		name: "Previous match",
+		icon: "up"
+	},
+	react: {
+		name: "Add reaction",
+		icon: "reaction"
+	},
+	remove: {
+		name: "Remove",
+		icon: "cross"
+	},
+	reject: {
+		name: "Reject",
+		icon: "cross"
+	},
+	reopen: {
+		name: "Reopen",
+		icon: "check"
+	},
+	reset: {
+		name: "Reset",
+		icon: "retry"
+	},
+	resolve: {
+		name: "Resolve",
+		icon: "check"
+	},
+	retry: {
+		name: "Retry",
+		icon: "retry"
+	},
+	save: {
+		name: "Save",
+		icon: "save"
+	},
+	send: {
+		name: "Send",
+		icon: "send"
+	},
+	show: {
+		name: "Show",
+		icon: "locate"
+	},
+	start: {
+		name: "Start",
+		icon: "start"
+	},
+	suggest: {
+		name: "Suggest",
+		icon: "edit"
+	},
+	undo: {
+		name: "Undo",
+		icon: "undo"
+	},
+	"zoom-in": {
+		name: "Zoom in",
+		icon: "add"
+	},
+	"zoom-out": {
+		name: "Zoom out",
+		icon: "subtract"
+	}
+};
+const actionIcon = (action) => {
+	const named = ACTIONS[action];
+	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
+	return named.icon;
+};
+const actionName = (action) => {
+	actionIcon(action);
+	return ACTIONS[action].name;
+};
+const actionElement = (action, className) => iconElement(actionIcon(action), className);
+const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
+function actionFace(role, label, action) {
+	if (!SYMBOLIC.has(role)) {
+		if (action !== void 0) throw new TypeError(`A ${role} says its label and shows no action's symbol`);
+		return label;
+	}
+	if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
+	const name = actionName(action);
+	return label ?? name;
+}
+function showAction(control, action, className = "lf-action-icon") {
+	const icon = actionIcon(action);
+	const drawn = control.querySelector(":scope > svg[data-lf-icon]");
+	if (drawn?.getAttribute("data-lf-icon") === icon) return;
+	const symbol = iconElement(icon, className);
+	if (drawn) drawn.replaceWith(symbol);
+	else control.prepend(symbol);
+}
+const drawAction = (node, role, action) => showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
+function actionOffers(base) {
+	const titled = (title) => title === void 0 ? void 0 : { title };
+	return {
+		offerAction(role, className, label, { title, action } = {}) {
+			const node = base.offerAction(role, className, actionFace(role, label, action), titled(title));
+			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			return node;
+		},
+		offerActionElement(node, role, className, label, { title, action } = {}) {
+			base.offerActionElement(node, role, className, actionFace(role, label, action), titled(title));
+			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			return node;
+		}
+	};
+}
+
+//#endregion
+//#region runtime/element-markers.js
+const offerElement = (node, cls, pressable = false) => {
+	if (node instanceof HTMLButtonElement && !node.hasAttribute("type")) keeps(node, "type", "button");
+	const face = node.localName.includes("-") ? "" : " lf-ui-face";
+	keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node.localName === "input" && ["checkbox", "radio"].includes(node.type) ? node.type ?? node.localName : "");
+	return node;
+};
+const generatedElement = (node, { says } = {}) => {
+	if (typeof says !== "boolean" && says !== "echo") throw new TypeError("Say whether these words are the page speaking: true, false, or \"echo\" for a copy of words it says elsewhere");
+	keeps(node, "data-lf-gen", "1");
+	node.toggleAttribute("data-lf-said", says === true);
+	node.toggleAttribute("data-lf-echo", says === "echo");
+	return node;
+};
+const offer = (tag, cls, label, inputType, pressable = false) => {
+	const node = document.createElement(tag);
+	if (inputType !== void 0) {
+		if (tag !== "input") throw new TypeError("only an input offer can declare an input type");
+		node.type = inputType;
+	}
+	offerElement(node, cls, pressable);
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
+const roleElement = (node, role, cls, label, { title = label } = {}) => {
+	offerElement(node, actionClass(role, cls));
+	if (label !== void 0 && (role === "symbol" || role === "mark")) {
+		keeps(node, "aria-label", label);
+		keeps(node, "title", title);
+	}
+	return node;
+};
+const buildAction = (role, cls, label, options) => {
+	const node = roleElement(document.createElement("button"), role, cls, label, options);
+	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
+	return node;
+};
+const selectableOfferElement = (node, role, cls, face) => {
+	keeps(node, "role", role);
+	keeps(node, "class", [
+		face && actionClass(face),
+		cls,
+		"lf-ui lf-ui-face"
+	].filter(Boolean).join(" "));
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", role);
+	keeps(node, "data-lf-selectable-offer", "");
+};
+const selectableOffer = (role, cls, label, face) => {
+	const node = document.createElement("span");
+	selectableOfferElement(node, role, cls, face);
+	node.tabIndex = 0;
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
+function elementDirective(name, write) {
+	return directive(class extends Directive {
+		constructor(part) {
+			super(part);
+			if (part.type !== PartType.ELEMENT) throw new TypeError(`${name} belongs in a template's element part`);
+		}
+		render(...args) {
+			return nothing;
+		}
+		update(part, args) {
+			write(part.element, ...args);
+			return nothing;
+		}
+	});
+}
+const offered = elementDirective("offered", offerElement);
+const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
+	offerAction: buildAction,
+	offerActionElement: roleElement
+});
+const offeredAction = elementDirective("offeredAction", offeredActionElement);
+const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
+const generated = elementDirective("generated", generatedElement);
+
+//#endregion
 //#region runtime/widget-upgrade.js
 const initialized = /* @__PURE__ */ new WeakSet();
 function once(el) {
@@ -660,6 +1068,31 @@ var PendingTaskEvent = class extends Event {
 		});
 		this.complete = complete;
 	}
+};
+const LAYOUT = "lf-layout";
+const layoutChanged = (el) => {
+	el.dispatchEvent(new CustomEvent(LAYOUT, {
+		bubbles: true,
+		composed: true
+	}));
+};
+const COMMANDS = "lf-commands";
+const CHANGED = Symbol("element whose commands changed");
+const REFUSED = Symbol("why Leaf refused the declaration");
+function commandsChanged(el) {
+	const event = new Event(COMMANDS, {
+		bubbles: true,
+		composed: true
+	});
+	event[CHANGED] = el;
+	(el.isConnected ? el : window).dispatchEvent(event);
+	if (event[REFUSED]) throw event[REFUSED];
+}
+const ANNOUNCE = "lf-announce";
+const announce = (words) => window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
+const commandsChangedOn = (event) => event[CHANGED];
+const refuseCommands = (event, error) => {
+	event[REFUSED] = error;
 };
 function failSoft(el, err, source) {
 	reportFailure(el, err);
@@ -724,6 +1157,21 @@ function showFailure(el, text, source) {
 }
 
 //#endregion
+//#region runtime/icons.js
+function iconTemplate(icon, className = "lf-margin-entry-icon") {
+	return html`<svg
+    viewBox="0 0 16 16"
+    focusable="false"
+    aria-hidden="true"
+    class=${className}
+    data-lf-icon=${icon}
+  >
+    ${unsafeSVG(iconMarkup(icon))}
+  </svg>`;
+}
+const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
+
+//#endregion
 //#region runtime/shown-box.js
 const skipped = (element) => {
 	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
@@ -770,8 +1218,335 @@ function measure(el, take) {
 }
 
 //#endregion
+//#region runtime/visual-parts.js
+const registrations = /* @__PURE__ */ new WeakMap();
+const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
+	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
+	registrations.set(source, {
+		read,
+		reveal,
+		label
+	});
+	return { update: () => layoutChanged(source) };
+}
+function visualPartAdmission(visual, declaration) {
+	if (!declaration || typeof declaration !== "object") return null;
+	const { prefixes } = declaration;
+	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+	return visual.hasAttribute(declaration.parts) ? () => true : null;
+}
+const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
+function revealRegisteredVisualPart(source, id) {
+	const reveal = registrations.get(source)?.reveal;
+	if (reveal) reveal(id);
+	return registeredVisualPart(source, id);
+}
+function visualPartProblems(source, declaration) {
+	if (!declaration || typeof declaration !== "object") return [];
+	if (!registrations.has(source)) return [{ kind: "unregistered" }];
+	const parts = registeredVisualParts(source);
+	const admission = visualPartAdmission(source, declaration);
+	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+	return outside.length ? [{
+		kind: "unadmitted-parts",
+		parts: outside
+	}] : [];
+}
+function registeredVisualParts(source) {
+	const read = registrations.get(source)?.read;
+	if (!read) return [];
+	const seenIds = /* @__PURE__ */ new Set();
+	const seenElements = /* @__PURE__ */ new Set();
+	const seenSurfaces = /* @__PURE__ */ new Set();
+	return [...read()].map((part, index) => {
+		const number = index + 1;
+		const id = part.id;
+		const element = part.element;
+		const label = words(part.label);
+		const surface = part.surface ?? element;
+		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
+		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
+		if (!label) throw new TypeError(`Visual part ${id} has no label`);
+		if (!(surface instanceof Element) || !under(surface, element)) throw new TypeError(`Visual part ${id} has no descendant Element surface`);
+		if (seenIds.has(id)) throw new TypeError(`A visual source registered part ${id} twice`);
+		if (seenElements.has(element)) throw new TypeError("A visual source registered one element as two parts");
+		if (seenSurfaces.has(surface)) throw new TypeError("A visual source registered one surface for two parts");
+		seenIds.add(id);
+		seenElements.add(element);
+		seenSurfaces.add(surface);
+		return {
+			id,
+			element,
+			label,
+			surface
+		};
+	});
+}
+const registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
+const registeredVisualPartLabel = (source, id) => {
+	const current = registeredVisualPart(source, id)?.label;
+	if (current) return current;
+	const label = registrations.get(source)?.label?.(id);
+	return words(label) || null;
+};
+function registeredVisualPartAt(source, target, admits = () => true) {
+	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
+	for (let current = target; current && current !== source; current = upFrom(current)) {
+		const part = byElement.get(current);
+		if (part) return part;
+	}
+	return null;
+}
+
+//#endregion
+//#region runtime/syntax-languages.js
+const syntaxLanguages = {
+	"bash": () => import("/vendor/syntax/bash.js"),
+	"css": () => import("/vendor/syntax/css.js"),
+	"diff": () => import("/vendor/syntax/diff.js"),
+	"go": () => import("/vendor/syntax/go.js"),
+	"html": () => import("/vendor/syntax/html.js"),
+	"java": () => import("/vendor/syntax/java.js"),
+	"javascript": () => import("/vendor/syntax/javascript.js"),
+	"json": () => import("/vendor/syntax/json.js"),
+	"markdown": () => import("/vendor/syntax/markdown.js"),
+	"python": () => import("/vendor/syntax/python.js"),
+	"rust": () => import("/vendor/syntax/rust.js"),
+	"sql": () => import("/vendor/syntax/sql.js"),
+	"toml": () => import("/vendor/syntax/toml.js"),
+	"typescript": () => import("/vendor/syntax/typescript.js"),
+	"yaml": () => import("/vendor/syntax/yaml.js")
+};
+const syntaxLanguageNames = {
+	"shellscript": "bash",
+	"bash": "bash",
+	"sh": "bash",
+	"shell": "bash",
+	"zsh": "bash",
+	"css": "css",
+	"diff": "diff",
+	"go": "go",
+	"html": "html",
+	"java": "java",
+	"javascript": "javascript",
+	"js": "javascript",
+	"cjs": "javascript",
+	"mjs": "javascript",
+	"json": "json",
+	"markdown": "markdown",
+	"md": "markdown",
+	"python": "python",
+	"py": "python",
+	"rust": "rust",
+	"rs": "rust",
+	"sql": "sql",
+	"toml": "toml",
+	"typescript": "typescript",
+	"ts": "typescript",
+	"cts": "typescript",
+	"mts": "typescript",
+	"yaml": "yaml",
+	"yml": "yaml"
+};
+
+//#endregion
+//#region runtime/syntax-tokens.js
+let tokenizerReady;
+const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
+const languagesReady = /* @__PURE__ */ new Map();
+function ensureSyntaxLanguage(lang) {
+	if (!lang) return tokenizer();
+	if (!languagesReady.has(lang)) {
+		const load = syntaxLanguages[lang];
+		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
+		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+			await shared.registerLanguage(lang, grammar.default);
+			return shared;
+		}));
+	}
+	return languagesReady.get(lang);
+}
+async function syntax(source, lang) {
+	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
+	if (tokens.map((t) => t.text).join("") !== source) throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
+	return tokens;
+}
+const synNodes = (tokens) => tokens.map(({ text, style }) => {
+	if (!Object.keys(style).length) return document.createTextNode(text);
+	const span = document.createElement("span");
+	span.dataset.lfSyn = "";
+	for (const [property, value] of Object.entries(style)) span.style.setProperty(property, value);
+	span.textContent = text;
+	return span;
+});
+function tokenLines(tokens) {
+	const lines = [[]];
+	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
+		if (i) lines.push([]);
+		if (part) lines.at(-1).push({
+			text: part,
+			style
+		});
+	});
+	return lines;
+}
+
+//#endregion
 //#region runtime/base-layer.js
 const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
 //#endregion
-export { PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, afterScript, afterSettling, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, composedParentNode, dataBody, elementBox, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, frameFor, frameVisibility, holdRendering, inBaseLayer, isNativeLayer, isStage, liveStages, measure, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, once, pagePresented, pageUpgraded, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, scrollGlides, scrolling, shadowHost, sizeObserver, skipped, stagesFailure, under, upFrom, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+//#region runtime/motion.js
+const preference = matchMedia("(prefers-reduced-motion: reduce)");
+const active = /* @__PURE__ */ new Set();
+const reducedMotion = () => preference.matches;
+const scrollBehavior = () => preference.matches ? "instant" : "smooth";
+function onMotionPreferenceChange(listener) {
+	const changed = (event) => listener(event.matches);
+	preference.addEventListener("change", changed);
+	return () => preference.removeEventListener("change", changed);
+}
+preference.addEventListener("change", (event) => {
+	if (event.matches) for (const played of [...active]) played.finish();
+});
+const motionPlays = () => !reducedMotion() && pagePresented();
+const motion = (el, keyframes, ms, pseudoElement = null) => playMotion(el, keyframes, {
+	duration: ms,
+	pseudoElement
+});
+function playMotion(el, keyframes, { duration, easing = "ease", delay = 0, pseudoElement = null }) {
+	if (!motionPlays()) return null;
+	const played = el.animate(keyframes, {
+		duration,
+		delay,
+		pseudoElement,
+		easing,
+		fill: "both"
+	});
+	active.add(played);
+	played.finished.then(() => queueMicrotask(() => {
+		active.delete(played);
+		played.cancel();
+	}), () => active.delete(played));
+	return played;
+}
+const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
+const motionTime = (property, on = document.documentElement) => {
+	const value = token(property, on);
+	return parseFloat(value) * (value.endsWith("ms") ? 1 : 1e3);
+};
+const motionEasing = (property, on = document.documentElement) => token(property, on);
+const flashDuration = () => motionTime("--lf-motion-flash");
+const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
+function backgroundFlash(el, ms) {
+	return motion(el, [{
+		backgroundColor: "var(--hi-tint)",
+		offset: 0
+	}], ms);
+}
+const foldDuration = () => motionTime("--lf-motion-fold");
+const returnDuration = () => motionTime("--lf-motion-return");
+function foldBlock(el, allocation = null) {
+	const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
+	const native = CSS.supports("block-size", "calc-size(auto, size)");
+	const frames = (blockSize) => [{
+		blockSize,
+		display: "block",
+		overflow: "clip",
+		opacity: 1
+	}, {
+		blockSize: "0px",
+		minBlockSize: "0px",
+		marginBlockStart: "0px",
+		marginBlockEnd: "0px",
+		paddingBlockStart: "0px",
+		paddingBlockEnd: "0px",
+		borderBlockStartWidth: "0px",
+		borderBlockEndWidth: "0px",
+		display: "block",
+		overflow: "clip",
+		opacity: 0
+	}];
+	const played = motion(el, frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"), foldDuration());
+	if (!played || native) return played;
+	if (getComputedStyle(el).display === "none") {
+		el.style.display = "block";
+		const release = () => el.style.removeProperty("display");
+		played.finished.then(release, release);
+	}
+	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
+	played.effect.setKeyframes(frames(`${size}px`));
+	return played;
+}
+
+//#endregion
+//#region runtime/time-axis.js
+const TICK_SPACING = 84;
+const STEPS = [
+	1,
+	2,
+	5
+];
+function tickStep(pxPerMs) {
+	for (let power = 1; power < 1e9; power *= 10) for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+	return 1e9;
+}
+function tickLabel(time, step) {
+	if (time === 0) return "0 s";
+	const digits = step >= 1e3 ? 0 : step >= 100 ? 1 : step >= 10 ? 2 : 3;
+	return `${(time / 1e3).toFixed(digits)} s`;
+}
+function axisTicks(from, to, duration, pxPerMs) {
+	const step = tickStep(pxPerMs);
+	const minor = step / (String(step)[0] === "2" ? 4 : 5);
+	const ticks = [];
+	for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+		const rounded = Math.round(time * 1e3) / 1e3;
+		if (rounded < 0 || rounded > duration) continue;
+		const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+		ticks.push({
+			time: rounded,
+			major,
+			label: major ? tickLabel(rounded, step) : null,
+			step
+		});
+	}
+	return ticks;
+}
+function assignRows(items, start, end) {
+	const rows = [];
+	const rowOf = /* @__PURE__ */ new Map();
+	for (const item of items.toSorted((a, b) => start(a) - start(b))) {
+		let row = rows.findIndex((last) => last <= start(item));
+		if (row < 0) row = rows.push(-Infinity) - 1;
+		rows[row] = end(item);
+		rowOf.set(item.id, row);
+	}
+	return rowOf;
+}
+let measuring = null;
+function textWidth(text, font) {
+	measuring ??= document.createElement("canvas").getContext("2d");
+	measuring.font = font;
+	return measuring.measureText(text).width;
+}
+
+//#endregion
+//#region runtime/tab-store.js
+const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+	read: () => ({
+		available: false,
+		value: null
+	}),
+	get: () => null,
+	set: () => false,
+	where: (key) => ({
+		store: "session",
+		key
+	}),
+	keys: () => []
+};
+
+//#endregion
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, elementBox, elementDirective, ensureSyntaxLanguage, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

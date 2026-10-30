@@ -125,9 +125,8 @@ export function registerReadingRegion({
 }
 
 // The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself, a column page's
-// sidebar standing in the margin, and the box a sidebar page's track holds its blocks in
-// (content-layout.js, `holdTrack`), which scrolls while it stands beside the body
+// which scrolls as a whole where a pane in it does not bound itself, and a sidebar
+// page's authored `layout-track`, which scrolls while it stands beside the body
 // (layouts.css). The stylesheet marks each one
 // (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
 // not itself marked. Each is registered like any other region, so what it holds is
@@ -135,8 +134,8 @@ export function registerReadingRegion({
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
 // `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
-// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
-// replace `main`'s children and a resize can change which of them the stylesheet marks.
+// ones, in a namespace of its own. Document composition asks on every pass, since a
+// revision can replace `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&
@@ -234,8 +233,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
-// named its place.
+// That focus belongs to the same press while it is down (focus.js, `pressing`);
+// pointerdown has already named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -248,7 +247,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageDocument())) &&
-    !(arriving && at === document.body && pressing())
+    !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
 };
@@ -309,7 +308,13 @@ const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
 export const regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
-  return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+  return region &&
+    live(region) &&
+    !concealed(region) &&
+    !skipped(region.body) &&
+    scrolls(region.body)
+    ? "bounded"
+    : "flow";
 };
 
 export function effectiveScroller(regionOrNode) {

@@ -8,8 +8,9 @@
    The typing scope claims those text-editing keys, so a user reaches a surface's
    letters and walks from its list rather than from its composer.
 
-   Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
-   the same register as `commands(el, title, rows)` in `connectedCallback`. A module
+   Core registers scopes through internal `keys(el, title, rows)`; a package widget
+   declares the same scope as data on its element, `lfCommands`, which this module reads
+   when the widget says it changed (`commandsChanged`, widget-upgrade.js). A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
    A scope may declare `ready` for incomplete inputs shared by its rows; a row or
@@ -23,7 +24,7 @@
    activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
-import { focusRevision } from "../focus.js";
+import { focusDestination, focusRevision } from "../focus.js";
 import {
   AsyncDirective,
   PartType,
@@ -56,6 +57,7 @@ import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { renderedParent, under } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
+import { COMMANDS, commandsChangedOn, refuseCommands } from "../widget-upgrade.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectFirstScopes`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -234,6 +236,13 @@ function claimButton(control) {
   if (control.disabled) control.disabled = false;
   rememberScopedElement(control);
 }
+// Run a row's result and put the user where it says they land (`lands`, bindings.js),
+// given the element the press came from.
+export function runLanding(row, run, from) {
+  run();
+  const to = row.lands?.(from);
+  if (to) focusDestination(to, "move");
+}
 function wireButton(control) {
   claimButton(control);
   if (wiredButtons.has(control)) return;
@@ -251,8 +260,16 @@ function wireButton(control) {
       )
     )
       return;
-    command.row.run(
-      commandBinding(command.row, command.entry === command.row ? null : command.entry),
+    runLanding(
+      command.row,
+      () =>
+        command.row.run(
+          commandBinding(
+            command.row,
+            command.entry === command.row ? null : command.entry,
+          ),
+        ),
+      control,
     );
   });
 }
@@ -639,6 +656,42 @@ export const commandsOn = directive(
     }
   },
 );
+
+// A package widget's keys are data on the element they apply in, `lfCommands`: the
+// scope's title, rows and options as `keys` takes them, or a `commandScope()` value. The
+// widget says when it sets or changes them, or anything its rows read, with
+// `commandsChanged` (widget-upgrade.js), so a page without Leaf, which hears nothing,
+// binds no key. A declaration other than the one standing stands in its place, and none
+// withdraws it; the same one standing means a row's reading moved, so every
+// presentation of the register reads its rows again (`paintKeys`). A malformed
+// declaration is refused where the widget made it, as `keys` refuses one: the refusal
+// goes back on the event, and `commandsChanged` throws it.
+const declared = new WeakMap();
+addEventListener(COMMANDS, (event) => {
+  const element = commandsChangedOn(event);
+  const declaration = element.lfCommands ?? null;
+  const standing = declared.get(element);
+  if (declaration === (standing?.declaration ?? null)) {
+    paintKeys();
+    return;
+  }
+  if (!declaration) {
+    declared.delete(element);
+    if (detachScope(element, standing.scope)) repaint();
+    return;
+  }
+  try {
+    const scope = attachScope(
+      element,
+      isCommandScope(declaration)
+        ? declaration.scope
+        : declaredScope(declaration.title, declaration.rows, declaration),
+    );
+    declared.set(element, { declaration, scope });
+  } catch (error) {
+    refuseCommands(event, error);
+  }
+});
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *

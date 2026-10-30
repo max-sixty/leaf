@@ -1,3 +1,25 @@
+:is(lf-event, lf-lane, lf-timeline) {
+  display: block;
+  min-width: 0;
+}
+/* The authored lanes and events are the drawing's data; once Leaf draws, the drawing
+   shows them. Without the runtime they read as a plain list. */
+lf-lane {
+  display: block;
+  margin-block: var(--sp-2);
+}
+lf-lane::before {
+  content: attr(label);
+  font-weight: 600;
+}
+lf-event {
+  display: list-item;
+  margin-inline-start: var(--list-inset);
+}
+lf-event::before {
+  content: attr(at) " ms: " attr(label);
+}
+
 .lf-timeline-controls {
   display: flex;
   flex-wrap: wrap;
@@ -210,36 +232,18 @@
   padding: 0;
   font: 13px/1.45 var(--sans);
 }
+/* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
+ * current row; a step still ahead of it stands in the muted ink. */
 .lf-timeline-step {
-  display: grid;
-  grid-template-columns: 6ch 1fr;
-  column-gap: var(--sp-2);
-  inline-size: 100%;
-  padding: 3px var(--sp-2);
-  border: 0;
-  border-inline-start: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  text-align: start;
   cursor: pointer;
 }
-.lf-timeline-step[data-past] {
-  color: var(--ink);
-}
-.lf-timeline-step[aria-current] {
-  border-inline-start-color: var(--accent);
-  background: var(--accent-tint);
-  color: var(--ink);
-}
-.lf-timeline-step-time {
-  grid-column: 1;
-  font-variant-numeric: tabular-nums;
+.lf-timeline-step:not([data-past], [aria-current]) {
   color: var(--muted);
-}
-.lf-timeline-step-event {
-  grid-column: 2;
 }
 .lf-timeline-step-lane {
   font-weight: 600;
+}
+
+lf-timeline > lf-lane[hidden] {
+  display: none;
 }

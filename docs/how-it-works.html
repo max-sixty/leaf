@@ -1,10 +1,15 @@
 <!doctype html>
+<!--
+  How it Works explains Leaf's core concepts and mechanisms and how they fit
+  together. UI covers page content, layout, styling, navigation
+  and interaction; Extending covers implementing widgets, themes and packages.
+-->
 <html lang="en">
   <head>
     <title>How Leaf works</title>
     <meta
       name="description"
-      content="How Leaf records the exchange between user and agent: workflow, shared state, revisions, progress and browser runtime."
+      content="Leaf's core concepts and mechanisms: how pages, packages, recorded updates, agent sessions and the browser work together."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -112,61 +117,127 @@
       </header>
 
       <lf-tabs id="how" class="layout-flow"
-        ><lf-tab id="overview" label="Overview" class="layout-flow"
-          ><details class="topic-outline" id="overview-outline">
+        ><lf-tab id="overview" label="Overview" class="layout-flow">
+          <details class="topic-outline" id="overview-outline">
             <summary>In this topic</summary>
             <nav aria-label="Overview sections">
               <ul>
-                <li><a href="#architecture">The agent, Leaf, and the browser</a></li>
+                <li><a href="#architecture">Pages, core, and packages</a></li>
+                <li><a href="#architecture-parts">Responsibilities and state</a></li>
                 <li><a href="#exchange">The exchange</a></li>
-                <li>
-                  <a href="#architecture-parts">Responsibilities and boundaries</a>
-                </li>
                 <li><a href="#specification-map">Find the right guide</a></li>
               </ul>
             </nav>
           </details>
           <section id="architecture" class="layout-flow">
-            <h2>The agent, Leaf, and the browser</h2>
+            <h2>Pages, core, and packages</h2>
             <p id="architecture-lede">
-              Leaf connects an agent session to a browser page. The <em>harness</em> is
-              the application running the agent, such as Codex. Leaf’s integration
-              brings page updates into that session; the agent answers through Leaf
-              commands and edits to the page’s files.
+              A <strong>page</strong> is the document the user reads and acts on. Its
+              HTML includes <strong>widgets</strong> such as choices, charts, and
+              boards. A <strong>passage</strong> identifies the words a comment
+              concerns.
+            </p>
+            <p id="architecture-composition">
+              Leaf’s <strong>core</strong> supplies shared state, events, and page
+              lifecycle. <strong>Packages</strong> contribute widgets, domain behavior,
+              styling, and authoring instructions. A page selects packages and a theme;
+              Leaf combines those with its core declarations and assets into the page’s
+              <strong>layer</strong>.
             </p>
             <figure id="arch" class="diagram-figure">
-              <lf-diagram id="agent-browser-architecture" data-height="370" parts="all">
+              <lf-diagram id="agent-browser-architecture" data-height="410" parts="all">
                 <pre>
 flowchart TD
-  accTitle: The agent, Leaf, and the browser
-  accDescr: The agent edits the page and replies through Leaf. Leaf delivers browser updates to the agent, serves the page and current state, and records the user's comments and choices in the event log.
-  Agent["Agent session&lt;br/&gt;Claude Code, Codex or Pi"]
-  Leaf["Leaf&lt;br/&gt;Commands and page server&lt;br/&gt;Page files and event log"]
-  Browser["User in the browser"]
-  Agent --&gt;|Edits and replies| Leaf
-  Leaf --&gt;|Delivered updates| Agent
-  Leaf --&gt;|Page and state| Browser
-  Browser --&gt;|Comments and choices| Leaf
+  accTitle: How Leaf composes a page
+  accDescr: Leaf core and selected packages compose the layer. The authored page runs with that layer and the serving Leaf's browser runtime.
+  Core["Leaf core"]
+  Packages["Selected packages&lt;br/&gt;and theme"]
+  Layer["Composed layer&lt;br/&gt;Registry, theme, widgets and modules"]
+  Browser["Authored page&lt;br/&gt;Running in the browser"]
+  Core --&gt; Layer
+  Packages --&gt; Layer
+  Layer --&gt;|With Leaf's browser runtime| Browser
 </pre>
               </lf-diagram>
             </figure>
-            <p id="architecture-browser">
-              Leaf’s Python code serves the page, records actions, and computes shared
-              state. Its JavaScript runtime draws the interface in the browser. A user’s
-              own choice or message appears immediately; the server’s reading supplies
-              facts that depend on the whole conversation, such as whose turn it is to
-              answer.
+            <p id="architecture-vocabulary">
+              The layer’s <a href="/registry/">registry</a> gives agents, checks,
+              Python, and the browser a shared description of its elements and
+              capabilities. It declares valid markup and the meaning of widget actions;
+              widget modules implement their behavior and presentation.
+            </p>
+          </section>
+          <section id="architecture-parts" class="layout-flow">
+            <h2>Responsibilities and state</h2>
+            <table id="responsibility-map">
+              <thead>
+                <tr>
+                  <th>Part</th>
+                  <th>Responsibility</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="architecture-carrier">
+                  <th scope="row">Agent and harness</th>
+                  <td>
+                    The agent writes content and answers updates. Its harness—Claude
+                    Code, Codex, or Pi—runs its turns; Leaf’s
+                    <a href="#delivery">harness integration</a> delivers page updates to
+                    it.
+                  </td>
+                </tr>
+                <tr id="architecture-door">
+                  <th scope="row">Leaf core</th>
+                  <td>
+                    Python admits events, appends the log, and computes shared state.
+                    The
+                    <a href="#browser-state">browser runtime</a> presents that state
+                    with authored defaults and the tab’s pending gestures.
+                  </td>
+                </tr>
+                <tr id="architecture-registry">
+                  <th scope="row">Packages and layer</th>
+                  <td>
+                    Packages define domain behavior and presentation; their composition
+                    supplies the page’s vocabulary and appearance.
+                    <a href="/extending/">Extending</a> explains how to implement them.
+                  </td>
+                </tr>
+                <tr id="architecture-record">
+                  <th scope="row">Page directory</th>
+                  <td>
+                    Keeps authored content, package and theme selection, data, media,
+                    captured revisions, and the <a href="/event-log/">event log</a>.
+                    <a href="#data-home">Page files and history</a> describes this
+                    record and the machine-local claims and delivery records kept
+                    outside it.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="architecture-reading">
+              Authored content starts the page’s state; the append-only log records
+              changes. Each reading applies the events still in force. Undo records
+              which gesture it withdraws, leaving the original event in history. Focus,
+              scroll, selection, and open disclosures remain
+              <a href="#browser-local">browser-local interaction</a>; an unsent draft
+              can be recovered from browser storage.
+            </p>
+            <p id="architecture-current-leaf">
+              The Leaf serving, checking, or exporting a page supplies its current
+              runtime and composes its layer from the recorded selection. Historical
+              revisions keep authored content and recorded decisions, while the serving
+              Leaf supplies the code that draws them.
             </p>
           </section>
           <section id="exchange" class="layout-flow">
             <h2>The exchange</h2>
             <p id="exchange-lede">
-              Suppose an agent is helping choose a queue policy for an importer. It puts
-              the alternatives and their consequences on a page. The user can choose a
-              policy, or select a sentence and ask about its assumptions. Both reach the
-              agent with the context of the part they concern.
+              An agent proposes queue policies for an importer. A choice or comment the
+              user sends is an <strong>update</strong>. A comment opens a
+              <strong>thread</strong>, the conversation about its passage, widget, or
+              the page as a whole.
             </p>
-
             <p id="practice-caption">
               Choose a policy, then open <strong>Show activity</strong> below it to see
               the recorded choice. Open the page’s leaf menu and choose
@@ -200,101 +271,51 @@ flowchart TD
               <h3>Recorded actions</h3>
               <lf-activity id="queue-activity"></lf-activity>
             </lf-sample>
-
             <ol class="steps" id="exchange-steps">
               <li id="exchange-author">
-                <strong>The agent prepares the page.</strong> It writes HTML, adds
-                widgets, checks the result, and opens a link for the user.
+                <strong>The agent prepares the page.</strong> It writes the
+                alternatives, checks the page, and opens its link.
               </li>
               <li id="exchange-user">
-                <strong>The user responds on the work.</strong> A choice records which
-                option was picked. A comment records the words and the passage or object
-                it points at. Once the server accepts the update, Leaf saves it and
-                makes it available for delivery to the agent.
+                <strong>The user chooses “Pause the producer”.</strong> The browser
+                draws that choice immediately. The server validates the action against
+                the registry and appends its meaning to the event log. The server’s next
+                reading supplies the choice’s effect on obligations and work owed.
+              </li>
+              <li id="exchange-delivery">
+                <strong>Leaf delivers the update.</strong> The harness brings the choice
+                and its context into the agent’s session. Its <strong>workflow</strong>
+                tracks delivery and work, distinguishing receipt from the agent
+                explicitly starting it.
               </li>
               <li id="exchange-answer">
-                <strong>The agent answers and revises.</strong> It can inspect code, run
-                an experiment, or research the question with its normal tools. It
-                replies in the thread and updates the page to reflect the result.
+                <strong>The agent incorporates the decision.</strong> It revises the
+                proposal to use backpressure and stamps a version that records the
+                choice in the markup. A <strong>revision</strong> captures authored
+                content; a version names a revision the user can revisit. If the update
+                was a comment, the agent answers in its thread.
               </li>
             </ol>
-            <p id="loop-result">
-              The same link now shows the revised proposal. The discussion stays
-              attached to the work, and the user can continue from there.
+            <p id="exchange-obligations">
+              An <strong>obligation</strong> records an input or answer owed and whose
+              turn it is: first the user’s queue-policy choice, then the agent’s
+              incorporation of that choice. A <strong>to-do</strong> records explicit
+              work for either party, such as measuring the importer’s throughput.
+              Obligations and to-dos supply the
+              <a href="#progress-on-lists">On me and On agent lists</a>; threads keep
+              the conversation, and workflows track the handling of updates.
             </p>
-          </section>
-          <section id="architecture-parts" class="layout-flow">
-            <h2>Responsibilities and boundaries</h2>
-            <table id="responsibility-map">
-              <thead>
-                <tr>
-                  <th>Part</th>
-                  <th>Owns</th>
-                  <th>Detailed contract</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="architecture-carrier">
-                  <td>Agent and harness</td>
-                  <td>
-                    The content, tool use, replies, and revisions. Leaf’s hooks,
-                    extension, or adapter delivers updates to the session holding the
-                    page’s claim.
-                  </td>
-                  <td><a href="#delivery">Harness connections and receipt</a></td>
-                </tr>
-                <tr id="architecture-door">
-                  <td>Leaf commands and server</td>
-                  <td>
-                    Validate events at admission, append the log, and compute shared
-                    state from one consistent reading.
-                  </td>
-                  <td><a href="#data-fold">Current state</a></td>
-                </tr>
-                <tr id="architecture-reading">
-                  <td>Browser runtime</td>
-                  <td>
-                    Combine authored defaults, the server’s reading, and pending local
-                    gestures; present the result while preserving the user’s
-                    interaction.
-                  </td>
-                  <td><a href="#browser-state">Browser runtime</a></td>
-                </tr>
-                <tr id="architecture-registry">
-                  <td>Packages</td>
-                  <td>
-                    Declare widgets and actions through a shared
-                    <a href="/registry/">registry</a>; supply their domain behavior,
-                    presentation, and authoring instructions.
-                  </td>
-                  <td><a href="/extending/#layer">Runtime and packages</a></td>
-                </tr>
-                <tr id="architecture-record">
-                  <td>Page directory</td>
-                  <td>
-                    Keep the document, <a href="/event-log/">event log</a>, captured
-                    revisions, layer, media, and page data.
-                  </td>
-                  <td><a href="#data-home">Page files and history</a></td>
-                </tr>
-                <tr id="architecture-home">
-                  <td>State home</td>
-                  <td>
-                    Keep machine-local coordination: session claims, delivery records,
-                    and serving-page summaries.
-                  </td>
-                  <td><a href="#data-home">Page files and history</a></td>
-                </tr>
-              </tbody>
-            </table>
+            <p id="loop-result">
+              The same link shows the revised proposal. Stable widget ids keep recorded
+              choices attached across edits. When an edit changes what a decision was
+              about, the author explicitly marks it <code>restated</code> and explains
+              why the decision no longer applies.
+              <a href="#ontology-kinds">State and records</a> defines these concepts;
+              <a href="#versions">Revisions</a> explains their continuity.
+            </p>
           </section>
           <section id="specification-map" class="layout-flow">
             <h2>Find the right guide</h2>
-            <p id="specification-purpose">
-              This guide follows the exchange: how an update reaches the agent, what
-              Leaf records, and how revisions and the browser preserve the result. Page
-              design and package development have their own guides.
-            </p>
             <table id="topic-map">
               <thead>
                 <tr>
@@ -306,27 +327,26 @@ flowchart TD
                 <tr>
                   <th scope="row"><a href="/how-it-works/">How it works</a></th>
                   <td>
-                    The agent workflow, shared state, revisions, progress and runtime.
+                    Core concepts and how their mechanisms fit together:
+                    <a href="#workflow">workflow</a>,
+                    <a href="#ontology">shared state</a>,
+                    <a href="#revisions">revisions</a>,
+                    <a href="#progress">progress</a>, and
+                    <a href="#runtime">the browser runtime</a>.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row"><a href="/ui/">UI</a></th>
-                  <td>
-                    Page composition, widgets, theme choices, responsive layout and
-                    navigation.
-                  </td>
+                  <td>Page content, layout, styling, navigation, and interaction.</td>
                 </tr>
                 <tr>
                   <th scope="row"><a href="/extending/">Extending</a></th>
-                  <td>
-                    Who owns each contribution, how packages connect, and where their
-                    CSS applies.
-                  </td>
+                  <td>Implementing widgets, themes, and packages.</td>
                 </tr>
               </tbody>
             </table>
-          </section></lf-tab
-        >
+          </section>
+        </lf-tab>
         <lf-tab id="workflow" label="Workflow" class="layout-flow"
           ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
@@ -367,10 +387,11 @@ flowchart TD
                 working directory.
               </p>
               <p id="handoff-runtime">
-                <code>leaf page init</code> installs the page’s
-                <a href="/extending/#layer">runtime and selected packages</a>. The agent
-                then authors its content using the HTML and Leaf elements described in
-                <a href="/ui/#pages">Pages</a>.
+                <code>leaf page init</code> records the page’s package and theme
+                selection. The Leaf serving the page supplies its runtime and composes
+                the <a href="/extending/#layer">selected packages</a>. The agent authors
+                its content using the HTML and Leaf elements described in
+                <a href="/ui/#pages">UI</a>.
               </p>
               <p id="handoff-serving">
                 <code>leaf server start</code> starts the page’s HTTP server and claims
@@ -777,9 +798,8 @@ flowchart TD
               <tbody>
                 <tr>
                   <td>
-                    <strong>Prepare a page</strong><br />Copy selected packages into the
-                    page directory, read their authoring instructions, and copy media
-                    into the page.
+                    <strong>Prepare a page</strong><br />Select packages, read their
+                    authoring instructions, and copy media into the page.
                   </td>
                   <td>
                     <code>leaf page init</code><br /><code>leaf page instructions</code
@@ -1325,10 +1345,13 @@ flowchart TD
             <section id="data-home">
               <h2>Page files and history</h2>
               <p id="data-directory">
-                A page directory holds its HTML, captured package dependencies,
-                revisions, event log, media, and external data. Copying it preserves the
-                page and recorded decisions. Session ownership and browser drafts live
-                elsewhere. The diagram shows the durable inputs to current state.
+                A page directory holds its authored HTML and modules, package and theme
+                selection, revisions, event log, media, and external data. Packages
+                selected by a local path are copied into it; the serving Leaf supplies
+                bundled packages and the runtime. Copying the directory preserves the
+                authored content and recorded decisions. Session ownership and browser
+                drafts live elsewhere. The diagram shows the durable inputs to current
+                state.
               </p>
               <figure id="data-flow" class="diagram-figure">
                 <lf-diagram id="page-stores-diagram" data-height="646" parts="all">

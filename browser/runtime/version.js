@@ -109,6 +109,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
@@ -138,10 +139,12 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE, tabStore } from "./storage.js";
+import { PAGE_SCOPE } from "./storage.js";
+import { tabStore } from "./tab-store.js";
 import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, reveal } from "./widget-elements.js";
+import { el, reveal } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
 import { settleDocumentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
@@ -223,6 +226,11 @@ const versionedHeadNode = (node) =>
 // revisions compare against it and pair retained source nodes with their live peers.
 // Delivery's Markdown preview is presentation, so neither baseline includes it.
 const authoredMarkup = (root) => {
+  // Prepaint can already have painted the first document. Both source snapshots
+  // exclude runtime-owned attributes; their live values stay with their writers.
+  for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
+    for (const element of root.querySelectorAll(`[${name}]`))
+      element.removeAttribute(name);
   for (const member of root.querySelectorAll("[data-lf-view]"))
     member.removeAttribute("hidden");
   for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();

@@ -30,3 +30,24 @@ cases:
       the supplied evidence. For each finding, explain the observation,
       its effect on that task, and any uncertainty. Do not assume there is
       a defect, and do not invent interactions you did not observe.
+  # 2026-10-27 message Copy work: three misses the user found after the author's
+  # own checks and cold reviews. One request and task covers all three.
+  message-copy-placement:
+    source_files: &thread-source
+      - "{candidate}.html"
+    prompt: &thread-prompt |
+      Review this comment thread before it is handed to a reader. Its latest
+      change answers the user's request for "a very subtle floating copy
+      button for each message in a thread, so it can be copied as markdown".
+      The reader needs to read the thread, copy any one message, rewrite
+      their own messages, and use the thread's own actions.
+      Identify consequential usability problems you can substantiate from
+      the supplied evidence. For each finding, explain the observation,
+      its effect on that task, and any uncertainty. Do not assume there is
+      a defect, and do not invent interactions you did not observe.
+  later-message-controls:
+    source_files: *thread-source
+    prompt: *thread-prompt
+  controls-after-a-press:
+    source_files: *thread-source
+    prompt: *thread-prompt

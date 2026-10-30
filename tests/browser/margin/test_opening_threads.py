@@ -26,6 +26,7 @@ from render_harness import (
     open_threads,
     panel_field,
     panel_settled,
+    press_visible,
     resized,
     sending,
     stamp_page,
@@ -659,11 +660,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # Home is the margin's own key, so the user has to be in the margin to press it —
     # the card handed them back to the page, which is not.
     marker.focus()
+    # Opening the card and walking its markers are separate scroll guarantees.
+    # Editing the reply between them can move the document to reveal its caret.
+    before_walk = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Home")
     # The panel's empty field says where the walk stands.
     position = panel_field(page)
     expect(position).to_have_attribute("placeholder", re.compile(r"^Marker 1 of \d+"))
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
     said = re.search(r"Marker 1 of (\d+)", position.get_attribute("placeholder"))
+    assert said is not None
     total = int(said.group(1))
     assert total > 1, said.group(0)
     first = page.locator(":focus").get_attribute("aria-label")
@@ -671,7 +677,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(position).to_have_attribute(
         "placeholder", re.compile(rf"^Marker 2 of {total}\b")
     )
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before_walk
     assert page.evaluate("() => document.activeElement.matches('.lf-margin-marker')")
     assert page.locator(":focus").get_attribute("aria-label") != first
 
@@ -900,7 +906,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     # The send leaves the user on its card.
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    press_visible(page, thread.get_by_role("textbox", name="Reply", exact=True))
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")

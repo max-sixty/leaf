@@ -72,6 +72,11 @@ when its children should share those tracks. Ordinary wrappers contain their
 children: a list, callout or custom grid does not grant a nested exhibit room outside
 its own box. The same `data-width` contract applies at every level.
 
+Direct children of `layout-column` and `layout-flow` are grid items: their vertical
+margins add rather than collapse, and `float` does not place them beside prose.
+Automatic inline margins make an unsized item shrink to its content; give it
+`inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
+
 ```html
 <main class="layout-column">
   <h1>…</h1>

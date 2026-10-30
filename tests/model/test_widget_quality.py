@@ -14,7 +14,7 @@ def test_example_data_validates_bound_sources():
     from leaf.registry.contract import RegistryError
     from leaf.validation.composition import validate_registry_examples
 
-    registry = {
+    registry: dict[str, dict] = {
         "$data": {
             "contracts": {
                 "rows": {"schema": {"type": "array", "items": {"type": "string"}}}
@@ -43,7 +43,7 @@ def test_example_data_validates_bound_sources():
 def test_examples_reusing_sources_keep_independent_values():
     from leaf.render_gate.widget_quality import example_pages
 
-    registry = {
+    registry: dict[str, dict] = {
         name: {
             "x-data": {"rows": {"source": "source", "contract": "rows"}},
             "x-example": f'<{name} id="{name}" source="rows"></{name}>',

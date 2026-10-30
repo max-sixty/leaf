@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_navigation import JOURNEY_V1, SENTENCE
@@ -39,6 +38,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -1630,7 +1630,7 @@ def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, se
         page.keyboard.press("ArrowUp")
         landed.append(field.evaluate(CARET_X))
     assert [line for line, _, _ in landed] == list(range(len(lines) - 2, -1, -1))
-    for (line, at, x), text in zip(landed, reversed(lines[:-1])):
+    for (line, at, x), text in zip(landed, reversed(lines[:-1]), strict=True):
         if column == 0:
             assert at == 0, (line, landed)
         # A line shorter than the goal holds the caret at its end, a blank one at 0;

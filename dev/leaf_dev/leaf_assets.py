@@ -105,7 +105,9 @@ def _download(repository: str, revision: str, target: Path) -> None:
                     if member.isfile():
                         path = payload / PurePosixPath(member.name)
                         path.parent.mkdir(parents=True, exist_ok=True)
-                        path.write_bytes(bundle.extractfile(member).read())
+                        content = bundle.extractfile(member)
+                        assert content is not None
+                        path.write_bytes(content.read())
             (payload / ".complete").write_text(revision, encoding="utf-8")
             try:
                 payload.rename(target)

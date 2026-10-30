@@ -20,7 +20,6 @@ from interact_support import (
     publish,
     serving,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -35,6 +34,7 @@ from leaf import vendoring as vendoring_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import preview as render_gate_model
+from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import _stateful_page_declaration, vocabulary
 
 
@@ -441,6 +441,7 @@ def test_a_preview_keeps_its_contract_while_revendoring_completes(page_dir):
         vendoring_model.cmd_init(page_dir, page_packages()[:-1])
         assert registry_storage.layer_metadata(page_dir)["generation"] != before
         assert fetch(url, token=None) == (200, captured)
+    assert snapshot.context.registry is not None
     assert snapshot.context.registry["$layer"]["generation"] == before
 
 

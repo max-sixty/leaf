@@ -12,7 +12,6 @@ from interact_support import (
     append_command,
     refused_on,
 )
-from leaf_dev.browser import threads_tab
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -87,6 +86,7 @@ from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.browser import threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
@@ -967,11 +967,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
-    expect(first_item.locator(".lf-margin-receipt")).to_have_text(
-        "Undo failed · Accepted"
-    )
+    expect_panel_says(page, "Wait for the current change to finish before undoing")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert _traffic(page).sends == sent
-    first_item.get_by_role("button", name="Cancel", exact=True).click()
 
     # A later refusal is another asynchronous reconciliation wake-up. It may not release
     # either hold merely because its delivery completed.
@@ -988,9 +986,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     undo_offered(page)
-    page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
-        "button", name="Retry", exact=True
-    ).click()
+    suggestion_control(page, "sug-in-card", "accept").click()
     round_trip(page)
 
     assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1
@@ -1808,7 +1804,8 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
     """An optimistic record-less decision still yields to the next complete read.
     If that read contains both the decision and its undo, replay leaves authored markup
     in place. The send continuation must not repaint the withdrawn decision after that
-    authoritative read has released it.
+    authoritative read has released it. The live region can retain the admitted
+    decision's announcement, so read the suggestion and undo offer themselves.
 
     A decision waits for the page's first complete read (module-authoring.md,
     "Startup and presentation"), so that read is let through and every later one is
@@ -1849,15 +1846,19 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     undo_offered(page, offered=False)
     held[0].fulfill(response=accepted_answer)
-    page.wait_for_timeout(100)
-    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
+    round_trip(page)
+    rendered(page)
+    assert page.locator("#sug-refill").get_attribute("data-lf-state") != "accept"
+    assert page.locator("#sug-refill lf-old").is_visible()
+    undo_offered(page, offered=False)
     page.unroute("**/api/event")
 
 
 def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve):
     """A later record-less action on the same declared unit supersedes the first.
     When one complete read accounts the held accept and also replays another tab's
-    reject, the older send continuation must not paint accept over that chronology."""
+    reject, the older send's answer must not paint accept over that chronology. The
+    press announced the accept when it was made, so what the page says isn't read."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1895,8 +1896,10 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         ("sug-refill", "reject"),
     ]
     held[0].fulfill(response=accepted_answer)
-    page.wait_for_timeout(100)
-    expect(page.locator(".lf-live")).not_to_contain_text("Accepted suggested change")
+    round_trip(page)
+    rendered(page)
+    assert page.locator("#sug-refill").get_attribute("data-lf-state") == "reject"
+    assert page.locator("#sug-refill lf-new").is_hidden()
     page.unroute("**/api/event")
 
 

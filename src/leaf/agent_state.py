@@ -316,7 +316,7 @@ def _page_state(
     source_error: str | None = None,
     *,
     target: str | None = None,
-    after: int = 0,
+    after: int | None = 0,
     limit: int | None = None,
 ) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
@@ -365,7 +365,7 @@ def _page_state(
                 "claim_session",
                 "session_name",
                 "session_cwd",
-                "claim_turn",
+                "turn",
                 "turn_closed",
             )
         },
@@ -399,6 +399,7 @@ def _page_state(
     # Before a first revision there is no document, so no thread, obligation, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
+        assert active is not None and registry is not None
         browser = served["browser"]
         view = browser["views"][str(active["revision"])]
         _apply_document_state(
@@ -448,6 +449,7 @@ def _page_state(
             raise Refused(f"{target!r} names no thread or widget on this page")
         # A thread is listed only where the page has a document, so the readings
         # stand here.
+        assert reading is not None and registry is not None
         thread_reading = reading.thread
         selected["summaries"] = served_threads[thread_id]["summaries"]
         elements = [

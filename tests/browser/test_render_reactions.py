@@ -2245,7 +2245,12 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
 def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     browser, serve, scheme, placement
 ):
-    """Opening a picker changes its placement, not the paint saying a mark stands."""
+    """Opening a picker changes its placement, not the paint saying a mark stands.
+
+    A reaction the user added rests on the accent tint inside an accent contour, apart
+    from an idle choice. Under the pointer or focus its tint deepens, as an idle
+    choice's chip rises, while the contour that says it stands stays.
+    """
     url = serve(
         leaf_page(
             "Message reactions",
@@ -2299,23 +2304,30 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     told(page)
     expect(selected).to_have_attribute("aria-pressed", "true")
     page.mouse.move(0, 0)
-    fill = "node => getComputedStyle(node).backgroundColor"
-    closed_fill = selected.evaluate(fill)
+    face = """node => {
+      const style = getComputedStyle(node);
+      return {fill: style.backgroundColor, ring: style.borderTopColor};
+    }"""
+    closed = selected.evaluate(face)
     trigger.click()
     expect(idle).to_be_visible()
     expect(idle).to_have_attribute("aria-pressed", "false")
     expect(selected).to_be_visible()
     page.mouse.move(0, 0)
-    assert selected.evaluate(fill) == closed_fill
-    assert selected.evaluate(fill) != idle.evaluate(fill)
+    selected.evaluate("node => node.blur()")
+    assert selected.evaluate(face) == closed
+    assert closed["fill"] != idle.evaluate(face)["fill"]
+    assert closed["ring"] != idle.evaluate(face)["ring"]
     selected.hover()
-    assert selected.evaluate(fill) == closed_fill
+    hovered = selected.evaluate(face)
+    assert hovered["ring"] == closed["ring"]
+    assert hovered["fill"] != closed["fill"]
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     selected.focus()
     expect(selected).to_be_focused()
     assert selected.evaluate("node => node.matches(':focus-visible')")
-    assert selected.evaluate(fill) == closed_fill
+    assert selected.evaluate(face) == hovered
     assert selected.evaluate("""node => {
       const style = getComputedStyle(node);
       return style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;

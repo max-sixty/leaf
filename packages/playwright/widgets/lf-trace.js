@@ -404,7 +404,7 @@ customElements.define(
           title: "In a Playwright recording",
           rows: [
             // Back along the time scale is the arrow toward its start. The scale
-            // runs left to right in every text direction (theme.css), so its arrows
+            // runs left to right in every text direction (base.css), so its arrows
             // are fixed rather than read from the computed direction, which would
             // force a style recalculation each time the page's keys are reflected.
             {
@@ -1942,7 +1942,7 @@ customElements.define(
               >Open in Playwright</a
             >
           </div>
-          <div class="lf-trace-bookmark-list" ?hidden=${!this.#moments.length}>
+          <div class="lf-trace-bookmark-list lf-rows" ?hidden=${!this.#moments.length}>
             ${repeat(
               this.#moments,
               (moment) => moment.index,
@@ -1951,16 +1951,17 @@ customElements.define(
                   ? this.#time(moment.time, moment.stream)
                   : "Unavailable";
                 return html`<button
-                  ${offeredAction("word", "lf-trace-bookmark")}
+                  ${offeredAction("row", "lf-trace-bookmark")}
                   ?hidden=${!(available.includes(moment) || !moment.scope)}
                   ?disabled=${!moment.scope || q}
                   aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
                   aria-current=${this.#momentSelected(moment) ? "true" : nothing}
                   @click=${() => this.#visitMoment(moment.target, moment.index)}
                 >
-                  <span class="lf-trace-moment-number">${moment.number}</span
-                  ><span class="lf-trace-moment-label">${moment.label}</span
-                  ><span class="lf-trace-moment-time">${time}</span>
+                  <span class="lf-row-lead"
+                    ><span class="lf-trace-moment-number">${moment.number}</span></span
+                  ><span class="lf-trace-moment-label lf-row-main">${moment.label}</span
+                  ><span class="lf-trace-moment-time lf-row-end">${time}</span>
                 </button>`;
               },
             )}
@@ -2018,7 +2019,7 @@ customElements.define(
                     }}
                   >
                     <!-- Pause stands drawn beside Play, so the clock turning shows
-                      it at once (widgets.css, .lf-trace-play[data-playing]). -->
+                      it at once (defaults.css, .lf-trace-play[data-playing]). -->
                     ${actionTemplate("pause", "lf-action-icon")}
                   </button>
                   ${transport(

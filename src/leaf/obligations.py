@@ -637,7 +637,7 @@ class _ObligationReducer:
         registry: dict,
         dropped: set,
         revision: int | None = None,
-        events: list = (),
+        events: list | None = None,
         data: dict | None = None,
     ):
         self.projection = projection
@@ -645,7 +645,7 @@ class _ObligationReducer:
         self.spk = spk
         self.registry = registry
         self.revision = revision
-        self.events = events
+        self.events = [] if events is None else events
         self.data = data or {"sources": {}}
         self.nodes = sources.nodes
         self.records = [record for record, _shown in sources.asking]
@@ -974,7 +974,7 @@ def page_obligation_readings(
     settled_away: set[str] | None = None,
     prior=None,
     revision: int | None = None,
-    events: list = (),
+    events: list | None = None,
     data: dict | None = None,
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:

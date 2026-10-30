@@ -25,6 +25,7 @@ import jsonschema._utils
 import regress
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, best_match
+from jsonschema.protocols import Validator
 from pywhatwgurl import URL
 from referencing import Registry
 from referencing.exceptions import Unresolvable
@@ -85,8 +86,8 @@ class _EcmaSearch:
 
 # jsonschema's only regular-expression calls; a call it adds to these modules fails
 # loudly here rather than reading Python's dialect.
-jsonschema._keywords.re = _EcmaSearch
-jsonschema._utils.re = _EcmaSearch
+jsonschema._keywords.re = _EcmaSearch  # ty: ignore[invalid-assignment] -- replace its regex engine
+jsonschema._utils.re = _EcmaSearch  # ty: ignore[invalid-assignment] -- replace its regex engine
 
 # The metaschema's `regex` format, which `check_schema` holds every pattern to.
 META_FORMAT_CHECKER = FormatChecker()
@@ -154,7 +155,8 @@ def check_schema(schema) -> None:
     jsonschema skips a `format` it has no checker for, so a schema naming one would
     declare a rule no boundary enforces, and the value would reach a widget unchecked.
     Raises `SchemaError` for either."""
-    Draft202012Validator.check_schema(schema, format_checker=META_FORMAT_CHECKER)
+    # The generated validator accepts this keyword; its Validator protocol omits it.
+    Draft202012Validator.check_schema(schema, format_checker=META_FORMAT_CHECKER)  # ty: ignore[unknown-argument]
 
     def visit(contents) -> None:
         if isinstance(contents, dict):
@@ -175,7 +177,7 @@ def check_schema(schema) -> None:
     visit(schema)
 
 
-def json_validator(schema: dict) -> Draft202012Validator:
+def json_validator(schema: dict) -> Validator:
     """One offline schema reader for every authored/event ingress, including formats.
 
     Readers are shared by schema content: a read re-validates every stored event
@@ -186,7 +188,7 @@ def json_validator(schema: dict) -> Draft202012Validator:
 
 
 @functools.lru_cache(maxsize=1024)
-def _validator(canonical: str) -> Draft202012Validator:
+def _validator(canonical: str) -> Validator:
     # Built from its own parse of the key, so a caller that later mutates the dict
     # it passed cannot change the reader that key names.
     schema = json.loads(canonical)

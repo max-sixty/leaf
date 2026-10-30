@@ -472,7 +472,7 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 
     page.route("**/runtime/*.js", hold_module)
     try:
-        with pytest.raises(RuntimeError) as stopped:
+        with pytest.raises(render_gate_scheme.PreUpgradeFailed) as stopped:
             render_gate_scheme.start_with_pre_upgrade_proof(
                 page, serve(source, packages=())
             )
@@ -503,7 +503,7 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     page.route("**/theme.css", hold_theme)
     try:
-        with pytest.raises(RuntimeError) as stopped:
+        with pytest.raises(render_gate_scheme.PreUpgradeFailed) as stopped:
             render_gate_scheme.start_with_pre_upgrade_proof(
                 page, serve(source, packages=())
             )
@@ -566,7 +566,7 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     dropped, asked = dropped_entry_server
     page = dropped_entry_page
     page.set_default_timeout(EXPECTED_STALL_MS)
-    with pytest.raises(RuntimeError) as stopped:
+    with pytest.raises(render_gate_scheme.PreUpgradeFailed) as stopped:
         render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
     entry_path = urlsplit(
         page.locator('script[src$="/leaf.js"]').get_attribute("src")
@@ -1449,9 +1449,11 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
     declared = CliRunner().invoke(cli_model.cli, ["page", "open", str(serve.page_dir)])
     assert declared.exit_code == 0, declared.output
     claim = service_model.page_claim(serve.page_dir)
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim["id"] if claim else None)
+    lease_path = leases_model.waiter_lease_path(
+        serve.page_dir, claim["id"] if claim else None
     )
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     try:
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
@@ -2924,7 +2926,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
 
 
 def adopted_sheet_findings(page):
-    """The runtime's sheets are adopted, so they cascade after theme.css and after every
+    """The runtime's sheets are adopted, so they cascade after base.css and after every
     package theme concatenated onto it. That position is an accident of how they are
     delivered, and a rule that wins by it beats the page's own rule at equal specificity
     — a default outranking the thing it is a default for. Nothing catches that, because
@@ -2943,7 +2945,7 @@ def adopted_sheet_findings(page):
     Layer order is the one other thing the move could reverse. A module sheet adopted
     first names `lf-base` before chrome.css names `lf-reset`, so the copy opens with the
     statement the page's first sheet makes (`@layer lf-reset, lf-base, lf-layouts`). An
-    anonymous layer theme.css opens meets nothing here: every rule in it asks for a body
+    anonymous layer base.css opens meets nothing here: every rule in it asks for a body
     without `data-lf-presented` or `data-lf-upgraded`, and open_page has waited for both.
 
     A tie shows only where both rules meet one element, so this reads the corpus."""

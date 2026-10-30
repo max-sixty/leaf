@@ -207,8 +207,9 @@ export function drawTimeline(host, tools) {
   const listRef = generated(true);
   const rowRefs = model.steps.map((_, index) => (node) => {
     if (!node) return;
-    // A span keeps the words selectable while the shared command routes activate it.
-    tools.selectableOfferElement(node, "button", "lf-timeline-step");
+    // A span keeps the words selectable while the shared command routes activate it;
+    // it wears the row's face, the step the timeline shows as the current row.
+    tools.selectableOfferElement(node, "button", "lf-timeline-step", "row");
     drawing.rows[index] = tools.generatedElement(node, { says: true });
   });
 
@@ -324,7 +325,7 @@ export function drawTimeline(host, tools) {
       >
         ${chartTemplate()}
       </div>
-      <ol class="lf-timeline-steps" ${ref(listRef)}>
+      <ol class="lf-timeline-steps lf-rows" ${ref(listRef)}>
         ${model.steps.map(
           (step, index) =>
             html`<li>
@@ -335,10 +336,12 @@ export function drawTimeline(host, tools) {
                 aria-current=${index === current ? "step" : nothing}
                 ?data-past=${index < current}
               >
-                <span class="lf-timeline-step-time">${clock(step.time)}</span>
+                <span class="lf-timeline-step-time lf-row-lead"
+                  >${clock(step.time)}</span
+                >
                 ${step.events.map(
                   (event) =>
-                    html`<span class="lf-timeline-step-event"
+                    html`<span class="lf-timeline-step-event lf-row-main"
                       ><span class="lf-timeline-step-lane"
                         >${model.lanes[event.lane].label}: </span
                       >${event.label}</span

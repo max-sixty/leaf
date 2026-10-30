@@ -459,6 +459,21 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def floating_thread_unread(page: Page) -> None:
+    """The same thread holding a reply too long for its view to show whole, which stays
+    unread, so Next unread stands among the view's controls."""
+    as_agent(
+        "thread",
+        "reply",
+        "7b3e0a41",
+        "--text",
+        "The resend recovers every one of them. "
+        + "The queue holds each edit until the server confirms it. " * 40,
+    )
+    floating_thread(page)
+    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+
+
 def floating_thread_retitled(page: Page) -> None:
     """The same thread once its opening message is rewritten short, so its title is far
     narrower than the view it names."""
@@ -548,6 +563,7 @@ def card_aging(page: Page) -> None:
     """An open card follows the clock while its reply is being drafted."""
     card_reply(page)
     timestamp = page.locator(".lf-margin-preview time").first.get_attribute("datetime")
+    assert timestamp is not None
     now = datetime.fromisoformat(timestamp) + timedelta(seconds=30)
 
     def aged_state(route):
@@ -583,6 +599,16 @@ def card_reply_resolved(page: Page) -> None:
     ).click()
 
 
+def card_reply_resolved_elsewhere(page: Page) -> None:
+    """An agent resolves the thread while the user keeps writing in its margin card."""
+    card_reply(page)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    root = card.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "resolve", root)
+    expect(card.locator(".lf-reopen")).to_be_visible()
+
+
 def as_agent(command: str, verb: str, *args: str) -> None:
     """Run `leaf COMMAND VERB PAGE ARGS` as the agent on the page being served, with
     its arm's launcher."""
@@ -599,7 +625,7 @@ def held_news(page: Page, thread: Locator) -> None:
     root = thread.get_attribute("data-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
-    notice = thread.locator(".lf-thread-notice-news")
+    notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply")
     client = PageClient(served_page.get().address)
     client.post(
@@ -885,9 +911,12 @@ def panel_by_keyboard(page: Page) -> None:
 def composer_resting(page: Page) -> None:
     """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
+    assert box is not None
     y = box["y"] + 10
+    assert box is not None
     page.mouse.move(box["x"] + 2, y)
     page.mouse.down()
+    assert box is not None
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
     # Under a finger a selection is offered in the floating panel's field, which quotes
@@ -970,6 +999,17 @@ def composer_long(page: Page) -> None:
     composer(page)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_scrolling(page: Page) -> None:
+    """A floating draft that fills its available height and scrolls its words."""
+    composer_empty(page)
+    page.keyboard.insert_text((LONG_DRAFT + "\n\n") * 8)
+    page.wait_for_function("""() => {
+      const field = document.querySelector('.lf-fab-input');
+      return field.scrollHeight > field.clientHeight;
+    }""")
+    page.locator(".lf-fab-input").hover()
 
 
 def composer_sent(page: Page) -> None:
@@ -1396,6 +1436,7 @@ def aim_cut_by_pane(page: Page) -> None:
         }"""
     )
     box = page.locator("#sort-source").bounding_box()
+    assert box is not None
     page.mouse.move(box["x"] + 120, box["y"] + 20)
     page.keyboard.down("Alt")
     page.wait_for_function(
@@ -1512,6 +1553,7 @@ def capture_small_drag(page: Page) -> None:
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
+    assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
     page.mouse.move(left, top)
     page.mouse.down()
@@ -1866,6 +1908,19 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State(
+        "floating-thread-unread",
+        "ship-review",
+        floating_thread_unread,
+        region=".lf-fp-opened",
+    ),
+    State(
+        "floating-thread-unread-dark",
+        "ship-review",
+        floating_thread_unread,
+        scheme="dark",
+        region=".lf-fp-opened",
+    ),
     State("ship-threads", "ship-review", go_to_threads, region=".lf-fp-opened"),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
     State(
@@ -2583,6 +2638,19 @@ STATES = (
         region=".lf-margin-preview .lf-thread-reply",
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State(
+        "plan-card-reply-resolved-elsewhere",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        region=".lf-margin-preview",
+    ),
+    State(
+        "plan-card-reply-resolved-elsewhere-dark",
+        "review-a-plan",
+        card_reply_resolved_elsewhere,
+        scheme="dark",
+        region=".lf-margin-preview",
+    ),
     State("triage", "triage-board", at_rest),
     State("triage-phone", "triage-board", at_rest, viewport=(390, 844), touch=True),
     State(
@@ -2628,6 +2696,19 @@ STATES = (
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
+    State(
+        "triage-composer-scrolling",
+        "triage-board",
+        composer_scrolling,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-scrolling-dark",
+        "triage-board",
+        composer_scrolling,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(
@@ -2963,7 +3044,7 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    state.drive.__name__.replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
 }
 
 
@@ -3259,7 +3340,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                     source_roots[arm],
                     commit,
                 )
-        with headless_shell() as browser, differences(browser, out) as compare:
+        # Capture the scrollbars readers see, including the room a classic bar takes.
+        with (
+            headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser,
+            differences(browser, out) as compare,
+        ):
             for state in states:
                 folder = out / state.name
                 folder.mkdir()

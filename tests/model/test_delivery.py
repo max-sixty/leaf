@@ -200,12 +200,14 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         append_carried_log_record(page_dir, {"author": "user", **event})
     with service_model.PageTransaction(page_dir) as transaction:
         selected = transaction.events[:3]
-        queued, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "handling-test", page_dir, transaction, transaction.events
         )
-    payload = codex_model.offer_delivery(
-        queued, codex_model.read_record(queued), transport="queue"
-    ).payload
+        assert append_batch_result is not None
+        queued, _, _ = append_batch_result
+    record = codex_model.read_record(queued)
+    assert isinstance(record, (codex_model.Collecting, codex_model.Offering))
+    payload = codex_model.offer_delivery(queued, record, transport="queue").payload
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [
         event["id"] for event in selected
@@ -980,9 +982,11 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = printed(capsys.readouterr().out)
+    assert header is not None
     assert [event["id"] for event in shown] == [chose["id"]]
     [thread] = header["threads"]
     assert thread["id"] == root["id"]
+    assert asking_message is not None
     carried = next(
         message
         for message in thread["messages"]

@@ -1,4 +1,19 @@
 (() => {
+  // packages/diff/widgets/diff-coordinates.js
+  function findDiffFile(entries, coordinate) {
+    if (!coordinate || !entries) return null;
+    if (coordinate.source && coordinate.side === "old") {
+      const renamed = entries.filter(
+        ({ record }) => record.operation === "rename" && record.previousPath === coordinate.path
+      );
+      if (renamed.length) return renamed.length === 1 ? renamed[0] : null;
+    }
+    const matching = entries.filter(
+      ({ record }) => (coordinate.source && coordinate.side === "old" ? record.previousPath ?? record.path : record.path) === coordinate.path
+    );
+    return matching.length === 1 ? matching[0] : null;
+  }
+
   // packages/diff/widgets/overflow.js
   var overflowFor = (path, authored) => authored ?? (/\.(?:md|markdown|txt)$/i.test(path) ? "wrap" : "scroll");
 
@@ -34,6 +49,9 @@
           files.push(file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] });
         const named = /^(?:\+\+\+ b\/|--- a\/|diff --git a\/\S+ b\/)(.+)$/.exec(line);
         if (named && named[1] !== "/dev/null") file.path = named[1];
+        const previous = /^--- a\/(.+)$/.exec(line);
+        if (previous) file.previousPath = previous[1];
+        if (line.startsWith("rename from ")) file.operation = "rename";
       }
     }
     const singleFile = host.getAttribute("view") === "file";
@@ -58,6 +76,18 @@
       const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);
       if (cols > 0) for (const text of each.texts) rows += wraps(text, cols);
     }
+    const notes = [...host.querySelectorAll(":scope > lf-diff-note")];
+    const entries = files.map((record) => ({ record }));
+    const notesHeight = notes.reduce((height, note) => {
+      const entry = findDiffFile(entries, {
+        path: note.getAttribute("file"),
+        source: true,
+        side: note.getAttribute("side")
+      });
+      const visible = !entry || open && shown.includes(entry.record);
+      return height + (visible ? note.getBoundingClientRect().height : 0);
+    }, 0);
+    host.style.setProperty("--lf-diff-notes-height", `${notesHeight}px`);
     host.style.setProperty("--lf-diff-files", String(shown.length));
     host.style.setProperty("--lf-diff-rows", String(rows));
     host.style.setProperty("--lf-diff-open", open ? "1" : "0");

@@ -2,6 +2,7 @@
 @import "./styles/geometry.css";
 @import "./styles/disclosure.css";
 @import "./styles/worktrees.css";
+@import "./styles/notes.css";
 
 /* The diff package's presentation. Everything here was in the default package's theme
  * until Pierre's 1.7MB left every page carrying a diff renderer most of them never
@@ -38,7 +39,7 @@ html[data-lf-interactive] lf-diff:not(.lf-rendered, :has(> .lf-error)) {
         var(--lf-diff-head-pressed) + 1px + var(--lf-diff-open) *
           (var(--lf-text-scroll-track) + 1px)
       ) +
-      var(--lf-diff-rows) * var(--code-line)
+      var(--lf-diff-rows) * var(--code-line) + var(--lf-diff-notes-height, 0px)
   );
   overflow: clip;
 }
@@ -281,4 +282,13 @@ lf-call-diff {
   .lf-call-group-summary {
     grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
   }
+}
+
+html[data-lf-interactive]
+  lf-diff[collapsed]:not(.lf-rendered)[view="patch"]
+  > lf-diff-note,
+html[data-lf-interactive]
+  lf-diff[collapsed]:not(.lf-rendered):not([view])
+  > lf-diff-note {
+  display: none;
 }

@@ -10,6 +10,7 @@
  * manifest or a shown file with no hunk) gets no
  * counts, and its box is its source's until the drawing lands; an authored
  * `data-height` holds the box instead, so it is left alone. */
+import { findDiffFile } from "../widgets/diff-coordinates.js";
 import { overflowFor } from "../widgets/overflow.js";
 
 document.documentElement.lfInitial.register("lf-diff", (host, tools) => {
@@ -47,6 +48,9 @@ document.documentElement.lfInitial.register("lf-diff", (host, tools) => {
         files.push((file = { path: "", hunks: 0, rows: 0, largest: 0, texts: [] }));
       const named = /^(?:\+\+\+ b\/|--- a\/|diff --git a\/\S+ b\/)(.+)$/.exec(line);
       if (named && named[1] !== "/dev/null") file.path = named[1];
+      const previous = /^--- a\/(.+)$/.exec(line);
+      if (previous) file.previousPath = previous[1];
+      if (line.startsWith("rename from ")) file.operation = "rename";
     }
   }
   // A selected-file reader starts on the first file, open even when `collapsed`
@@ -81,6 +85,18 @@ document.documentElement.lfInitial.register("lf-diff", (host, tools) => {
     const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);
     if (cols > 0) for (const text of each.texts) rows += wraps(text, cols);
   }
+  const notes = [...host.querySelectorAll(":scope > lf-diff-note")];
+  const entries = files.map((record) => ({ record }));
+  const notesHeight = notes.reduce((height, note) => {
+    const entry = findDiffFile(entries, {
+      path: note.getAttribute("file"),
+      source: true,
+      side: note.getAttribute("side"),
+    });
+    const visible = !entry || (open && shown.includes(entry.record));
+    return height + (visible ? note.getBoundingClientRect().height : 0);
+  }, 0);
+  host.style.setProperty("--lf-diff-notes-height", `${notesHeight}px`);
   host.style.setProperty("--lf-diff-files", String(shown.length));
   host.style.setProperty("--lf-diff-rows", String(rows));
   host.style.setProperty("--lf-diff-open", open ? "1" : "0");

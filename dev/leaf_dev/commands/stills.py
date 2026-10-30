@@ -1303,6 +1303,11 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_author_notes(page: Page) -> None:
+    """Author prose under old and new lines, beside horizontally scrolling source."""
+    page.locator("#dfg-scroll").scroll_into_view_if_needed()
+
+
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
     short."""
@@ -2192,6 +2197,27 @@ STATES = (
     State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
+    State(
+        "diff-author-notes",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        region="#dfg-scroll",
+    ),
+    State(
+        "diff-author-notes-dark",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        scheme="dark",
+        region="#dfg-scroll",
+    ),
+    State(
+        "diff-author-notes-touch",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        viewport=(390, 844),
+        touch=True,
+        region="#dfg-scroll",
+    ),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State(
         "worktree-summaries",

@@ -3036,7 +3036,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
-    with pytest.raises(ValueError, match="event id .* already exists"):
+    with pytest.raises(ValueError, match=r"event id .* already exists"):
         append_carried_log_record(
             page_dir,
             {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
@@ -3535,7 +3535,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         try:
             server.close()
             closed.set()
-        except Exception as error:  # noqa: BLE001 - asserted by the owning test thread
+        except Exception as error:
             errors.append(error)
 
     monkeypatch.setattr(http_model.PageEndpoint, "_get", delayed_get)

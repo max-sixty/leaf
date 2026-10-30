@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
 )
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import solid_png
@@ -33,6 +32,7 @@ from leaf import files as files_model
 from leaf import media as media_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
 from leaf.structure import UTF8_BOM
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -47,8 +47,9 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
 )
 
 
+@pytest.mark.parametrize("draft", [False, True], ids=["stamped", "draft"])
 def test_interactive_export_with_an_obligation_reaches_application_presentation(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
@@ -61,6 +62,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            *(["--draft"] if draft else []),
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -551,18 +553,18 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     out = tmp_path / "reachable.html"
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
-    composed = json.loads(
-        re.search(
-            r'<script type="application/json" data-lf-export>(.*?)</script>',
-            html,
-            re.DOTALL,
-        )[1]
-    )["document"]
-    imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL)[
-            1
-        ]
-    )["imports"]
+    match = re.search(
+        r'<script type="application/json" data-lf-export>(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+    assert match is not None
+    composed = json.loads(match[1])["document"]
+    match_2 = re.search(
+        r'<script type="importmap"[^>]*>(.*?)</script>', composed, re.DOTALL
+    )
+    assert match_2 is not None
+    imports = json.loads(match_2[1])["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {
         "leaf:/widgets/lf-diff.js",
@@ -805,8 +807,10 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         leaf_page(
             "Exported notes",
             '<h1 id="title">Migration</h1>'
-            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
-            '<p id="passage">Advance the migration one cohort at a time.</p>',
+            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
+            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
+        ).replace(
+            '<main class="layout-column">', '<main class="layout-column layout-notes">'
         )
     )
     interactive = tmp_path / "margin-notes.html"
@@ -816,13 +820,17 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#note")).to_have_css("float", "right")
+    wide = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert wide["x"] >= prose["x"] + prose["width"]
     page.set_viewport_size({"width": 390, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "none")
-    page.set_viewport_size({"width": 1440, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "right")
+    narrow = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert narrow["y"] >= prose["y"] + prose["height"]
+    page.set_viewport_size({"width": 1600, "height": 900})
+    assert page.locator("#note").bounding_box() == pytest.approx(wide)

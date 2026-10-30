@@ -1,6 +1,6 @@
-import { scrollBehavior } from "./bundle-portable.js";
+import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
 import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, el, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
@@ -29,8 +29,8 @@ function copyableText(label, value) {
 //#region runtime/page-inspection.js
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
-const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "About this page"));
+const head = el("div", "lf-dialog-head");
+head.append(el("strong", "lf-dialog-title", "About this page"));
 const copy = copyControl("", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
@@ -258,7 +258,7 @@ async function loadSource() {
 		};
 	} catch (error) {
 		if (request !== attempt || !dialog.open) return;
-		sourceError = `Source inspection unavailable: ${error.message}`;
+		sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
 	} finally {
 		if (request === attempt && dialog.open) {
 			loading = false;

@@ -28,6 +28,7 @@
  * (`returnToFragment`) is a navigation step that adds no entry.
  */
 
+import { selectEnds } from "./native-selection.js";
 import { referencedProjection, requireReference } from "./references.js";
 import {
   addressedElements,
@@ -57,7 +58,7 @@ import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { closestAcross, rangeOf, selectEnds } from "./passages.js";
+import { closestAcross, rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";

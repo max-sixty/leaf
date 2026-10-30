@@ -46,10 +46,11 @@ vars:
     This is the page's `<main>` as it stands:
 
     ```html
-        <main class="layout-column">
-          <aside class="sidebar" id="contents-sidebar">
-            <lf-toc id="contents"></lf-toc>
+        <main class="layout-sidebar">
+          <aside id="contents-sidebar">
+            <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
           </aside>
+          <article id="document" class="layout-column">
 
           <hgroup id="title">
             <h1>Portable widgets: next steps</h1>
@@ -454,6 +455,7 @@ vars:
               </lf-options>
             </lf-ask>
           </section>
+        </article>
         </main>
     ```
 
@@ -505,10 +507,11 @@ variants:
         to build, review and land. This is the page's `<main>` as it stands:
 
         ```html
-            <main class="layout-column">
-              <aside class="sidebar" id="contents-sidebar">
-                <lf-toc id="contents"></lf-toc>
+            <main class="layout-sidebar">
+              <aside id="contents-sidebar">
+                <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
               </aside>
+              <article id="document" class="layout-column">
 
               <hgroup id="title">
                 <h1>Portable widgets: next steps</h1>
@@ -725,6 +728,7 @@ variants:
                   </lf-options>
                 </lf-ask>
               </section>
+            </article>
             </main>
         ```
 

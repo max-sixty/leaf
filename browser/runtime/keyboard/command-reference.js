@@ -68,7 +68,9 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
+  completeRowKeySteps,
   completeRowSteps,
+  stepText,
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
@@ -84,7 +86,7 @@ import {
   currentLocationIn,
   deepFocus,
 } from "../focus.js";
-import { closeControl, searchField } from "../widget-elements.js";
+import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
@@ -386,9 +388,13 @@ function captureCommandReferenceCatalog() {
         const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
           bindingEnabled,
         );
-        const steps = alternatives.length
-          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+        const keySteps = alternatives.length
+          ? [
+              ...rowInfo.sequence.map((step) => [step]),
+              ...completeRowKeySteps(rowInfo.referenceRow, route),
+            ]
           : [];
+        const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -408,7 +414,7 @@ function captureCommandReferenceCatalog() {
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
           keySequence: steps.length
-            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
+            ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps)
             : null,
           title,
           description,
@@ -659,7 +665,10 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction(
+        "row",
+        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
+      )}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
@@ -683,7 +692,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <div role="rowgroup" ?hidden=${hidden}>
     <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
     </div>
   </div>
 `;
@@ -760,8 +769,8 @@ function commandReferenceItemTemplate(item) {
 function commandReferenceTemplate() {
   const items = commandReferenceItems();
   return html`
-    <div class="lf-command-reference-head">
-      <div class="lf-command-reference-title">Command reference</div>
+    <div class="lf-dialog-head lf-command-reference-head">
+      <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
     <label class="lf-command-reference-preference">
@@ -798,9 +807,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;

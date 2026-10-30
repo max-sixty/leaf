@@ -5,7 +5,7 @@
    answer stamps each binding (`file_bindings.binding_stamps`), so `watch` hears a
    file move on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "./context.js";
-import { LayerRefused, requestJson } from "./layer-client.js";
+import { LayerRefused, RequestError, requestJson } from "./layer-client.js";
 import { applicationState, readPart } from "./semantic-state.js";
 
 const live = readPart((root) => root.document.live);
@@ -27,8 +27,8 @@ export function boundFile(binding) {
       // request that got no answer rejects in the engine's words ("Failed to fetch",
       // "Load failed"), and a proxy's page names only a status.
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file.");
-      if (error.status === undefined)
+        throw new Error("Leaf changed while accessing the file.", { cause: error });
+      if (!(error instanceof RequestError))
         throw new Error("The page's server did not answer.", { cause: error });
       if (error.said === undefined)
         throw new Error(

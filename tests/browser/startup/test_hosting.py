@@ -350,7 +350,9 @@ def held_sample_page(
     )
 
     def route(request_route):
-        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        match = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match is not None
+        sample = match.group(1)
         if not hold_first and (not passing or sample in passing):
             passing.append(sample)
             request_route.continue_()
@@ -364,13 +366,15 @@ def held_sample_page(
     def release(failing=()):
         templates = {f"{sample}-source" for sample in failing}
         broken = {
-            SAMPLE_DOCUMENT.search(allocation.json()["url"]).group(1)
+            next(SAMPLE_DOCUMENT.finditer(allocation.json()["url"])).group(1)
             for allocation in allocations
             if allocation.request.post_data_json["template"] in templates
         }
         page.unroute(SAMPLE_DOCUMENT)
         for each in held:
-            if SAMPLE_DOCUMENT.search(each.request.url).group(1) in broken:
+            match_2 = SAMPLE_DOCUMENT.search(each.request.url)
+            assert match_2 is not None
+            if match_2.group(1) in broken:
                 each.fulfill(**NOT_LEAF)
             else:
                 each.continue_()
@@ -437,7 +441,9 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     passing = set()
 
     def hold(request_route):
-        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+        match_3 = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match_3 is not None
+        if match_3.group(1) in passing:
             request_route.continue_()
         else:
             held.append(request_route)
@@ -470,7 +476,9 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     after = page.locator("#after").bounding_box()
     # The sample's document goes on; the inner sample's, once asked for, waits.
     first = held.pop(0)
-    passing.add(SAMPLE_DOCUMENT.search(first.request.url).group(1))
+    match_4 = SAMPLE_DOCUMENT.search(first.request.url)
+    assert match_4 is not None
+    passing.add(match_4.group(1))
     first.continue_()
     expect(page.locator("#practice .lf-sample-status")).to_have_text("")
     holding(page, held, 1, "the inner sample's document")

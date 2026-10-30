@@ -258,13 +258,13 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             yield from ((start, end) for start, end, _ in _srcset_urls(value))
         return
     if (
-        name in {"src", "poster"}
-        and normalized_tag not in {"script", "iframe"}
-        or name in {"href", "xlink:href"}
-        and (
-            normalized_tag in {"feimage", "image", "use"}
-            or normalized_tag == "link"
-            and "icon" in attrs.get("rel", [])
+        (name in {"src", "poster"} and normalized_tag not in {"script", "iframe"})
+        or (
+            name in {"href", "xlink:href"}
+            and (
+                normalized_tag in {"feimage", "image", "use"}
+                or (normalized_tag == "link" and "icon" in attrs.get("rel", []))
+            )
         )
         or (
             (reference := _local_resource(value)) is not None
@@ -344,13 +344,15 @@ class SourceDocument:
         # The record of each lf-* element, by where its start tag begins, for the
         # authoring walk: the parser hands out a new object per visit of an element.
         self._records = {}
-        self.tree = (
+        tree = (
             turbohtml.parse_fragment(
                 source, context="template", scripting=True, source_locations=True
             ).parent
             if fragment
             else turbohtml.parse(source, scripting=True, source_locations=True)
         )
+        assert isinstance(tree, turbohtml.Document)
+        self.tree: turbohtml.Document = tree
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._index(child, holder=None, in_svg=False)
@@ -641,6 +643,7 @@ class Authoring:
                 "head",
                 "body",
             }:
+                assert token.source is not None
                 start = document._source_index(token.line, token.col)
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
@@ -918,7 +921,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`x-views: "parts"`,
+    or on the child of each part of such a `main`'s parts (`x-views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -948,7 +951,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("x-views") == "parts"
+            if registry.get(holder.tag, {}).get("x-views", {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

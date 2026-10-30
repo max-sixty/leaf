@@ -26,6 +26,7 @@ server revival path.
 
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -121,7 +122,9 @@ ROW = Record(
 )
 
 
-def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
+def read_row(
+    page_dir: Path, service: Mapping[str, object], *, record=None
+) -> dict | None:
     """The row this live service's own incarnation published for the page, from
     `record` where the caller has already read it."""
     if record is None:
@@ -157,7 +160,7 @@ class RowPublisher:
                 if self.transition is not None:
                     delay = min(delay, max(0.0, self.transition - time.time()))
                 changes.wait(mark, delay)
-        except Exception as error:  # noqa: BLE001 - a producer must not die under a live lease
+        except Exception as error:
             print(
                 f"leaf server: {self.page_dir}: row publication failed: {error}",
                 file=sys.stderr,
@@ -183,6 +186,7 @@ class RowPublisher:
             return
         # Only an idle harness record with no watcher can mean an interrupted turn
         # left input nothing carries; `nudge_interrupted` decides from there.
+        assert live is not None
         if (live["live_turn"] or {}).get("state") == "idle" and not live["listening"]:
             nudge_interrupted(self.page_dir)
         row, self.reading, self.live = self.service.activity_row()

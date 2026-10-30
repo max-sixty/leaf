@@ -457,7 +457,7 @@
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,
-    "x-views": true,
+    "x-views": { "members": "lf-trace, :has(lf-trace)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }

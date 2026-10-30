@@ -6,15 +6,13 @@
  * Browser history separately owns the native working place at each return checkpoint.
  * Restore selection resolves current words through shared travel, refusing a missing
  * or ambiguous passage rather than choosing another occurrence. */
+import { pageRange, selectEnds, selectionBackward } from "../native-selection.js";
 import { COLLAPSE } from "../kernel-facts.js";
 import {
   closestAcross,
-  pageRange,
   pageText,
   pageWords,
   pointAt,
-  selectEnds,
-  selectionBackward,
   segmentBlock,
   segmentsIn,
   spanIn,

@@ -6,8 +6,8 @@ lf-ask {
   display: block;
 }
 /* The ring the user stands in (chrome.css, `[data-lf-obligation]`) stands outside the
- * question at the ring's gap, clear of its heading's first letter, as every other
- * obligation's does. A full-height question can meet the viewport's foot, leaving no
+ * question at a region's gap (base.css), clear of its heading's first letter and on
+ * the perimeter its brackets and focus contour take. A full-height question can meet the viewport's foot, leaving no
  * scroll position that shows an outside ring, so there it stands inside the question's
  * box. Its content can cover an inset outline, so the band is painted on a
  * non-interactive overlay above the question's children. Drawn inside everywhere, it
@@ -26,46 +26,19 @@ lf-ask[data-lf-obligation]::after {
   z-index: 1;
   pointer-events: none;
   outline: var(--lf-obligation-ring, var(--focus-ring));
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: var(--focus-region-gap);
 }
 @container style(--lf-full-height: 1) {
   lf-ask[data-lf-obligation]::after {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
 }
-/* An lf-ask frames prose, so it keeps the reading measure as its text does (theme.css),
- * its outer width the measure, and in a flow wider than the column (a sidebar page's
- * body) its ring stands round the prose rather than the flow. It widens to the widest
- * allocation among its own blocks, so a chart or table of its own that declares `wide`
- * or `available` stands inside it rather than clipped to the measure. Only its children
- * count.
- *
- * On a column page such a block breaks out of the column (layouts.css), and the lf-ask
- * spans the reach the block lends it, its padding giving everything else it holds the
- * column back. Nothing in it moves, since its content box is still its holder's, and
- * the block still breaks out exactly as it did; what changes is the box, so the ring
- * the user is in (chrome.css, `[data-lf-obligation]`) goes round the block rather than
- * cutting across it at the column's edges. Where the block does not break out, the lf-ask
- * does not either: in a box that draws a frame the room is the frame's (layouts.css,
- * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
- * prepaint.js) it lends no reach. An lf-ask granted room itself is a breakout already. */
+/* An lf-ask keeps the prose measure, including on a wider sidebar page.
+ * The holder's own data-width requests room for wider evidence inside its ring. */
 @media screen {
   lf-ask {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
-  }
-  lf-ask:has(> [data-lf-space="wide"]) {
-    max-inline-size: max(var(--lf-measure), var(--wide));
-  }
-  lf-ask:has(> [data-lf-space="available"]) {
-    max-inline-size: none;
-  }
-  lf-ask:not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
-    margin-left: calc(-1 * var(--lf-grow-l));
-    margin-right: calc(-1 * var(--lf-grow-r));
-    padding-left: var(--lf-grow-l);
-    padding-right: var(--lf-grow-r);
-    --lf-breakout: 1;
   }
 }
 /* An lf-ask whose evidence is a figure before its option list outruns a window when its
@@ -112,7 +85,7 @@ lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options):not(
  * under the heading. The context keeps its own height, and the answer keeps at least
  * its own: a list of options takes its content's height below a long premise, and the
  * body scrolls, where a playground, which fits its parts to any height it is given,
- * says it may shrink (playground/widgets.css). Every child hears the height the lf-ask is
+ * says it may shrink (playground/defaults.css). Every child hears the height the lf-ask is
  * told, the context's included, so the context is held at its own height: a playground
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */

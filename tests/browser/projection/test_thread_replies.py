@@ -82,7 +82,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     link = body.locator('a[href="https://example.com/notes"]')
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
-    expect(link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(
         body.locator(
             'a[href^="javascript:"], a[href^="data:"], '
@@ -532,7 +532,8 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
         page.locator("#tq-logs").click()
     done = page.locator("#tq-set .lf-done")
     done.click()
-    expect(done).to_have_attribute("aria-busy", "true")
+    expect(done).not_to_have_attribute("aria-busy", "true")
+    expect(done).to_be_enabled()
     expect(done).to_have_attribute("aria-pressed", "true")
 
     first_attempt = held[0].request.post_data_json["attempt"]

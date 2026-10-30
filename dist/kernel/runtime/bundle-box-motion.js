@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, atLayoutPrecision, keeps, layoutPx, move, onUserInput } from "./bundle-layer-stack.js";
+import { afterSettling, atLayoutPrecision, cancelRender, keeps, layoutPx, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
+import { PRESSES, TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, contentRides, cutFrames, nameAnchor, scrollsWith } from "./bundle-content-layout.js";
 import { hasArea, headerCuts, intersect, nearObserver, nearWindow, paintClips, scrollsContent, shownBox } from "./bundle-geometry.js";
@@ -99,7 +99,6 @@ function paintStand(box = null) {
 	root.className = "lf-ui lf-target-paint lf-paint-stand";
 	root.setAttribute("aria-hidden", "true");
 	root.style.position = "fixed";
-	if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
 	const carrier = document.createElement("div");
 	carrier.className = "lf-paint-carrier";
 	if (box) carrier.append(box);
@@ -171,11 +170,36 @@ function standOver(stand, placed, borderRadius) {
 		display: "block",
 		borderRadius
 	});
+	const control = placed.surface.matches(PRESSES);
+	const outside = markRoom(control);
+	const inset = cramped(placed, outside);
+	keeps(stand.box, "data-lf-mark-on", inset ? "inset" : control ? "control" : null);
+	const room = inset ? 0 : outside;
+	for (const side of [
+		"top",
+		"right",
+		"bottom",
+		"left"
+	]) stand.root.style.setProperty(`--lf-paint-outset-${side}`, layoutPx(cutsAt(placed, side) ? 0 : room));
 	return {
 		...stood,
 		anchor,
-		at
+		at,
+		room
 	};
+}
+function markRoom(control) {
+	const root = getComputedStyle(document.documentElement);
+	return ["--focus-ring-w", control ? "--focus-ring-gap" : "--focus-region-gap"].map((token) => Number.parseFloat(root.getPropertyValue(token))).reduce((sum, px) => sum + px, 0);
+}
+function cutsAt({ rect, levels }, side) {
+	const axis = side === "top" || side === "bottom" ? "y" : "x";
+	const low = side === "top" || side === "left";
+	return levels.some(({ band, axes }) => axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]));
+}
+function cramped({ rect, levels }, room) {
+	const short = (band, low, high) => rect[low] >= band[low] && rect[low] - room < band[low] || rect[high] <= band[high] && rect[high] + room > band[high];
+	return levels.some(({ holder, band, axes }) => holder && (axes.x && short(band, "left", "right") || axes.y && short(band, "top", "bottom")));
 }
 function paintSet(root, { onNear = () => {} } = {}) {
 	const stands = /* @__PURE__ */ new Map();
@@ -497,7 +521,7 @@ function paintAim(element, surface = null) {
 function labelAim(node) {
 	if (!aimPlaced) return;
 	const { rect, shown, levels } = aimPlaced;
-	const above = shown.top - node.offsetHeight - 2;
+	const above = shown.top - node.offsetHeight - aimStood.room;
 	const room = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));
 	const cutTop = shown.top > rect.top;
 	const at = {

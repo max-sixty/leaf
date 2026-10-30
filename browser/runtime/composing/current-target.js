@@ -35,6 +35,7 @@ function frameHolding(node) {
         source && context && context !== source && under(node, context),
     );
   const frame = framed.reduce(
+    /** @param {Element | null} inner */
     (inner, { context }) => (inner && under(inner, context) ? inner : context),
     null,
   );

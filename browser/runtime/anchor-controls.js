@@ -17,7 +17,7 @@
 import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { holdFocus, onPressAway } from "./focus.js";
-import { fragmentId } from "./initial-render.js";
+import { fragmentId } from "./anchor-coordinate.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
 import { createAnchorNoteProjection } from "./anchor-note-view.js";

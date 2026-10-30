@@ -1,13 +1,13 @@
-import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionIcon, actionName, actionOffers, commandsChangedOn, failureContext, failureOf, iconMarkup, isNativeLayer, nextRender, refuseCommands, renderedParent, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x as x$1 } from "./bundle-layer-stack.js";
+import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionRecord, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
-const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
-const setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-const removeRuntimeRootStyle = (...args) => document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
+const setRuntimeRootAttribute = (...args) => document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
+const setRuntimeRootStyle = (...args) => document.documentElement.lfRootState.setRuntimeRootStyle(...args);
+const removeRuntimeRootStyle = (...args) => document.documentElement.lfRootState.removeRuntimeRootStyle(...args);
 const runtimeRootState = (root) => ({
-	attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),
-	styles: document.documentElement.lfInitial.runtimeRootStyles(root)
+	attributes: document.documentElement.lfRootState.attributes(root),
+	styles: document.documentElement.lfRootState.styles(root)
 });
 
 //#endregion
@@ -393,40 +393,54 @@ if (enabled) {
 }
 
 //#endregion
-//#region runtime/pointer.js
-let x = -1;
-let y = -1;
-const remember = (ev) => {
-	x = ev.clientX;
-	y = ev.clientY;
+//#region runtime/native-selection.js
+function pageRange(sel) {
+	const plain = sel.getRangeAt(0);
+	const shadowRoots = pageShadowRoots();
+	if (!shadowRoots.length) return plain;
+	const [composed] = sel.getComposedRanges({ shadowRoots });
+	const { startContainer, startOffset, endContainer, endOffset } = composed;
+	if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
+	const range = document.createRange();
+	range.setStart(startContainer, startOffset);
+	range.setEnd(endContainer, endOffset);
+	return range;
+}
+let writtenSelection = null;
+let writtenBackward = false;
+function selectEnds(anchor, focus) {
+	const selection = getSelection();
+	const from = document.createRange(), to = document.createRange();
+	from.setStart(...anchor);
+	to.setStart(...focus);
+	writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+	selection.setBaseAndExtent(...anchor, ...focus);
+	writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+	const range = selection.rangeCount ? pageRange(selection) : null;
+	return [
+		selection.anchorNode,
+		selection.anchorOffset,
+		selection.focusNode,
+		selection.focusOffset,
+		range?.startContainer,
+		range?.startOffset,
+		range?.endContainer,
+		range?.endOffset
+	];
 };
-document.addEventListener("pointermove", remember, { capture: true });
-document.addEventListener("pointerdown", remember, { capture: true });
-const pointerAt = () => ({
-	x,
-	y
-});
-const coarsePointer = matchMedia("(pointer: coarse)");
-const hoveringPointer = matchMedia("(hover: hover)");
-const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
-const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-let releaseClaimed = false;
-const claimReleaseClick = () => {
-	releaseClaimed = true;
-};
-document.addEventListener("pointerdown", () => {
-	releaseClaimed = false;
-}, { capture: true });
-document.addEventListener("click", (event) => {
-	if (!releaseClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
-	releaseClaimed = false;
-	event.preventDefault();
-	event.stopImmediatePropagation();
-}, { capture: true });
-function restorePointer(point) {
-	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
-	x = point.x;
-	y = point.y;
+function programmaticSelection(selection) {
+	if (!writtenSelection) return false;
+	if (selectionEnds(selection).every((end, i) => end === writtenSelection[i])) return true;
+	writtenSelection = null;
+	return false;
+}
+function selectionBackward(selection, range = pageRange(selection)) {
+	if (selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()) return programmaticSelection(selection) ? writtenBackward : selection.direction === "backward";
+	const probe = document.createRange();
+	probe.setStart(selection.anchorNode, selection.anchorOffset);
+	return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
 }
 
 //#endregion
@@ -921,7 +935,7 @@ function reflectButton(control, candidates) {
 	const ref = new WeakRef(control);
 	let reading = candidates;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (reading) {
 			const read = reading;
 			reading = null;
@@ -1150,7 +1164,7 @@ function detachScope(element, scope) {
 }
 function declaredScope(title, rows, options) {
 	const { when, escape, ready, claims } = typeof options === "function" ? { when: options } : options ?? {};
-	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be \"inner\", got ${String(escape)}`);
+	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be "inner", got ${String(escape)}`);
 	return {
 		title,
 		rows: checked(rows, title ?? "a scope", ready),
@@ -1314,7 +1328,7 @@ function reflectAvailabilityReaders() {
 	availabilityTracking?.();
 	let first = true;
 	let failure = null;
-	availabilityTracking = x$1(() => {
+	availabilityTracking = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1363,7 +1377,7 @@ function reflectTracked(element) {
 	const ref = new WeakRef(element);
 	let first = true;
 	let failure = null;
-	const dispose = x$1(() => {
+	const dispose = x(() => {
 		if (first) {
 			first = false;
 			try {
@@ -1446,20 +1460,6 @@ function scopesFor(node) {
 const claimsEsc = (node) => scopesFor(node).some((scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape")));
 
 //#endregion
-//#region runtime/icons.js
-function iconTemplate(icon, className = "lf-margin-entry-icon") {
-	return html`<svg
-    viewBox="0 0 16 16"
-    focusable="false"
-    aria-hidden="true"
-    class=${className}
-    data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
-}
-const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
-
-//#endregion
 //#region runtime/widget-elements.js
 function reveal(el, mayReveal) {
 	const chain = [];
@@ -1518,8 +1518,6 @@ function worksInside(node, container) {
 	].join(","));
 	return inner && inner !== container && container.contains(inner) ? inner : null;
 }
-const offer = (...args) => document.documentElement.lfInitial.offer(...args);
-const offerElement = (...args) => document.documentElement.lfInitial.offerElement(...args);
 function searchField(cls, { name, label, placeholder = label }) {
 	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
 	field.type = "search";
@@ -1534,27 +1532,6 @@ function searchField(cls, { name, label, placeholder = label }) {
 	field.spellcheck = false;
 	return field;
 }
-function elementDirective(name, write) {
-	return directive(class extends Directive {
-		constructor(part) {
-			super(part);
-			if (part.type !== PartType.ELEMENT) throw new TypeError(`${name} belongs in a template's element part`);
-		}
-		render(...args) {
-			return nothing;
-		}
-		update(part, args) {
-			write(part.element, ...args);
-			return nothing;
-		}
-	});
-}
-const offered = elementDirective("offered", offerElement);
-const { offerAction, offerActionElement } = actionOffers({
-	offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
-	offerActionElement: (...args) => document.documentElement.lfInitial.offerActionElement(...args)
-});
-const offeredAction = elementDirective("offeredAction", offerActionElement);
 function nameAction(control, action, { label, title, className } = {}) {
 	const name = label ?? actionName(action);
 	keeps(control, "aria-label", name);
@@ -1562,24 +1539,22 @@ function nameAction(control, action, { label, title, className } = {}) {
 	showAction(control, action, className);
 }
 const namedAction = elementDirective("namedAction", nameAction);
-const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
-const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
-const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {
 	const sel = getSelection();
-	return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
+	if (!sel?.rangeCount) return false;
+	const range = pageRange(sel);
+	const focus = selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+	return !range.collapsed && renderedUnder(focus, el);
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.(`${PRESSES},[data-lf-offer]`);
+	const control = ev.composedPath().find((node) => node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`));
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();
 	}
 }, true);
-const generatedElement = (...args) => document.documentElement.lfInitial.generatedElement(...args);
-const generated = elementDirective("generated", generatedElement);
 function relabel(node, label, { says } = {}) {
 	generatedElement(node, { says });
 	keepsText(node, label);
@@ -1608,6 +1583,13 @@ function motionPreview(label) {
 	preview.inert = true;
 	preview.setAttribute("aria-hidden", "true");
 	return preview;
+}
+const authoredBodies = /* @__PURE__ */ new WeakMap();
+const authoredBody = (host) => authoredBodies.get(host) ?? null;
+function holdAuthoredBody(host, body) {
+	for (const node of [...host.childNodes]) move(body, node, null);
+	authoredBodies.set(host, body);
+	return body;
 }
 
 //#endregion
@@ -1842,6 +1824,15 @@ const completeData = (state, held) => state && !state.data.sources ? {
 	data: held
 } : state;
 var LayerRefused = class extends Error {};
+var RequestError = class extends Error {
+	constructor(message, { status, body, cause, current, said }) {
+		super(message, { cause });
+		this.status = status;
+		this.body = body;
+		this.current = current;
+		this.said = said;
+	}
+};
 async function requestJson(url, init, what) {
 	const response = await fetch(url, {
 		...init,
@@ -1849,9 +1840,11 @@ async function requestJson(url, init, what) {
 	});
 	if (!admitResponse(response)) throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
 	const text = await response.text();
-	const failed = (message, cause) => Object.assign(new Error(message, { cause }), {
+	const failed = (message, cause, details = {}) => new RequestError(message, {
 		status: response.status,
-		body: text
+		body: text,
+		cause,
+		...details
 	});
 	let answer = null;
 	if (response.ok || response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json") try {
@@ -1861,7 +1854,7 @@ async function requestJson(url, init, what) {
 	}
 	if (!response.ok) {
 		const refusal = answer;
-		throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+		throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, void 0, {
 			current: refusal && "current" in refusal ? refusal.current : void 0,
 			said: refusal?.error
 		});
@@ -2001,16 +1994,6 @@ function reportPageError(reason, context = "") {
 function reportCarried(reason, context = "") {
 	if (!(typeof reason === "object" && reason !== null ? reportedReasons.has(reason) : reportedPrimitives.has(String(reason)))) reportPageError(reason, context);
 }
-function exceptionText(reason, context = "") {
-	const message = reason?.message;
-	const text = message === void 0 ? String(reason) : `${reason.name || "Error"}: ${message}`;
-	const stack = reason?.stack;
-	let evidence = !stack ? text : stack.includes(text) ? stack : `${text}\n${stack}`;
-	if (reason instanceof AggregateError) evidence += reason.errors.map((error) => `\n${exceptionText(error)}`).join("");
-	if (reason?.cause !== void 0) evidence += `\nCaused by: ${exceptionText(reason.cause)}`;
-	if (!context) return evidence;
-	return `${context}: ${reason instanceof Error ? describeFailure(reason) : message ?? String(reason)}${message === void 0 ? "" : `\n${evidence}`}`;
-}
 window.addEventListener("error", (e) => {
 	const failure = failureOf(e);
 	if (failure) {
@@ -2018,11 +2001,11 @@ window.addEventListener("error", (e) => {
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
-	reportPageError(e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
+	reportPageError(exceptionRecord(e.error).stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
 });
 window.addEventListener("unhandledrejection", (e) => {
 	reportPageError(e.reason);
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

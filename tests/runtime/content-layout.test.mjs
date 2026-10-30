@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
-test("import and a closed marginContentLayout schedule start no document layout owner", async () => {
+test("import and a closed readDocumentHeaders schedule start no document layout owner", async () => {
   const loaded = [];
   const modules = registerHooks({
     load(url, context, next) {
@@ -20,7 +20,7 @@ test("import and a closed marginContentLayout schedule start no document layout 
   try {
     const owner = await import("/runtime/content-layout.js");
     const before = frames;
-    owner.scheduleMarginContentLayout();
+    owner.scheduleDocumentLayout();
     assert.equal(frames, before);
     assert.deepEqual(
       loaded.filter(
@@ -35,12 +35,12 @@ test("import and a closed marginContentLayout schedule start no document layout 
   }
 });
 
-test("an opened marginContentLayout completes unchanged readings with no main", async () => {
+test("an opened readDocumentHeaders completes unchanged readings with no main", async () => {
   const owner = await import("/runtime/content-layout.js");
   assert.equal(document.querySelector("main"), null);
   const completed = [];
-  owner.openMarginContentLayout({ onRead: (changed) => completed.push(changed) });
+  owner.openDocumentLayout({ onRead: (changed) => completed.push(changed) });
   assert.deepEqual(completed, [false]);
-  owner.settleMarginContentLayout();
+  owner.settleDocumentLayout();
   assert.deepEqual(completed, [false, false]);
 });

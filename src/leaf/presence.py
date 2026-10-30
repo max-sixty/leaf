@@ -32,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home
+from .state import now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -191,7 +191,7 @@ def live_leaves(among: set[Path] | None = None) -> list:
                         },
                     )
                 )
-        except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
+        except Exception:
             continue
     return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 
@@ -334,8 +334,10 @@ def presence_with_activity(
         "claim_session": claim["id"] if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact update is in the turn running now.
-        "claim_turn": claim["turn"] if claim else None,
+        # is what says that exact update is in the turn running now. It and the
+        # stamps below keep the session record's names, so `state.turn_open` and
+        # `state.turn_closed` read this state as they read a claim.
+        "turn": claim["turn"] if claim else None,
         # When the claiming session's current turn closed, or None while it is open.
         # A `working` claim older than this is one that no later turn renewed
         # across the boundary — the same judgment the runtime's grace
@@ -402,7 +404,8 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # stamp of its own: `live_facts` checks it on every refresh, while its stamp
     # here invalidates the token when the lease is first created or removed. An
     # unclaimed page's lease is in the page directory, so `files` covers it.
-    lease = file_stamp(waiter_lease_path(None, claim["id"])) if claim else None
+    lease_path = waiter_lease_path(None, claim["id"]) if claim else None
+    lease = file_stamp(lease_path) if lease_path is not None else None
     neighbors = neighbor_reading(page_dir)
     stamp = (files, lease, neighbors)
     now = time.monotonic()
@@ -484,7 +487,7 @@ def nudge_interrupted(page_dir: Path) -> None:
         claim = page.active_claim
         if (
             claim is not None
-            and claim["turn_closed"] is None
+            and not turn_closed(claim)
             and wake_inputs(page, deliverable(page))
         ):
             nudge_unwatched(page)

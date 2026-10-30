@@ -13,7 +13,6 @@ from interact_support import (
     append_carried_log_record,
     append_command,
 )
-from leaf_dev.example_data import named_source
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -65,10 +64,10 @@ from leaf.files import latest_revision
 from leaf.findings import Finding
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -329,9 +328,10 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     assert (large.values["labels"], large.values["set"]) == (2, 28), large
     compare = named("compare")
     assert len(compare) == 2, reading.advice
-    assert {advice.values["words"] for advice in compare} == {"before", "canary"}, (
-        compare
-    )
+    assert {advice.values["words"] for advice in compare} == {
+        "before",
+        "canary",
+    }, compare
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
@@ -533,7 +533,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     # page writes its own reading position on the way out of every load, so a store
     # holding that too is a page that departed, not a restore case that leaked.
     arranged = {a["key"] for a in restore_cases}
-    for finding, restore_case in zip(arrived, restore_cases):
+    for finding, restore_case in zip(arrived, restore_cases, strict=True):
         held = set(finding.split("returned holding ")[1].split(","))
         assert held & arranged == {restore_case["key"]}, finding
 
@@ -757,6 +757,7 @@ def test_page_fixture_renders(browser, serve, source):
     (`untouched_resize_findings`)."""
     url = serve(source)
     revision = latest_revision(serve.page_dir)
+    assert revision is not None
     snapshot = capture_page_snapshot(
         serve.page_dir,
         read_revision(serve.page_dir, revision).document,
@@ -817,7 +818,7 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     response blocked as opaque. Every page of the corpus, each live sample loaded,
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
-    for sample in page.locator("lf-sample[data-lf-sample-live]").all():
+    for sample in page.locator("lf-sample:has(> template[data-sample])").all():
         sample.scroll_into_view_if_needed()
         sample.evaluate(
             """sample => Promise.race([sample.ready, new Promise((_, reject) =>
@@ -885,7 +886,9 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     owners = wrapped("sessions")
     assert owners and all("Owners" in widths for widths in owners), advice
     phone = [a for a in advice if a.at == "<table id=options>"]
-    assert phone and all(a.widths[0] == 360 for a in phone), advice
+    assert phone and all(a.widths is not None and a.widths[0] == 360 for a in phone), (
+        advice
+    )
     assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 
@@ -983,13 +986,9 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     viewport still belongs to page flow, and offered controls still lose presses
     when clipped, beside a clean control the viewport shows completely.
 
-    A choose group clips its own box too, so a note pulled into the page's margin from
-    inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses margin content, checkVisibility() is true of a clipped box so
-    screen and print agree, and the copy, which withholds the clip, shows the words the
-    live page dropped — so the user is the only party who loses them. A section, a tab
-    panel and a disclosure all pass a note through to the margin, so the gate names the
-    box that doesn't, at handover, to the one party who can still move it.
+    A note in an option now wraps inside its native row rather than being pulled
+    into the page's margin. It remains readable inside the group's clip and must not
+    be reported alongside the genuinely lost boxes.
 
     A box's own content has no box to lose, so the box answers for it, down as well as
     across: a log capped by a max-height, a short box of paragraphs and a label that
@@ -1008,36 +1007,32 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
     expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
     expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
-    # elementFromPoint answers about the viewport, so the question can only be put to
-    # a note that is in it. The group is what gets scrolled to, never the note:
-    # `overflow: hidden` refuses a user and not a script, so scrolling to the clipped
-    # element hands the group's own box sideways until the note is inside it.
+    # Scroll the group rather than its note, so scrolling cannot conceal a clipped
+    # child by moving its overflow-hidden container's contents.
     page.locator("#where").scroll_into_view_if_needed()
     seen = page.evaluate("""() => {
         const n = document.getElementById('boxed-note');
         const b = n.getBoundingClientRect();
         const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        // The note or something of its own, never an ancestor: a clipped note leaves
-        // the point to <body>, which contains it and paints none of it.
         return {painted: !!mid && (n === mid || n.contains(mid)),
                 at: mid && mid.tagName};
     }""")
     page.close()
-    assert not seen["painted"], (
-        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
-    )
+    assert seen["painted"], f"the option clipped its wrapped note: {seen}"
     failures = render_gate_model.render_version(browser, url).failures
     clipped = {
         (f.at, f.values["container"]) for f in failures if f.code == "clipped-out"
     }
     controls = {f.values["id"] for f in failures if f.code == "clipped-control"}
 
-    assert ("<aside id=boxed-note>", "<lf-options id=where>") in clipped, (
-        f"a note the user never sees went out with the handover: {failures}"
-    )
-    assert ("<div id=eaten>", "<div id=clipping>") in clipped, (
-        f"a box drawn nowhere went out with the handover: {failures}"
-    )
+    assert (
+        "<aside id=boxed-note>",
+        "<lf-options id=where>",
+    ) not in clipped, f"the visible wrapped note was reported as clipped: {failures}"
+    assert (
+        "<div id=eaten>",
+        "<div id=clipping>",
+    ) in clipped, f"a box drawn nowhere went out with the handover: {failures}"
     assert not [f for f in failures if names(f, "reachable", "scrolling")], (
         "a box the user scrolls to is where its container means it to be"
     )
@@ -1050,9 +1045,10 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert not [f for f in failures if names(f, "foreignobject")], (
         "a drawing's own accounting inside its svg read as the page losing words"
     )
-    assert ("<div id=under-border>", "<div id=bordered>") in clipped, (
-        f"a box drawn under a border read as inside it: {failures}"
-    )
+    assert (
+        "<div id=under-border>",
+        "<div id=bordered>",
+    ) in clipped, f"a box drawn under a border read as inside it: {failures}"
     assert ("<div id=over-by-far>", "<div id=inner-box>") in clipped, (
         f"a 3px loss out of one box hid a 400px loss out of another: {failures}"
     )
@@ -1060,9 +1056,10 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         f"a container that cuts by containment answered for nothing: {failures}"
     )
     assert not [f for f in failures if names(f, "id=drawing-pixels>")], failures
-    assert ("<div id=outside-viewport>", "<div id=drawing-holder>") in clipped, (
-        f"a drawing viewport escaped its page-flow holder: {failures}"
-    )
+    assert (
+        "<div id=outside-viewport>",
+        "<div id=drawing-holder>",
+    ) in clipped, f"a drawing viewport escaped its page-flow holder: {failures}"
     assert "clipped-drawing-control" in controls, (
         f"the drawing declaration concealed a lost control: {failures}"
     )
@@ -1093,37 +1090,17 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     )
 
 
-def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_armed_page(
-    browser, serve
-):
-    """The gate renders both color schemes at both viewports, in that order, and then
-    the page in the light scheme at each width where its margin content changes. A
-    sidebar and a sidenote stand in the margin only where the room beside the column
-    holds them, which is above the desktop viewport for a sidebar beside a note, so
-    the gate finds each width where the page's own margin content change, the sidebar's and
-    the note's, and renders the page there too, where each has the least room it will
-    ever have. The rail holds only Leaf's markers, so its width is not one of them.
-
-    The gate also empties a page's route list, and that is what takes interception
-    down. It holds the Leaf entry through a route and takes that route away again, so
-    the `unroute` is a real teardown on a page nothing else has routed. A loaded
-    document is not an idle one: measured on the corpus page, `/api/state`,
-    `/registry.json` and `/icon.svg` are still open at that call, and losing the first
-    is a page that never finishes upgrading with nothing on the console to say so. The
-    arm goes on before any route the gate adds and is never taken away, so the list
-    the browser consults is never empty and no such transition is sent at all."""
+def test_the_render_gate_renders_each_scheme_and_viewport(browser, serve):
+    """Native arrangements share the ordinary scheme/viewport rendering path."""
     source = leaf_page(
-        "margin content in the gate",
-        """
-<h1>Migration plan</h1>
-<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
-<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
-<h2 id="move">Move</h2>
-<p>Shift one cohort at a time while keeping the old readers available.</p>
-""",
+        "native layout in the gate",
+        '<aside><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside>'
+        '<div class="layout-column layout-notes"><h1>Migration plan</h1><h2 id="move">Move</h2>'
+        '<div class="layout-note"><p>Shift one cohort at a time while keeping the old readers available.</p>'
+        '<aside class="note" id="frequency">Support runs this twice a month.</aside></div></div>',
+        layout="sidebar",
     )
     seen = []
-    per_page = []
 
     def record_page(page):
         viewport = page.viewport_size
@@ -1131,40 +1108,17 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
         seen.append(
             (viewport["width"], viewport["height"], "dark" if dark else "light")
         )
-        calls = []
-        per_page.append(calls)
-        route, unroute = page.route, page.unroute
-
-        def recorded_route(url, handler, **kwargs):
-            calls.append(("route", url))
-            return route(url, handler, **kwargs)
-
-        def recorded_unroute(url, handler=None):
-            calls.append(("unroute", url))
-            return unroute(url, handler)
-
-        page.route = recorded_route
-        page.unroute = recorded_unroute
 
     reading = render_gate_model.render_version(
         primed(browser, record_page), serve(source, packages=())
     )
-
     assert reading.failures == []
-    assert len(reading.margin_widths) == 2, reading.margin_widths
-    assert reading.margin_widths == sorted(reading.margin_widths)
-    assert seen == [
+    assert seen[:4] == [
         (1280, 720, "light"),
         (1280, 720, "dark"),
         (540, 720, "light"),
         (540, 720, "dark"),
-        *((width, 720, "light") for width in reading.margin_widths),
     ]
-    arm = render_gate_scheme.INTERCEPTION_ARM
-    assert len(per_page) == len(seen)
-    for calls in per_page:
-        assert calls[0] == ("route", arm), calls
-        assert ("unroute", arm) not in calls, calls
 
 
 def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(

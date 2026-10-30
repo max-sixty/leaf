@@ -1,6 +1,6 @@
-import { onMotionPreferenceChange, reducedMotion } from "./bundle-portable.js";
-import { offlineInteractive, pageUrl, runtime, tagsDeclaring, watchSemantic } from "./bundle-layer-stack.js";
-import { coarsePointer, layerHeaders, randomId, sessionIsActive } from "./bundle-layer-client.js";
+import { describeFailure, onMotionPreferenceChange, reducedMotion } from "./bundle-portable.js";
+import { coarsePointer, offlineInteractive, pageUrl, runtime, tagsDeclaring, watchSemantic } from "./bundle-layer-stack.js";
+import { layerHeaders, randomId, sessionIsActive } from "./bundle-layer-client.js";
 import { pageReadiness, unconcealedReadingRegions } from "./bundle-content-layout.js";
 import { layoutWindow, seenRect, shownWindow, watchRoom } from "./bundle-geometry.js";
 import { darkPreference, pageIdentity, shownScheme } from "./bundle-page-identity.js";
@@ -81,7 +81,7 @@ async function readCurrentUserView() {
 	else try {
 		await loadReading();
 	} catch (error) {
-		unavailable = `Layout probes unavailable: ${error.message}`;
+		unavailable = `Layout probes unavailable: ${describeFailure(error)}`;
 	}
 	const view = context();
 	if (!view) return {

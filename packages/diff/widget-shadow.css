@@ -1,6 +1,8 @@
+@import "./styles/notes.css";
 @import "./styles/disclosure.css";
+@import "./styles/worktrees.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
+/* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -413,7 +415,7 @@
   outline-offset: 1px;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
-   is inset — theme.css's rule for a control packed into something rather than standing
+   is inset — base.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
 :host(lf-diff.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
@@ -704,6 +706,20 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     width: 100%;
   }
   .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
+    position: static;
+    inline-size: 100%;
+  }
+}
+
+/* Author prose follows a source row without taking its code face or change tint.
+   Like conversations, its width and sideways position belong to the reader. */
+.lf-diff-rows > lf-diff-note {
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: 100cqw;
+}
+@media print {
+  .lf-diff-rows > lf-diff-note {
     position: static;
     inline-size: 100%;
   }

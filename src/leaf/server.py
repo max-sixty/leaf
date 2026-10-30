@@ -1,5 +1,7 @@
 """Server address, access, liveness, and lifetime state."""
 
+from __future__ import annotations
+
 import ipaddress
 import os
 import re
@@ -7,7 +9,7 @@ import secrets
 import signal
 import time
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .file_changes import page_changes
 from .files import read_json
@@ -31,7 +33,18 @@ from .state import (
     state_home,
 )
 
-SERVICE = Record(
+if TYPE_CHECKING:
+    from .record_types import AccessRecord, ServiceRecord
+
+    class PageAddress(TypedDict):
+        host: str
+        bind: str
+
+    class RunningService(ServiceRecord):
+        url: str
+
+
+SERVICE: Record[ServiceRecord] = Record(
     "service",
     described(
         "The page's desired service, in the page directory's `service.json`, which "
@@ -70,7 +83,7 @@ SERVICE = Record(
     ),
     since=13,
 )
-ACCESS = Record(
+ACCESS: Record[AccessRecord] = Record(
     "access",
     described(
         "The key every page this machine serves is read with (`host_key`), in the "
@@ -93,18 +106,18 @@ PREVIEW = Record(
 )
 
 
-def read_service(page_dir: Path) -> dict | None:
+def read_service(page_dir: Path) -> ServiceRecord | None:
     """The page's desired service (`service.json`), or None where there is none this
     version can read."""
     return SERVICE.read(page_dir / SERVICE_FILE)
 
 
-def write_service(page_dir: Path, service: dict) -> None:
+def write_service(page_dir: Path, service: ServiceRecord) -> None:
     """The one writer of the page's desired service."""
     SERVICE.write(page_dir / SERVICE_FILE, service)
 
 
-def running_server(page_dir: Path):
+def running_server(page_dir: Path) -> RunningService | None:
     """The desired service, while its exact serving incarnation holds the lease.
 
     A preparation clears old lease metadata before taking an exclusive lock, then
@@ -251,7 +264,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         changes.wait(mark, min(2.0, ORPHAN_GRACE_SECS))
 
 
-def page_access(page_dir: Path, host: str | None = None) -> dict:
+def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | PageAddress:
     """Where a page is reached: the name its URL carries and the interface its
     server binds. The key that URL also carries is the machine's — `host_key`.
 
@@ -277,7 +290,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
     here rather than passed per run."""
-    access = read_service(page_dir)
+    access: ServiceRecord | PageAddress | None = read_service(page_dir)
     if access and host is None:
         return access
     if host:
@@ -291,7 +304,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
                 raise Refused(
                     f"--host {host}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"
-                )
+                ) from None
         # Over the record, not in place of it: a --host restates where the page
         # is reached, and the record's other facts — the exact port an open tab
         # polls, the persistent lifetime — restate nothing and must survive, or

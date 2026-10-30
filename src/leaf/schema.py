@@ -385,7 +385,6 @@ EXTENSION_SCHEMA = {
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-margin-content": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
@@ -453,14 +452,15 @@ EXTENSION_SCHEMA = {
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "x-history": {"const": True},
-        # A captured classic script registering a synchronous Lit view factory. Delivery
-        # supplies lfInitial.lit before it runs, then draws each complete host;
-        # the module continues that view in its existing rendering root.
-        "x-initial": {
-            "type": "string",
-            "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
+        "x-views": {
+            "type": "object",
+            "properties": {
+                "members": {"type": "string", "minLength": 1},
+                "parts": {"const": True},
+            },
+            "required": ["members"],
+            "additionalProperties": False,
         },
-        "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",
@@ -628,12 +628,16 @@ DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
 LAYER_FILE = "layer.json"
 # The top-level files a composed layer serves beside the page (`layer.compose_layer`).
 LAYER_TOP_FILES = ("theme.css", "shadow.css", "registry.json", "icon.svg")
+# The kernel's sheets, each composed into its own cascade tier
+# (`layer.composed_sheets`), and every file of the kernel's a layer reads.
+KERNEL_STYLES = ("shadow.css", "base.css", "layouts.css", "state.css")
+KERNEL_FILES = (*KERNEL_STYLES, "registry.json", "icon.svg")
 # A package's source contributions are composed into the page files above. Their
 # roles depend on their filenames, not on whether the package declares widgets.
 PACKAGE_STYLES = (
     "widget-shadow.css",
-    "widgets.css",
-    "theme.css",
+    "defaults.css",
+    "overrides.css",
 )
 PACKAGE_FILES = (*PACKAGE_STYLES, "registry.json", "icon.svg")
 # The layer's browser directories, which packages add to.

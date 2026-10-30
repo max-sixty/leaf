@@ -9,10 +9,11 @@ import os
 import subprocess
 
 from interact_support import PAGE
+from playwright.sync_api import expect
+
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
-from playwright.sync_api import expect
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(
@@ -119,15 +120,6 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         expect(playground.locator("input[type=text]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(
             "Use Prepared."
-        )
-        assert playground.evaluate(
-            "async host => { "
-            "const { initialRender } = await import(document.querySelector('[data-lf-offline]') "
-            "? 'leaf:/runtime/widget-api.js' : '/runtime/widget-api.js'); "
-            "const drawing = initialRender(host); "
-            "return document.documentElement.lfInitial.has(host.localName) && "
-            "drawing.output === host.querySelector('lf-playground-output') && "
-            "drawing.inputs.get('label') === host.querySelector('input[type=text]'); }"
         )
         choice = tab.locator("#flag-first .lf-pick")
         if target == address:

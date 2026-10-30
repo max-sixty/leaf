@@ -591,7 +591,7 @@ function declaredScope(title, rows, options) {
     typeof options === "function" ? { when: options } : (options ?? {});
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
-      `A command scope's Escape ownership must be \"inner\", got ${String(escape)}`,
+      `A command scope's Escape ownership must be "inner", got ${String(escape)}`,
     );
   // `claims` takes the bindings it answers true for from every scope further out
   // while the user is in this one, as a menu standing over the page does.

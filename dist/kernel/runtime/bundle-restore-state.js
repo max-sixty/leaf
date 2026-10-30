@@ -1,4 +1,4 @@
-import { composedParentNode, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
+import { composedParentNode, exceptionRecord, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
 import { canPlaceFocus, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-layer-stack.js";
 import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
 import { whenArrived } from "./bundle-content-layout.js";
@@ -38,11 +38,7 @@ if (child) child.receive(async ({ id, method, type, detail }) => {
 	} catch (error) {
 		child.send({
 			id,
-			error: {
-				name: error.name,
-				message: error.message,
-				stack: error.stack
-			}
+			error: exceptionRecord(error)
 		});
 	}
 });
@@ -88,7 +84,7 @@ if (child) {
 	});
 	registerSampleCommand("window", async ({ window: asWindow }) => {
 		child.settings.window = asWindow;
-		document.documentElement.lfInitial.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
+		document.documentElement.lfRootState.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
 		measure();
 		return { height };
 	});

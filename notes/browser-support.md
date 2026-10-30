@@ -88,7 +88,7 @@ review's 58rem container query, while the case list between them was an
 inline-size container, as the theme makes a pane's body. On 2026-10-25,
 narrowing `visual-review-gallery` from 1200px to 880px reproduced it on every
 crossing; Firefox 155 took the narrow padding. `.lf-vr-case-list` in
-`packages/visual-review/widgets.css` declares `container-type: normal`,
+`packages/visual-review/defaults.css` declares `container-type: normal`,
 since nothing in the list queries it. Recheck by deleting that declaration,
 narrowing the page with `leaf-dev probe` and reading a case button's computed
 padding; `test_page_fixture_renders[visual-review-gallery]` in
@@ -242,7 +242,7 @@ with caching enabled when changing the policy or sample lifetime.
 
 ### Frame margin trimming
 
-The frame-edge rules in `browser/theme.css` traverse bare wrappers,
+The frame-edge rules in `browser/base.css` traverse bare wrappers,
 skip generated apparatus and stop at declared rows. Native `margin-trim`
 cannot replace that behavior across the checked engines: on 2026-10-08,
 Chrome 155 trimmed block-flow margins but left flex and grid item margins;
@@ -389,3 +389,20 @@ evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a
 native-window recording when available; filtering missing frames would conceal
 the unresolved gap.
+
+### A short body's colour stops above the window's foot in Firefox
+
+A live page with no Layout whose body the page coloured, and which is shorter
+than the window, ends above a band of the root's colour in Firefox: the body is
+a size container (`lf-shell`), containment keeps its background off the canvas,
+and base.css fills the window with `min-height: stretch`, which subtracts the
+body's own margins. Playwright Firefox 157 (build 1555) rejected `stretch`
+and treated `-moz-available` as `auto` in the block axis on 2026-10-29;
+Chromium 156 (build 1248) and WebKit 27.2 (build 2370) filled the window less
+the default 8px margin with no scroll. A
+Layout's body has no margin, so its `min-height: 100%` (layouts.css) fills the
+window there too; 100% would make a body that keeps the browser's margin scroll
+by it. Recheck with `leaf-dev probe --browser firefox` on a short page that
+colours `body` and keeps its margin, reading the body's bottom against
+`innerHeight` and the root's scroll height; once Firefox fills it, the Layout
+rule can go.

@@ -14,12 +14,12 @@ from interact_support import (
     publish,
     start_server_command,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
 from leaf.registry.storage import layer_record
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys):
@@ -32,10 +32,12 @@ def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys)
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Still here"}
     )
-    generation = layer_record(claimed)["generation"]
+    layer = layer_record(claimed)
+    assert layer is not None
+    generation = layer["generation"]
     extra = claimed.parent / "extra"
     extra.mkdir()
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -46,7 +48,9 @@ def test_revendor_preserves_pending_input_for_the_current_claim(claimed, capsys)
         ],
     )
     assert result.exit_code == 0, result.output
-    assert layer_record(claimed)["generation"] != generation
+    layer_2 = layer_record(claimed)
+    assert layer_2 is not None
+    assert layer_2["generation"] != generation
     assert service_model.page_claim(claimed) == prior_claim
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}

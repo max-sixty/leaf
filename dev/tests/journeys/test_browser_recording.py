@@ -11,8 +11,10 @@ from zipfile import ZipFile
 
 import pytest
 from interact_support import running_http_server
-from leaf_dev.arms import environment
 from PIL import Image
+from PIL.GifImagePlugin import GifImageFile
+
+from leaf_dev.arms import environment
 
 
 @pytest.fixture(name="trace_launch_guard")
@@ -138,6 +140,7 @@ def test_recorded_web_journey_keeps_evidence_on_success_and_failure(tmp_path, ou
         assert (recorded / "video.webm").stat().st_size > 1000
     with Image.open(recorded / "recording.gif") as gif:
         assert gif.size == (640, 480)
+        assert isinstance(gif, GifImageFile)
         assert gif.n_frames > 1
 
 

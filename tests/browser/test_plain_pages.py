@@ -25,8 +25,9 @@ included, computes the same in both. A theme default showing through on a proper
 the author left alone is Leaf's documented offer (`page-authoring.md`, "Style the
 page") and is not compared. Four readings beyond the properties follow the same rule:
 a box the author positions (sticky, fixed or absolute) stands in the same place at
-rest and after the page scrolls; the canvas around `body`, where it shows, keeps the
-author's root background; an open `dialog` keeps its look; and the root keeps the
+rest and after the page scrolls; where `body` ends short of the window, what shows
+past it, the canvas or the body itself, keeps the author's root background; an open
+`dialog` keeps its look; and the root keeps the
 colour scheme the author left it at, since that decides every system colour under the
 page. Leaf's chrome and what it generates (`.lf-ui`, `[data-lf-gen]`) are not the
 page's; an element of the author's missing from the Leaf page, or one Leaf adds among
@@ -70,12 +71,6 @@ OBSTACLES = {
         " (reading.css), and keeps 8px under its last row for an overlay scrollbar,"
         " so a grid row holding a table is that much taller"
     ),
-    "canvas": (
-        "body is a size container (theme.css, container: lf-shell), the shell a Layout"
-        " and a widget's 100cqi ask, and containment keeps its background off the"
-        " canvas, so a page shorter than the window ends in the browser's canvas below"
-        " the body the author coloured"
-    ),
 }
 KNOWN = {
     "dashboard": {
@@ -84,9 +79,6 @@ KNOWN = {
             "light overridden grid-template-rows on main #0d6e4079",
         },
     },
-    "form": {"canvas": {"canvas around body"}},
-    "module": {"canvas": {"canvas around body"}},
-    "motion": {"canvas": {"canvas around body"}},
 }
 
 # A page that builds content after it loads says it has finished as a page does to
@@ -184,10 +176,16 @@ READ = """({props, within, mark}) => {
   const cs = (el) => getComputedStyle(el);
   const [html, body] = [document.documentElement, document.body];
   const propagates = cs(body).containerType === 'normal' && cs(body).contain === 'none';
-  const htmlPaints = cs(html).backgroundColor !== 'rgba(0, 0, 0, 0)'
-    || cs(html).backgroundImage !== 'none';
+  const paints = (style) => style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+    || style.backgroundImage !== 'none';
+  const htmlPaints = paints(cs(html));
   const canvas = cs(htmlPaints || !propagates ? html : body);
   const box = body.getBoundingClientRect();
+  const short = box.top > 0.5 || box.left > 0.5 || box.right < innerWidth - 0.5
+    || box.bottom < innerHeight - 0.5;
+  // Where the body ends short of the window, the canvas shows past it; where it
+  // fills the window, a body that paints shows there instead.
+  const ground = short || !paints(cs(body)) ? canvas : cs(body);
   const styles = elements.map((el) => {
     const style = cs(el);
     return Object.fromEntries(props.map((p) => [p, style.getPropertyValue(p)]));
@@ -202,9 +200,8 @@ READ = """({props, within, mark}) => {
   document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== untransformed);
   return {
     elements: elements.map((el, at) => ({key: key(el), style: styles[at], rect: rects[at]})),
-    canvas: `${canvas.backgroundColor} ${canvas.backgroundImage}`,
-    canvasShows: box.top > 0.5 || box.left > 0.5 || box.right < innerWidth - 0.5
-      || box.bottom < innerHeight - 0.5,
+    ground: `${ground.backgroundColor} ${ground.backgroundImage}`,
+    short,
     scrollMax: document.scrollingElement.scrollHeight - innerHeight,
   };
 }"""
@@ -362,8 +359,10 @@ def _scaled(was: str, now: str, font: tuple[str, str] | None) -> bool:
     lengths = [_px(value) for value in (was, now, *font)]
     if None in lengths or not lengths[0] or not lengths[2]:
         return False
-    was, now, font_was, font_now = lengths
-    return abs(now / was - font_now / font_was) < 0.005
+    was_px, now_px, font_was, font_now = lengths
+    assert was_px is not None and now_px is not None
+    assert font_was is not None and font_now is not None
+    return abs(now_px / was_px - font_now / font_was) < 0.005
 
 
 def _styles(plain, served):
@@ -482,19 +481,19 @@ def differences(alone: Arm, leaf: Arm) -> list[tuple[str, str, str]]:
             note("added", f"added {key}", f"{label}: Leaf adds {key}")
         backgrounds = {"background-color", "background-image"}
         if (
-            (plain["canvasShows"] or served["canvasShows"])
+            (plain["short"] or served["short"])
             and any(
                 backgrounds & set(e["authored"])
                 for e in plain["elements"]
                 if e["key"] in ("html", "body")
             )
-            and plain["canvas"] != served["canvas"]
+            and plain["ground"] != served["ground"]
         ):
             note(
                 "canvas",
                 "canvas around body",
-                f"{label}: the canvas around body is {served['canvas']!r},"
-                f" not {plain['canvas']!r}",
+                f"{label}: the window past the body's end is {served['ground']!r},"
+                f" not {plain['ground']!r}",
             )
 
     for medium, plain, served in zip(MEDIA, readings, leaf.media, strict=True):
@@ -541,7 +540,7 @@ def static_site():
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, directory=str(directory), **kwargs)
 
-                def log_message(self, *args):
+                def log_message(self, format, *args):
                     pass
 
             httpd = servers.enter_context(
@@ -579,12 +578,14 @@ def checked(browser, page_dir: Path):
         artifact=result.artifact,
     )
     with preview_server(page_dir, snapshot) as url:
+        assert result.artifact is not None
         found = (
             run_page_code(browser, url)
             if needs_browser(result.document, result.artifact)
             else []
         )
         if not found:
+            assert result.artifact is not None
             found = render_version(
                 browser,
                 url,

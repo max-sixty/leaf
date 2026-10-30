@@ -9,6 +9,7 @@ import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
+import { typedHeader } from "../runtime-sources.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -18,7 +19,13 @@ const read = (name) => outputs.get(`${vendor}/${name}`).toString();
 const exportsOf = (code) =>
   parse(code, { ecmaVersion: "latest", sourceType: "module" })
     .body.filter((node) => node.type === "ExportNamedDeclaration")
-    .flatMap((node) => node.specifiers.map((specifier) => specifier.exported.name))
+    .flatMap((node) =>
+      node.specifiers.map((specifier) =>
+        specifier.exported.type === "Identifier"
+          ? specifier.exported.name
+          : specifier.exported.value,
+      ),
+    )
     .sort();
 
 test("compiler paths discover package modules and type the framework's bundles", async (context) => {
@@ -30,7 +37,10 @@ test("compiler paths discover package modules and type the framework's bundles",
     await writeFile(destination, text);
   };
   const config = JSON.parse(
-    await readFile(new URL("../../browser/types/tsconfig.json", import.meta.url)),
+    await readFile(
+      new URL("../../browser/types/tsconfig.json", import.meta.url),
+      "utf8",
+    ),
   );
   config.compilerOptions.types = [];
   config.compilerOptions.noUncheckedSideEffectImports = true;
@@ -41,13 +51,13 @@ test("compiler paths discover package modules and type the framework's bundles",
     "export declare const count: (value: number) => number;\n",
   );
   await put("browser/vendor/signals-core.js", "export const count = 1;\n");
-  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playground/vendor/playground-support.js", "void 0;\n");
   await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
     "browser/types/imports.ts",
     `
 import { count } from "/vendor/signals-core.js";
-import "/vendor/lf-playground-initial.js";
+import "/vendor/playground-support.js";
 import { trace } from "/widgets/lf-trace.js";
 import { future } from "/vendor/lf-future.js";
 import { widget } from "/widgets/lf-future.js";
@@ -75,7 +85,7 @@ count("wrong");
   assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
   assert.doesNotMatch(
     missing.stdout,
-    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+    /Cannot find module '\/(?:vendor\/playground-support|widgets\/lf-trace)/,
   );
 
   await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
@@ -133,15 +143,25 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
+  // Renaming a TypeScript owner must not leave its old delivery file as authored JS.
+  const orphan = "browser/runtime/removed.js";
+  await writeFile(
+    path.join(scratch, orphan),
+    typedHeader + "export const removed = 1;\n",
+  );
+  await assert.rejects(checkOutputs(outputs, scratch), /runtime\/removed\.js/);
+  await rm(path.join(scratch, orphan));
   // A kernel left behind by a merge names the command that rebuilds it.
   const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");
   await assert.rejects(
     checkOutputs(outputs, scratch),
     (error) =>
+      error instanceof Error &&
       error.message.includes(
         "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) && error.message.endsWith("\ndist/kernel/leaf.js"),
+      ) &&
+      error.message.endsWith("\ndist/kernel/leaf.js"),
   );
 });
 
@@ -188,6 +208,7 @@ test("the bundle gate reads the parsed module, not its text", () => {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
       (error) =>
+        error instanceof Error &&
         error.message.startsWith("x.js:2: ") &&
         error.message.includes(reason) &&
         error.message.endsWith("which an export cannot load"),

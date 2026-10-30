@@ -24,6 +24,7 @@ composes into a page loads as well as any other.
 import http.server
 import json
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -116,7 +117,7 @@ REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
 
 
-def install() -> dict[str, Resource]:
+def install() -> Mapping[str, Resource]:
     """What Leaf serves a page of these widgets' packages, by rooted path: the layer
     they compose and the runtime beside it."""
     layer = compose_layer(
@@ -183,7 +184,7 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
             self.end_headers()
             self.wfile.write(found.data)
 
-        def log_message(self, *_):
+        def log_message(self, format, *_):
             pass
 
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Host)
@@ -194,7 +195,7 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
             "console", lambda message: console.append(f"{message.type}: {message.text}")
         )
         page.goto(f"http://127.0.0.1:{httpd.server_port}/")
-        assert page.evaluate("() => !document.documentElement.lfInitial"), (
+        assert page.evaluate("() => !document.documentElement.lfRootState"), (
             "the page must run none of Leaf's runtime"
         )
         for widget in PORTABLE:

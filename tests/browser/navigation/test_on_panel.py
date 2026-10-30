@@ -452,7 +452,9 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     def back_to_the_tally():
         for _ in range(30):
-            if button.evaluate("button => button === document.activeElement"):
+            if button.evaluate(
+                "button => button === button.getRootNode().activeElement"
+            ):
                 return
             page.keyboard.press("Shift+Tab")
         raise AssertionError("Shift+Tab never reached Next on me")
@@ -994,7 +996,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     panel_settled(page, view="queue")
     cards = page.locator('.lf-fp-on-item[data-list="you"]')
     expect(cards).to_have_count(1)
-    note = page.locator(f"{panel_view('queue')} .lf-fp-empty")
+    note = page.locator(f"{panel_view('queue')} .lf-rows-empty")
     expect(note).to_have_count(0)
 
     stamp_page(
@@ -1009,7 +1011,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
     page.locator(".lf-fp-filters button").nth(1).click()
-    expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-fp-empty")).to_have_text(
+    expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-rows-empty")).to_have_text(
         re.compile(r"Nothing waiting on \S+\.")
     )
 
@@ -1017,7 +1019,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (theme.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
+    (base.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))

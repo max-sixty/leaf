@@ -1,79 +1,53 @@
-/* lf-timeline's drawing: transport, chart and step list. The initial renderer
- * (`../initial/lf-timeline.js`) bundles this module and draws before first paint, so
- * the widget first shows whole; the widget module (`lf-timeline.js` beside this file)
- * adopts the returned drawing and only adds behavior to it, and a widget arriving
- * later is drawn by the same bundle. On a page without Leaf nothing drew first, so the
- * widget module imports this one and draws with it (`initialRender`). Its imports are
- * the portable helpers either way: in the bundle Lit binds to the initialized instance,
- * and the axis geometry is the kernel's `time-axis.js`, the one the Playwright
- * timeline also draws with.
- *
- * The model is the event: each instant and each span's start is one step, events
- * that start together share it, and a span's end is not a step. The playhead stands
- * at the current step's time. Everything is drawn at every step, so the layout never
- * depends on the step: events before the playhead are drawn as done, a span the
- * playhead is inside is done up to it, and later events are drawn faint. Stepping
- * therefore repaints states and moves the playhead, and moves nothing else.
- *
- * Labels sit in label rows above their lane's bar row, never on a bar. Within a lane
- * they take greedy rows by their measured extent, so no two overlap, and a label that
- * would run past the axis end reads back from its mark instead. Labels stand in
- * front of the playhead on the chart's ground, so at any step the line passes behind
- * words, never through them, and stays whole across the ruler and every bar row.
- *
- * Every position along the track is a fraction of its width, so marks, ticks and the
- * playhead hold at any width. Label rows depend on the measured width, so a resize,
- * or the paper's width when printing, lays them out again; the lane count and the
- * label rows that width allows set the height.
- */
+/* The timeline has one browser view. Labels pack by their measured extents in the
+ * actual ruler column; stepping changes states and the playhead, never geometry. */
+import { html, nothing, repeat } from "/vendor/lit.js";
 import {
-  actionOffers,
+  offered,
+  offeredAction,
+  selectableOffered,
+  generated,
   assignRows,
   axisTicks,
-  html,
-  nothing,
-  ref,
-  render,
-  repeat,
   textWidth,
 } from "/runtime/portable-api.js";
 
-// The track's inset at each end, so a mark at 0 or at the end isn't cut in half. The
-// theme reads it as --lf-timeline-edge.
 const EDGE = 12;
 const LABEL_GAP = 8;
-// A label's padding and the 2px staff on its anchored edge.
 const LABEL_CHROME = 12;
 
-const time = (value) => (value === null || value === "" ? null : Number(value));
-
-/** Seconds, with only the decimals the value needs. */
+const time = (value) => (value == null || value === "" ? null : Number(value));
 export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
+const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
-/** The authored lanes and events, and the steps they make. */
-function readTimeline(host) {
+/** Authored lane/event records become the timeline's one ordered reading. */
+export function timelineModel(host) {
   const problems = [];
-  const lanes = [...host.querySelectorAll(":scope > lf-lane")].map((lane, index) => ({
-    index,
-    label: lane.getAttribute("label") ?? "",
-    events: [...lane.querySelectorAll(":scope > lf-event")].map((event) => {
-      const at = time(event.getAttribute("at")) ?? 0;
-      let end = time(event.getAttribute("end"));
-      if (end !== null && end < at) {
-        problems.push(`lf-event #${event.id} ends (${end}) before it starts (${at})`);
-        end = null;
-      }
-      return {
-        id: event.id,
-        label: event.getAttribute("label") ?? "",
-        lane: index,
-        at,
-        end: end === at ? null : end,
-        // The index of the step it starts on, once the steps are known.
-        step: 0,
-      };
-    }),
-  }));
+  const lanes = [...host.children]
+    .filter((child) => child.localName === "lf-lane")
+    .map((lane, index) => ({
+      index,
+      label: lane.getAttribute("label") ?? "",
+      events: [...lane.children]
+        .filter((child) => child.localName === "lf-event")
+        .map((event) => {
+          const at = time(event.getAttribute("at")) ?? 0;
+          let end = time(event.getAttribute("end"));
+          if (end !== null && end < at) {
+            problems.push(
+              `lf-event #${event.id} ends (${end}) before it starts (${at})`,
+            );
+            end = null;
+          }
+          return {
+            id: event.id,
+            label: event.getAttribute("label") ?? "",
+            lane: index,
+            at,
+            end: end === at ? null : end,
+            step: 0,
+          };
+        }),
+    }));
   const events = lanes.flatMap((lane) => lane.events);
   const steps = [];
   for (const event of events.toSorted((a, b) => a.at - b.at || a.lane - b.lane)) {
@@ -83,36 +57,29 @@ function readTimeline(host) {
   steps.forEach((step, index) => {
     for (const event of step.events) event.step = index;
   });
-  const duration = Math.max(1, ...events.map((event) => event.end ?? event.at));
-  return { lanes, events, steps, duration, problems };
+  return {
+    lanes,
+    events,
+    steps,
+    problems,
+    duration: Math.max(1, ...events.map((event) => event.end ?? event.at)),
+  };
 }
 
-// Each event's state at a step, and how much of a span is done.
-function stateAt(event, now) {
-  if (event.at > now) return { state: "future", done: 0 };
-  if (event.at === now) return { state: "current", done: 0 };
-  const done =
-    event.end === null ? 1 : Math.min(1, (now - event.at) / (event.end - event.at));
-  return { state: done < 1 ? "running" : "past", done };
-}
-
-/** Lay out labels for a track `width` pixels wide, in the font `font`: each label's
- * row, and whether it reads on from its mark (`start`), back from it (`flip`), or,
- * fitting neither way, against the axis end (`end`). */
-function layoutLabels(model, width, font) {
+/** The ruler's width and the labels' widest font determine geometry, independently
+ * of the selected step. End labels read back from their mark when they fit. */
+export function timelineLayout(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
-  const x = (ms) => EDGE + (ms / model.duration) * span;
   const placed = new Map();
   const rows = model.lanes.map((lane) => {
     const labels = lane.events.map((event) => {
-      const anchor = x(event.at);
-      const size = textWidth(event.label, font) + LABEL_CHROME;
-      // A label that would pass the axis end reads back from its mark.
+      const anchor = EDGE + (event.at / model.duration) * span;
+      const size = Math.min(width, textWidth(event.label, font) + LABEL_CHROME);
       const place =
         anchor + size <= width ? "start" : anchor - size >= 0 ? "flip" : "end";
       const left =
         place === "start" ? anchor : place === "flip" ? anchor - size : width - size;
-      return { id: event.id, left: Math.max(0, left), size, place };
+      return { id: event.id, left, size, place };
     });
     const rowOf = assignRows(
       labels,
@@ -121,122 +88,67 @@ function layoutLabels(model, width, font) {
     );
     for (const label of labels)
       placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
-    return labels.length ? 1 + Math.max(...rowOf.values()) : 1;
+    return 1 + Math.max(0, ...rowOf.values());
   });
-  return { span, rows, placed, pxPerMs: span / model.duration };
+  const ticks = axisTicks(0, model.duration, model.duration, span / model.duration);
+  return { rows, placed, ticks, span };
 }
 
-// Positions along the track are fractions of its width, so the drawing stays true at a
-// width it was not laid out for, such as a printed page's; only label rows and tick
-// density depend on the measured width.
-const fraction = (value) => Math.round(value * 1e5) / 1e5;
+function stateAt(event, now) {
+  if (event.at > now) return { state: "future", done: 0 };
+  if (event.at === now) return { state: "current", done: 0 };
+  const done =
+    event.end === null ? 1 : Math.min(1, (now - event.at) / (event.end - event.at));
+  return { state: done < 1 ? "running" : "past", done };
+}
 
-/**
- * The timeline's one template and its mechanical inputs. `current` selects a
- * step; `layout()` measures the generated ruler and computes label geometry.
- * Neither changes the DOM: parser delivery and the live element render the template.
- */
-export function drawTimeline(host, tools) {
-  const model = readTimeline(host);
-  const saved = Number(tools.tabStore.get(`timeline:${host.id}`));
-  let current = Math.max(
-    0,
-    model.steps.findIndex((step) => step.time === saved),
-  );
-  let layout = null;
+const stepButton = (action, available) =>
+  html`<button
+    ${offeredAction("symbol", `lf-timeline-${action}`, undefined, { action })}
+    aria-disabled=${available ? nothing : "true"}
+  ></button>`;
 
-  const drawing = {
-    render: template,
-    model,
-    rows: [],
-    get current() {
-      return current;
-    },
-    set current(index) {
-      current = Math.max(0, Math.min(model.steps.length - 1, index));
-    },
-    /** Measure the track and lay labels out again; false while it has no width. */
-    layout() {
-      const ruler = drawing.chart.querySelector(".lf-timeline-ruler");
-      const width = ruler?.clientWidth ?? 0;
-      if (!width) return false;
-      const style = getComputedStyle(drawing.chart);
-      const font = `${style.getPropertyValue("--lf-timeline-label-weight").trim() || 500} ${style.fontSize} ${style.fontFamily}`;
-      layout = layoutLabels(model, width, font);
-      return true;
-    },
-    /** The event's drawn group and its mark, for comment targets. */
-    eventElement(id) {
-      return drawing.chart.querySelector(
-        `.lf-timeline-event[data-event="${CSS.escape(id)}"]`,
-      );
-    },
-  };
-  const generated = (says) => (node) => node && tools.generatedElement(node, { says });
-  const offered = (key, cls) => (node) => {
-    if (node) drawing[key] = tools.offerElement(node, cls);
-  };
-  const viewRef = generated(false);
-  const positionRef = (node) => {
-    if (node)
-      tools.generatedElement(tools.offerElement(node, "lf-timeline-position"), {
-        says: false,
-      });
-  };
-  const controlsRef = offered("controls", "lf-timeline-controls");
-  const { offerActionElement } = actionOffers(tools);
-  const previousRef = (node) => {
-    if (node)
-      drawing.previous = offerActionElement(
-        node,
-        "symbol",
-        "lf-timeline-previous",
-        undefined,
-        { action: "previous" },
-      );
-  };
-  const nextRef = (node) => {
-    if (node)
-      drawing.next = offerActionElement(node, "symbol", "lf-timeline-next", undefined, {
-        action: "next",
-      });
-  };
-  const chartRef = (node) => {
-    if (node) drawing.chart = tools.generatedElement(node, { says: "echo" });
-  };
-  const listRef = generated(true);
-  const rowRefs = model.steps.map((_, index) => (node) => {
-    if (!node) return;
-    // A span keeps the words selectable while the shared command routes activate it.
-    tools.selectableOfferElement(node, "button", "lf-timeline-step");
-    drawing.rows[index] = tools.generatedElement(node, { says: true });
-  });
-
-  const chartTemplate = () => {
-    const now = model.steps[current]?.time ?? 0;
-    const along = (ms) => fraction(ms / model.duration);
-    const ticks = layout
-      ? axisTicks(0, model.duration, model.duration, layout.pxPerMs)
-      : [];
-    return html`${model.lanes.map(
+/** One retained template for connection, revision, resizing and stepping. */
+export function render(host, current, model, layout) {
+  current = Math.max(0, Math.min(model.steps.length - 1, current));
+  const now = model.steps[current]?.time ?? 0;
+  const along = (ms) => fraction(ms / model.duration);
+  const position = model.steps.length
+    ? `Step ${current + 1} of ${model.steps.length} · ${clock(now)}`
+    : "No events";
+  return html`<div class="lf-timeline-view" ${generated({ says: false })}>
+    <div
+      ${offered("lf-timeline-controls")}
+      role="group"
+      aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
+    >
+      ${stepButton("previous", current > 0)}
+      ${stepButton("next", current < model.steps.length - 1)}
+      <span ${offered("lf-timeline-position")}>${position}</span>
+    </div>
+    <div
+      class="lf-timeline-chart"
+      aria-hidden="true"
+      ${generated({ says: "echo" })}
+      style="--lf-timeline-lanes: ${model.lanes.length}; --lf-timeline-edge: ${EDGE}px"
+    >
+      ${model.lanes.map(
         (lane) =>
           html`<span
             class="lf-timeline-name"
-            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${
-              layout?.rows[lane.index] ?? 1
-            }"
+            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
             >${lane.label}</span
           >`,
       )}
       <div class="lf-timeline-ruler">
         ${repeat(
-          ticks,
+          layout?.ticks ?? [],
           (tick) => `${tick.step}:${tick.time}`,
           (tick) =>
             html`<span
               class="lf-timeline-tick"
               ?data-major=${tick.major}
-              ?data-flip=${tick.major && tick.time * layout.pxPerMs > layout.span - 36}
+              ?data-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
               style="--lf-timeline-at: ${along(tick.time)}"
               >${tick.label ?? nothing}</span
             >`,
@@ -246,9 +158,7 @@ export function drawTimeline(host, tools) {
         (lane) =>
           html`<div
             class="lf-timeline-lane"
-            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${
-              layout?.rows[lane.index] ?? 1
-            }"
+            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
           >
             ${repeat(
               lane.events,
@@ -265,9 +175,7 @@ export function drawTimeline(host, tools) {
                   <span
                     class="lf-timeline-label"
                     data-place=${label?.place ?? "start"}
-                    style="--lf-timeline-row-index: ${
-                      label?.row ?? 0
-                    }; --lf-timeline-at: ${along(event.at)}"
+                    style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
                     >${event.label}</span
                   >
                   <span
@@ -289,71 +197,34 @@ export function drawTimeline(host, tools) {
           class="lf-timeline-playhead-line"
           style="--lf-timeline-at: ${along(now)}"
         ></span>
-      </div>`;
-  };
-
-  function template() {
-    const position = model.steps.length
-      ? `Step ${current + 1} of ${model.steps.length} · ${clock(model.steps[current].time)}`
-      : "No events";
-    // Lit owns the complete generated view from first paint through each step. The
-    // authored lanes remain beside it as the source, rather than becoming template DOM.
-    return html` <div class="lf-timeline-view" ${ref(viewRef)}>
-      <div
-        ${ref(controlsRef)}
-        role="group"
-        aria-label=${host.getAttribute("aria-label") ?? "Timeline"}
-      >
-        <button
-          ${ref(previousRef)}
-          aria-disabled=${current > 0 ? nothing : "true"}
-        ></button>
-        <button
-          ${ref(nextRef)}
-          aria-disabled=${current < model.steps.length - 1 ? nothing : "true"}
-        ></button>
-        <span ${ref(positionRef)}>${position}</span>
       </div>
-      <div
-        class="lf-timeline-chart"
-        aria-hidden="true"
-        ${ref(chartRef)}
-        style="--lf-timeline-lanes: ${
-          model.lanes.length
-        }; --lf-timeline-edge: ${EDGE}px"
-      >
-        ${chartTemplate()}
-      </div>
-      <ol class="lf-timeline-steps" ${ref(listRef)}>
-        ${model.steps.map(
-          (step, index) =>
-            html`<li>
-              <span
-                ${ref(rowRefs[index])}
-                tabindex="0"
-                data-step=${index}
-                aria-current=${index === current ? "step" : nothing}
-                ?data-past=${index < current}
-              >
-                <span class="lf-timeline-step-time">${clock(step.time)}</span>
-                ${step.events.map(
-                  (event) =>
-                    html`<span class="lf-timeline-step-event"
-                      ><span class="lf-timeline-step-lane"
-                        >${model.lanes[event.lane].label}: </span
-                      >${event.label}</span
-                    >`,
-                )}
-              </span>
-            </li>`,
-        )}
-      </ol>
-    </div>`;
-  }
-  // The ruler's generated grid column is the measurement, not the host width:
-  // its first column sizes itself to the authored lane names. Mount the same
-  // template once to read that column; delivery commits the measured template.
-  render(drawing.render(), host, { host });
-  drawing.layout();
-  return drawing;
+    </div>
+    <ol class="lf-timeline-steps lf-rows" ${generated({ says: true })}>
+      ${repeat(
+        model.steps,
+        (step) => step.time,
+        (step, index) =>
+          html`<li>
+            <span
+              ${selectableOffered("button", "lf-timeline-step", "row")}
+              ${generated({ says: true })}
+              tabindex="0"
+              data-step=${index}
+              aria-current=${index === current ? "step" : nothing}
+              ?data-past=${index < current}
+            >
+              <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
+              ${step.events.map(
+                (event) =>
+                  html`<span class="lf-timeline-step-event lf-row-main"
+                    ><span class="lf-timeline-step-lane"
+                      >${model.lanes[event.lane].label}: </span
+                    >${event.label}</span
+                  >`,
+              )}
+            </span>
+          </li>`,
+      )}
+    </ol>
+  </div>`;
 }

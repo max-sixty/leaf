@@ -146,6 +146,7 @@ def browser_state(
     )
     durable = work.durable
     active_page = durable.page
+    assert active_page is not None
     active_registry = active_page.registry
     withdrawn = durable.log.withdrawn
     threads = durable.threads

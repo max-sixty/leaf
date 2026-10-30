@@ -42,6 +42,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
@@ -74,6 +75,9 @@ import { coarsePointer } from "../pointer.js";
 import { namedAction, offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
+// How long the pointer rests on Send's corner, once words reach it, before Send takes
+// presses there: longer than a press aimed at the words' end takes to land.
+const SEND_DWELL = 150;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
 class CompositionField extends SignalWatcher(LitElement) {
@@ -400,6 +404,39 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
+    // Once words reach Send's corner, Send shows there as the pointer comes to it, and
+    // takes presses only once the pointer has rested on it (response.css), so a quick
+    // press at the words' end places the caret. Typing, or a press on the words, puts
+    // Send away until the pointer next moves, so a second press of a double-click
+    // selects rather than sends. Where the pointer is decides, read from each move and
+    // leave alike: the user's Firefox follows nearly every move with a `pointerleave`
+    // out to the document at the same point, and a leave taken as the pointer going put
+    // Send away on every move.
+    let dwell = 0;
+    const unpoint = () => {
+      clearTimeout(dwell);
+      dwell = 0;
+      ta.parentElement?.removeAttribute("data-send-pointed");
+      ta.parentElement?.removeAttribute("data-send-armed");
+    };
+    const point = (event) => {
+      if (event.pointerType === "touch") return;
+      const box = event.currentTarget;
+      const send = sendBtn?.getBoundingClientRect();
+      const on =
+        send &&
+        event.clientX >= send.left &&
+        event.clientX < send.right &&
+        event.clientY >= send.top &&
+        event.clientY < send.bottom;
+      if (!on) return unpoint();
+      if (box.hasAttribute("data-send-pointed")) return;
+      box.setAttribute("data-send-pointed", "");
+      dwell = setTimeout(() => {
+        dwell = 0;
+        box.setAttribute("data-send-armed", "");
+      }, SEND_DWELL);
+    };
     let sending = false;
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
@@ -548,7 +585,17 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           </button>`
         : nothing;
       return html`${sentMedia ? nothing : shelf}
-        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        <div
+          class="lf-compose-field"
+          ?data-words=${hasWords}
+          @pointermove=${point}
+          @pointerleave=${point}
+          @pointerdown=${(event) => {
+            if (!sendBtn?.contains(event.target)) unpoint();
+          }}
+        >
+          ${content}
+        </div>
         ${alternate}`;
     };
     field.updated = () =>
@@ -638,6 +685,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
+      unpoint();
       loadingFailure = "";
       dictation?.edited();
       // A user's edit also retires a microphone press still loading its module.
@@ -785,7 +833,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        raiseError(`Could not add image — ${error?.message ?? error}`, { subject: ta });
+        raiseError(`Could not add image — ${describeFailure(error)}`, { subject: ta });
         return false;
       } finally {
         uploading = false;

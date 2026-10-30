@@ -10,17 +10,16 @@
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
- * which shows the same panel at the first paint, before this module has loaded
- * (`x-views`).
+ * which selects the member before its first paint (`x-views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * How a set is drawn is one fact, its flow (`data-lf-views-flow`), which prepaint
- * reads from the package's `--lf-views-flow` declaration. This module and the
- * presentation rules consume that reading. The root set with
- * its strip written as a row is the page's own flow ("page"): its strip sticks at the
+ * The authored layout-flow declares document flow (`--lf-views-flow`, layouts.css);
+ * the package styles its unframed face. This module reads that declaration for
+ * scrolling, separately from primary URL/history ownership above. In document flow
+ * ("page"), the strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
  * by press, key, Back, or Forward, is not fragment travel, because a view is not a
@@ -30,10 +29,10 @@
  * box that what it holds measures itself against. A switch leaves the page where it
  * stands until the strip is pinned; then it opens the new panel at its start. `list="side"`
  * stands the list beside the panels, a queue beside the item it opens, walked up and
- * down as well as across (theme.css says where it stacks); a side list is a box even as
+ * down as well as across (base.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward restores the
  * entry's viewport after showing its view. Where a side list fills a height it is
- * given, as a full-height workspace's body (theme.css), its list and its open item each
+ * given, as a full-height workspace's body (base.css), its list and its open item each
  * scroll on their own. Its panels are reading regions, and so is its list while it
  * scrolls on its own, so reading keys and the user's place follow the list or the item
  * rather than the set.
@@ -101,6 +100,7 @@ import {
   offer,
   generated,
   openingView,
+  viewMembers,
   pageScroller,
   preserveReadingRegions,
   pushEntry,
@@ -146,8 +146,7 @@ const soleSubstantiveElement = (owner) => {
 };
 
 export class TabSet extends LeafElement {
-  // The members' tag, and whether the set is a page's parts (lf-parts.js).
-  static member = "lf-tab";
+  // Whether the set is a page's parts (lf-parts.js).
   static parts = false;
   #parts = /** @type {typeof TabSet} */ (this.constructor).parts;
   #buttons = new Map(); // panel → its strip button
@@ -170,12 +169,7 @@ export class TabSet extends LeafElement {
   }
 
   setup() {
-    // Own panels only (a nested lf-tabs wires its own).
-    const panels = /** @type {HTMLElement[]} */ ([
-      ...this.querySelectorAll(
-        `:scope > ${/** @type {typeof TabSet} */ (this.constructor).member}`,
-      ),
-    ]);
+    const panels = viewMembers(this);
     if (!panels.length) return;
     this.#panels = panels;
     const side = this.getAttribute("list") === "side";
@@ -287,11 +281,11 @@ export class TabSet extends LeafElement {
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-    // Open on the tab the first paint showed: the one the address names, or this
+    // Open the tab the address names, or this
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
     // measures final geometry.
-    this.#activate(openingView(this, panels), "arrival");
+    this.#activate(openingView(this), "arrival");
     if (this.#root) {
       this.#replaceLocation(this.#active.value);
     }
@@ -330,7 +324,7 @@ export class TabSet extends LeafElement {
   // A side list's panels are reading regions whatever their posture, as panes are, so
   // the user's place in an item survives the workspace flowing and filling the window
   // again. Its list is one only while it is a column scrolling on its own, while the
-  // set is told it has a definite height to fill (`--lf-full-height`, theme.css):
+  // set is told it has a definite height to fill (`--lf-full-height`, base.css):
   // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
   // as a region there, its own scrolling as it turned into a row ended the size
   // observers' pass with notifications undelivered. Whether the set is told follows
@@ -365,7 +359,7 @@ export class TabSet extends LeafElement {
                   ${
                     run.group
                       ? html`<span
-                          class="lf-tab-group"
+                          class="lf-tab-group lf-rows-head"
                           aria-hidden="true"
                           ${generated({ says: true })}
                           >${run.group}</span
@@ -459,7 +453,7 @@ export class TabSet extends LeafElement {
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff tag lf-change-count" aria-hidden="true"
+      }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
         >${changed ? `Δ${changed}` : ""}</span
       >${this.#down ? mark : nothing}</span
     >`;
@@ -505,8 +499,8 @@ export class TabSet extends LeafElement {
         this.#panelForLocation([active]) !== active
       )
         replaceEntry(this.#locationFor(active));
+      keepView(this, active);
       for (const panel of this.#panels) {
-        keeps(panel, "hidden", panel === active ? null : "until-found");
         // A tabpanel of prose has no focusable content, so Tab reaches the open
         // panel itself. hidden="until-found" skips only what a panel holds, not
         // the panel. A scrolling panel also takes a native browser stop without
@@ -531,7 +525,6 @@ export class TabSet extends LeafElement {
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
 
-      keepView(this, active);
       for (const panel of [previous, active].filter(Boolean)) {
         const child = soleSubstantiveElement(panel);
         if (child) layoutChanged(child);
@@ -554,7 +547,7 @@ export class TabSet extends LeafElement {
     // The first tab set directly in the page is its navigation, whatever else the page
     // holds beside it; a later one is a tabbed section like any nested set. A page's
     // parts are its navigation where the page lays them out, in a `main` that is no
-    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and the prepaint
+    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and content-layout
     // read it; in any other `main` they stand as if placed anywhere else.
     const main = this.parentElement;
     this.#root =
@@ -562,15 +555,9 @@ export class TabSet extends LeafElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
-    if (!this.#parts)
-      keeps(
-        this,
-        "data-lf-views-flow",
-        getComputedStyle(this).getPropertyValue("--lf-views-flow").trim(),
-      );
     this.#pageFlow = this.#parts
       ? this.#root
-      : this.getAttribute("data-lf-views-flow") === "page";
+      : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active.value) {
@@ -640,7 +627,7 @@ export class TabSet extends LeafElement {
   // stops clear of the edge's press, which the strip states as its inline
   // `scroll-padding` (the package theme). A row runs past where it holds more names
   // than it shows. A side list's column runs past only where it scrolls on its own,
-  // in a workspace that fills the window (theme.css), and the tab comes into it the
+  // in a workspace that fills the window (base.css), and the tab comes into it the
   // same way, down the column.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is

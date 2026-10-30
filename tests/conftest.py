@@ -19,9 +19,6 @@ from typing import NamedTuple
 import psutil
 import pytest
 from click.testing import CliRunner
-from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
-from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import Frame, Page, sync_playwright
 
 from leaf import cli as cli_model
@@ -35,6 +32,9 @@ from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -432,7 +432,7 @@ def pytest_collection_modifyitems(config, items):
     if since := config.getoption("--changed-since"):
         changed = _base_sources(config.rootpath, since)
     kept, skipped = [], []
-    for item, tiered in zip(items, tiers):
+    for item, tiered in zip(items, tiers, strict=True):
         runs = not item.get_closest_marker("network") and (
             tiered is None or tiered in reached or _touches(item, changed)
         )
@@ -477,7 +477,7 @@ def _base_sources(root, since):
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
     sources = set()
-    for path in paths:
+    for _ in paths:
         header, _, batch = batch.partition(b"\n")
         size = int(header.split()[2])
         text, batch = batch[:size].decode(), batch[size + 1 :]
@@ -674,7 +674,7 @@ def collect_app_server_error(found: list, message: dict, sender: str) -> None:
     connection failure rather than reach the test."""
     try:
         error = app_server_message_error(message, sender)
-    except Exception as failure:  # noqa: BLE001 - reported at the test's end
+    except Exception as failure:
         error = f"{message.get('method')}: not checked: {failure!r}"
     if error:
         found.append(error)
@@ -817,7 +817,8 @@ def browser(_browser, request):
     isolated. Rejecting browser problems and then closing every remaining context at
     teardown makes health and lifetime fixture guarantees instead of conventions
     repeated at the end of each journey. Closing may itself cancel outstanding requests,
-    so it happens after the health reading.
+    so it happens after the health reading. Unroute first so cancellations of handlers
+    still in flight cannot reach the shared driver's next test.
 
     Handed over wrapped, because the health half of that guarantee has to be installed
     on each page before it navigates: a test that makes its own page gets one already
@@ -830,6 +831,9 @@ def browser(_browser, request):
             yield WatchedBrowser(_browser)
     finally:
         for context in reversed(_browser.contexts):
+            for page in context.pages:
+                page.unroute_all(behavior="ignoreErrors")
+            context.unroute_all(behavior="ignoreErrors")
             context.close()
 
 

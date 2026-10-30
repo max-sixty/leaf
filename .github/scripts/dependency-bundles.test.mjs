@@ -28,15 +28,20 @@ const artifact = {
   files: [
     { path, content: "new bundle" },
     { path: theme, content: "new theme" },
+    { path: "browser/runtime/framework/snapshot.js", content: "new typed output" },
   ],
 };
 
 test("the trusted publisher loads its build declaration without installed dependencies", () => {
   const directory = mkdtempSync(join(tmpdir(), "dependency-publisher-"));
   try {
-    for (const name of [".github/scripts", "build", "packages"])
+    for (const name of [".github/scripts", "build", "packages", "browser/runtime"])
       mkdirSync(join(directory, name), { recursive: true });
-    for (const name of [".github/scripts/dependency-bundles.mjs", "build/styles.mjs"])
+    for (const name of [
+      ".github/scripts/dependency-bundles.mjs",
+      "build/styles.mjs",
+      "build/runtime-sources.mjs",
+    ])
       copyFileSync(new URL(`../../${name}`, import.meta.url), join(directory, name));
     execFileSync(process.execPath, [
       "--input-type=module",
@@ -142,6 +147,12 @@ test("publisher changes only bundles on the exact Dependabot branch and preserve
   assert.deepEqual(calls.find((c) => c.route.endsWith("/trees")).data.tree, [
     { path, mode: "100644", type: "blob", content: "new bundle" },
     { path: theme, mode: "100644", type: "blob", content: "new theme" },
+    {
+      path: "browser/runtime/framework/snapshot.js",
+      mode: "100644",
+      type: "blob",
+      content: "new typed output",
+    },
   ]);
   assert.deepEqual(
     calls.find((c) => c.route.endsWith("/commits") && c.method === "POST").data.parents,
@@ -158,11 +169,11 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     ".github/workflows/ci.yaml",
     "browser/vendor/../runtime/evil.js",
     "browser/vendor/.hidden.js",
-    "browser/theme.css",
+    "browser/base.css",
     "browser/styles/theme.css",
-    "packages/default/widgets.css",
+    "packages/default/defaults.css",
     "browser/runtime/authored.css",
-    "packages/playground/widgets.css",
+    "packages/playground/defaults.css",
   ]) {
     const { api, calls } = endpoint();
     await assert.rejects(

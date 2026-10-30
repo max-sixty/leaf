@@ -13,529 +13,549 @@
     </style>
   </head>
   <body>
-    <main class="layout-column">
-      <aside class="sidebar" id="contents-sidebar">
-        <lf-toc id="contents"></lf-toc>
+    <main class="layout-sidebar">
+      <aside id="contents-sidebar">
+        <div class="layout-track">
+          <lf-toc id="contents"></lf-toc>
+        </div>
       </aside>
-
-      <hgroup id="title">
-        <p class="eyebrow">Exploration</p>
-        <h1>Feeds in Leaf</h1>
-      </hgroup>
-      <p class="lede" id="lede">
-        A feed card is already a Leaf item: a drafted thing to approve, edit, dismiss or
-        discuss. Leaf lacks two things a feed needs: an agent that runs without being
-        asked, and one list that covers every page. I recommend testing the experience
-        first with one background session that owns a "Today" page. That needs almost no
-        change to Leaf. If the feed earns its place, the On me list then moves across
-        pages.
-      </p>
-
-      <section id="the-idea">
-        <h2>The tweet's feed brings you the next action, already drafted</h2>
-        <p id="idea-summary">
-          <a href="https://x.com/nicbstme/status/2109505834439033107"
-            >Nicolas Bustamante's post</a
-          >
-          argues that most people won't prompt their way into agent work, but they
-          already know how to scroll a feed and act on what they find. So the system
-          should bring each next useful action to them with the work done: an email
-          already drafted, an update ready to send. The user approves, edits, dismisses,
-          or opens a chat to go deeper. He also proposes sponsored cards to pay for the
-          agents, which doesn't apply to Leaf.
+      <div class="layout-column">
+        <hgroup id="title">
+          <p class="eyebrow">Exploration</p>
+          <h1>Feeds in Leaf</h1>
+        </hgroup>
+        <p class="lede" id="lede">
+          A feed card is already a Leaf item: a drafted thing to approve, edit, dismiss
+          or discuss. Leaf lacks two things a feed needs: an agent that runs without
+          being asked, and one list that covers every page. I recommend testing the
+          experience first with one background session that owns a "Today" page. That
+          needs almost no change to Leaf. If the feed earns its place, the On me list
+          then moves across pages.
         </p>
-      </section>
 
-      <section id="already-items">
-        <h2>Every verb on a feed card already exists in Leaf</h2>
-        <p id="verbs-intro">
-          Each card is one decision with its evidence beside it, which is exactly what
-          an item framed by an <code>lf-ask</code> is. The On view of Leaf's panel
-          already lists a page's items as cards, with inline answers plus Show and
-          Discuss.
-        </p>
-        <table id="verb-map">
-          <thead>
-            <tr>
-              <th>Feed card</th>
-              <th>Leaf today</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">The work, done</th>
-              <td>
-                The card's evidence inside an <code>lf-ask</code>: a table, a chart, a
-                diff
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">Approve</th>
-              <td>
-                An <code>lf-options</code> pick, a suggestion's Accept, or Approve
-                version
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">Edit</th>
-              <td>
-                <code>lf-draft</code>: the user rewrites the text in place, and its
-                history is recorded
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">Dismiss</th>
-              <td>
-                A "Not now" option, or a reject, recorded as an outcome rather than a
-                deletion
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">Jump into chat</th>
-              <td>
-                Discuss on the On view card, or a comment on the exact words of the
-                draft
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">The feed</th>
-              <td>
-                The On view and <kbd>m</kbd>, which walks On me in page order, but for
-                one page only
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p id="try-intro">
-          The sample below is a made-up morning feed built only from today's widgets. In
-          it, press <kbd>m</kbd> to walk the cards. Rewrite a word of the first draft,
-          then pick <strong>Send</strong>. Select a phrase in the second draft and
-          comment on it to "jump into chat". Open the On view from the panel's question
-          mark to see the cards as a list.
-        </p>
-        <lf-sample id="feed-sample" label="made-up morning feed" window>
-          <template id="feed-sample-page" data-sample>
-            <h1>Today</h1>
-            <p class="lede" id="today-lede">
-              Three things are ready for you. Everything here is made up.
-            </p>
+        <section id="the-idea">
+          <h2>The tweet's feed brings you the next action, already drafted</h2>
+          <p id="idea-summary">
+            <a href="https://x.com/nicbstme/status/2109505834439033107"
+              >Nicolas Bustamante's post</a
+            >
+            argues that most people won't prompt their way into agent work, but they
+            already know how to scroll a feed and act on what they find. So the system
+            should bring each next useful action to them with the work done: an email
+            already drafted, an update ready to send. The user approves, edits,
+            dismisses, or opens a chat to go deeper. He also proposes sponsored cards to
+            pay for the agents, which doesn't apply to Leaf.
+          </p>
+        </section>
 
-            <section id="card-venue">
-              <lf-ask id="ask-venue">
-                <hgroup id="venue-head">
-                  <p class="eyebrow">Email · from the inbox pass</p>
-                  <h2>Reply to the venue about Friday's room?</h2>
-                </hgroup>
-                <p id="venue-context">
-                  The Example Hall asked whether 40 seats is still right. The calendar
-                  invite has 46 accepted.
-                </p>
-                <lf-draft id="venue-draft">
-                  <pre>
+        <section id="already-items">
+          <h2>Every verb on a feed card already exists in Leaf</h2>
+          <p id="verbs-intro">
+            Each card is one decision with its evidence beside it, which is exactly what
+            an item framed by an <code>lf-ask</code> is. The On view of Leaf's panel
+            already lists a page's items as cards, with inline answers plus Show and
+            Discuss.
+          </p>
+          <table id="verb-map">
+            <thead>
+              <tr>
+                <th>Feed card</th>
+                <th>Leaf today</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">The work, done</th>
+                <td>
+                  The card's evidence inside an <code>lf-ask</code>: a table, a chart, a
+                  diff
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Approve</th>
+                <td>
+                  An <code>lf-options</code> pick, a suggestion's Accept, or Approve
+                  version
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Edit</th>
+                <td>
+                  <code>lf-draft</code>: the user rewrites the text in place, and its
+                  history is recorded
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Dismiss</th>
+                <td>
+                  A "Not now" option, or a reject, recorded as an outcome rather than a
+                  deletion
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Jump into chat</th>
+                <td>
+                  Discuss on the On view card, or a comment on the exact words of the
+                  draft
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">The feed</th>
+                <td>
+                  The On view and <kbd>m</kbd>, which walks On me in page order, but for
+                  one page only
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p id="try-intro">
+            The sample below is a made-up morning feed built only from today's widgets.
+            In it, press <kbd>m</kbd> to walk the cards. Rewrite a word of the first
+            draft, then pick <strong>Send</strong>. Select a phrase in the second draft
+            and comment on it to "jump into chat". Open the On view from the panel's
+            question mark to see the cards as a list.
+          </p>
+          <lf-sample id="feed-sample" label="made-up morning feed" window>
+            <template id="feed-sample-page" data-sample>
+              <h1>Today</h1>
+              <p class="lede" id="today-lede">
+                Three things are ready for you. Everything here is made up.
+              </p>
+
+              <section id="card-venue">
+                <lf-ask id="ask-venue">
+                  <hgroup id="venue-head">
+                    <p class="eyebrow">Email · from the inbox pass</p>
+                    <h2>Reply to the venue about Friday's room?</h2>
+                  </hgroup>
+                  <p id="venue-context">
+                    The Example Hall asked whether 40 seats is still right. The calendar
+                    invite has 46 accepted.
+                  </p>
+                  <lf-draft id="venue-draft">
+                    <pre>
 Hi Sam,
 
 Could we move up to the larger room? We're at 46 confirmed, so 50 seats would be safest.
 
 Thanks,
 Max</pre>
-                </lf-draft>
-                <lf-options id="venue-choice" choose>
-                  <lf-option id="venue-send"
-                    ><strong>Send</strong> Sends the draft as it reads now.</lf-option
-                  >
-                  <lf-option id="venue-later"
-                    ><strong>Not now</strong> Brings it back tomorrow.</lf-option
-                  >
-                </lf-options>
-              </lf-ask>
-            </section>
+                  </lf-draft>
+                  <lf-options id="venue-choice" choose>
+                    <lf-option id="venue-send"
+                      ><strong>Send</strong> Sends the draft as it reads now.</lf-option
+                    >
+                    <lf-option id="venue-later"
+                      ><strong>Not now</strong> Brings it back tomorrow.</lf-option
+                    >
+                  </lf-options>
+                </lf-ask>
+              </section>
 
-            <section id="card-numbers">
-              <lf-ask id="ask-numbers">
-                <hgroup id="numbers-head">
-                  <p class="eyebrow">Report · from the weekly numbers pass</p>
-                  <h2>Send the team this week's numbers?</h2>
-                </hgroup>
-                <table id="numbers-table">
-                  <thead>
-                    <tr>
-                      <th>Measure</th>
-                      <th class="num">This week</th>
-                      <th class="num">Last week</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th scope="row">Pages authored</th>
-                      <td class="num">212</td>
-                      <td class="num">180</td>
-                    </tr>
-                    <tr>
-                      <th scope="row">Median first reply</th>
-                      <td class="num">58 s</td>
-                      <td class="num">62 s</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <lf-draft id="numbers-draft">
-                  <pre>
+              <section id="card-numbers">
+                <lf-ask id="ask-numbers">
+                  <hgroup id="numbers-head">
+                    <p class="eyebrow">Report · from the weekly numbers pass</p>
+                    <h2>Send the team this week's numbers?</h2>
+                  </hgroup>
+                  <table id="numbers-table">
+                    <thead>
+                      <tr>
+                        <th>Measure</th>
+                        <th class="num">This week</th>
+                        <th class="num">Last week</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th scope="row">Pages authored</th>
+                        <td class="num">212</td>
+                        <td class="num">180</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Median first reply</th>
+                        <td class="num">58 s</td>
+                        <td class="num">62 s</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <lf-draft id="numbers-draft">
+                    <pre>
 Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
-                </lf-draft>
-                <lf-options id="numbers-choice" choose>
-                  <lf-option id="numbers-send"
-                    ><strong>Send to the team</strong></lf-option
-                  >
-                  <lf-option id="numbers-skip"
-                    ><strong>Skip this week</strong></lf-option
-                  >
-                </lf-options>
-              </lf-ask>
-            </section>
+                  </lf-draft>
+                  <lf-options id="numbers-choice" choose>
+                    <lf-option id="numbers-send"
+                      ><strong>Send to the team</strong></lf-option
+                    >
+                    <lf-option id="numbers-skip"
+                      ><strong>Skip this week</strong></lf-option
+                    >
+                  </lf-options>
+                </lf-ask>
+              </section>
 
-            <section id="card-ci">
-              <lf-ask id="ask-ci">
-                <hgroup id="ci-head">
-                  <p class="eyebrow">CI · from the overnight pass</p>
-                  <h2>Main went red overnight. What should happen?</h2>
-                </hgroup>
-                <p id="ci-context">
-                  One commit broke <code>test_parser</code>. Nothing else landed after
-                  it.
+              <section id="card-ci">
+                <lf-ask id="ask-ci">
+                  <hgroup id="ci-head">
+                    <p class="eyebrow">CI · from the overnight pass</p>
+                    <h2>Main went red overnight. What should happen?</h2>
+                  </hgroup>
+                  <p id="ci-context">
+                    One commit broke <code>test_parser</code>. Nothing else landed after
+                    it.
+                  </p>
+                  <lf-options id="ci-choice" choose>
+                    <lf-option id="ci-revert"
+                      ><strong>Revert it</strong> Opens a revert PR now.</lf-option
+                    >
+                    <lf-option id="ci-fix"
+                      ><strong>Draft a fix</strong> Investigates and comes back with a
+                      PR.</lf-option
+                    >
+                    <lf-option id="ci-leave"
+                      ><strong>Leave it</strong> Someone else owns it.</lf-option
+                    >
+                  </lf-options>
+                </lf-ask>
+              </section>
+            </template>
+          </lf-sample>
+          <p id="sample-gaps">
+            What the sample can't show is what a feed needs most. Nobody prompted the
+            agent to write these cards. Your <strong>Send</strong> has to reach an agent
+            that may have stopped hours ago. And the cards have to come from every page
+            and session you run, not from one page.
+          </p>
+        </section>
+
+        <section id="the-gaps">
+          <h2>Leaf lacks a producer and a cross-page view, and already has the wake</h2>
+          <figure id="loop-figure">
+            <svg
+              class="drawing loop"
+              viewBox="0 0 680 250"
+              role="img"
+              aria-labelledby="loop-t"
+            >
+              <title id="loop-t">
+                The feed's loop: a scheduler starts an agent pass, the agent writes
+                cards to a page, the user's press wakes the agent. Leaf owns the page
+                and the wake; the scheduler and the cross-page list are missing.
+              </title>
+              <defs>
+                <marker
+                  id="loop-tip"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path class="tip" d="M0,0 L10,5 L0,10 z" />
+                </marker>
+              </defs>
+              <rect class="ghost" x="10" y="20" width="140" height="56" rx="6" />
+              <text class="strong" x="80" y="44" text-anchor="middle">Scheduler</text>
+              <text class="small" x="80" y="62" text-anchor="middle">
+                missing · launchd, cron
+              </text>
+
+              <rect class="box" x="200" y="20" width="150" height="56" rx="6" />
+              <text class="strong" x="275" y="44" text-anchor="middle">
+                Agent session
+              </text>
+              <text class="small" x="275" y="62" text-anchor="middle">
+                a background job
+              </text>
+
+              <rect class="box hot" x="400" y="20" width="150" height="56" rx="6" />
+              <text class="strong" x="475" y="44" text-anchor="middle">
+                Page of cards
+              </text>
+              <text class="small" x="475" y="62" text-anchor="middle">
+                items on On me
+              </text>
+
+              <circle class="mark" cx="620" cy="48" r="20" />
+              <text class="glyph" x="620" y="53" text-anchor="middle">you</text>
+
+              <path class="arrow" d="M150,48 L198,48" marker-end="url(#loop-tip)" />
+              <text class="small" x="174" y="40" text-anchor="middle">runs</text>
+              <path class="arrow" d="M350,48 L398,48" marker-end="url(#loop-tip)" />
+              <text class="small" x="374" y="40" text-anchor="middle">writes</text>
+              <path class="arrow" d="M550,40 L598,40" marker-end="url(#loop-tip)" />
+              <path class="arrow" d="M598,56 L552,56" marker-end="url(#loop-tip)" />
+              <text class="small" x="574" y="74" text-anchor="middle">press</text>
+
+              <path
+                class="arrow"
+                d="M475,76 L475,100 L275,100 L275,78"
+                marker-end="url(#loop-tip)"
+              />
+              <rect
+                class="ok"
+                x="300"
+                y="110"
+                width="150"
+                height="26"
+                rx="4"
+                opacity="0.25"
+              />
+              <text class="small" x="375" y="127" text-anchor="middle">
+                wake · exists for Claude Code
+              </text>
+
+              <rect class="ghost" x="400" y="170" width="150" height="56" rx="6" />
+              <text class="strong" x="475" y="194" text-anchor="middle">
+                Other pages
+              </text>
+              <text class="small" x="475" y="212" text-anchor="middle">
+                their own On me lists
+              </text>
+              <path
+                class="arrow soft"
+                d="M550,198 L620,198 L620,70"
+                marker-end="url(#loop-tip)"
+              />
+              <rect
+                class="warn"
+                x="560"
+                y="208"
+                width="110"
+                height="26"
+                rx="4"
+                opacity="0.25"
+              />
+              <text class="small" x="615" y="225" text-anchor="middle">
+                missing · one list
+              </text>
+            </svg>
+          </figure>
+          <ul id="gap-list">
+            <li id="gap-producer">
+              <strong>No producer.</strong> Every Leaf page today answers a request.
+              Nothing in Leaf starts an agent on a schedule. That belongs to the OS or
+              the harness, not to Leaf.
+            </li>
+            <li id="gap-wake">
+              <strong>The wake exists.</strong> A press on a page whose background job
+              has gone idle resumes that job with
+              <code>claude --bg --resume</code> (<code>resume_claude_code_job</code> in
+              <code>harness.py</code>). Approving a card hours later therefore already
+              reaches the agent that wrote it, on Claude Code. Codex and Pi have no
+              equivalent.
+            </li>
+            <li id="gap-view">
+              <strong>No cross-page list.</strong> All pages lists each live page's
+              agent status: Working, Awaits, No session. Each page's row publishes the
+              agent's counts only, nothing from On me, and a page with no running server
+              drops out of the list.
+            </li>
+          </ul>
+        </section>
+
+        <section id="choose-first">
+          <lf-ask id="ask-first-build">
+            <h2>Which feed should Leaf try first?</h2>
+            <p id="first-build-premise">
+              Both options use items as the cards. They differ in where the cards come
+              from and where you read them. They compose: a feed page from A would
+              become one source in B's list.
+            </p>
+            <lf-options id="first-build" choose>
+              <lf-option id="build-today-page">
+                <small class="tag">Leaf code: almost none</small
+                ><small class="tag">proactive: yes</small
+                ><small class="tag ok">recommended</small>
+                <strong>A. A "Today" page owned by one background session</strong>
+                A launchd job resumes one standing Claude Code session each morning. It
+                checks the sources you name and writes a card for each action. Your
+                press resumes it to carry the action out.
+                <figure id="today-page-fig">
+                  <svg
+                    class="drawing"
+                    width="260"
+                    viewBox="0 0 260 90"
+                    role="img"
+                    aria-labelledby="today-page-t"
+                  >
+                    <title id="today-page-t">
+                      One session writes cards onto one page
+                    </title>
+                    <circle class="mark" cx="30" cy="45" r="14" />
+                    <rect class="frame" x="80" y="6" width="170" height="78" rx="5" />
+                    <rect
+                      class="box hot"
+                      x="92"
+                      y="16"
+                      width="146"
+                      height="16"
+                      rx="3"
+                    />
+                    <rect class="box" x="92" y="38" width="146" height="16" rx="3" />
+                    <rect class="box" x="92" y="60" width="146" height="16" rx="3" />
+                    <path class="arrow" d="M44,45 L78,45" />
+                  </svg>
+                </figure>
+                <p id="today-page-cost">
+                  The work is a brief, a launchd plist and a page layout, with no change
+                  to Leaf's core. It shows whether a morning feed is worth reading
+                  before anything is built for it. The costs: one session holds every
+                  source's context, and cards from your other sessions don't reach it.
                 </p>
-                <lf-options id="ci-choice" choose>
-                  <lf-option id="ci-revert"
-                    ><strong>Revert it</strong> Opens a revert PR now.</lf-option
+              </lf-option>
+              <lf-option id="build-cross-page">
+                <small class="tag">Leaf code: rows, a view, persistence</small
+                ><small class="tag">proactive: no</small>
+                <strong>B. On me across every page</strong>
+                Each page's row publishes its On me items. All pages becomes one feed of
+                every page's items. Simple items are answered inline, and the rest open
+                their page at the item.
+                <figure id="cross-page-fig">
+                  <svg
+                    class="drawing"
+                    width="260"
+                    viewBox="0 0 260 90"
+                    role="img"
+                    aria-labelledby="cross-page-t"
                   >
-                  <lf-option id="ci-fix"
-                    ><strong>Draft a fix</strong> Investigates and comes back with a
-                    PR.</lf-option
-                  >
-                  <lf-option id="ci-leave"
-                    ><strong>Leave it</strong> Someone else owns it.</lf-option
-                  >
-                </lf-options>
-              </lf-ask>
-            </section>
-          </template>
-        </lf-sample>
-        <p id="sample-gaps">
-          What the sample can't show is what a feed needs most. Nobody prompted the
-          agent to write these cards. Your <strong>Send</strong> has to reach an agent
-          that may have stopped hours ago. And the cards have to come from every page
-          and session you run, not from one page.
-        </p>
-      </section>
+                    <title id="cross-page-t">
+                      Items from several pages merge into one list
+                    </title>
+                    <rect class="frame" x="6" y="6" width="56" height="22" rx="3" />
+                    <rect class="frame" x="6" y="34" width="56" height="22" rx="3" />
+                    <rect class="frame" x="6" y="62" width="56" height="22" rx="3" />
+                    <path class="arrow" d="M62,17 L120,40" />
+                    <path class="arrow" d="M62,45 L120,45" />
+                    <path class="arrow" d="M62,73 L120,50" />
+                    <rect class="frame" x="124" y="6" width="130" height="78" rx="5" />
+                    <rect
+                      class="box hot"
+                      x="134"
+                      y="16"
+                      width="110"
+                      height="14"
+                      rx="3"
+                    />
+                    <rect class="box" x="134" y="36" width="110" height="14" rx="3" />
+                    <rect class="box" x="134" y="56" width="110" height="14" rx="3" />
+                  </svg>
+                </figure>
+                <p id="cross-page-cost">
+                  This addresses "many pages" (S15 in
+                  <code>notes/what-needs-you/research.md</code>), which you hit already
+                  with no feed at all, and any session or job that writes a page feeds
+                  it. It needs a row that outlives its server, an answer route to
+                  another page's server, and a rule for clearing stale items: in
+                  September the research counted 58 threads left waiting, median age 28
+                  days.
+                </p>
+              </lf-option>
+            </lf-options>
+          </lf-ask>
+          <details id="first-build-why">
+            <summary>
+              A first, because the experience is the open question and A tests it
+              cheaply
+            </summary>
+            <p id="first-build-why-text">
+              Whether a pushed feed of drafted actions is worth reading every morning is
+              the uncertain part. A answers that in days, with nothing to undo if it
+              isn't. B is the durable architecture whatever A finds, since it treats the
+              feed as a view over items rather than a new kind of thing. It is worth
+              building when either A sticks or the many-pages problem grows.
+            </p>
+          </details>
+        </section>
 
-      <section id="the-gaps">
-        <h2>Leaf lacks a producer and a cross-page view, and already has the wake</h2>
-        <figure id="loop-figure">
-          <svg
-            class="drawing loop"
-            viewBox="0 0 680 250"
-            role="img"
-            aria-labelledby="loop-t"
-          >
-            <title id="loop-t">
-              The feed's loop: a scheduler starts an agent pass, the agent writes cards
-              to a page, the user's press wakes the agent. Leaf owns the page and the
-              wake; the scheduler and the cross-page list are missing.
-            </title>
-            <defs>
-              <marker
-                id="loop-tip"
-                viewBox="0 0 10 10"
-                refX="9"
-                refY="5"
-                markerWidth="7"
-                markerHeight="7"
-                orient="auto-start-reverse"
+        <section id="offers">
+          <lf-ask id="ask-offers">
+            <h2>Should agents turn the offers in their replies into cards?</h2>
+            <p id="offers-premise">
+              This is the tweet's discovery argument applied to one page. Agents end
+              replies with offers like "say the word and I'll open the PR", and those go
+              unanswered: the research found no agent message that put two explicit
+              questions, while multi-part asks arrived as prose offers. An instruction
+              could make each offer an item with <strong>Do it</strong> and
+              <strong>Not now</strong>, so you discover what the agent could do next
+              without inventing the prompt. It costs a change to
+              <code>conversation-loop.md</code>, scored with <code>evals/</code>. The
+              risk is over-asking, which the same research found destroys the signal.
+            </p>
+            <lf-options id="offers-choice" choose>
+              <lf-option id="offers-yes"
+                ><strong>Yes, try it with an eval</strong></lf-option
               >
-                <path class="tip" d="M0,0 L10,5 L0,10 z" />
-              </marker>
-            </defs>
-            <rect class="ghost" x="10" y="20" width="140" height="56" rx="6" />
-            <text class="strong" x="80" y="44" text-anchor="middle">Scheduler</text>
-            <text class="small" x="80" y="62" text-anchor="middle">
-              missing · launchd, cron
-            </text>
+              <lf-option id="offers-no"
+                ><strong>No, leave offers in prose</strong></lf-option
+              >
+            </lf-options>
+          </lf-ask>
+        </section>
 
-            <rect class="box" x="200" y="20" width="150" height="56" rx="6" />
-            <text class="strong" x="275" y="44" text-anchor="middle">
-              Agent session
-            </text>
-            <text class="small" x="275" y="62" text-anchor="middle">
-              a background job
-            </text>
-
-            <rect class="box hot" x="400" y="20" width="150" height="56" rx="6" />
-            <text class="strong" x="475" y="44" text-anchor="middle">
-              Page of cards
-            </text>
-            <text class="small" x="475" y="62" text-anchor="middle">
-              items on On me
-            </text>
-
-            <circle class="mark" cx="620" cy="48" r="20" />
-            <text class="glyph" x="620" y="53" text-anchor="middle">you</text>
-
-            <path class="arrow" d="M150,48 L198,48" marker-end="url(#loop-tip)" />
-            <text class="small" x="174" y="40" text-anchor="middle">runs</text>
-            <path class="arrow" d="M350,48 L398,48" marker-end="url(#loop-tip)" />
-            <text class="small" x="374" y="40" text-anchor="middle">writes</text>
-            <path class="arrow" d="M550,40 L598,40" marker-end="url(#loop-tip)" />
-            <path class="arrow" d="M598,56 L552,56" marker-end="url(#loop-tip)" />
-            <text class="small" x="574" y="74" text-anchor="middle">press</text>
-
-            <path
-              class="arrow"
-              d="M475,76 L475,100 L275,100 L275,78"
-              marker-end="url(#loop-tip)"
-            />
-            <rect
-              class="ok"
-              x="300"
-              y="110"
-              width="150"
-              height="26"
-              rx="4"
-              opacity="0.25"
-            />
-            <text class="small" x="375" y="127" text-anchor="middle">
-              wake · exists for Claude Code
-            </text>
-
-            <rect class="ghost" x="400" y="170" width="150" height="56" rx="6" />
-            <text class="strong" x="475" y="194" text-anchor="middle">Other pages</text>
-            <text class="small" x="475" y="212" text-anchor="middle">
-              their own On me lists
-            </text>
-            <path
-              class="arrow soft"
-              d="M550,198 L620,198 L620,70"
-              marker-end="url(#loop-tip)"
-            />
-            <rect
-              class="warn"
-              x="560"
-              y="208"
-              width="110"
-              height="26"
-              rx="4"
-              opacity="0.25"
-            />
-            <text class="small" x="615" y="225" text-anchor="middle">
-              missing · one list
-            </text>
-          </svg>
-        </figure>
-        <ul id="gap-list">
-          <li id="gap-producer">
-            <strong>No producer.</strong> Every Leaf page today answers a request.
-            Nothing in Leaf starts an agent on a schedule. That belongs to the OS or the
-            harness, not to Leaf.
-          </li>
-          <li id="gap-wake">
-            <strong>The wake exists.</strong> A press on a page whose background job has
-            gone idle resumes that job with <code>claude --bg --resume</code> (<code
-              >resume_claude_code_job</code
-            >
-            in <code>harness.py</code>). Approving a card hours later therefore already
-            reaches the agent that wrote it, on Claude Code. Codex and Pi have no
-            equivalent.
-          </li>
-          <li id="gap-view">
-            <strong>No cross-page list.</strong> All pages lists each live page's agent
-            status: Working, Awaits, No session. Each page's row publishes the agent's
-            counts only, nothing from On me, and a page with no running server drops out
-            of the list.
-          </li>
-        </ul>
-      </section>
-
-      <section id="choose-first">
-        <lf-ask id="ask-first-build">
-          <h2>Which feed should Leaf try first?</h2>
-          <p id="first-build-premise">
-            Both options use items as the cards. They differ in where the cards come
-            from and where you read them. They compose: a feed page from A would become
-            one source in B's list.
+        <section id="differ">
+          <h2>Leaf's feed should drain, not scroll forever</h2>
+          <p id="differ-text">
+            Social feeds are tuned to keep you scrolling. Leaf's SOUL says to preserve
+            your attention, and the research says zero should mean nothing is left to
+            decide. So a Leaf feed should be finite. Each card expires to a recorded
+            "not now" rather than piling up, as
+            <a href="https://www.eweek.com/news/openai-chatgpt-pulse/">ChatGPT Pulse</a>
+            expires its morning cards after a day. An approval should carry out exactly
+            the wording on screen when you pressed. Today nothing binds the two: the
+            draft's edits and the option you pick are separate events, so an edit made
+            after Send but before the agent acts leaves the approved wording unnamed. A
+            feed needs its approval to name the text it approves. Ads are out: a card
+            the agent didn't write for you breaks "the user directs the work".
           </p>
-          <lf-options id="first-build" choose>
-            <lf-option id="build-today-page">
-              <small class="tag">Leaf code: almost none</small
-              ><small class="tag">proactive: yes</small
-              ><small class="tag ok">recommended</small>
-              <strong>A. A "Today" page owned by one background session</strong>
-              A launchd job resumes one standing Claude Code session each morning. It
-              checks the sources you name and writes a card for each action. Your press
-              resumes it to carry the action out.
-              <figure id="today-page-fig">
-                <svg
-                  class="drawing"
-                  width="260"
-                  viewBox="0 0 260 90"
-                  role="img"
-                  aria-labelledby="today-page-t"
-                >
-                  <title id="today-page-t">
-                    One session writes cards onto one page
-                  </title>
-                  <circle class="mark" cx="30" cy="45" r="14" />
-                  <rect class="frame" x="80" y="6" width="170" height="78" rx="5" />
-                  <rect class="box hot" x="92" y="16" width="146" height="16" rx="3" />
-                  <rect class="box" x="92" y="38" width="146" height="16" rx="3" />
-                  <rect class="box" x="92" y="60" width="146" height="16" rx="3" />
-                  <path class="arrow" d="M44,45 L78,45" />
-                </svg>
-              </figure>
-              <p id="today-page-cost">
-                The work is a brief, a launchd plist and a page layout, with no change
-                to Leaf's core. It shows whether a morning feed is worth reading before
-                anything is built for it. The costs: one session holds every source's
-                context, and cards from your other sessions don't reach it.
-              </p>
-            </lf-option>
-            <lf-option id="build-cross-page">
-              <small class="tag">Leaf code: rows, a view, persistence</small
-              ><small class="tag">proactive: no</small>
-              <strong>B. On me across every page</strong>
-              Each page's row publishes its On me items. All pages becomes one feed of
-              every page's items. Simple items are answered inline, and the rest open
-              their page at the item.
-              <figure id="cross-page-fig">
-                <svg
-                  class="drawing"
-                  width="260"
-                  viewBox="0 0 260 90"
-                  role="img"
-                  aria-labelledby="cross-page-t"
-                >
-                  <title id="cross-page-t">
-                    Items from several pages merge into one list
-                  </title>
-                  <rect class="frame" x="6" y="6" width="56" height="22" rx="3" />
-                  <rect class="frame" x="6" y="34" width="56" height="22" rx="3" />
-                  <rect class="frame" x="6" y="62" width="56" height="22" rx="3" />
-                  <path class="arrow" d="M62,17 L120,40" />
-                  <path class="arrow" d="M62,45 L120,45" />
-                  <path class="arrow" d="M62,73 L120,50" />
-                  <rect class="frame" x="124" y="6" width="130" height="78" rx="5" />
-                  <rect class="box hot" x="134" y="16" width="110" height="14" rx="3" />
-                  <rect class="box" x="134" y="36" width="110" height="14" rx="3" />
-                  <rect class="box" x="134" y="56" width="110" height="14" rx="3" />
-                </svg>
-              </figure>
-              <p id="cross-page-cost">
-                This addresses "many pages" (S15 in
-                <code>notes/what-needs-you/research.md</code>), which you hit already
-                with no feed at all, and any session or job that writes a page feeds it.
-                It needs a row that outlives its server, an answer route to another
-                page's server, and a rule for clearing stale items: in September the
-                research counted 58 threads left waiting, median age 28 days.
-              </p>
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-        <details id="first-build-why">
-          <summary>
-            A first, because the experience is the open question and A tests it cheaply
-          </summary>
-          <p id="first-build-why-text">
-            Whether a pushed feed of drafted actions is worth reading every morning is
-            the uncertain part. A answers that in days, with nothing to undo if it
-            isn't. B is the durable architecture whatever A finds, since it treats the
-            feed as a view over items rather than a new kind of thing. It is worth
-            building when either A sticks or the many-pages problem grows.
-          </p>
+        </section>
+
+        <details id="evidence">
+          <summary>Sources and the code each claim rests on</summary>
+          <ul id="evidence-list">
+            <li id="ev-agent-inbox">
+              <a href="https://github.com/langchain-ai/agent-inbox"
+                >LangChain's Agent Inbox</a
+              >
+              uses the same four verbs, accept, edit, respond and ignore (<a
+                href="https://reference.langchain.com/python/langgraph.prebuilt/prebuilt/interrupt/HumanInterruptConfig"
+                ><code>HumanInterruptConfig</code></a
+              >). <code>notes/comparisons.md</code> already lists it with HumanLayer as
+              human-input queues.
+            </li>
+            <li id="ev-rows">
+              <code>server_rows.py</code>: a row is
+              <code>{title, session_cwd, activity}</code>, and
+              <code>activity.counts</code> counts updates the agent owes.
+              <code>presence.other_leaves</code> keeps only rows whose server is live
+              and whose page isn't closed.
+            </li>
+            <li id="ev-wake">
+              <code>harness.py</code>, <code>ClaudeCodeHarness.nudge</code>: the
+              session's messaging socket first, then, for a background job with no
+              worker, <code>resume_claude_code_job</code>.
+              <code>presence.nudge_unwatched</code> calls it on admission, once per turn
+              ending.
+            </li>
+            <li id="ev-queues">
+              <code>served_state/queues.py</code>: <code>on_user</code> holds open
+              items, to-dos on the user and resends. It is the one place the lists are
+              assembled, and B would publish from it.
+            </li>
+            <li id="ev-research">
+              <code>notes/what-needs-you/research.md</code>: S15 "Many pages" is listed
+              as a scenario but has no design. "A cross-page list needs reading to clear
+              results (or page-level aging), or it starts at 58 stale items."
+            </li>
+            <li id="ev-jobs">
+              <a href="https://github.com/max-sixty/leaf/issues/4058">Issue #4058</a>,
+              "Explore independent jobs": who owns and continues a job's result is still
+              open, and a feed of background passes is one such job.
+            </li>
+          </ul>
         </details>
-      </section>
-
-      <section id="offers">
-        <lf-ask id="ask-offers">
-          <h2>Should agents turn the offers in their replies into cards?</h2>
-          <p id="offers-premise">
-            This is the tweet's discovery argument applied to one page. Agents end
-            replies with offers like "say the word and I'll open the PR", and those go
-            unanswered: the research found no agent message that put two explicit
-            questions, while multi-part asks arrived as prose offers. An instruction
-            could make each offer an item with <strong>Do it</strong> and
-            <strong>Not now</strong>, so you discover what the agent could do next
-            without inventing the prompt. It costs a change to
-            <code>conversation-loop.md</code>, scored with <code>evals/</code>. The risk
-            is over-asking, which the same research found destroys the signal.
-          </p>
-          <lf-options id="offers-choice" choose>
-            <lf-option id="offers-yes"
-              ><strong>Yes, try it with an eval</strong></lf-option
-            >
-            <lf-option id="offers-no"
-              ><strong>No, leave offers in prose</strong></lf-option
-            >
-          </lf-options>
-        </lf-ask>
-      </section>
-
-      <section id="differ">
-        <h2>Leaf's feed should drain, not scroll forever</h2>
-        <p id="differ-text">
-          Social feeds are tuned to keep you scrolling. Leaf's SOUL says to preserve
-          your attention, and the research says zero should mean nothing is left to
-          decide. So a Leaf feed should be finite. Each card expires to a recorded "not
-          now" rather than piling up, as
-          <a href="https://www.eweek.com/news/openai-chatgpt-pulse/">ChatGPT Pulse</a>
-          expires its morning cards after a day. An approval should carry out exactly
-          the wording on screen when you pressed. Today nothing binds the two: the
-          draft's edits and the option you pick are separate events, so an edit made
-          after Send but before the agent acts leaves the approved wording unnamed. A
-          feed needs its approval to name the text it approves. Ads are out: a card the
-          agent didn't write for you breaks "the user directs the work".
-        </p>
-      </section>
-
-      <details id="evidence">
-        <summary>Sources and the code each claim rests on</summary>
-        <ul id="evidence-list">
-          <li id="ev-agent-inbox">
-            <a href="https://github.com/langchain-ai/agent-inbox"
-              >LangChain's Agent Inbox</a
-            >
-            uses the same four verbs, accept, edit, respond and ignore (<a
-              href="https://reference.langchain.com/python/langgraph.prebuilt/prebuilt/interrupt/HumanInterruptConfig"
-              ><code>HumanInterruptConfig</code></a
-            >). <code>notes/comparisons.md</code> already lists it with HumanLayer as
-            human-input queues.
-          </li>
-          <li id="ev-rows">
-            <code>server_rows.py</code>: a row is
-            <code>{title, session_cwd, activity}</code>, and
-            <code>activity.counts</code> counts updates the agent owes.
-            <code>presence.other_leaves</code> keeps only rows whose server is live and
-            whose page isn't closed.
-          </li>
-          <li id="ev-wake">
-            <code>harness.py</code>, <code>ClaudeCodeHarness.nudge</code>: the session's
-            messaging socket first, then, for a background job with no worker,
-            <code>resume_claude_code_job</code>.
-            <code>presence.nudge_unwatched</code> calls it on admission, once per turn
-            ending.
-          </li>
-          <li id="ev-queues">
-            <code>served_state/queues.py</code>: <code>on_user</code> holds open items,
-            to-dos on the user and resends. It is the one place the lists are assembled,
-            and B would publish from it.
-          </li>
-          <li id="ev-research">
-            <code>notes/what-needs-you/research.md</code>: S15 "Many pages" is listed as
-            a scenario but has no design. "A cross-page list needs reading to clear
-            results (or page-level aging), or it starts at 58 stale items."
-          </li>
-          <li id="ev-jobs">
-            <a href="https://github.com/max-sixty/leaf/issues/4058">Issue #4058</a>,
-            "Explore independent jobs": who owns and continues a job's result is still
-            open, and a feed of background passes is one such job.
-          </li>
-        </ul>
-      </details>
+      </div>
     </main>
   </body>
 </html>

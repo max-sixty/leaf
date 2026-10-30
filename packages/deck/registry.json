@@ -14,7 +14,7 @@
     "x-content": "markup",
     "x-upgrade": true,
     "x-patch": "members",
-    "x-views": true,
+    "x-views": { "members": ":not(script, style, template)" },
     "x-example": "<h2>Two things before the release</h2>\n<lf-deck id=\"release-catch-up\">\n  <lf-ask id=\"store-ask\">\n    <h3>Which session store?</h3>\n    <p>Redis already runs in production; Postgres removes a service.</p>\n    <lf-options id=\"store-choice\" choose>\n      <lf-option id=\"store-redis\">Keep Redis</lf-option>\n      <lf-option id=\"store-postgres\">Move sessions to Postgres</lf-option>\n    </lf-options>\n  </lf-ask>\n  <lf-ask id=\"notes-ask\">\n    <h3>Post the release notes?</h3>\n    <p>Post the 4.2 notes to the announcements channel.</p>\n    <lf-options id=\"notes-choice\" choose>\n      <lf-option id=\"notes-hold\">Keep them as a draft</lf-option>\n      <lf-option id=\"notes-post\">Post them</lf-option>\n    </lf-options>\n  </lf-ask>\n</lf-deck>"
   }
 }

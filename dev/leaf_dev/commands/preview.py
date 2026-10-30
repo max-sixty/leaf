@@ -472,6 +472,7 @@ def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
     from leaf.themes import with_theme
 
     layer = layer_record(page)
+    assert layer is not None
     return layer_inputs(
         with_theme(tuple(source_packages(source)), layer["theme"]), runtime
     )
@@ -744,12 +745,12 @@ def watch_changes(watched: Watched) -> PreviewChanges:
     Single files use shallow parent watches: an editor's atomic rename changes
     the inode, so a file watch on Linux otherwise loses later saves.
     """
-    from watchfiles import DefaultFilter
+    from watchfiles import Change, DefaultFilter
 
     default_filter = DefaultFilter()
     return PreviewChanges(
         watch_roots(watched),
-        lambda path: default_filter(None, str(path)),
+        lambda path: default_filter(Change.modified, str(path)),
         collect=True,
     )
 
@@ -1122,10 +1123,12 @@ def preview(
 
             for stop_signal in STOP_SIGNALS:
                 signal.signal(stop_signal, terminated)
+            assert source is not None
             source = source.resolve()
             runtime = runtime.resolve()
             page = preview_directory(source, slot, user)
             if handshake is not None:
+                assert prepared_claim is not None
                 with Handshake(handshake) as announcement:
                     run_preview(
                         source,

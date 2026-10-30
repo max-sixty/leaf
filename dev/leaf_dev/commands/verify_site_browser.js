@@ -17,7 +17,9 @@
   let activationCount = 0;
   let watch = null;
   function serverScript() {
-    const script = document.querySelector("script[data-lf-server]");
+    const script = /** @type {HTMLScriptElement | null} */ (
+      document.querySelector("script[data-lf-server]")
+    );
     if (!script) throw new Error("Leaf server script is missing");
     return script;
   }
@@ -226,12 +228,18 @@
     visibleReplyDebug() {
       return {
         // The view open in the floating panel: threads, a thread, or none.
-        view: document.querySelector(".lf-floating-panel")?.dataset.open ?? null,
+        view:
+          /** @type {HTMLElement | null} */ (
+            document.querySelector(".lf-floating-panel")
+          )?.dataset.open ?? null,
         visibility: document.visibilityState,
         presented: document.body.hasAttribute("data-lf-presented"),
         reading: document.body.dataset.lfReading ?? null,
         traffic: document.documentElement.dataset.lfTraffic ?? null,
-        revision: document.querySelector('meta[name="lf-revision"]')?.content ?? null,
+        revision:
+          /** @type {HTMLMetaElement | null} */ (
+            document.querySelector('meta[name="lf-revision"]')
+          )?.content ?? null,
         status: status(),
         // What each drawn thread shows of itself: a card, or the panel's view.
         threads: [
@@ -245,7 +253,11 @@
           news: node.querySelector(".lf-thread-news")?.textContent.trim() ?? null,
         })),
         shown: shown(),
-        messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
+        messages: [
+          .../** @type {NodeListOf<HTMLElement>} */ (
+            document.querySelectorAll(".lf-msg")
+          ),
+        ].map((node) => ({
           classes: [...node.classList],
           mid: node.dataset.mid ?? node.dataset.event ?? null,
           attempt: node.dataset.attempt ?? null,
@@ -257,14 +269,22 @@
     },
     revisionAtLeast(want) {
       return (
-        Number(document.querySelector('meta[name="lf-revision"]')?.content) >= want &&
-        document
-          .querySelector("script[data-lf-entry]")
-          ?.lfReadiness?.(null, "presented") === null
+        Number(
+          /** @type {HTMLMetaElement | null} */ (
+            document.querySelector('meta[name="lf-revision"]')
+          )?.content,
+        ) >= want &&
+        /** @type {HTMLScriptElement | null} */ (
+          document.querySelector("script[data-lf-entry]")
+        )?.lfReadiness?.(null, "presented") === null
       );
     },
     revision() {
-      return document.querySelector('meta[name="lf-revision"]')?.content ?? null;
+      return (
+        /** @type {HTMLMetaElement | null} */ (
+          document.querySelector('meta[name="lf-revision"]')
+        )?.content ?? null
+      );
     },
     status,
   };

@@ -6,19 +6,15 @@ import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { styleEntries } from "../../build/styles.mjs";
-import { typedSources } from "../../build/runtime-sources.mjs";
 
 // The publisher loads this declaration from its trusted default-branch checkout,
 // never from the PR or its artifact. A sheet counts only when the build writes it, so
 // authored CSS remains outside this boundary.
 const styles = new Set(styleEntries.map(([, output]) => output));
-const { modules, outputs } = typedSources();
-const typed = new Set([...modules.map(([, output]) => output), ...outputs]);
 
 function generated(path) {
   return (
     (styles.has(path) ||
-      typed.has(path) ||
       path === "dist/kernel/kernel.json" ||
       /^(?:browser\/vendor|packages\/[^/.]+\/vendor|dist\/kernel)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
         path,

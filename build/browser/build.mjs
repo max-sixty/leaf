@@ -19,10 +19,7 @@
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
  * package directories, so its CLI and editors resolve the same installed modules.
  *
- * Runtime TypeScript owners compile to committed JavaScript at the same public URLs
- * (`runtime-sources.mjs`); source fallback and installs need no compiler. The strict
- * program checks those owners, and ESLint and the import graph check their emitted
- * JavaScript as they check handwritten modules. Third-party packages are minified
+ * Third-party packages are minified
  * builds from the lock and the adaptations below. Runtime and package modules load
  * one ordinary Lit module (`build/lit.mjs`). Signals are the framework's own: the
  * kernel compiles them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether
@@ -42,7 +39,6 @@ import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
-import { typedHeader, typedSources } from "../runtime-sources.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
@@ -198,10 +194,9 @@ async function protocolOutputs() {
 }
 
 // Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds every runtime TypeScript owner and the JavaScript modules
-// that opt in with a leading `// @ts-check`
+// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
 // to strict mode; it includes every runtime module so that each one opting in is
-// checked there. Every framework module must opt in (`frameworkOptsIn`).
+// checked there. Every framework module must opt in (`checkRuntimeModules`).
 // `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
 // `leaf.js`, the kernel's and packages' widget modules, and the render checks pages
 // import from `/checks/`. The `paths` both share
@@ -216,33 +211,34 @@ async function protocolOutputs() {
 // runtime program also reaches the strict program's files and the vendored
 // third-party bundles. A diagnostic there is not the runtime program's to report, and
 // the build drops it.
-const { modules: typedModules, outputs: typedOutputs } = typedSources();
-const typedJavaScript = new Set([
-  ...typedModules.map(([, output]) => output),
-  ...typedOutputs,
-]);
 const strict = (file) =>
-  file.endsWith(".ts") ||
-  typedJavaScript.has(file) ||
   readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
   !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file) &&
   !strict(file);
 
-/** Refuse a framework module that doesn't opt into the strict program, since the
- * framework's types are strict wherever it puts a module. TypeScript owners are
- * strict without a pragma. */
-async function frameworkOptsIn() {
-  const modules = [
-    `${assets}/runtime/framework.js`,
-    ...(
-      await readdir(path.join(root, assets, "runtime/framework"), { recursive: true })
-    )
-      .filter((name) => name.endsWith(".js"))
-      .map((name) => `${assets}/runtime/framework/${name}`),
-  ];
-  const lax = modules.filter((file) => !strict(file));
+/** Refuse TypeScript under the runtime, whose modules a page runs as written, and a
+ * framework module that doesn't opt into the strict program, since the framework's
+ * types are strict wherever it puts a module. */
+export async function checkRuntimeModules(directory = root) {
+  const runtime = `${assets}/runtime`;
+  const files = (await readdir(path.join(directory, runtime), { recursive: true })).map(
+    (name) => `${runtime}/${name}`,
+  );
+  const typescript = files.filter(
+    (file) => file.endsWith(".ts") && !file.endsWith(".d.ts"),
+  );
+  if (typescript.length)
+    throw new Error(
+      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\n${typescript.join("\n")}`,
+    );
+  const lax = files.filter(
+    (file) =>
+      (file === `${runtime}/framework.js` ||
+        (file.startsWith(`${runtime}/framework/`) && file.endsWith(".js"))) &&
+      !readFileSync(path.join(directory, file), "utf8").startsWith("// @ts-check"),
+  );
   if (lax.length)
     throw new Error(
       `Start each framework module with \`// @ts-check\`, so the strict program checks it:\n${lax.join("\n")}`,
@@ -287,30 +283,11 @@ export async function buildOutputs() {
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  await frameworkOptsIn();
+  await checkRuntimeModules();
   typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
   const outputs = new Map([
-    ...(await Promise.all(
-      typedModules.map(async ([source, output]) => {
-        const result = await build({
-          absWorkingDir: root,
-          entryPoints: [source],
-          outfile: output,
-          platform: "browser",
-          format: "esm",
-          target: "es2022",
-          banner: { js: typedHeader.trimEnd() },
-          write: false,
-          logLevel: "silent",
-        });
-        return /** @type {const} */ ([
-          output,
-          Buffer.from(result.outputFiles[0].contents),
-        ]);
-      }),
-    )),
     [compilerPathsFile, paths],
     [litTypesFile, lit],
     [baselineName, Buffer.from(protocol.baseline)],
@@ -416,7 +393,6 @@ async function kernelOf(outputs) {
     for (const name of ["leaf.js", "runtime", "widgets"])
       await cp(path.join(root, assets, name), path.join(layer, name), {
         recursive: true,
-        filter: (source) => !typedJavaScript.has(path.relative(root, source)),
       });
     await mkdir(path.join(layer, "vendor"));
     for (const [name, bytes] of outputs) {
@@ -450,7 +426,7 @@ async function ownedDirectories(directory) {
 }
 
 export async function checkOutputs(outputs, directory = root) {
-  const stale = typedSources(directory).outputs.filter((name) => !outputs.has(name));
+  const stale = [];
   for (const owned of await ownedDirectories(directory))
     for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
@@ -497,7 +473,7 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    for (const owned of [...(await ownedDirectories(root)), ...typedOutputs])
+    for (const owned of await ownedDirectories(root))
       await rm(path.join(root, owned), { force: true, recursive: true });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);

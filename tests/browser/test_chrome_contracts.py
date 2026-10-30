@@ -1540,9 +1540,9 @@ CONTINUED = {
     "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
     "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
     "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
-    "leaving a nested list": (
+    "outdenting a nested item": (
         "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
-        "1. a\n2. b\n   - c\n\n   d",
+        "1. a\n2. b\n   - c\n3. d",
     ),
     "splitting an item": ("- one two←←←⏎", "- one \n- two"),
 }
@@ -1554,7 +1554,7 @@ def test_shift_enter_continues_the_containers_the_message_will_hold(
 ):
     """Shift+Enter begins a line in each quote and list item the message will read the
     caret's line in, a fence's code included, and on a line holding only their markers
-    leaves the innermost. CodeMirror's own Markdown grammar decided it, which stopped at
+    leaves the innermost, an item in an item outdenting. CodeMirror's own Markdown grammar decided it, which stopped at
     a fence, so a fence's next line fell out of its quote or item and its closing fence
     opened another; leaving a list took a third press, the second only loosening it."""
     page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))

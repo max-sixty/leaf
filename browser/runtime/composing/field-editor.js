@@ -201,10 +201,12 @@ function standBlocks(state, blocks, out, line) {
 
 /** @type {Promise<ReturnType<typeof fieldEditor>> | null} */
 let loaded = null;
-/** The field's editor, CodeMirror loaded under it. */
+/** The field's editor, CodeMirror loaded under it. The renderer loads beside it, so an
+ * editor never stands without the reading its preview and Shift+Enter (`continueBlocks`)
+ * take, which made a Shift+Enter pressed as the field opened a plain line. */
 export const loadFieldEditor = () =>
-  (loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) =>
-    fieldEditor(codemirror, leafEditorView(codemirror)),
+  (loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(
+    ([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)),
   ));
 
 /** What a field's editor needs CodeMirror for, built from the loaded module. */
@@ -620,14 +622,15 @@ function fieldEditor(
   // message will read it, a fence's code included: each quote's `>`, each item's indent,
   // and on the line holding the innermost item's marker, the next item's marker. Pressed
   // on a line holding nothing past its markers, outside code, it leaves the innermost
-  // container: the line keeps what it holds for the containers outside, and unless the
-  // line above already parts two blocks, it becomes that parting and the caret takes a
-  // new line in them. With the caret among the markers, or in no container, the press is
-  // a plain new line. The numbers of the items after a new one stay as typed, since the
-  // message numbers a list from its first. Rejected: CodeMirror's Markdown continuation
-  // (until October 2026), whose grammar, a second beside the renderer's, read the whole
-  // draft again on every key, ended a quote or item at a fence inside it, and took three
-  // presses to leave a list.
+  // container. An item directly in another item outdents, as rich editors do: its line
+  // becomes the next item of the list outside. Otherwise the line keeps what it holds
+  // for the containers outside, and unless the line above already parts two blocks, it
+  // becomes that parting and the caret takes a new line in them. With the caret among
+  // the markers, or in no container, the press is a plain new line. The numbers of the
+  // items after a new one stay as typed, since the message numbers a list from its
+  // first. Rejected: CodeMirror's Markdown continuation (until October 2026), whose
+  // grammar, a second beside the renderer's, read the whole draft again on every key,
+  // ended a quote or item at a fence inside it, and took three presses to leave a list.
   const CONTAINERS = new Set(["blockquote_open", "list_item_open"]);
   function continueBlocks(view) {
     const { state } = view;
@@ -649,27 +652,30 @@ function fieldEditor(
     // item's indent.
     const carried = ({ token }) =>
       token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+    const item = (c) => c?.token.type === "list_item_open";
+    const next = ({ token }) =>
+      `${token.info && Number(token.info) + 1}${token.markup} `;
     const inner = containers.at(-1);
     const outside = containers.slice(0, -1);
     let change;
     if (!code && to <= line.to && bare(line)) {
+      const parent = outside.at(-1);
+      const outdent = item(inner) && item(parent);
       let kept = "";
-      for (const c of outside) {
+      for (const c of outdent ? outside.slice(0, -1) : outside) {
         const own = markerOn(c, line);
         kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
       }
       const above = line.number > 1 && state.doc.line(line.number - 1);
-      const insert =
-        above && !bare(above)
+      const insert = outdent
+        ? `${kept}${next(parent)}`
+        : above && !bare(above)
           ? `${kept.trimEnd()}\n${outside.map(carried).join("")}`
           : kept;
       change = { from: line.from, to: line.to, insert };
     } else {
-      const { token } = inner;
       const marker =
-        token.type === "list_item_open" && inner.from === line.from && !code
-          ? `${token.info && Number(token.info) + 1}${token.markup} `
-          : carried(inner);
+        item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
       const insert = `\n${outside.map(carried).join("")}${marker}`;
       change = { from, to, insert };
     }

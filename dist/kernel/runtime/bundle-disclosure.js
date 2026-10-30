@@ -1326,7 +1326,7 @@ function standBlocks(state, blocks, out, line) {
 	}
 }
 let loaded = null;
-const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
+const loadFieldEditor = () => loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)));
 function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
@@ -1621,25 +1621,28 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		const bare = (l) => !state.sliceDoc(opened(l, all), l.to).trim();
 		if (from < opened(line, containers)) return false;
 		const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+		const item = (c) => c?.token.type === "list_item_open";
+		const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup} `;
 		const inner = containers.at(-1);
 		const outside = containers.slice(0, -1);
 		let change;
 		if (!code && to <= line.to && bare(line)) {
+			const parent = outside.at(-1);
+			const outdent = item(inner) && item(parent);
 			let kept = "";
-			for (const c of outside) {
+			for (const c of outdent ? outside.slice(0, -1) : outside) {
 				const own = markerOn(c, line);
 				kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
 			}
 			const above = line.number > 1 && state.doc.line(line.number - 1);
-			const insert = above && !bare(above) ? `${kept.trimEnd()}\n${outside.map(carried).join("")}` : kept;
+			const insert = outdent ? `${kept}${next(parent)}` : above && !bare(above) ? `${kept.trimEnd()}\n${outside.map(carried).join("")}` : kept;
 			change = {
 				from: line.from,
 				to: line.to,
 				insert
 			};
 		} else {
-			const { token } = inner;
-			const marker = token.type === "list_item_open" && inner.from === line.from && !code ? `${token.info && Number(token.info) + 1}${token.markup} ` : carried(inner);
+			const marker = item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
 			change = {
 				from,
 				to,

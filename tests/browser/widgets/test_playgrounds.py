@@ -54,8 +54,10 @@ CONTRIBUTOR_PAGE = leaf_page(
     <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
   </lf-playground-preset>
   <lf-playground-preview>
+    <div id="query-editor">
     <label for="region-filter">Region filter</label>
     <input id="region-filter" type="text" value="eu-west-1">
+    </div>
   </lf-playground-preview>
   <lf-playground-output>Implement the selected query.</lf-playground-output>
 </lf-playground></lf-ask>
@@ -66,7 +68,8 @@ document.addEventListener(PAGE_INTERFACE, event => {
     if (sessionStorage.getItem('delay-query-contributors')) return;
     const playground = document.querySelector('#query-config');
     const input = document.querySelector('#region-filter');
-    const filters = playground.registerContributor('filters', {region: input.value});
+    const filters = playground.registerContributor(
+      'filters', {region: input.value}, document.querySelector('#query-editor'));
     input.addEventListener('input', () => filters.set({region: input.value}));
     playground.subscribe(values => {
       if (input.value !== values.filters.region) input.value = values.filters.region;
@@ -129,6 +132,100 @@ def test_playground_contributor_needs_no_scalar_control(browser, serve):
     playground.get_by_role("button", name="Undo choice").click()
     expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
     expect(field).to_have_value("ap-south-1")
+
+
+def test_playground_controls_take_focus_from_editors_and_keep_candidate_focus(
+    browser, serve, subtests
+):
+    """Moving from a native preview editor to a slider leaves the next key on that
+    slider, rather than silently changing the contributor the user just left."""
+    source = CONTRIBUTOR_PAGE.replace(
+        "  <lf-playground-preview>",
+        """  <lf-playground-control name="limit" label="Maximum results"
+          kind="range" value="4" min="1" max="6" step="1"></lf-playground-control>
+  <lf-playground-preview>""",
+    ).replace(
+        '    <input id="region-filter" type="text" value="eu-west-1">',
+        """    <input id="region-filter" type="text" value="eu-west-1">
+    <label>Native range<input id="native-range" type="range"></label>
+    <label>Region choice<select id="native-select"><option>Europe</option><option>Asia</option></select></label>
+    <label>Include archived<input id="native-checkbox" type="checkbox"></label>
+    <label>All regions<input id="native-radio" type="radio"></label>
+    <label>Notes<textarea id="native-textarea">Keep the stable release.</textarea></label>
+    <div id="native-editable" contenteditable="true" aria-label="Description"><span>Release report</span></div>
+    <button id="editor-button" type="button">Add filter</button>
+    </div><div>
+    <label>Candidate input<input id="candidate-input" value="Compare this focus ring"></label>
+    <button id="candidate-button" type="button">Candidate button</button>
+    <input id="candidate-input-button" type="button" value="Candidate input button">
+    <input id="candidate-input-submit" type="submit" value="Candidate submit">
+    <input id="candidate-input-reset" type="reset" value="Candidate reset">
+    <input id="candidate-input-image" type="image" alt="Candidate image button">""",
+    )
+    source = source.replace(
+        "</head>",
+        "<style>#candidate-input:focus {outline: 4px solid violet}</style></head>",
+    )
+    context = browser.new_context(
+        viewport={"width": 1600, "height": 1000}, has_touch=True
+    )
+    page = open_page(browser, serve(source), context=context)
+    slider = page.get_by_role("slider", name="Maximum results")
+    field = page.get_by_role("textbox", name="Region filter")
+    for route in ("click", "tap"):
+        for selector in (
+            "#region-filter",
+            "#native-range",
+            "#native-select",
+            "#native-checkbox",
+            "#native-radio",
+            "#native-textarea",
+            "#native-editable span",
+            "#editor-button",
+        ):
+            with subtests.test(route=route, editor=selector):
+                getattr(page.locator(selector), route)()
+                if selector == "#native-select":
+                    page.keyboard.press("Escape")
+                if route == "tap":
+                    box = slider.bounding_box()
+                    slider.tap(position={"x": 2, "y": box["height"] / 2})
+                    expect(slider).to_have_value("1")
+                    slider.tap(position={"x": box["width"] - 2, "y": box["height"] / 2})
+                    expect(slider).to_have_value("6")
+                else:
+                    slider.click()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowRight")
+                    expect(slider).to_have_value("2")
+                    expect(slider).to_be_focused()
+                expect(field).to_have_value("eu-west-1")
+    # A keyboard arrival, rather than a pointer press, likewise operates the range.
+    page.get_by_role("button", name="Checkout stream", exact=True).click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(slider).to_be_focused()
+    page.keyboard.press("End")
+    expect(slider).to_have_value("6")
+    # Focus belongs to the candidate's purpose, including an input's focus treatment.
+    for selector in (
+        "#candidate-input",
+        "#candidate-button",
+        "#candidate-input-button",
+        "#candidate-input-submit",
+        "#candidate-input-reset",
+        "#candidate-input-image",
+    ):
+        with subtests.test(candidate=selector):
+            candidate = page.locator(selector)
+            candidate.click()
+            slider.click()
+            assert candidate.evaluate("button => button.matches(':focus')")
+            if selector == "#candidate-input":
+                assert (
+                    candidate.evaluate("input => getComputedStyle(input).outlineWidth")
+                    == "4px"
+                )
 
 
 def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, serve):
@@ -466,22 +563,21 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     )
     field.press("ArrowLeft")
     playground.get_by_role("radio", name="Billing", exact=True).click()
-    expect(field).to_be_focused()
+    expect(playground.get_by_role("radio", name="Billing", exact=True)).to_be_focused()
     expect(field).to_have_value("us-east-1")
-    assert field.evaluate("input => input.selectionStart") == len("us-east-")
     assert playground.evaluate("root => root.values.filters.region") == "us-east-1"
 
     field.fill("ap-south-1")
     # A later component registers while another component owns an unfinished edit.
     playground.evaluate("""root => {
-      root.registerContributor('grouped', false);
+      root.registerContributor('grouped', false, root.querySelector('#query-editor'));
     }""")
     expect(field).to_have_value("ap-south-1")
     assert playground.evaluate("root => root.values.filters.region") == "ap-south-1"
 
     field.fill("eu-north-1")
     playground.get_by_role("button", name="Checkout stream").click()
-    expect(field).to_be_focused()
+    expect(playground.get_by_role("button", name="Checkout stream")).to_be_focused()
     expect(field).to_have_value("eu-north-1")
     assert playground.evaluate("root => root.values") == {
         "stream": "checkout",
@@ -599,14 +695,14 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     assert playground.evaluate("root => root.values") == {"stream": "checkout"}
     assert (
         playground.evaluate("""root => {
-      return root.registerContributor('grouped', true).get();
+      return root.registerContributor('grouped', true, root.querySelector('#query-editor')).get();
     }""")
         is False
     )
     undo(page)
     playground.evaluate("""root => {
       const input = document.querySelector('#region-filter');
-      root.registerContributor('filters', {region:'eu-west-1'});
+      root.registerContributor('filters', {region:'eu-west-1'}, root.querySelector('#query-editor'));
       root.subscribe(values => {
         if (input.value !== values.filters.region) input.value = values.filters.region;
       });

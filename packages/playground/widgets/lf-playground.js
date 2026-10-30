@@ -13,7 +13,9 @@
  * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
- * named default and get an immutable slice handle; set replaces that slice. Required
+ * named default and its editor root, and get an immutable slice handle; set replaces
+ * that slice. An editor's controls hand focus to the next control pressed; the rest
+ * of the preview keeps the focus state a candidate may demonstrate. Required
  * views subscribe to the aggregate and paint inside this LeafElement's render, so
  * local edits and canonical restoration share its failure and presentation boundary.
  * Consumers retain native editors and keep no second configuration model. The initial
@@ -56,6 +58,7 @@ import {
   wear,
   whileConnected,
   focused,
+  under,
   worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -123,6 +126,7 @@ customElements.define(
     #initial = null;
     #controlByName = new Map();
     #views = new Set();
+    #contributorEditors = new Set();
     /** @type {Readonly<Record<string, unknown>>} */
     #defaults = Object.freeze({});
     #values = Object.freeze({});
@@ -180,19 +184,22 @@ customElements.define(
       return this.#values;
     }
 
-    registerContributor(name, defaultSnapshot) {
+    registerContributor(name, defaultSnapshot, editor) {
       if (!this.#ready) throw new Error("playground is not ready");
       if (!NAME.test(name ?? "")) throw new Error(`invalid contributor name ${name}`);
       if (this.#controlByName.has(name))
         throw new Error(`contributor ${name} collides with a control`);
       if (Object.hasOwn(this.#defaults, name))
         throw new Error(`repeats contributor ${name}`);
+      if (!under(editor, this))
+        throw new Error(`contributor ${name} needs an editor in its playground`);
       const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
       const restored = Object.hasOwn(this.#pendingValues, name)
         ? jsonSnapshot(this.#pendingValues[name], `contributor ${name}`)
         : initial;
       this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
       this.#values = Object.freeze({ ...this.#values, [name]: restored });
+      this.#contributorEditors.add(editor);
       delete this.#pendingValues[name];
       this.#draw();
       return Object.freeze({
@@ -351,11 +358,16 @@ customElements.define(
     // Readable labels allow the browser's selection gesture. Text, colour and select
     // controls take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
-    // A control written in the preview is not a candidate: standing on one is standing
-    // on a control.
+    // Contributors declare which DOM edits their values. The rest of the preview
+    // can demonstrate any focused element, including an input, so its element type
+    // cannot tell an editor from a candidate whose focus is being compared.
     #standsInPreview() {
       let at = focused(document);
-      if (!this.#preview.contains(at) || at.closest("lf-playground-control"))
+      if (
+        !under(at, this.#preview) ||
+        at.closest("lf-playground-control") ||
+        [...this.#contributorEditors].some((editor) => under(at, editor))
+      )
         return false;
       // A sample's frame holds focus for its child page, which may stand on nothing.
       while (at?.contentDocument) at = at.contentDocument.activeElement;

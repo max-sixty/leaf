@@ -3060,8 +3060,8 @@ function createPresentationSchedule(bindJob) {
 			scheduled = false;
 			const round = queued;
 			queued = [];
-			for (const run of round) {
-				const started = run();
+			for (const run2 of round) {
+				const started = run2();
 				started.catch(() => void 0);
 				running.push(started);
 			}
@@ -3126,7 +3126,7 @@ function createPresentationSchedule(bindJob) {
 				presentation: handle.present(failSoft)
 			};
 		}
-		async function run({ claimed, value, presentation, dom }) {
+		async function run({ claimed, value, presentation, dom: dom2 }) {
 			if (claimed !== generation) return;
 			let painted;
 			try {
@@ -3134,7 +3134,7 @@ function createPresentationSchedule(bindJob) {
 			} catch (error) {
 				painted = Promise.reject(error);
 			}
-			dom.resolve();
+			dom2.resolve();
 			presentation.resolve(painted);
 			await presentation.ready;
 		}

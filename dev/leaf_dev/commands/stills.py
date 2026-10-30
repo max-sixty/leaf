@@ -48,13 +48,13 @@ in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
 differ, the element inherits the difference or reads it from a custom property.
 
-Across the run, the command also reads the faces each arm draws in words a reader
-sees: the family, size, weight, style, tracking and case of every shown element with
-words of its own, in the states both arms completed. A face only one arm draws is
-listed in the run's `faces.txt` beside the other arm's nearest, with the elements
-that wear it (`face_changes`). A change meant to reuse the faces Leaf has should add
-none, so a face half a pixel or a hundred of weight from its nearest is usually a
-drift to fold into that one; a consolidation lists the faces it retired.
+Across the run, the command also collects each arm's faces: the family, size, weight,
+style, tracking and case of every shown element that holds words of its own, in the
+states both arms completed. The run's `faces.txt` lists each face only one arm draws,
+with the elements that wear it and the other arm's nearest face (`face_changes`). A
+change that reuses Leaf's faces adds none, so a new face half a pixel or a hundred of
+weight from its nearest is usually a drift to fold into that face. A consolidation
+lists the faces it retired.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the

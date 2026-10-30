@@ -398,9 +398,10 @@
      that has to fit something states its own number where it is set, as a code block
      does against the characters it takes across. Rem units retain these sizes at
      the browser's default 16px while following a reader's chosen default font size.
-     --t-7 stands below the prose for the words on a mark: a count on its badge, a
-     position, a line under a mark's label. No density restates it, since a count has
-     to stay legible on the mark it rides. */
+     --t-7 is smaller than any prose size, for the words on a margin mark or the
+     panel's leaf: a count on its badge, a cluster's position, the second line of a
+     mark's label. No density restates it, because a count must stay legible on its
+     mark. */
   --t-7: 0.625rem;
   --t-6: 0.71875rem;
   --t-working-label: 0.8125rem;
@@ -422,8 +423,8 @@
      panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
   --msg-size: max(var(--entry-floor), var(--t-5));
   --msg-font: var(--msg-size) / 1.5 var(--sans);
-  /* Its author's name, a rung above the head's time and status, at the root's rung
-     for the same reason. */
+  /* A message's author name, one rung larger than the time and status beside it, also
+     resolves at the root, for the same reason. */
   --lf-msg-name-size: var(--t-working-label);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft

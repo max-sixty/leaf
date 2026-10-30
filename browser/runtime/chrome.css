@@ -982,10 +982,10 @@ html[data-lf-region-capture] main * {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }
-  /* A dialog's head: its title, then what it offers, Close last. Every dialog the
-     chrome opens names itself in one face, the chrome's sans at weight 600, as a list's
-     group heading and the floating panel's view are named; three set their titles in
-     the browser's bold until they shared this. */
+  /* A dialog's head holds its title, then its other controls, with Close last. Every
+     dialog the chrome opens sets its title in one face, the chrome's sans at weight
+     600, as a list's group heading and the floating panel's view title are. Three
+     dialogs set their titles in the browser's bold until they shared this. */
   .lf-dialog-head {
     display: flex;
     align-items: center;

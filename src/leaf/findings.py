@@ -419,6 +419,13 @@ def _listed(findings: list[dict]) -> str:
     return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
 
 
+# The fix for a page's own file named outside page/, whichever reference names it.
+_MOVE_UNDER_PAGE = (
+    "move the file into page/ beside index.html and name it by that path, such as"
+    " page/style.css or page/app.js"
+)
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -1518,8 +1525,7 @@ _TEXT = {
     "dependency-outside-page": _captured(
         lambda v: (
             "a page's own files (stylesheets, scripts, images, data) live under page/"
-            " beside index.html, or media/; move the file there and name it by that"
-            " path, such as page/style.css"
+            f" or media/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "dependency-symlink": _captured(
@@ -1540,8 +1546,9 @@ _TEXT = {
     ),
     "module-outside-page": _captured(
         lambda v: (
-            "a module the page imports lives under page/, is a public entry point"
-            " such as /runtime/widget-api.js, or is an http(s) URL"
+            "a module the page imports is a public entry point such as"
+            " /runtime/widget-api.js, an http(s) URL, or the page's own file under"
+            f" page/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),

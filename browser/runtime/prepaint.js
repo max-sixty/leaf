@@ -116,7 +116,10 @@
     // sandboxed window. It is not this realm's Event and reaches no document.
     // Reject it before reading fields or handing it to the input subscribers.
     if (!(event instanceof Event)) return;
-    if (event.type === "blur" && event.target !== window) return;
+    // Entering a child frame blurs this Window while its document still holds
+    // input through that child. Only leaving the document supersedes its gesture.
+    if (event.type === "blur" && (event.target !== window || document.hasFocus()))
+      return;
     if (event.type !== "blur" && event.type !== "wheel") stayed();
     inputs++;
     for (const read of inputReaders) read(event);

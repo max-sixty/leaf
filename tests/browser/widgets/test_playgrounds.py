@@ -314,7 +314,7 @@ def test_playground_range_preserves_preview_focus_without_cancelling_native_drag
             edited = "sample-value" if target is sample else "native-value"
             page.keyboard.press("ControlOrMeta+A")
             page.keyboard.type(edited)
-            expect(editor).to_be_focused(timeout=5000)
+            expect(editor).to_be_focused()
             expect(editor).to_have_value(edited)
             if target is sample:
                 # An already queued restore delivered after the user leaves cannot
@@ -322,7 +322,7 @@ def test_playground_range_preserves_preview_focus_without_cancelling_native_drag
                 assert not page.locator("#candidate-sample").evaluate(
                     "e => e.restoreCurrentLocation()"
                 )
-                expect(editor).to_be_focused(timeout=5000)
+                expect(editor).to_be_focused()
     # A cancelled native default can leave the preview in place. Neither a cancelled
     # press nor replacing its candidate may claim a later deliberate editor arrival.
     for ending in ("cancel", "replace"):
@@ -343,8 +343,46 @@ def test_playground_range_preserves_preview_focus_without_cancelling_native_drag
             editor.click()
             page.keyboard.press("ControlOrMeta+A")
             page.keyboard.type(ending)
-            expect(editor).to_be_focused(timeout=5000)
+            expect(editor).to_be_focused()
             expect(editor).to_have_value(ending)
+
+
+def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Keyboard during a range press",
+                """
+<lf-ask id="ring-ask"><h1>Choose a ring</h1>
+<lf-playground id="ring">
+  <lf-playground-control name="width" label="Width" kind="range"
+    value="2" min="1" max="4" step="1"></lf-playground-control>
+  <lf-playground-preview>
+    <label>Candidate<input value="Focus treatment"></label>
+  </lf-playground-preview>
+  <lf-playground-output>Width <lf-playground-value for="width"></lf-playground-value></lf-playground-output>
+</lf-playground></lf-ask>
+""",
+            )
+        ),
+    )
+    candidate = page.get_by_role("textbox", name="Candidate")
+    slider = page.get_by_role("slider", name="Width")
+    candidate.click()
+    box = slider.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    expect(candidate).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(slider).to_be_focused()
+    page.mouse.up()
+    expect(slider).to_be_focused()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(slider).to_have_value("2")
 
 
 def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, serve):

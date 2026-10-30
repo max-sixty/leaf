@@ -48,6 +48,7 @@ import {
   focusDestination,
   layoutChanged,
   onCurrentLocation,
+  onPress,
   initialRender,
   isNativeLayer,
   keeps,
@@ -142,7 +143,6 @@ customElements.define(
     #ready = false;
     #interactive = false;
     #regions = [];
-    #rangePreview = null;
 
     // A build that throws leaves the playground showing its failure (LeafElement).
     setup() {
@@ -150,42 +150,7 @@ customElements.define(
       this.#ready = true;
       whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
-        stops.push(
-          onCurrentLocation((at) => {
-            if (at !== this.#rangePreview?.currentLocation)
-              this.#returnRangePreview(at);
-          }),
-        );
-        const cancelRange = () => this.#cancelRangePreview();
-        for (const type of ["pointerdown", "pointercancel", "keydown"])
-          window.addEventListener(type, cancelRange, { capture: true, signal });
-        window.addEventListener(
-          "blur",
-          () => {
-            if (!document.hasFocus()) cancelRange();
-          },
-          { signal },
-        );
-        window.addEventListener(
-          "focus",
-          () => {
-            // A frame's window yields before the range takes focus. Returning at
-            // that earlier departure lets Firefox keep its native drag.
-            if (this.#rangePreview?.currentLocation.localName === "iframe")
-              this.#returnRangePreview(null);
-          },
-          { signal },
-        );
-        // Firefox can activate the parent window while its activeElement still
-        // names the frame. Release returns that frame even with no location change.
-        window.addEventListener(
-          "mouseup",
-          () => {
-            this.#returnRangePreview(focused());
-            cancelRange();
-          },
-          { signal },
-        );
+        stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar.
         const controls = this.#regions.find((region) => region.name === "controls");
@@ -213,7 +178,6 @@ customElements.define(
         window.addEventListener("resize", putAway, { signal });
         this.#draw();
         return () => {
-          cancelRange();
           observer.disconnect();
           for (const stop of stops) stop();
         };
@@ -348,19 +312,7 @@ customElements.define(
             if (selection && !this.#preview.contains(selection.focusNode))
               selection.removeAllRanges();
             const range = target.closest('input[type="range"]');
-            if (range) {
-              // Cancelling the native press also cancels range dragging. Return
-              // on departure: Firefox stops dragging if the range receives focus
-              // before returning it, while WebKit never focuses the range at all.
-              // The focus owner also reads departures from opaque sample frames,
-              // which emit no blur here and restore through their private port.
-              // Hold through release: WebKit's later native step can undo the
-              // first return, so consuming the destination on that return loses it.
-              const restore = (event) => this.#returnRangePreview(event.relatedTarget);
-              this.#rangePreview = { range, currentLocation, restore };
-              if (currentLocation.localName !== "iframe")
-                currentLocation.addEventListener("blur", restore, { once: true });
-            } else event.preventDefault();
+            if (!range) event.preventDefault();
           }
         });
         this.#commands();
@@ -386,29 +338,60 @@ customElements.define(
       );
     }
 
-    #returnRangePreview(at) {
-      const preview = this.#rangePreview;
-      if (!preview) return;
+    // Native range focus and dragging share a default: cancelling it cancels the
+    // drag. Return at departure, early enough that Firefox never lends focus to
+    // the range, and keep the return through WebKit's later native focus steps.
+    // The canonical press owns this closure until its compatibility events finish.
+    #holdRangePreview(start, connected) {
+      if (start.button !== 0) return;
+      const target = /** @type {Element} */ (start.composedPath()[0]);
+      const range = target.closest('input[type="range"]');
+      const pressed = target.closest(ONE_PRESS);
       if (
-        at &&
-        at !== document.body &&
-        at !== preview.range &&
-        at !== preview.currentLocation
-      ) {
-        this.#cancelRangePreview();
+        !range ||
+        pressed?.closest("lf-playground") !== this ||
+        this.#preview.contains(pressed)
+      )
         return;
+      const currentLocation = this.#previewLocation();
+      if (!currentLocation) return;
+      const hold = new AbortController();
+      const signal = AbortSignal.any([connected, hold.signal]);
+      const close = () => hold.abort();
+      const restore = (at) => {
+        if (signal.aborted) return;
+        if (at && at !== document.body && at !== range && at !== currentLocation) {
+          close();
+          return;
+        }
+        focusDestination(currentLocation, "return");
+        const sample = currentLocation.closest("lf-sample");
+        if (sample && currentLocation.localName === "iframe")
+          void sample.restoreCurrentLocation()?.catch(() => {});
+      };
+      const stop = onCurrentLocation((at, cause) => {
+        if (cause === "step") close();
+        else if (at !== currentLocation) restore(at);
+      });
+      signal.addEventListener("abort", stop, { once: true });
+      if (currentLocation.localName === "iframe") {
+        // The parent window activates before the range receives element focus.
+        window.addEventListener("focus", () => restore(null), { signal });
+      } else {
+        currentLocation.addEventListener(
+          "blur",
+          (event) => restore(event.relatedTarget),
+          {
+            once: true,
+            signal,
+          },
+        );
       }
-      const { currentLocation } = preview;
-      const sample = currentLocation?.closest?.("lf-sample");
-      focusDestination(currentLocation, "return");
-      if (sample && currentLocation?.localName === "iframe")
-        void sample.restoreCurrentLocation()?.catch(() => {});
-    }
-
-    #cancelRangePreview() {
-      const preview = this.#rangePreview;
-      if (preview) preview.currentLocation.removeEventListener("blur", preview.restore);
-      this.#rangePreview = null;
+      return (_end, completed) => {
+        if (completed) restore(focused());
+        else close();
+        return close;
+      };
     }
 
     // Whether the user is in the preview, where a candidate can draw on the element

@@ -49,9 +49,10 @@ function clearAim() {
 	aimBox.removeAttribute("data-for");
 	delete aimStand.root.dataset.lfPaintPlane;
 }
-function paintAim(element, surface = null) {
-	const geometry = surface ? paintGeometry(surface) : null;
-	const placed = element && placement(surface ?? element, Boolean(geometry), inChrome(element));
+function paintAim(element, surface) {
+	surface ??= element;
+	const geometry = surface && paintGeometry(surface);
+	const placed = element && placement(surface, Boolean(geometry), inChrome(element));
 	if (!placed?.shown) {
 		clearAim();
 		return null;
@@ -64,7 +65,7 @@ function paintAim(element, surface = null) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface ?? element).borderRadius);
+	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
 	aimPlaced = placed;
 	return placed.shown;
 }

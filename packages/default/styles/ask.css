@@ -30,7 +30,7 @@ lf-ask[data-lf-obligation]::after {
 }
 @container style(--lf-full-height: 1) {
   lf-ask[data-lf-obligation]::after {
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
 }
 /* An lf-ask keeps the prose measure, including on a wider sidebar page.

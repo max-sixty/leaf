@@ -5683,7 +5683,7 @@ const paints = (shape, property) => {
 	}) && style[property] !== "none" && Number.parseFloat(style[`${property}Opacity`]) !== 0 && (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0);
 };
 function paintGeometry(surface) {
-	if (!(surface instanceof SVGElement)) return null;
+	if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
 	const geometry = [surface, ...surface.querySelectorAll("*")].filter((child) => child instanceof SVGGeometryElement);
 	const fill = geometry.filter((shape) => paints(shape, "fill"));
 	const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
@@ -5836,11 +5836,11 @@ function standOver(stand, placed, borderRadius) {
 		display: "block",
 		borderRadius
 	});
-	const control = placed.surface.matches(PRESSES);
-	const outside = markRoom(control);
-	const inset = cramped(placed, outside);
-	keeps(stand.box, "data-lf-mark-on", inset ? "inset" : control ? "control" : null);
-	const room = inset ? 0 : outside;
+	const band = token("--focus-ring-w");
+	const outside = markGap(placed.surface);
+	const gap = cramped(placed, band + outside) ? -band : outside;
+	stand.box.style.setProperty("--lf-mark-offset", layoutPx(gap));
+	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
 		"right",
@@ -5854,9 +5854,11 @@ function standOver(stand, placed, borderRadius) {
 		room
 	};
 }
-function markRoom(control) {
-	const root = getComputedStyle(document.documentElement);
-	return ["--focus-ring-w", control ? "--focus-ring-gap" : "--focus-region-gap"].map((token) => Number.parseFloat(root.getPropertyValue(token))).reduce((sum, px) => sum + px, 0);
+const token = (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+function markGap(surface) {
+	const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
+	if (stated) return stated;
+	return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 function cutsAt({ rect, levels }, side) {
 	const axis = side === "top" || side === "bottom" ? "y" : "x";

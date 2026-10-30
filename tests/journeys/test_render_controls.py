@@ -698,6 +698,8 @@ def _each_aim_surface(page, page_dir):
     panel_menu(page, "versions")
     yield
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
+    page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
     page.keyboard.press("?")
@@ -1323,7 +1325,9 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     open_versions(page)
     panel_settled(page, view="versions")
     sweep("in the versions menu")
-    # Escape puts Versions away with the menu under it.
+    # Escape steps back to the menu, and then puts it away.
+    page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 

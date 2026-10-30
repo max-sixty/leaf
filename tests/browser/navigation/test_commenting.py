@@ -212,6 +212,8 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     expect(page.locator(panel_view("versions"))).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("versions"))).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("menu"))).to_have_count(0)
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")

@@ -3473,6 +3473,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     assert "this one does" not in (field.get_attribute("placeholder") or "")
     assert "this one does" not in page.locator(".lf-live").text_content()

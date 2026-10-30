@@ -2914,7 +2914,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(listed).to_have_count(4)
     expect(dot).to_be_visible()
     page.keyboard.press("Escape")
-    panel_settled(page, open=False)
+    panel_settled(page, view="menu")
     panel_menu(page).locator('[data-row="errors"]').click()
     expect(listed).to_have_count(5)
     expect(listed.first).to_contain_text("Another image could not be attached")
@@ -2937,7 +2937,9 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(listed.nth(2).get_by_role("button")).to_be_focused()
     listed.nth(2).get_by_role("button").click()
     expect(listed.nth(2).get_by_role("button")).to_be_focused()
-    # Escape puts the whole view away, the menu under the list included.
+    # Escape steps back to the menu, and from it puts the view away.
+    page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     expect(dot).to_be_hidden()
@@ -3676,6 +3678,8 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view).to_be_visible()
     expect(page.locator(".lf-fp-controls .lf-fp-back")).to_have_text("Menu")
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
+    page.keyboard.press("Escape")
     panel_settled(page, open=False)
     page.locator("body").focus()
     page.keyboard.press("g")
@@ -3810,6 +3814,8 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     expect(failed).to_contain_text("Latest edit couldn't be shown")
     expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
+    page.keyboard.press("Escape")
     panel_settled(page, open=False)
     (serve.page_dir / "index.html").write_text(second)
     told(page)
@@ -3899,8 +3905,9 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
 def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     """A menu row that opens a list opens it as a view over the menu, under its name,
     with Menu, the way back, at its foot, where every view's way back stands; it
-    returns to the menu. Opened by a key, the list stands the user on its first row,
-    and Escape puts the whole view away, the menu under it included."""
+    returns to the menu. Opened by a key, the list stands the user on its first row;
+    Escape steps back to the menu, onto the row that opened the list, and from the
+    menu back to the leaf, putting the view away."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     view = page.locator(panel_view("group"))
     back = page.locator(".lf-fp-controls .lf-fp-back")
@@ -3921,7 +3928,11 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     panel_settled(page, view="group")
     expect(view.locator(".lf-fp-item").first).to_be_focused()
     page.keyboard.press("Escape")
+    panel_settled(page, view="menu")
+    expect(annotations).to_be_focused()
+    page.keyboard.press("Escape")
     panel_settled(page, open=False)
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
 def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
@@ -3933,7 +3944,7 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    search = page.get_by_role("searchbox", name="Find a row, thread or version")
+    search = page.get_by_role("searchbox", name="Rows, threads, versions")
     menu = panel_menu(page)
     expect(search).to_be_focused()
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-search", "menu")

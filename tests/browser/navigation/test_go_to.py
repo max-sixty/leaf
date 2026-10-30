@@ -752,7 +752,8 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(page_map).to_be_hidden()
 
     # From a thread open in the panel, Versions opens over the leaf's menu in the
-    # thread's place, as every view does, and Escape puts the view away.
+    # thread's place, as every view does; Escape steps back to the menu, then puts the
+    # view away.
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
@@ -768,4 +769,6 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(page.locator(".lf-fp-controls .lf-fp-back")).to_have_text("Menu")
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")
+    page.keyboard.press("Escape")
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))

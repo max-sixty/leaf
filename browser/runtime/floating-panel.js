@@ -283,7 +283,7 @@ const prefs = () => document.documentElement.lfChrome;
 
 // What the field's own search box asks for, in each list it searches.
 const SEARCH_PROMPTS = Object.freeze({
-  menu: "Find a row, thread or version",
+  menu: "Rows, threads, versions",
   threads: "Find a thread or message",
 });
 // The menu's groups, each a list of the page's controls declaring it, in the menu's place.
@@ -1186,7 +1186,7 @@ export function createFloatingPanel({
       quiet: () => true,
       draw: () => menuView(),
       controls: () => ({ crumb: onTabs("menu") }),
-      rows: ".lf-fp-item",
+      rows: ".lf-fp-item:not(:disabled)",
     },
     threads: {
       title: () => "Threads",
@@ -1241,7 +1241,7 @@ export function createFloatingPanel({
       key: (route) => `group:${route.group}`,
       title: (route) => GROUPS[route.group],
       draw: (route) => groupList(route.group),
-      rows: ".lf-fp-item",
+      rows: ".lf-fp-item:not(:disabled)",
       over: ["menu"],
     },
   });
@@ -2096,12 +2096,35 @@ export function createFloatingPanel({
         (groupOf(entry) === "page" || groupOf(entry) in GROUPS) &&
         holds(entry.copies ? `Copy ${entry.label}` : entry.label),
     );
+    const lists = Object.keys(GROUPS).filter(
+      (group) =>
+        holds(GROUPS[group]) &&
+        rows().some((entry) => groupOf(entry) === group && listed(entry)),
+    );
+    const errors = holds("Errors") ? errorsReading() : [];
     const named = threads().filter((thread) => holds(threadName(thread)));
     const versions = versionsReading().rows.filter((entry) =>
       holds(`${entry.name} ${entry.note ?? ""}`),
     );
     const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
-    return html`${reached.map(rowFor)}${named.map((thread) =>
+    return html`${
+        errors.length
+          ? menuItem(
+              "Errors",
+              kind(errors.length),
+              () => {
+                open({ view: "errors", errors });
+                seeErrors();
+              },
+              { opens: true, row: "errors" },
+            )
+          : nothing
+      }${reached.map(rowFor)}${lists.map((group) =>
+        menuItem(GROUPS[group], nothing, () => open({ view: "group", group }), {
+          opens: true,
+          row: `group:${group}`,
+        }),
+      )}${named.map((thread) =>
         menuItem(
           threadName(thread),
           kind("Thread"),
@@ -2118,7 +2141,11 @@ export function createFloatingPanel({
           { title: entry.note },
         ),
       )}${
-        reached.length || named.length || versions.length
+        errors.length ||
+        reached.length ||
+        lists.length ||
+        named.length ||
+        versions.length
           ? nothing
           : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`
       }
@@ -4253,6 +4280,17 @@ export function createFloatingPanel({
               out: closeThreadSearch,
             };
     if (!trail.value.length) return null;
+    if (trail.value.at(-2)?.view === "menu")
+      return { root: host, title: "back to menu", out: back };
+    if (trail.value.at(-1).view === "menu")
+      return {
+        root: host,
+        title: "close menu",
+        out: () => {
+          close();
+          focusDestination(leaf, "return");
+        },
+      };
     // An On item standing open folds back to its line before the view goes, where the
     // user is in the panel; from the page, where `m` took them, Escape puts the view
     // away as it always has.
@@ -4301,6 +4339,21 @@ export function createFloatingPanel({
         landed: (row) => rove(listRows(), row),
       }).map((row) => ({ ...row, when: inList }))
     ),
+  );
+  keys(
+    stage,
+    "In the menu",
+    [
+      {
+        id: "panel.floating.menu.search",
+        keys: ["ArrowUp"],
+        title: "back to the search",
+        touch: false,
+        travels: true,
+        run: () => focusDestination(threadSearchInput, "move"),
+      },
+    ],
+    () => menuSearching() && focused() === listRows()[0],
   );
   // The menu's search box, as the page's find box does, takes Enter to press what it
   // found first and ↓ to the rows, on the exact input, ahead of the text field's own

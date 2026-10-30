@@ -5391,7 +5391,7 @@ function paintStatusContext(goToStatus) {
 //#region runtime/floating-panel.js
 const prefs = () => document.documentElement.lfChrome;
 const SEARCH_PROMPTS = Object.freeze({
-	menu: "Find a row, thread or version",
+	menu: "Rows, threads, versions",
 	threads: "Find a thread or message"
 });
 const GROUPS = Object.freeze({
@@ -5978,7 +5978,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			quiet: () => true,
 			draw: () => menuView(),
 			controls: () => ({ crumb: onTabs("menu") }),
-			rows: ".lf-fp-item"
+			rows: ".lf-fp-item:not(:disabled)"
 		},
 		threads: {
 			title: () => "Threads",
@@ -6033,7 +6033,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			key: (route) => `group:${route.group}`,
 			title: (route) => GROUPS[route.group],
 			draw: (route) => groupList(route.group),
-			rows: ".lf-fp-item",
+			rows: ".lf-fp-item:not(:disabled)",
 			over: ["menu"]
 		}
 	});
@@ -6510,13 +6510,30 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const words = query.trim();
 		const holds = (text) => String(text ?? "").toLocaleLowerCase().includes(words.toLocaleLowerCase());
 		const reached = rows().filter((entry) => !entry.exit && (listed(entry) || HELD_ELSEWHERE.includes(entry.key)) && (groupOf(entry) === "page" || groupOf(entry) in GROUPS) && holds(entry.copies ? `Copy ${entry.label}` : entry.label));
+		const lists = Object.keys(GROUPS).filter((group) => holds(GROUPS[group]) && rows().some((entry) => groupOf(entry) === group && listed(entry)));
+		const errors = holds("Errors") ? errorsReading() : [];
 		const named = threads().filter((thread) => holds(threadName(thread)));
 		const versions = versionsReading().rows.filter((entry) => holds(`${entry.name} ${entry.note ?? ""}`));
 		const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
-		return html`${reached.map(rowFor)}${named.map((thread) => menuItem(threadName(thread), kind("Thread"), () => open({
+		return html`${errors.length ? menuItem("Errors", kind(errors.length), () => {
+			open({
+				view: "errors",
+				errors
+			});
+			seeErrors();
+		}, {
+			opens: true,
+			row: "errors"
+		}) : nothing}${reached.map(rowFor)}${lists.map((group) => menuItem(GROUPS[group], nothing, () => open({
+			view: "group",
+			group
+		}), {
+			opens: true,
+			row: `group:${group}`
+		}))}${named.map((thread) => menuItem(threadName(thread), kind("Thread"), () => open({
 			view: "thread",
 			thread: thread.key
-		}), { row: `thread:${thread.key}` }))}${versions.map((entry) => menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, kind("Version"), () => showVersion(entry), { title: entry.note }))}${reached.length || named.length || versions.length ? nothing : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`}
+		}), { row: `thread:${thread.key}` }))}${versions.map((entry) => menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, kind("Version"), () => showVersion(entry), { title: entry.note }))}${errors.length || reached.length || lists.length || named.length || versions.length ? nothing : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`}
       <hr />
       ${menuItem(`Search commands for “${words}”`, nothing, () => putAwayThen(() => findCommands(words, leaf)))}`;
 	}
@@ -7854,6 +7871,19 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			out: closeThreadSearch
 		};
 		if (!trail.value.length) return null;
+		if (trail.value.at(-2)?.view === "menu") return {
+			root: host,
+			title: "back to menu",
+			out: back
+		};
+		if (trail.value.at(-1).view === "menu") return {
+			root: host,
+			title: "close menu",
+			out: () => {
+				close();
+				focusDestination(leaf, "return");
+			}
+		};
 		if (trail.value.at(-1).view === "queue" && currentLocationIn(host) && shownView()?.querySelector(".lf-fp-on-item[data-open]")) return {
 			root: host,
 			title: "fold item",
@@ -7884,6 +7914,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		...row,
 		when: inList
 	})));
+	keys(stage, "In the menu", [{
+		id: "panel.floating.menu.search",
+		keys: ["ArrowUp"],
+		title: "back to the search",
+		touch: false,
+		travels: true,
+		run: () => focusDestination(threadSearchInput, "move")
+	}], () => menuSearching() && focused() === listRows()[0]);
 	keys(threadSearchInput, "In the menu's search", [{
 		id: "panel.floating.menu.first",
 		keys: ["Enter"],

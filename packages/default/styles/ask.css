@@ -1,7 +1,8 @@
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the current location ring says
- * are one lf-ask. */
+ * are one lf-ask. What it holds doesn't arrange its options: the author lays them across
+ * (`across`, options.css). */
 lf-ask {
   display: block;
 }
@@ -67,43 +68,6 @@ lf-ask[data-lf-obligation]::after {
     padding-right: var(--lf-grow-r);
     --lf-breakout: 1;
   }
-}
-/* An lf-ask whose evidence is a figure before its option list outruns a window when its
- * options stack: the cards land one under another, below the figure they turn on. A
- * figure is an image, drawing or table, or a widget whose entry says it draws a picture
- * (`x-visual`, painted `data-lf-visual`), so any package's chart counts without this
- * rule naming it. It asks its option list to lay them across instead
- * (`--lf-options-across`, said on the lf-ask and read by its own children;
- * options.css), so the cards stand side by side under the figure where the lf-ask's
- * width holds them all, and stack where it doesn't; a group given `data-width` lays
- * them across its own width. The content decides, so there is no attribute for it: an
- * lf-ask of words alone keeps its cards reading down, since there the cards are most of
- * what the reader weighs. Where the heading sits, and what follows the list, change
- * nothing. The list is the lf-ask's own child because the variable that says so does
- * not inherit.
- *
- * It replaced a 16rem options track that floated the evidence beside a sticky list at
- * 50rem and wider. The track held only for a list no taller than its evidence: three
- * cards with drawings beside a five-row table left the window's width beside the table
- * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
- * for the wide measure.
- *
- * Options holding a figure of their own, or a video, keep reading down, each figure at
- * the size its author gave it. Laid across, a card's share of the row shrank every
- * figure in it, words and all: a panel captured 580px wide stood 248px wide in one of
- * two cards, and three drawings authored 300px wide stood 207px wide, and the user
- * found such figures too small to read (27 October). That reverses #2634, which laid
- * them across so each picture stood over its own pick and the pictures compared in one
- * row: the comparison cost the figures their legibility. A control the runtime draws in
- * an option (`.lf-ui`), such as a nested group's Send, is no figure. */
-lf-ask:has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options):not(
-    :has(
-      > lf-options
-        > lf-option
-        :is(figure, img, svg, table, video, [data-lf-visual]):not(.lf-ui *)
-    )
-  ) {
-  --lf-options-across: 1;
 }
 /* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
  * full-height workspace's body is, gives its answer, the last of its children, what its

@@ -243,7 +243,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case and picture inside its lf-option. `multiple` lets the user pick several options as one answer (references/authoring-on-me.md says when). The cards read down; `across` sets them side by side, for when what the user compares, each option's picture or the evidence above the list, still reads at a card's share of the row and the question then fits the window (references/authoring-on-me.md, \"On the page\"). The built-in Another option field takes unlisted answers, so add no catch-all option; `closed` leaves it out where only the listed options can answer, such as a page that draws its own choice, and the user can still say more in a comment. Use `for` only to point at sections or work items that exist apart from the question. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -257,6 +257,9 @@
         "type": "boolean"
       },
       "closed": {
+        "type": "boolean"
+      },
+      "across": {
         "type": "boolean"
       },
       "settled": {

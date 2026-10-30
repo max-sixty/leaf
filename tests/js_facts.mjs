@@ -128,9 +128,9 @@ function resolve(file, specifier) {
       : served(specifier);
   if (!path) return null;
   const found = [
-    path,
     path.replace(/\.js$/, ".ts"),
     path.replace(/\.js$/, ".d.ts"),
+    path,
     `${path}.ts`,
     `${path}.js`,
     join(path, "index.ts"),

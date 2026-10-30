@@ -914,7 +914,11 @@ def execute_scenario(
         split = phase_traces(trace)
         order = list(phases(case))
         session = dict(
-            zip(order, resumed([trace_summary(split.get(p, [])) for p in order]))
+            zip(
+                order,
+                resumed([trace_summary(split.get(p, [])) for p in order]),
+                strict=True,
+            )
         )
         if run.leaf_condition:
             served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)

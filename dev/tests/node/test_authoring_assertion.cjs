@@ -11,11 +11,14 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
   t.after(() => rm(work, { recursive: true }));
   /** @type {Record<string, string>} */
   const phaseIds = { "": "5", _before_decision: "3", _before_revision: "4" };
-  /** @type {Record<string, { page?: string }>} */
+  /** @type {Record<string, { page?: string, trace: { reply: string } }>} */
   const phases = {
-    3: { page: "/before" },
-    4: { page: "/recorded" },
-    5: { page: "/final" },
+    3: { page: "/before", trace: { reply: "" } },
+    4: { page: "/recorded", trace: { reply: "" } },
+    5: {
+      page: "/final",
+      trace: { reply: "Queue: http://old/queue; handoff: http://old/handoff" },
+    },
   };
   const context = {
     config: {
@@ -56,7 +59,7 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
       diagnostics.comparison.brief = "Build a page whose review choices remain saved.";
       diagnostics.comparison.decision_task = null;
       diagnostics.comparison.phases = { "": "1" };
-      diagnostics.phases = { 1: { page: "/final" } };
+      diagnostics.phases = { 1: { page: "/final", trace: { reply: "" } } };
     }
     const output = shortTask
       ? "<main><h1>Review choices</h1></main>"
@@ -70,8 +73,9 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
           prompt.includes(`Saved request and later user messages:
 ${diagnostics.comparison.brief}`),
         );
+        assert.doesNotMatch(prompt, /Author output and feedback:/);
         assert.ok(
-          prompt.includes(`Author output and feedback:
+          prompt.includes(`Recorded conversation summary and comment answer:
 ${output}`),
         );
         if (!shortTask)
@@ -87,6 +91,7 @@ ${output}`),
             page: "/final",
             payload: "/runtime",
             condition: diagnostics.condition,
+            author_reply: shortTask ? "" : phases[5].trace.reply,
           },
           ...(shortTask
             ? {}
@@ -95,11 +100,13 @@ ${output}`),
                   page: "/before",
                   payload: "/runtime",
                   condition: diagnostics.condition,
+                  author_reply: "",
                 },
                 before_revision: {
                   page: "/recorded",
                   payload: "/runtime",
                   condition: diagnostics.condition,
+                  author_reply: "",
                 },
               }),
         });

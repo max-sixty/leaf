@@ -352,7 +352,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
 
     from leaf_dev import ROOT
     from leaf_dev import arrangement_eval as workflow
-    from leaf_dev.browser import headless_shell, load, tab
+    from leaf_dev.browser import headless_shell, load, settle, tab
 
     work = tmp_path / "originals"
     directory = tmp_path / "sample"
@@ -423,6 +423,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
                 with view.expect_popup() as opened:
                     view.get_by_role("link", name="Open handoff").click()
                 linked = opened.value
+                settle(linked)
                 expect(
                     linked.get_by_role("heading", name=f"Handoff phase {phase}")
                 ).to_be_visible()
@@ -431,6 +432,36 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
                 expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
                     "aria-checked", "true"
                 )
+    assert {p: p.read_bytes() for p in originals} == originals
+
+    # The judge receives delivered addresses as well as navigable page links.
+    reply = f"Review the queue at {urls[main]} and the handoff at {urls[handoff]}."
+    evidence = tmp_path / "judge"
+
+    def inspect_judge(_cwd, instructions, *args, **kwargs):
+        restored = json.loads((evidence / "restored-pages.json").read_text())["final"]
+        assert set(restored) == set(urls.values())
+        assert reply in instructions
+        assert all(address in instructions for address in restored.values())
+        raise RuntimeError("Judge prompt inspected without invoking a model")
+
+    monkeypatch.setattr(workflow, "run_agent", inspect_judge)
+    monkeypatch.setattr(workflow.pane_readings, "read", lambda *args: {})
+    result = workflow.judge_pages(
+        {
+            "final": {
+                "page": run.page(2),
+                "payload": ROOT,
+                "condition": "leaf",
+                "author_reply": reply,
+            }
+        },
+        {},
+        "Review the delivered queue and handoff.",
+        {},
+        evidence,
+    )
+    assert result["error"] == "Judge prompt inspected without invoking a model"
     assert {p: p.read_bytes() for p in originals} == originals
 
     # Model boundary only: the author created both servers before it settled.

@@ -69,6 +69,7 @@ def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
             "page": Path(sample["diagnostics"]["phases"][version]["page"]),
             "payload": Path(sample["diagnostics"]["payload"]),
             "condition": sample["diagnostics"]["condition"],
+            "author_reply": sample["diagnostics"]["phases"][version]["trace"]["reply"],
         }
         for label, sample in samples.items()
         for suffix, version in comparison["phases"].items()

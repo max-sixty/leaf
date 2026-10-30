@@ -30,7 +30,10 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
                     "payload": "/original/runtime",
                     "condition": "leaf",
                     "phases": {
-                        version: {"page": str(work / f"page-phase{version}")}
+                        version: {
+                            "page": str(work / f"page-phase{version}"),
+                            "trace": {"reply": f"Delivered phase {version}"},
+                        }
                         for version in comparison["phases"].values()
                     },
                 },
@@ -68,6 +71,9 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
         assert pages["page_before_revision"]["page"] == work / "page-phase4"
         assert pages["page"]["page"] == work / "page-phase5"
         assert pages["page"]["payload"].as_posix() == "/original/runtime"
+        assert pages["page"]["author_reply"] == "Delivered phase 5"
+        assert pages["page_before_revision"]["author_reply"] == "Delivered phase 4"
+        assert pages["page_before_decision"]["author_reply"] == "Delivered phase 3"
         assert widths == comparison["widths"]
         assert json.dumps(comparison, indent=2) in prompt
         assert "Investigate long decision premises" in prompt

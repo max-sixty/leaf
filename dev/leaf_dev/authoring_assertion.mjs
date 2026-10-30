@@ -35,6 +35,7 @@ export default async function grade(output, context, load = loadApiProvider) {
           page: diagnostics.phases[phase].page,
           payload: diagnostics.payload,
           condition: diagnostics.condition,
+          author_reply: diagnostics.phases[phase].trace.reply,
         },
       ]),
     );
@@ -57,7 +58,7 @@ ${diagnostics.comparison.brief}
 Original browser decision task:
 ${diagnostics.comparison.decision_task ?? ""}
 
-Author output and feedback:
+Recorded conversation summary and comment answer:
 ${output}
 
 The final page is the author's result after all user feedback. The optional

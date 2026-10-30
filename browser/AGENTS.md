@@ -395,10 +395,8 @@ composer or menu (`version.js`).
 State a module keeps for one press, or for one view while it stays open, lives in one
 record that starts when the press or view does and is dropped when it ends, rather than
 in variables the module resets by hand. A module keeps its record against the press
-through `focus.js` `pressRecords`, as `composing/surface.js` keeps its `PagePress`, and
-`floating-panel.js` replaces its `opening` whenever the open view's route key changes.
-A field added to the record ends with the others, where a separate variable needs a
-reset at every place the press or view can end.
+through `focus.js` `pressRecords`. A field added to the record ends with the others,
+where a separate variable needs a reset at every place the press or view can end.
 
 ### One answer for each question
 

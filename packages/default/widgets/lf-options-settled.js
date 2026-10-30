@@ -38,6 +38,10 @@ export class SettledOptions {
     this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
+    // It runs nothing: Enter and Space press it as they do a button
+    // (`selectableOffer`), and on a page the arrows open and close it as they do any
+    // disclosure (keyboard/page.js). The row names those presses in the group's words,
+    // as a diff's file row does.
     this.#row.lfCommands = {
       title: "In settled options",
       rows: [
@@ -45,7 +49,6 @@ export class SettledOptions {
           id: "option.toggle-settled",
           keys: () => DISCLOSE(this.#row),
           title: () => (this.#isOpen ? "close" : "open"),
-          run: () => this.#row.click(),
         },
       ],
     };

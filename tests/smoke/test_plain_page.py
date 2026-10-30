@@ -236,6 +236,16 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         expect(current).to_contain_text("Artifact ready")
         page.keyboard.press("Shift+Tab")
         expect(previous).to_be_focused()
+        # A step row is a span, so its words stay selectable, with a button's role:
+        # Enter and Space press it as they do a button, with no key of Leaf's.
+        rows = page.locator("#lf-timeline .lf-timeline-step")
+        rows.first.focus()
+        page.keyboard.press("Enter")
+        expect(current).to_contain_text("Compile")
+        page.keyboard.press("Tab")
+        expect(rows.nth(1)).to_be_focused()
+        page.keyboard.press("Space")
+        expect(current).to_contain_text("Artifact ready")
         page.evaluate(
             """() => { window.drawnAt = [];
             document.querySelector("#lf-motion").renderFrame = (t) => drawnAt.push(t); }"""

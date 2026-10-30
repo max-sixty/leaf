@@ -96,8 +96,13 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     select(page, (box["x"] + 1, y), (box["x"] + box["width"] - 1, y))
     assert "Adds 50" in page.evaluate("getSelection().toString()")
     expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    rows.nth(1).evaluate(
+        "row => { window.pressed = 0; row.addEventListener('click', () => pressed++); }"
+    )
     page.keyboard.press("Enter")
     expect(position).to_have_text("Step 2 of 6 · 0.2 s")
+    # The row is a span pressed as a button is, and nothing of Leaf's presses it again.
+    assert page.evaluate("pressed") == 1
     # Tab reaches the next row; Space takes the playhead there.
     page.keyboard.press("Tab")
     page.keyboard.press("Space")

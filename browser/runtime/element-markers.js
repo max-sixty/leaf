@@ -6,12 +6,14 @@ import { Directive, PartType, directive, nothing } from "/vendor/lit.js";
 import { keeps } from "./keeps.js";
 import { actionClass } from "./control-faces.js";
 import { actionOffers } from "./icon-paths.js";
+import "./selectable-press.js";
 
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
-// ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
-// registers its widget-specific keys. An input supplies its type here so the type and the
-// pressability marker cannot disagree. Custom controls opt in when their host exposes
+// ordinary buttons and links need no Leaf activation binding, nor does a
+// `selectableOffer` with a button's role (selectable-press.js); one with another role
+// registers its widget-specific keys. An input supplies its type here so the type and
+// the pressability marker cannot disagree. Custom controls opt in when their host exposes
 // the complete activation method that the go-to sequence can call.
 // Native elements also receive lf-ui-face, the default Leaf typography and ink.
 // Custom-element hosts keep their component-owned face and state styling.
@@ -151,9 +153,11 @@ export const offeredAction = elementDirective("offeredAction", offeredActionElem
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. WebKit begins no text selection inside a form control, whatever its
-// `user-select` (widget-elements.js says what was measured), so those few controls
-// deliberately remain spans and their owning widget supplies the complete key contract. Keeping this constructor separate makes selectable control text a visible
-// design decision instead of the behavior of every injected control.
+// `user-select` (widget-elements.js), so those few controls deliberately remain spans:
+// one with a button's role takes a button's keys from selectable-press.js, and any
+// other role's widget supplies its own. Keeping this constructor separate makes
+// selectable control text a visible design decision instead of the behavior of every
+// injected control.
 // The selectable offer's template form; Lit owns its label and tab stop.
 export const selectableOffered = elementDirective(
   "selectableOffered",

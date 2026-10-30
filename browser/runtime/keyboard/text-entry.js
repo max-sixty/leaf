@@ -3,6 +3,7 @@
 import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { parsed, PRESS } from "./bindings.js";
 import { CARET_KEYS } from "../control-selectors.js";
+import { SELECTABLE_BUTTON } from "../selectable-press.js";
 
 export function EVERYTHING() {
   return true;
@@ -43,13 +44,13 @@ export function nativeClaimAt(control) {
 // its exact element scope or a page scope rooted at it (dispatch.js, `shadow`), while a
 // contextual alias on it yields, as it yields to native editing. Modified presses stay
 // with the scopes: they are the browser's or Leaf's shortcuts, not activation. A span
-// offered with a button's role has no platform activation, so its owner declares the
-// press (`selectableOffer`).
+// offered with a button's role presses as a button does, by the default action
+// selectable-press.js gives it, so it is native activation here too.
 export const LINK = "a[href], area[href]";
 const ACTIVATION = [
   [LINK, ["Enter"]],
   [
-    'button, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])',
+    `button, ${SELECTABLE_BUTTON}, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])`,
     PRESS,
   ],
   ['input:is([type="checkbox"], [type="radio"])', [" "]],

@@ -221,10 +221,10 @@ own; `user-select: all` selected the whole label at once. Chromium 156.0.8078.4
 and Firefox 157.0, build 1555, selected part of the label, a word and the
 paragraph. A drag beginning outside still extends into the button in all three.
 So a control whose label is the page's own words is a span with a role
-(`selectableOffer`, `browser/runtime/widget-elements.js`), and its widget
-declares the key presses a button would have; off Leaf, where nothing reads that
-declaration, Enter and Space do nothing on it. Recheck with that button and a
-double click on one of its words, reading `getSelection().toString()`.
+(`selectableOffer`, `browser/runtime/widget-elements.js`), and one with a
+button's role takes Enter and Space from `browser/runtime/selectable-press.js`,
+on a page with Leaf or without it. Recheck with that button and a double click
+on one of its words, reading `getSelection().toString()`.
 
 ### Sample document admission and native navigation
 

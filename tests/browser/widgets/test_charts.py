@@ -620,10 +620,12 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
     )
     context = browser.new_context()
 
-    # The chart upgrades after the tab set has hidden its panel, the order in which
-    # reading its rect would draw it.
+    # The chart's module is held until the tab set has hidden its panel, the order in
+    # which reading its rect would draw it.
     def late(route):
-        route.request.frame.page.wait_for_timeout(300)
+        expect(
+            route.request.frame.page.locator('#numbers[hidden="until-found"]')
+        ).to_be_attached()
         route.continue_()
 
     context.route("**/lf-chart.js", late)

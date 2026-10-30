@@ -4,13 +4,13 @@ Promptfoo owns providers, repetition, concurrency, assertions and saved results.
 This provider supplies the work Promptfoo cannot do: an installed Leaf or plain
 HTML workspace, a live multi-turn author, a browser user who makes the task's
 decision, an optional last revision that changes what the page is for, and saved
-pages/traces. The author checks its own work. One agent judges
-the final page and, for a decision task, its earlier usable controls; there is no
+pages/traces. The author checks its own work. One agent judges the final page against
+its decision and revision starting points; there is no
 second decision reader or repeated render/quality grader for every revision.
 
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
-Reports capture the final and predecision pages and retain native timing/token accounting. Optional eval-pairs
+Reports capture those pages and retain native timing/token accounting. Optional eval-pairs
 judges compare saved samples without rerunning their authors. The run centrally
 selects its viewports, defaulting to one fullscreen desktop for every case.
 """
@@ -692,6 +692,14 @@ def judge_pages(
                 else {}
             )
             (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
+            revision_context = (
+                "Pages whose names end in before_revision are the authored versions "
+                "immediately before the user's last revision request. Compare each with "
+                "its corresponding final page when judging what that revision preserves "
+                "or changes."
+                if any(label.endswith("before_revision") for label in pages)
+                else ""
+            )
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
@@ -709,6 +717,7 @@ scope leaves insufficient evidence. Cite the observed states supporting your ver
 
 Pages:
 {json.dumps(addresses)}
+{revision_context}
 Required viewports (CSS pixels):
 {json.dumps(widths)}
 Task and criterion:
@@ -909,6 +918,8 @@ def comparison_inputs(
     versions = {"": str(order[-1])}
     if decision:
         versions["_before_decision"] = str(order[order.index(4) - 1])
+    if CASES[subject].revision:
+        versions["_before_revision"] = str(order[order.index(5) - 1])
     return {
         "brief": "\n".join(
             [

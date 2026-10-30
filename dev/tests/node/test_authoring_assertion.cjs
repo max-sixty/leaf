@@ -10,9 +10,13 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
   const work = await mkdtemp(join(tmpdir(), "leaf-judge-smoke-"));
   t.after(() => rm(work, { recursive: true }));
   /** @type {Record<string, string>} */
-  const phaseIds = { "": "4", _before_decision: "3" };
+  const phaseIds = { "": "5", _before_decision: "3", _before_revision: "4" };
   /** @type {Record<string, { page?: string }>} */
-  const phases = { 3: { page: "/before" }, 4: { page: "/final" } };
+  const phases = {
+    3: { page: "/before" },
+    4: { page: "/recorded" },
+    5: { page: "/final" },
+  };
   const context = {
     config: {
       rubric: "The final decision remains readable.",
@@ -92,6 +96,11 @@ ${output}`),
                   payload: "/runtime",
                   condition: diagnostics.condition,
                 },
+                before_revision: {
+                  page: "/recorded",
+                  payload: "/runtime",
+                  condition: diagnostics.condition,
+                },
               }),
         });
         return {
@@ -106,7 +115,7 @@ ${output}`),
 
   // The same missing output means different things after a native failure or completion.
   const missing = structuredClone(context);
-  delete missing.providerResponse.metadata.diagnostics.phases[4].page;
+  delete missing.providerResponse.metadata.diagnostics.phases[5].page;
   missing.providerResponse.metadata.checks.page = false;
   let unexpectedCalls = 0;
   const unexpectedJudge = async () => {

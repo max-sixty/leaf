@@ -1,4 +1,4 @@
-/** One live agent grades the final result and its predecision controls. */
+/** One live agent grades the result against its decision and revision starting points. */
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { loadApiProvider } from "promptfoo";
@@ -30,7 +30,7 @@ export default async function grade(output, context, load = loadApiProvider) {
       );
     const pages = Object.fromEntries(
       Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
-        suffix ? "before_decision" : "final",
+        suffix.slice(1) || "final",
         {
           page: diagnostics.phases[phase].page,
           payload: diagnostics.payload,

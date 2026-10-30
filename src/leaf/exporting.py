@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import uuid
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -97,8 +98,8 @@ def _fragment(address: str | None, reference: str) -> str | None:
     )
 
 
-class AssetInliner:
-    """Give a resource graph one embedded body and one document-lifetime URL per resource.
+class _Assets(ABC):
+    """Traverse the CSS resource graph with the delivery's embedding policy.
 
     Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
     cascade layers, supports clauses, and media conditions retain browser semantics.
@@ -109,18 +110,10 @@ class AssetInliner:
     def __init__(self, read: ResourceReader):
         self.read = read
         self.resources: dict[str, Resource] = {}
-        self.embedded: dict[str, Resource] = {}
-        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
 
+    @abstractmethod
     def embed(self, resource: Resource) -> str | None:
-        """One document-lifetime address for exact bytes and their MIME type."""
-        data = resource.data
-        token = (
-            self.prefix
-            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
-        )
-        self.embedded[token] = Resource(data, resource.mime)
-        return token
+        """Embed a resource, or omit it from this delivery."""
 
     def resource(self, path: str) -> Resource:
         if path not in self.resources:
@@ -190,7 +183,26 @@ class AssetInliner:
         return self.css(resource.data.decode("utf-8"), path)
 
 
-class ReadableAssets(AssetInliner):
+class AssetInliner(_Assets):
+    """Give each resource one embedded body and one document-lifetime URL."""
+
+    def __init__(self, read: ResourceReader):
+        super().__init__(read)
+        self.embedded: dict[str, Resource] = {}
+        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+
+    def embed(self, resource: Resource) -> str:
+        """One document-lifetime address for exact bytes and their MIME type."""
+        data = resource.data
+        token = (
+            self.prefix
+            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
+        )
+        self.embedded[token] = Resource(data, resource.mime)
+        return token
+
+
+class ReadableAssets(_Assets):
     """The same CSS graph with unavailable binary declarations omitted.
 
     Native authored text, alt text and CSS layout work without scripts. Captured

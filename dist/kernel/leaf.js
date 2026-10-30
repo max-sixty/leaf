@@ -5952,7 +5952,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			})),
 			{
 				key: "",
-				draw: () => html`<hr />`
+				draw: () => html`<hr class="lf-fp-rule" />`
 			},
 			...[keyboard, fold].filter(Boolean).map(seat)
 		];
@@ -6042,7 +6042,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >
             Dismiss
           </button>
-        </div>`)}${errors.length > 1 ? html`<hr />
+        </div>`)}${errors.length > 1 ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
 	function shownThreads() {
@@ -6722,7 +6722,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span

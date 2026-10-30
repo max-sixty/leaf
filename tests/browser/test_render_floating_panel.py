@@ -5279,12 +5279,16 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                 words.setStartAfter(mark);
                 words.setEnd(line, line.childNodes.length);
                 const rows = [...words.getClientRects()];
-                const style = getComputedStyle(line);
+                // The marker is the item's box's, the nearest list item holding the line.
+                let item = line;
+                while (item && getComputedStyle(item).display !== 'list-item')
+                  item = item.parentElement?.closest('.cm-content *') ?? null;
+                const style = item && getComputedStyle(item);
                 return {
                   words: rows[0].left - content.left,
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
-                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  marker: style && style.listStyleType !== 'none' ? style.listStyleType : null,
                   source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
@@ -5306,6 +5310,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]

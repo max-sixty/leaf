@@ -234,10 +234,6 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),
-    // CodeMirror's setAttrs assigns a line's style whenever it syncs the line's
-    // attributes, as a list item's line carries its depth and number.
-    (what, node) =>
-      what === "style" && is(node, "div.cm-line.lf-md-item") && hosts(node).length > 0,
     // CodeMirror also restates a line's decoration class when it reconciles an
     // editor update, even when the preview gives that line the same face.
     (what, node) =>

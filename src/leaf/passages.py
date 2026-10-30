@@ -103,8 +103,10 @@ def _markdown_dialect(added: bool):
         def validateLink(self, url: str) -> bool:
             return True
 
-    parser = PageMarkdown("gfm-like", {"html": False, "breaks": added}).use(
-        tasklists_plugin
+    parser = (
+        PageMarkdown("gfm-like", {"html": False, "breaks": added})
+        .disable(["lheading", "code"])
+        .use(tasklists_plugin)
     )
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})

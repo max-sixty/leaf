@@ -1071,18 +1071,35 @@ html[data-lf-region-capture] main * {
     padding: var(--focus-ring-room);
     scroll-padding: var(--focus-ring-room);
   }
-  /* A section of the report is a group of what the dialog says, so its heading is a
-     list's group heading (controls.css, `.lf-rows-head`), ranking below the dialog's
-     title, where the browser's h2 drew "Page details" at 17px bold over a 14px one. A
-     disclosure in a section is one of its items, in the dialog's own voice rather
-     than the reading theme's bold summary, which outranked the section's heading. */
-  .lf-inspection-body :is(h2, h3) {
-    font: var(--voice-heading);
-    letter-spacing: normal;
+  /* Each section of the report is a region of the dialog, named in the label voice
+     (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title,
+     where the browser's h2 drew "Page details" at 17px bold over a 14px one. What
+     names one value, a copyable text's or a list's (h3), is muted and small, as a
+     metric's term is, so no value's name outranks its section's. A heading stands
+     nearer what it names than what precedes it. A disclosure in a section is one of
+     its items, in the dialog's own voice rather than the reading theme's bold
+     summary. */
+  .lf-inspection-body h2 {
+    margin-block: 22px 6px;
+  }
+  .lf-inspection-body section:first-child > h2:first-child {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body :is(h2, h3) + * {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body h3,
+  .lf-copyable-head > span {
+    font: var(--voice-small);
     color: var(--muted);
   }
-  .lf-inspection-body h2 {
-    margin-block: 18px 8px;
+  .lf-inspection-body h3 {
+    margin-block: 10px 2px;
+  }
+  /* The title starts where the report's words do, inside the room the report keeps
+     for a focus ring. */
+  .lf-inspection-dialog > .lf-dialog-head {
+    padding-inline-start: var(--focus-ring-room);
   }
   .lf-inspection-body details {
     margin-block: 10px;

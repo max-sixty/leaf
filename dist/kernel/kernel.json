@@ -89,7 +89,7 @@
     "runtime/framework.js": "67f50b513259d45e43363a6c256b240ea9f3f35acaa4e8e02c48e76750bb9347",
     "runtime/framework/application.js": "e95e5c00bf9266838928e5e014541574198784ad320df9c872ee1494289c2c85",
     "runtime/framework/presentation.js": "507b41111a7b49fa50dfe0b7bcacddd5783276aa9db2555001617743eed9a9a7",
-    "runtime/framework/snapshot.js": "3971a1278b9681290485ce5b183af8b24ab0829f8e2560795d20adb46f5d4bc6",
+    "runtime/framework/snapshot.js": "f22998e12fb59fb456a307e8a17f7f4b596c4d3789b6fff34a411c497d6430ce",
     "runtime/geometry.js": "91dd0211f5d09f3572665c6b02840da1174e37f8374fdb2ad9e30082e59985fc",
     "runtime/heading-links.js": "3edcc0e89c8d48b293b92e9c31c6f789fe80173c1d1efdb188030c9c1fb22e61",
     "runtime/held-word.js": "ae6186dded977f0de898f7ca6a57ce5523631583a3a9ac94ded324ce8d348969",

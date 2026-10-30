@@ -199,14 +199,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      in a window too short for both they can stand past its edge. The shelf's padding,
      which holds their shadows and removal reach (response.css), is taken back by its
      offsets. Only the pictures take presses, so the padding over page text takes
-     none. */
+     none. Under the field, the marks on the pictures' top corners face it, so the
+     pictures stand clear of it by the marks' reach too, which a finger's aim floor
+     makes wider than the gap: a tap on the field stays the field's. */
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media:not([hidden]) {
     position: absolute;
     /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
     grid-area: auto;
     inset-block-start: calc(
-      100% - var(--lf-comment-frame-bottom) + var(--lf-media-gap) +
-        var(--focus-ring-w) - var(--lf-media-room)
+      100% - var(--lf-comment-frame-bottom) +
+        max(var(--lf-media-gap) + var(--focus-ring-w), var(--lf-media-room)) -
+        var(--lf-media-room)
     );
     inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
     max-width: calc(

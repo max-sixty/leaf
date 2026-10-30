@@ -399,6 +399,37 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
+def test_a_tap_at_the_comment_field_s_foot_stays_the_field_s(browser, serve):
+    """Under a finger, the removal mark on a picture hanging under the comment box
+    reaches the aim floor around it. That reach once stood 8px inside the field, so a
+    tap at the field's foot removed the picture."""
+    context = browser.new_context(
+        viewport={"width": 900, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    page.locator("#p1").click(click_count=3)
+    # Under a finger the panel's field offers the selected words, and a press there
+    # opens the comment box on them.
+    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    field = page.locator(".lf-fab-input")
+    field.click()
+    paste_image(field, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    remove = page.get_by_role("button", name="Remove attached image 1", exact=True)
+    expect(remove).to_be_visible()
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile("^bottom")
+    )
+    box = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+    mark = remove.bounding_box()
+    x, y = mark["x"] + mark["width"] / 2, box["y"] + box["height"] - 3
+    assert box["x"] < x < box["x"] + box["width"], (box, mark)
+    page.touchscreen.tap(x, y)
+    rendered(page)
+    expect(page.locator(".lf-fab-bar .lf-composer-media img")).to_have_count(1)
+    expect(field).to_be_focused()
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_capture_leaves_selected_content_visible_through_the_drag(
     browser, serve, touch

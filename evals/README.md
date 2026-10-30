@@ -171,11 +171,11 @@ author’s commentary appears separately as **Assessment**. Output captions iden
 the format, author model and saved phase. Links and screenshots open that same phase.
 The output index, task tabs and judge preferences retain the underlying results.
 
-**Changes to Leaf** holds changes selected for review. An experiment with
-`"review": true` gets **Approve change** and **Revisit change** choices on On me.
-Checks, measurements and rejected trials belong in supporting evidence and carry
-no approval. The author selects actual changes explicitly; recommendations and
-scores never infer that selection. Detailed implementation notes follow the changes
+**Changes to Leaf** shows every supplied experiment as a tab in authored order.
+The experiment’s kind and recommendation distinguish changes, checks, measurements
+and rejected trials. An experiment with `"review": true` gets **Approve change**
+and **Revisit change** choices on On me; that selection controls only the decision,
+not the experiment’s visibility. Detailed implementation notes follow the experiments
 in a disclosure. Existing authorization and landing rules still govern actions.
 
 Before/after captures use Leaf’s comparison viewer for Slider, Pair and pixel views,

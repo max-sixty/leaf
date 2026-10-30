@@ -10,8 +10,8 @@ The assessment also supplies the current implementation summary and changes sele
 for personal review. Native preferences remain per-order ordinal judgments; explicit
 checkpoints label their sequence, while authored repair observations stay separate.
 An optional journey separates each case's task, generated outputs and the report
-author's assessment. Only explicitly selected changes create review obligations;
-checks and rejected trials remain supporting evidence.
+author's assessment. Experiments appear in authored order; only explicitly selected
+changes create review obligations.
 
 Saved Leaf phases export through the standard exporter on disposable copies, retaining
 the page's layer and state. Plain HTML keeps its authored files. PAGE/evidence is
@@ -118,7 +118,6 @@ STYLE = """
 .report-kind { font-family: var(--sans); font-size: .75rem; color: var(--muted); margin-block: 0 .5rem; }
 .generated-output { border: 1px solid var(--rule); padding: var(--sp-3); }
 .report-assessment { border-block-start: 1px solid var(--rule); padding-block-start: var(--sp-3); margin-block: var(--sp-3); }
-.report-support { margin-block: var(--sp-5); }
 """
 
 
@@ -563,9 +562,9 @@ def pair_section(
         "Inspection actions and states, when judged, are retained in the judgment traces.</p>"
         "<p>A repeated comparison swaps the pages' left/right positions to check whether the judge's preference changes with presentation order. "
         + (
-            "This pair was judged in both orders."
+            "Recorded presentation orders appear above; an unscored order supplies no preference."
             if pair
-            else "This pair has no repeated comparison judgment; any experiment assessment is under Changes tested."
+            else "This pair has no repeated comparison judgment; any experiment assessment is under Changes to Leaf."
         )
         + "</p><p>Runs: "
         + escape(
@@ -1289,13 +1288,18 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
     outputs = []
     for index, (reference, sample) in enumerate(selected, 1):
         phase = reference_phase(sample, reference)
+        saved = bool(sample["diagnostics"]["phases"][phase].get("page"))
+        details = sample_anchor(sample) + (f"-p{phase}" if saved else "")
+        details_label = (
+            f"{phase_label(sample, phase)} and details" if saved else "Attempt details"
+        )
         condition = {"html": "HTML control", "leaf": "Leaf"}.get(
             sample["diagnostics"].get("condition"), "Generated page"
         )
         model = reference.get("model") or (
             f"{sample['diagnostics'].get('harness', 'Author')} · model not recorded"
         )
-        provenance = f"{condition} · {model} · {phase_label(sample, phase)}"
+        provenance = f"{condition} · {model} · {phase_label(sample, phase) if saved else 'No saved page'}"
         anchor = f"{step['id']}-output-{index}"
         captures = screens(page, sample, phase)
         widths = sample["diagnostics"]["comparison"]["widths"]
@@ -1317,11 +1321,11 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
                 else f"<details><summary>{escape(label)}</summary>{figure}</details>"
             )
         outputs.append(
-            f'<section id="{anchor}" class="generated-output"><p class="report-kind">Generated output</p>'
+            f'<section id="{anchor}" class="generated-output"><p class="report-kind">{"Generated output" if saved else "Author attempt"}</p>'
             f'<h5>{escape(reference["label"])}</h5><p class="report-meta">{escape(provenance)}</p>'
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
-            + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
+            + f'<a href="#{details}">{escape(details_label)}</a></p>'
             + capture_errors(sample, phase)
             + ("".join(views) or "<p>No screenshots recorded.</p>")
             + "</section>"
@@ -1734,7 +1738,6 @@ def review_sections(
             f"<li><p>{escape(finding['finding'])}</p><p>{output_link(sample, sample['title'])}</p></li>"
         )
     experiments = []
-    supporting = []
     for experiment in review["experiments"]:
         anchor = "experiment-" + experiment["id"]
         comparisons = []
@@ -1804,7 +1807,7 @@ def review_sections(
             else ""
         )
         selected = experiment.get("review", False)
-        kind = experiment.get("kind", "Change" if selected else "Supporting evidence")
+        kind = experiment.get("kind", "Experiment")
         content = (
             '<header class="experiment-heading">'
             f'<p class="report-kind">{escape(kind)}</p>'
@@ -1828,14 +1831,12 @@ def review_sections(
             + f"<details><summary>Scope and limitations</summary><p>{escape(experiment['period'])}</p><p>{escape(experiment['limits'])}</p></details>"
         )
         if selected:
-            experiments.append(
-                f'<lf-tab id="{anchor}" label="{escape(experiment.get("label", experiment["title"]))}" summary="{escape(experiment["recommendation"])}">'
-                f'<lf-ask id="{anchor}-question">{content}</lf-ask></lf-tab>'
-            )
-        else:
-            supporting.append(
-                f'<section id="{anchor}" class="report-support">{content}</section>'
-            )
+            content = f'<lf-ask id="{anchor}-question">{content}</lf-ask>'
+        experiments.append(
+            f'<lf-tab id="{anchor}" label="{escape(experiment.get("label", experiment["title"]))}" summary="{escape(experiment["recommendation"])}">'
+            + content
+            + "</lf-tab>"
+        )
     implementation = implementation_summary(
         page, review.get("implementation"), output_url
     )
@@ -1846,14 +1847,7 @@ def review_sections(
             + "".join(experiments)
             + "</lf-tabs>"
             if experiments
-            else "<p>No changes selected for review.</p>"
-        )
-        + (
-            '<details id="supporting-checks"><summary>Checks and other trials</summary>'
-            + "".join(supporting)
-            + "</details>"
-            if supporting
-            else ""
+            else "<p>No experiments recorded.</p>"
         )
         + (
             '<details id="implementation-record"><summary>Implementation and validation record</summary>'

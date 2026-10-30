@@ -8,6 +8,7 @@ both completed judgments name counts. Incomplete exploration is recorded as
 insufficient evidence, rather than a tie or a quality result. Model judgments
 and their native browser/agent traces are retained separately from execution checks.
 Verdicts go to `pairs.json` in the first run's directory.
+An incomplete native author keeps its pair position but receives no comparison grade.
 """
 
 import json
@@ -75,8 +76,13 @@ def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
 
 
 def judge(a: dict, b: dict, evidence: Path) -> dict | None:
-    """One judgment of A against B, or None when the judge gives no verdict."""
+    """One judgment of completed outputs, or None when grading is unavailable."""
     evidence.mkdir(parents=True, exist_ok=True)
+    if not all(sample["checks"].get("completed") for sample in (a, b)):
+        (evidence / "response.json").write_text(
+            json.dumps({"error": "A native author did not complete; pair unscored."})
+        )
+        return None
     attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
     comparison = saved_comparison([a, b])
     response = judge_pages(

@@ -5472,6 +5472,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		transition(before);
 	}
 	function close({ handedOn = false } = {}) {
+		writing = false;
 		const before = trail.value.at(-1);
 		trail.value = [];
 		searching = false;

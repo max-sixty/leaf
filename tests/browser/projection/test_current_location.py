@@ -786,6 +786,8 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     view = open_panel_thread(page, "t-open")
     reply = page.locator(PANEL_REPLY)

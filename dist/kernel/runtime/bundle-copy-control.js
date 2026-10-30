@@ -46,7 +46,7 @@ function restrictUserIntent(retained, available) {
 //#endregion
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
-	if (behavior !== "instant") startScroll(box);
+	startScroll(box);
 	setScroll(box, {
 		top: box.scrollTop + (by.top ?? 0),
 		left: box.scrollLeft + (by.left ?? 0),

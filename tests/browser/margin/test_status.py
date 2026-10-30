@@ -829,7 +829,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     panel_settled(page, view="threads")
     listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
-    expect(listed.locator(".lf-fp-value")).to_contain_text("Still to do")
+    expect(listed.locator(".lf-row-end")).to_contain_text("Still to do")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(
@@ -1238,12 +1238,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     # The row is the carrier drawn again, so pickup inks its glyph as it inks the
-    # carrier's: one rule set in theme.css paints both.
+    # carrier's: one rule set in base.css paints both.
     ink = "el => getComputedStyle(el).color"
     assert (
         mapped.locator(".lf-margin-kind").evaluate(ink)
         == carrier.locator(".lf-margin-entry-icon").evaluate(ink)
-        != mapped.locator(".lf-page-map-action-label").evaluate(ink)
+        != mapped.locator(".lf-page-map-action-label-word").evaluate(ink)
     )
     page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")

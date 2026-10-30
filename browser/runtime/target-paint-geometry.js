@@ -281,7 +281,7 @@ export function standOver(stand, placed, borderRadius) {
 }
 
 // How far a mark's band reaches outside its target: the band and the gap its box stands
-// at, a control's ring's or a region's (theme.css, "Where it stands").
+// at, a control's ring's or a region's (base.css, "Where it stands").
 function markRoom(control) {
   const root = getComputedStyle(document.documentElement);
   const gap = control ? "--focus-ring-gap" : "--focus-region-gap";
@@ -303,7 +303,7 @@ function cutsAt({ rect, levels }, side) {
 
 // Where a box that clips the target, as a joined lf-options frame clips its cells,
 // shows the target's edge but not `room` beyond it, the mark stands just inside the
-// edge instead, as a control packed into a list insets its own ring (theme.css).
+// edge instead, as a control packed into a list insets its own ring (base.css).
 // Outside, the clip cut away its sides and left stubs across the neighbours. An edge
 // the clip already cuts asks for no room.
 function cramped({ rect, levels }, room) {

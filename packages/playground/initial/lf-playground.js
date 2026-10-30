@@ -31,8 +31,8 @@ function createPlayground(host, tools) {
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
   const controls = ownControls(host, previews[0]);
-  if (!controls.length || outputs.length !== 1 || previews.length !== 1)
-    throw new Error("playground needs controls, one preview and one output");
+  if (outputs.length !== 1 || previews.length !== 1)
+    throw new Error("playground needs one preview and one output");
   const output = outputs[0],
     preview = previews[0];
   const controlByName = new Map();

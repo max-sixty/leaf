@@ -67,7 +67,7 @@ import shlex
 import shutil
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -203,7 +203,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     if sent:
         last = list(sent)[-1]
         record = codex.page_server_title(page, sent[last])
-        require(record is not None, f"the page server did not title `{last}`'s thread")
+        record = require(record, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"
         )
@@ -283,20 +283,21 @@ def steps(
 ) -> None:
     """The steps after setup, as the module docstring lists them."""
     task = codex.task
-    url = running_server(page)["url"]
-    acquired = page_claim(page)["acquisition"]
+    url = require(running_server(page), "the page has no server")["url"]
+    acquired = require(page_claim(page), "the page has no claim")["acquisition"]
     sent: list[str] = []
 
     def check_step() -> list[str]:
         titled = check(page, codex, {name: user.ids[name] for name in sent})
         require(
-            running_server(page)["url"] == url,
+            require(running_server(page), "the page has no server")["url"] == url,
             "the page's keyed URL changed between Codex turns",
         )
         PageClient(url).state()
         if preview:
             require(
-                page_claim(page)["acquisition"] == acquired,
+                require(page_claim(page), "the page has no claim")["acquisition"]
+                == acquired,
                 "the preview lost its acquisition between Codex turns",
             )
             require(
@@ -308,10 +309,13 @@ def steps(
     def step(name: str, started: float, details: list[str]) -> None:
         if preview:
             claim = page_claim(page)
+            assert claim is not None
             details.append(
                 json.dumps(
                     {
-                        "url": running_server(page)["url"],
+                        "url": require(running_server(page), "the page has no server")[
+                            "url"
+                        ],
                         "thread": task.thread,
                         "turn": claim["turn"],
                         "generation": claim["generation"],
@@ -392,7 +396,10 @@ def steps(
         user_turn in task.running or user_turn not in task.started
     ) and time.monotonic() < deadline:
         codex.hear(0.5)
-        named = named or page_claim(page)["turn"] == user_turn
+        named = (
+            named
+            or require(page_claim(page), "the page has no claim")["turn"] == user_turn
+        )
     require(named, f"the claim never named the user's turn {user_turn} while it ran")
     task.on_final = None
     if transport == "queue":
@@ -499,7 +506,7 @@ def steps(
     early = task.say(UNLOAD_TURN)
     codex.await_command(UNLOAD_READY, "the resumed turn did not reach its checkpoint")
     codex.until(
-        lambda: page_claim(page)["turn"] == early,
+        lambda: require(page_claim(page), "the page has no claim")["turn"] == early,
         f"the claim never named the user's turn {early}",
     )
     during = user.comment("unload")
@@ -622,7 +629,7 @@ def task_codex(root: Path, executable: str, transport: str) -> str:
 @contextmanager
 def answering(
     browser, transport: str, *, preview: bool, sandbox: bool
-) -> Iterator[tuple[User, Callable]]:
+) -> Generator[tuple[User, Callable]]:
     """The user at the page a Codex task serves through `transport`, once it has,
     and the steps that follow. With `sandbox`, the task's shell commands run in
     Codex's sandbox and nothing approves an escalation, so a `leaf` command the

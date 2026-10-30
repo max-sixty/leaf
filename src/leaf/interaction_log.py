@@ -161,6 +161,7 @@ def admit_batch(batch: object) -> dict:
 
     if error := schema_error(BATCH_SCHEMA, batch):
         raise ValueError(f"interaction batch: {error}")
+    assert isinstance(batch, dict)
     return batch
 
 
@@ -204,7 +205,7 @@ def session_context(session: str | None, claim: dict | None = None) -> dict | No
     }
 
 
-def interaction_time(value: str) -> datetime:
+def interaction_time(value: object) -> datetime:
     """Read an ISO timestamp with an explicit offset, including browser UTC Z."""
     if not isinstance(value, str):
         raise TypeError("interaction time must be an ISO timestamp string")

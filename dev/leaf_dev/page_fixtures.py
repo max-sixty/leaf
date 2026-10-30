@@ -124,7 +124,9 @@ def layer_media(manifest: Path) -> Path | None:
 def example_media() -> Path:
     """The media the example catalog's pages share, content-addressed as
     `leaf page media` names them (examples/AGENTS.md, "Media")."""
-    return layer_media(DEFAULT_PACKAGES)
+    media = layer_media(DEFAULT_PACKAGES)
+    assert media is not None
+    return media
 
 
 def media_source(source: Path) -> Path:
@@ -248,7 +250,11 @@ def import_referenced_media(
     @functools.cache
     def selected_media() -> dict[str, Path]:
         """Index the selected asset tree only when a missing reference needs it."""
-        directory = assets if assets is not None else pinned_assets(lock.parent)
+        if assets is not None:
+            directory = assets
+        else:
+            assert lock is not None
+            directory = pinned_assets(lock.parent)
         return {
             media_name(candidate.read_bytes(), candidate.suffix): candidate
             for candidate in sorted(directory.rglob("*"))

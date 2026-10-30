@@ -1,9 +1,10 @@
 # Packages
 
 A package is a directory Leaf adds to a page. It can hold a theme, widgets, helper
-modules, libraries and external-data contracts. `page init` combines Leaf's kernel with
-the page's packages, checks the result, and copies it into the page as the page's
-layer. Packages need no browser build or npm command: write widgets and helpers as
+modules, libraries and external-data contracts. `page init` records the selected
+packages and checks their composition. The Leaf serving, checking or exporting a page
+composes its layer from that selection ("Package reach", below).
+Packages need no browser build or npm command: write widgets and helpers as
 JavaScript the browser loads directly, importing the shipped `/runtime/widget-api.js`.
 
 This file covers what every package follows and how to declare a widget.
@@ -67,9 +68,9 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── widgets.css         defaults for this package's widgets
+├── defaults.css        defaults: its widgets', and a theme's element rules
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
-├── theme.css           page-wide theme inputs and presentation
+├── overrides.css       page-wide rules that outrank every package's defaults
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
@@ -92,14 +93,15 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                | Declared shadow trees |
-| ------------------- | ----------------------- | --------------------- |
-| `widgets.css`       | `lf-base`               | —                     |
-| `widget-shadow.css` | `lf-base`               | `lf-shadow`           |
-| `theme.css`         | Page-wide in `lf-theme` | —                     |
+| Sheet               | Document                    | Declared shadow trees |
+| ------------------- | --------------------------- | --------------------- |
+| `defaults.css`      | `lf-base`                   | —                     |
+| `widget-shadow.css` | `lf-base`                   | `lf-shadow`           |
+| `overrides.css`     | Page-wide in `lf-overrides` | —                     |
 
-Widget defaults rank below Layouts; theme contributions rank above them. Leaf orders
-the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
+Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
+below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
+the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-overrides`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
 packages win ties. The page's own CSS is unlayered above these normal rules. Layouts
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the
@@ -129,7 +131,7 @@ also reaches a foreign widget nested inside it, so style structure a nested widg
 share through a child combinator or the package's own classes. Replacing a widget's
 declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
-internals through its inputs or API; theme contributions are deliberately page-wide.
+internals through its inputs or API; overrides are deliberately page-wide.
 
 Document selectors don't reach into a shadow root. A declared `x-shadow` root built with
 `shadowStage` gets the composed shared stylesheet. Use theme inputs for changes across
@@ -138,12 +140,12 @@ control.
 
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours and semantic pairs (`package-themes.md`, "Theme colors"), faces (`--serif`, `--sans`, `--mono`), type scales (`--t-*`, expressed in `rem` by default), radius (`--r`), code and syntax palettes (`--code-*`, `--syn-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours and semantic pairs (`package-themes.md`, "Theme colors"), faces (`--serif`, `--sans`, `--mono`), markup's reading face (`--lf-reading-face: 1`, `package-themes.md`, "Personal themes"), type scales (`--t-*`, expressed in `rem` by default), radius (`--r`), code and syntax palettes (`--code-*`, `--syn-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
+| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a
@@ -159,14 +161,15 @@ Leaf serves its page, and a package's `vendor/` file at one of those paths repla
 there. `widget-api.js` can change in any update; `leaf package check --render` and
 `leaf page check --render` report a module it breaks.
 
-Registries merge in order: kernel, `default`, then the selected packages in command
-order, and a later package wins a collision. A later package replaces an element or
+Registries merge in order: kernel, `default`, the page's theme, then the selected
+packages in command order, and a later package wins a collision. A later package replaces an element or
 idiom entry whole and can't delete one. Shared `$` entries merge by member, and a map
 member merges one level further by key; `null` deletes at either level if the merged
 registry still validates. `page init` records the selected packages in
 `$layer.packages`, and a plain re-init selects them again. Re-initializing with
 `--package` replaces that list, so name every package the page keeps.
-`page init --no-packages PAGE` clears the list and the selected personal theme
+`page init --no-packages PAGE` clears the list and keeps the page's theme, which
+`--theme` and `--no-theme` choose
 ([package-themes.md, "Personal themes"](package-themes.md#personal-themes)).
 
 Name each file directly under `instructions/` `<audience>.md`, matching

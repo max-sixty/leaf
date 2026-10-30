@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Never
 
 from leaf.activity import answer_command, reply_command
 from leaf.delivery import (
@@ -23,7 +23,7 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import local_obligation_entry, quoted_in
+from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -54,7 +54,7 @@ def _messages(events: list) -> dict[str, dict]:
     }
 
 
-def _unknown_message(page_dir: Path, events: list, name: str) -> None:
+def _unknown_message(page_dir: Path, events: list, name: str) -> Never:
     held = logged_id(page_dir, events, name, current_responses(page_dir, events))
     raise Rejected(
         [
@@ -566,6 +566,7 @@ def _resolve_obligation(
                 [Finding("unowed-reply", values={"event": responds, "held": held})]
             )
         parent = expected["parent"]
+    assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
     in_hand = None
     if responds is not None:
@@ -601,6 +602,7 @@ def _resolve_obligation(
             elif not ephemeral and (
                 address.get("input") is None or failure is not None
             ):
+                assert expected is not None
                 raise Rejected(
                     [
                         Finding(
@@ -722,6 +724,7 @@ def _compose_and_append(
                 ]
             )
         reply_revision = planned_activation(page_dir, checked).revision
+        assert reply_revision is not None
         if moving:
             prospective_anchor = _capture_anchor(
                 page_dir,
@@ -781,7 +784,7 @@ def _compose_and_append(
                     rec["attrs"],
                     publication.registry[rec["tag"]]["x-awaits"].get("when"),
                 )
-                and not quoted_in(rec, publication.registry)
+                and not shown_in(rec, publication.registry)
                 for rec in fragment.lf_elements
             )
         )

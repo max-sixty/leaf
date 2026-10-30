@@ -109,7 +109,7 @@ lf-shot {
 }
 .lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
   /* The source can scroll beyond its frame; focus stays on the visible image, at a
-     region's gap (theme.css). */
+     region's gap (base.css). */
   --lf-wears-ring: 1;
   outline: var(--focus-ring);
   outline-offset: var(--focus-region-gap);

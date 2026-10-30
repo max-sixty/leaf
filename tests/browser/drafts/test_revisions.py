@@ -280,6 +280,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert page.evaluate("window.__rendererLifetime.hits") == 1
     after = editing_read(editor) if editor.count() else None
     if kind == "authored":
+        assert after is not None
         after["scroll"] = editor.evaluate("el=>el.scrollTop")
     assert after == before
 
@@ -359,7 +360,7 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         # runs.
         newer = page_dir.parent / "newer-layer"
         newer.mkdir()
-        (newer / "theme.css").write_text("/* a newer layer */\n")
+        (newer / "overrides.css").write_text("/* a newer layer */\n")
         held = tuple(
             "./" + os.path.relpath(page_dir / value)
             if value.startswith("./")
@@ -389,6 +390,7 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", words)
     page.keyboard.press("Control+Enter")
+    assert revised.revision is not None
     wait_for_revision(page, revised.revision)
     assert page.evaluate("performance.timeOrigin") != birth
     assert events_model.read_events(page_dir)[-1]["text"] == words

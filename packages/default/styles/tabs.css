@@ -178,7 +178,7 @@ lf-tabs.lf-rendered > lf-tab {
     }
   }
 }
-/* A tab counts the passages the version diff marks (theme.css, `.lf-change-count`).
+/* A tab counts the passages the version diff marks (chip.css, `.lf-change-count`).
    An empty count takes no room. */
 .lf-tabdiff {
   font-weight: 400;
@@ -310,7 +310,7 @@ lf-tabs.lf-rendered > lf-tab {
   }
 
   /* A boxed set's panel is a bounded box, so it is the container what it holds
-     * measures itself against (theme.css in the kernel says why a framed box is one). */
+     * measures itself against (base.css in the kernel says why a framed box is one). */
   lf-tabs.lf-rendered[data-lf-views-flow="box"] > lf-tab {
     container-type: inline-size;
   }
@@ -730,7 +730,7 @@ lf-tabs.lf-rendered > lf-tab {
   @container style(--lf-full-height: 1) {
     /* The set is the body's scroller here, and a block filling it, such as the
      * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
-     * keeps a region's ring room inside them (theme.css); its margin gives the inline room back, so the
+     * keeps a region's ring room inside them (base.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     lf-tabs.lf-rendered[data-lf-views-flow="page"],
     html[data-lf-interactive]

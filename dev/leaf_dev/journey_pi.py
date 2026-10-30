@@ -43,7 +43,7 @@ import queue
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -54,7 +54,7 @@ from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
 from leaf_dev.commands.journey import (
@@ -112,9 +112,11 @@ class Pi(Terminal):
         self.closed_watches = 0
         # The output of the response the next `turn_end` closes.
         self.output_tokens: int | None = None
-        self.session = self.request("get_state")["sessionId"]
+        state = require(self.request("get_state"), "Pi returned no state")
+        self.session = state["sessionId"]
 
     def _read(self) -> None:
+        assert self.process.stdout is not None
         for line in self.process.stdout:
             self.heard.put(json.loads(line))
 
@@ -189,6 +191,7 @@ class Pi(Terminal):
     def request(self, command: str, **fields) -> dict | None:
         """Send one command and return its response's data."""
         sent = f"journey-{next(self.ids)}"
+        assert self.process.stdin is not None
         self.process.stdin.write(
             json.dumps({"id": sent, "type": command, **fields}).encode() + b"\n"
         )
@@ -209,6 +212,7 @@ class Pi(Terminal):
     def say(self, text: str) -> None:
         """Type one user turn into an idle session."""
         started = self.request("prompt", message=text)
+        assert started is not None
         require(
             started["disposition"] == "started", f"Pi did not start a run: {started}"
         )
@@ -233,9 +237,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
             "no watch holds the session's pages between runs",
         )
         record = pi.page_server_title(page, user.ids[sent[-1]])
-        require(
-            record is not None, f"the page server did not title `{sent[-1]}`'s thread"
-        )
+        record = require(record, f"the page server did not title `{sent[-1]}`'s thread")
         return claim, (
             f"titled in {record['durationMs']} ms by {record['model']}, "
             f"${record['costUsd']:.5f}"
@@ -253,8 +255,9 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     before = pi.settled
     pi.work()
     claim = page_claim(page)
+    assert claim is not None
     require(
-        claim["turn"] != turn and claim["turn_closed"] is None,
+        turn_open(claim) and claim["turn"] != turn,
         "the claim does not hold the user's run open",
     )
     turn = claim["turn"]
@@ -299,7 +302,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
 
     started = time.monotonic()
     pi.work()
-    interrupted_turn = page_claim(page)["turn"]
+    interrupted_turn = require(page_claim(page), "the page has no claim")["turn"]
     closed_watches = pi.closed_watches
     held = user.comment("held-escape")
     # Pi's watch hears during the tool, but `turn_end` has not put that input
@@ -340,13 +343,14 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     user.passed("held-escape", started, check()[1])
 
     started = time.monotonic()
+    assert pi.process.stdin is not None
     pi.process.stdin.close()
     try:
         pi.process.wait(timeout=STEP_LIMIT)
     except subprocess.TimeoutExpired:
         raise click.ClickException("Pi did not exit when its stdin closed") from None
     require(
-        session_record(pi.session)["ended"] is not None,
+        not session_live(session_record(pi.session)),
         "Pi's session ended without Leaf's SessionEnd",
     )
     require(
@@ -358,7 +362,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
 
 
 @contextmanager
-def answering(browser) -> Iterator[tuple[User, Callable]]:
+def answering(browser) -> Generator[tuple[User, Callable]]:
     """The user at the page a Pi session serves, once it has, and the steps that
     follow."""
     subprocess.run(
@@ -406,6 +410,7 @@ def answering(browser) -> Iterator[tuple[User, Callable]]:
         finally:
             # A failed step leaves Pi running. Quitting lets the extension stop its
             # watch, which a killed Pi would leave behind.
+            assert pi.process.stdin is not None
             if not pi.process.stdin.closed:
                 pi.process.stdin.close()
             try:

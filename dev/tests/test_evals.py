@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
+
 from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
 from leaf_dev.commands import eval as module
@@ -347,10 +348,11 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
     from contextlib import ExitStack, contextmanager
 
+    from playwright.sync_api import expect
+
     from leaf_dev import ROOT
     from leaf_dev import arrangement_eval as workflow
     from leaf_dev.browser import headless_shell, load, tab
-    from playwright.sync_api import expect
 
     work = tmp_path / "originals"
     directory = tmp_path / "sample"
@@ -362,7 +364,9 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
     incomplete = "<h1>Author stopped before initialization"
     (main / "index.html").write_text(incomplete)
     workflow.snapshot_phase(run, 0)
-    assert (run.page(0) / "index.html").read_text() == incomplete
+    page_result = run.page(0)
+    assert page_result is not None
+    assert (page_result / "index.html").read_text() == incomplete
     assert (
         json.loads((directory / "page-phase0-pages.json").read_text())[0]["url"] is None
     )

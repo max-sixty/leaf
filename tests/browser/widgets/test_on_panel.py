@@ -842,7 +842,9 @@ def test_m_steps_off_a_decision_its_threads_card_stands_beside(browser, serve):
         )
         reached.append(walk_position(page)["text"])
     reached = reached[1:]
-    assert sorted(reached) == [
+    assert reached is not None
+    assert all(isinstance(position, str) for position in reached)
+    assert sorted(position for position in reached if position is not None) == [
         "1 of 3 waiting on me · To-do",
         "2 of 3 waiting on me · Options",
         "3 of 3 waiting on me · Options",

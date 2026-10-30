@@ -494,8 +494,21 @@
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);
+    if (candidates.every((value) => anchorInset(value, axis)))
+      return candidates.length > 0;
+    if (!candidates.some((value) => value.trim() === "revert-layer")) return false;
+    // A rollback can expose a lower tier. Prove every declared alternative,
+    // including normal rules under an important rollback, before allowing it.
+    // With none left, an inset is auto: Typed OM preserves that keyword where
+    // CSSOM's resolved style hides it as a used pixel position.
+    const rules = declaredRules(node, property, false);
+    const values = [...rules.normal, ...rules.important, inline].filter(
+      (value) => value && value.trim() !== "revert-layer",
+    );
     return (
-      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+      values.length > 0 &&
+      values.every((value) => anchorInset(value, axis)) &&
+      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") !== "auto"
     );
   };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
@@ -3083,6 +3096,9 @@
   // these exact terms until paint admission; reporting never re-runs the solver.
   // Keep the sampled endpoints even when no term was accepted: otherwise zero
   // credit cannot distinguish a missing owner from a missing or ineligible sample.
+  // Size effects can reflow siblings, including after their target leaves that
+  // flow. Keep those candidates even when they are not the receiver's ancestors;
+  // filtering by successful propagation would hide the rejected proof we need.
   const motionEvidence = (node, from, to, selected) => {
     const ancestors = new Set([
       ...ancestryAt(node, from),
@@ -3096,7 +3112,11 @@
     const endpoint = (sample) =>
       sample ? { at: sample.at, values: sample.values } : null;
     return [...candidates]
-      .filter((animation) => ancestors.has(animation.effect?.target))
+      .filter(
+        (animation) =>
+          ancestors.has(animation.effect?.target) ||
+          effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
+      )
       .map((animation) => {
         const samples = animated.get(animation) ?? [];
         return {

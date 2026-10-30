@@ -93,9 +93,9 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")

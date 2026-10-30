@@ -186,7 +186,7 @@ def unbind(page_dir: Path, name: str) -> dict:
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, _req, _fp, _code, _msg, _headers, _newurl):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: F841 -- preserve the handler's keyword parameters
         return None
 
 
@@ -232,6 +232,7 @@ def fetch(page_dir: Path, name: str, posted: dict) -> dict:
         except urllib.error.HTTPError as error:
             response = error
         with response:
+            assert response.status is not None
             if 300 <= response.status < 400:
                 raise ConnectionError(
                     "The upstream response redirects; redirects are not allowed.", 502

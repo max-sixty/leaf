@@ -8,8 +8,8 @@ Files the page directory serves beside them, such as media
 outside a captured data value, are still read from the directory under either source.
 """
 
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
@@ -40,12 +40,15 @@ class PageSource(Protocol):
     """What a page server reads about its page."""
 
     # Whether the page takes writes: file saves, user views, events and media.
-    writable: bool
+    @property
+    def writable(self) -> bool: ...
     # Each revision's immutable file name, in revision order.
-    revision_names: Mapping[int, str]
+    @property
+    def revision_names(self) -> Mapping[int, str]: ...
     # Served bytes beside the revisions, by path, that the page directory may no
     # longer hold.
-    data_resources: Mapping[str, Resource]
+    @property
+    def data_resources(self) -> Mapping[str, Resource]: ...
 
     def active_revision(self) -> int | None: ...
     def artifact(self, revision: int) -> RevisionArtifact: ...
@@ -69,7 +72,7 @@ class PageSource(Protocol):
 
     def state_read(
         self, *, with_token: bool = False
-    ) -> Iterator[tuple[PageRead, str | None, str | None]]:
+    ) -> AbstractContextManager[tuple[PageRead, str | None, str | None]]:
         """A context yielding the fold inputs, the news token when asked for, and
         the source error activation met."""
 
@@ -198,6 +201,7 @@ class PageStateService:
                 view_revision=view_revision,
             ).state
         state["others"] = self.source.other_pages()
+        assert reading is not None
         state["reading"] = self.source.state_reading(reading, state)
         return state
 
@@ -222,7 +226,7 @@ class PageStateService:
             projected = served_browser.project_browser_state(context)
             view = (
                 projected[0]["views"][str(context.active["revision"])]
-                if projected is not None
+                if projected is not None and context.active is not None
                 else None
             )
             threads = view["thread"]["threads"] if view is not None else []
@@ -239,6 +243,7 @@ class PageStateService:
                 "threads": thread_counts(threads),
             }
             live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
+        assert reading is not None
         return row, reading, live
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:

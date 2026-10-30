@@ -391,7 +391,7 @@ function placeMarginEntryLabel(control) {
 	setStyle(label, "--lf-label-y", layoutPx(choice.rect.top - marginEntryBox.top - control.clientTop));
 	keeps(control, "data-lf-label-side", choice.name);
 }
-const revealsLabel = () => hoveringPointer.matches ? ":is(:hover, [data-lf-focus]):not([aria-expanded=\"true\"]), [data-lf-held-word]" : "[data-lf-focus]:focus-visible:not([aria-expanded=\"true\"]), [data-lf-held-word]";
+const revealsLabel = () => "[data-lf-kinds~=\"on-me\"][data-lf-target-selected], " + (hoveringPointer.matches ? ":is(:hover, [data-lf-focus]):not([aria-expanded=\"true\"]), [data-lf-held-word]" : "[data-lf-focus]:focus-visible:not([aria-expanded=\"true\"]), [data-lf-held-word]");
 function heldLabelBoxes(row) {
 	return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")].filter((control) => control.matches(revealsLabel())).map((control) => control.querySelector(":scope > .lf-margin-entry-label").getBoundingClientRect());
 }

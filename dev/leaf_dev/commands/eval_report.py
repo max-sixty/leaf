@@ -678,7 +678,7 @@ def exported_output(
         return f"Output export unavailable: {escape(str(error))}"
     if output_url:
         href = output_url.rstrip("/") + "/" + slot + "/index.html"
-        return f'<a href="{escape(href)}" target="_blank" rel="noopener">Open interactive output</a>'
+        return f'<a href="{escape(href)}" target="_blank" rel="noopener">Open saved page</a>'
     return f"Output not served: <code>{escape(str(target))}</code>"
 
 
@@ -1023,8 +1023,9 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         f"{phases_view}"
         f"{checks}"
         f'<details class="report-metadata"><summary>Request, sources and run details</summary>'
-        "<p>Saved interactive copies keep controls and navigation available locally; "
-        "no agent is connected and edits stay in this browser.</p>"
+        "<p>Saved pages preserve the reviewed state and support local navigation. "
+        "Leaf actions that record edits or decisions require a live page. "
+        "No agent is connected to these copies.</p>"
         f"<p>Captured sizes: {escape(widths)}.</p><ul>{''.join(sources)}</ul>"
         f"<dl><dt>Case ID</dt><dd>{escape(sample['subject'])}</dd>"
         f"<dt>Result ID</dt><dd>{escape(sample['result_id'])}</dd>"
@@ -1268,7 +1269,7 @@ def reference_phase(sample: dict, reference: dict) -> str:
 
 
 def journey_outputs(page: Path, step: dict, samples: dict) -> str:
-    """Keep each output's captures and interactive link on its authored revision."""
+    """Keep each output's captures and saved-page link on its authored revision."""
     selected = [
         (reference, sample_for(samples, reference))
         for reference in step.get("outputs", [])

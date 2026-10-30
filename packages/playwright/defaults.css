@@ -531,11 +531,6 @@ lf-trace[hidden="until-found"] {
   margin: 0;
   min-inline-size: 0;
 }
-.lf-trace-moments-heading {
-  margin: 0;
-  font-size: var(--lf-trace-small-type);
-  color: var(--muted);
-}
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
@@ -892,12 +887,6 @@ lf-trace-bookmark {
   pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-no-moments {
-  margin: 0;
-  padding: var(--sp-2);
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
 }
 
 @container (max-width: 480px) {

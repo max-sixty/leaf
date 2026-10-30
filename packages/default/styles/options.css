@@ -179,14 +179,15 @@ lf-options:has(> lf-option > strong) {
       margin: 0 0 var(--sp-2) var(--sp-3);
     }
   }
+  /* A fact's name takes the label voice (base.css, `.lf-label`), stated here since an
+   * authored term can't wear the class. */
   & > lf-option > dl.facts dt {
-    color: var(--muted);
-    font-size: var(--t-6);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 400;
     margin-top: 6px;
     padding: 0;
+    font: 600 var(--t-6) / 1.3 var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
   & > lf-option > dl.facts dd {
     font-size: var(--t-5);

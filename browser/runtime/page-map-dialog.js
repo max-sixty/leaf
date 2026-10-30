@@ -90,7 +90,7 @@ const place = placeKeeper(dialogList, {
 });
 const dialogEmpty = el(
   "p",
-  "lf-page-map-empty",
+  "lf-rows-empty",
   "No matching actions, statuses, or locations",
 );
 dialogEmpty.hidden = true;
@@ -274,11 +274,11 @@ export function createPageMapDialog({
 
   const sheetGroupTemplate = (group, query) => html`
     <section
-      class="lf-page-map-group"
+      class="lf-page-map-group lf-rows-group"
       data-lf-map-group=${group.key}
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
-      <h3>${group.entry.title}</h3>
+      <h3 class="lf-rows-head">${group.entry.title}</h3>
       <div class="lf-page-map-actions lf-rows">
         ${repeat(
           group.actions,

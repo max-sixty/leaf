@@ -827,13 +827,14 @@ html[data-lf-region-capture] main * {
     margin-inline: -10px;
     padding-inline: 10px;
   }
-  .lf-command-reference-empty {
-    padding: 20px 0 8px;
-    color: var(--muted);
-    text-align: center;
-  }
+  /* The reference's rows reach past its words by their wash's room, so its heading and
+     its empty line, standing where the rows' words start, keep no inset of their own. */
   .lf-command-reference h3 {
     margin: 16px 0 4px;
+    padding: 0;
+  }
+  .lf-command-reference .lf-rows-empty {
+    padding-inline: 0;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
      each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
@@ -1110,23 +1111,6 @@ html[data-lf-region-capture] main * {
     margin-top: 6px;
     overflow: auto;
     min-height: 0;
-  }
-  .lf-page-map-empty {
-    margin: 18px 8px 8px;
-    color: var(--muted);
-    text-align: center;
-  }
-  .lf-page-map-group {
-    padding: 10px 0;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-page-map-group:first-child {
-    border-top: 0;
-  }
-  .lf-page-map-group h3 {
-    margin: 0 8px 4px;
-    font-size: var(--t-5);
-    line-height: 1.35;
   }
   .lf-page-map-actions {
     row-gap: 2px;

@@ -672,11 +672,11 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(page.locator(".lf-fp-filters button")).to_have_text(
         ["On me 0", "On Claude 0", "Threads 1"]
     )
-    expect(page.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     expect(title).to_have_text("On Claude")
-    expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
-    expect(page.locator(".lf-fp-on-group")).to_have_text(
+    expect(page.locator(".lf-rows-empty")).to_have_text("Nothing waiting on Claude.")
+    expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_text(
         re.compile(r"^\s*Done\s*1\s*$")
     )
     sent = page.locator(".lf-fp-on-item")
@@ -3529,7 +3529,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
     # Each goal holds one item, so neither stands under a heading: each card says
     # its group's name before its place, and no kind.
-    expect(view.locator(".lf-fp-on-group")).to_have_count(0)
+    expect(view.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     expect(view.locator(".lf-fp-on-place")).to_have_text(
         ["Ship the migration · Ask", "Not in the plan · Ask"]
     )
@@ -3605,7 +3605,7 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     page.locator(".lf-fp-on-user").click()
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
     view = page.locator(panel_view("queue"))
-    expect(view.locator(".lf-fp-on-group")).to_have_text(
+    expect(view.locator(".lf-fp-on-list > .lf-rows-head")).to_have_text(
         [
             re.compile(r"^\s*In hand\s*1\s*$"),
             re.compile(r"^\s*Up next\s*1\s*$"),
@@ -4627,7 +4627,7 @@ def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
     open_threads(page)
     threads = page.locator(panel_view("threads"))
     expect(threads.locator(".lf-fp-thread")).to_have_text([re.compile(words)])
-    expect(threads.locator(".lf-fp-empty")).to_have_text("Loading current threads…")
+    expect(threads.locator(".lf-rows-empty")).to_have_text("Loading current threads…")
 
     page.locator(".lf-fp-close").click()
     expect(page.locator(".lf-fp-view")).to_have_count(0)

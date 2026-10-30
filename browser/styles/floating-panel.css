@@ -1399,10 +1399,6 @@
     background: var(--lf-fp-faint);
     margin: 4px 8px;
   }
-  .lf-fp-empty {
-    margin: 14px 8px;
-    color: var(--lf-fp-muted);
-  }
   .lf-fp-quiet {
     color: var(--lf-fp-muted);
   }
@@ -1411,19 +1407,6 @@
   }
 
   /* ---------- On: a card or a line per item ---------- */
-  /* A group's heading over its items, in the label voice (`.lf-label`), with how many
-     it holds. */
-  .lf-fp-on-group {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0;
-    padding: 10px 8px 2px;
-  }
-  .lf-fp-on-group:first-child,
-  .lf-fp-on-rule + .lf-fp-on-group {
-    padding-top: 2px;
-  }
   /* Each line is a list row (`.lf-fp-item`) that shares its first column, what each
      item is, with every line, so every title starts on one edge: the line takes the
      list's columns (`subgrid`), the widest word setting the first up to a share of the
@@ -1485,28 +1468,14 @@
   }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row of the list (controls.css,
-     `.lf-rows`), so its disclosure arrow (controls.css) stands in the column the rows'
-     news mark takes, its name starts where their names do, and its count ends where
-     their status does. The heading element only names it a heading and stands aside
-     from the layout; as a grid of its own between list and press, it moved the press's
-     words 4px past the rows'. */
-  .lf-fp-settled-group {
-    display: contents;
-  }
+     `.lf-rows`) in the heading's voice, so its disclosure arrow (controls.css) stands
+     in the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
   .lf-fp-settled {
     align-items: center;
     font: inherit;
-    letter-spacing: inherit;
-    text-transform: inherit;
     color: inherit;
     text-align: start;
-  }
-  /* Its count ends where the rows' status does, in the heading's own voice, as On me's
-     group counts are. */
-  .lf-fp-settled > .lf-fp-count {
-    color: inherit;
-    font-size: inherit;
-    text-align: end;
   }
   .lf-fp-settled::before {
     grid-column: lead;

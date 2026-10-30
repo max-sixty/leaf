@@ -40,7 +40,7 @@ interface ApplicationSnapshot {
   readonly semanticEpoch: number;
 }
 
-export interface SnapshotReading<T> {
+interface SnapshotReading<T> {
   read(): T;
   subscribe(listener: (value: T, round?: object) => unknown): () => void;
 }

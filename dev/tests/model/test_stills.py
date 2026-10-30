@@ -80,7 +80,9 @@ def stills_catalogue(tmp_path, monkeypatch):
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
     monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
     monkeypatch.setattr(stills, "serving_source", serving_source)
-    monkeypatch.setattr(stills, "headless_shell", lambda: nullcontext("browser"))
+    monkeypatch.setattr(
+        stills, "headless_shell", lambda **options: nullcontext("browser")
+    )
     monkeypatch.setattr(stills, "tab", tab)
     monkeypatch.setattr(
         stills, "load", lambda page, address: setattr(page, "url", address)

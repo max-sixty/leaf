@@ -60,7 +60,7 @@ import json
 import re
 import tempfile
 import traceback
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -3051,7 +3051,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 @contextmanager
 def capture(
     browser, address: str, state: State, path: Path
-) -> Iterator[tuple[dict | None, dict[str, list[str]], Page]]:
+) -> Generator[tuple[dict | None, dict[str, list[str]], Page]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them. Yield the state's region in the screenshot,

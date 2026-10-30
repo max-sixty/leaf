@@ -226,16 +226,16 @@ function afterScript(callback) {
 }
 let deliveringSizes = 0;
 function sizeObserver(callback, { counted = true } = {}) {
-	const pending2 = /* @__PURE__ */ new Map();
+	const pending = /* @__PURE__ */ new Map();
 	let installation = null;
-	const observer = new ResizeObserver((entries, observer2) => {
+	const observer = new ResizeObserver((entries, observer) => {
 		if (counted) {
 			heard = true;
 			unsettle();
 		}
 		deliveringSizes++;
 		try {
-			callback(entries, observer2);
+			callback(entries, observer);
 		} finally {
 			deliveringSizes--;
 		}
@@ -245,30 +245,30 @@ function sizeObserver(callback, { counted = true } = {}) {
 	const disconnect = observer.disconnect.bind(observer);
 	const install = () => {
 		installation = null;
-		for (const [target, options] of pending2) observe(target, options);
-		pending2.clear();
+		for (const [target, options] of pending) observe(target, options);
+		pending.clear();
 	};
 	const retireInstallation = () => {
-		if (pending2.size || installation === null) return;
+		if (pending.size || installation === null) return;
 		(counted ? cancelRender : cancelAnimation)(installation);
 		installation = null;
 	};
 	observer.observe = (target, options) => {
 		if (!deliveringSizes) {
-			pending2.delete(target);
+			pending.delete(target);
 			retireInstallation();
 			return observe(target, options);
 		}
-		pending2.set(target, options);
+		pending.set(target, options);
 		if (installation === null) installation = (counted ? nextRender : nextAnimation)(install);
 	};
 	observer.unobserve = (target) => {
-		pending2.delete(target);
+		pending.delete(target);
 		retireInstallation();
 		unobserve(target);
 	};
 	observer.disconnect = () => {
-		pending2.clear();
+		pending.clear();
 		retireInstallation();
 		disconnect();
 	};

@@ -1241,9 +1241,9 @@ function share(prior, next) {
 	if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object") return next;
 	if (Array.isArray(next)) {
 		if (!Array.isArray(prior)) return next;
-		const children2 = next.map((child, index) => share(prior[index], child));
-		if (prior.length === next.length && children2.every((child, index) => child === prior[index])) return prior;
-		return children2.every((child, index) => child === next[index]) ? next : children2;
+		const children = next.map((child, index) => share(prior[index], child));
+		if (prior.length === next.length && children.every((child, index) => child === prior[index])) return prior;
+		return children.every((child, index) => child === next[index]) ? next : children;
 	}
 	if (next instanceof Map) {
 		if (!(prior instanceof Map)) return next;
@@ -2231,21 +2231,21 @@ function localQueues(served, workflows, todos, items, local) {
 	const todoRecord = new Map([...todos.open, ...todos.ended].map((todo) => [todo.id, todo]));
 	const sentIn = new Set(workflows.flatMap((workflow) => workflow.stage === "sending" && workflow.condition === null && workflow.subject.kind === "thread" ? [workflow.thread] : []));
 	const obligationOf = (item) => {
-		const current2 = record.get(item.id);
-		if (!current2) throw new Error(`Queue item ${item.id} names no obligation`);
-		return current2;
+		const current = record.get(item.id);
+		if (!current) throw new Error(`Queue item ${item.id} names no obligation`);
+		return current;
 	};
 	const standsOpen = (item) => {
 		if (!namesRecord(item)) return open.has(item.id);
-		const current2 = obligationOf(item);
-		return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
+		const current = obligationOf(item);
+		return current.next_actor === item.owner && !(current.source.kind === "update" && current.thread !== null && sentIn.has(current.thread));
 	};
 	const reopened = (item) => namesRecord(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner : open.has(item.id);
 	const endedHere = (item) => namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
 	const todoOf = (item) => {
-		const local2 = todoRecord.get(item.id);
-		if (!local2) throw new Error(`Queue item ${item.id} names no to-do`);
-		return local2;
+		const local = todoRecord.get(item.id);
+		if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+		return local;
 	};
 	const current = (item) => namesRecord(item) ? {
 		...item,
@@ -2443,26 +2443,26 @@ function createSemanticApplication({ presentation } = {}) {
 	if (presentation) presentation.seal(presentation.begin());
 	function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
 		const receipts = state?.browser.receipts ?? [];
-		const local = unresolved.filter((entry2) => DRAWN_LOCALLY.has(entry2.state));
-		const refused = unresolved.filter((entry2) => entry2.state === "refused");
+		const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
+		const refused = unresolved.filter((entry) => entry.state === "refused");
 		const served = state?.browser.views[String(document.revision)];
 		const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
 		const admitted = normalizedProjection(view);
 		const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
 		const drawsAction = (e) => {
 			const descriptor = document.descriptors.get(e.widget);
-			const state2 = descriptor && stampedState(document.registry, descriptor.tag, e);
-			return Boolean(state2 && sameStateDefinition(e.meaning?.state, state2.definition));
+			const state = descriptor && stampedState(document.registry, descriptor.tag, e);
+			return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
 		};
-		const localProjections = local.flatMap((entry2) => {
-			const projection2 = entry2.projection;
-			if (!projection2) return [];
-			if (projection2.kind !== "undo") return drawsAction(projection2.e) ? [projection2] : [];
-			const { target } = projection2;
-			const targetId = admittedId(entry2.undoTarget, unresolved, receipts);
+		const localProjections = local.flatMap((entry) => {
+			const projection = entry.projection;
+			if (!projection) return [];
+			if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+			const { target } = projection;
+			const targetId = admittedId(entry.undoTarget, unresolved, receipts);
 			const pending = !Number.isInteger(target.e.seq);
 			return classifiedIds.has(targetId ?? target.e.id) || pending && drawsAction(target.e) ? [{
-				...projection2,
+				...projection,
 				targetId
 			}] : [];
 		});
@@ -2476,19 +2476,19 @@ function createSemanticApplication({ presentation } = {}) {
 			...namedParent ? { localParent: namedParent } : {}
 		}] : event.kind === "undo" ? [event] : []);
 		const folded = foldThreads(view?.thread.threads ?? [], gestures);
-		const widgets2 = foldWidgetStates(document.authored, projection);
-		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets2, projection);
+		const widgets = foldWidgetStates(document.authored, projection);
+		const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets, projection);
 		const todos = ready ? localTodos(state, local) : {
 			open: [],
 			ended: []
 		};
-		const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, todos) : NO_OBLIGATIONS;
+		const servedItems = ready ? normalizedObligations(view, widgets, document, projection, todos) : NO_OBLIGATIONS;
 		const named = threadNames(folded);
-		const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
-			const drawnIn = drawn2 && named.get(drawn2.id)?.id;
+		const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
+			const drawnIn = drawn && named.get(drawn.id)?.id;
 			if (drawnIn) return drawnIn;
 			switch (event.kind) {
-				case "comment": return drawn2?.id ?? null;
+				case "comment": return drawn?.id ?? null;
 				case "reply": return named.get(event.parent)?.id ?? event.parent;
 				case "edit": return named.get(event.message)?.id ?? null;
 				case "resolve":
@@ -2501,22 +2501,22 @@ function createSemanticApplication({ presentation } = {}) {
 			}
 		};
 		const logged = state?.browser.thread_memberships ?? {};
-		const threadsOfEntry = (entry2) => {
-			const filed = entry2.admitted ? logged[entry2.admitted.id] : void 0;
+		const threadsOfEntry = (entry) => {
+			const filed = entry.admitted ? logged[entry.admitted.id] : void 0;
 			if (filed) return filed;
-			const { event } = entry2;
+			const { event } = entry;
 			if (event.kind === "undo") {
 				const target = unresolved.find((each) => each.localId === event.undoes || each.admitted?.id === event.undoes);
 				return target ? threadsOfEntry(target) : logged[event.undoes] ?? [];
 			}
-			const thread = threadOfEntry(entry2);
+			const thread = threadOfEntry(entry);
 			return thread ? [thread] : [];
 		};
 		const recovery = /* @__PURE__ */ new Map();
-		for (const entry2 of refused) {
-			if (!isTurnEvent(entry2.event) && entry2.event.kind !== "action") continue;
-			const thread = threadOfEntry(entry2);
-			if (thread) recovery.set(thread, `rejected:${entry2.event.attempt}`);
+		for (const entry of refused) {
+			if (!isTurnEvent(entry.event) && entry.event.kind !== "action") continue;
+			const thread = threadOfEntry(entry);
+			if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
 		}
 		const obligated = folded.map((thread) => {
 			const retry = recovery.get(thread.id);
@@ -2529,27 +2529,27 @@ function createSemanticApplication({ presentation } = {}) {
 				}
 			} : thread;
 		});
-		const localWorkflow = (entry2, rejected) => {
-			const turn = isTurnEvent(entry2.event) ? entry2.thread : null;
-			const thread = threadOfEntry(entry2);
+		const localWorkflow = (entry, rejected) => {
+			const turn = isTurnEvent(entry.event) ? entry.thread : null;
+			const thread = threadOfEntry(entry);
 			const subject = turn ? thread === null ? null : {
 				kind: "thread",
 				id: thread
-			} : entry2.event.kind === "action" ? {
+			} : entry.event.kind === "action" ? {
 				kind: "widget",
-				id: entry2.event.widget
+				id: entry.event.widget
 			} : null;
 			if (!subject) return null;
 			return {
-				id: `${rejected ? "rejected" : "pending"}:${entry2.event.attempt}`,
-				revision: entry2.event.revision ?? document.revision,
-				seq: entry2.order,
-				input: turn?.id ?? entry2.localId,
+				id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
+				revision: entry.event.revision ?? document.revision,
+				seq: entry.order,
+				input: turn?.id ?? entry.localId,
 				message: turn ? turnMessage(turn) : null,
 				subject,
 				thread,
 				at_work: false,
-				coordinate: turn ? ["thread", thread] : entry2.projection ? coordinateOf(entry2.projection.coordinate) : null,
+				coordinate: turn ? ["thread", thread] : entry.projection ? coordinateOf(entry.projection.coordinate) : null,
 				obligation: null,
 				stage: "sending",
 				ts: turn?.ts ?? null,
@@ -2571,8 +2571,8 @@ function createSemanticApplication({ presentation } = {}) {
 		};
 		const sends = localUpdates([
 			...state ? state.workflows : [],
-			...local.flatMap((entry2) => isTurnEvent(entry2.event) ? localWorkflow(entry2, false) ?? [] : []),
-			...refused.flatMap((entry2) => localWorkflow(entry2, true) ?? [])
+			...local.flatMap((entry) => isTurnEvent(entry.event) ? localWorkflow(entry, false) ?? [] : []),
+			...refused.flatMap((entry) => localWorkflow(entry, true) ?? [])
 		]);
 		const workflows = sends.workflows;
 		const localRecords = ready ? sends.records : [];
@@ -2581,11 +2581,11 @@ function createSemanticApplication({ presentation } = {}) {
 			user: [...servedItems.user, ...localRecords.filter((item) => item.next_actor === "user")],
 			unanswered: [...servedItems.unanswered, ...localRecords]
 		};
-		const threads = readThreadRecords(obligated, document, widgets2, workflows, todos.open, items.all, markingRead, ready);
+		const threads = readThreadRecords(obligated, document, widgets, workflows, todos.open, items.all, markingRead, ready);
 		const selectedQueues = localQueues(ready ? view?.queues ?? NO_QUEUES : NO_QUEUES, workflows, todos, items, localRecords);
 		const serving = /* @__PURE__ */ new Map();
 		for (const workflow of workflows) if (workflow.obligation !== null && !serving.has(workflow.obligation)) serving.set(workflow.obligation, workflow);
-		const contextual = (items2, onUser = false) => items2.map((item) => ({
+		const contextual = (items, onUser = false) => items.map((item) => ({
 			...item,
 			workflow: serving.get(item.id) ?? null,
 			offers: queueOffers(item, ready, onUser)
@@ -2593,7 +2593,7 @@ function createSemanticApplication({ presentation } = {}) {
 		return {
 			hostAvailable,
 			projection,
-			widgets: widgets2,
+			widgets,
 			thread: {
 				all: threads,
 				collection: {
@@ -2616,7 +2616,7 @@ function createSemanticApplication({ presentation } = {}) {
 			view,
 			memberships,
 			widgetParents,
-			sending: unresolved.filter((entry2) => SENDING.has(entry2.state)).map((entry2) => entry2.event.attempt),
+			sending: unresolved.filter((entry) => SENDING.has(entry.state)).map((entry) => entry.event.attempt),
 			workflows,
 			activity: state?.activity ?? null
 		};
@@ -2696,7 +2696,7 @@ function createSemanticApplication({ presentation } = {}) {
 			const wanted = new Set(eventIds);
 			return publisher.select((root) => foldWidgetStates(root.document.authored, {
 				...root.effective.projection,
-				desired: new Map([...root.effective.projection.desired].filter(([, entry2]) => wanted.has(entry2.e.id)))
+				desired: new Map([...root.effective.projection.desired].filter(([, entry]) => wanted.has(entry.e.id)))
 			})).read();
 		},
 		selectWidget(descriptor) {
@@ -2873,9 +2873,9 @@ function createSemanticApplication({ presentation } = {}) {
 			const item = entry(attempt);
 			if (!item) return true;
 			const event = nameAdmitted(item.event, (pending) => admittedId(pending, ...ledgerAndReceipts()));
-			if (event !== item.event) update(attempt, (item2) => ({
-				...item2,
-				...event.parent !== item2.event.parent && typeof item2.event.parent === "string" ? { namedParent: item2.event.parent } : {},
+			if (event !== item.event) update(attempt, (item) => ({
+				...item,
+				...event.parent !== item.event.parent && typeof item.event.parent === "string" ? { namedParent: item.event.parent } : {},
 				event
 			}));
 			return !(event.kind === "undo" && namesPending(event));
@@ -3050,8 +3050,8 @@ function createPresentationSchedule(bindJob) {
 			scheduled = false;
 			const round = queued;
 			queued = [];
-			for (const run2 of round) {
-				const started = run2();
+			for (const run of round) {
+				const started = run();
 				started.catch(() => void 0);
 				running.push(started);
 			}
@@ -3116,7 +3116,7 @@ function createPresentationSchedule(bindJob) {
 				presentation: handle.present(failSoft)
 			};
 		}
-		async function run({ claimed, value, presentation, dom: dom2 }) {
+		async function run({ claimed, value, presentation, dom }) {
 			if (claimed !== generation) return;
 			let painted;
 			try {
@@ -3124,7 +3124,7 @@ function createPresentationSchedule(bindJob) {
 			} catch (error) {
 				painted = Promise.reject(error);
 			}
-			dom2.resolve();
+			dom.resolve();
 			presentation.resolve(painted);
 			await presentation.ready;
 		}
@@ -3189,8 +3189,8 @@ const queueWidgetUpdate = (widget, update, committed) => {
 		for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
 			if (seen.has(parent)) return [];
 			seen.add(parent);
-			const dom2 = widgetCommits.get(parent);
-			if (dom2) pending.push(dom2);
+			const dom = widgetCommits.get(parent);
+			if (dom) pending.push(dom);
 		}
 		return pending;
 	}, update, committed);
@@ -3232,17 +3232,17 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			forget();
 			const generation = following;
 			const stretch = (run) => {
-				let first2 = true;
+				let first = true;
 				let outcome;
 				const stop = x$1(() => {
-					if (!first2) {
+					if (!first) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
 							if (next !== null) claim(next);
 						});
 						return;
 					}
-					first2 = false;
+					first = false;
 					try {
 						outcome = { value: run() };
 					} catch (error) {

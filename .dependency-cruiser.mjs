@@ -237,7 +237,6 @@ export default {
         "^/checks/",
         "^/runtime/framework\\.js$",
         "\\.json$",
-        "\\.ts$",
       ],
     },
     // Resolve as the browser does: a specifier names its file exactly. Without this,

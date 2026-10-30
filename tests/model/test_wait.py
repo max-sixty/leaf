@@ -454,7 +454,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     def tick():
         try:
             readings.extend(watch.tick())
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
         finally:
             watch.release()

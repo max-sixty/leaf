@@ -186,7 +186,7 @@ def unbind(page_dir: Path, name: str) -> dict:
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: F841 -- preserve the handler's keyword parameters
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: F841, RUF100 - Vulture: preserve handler keyword parameters.
         return None
 
 

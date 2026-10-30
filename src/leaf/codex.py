@@ -1556,7 +1556,7 @@ class CarriedTurn(TurnFold):
                 terminal = self.finished(message, update)
                 if terminal is not None:
                     break
-        except Exception as error:  # noqa: BLE001 - the turn's outcome, any fault
+        except Exception as error:
             terminal = self.ended(error)
         finally:
             self.stream.close()

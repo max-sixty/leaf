@@ -982,7 +982,7 @@ class LiveSession:
                 if self.stopping:
                     return
         # The driver's thread raises what the child's records raised.
-        except BaseException as error:  # noqa: BLE001
+        except BaseException as error:
             self.handed.put(error)
             return
         self.handed.put(_ENDED)
@@ -1083,7 +1083,7 @@ class LiveSession:
             try:
                 done.put((True, action()))
             # Raised again in the driver's thread.
-            except BaseException as error:  # noqa: BLE001
+            except BaseException as error:
                 done.put((False, error))
 
         worker = threading.Thread(target=run, daemon=True)

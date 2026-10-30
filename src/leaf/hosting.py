@@ -647,7 +647,8 @@ def cmd_serve(
         ).start()
         try:
             httpd.serve_forever()
-        except BaseException:  # noqa: BLE001 - reported, since `exit_serving` skips the interpreter's report
+        except BaseException:
+            # exit_serving skips the interpreter's exception report.
             traceback.print_exc()
         exit_serving(1)
     finally:

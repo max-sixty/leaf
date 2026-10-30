@@ -105,7 +105,9 @@ function laidOut() {
   let scrollTop = 0;
   Object.defineProperty(scroller, "scrollTop", {
     get: () => scrollTop,
-    set: (value) => (scrollTop = value),
+    set: (value) => {
+      scrollTop = value;
+    },
   });
   Object.defineProperties(scroller, {
     scrollHeight: { get: () => 5000 },

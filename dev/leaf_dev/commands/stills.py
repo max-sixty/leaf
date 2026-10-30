@@ -3375,7 +3375,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             )
                             if region:
                                 crop_regions.append(region)
-                        except Exception as error:  # noqa: BLE001 - isolate each capture
+                        except Exception as error:
                             failure(state, arm, error)
                     if state.name in failed:
                         continue
@@ -3395,7 +3395,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                         if lines:
                             (folder / "styles.txt").write_text("\n".join(lines) + "\n")
                         read[state.name] = difference
-                    except Exception as error:  # noqa: BLE001 - isolate each comparison
+                    except Exception as error:
                         failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0

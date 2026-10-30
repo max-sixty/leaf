@@ -1460,9 +1460,12 @@
     flex: 1 1 auto;
   }
   /* What each item is reads down one edge as words do, cut short where its share
-     ends, rather than against the title as a lead's number stands. */
+     ends, rather than against the title as a lead's number stands. Set a rung smaller
+     than the title, it shares the title's baseline. Centred in its own shorter line, as
+     a lead's mark is, it stood a pixel or two above it. */
   .lf-fp-on-noun {
     display: block;
+    align-self: baseline;
     justify-self: start;
   }
   .lf-fp-on-noun,

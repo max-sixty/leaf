@@ -374,7 +374,7 @@ lf-visual-review {
 }
 .lf-vr-inspection-heading h4 {
   margin: 0;
-  font: 600 var(--t-5)/1.4 var(--sans);
+  font: 600 15px/1.4 var(--sans);
 }
 
 .lf-vr-open-threads {

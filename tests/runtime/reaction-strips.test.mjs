@@ -41,3 +41,22 @@ test("pressing a reaction the user does not have puts it on", () => {
   press("no");
   assert.deepEqual(asked, [["t1", "m1", "no", true]]);
 });
+
+test("a trigger drawn again is the one the picker opens from", async () => {
+  const { html, nothing, render } = await import("/runtime/framework.js");
+  const registered = [];
+  const view = new ReactionStripView({
+    registerSurface: (_surface, { trigger }) => {
+      registered.push(trigger);
+      return { close() {}, toggle() {} };
+    },
+  });
+  view.present({ thread: "t1", message: "m1", latest: true, choices: [] });
+  const head = document.createElement("div");
+  document.body.replaceChildren(head, view.node);
+  const draw = (shown) => render(html`${shown ? view.trigger : nothing}`, head);
+  draw(true);
+  draw(false);
+  draw(true);
+  assert.equal(registered.at(-1), head.querySelector(".lf-react-trigger"));
+});

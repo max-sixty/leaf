@@ -301,4 +301,4 @@ def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(0)
     except FileNotFoundError as error:
-        raise Refused(str(error))
+        raise Refused(str(error)) from error

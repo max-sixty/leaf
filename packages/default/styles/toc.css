@@ -48,9 +48,7 @@ lf-toc .lf-toc-heading {
 lf-toc .lf-toc-toggle {
   margin: 0;
   padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
-}
-lf-toc .lf-toc-toggle[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
@@ -312,9 +310,8 @@ lf-toc a[data-lf-focus] {
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
       color: var(--ink-2);
     }
-    lf-toc a[data-lf-focus-visible] {
-      outline: var(--focus-ring);
-      outline-offset: calc(-1 * var(--focus-ring-w));
+    lf-toc a {
+      outline-offset: var(--focus-ring-inset);
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
       --lf-toc-label-opacity: 1;

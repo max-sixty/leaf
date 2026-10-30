@@ -91,7 +91,10 @@ do not select resolutions. Use `--viewport short` or `--viewport phone` to choos
 an alternative; repeat the option to inspect several sizes within each sample.
 The first selected size drives the comment and decision journey. All selected
 sizes reach the author's window preference, report captures and final judge.
-This does not multiply author runs or judges.
+Full workflows introduce that preference after the first draft; short authoring
+cases include it in the initial request. This does not multiply author runs or
+judges, but it changes the task the author must satisfy. To inspect another size
+without changing that task, explore the saved sample with `eval-discover` below.
 
 ```sh
 uv run leaf-dev eval patch-review --harness codex --condition both --viewport desktop
@@ -209,6 +212,29 @@ executions, such as a short case and a longer workflow.
     "title": "Latest validation",
     "runs": ["/absolute/path/to/run"],
     "summary": "What this journey establishes and what it cannot establish.",
+    "highlights": [
+      {
+        "label": "The retained gain",
+        "href": "#experiment-change-name",
+        "text": "What the user can now do."
+      }
+    ],
+    "scores": [
+      {
+        "label": "Approval trial",
+        "href": "#experiment-change-name",
+        "before": "0 of 2 passed",
+        "after": "2 of 2 passed",
+        "meaning": "Two authors per arm; not a population success rate."
+      }
+    ],
+    "exceptions": [
+      {
+        "label": "Remaining limit",
+        "href": "#experiment-change-name",
+        "text": "What the evidence does not establish."
+      }
+    ],
     "findings": [
       {
         "run": "/absolute/path/to/run",
@@ -230,12 +256,52 @@ executions, such as a short case and a longer workflow.
           "before": "The criterion prescribed one keyboard gesture for every control.",
           "after": "The judgment follows each control's actual keyboard semantics.",
           "reason": "This changes how the reader should interpret the recorded judgments.",
-          "evidence": ["/absolute/path/to/grading-contract.diff"]
+          "evidence": [
+            {
+              "path": "/absolute/path/to/grading-contract.diff",
+              "label": "Keyboard judgment contract change"
+            }
+          ]
         }
       ]
     },
     "weaknesses": "Material limitations and where the assessment is least certain.",
     "remaining": "What merging would leave undone within the stated scope."
+  },
+  "campaign": {
+    "summary": "The baseline split into a candidate and a control, then a comparison informed the decision.",
+    "nodes": [
+      {
+        "id": "baseline",
+        "label": "Baseline",
+        "kind": "Authoring",
+        "href": "#journey-navigation-baseline"
+      },
+      {
+        "id": "candidate",
+        "label": "Candidate",
+        "kind": "Repair",
+        "href": "#experiment-change-name"
+      },
+      {
+        "id": "control",
+        "label": "Saved control",
+        "kind": "Authoring",
+        "href": "#journey-navigation-baseline"
+      },
+      {
+        "id": "comparison",
+        "label": "Compare and decide",
+        "kind": "Judging",
+        "href": "#experiment-change-name-assessment"
+      }
+    ],
+    "edges": [
+      { "from": "baseline", "to": "candidate" },
+      { "from": "baseline", "to": "control" },
+      { "from": "candidate", "to": "comparison" },
+      { "from": "control", "to": "comparison" }
+    ]
   },
   "journey": [
     {
@@ -278,6 +344,7 @@ executions, such as a short case and a longer workflow.
       "label": "Short navigation label",
       "title": "The change tested",
       "kind": "UI change",
+      "group": "retained",
       "review": true,
       "period": "When this experiment ran",
       "change": "The intervention and its intended effect.",
@@ -289,23 +356,56 @@ executions, such as a short case and a longer workflow.
           "label": "Short task label",
           "title": "Task and repetition",
           "summary": "Desktop: After preferred · Phone: Before preferred",
-          "before": { "run": "/absolute/path/to/run", "sample": "before-sample" },
-          "after": { "run": "/absolute/path/to/run", "sample": "after-sample" },
+          "before": {
+            "run": "/absolute/path/to/run",
+            "sample": "before-sample",
+            "label": "Baseline guidance"
+          },
+          "after": {
+            "run": "/absolute/path/to/run",
+            "sample": "after-sample",
+            "label": "Full guidance"
+          },
           "finding": "What the matched outputs show.",
-          "evidence": ["/absolute/path/to/judgment.json"]
+          "evidence": [
+            {
+              "path": "/absolute/path/to/judgment.json",
+              "label": "Independent approval-after-edit judgment"
+            }
+          ]
         }
       ],
-      "evidence": ["/absolute/path/to/change.diff"]
+      "evidence": [
+        { "path": "/absolute/path/to/change.diff", "label": "Exact retained change" }
+      ]
     }
   ]
 }
 ```
 
-The optional `label` fields shorten navigation without shortening the evidence's
-title; a comparison's optional `summary` gives a short assessment beside its images,
-with the full `finding` visible below. Use empty comparison/evidence arrays where
-no such evidence exists, and say why in the assessment. Screenshot evidence
-renders inline; other files are linked.
+The introduction shows `latest.summary`, optional `highlights`, `scores` and
+`exceptions`. Score rows state their denominator and meaning: keep an experiment's
+pass counts separate from ordinal pair preferences. `latest.findings` is the full
+per-attempt catalogue under Cases & outputs, not the introduction's exception list.
+
+The optional `campaign` supplies the overall journey diagram. Its node `kind` values
+name and color run types; edges state observed dependencies or decisions, rather than
+inferring causality from timestamps. Node links reach the supporting case or experiment.
+The separate `journey` array retains each case's generated outputs and assessment.
+
+Experiments require a `group`: `retained`, `rejected`, `evaluation` or `exploration`.
+The report builds a linked index and disclosures in that order. Each recommendation,
+assessment and limitation precedes its evidence. A comparison's optional `summary`
+and full `finding` precede its captures. Repetitions and additional captured sizes use
+disclosures; desktop is shown first. Optional side `label` fields name what the reader
+is comparing. Independently authored outputs use complete side-by-side frames; set
+`aligned: true` only for captures of the same source and state before and after a
+change, where a wipe can reveal that change.
+
+Every `evidence` entry is `{ "path": "/absolute/path", "label": "What this establishes" }`,
+including repair comparisons and implementation review. Screenshot evidence renders
+inline with that caption; other files use the label as link text. Use empty arrays
+where no evidence exists, and say why in the assessment.
 
 The optional experiment `kind` is a visible description such as “UI change”,
 “Documentation”, “Check” or “Rejected trial”. `review` defaults to false; only
@@ -367,7 +467,12 @@ interpretation. To label an explicit progression, add optional
       "title": "Same-source navigation",
       "before": "The selected file and visible diff disagree.",
       "after": "The visible diff follows the keyboard selection.",
-      "evidence": ["/absolute/path/to/matched-observation.json"]
+      "evidence": [
+        {
+          "path": "/absolute/path/to/matched-observation.json",
+          "label": "Matched before/after observation"
+        }
+      ]
     }
   ]
 }
@@ -419,6 +524,25 @@ by its case, and each sample's `metadata.work` names its directory. Original run
 arms are retained under `arms/` for later live grading. A judged sample's screenshots
 are under `screenshots/`, in a directory of the same name. `results.json` there
 holds the whole run.
+
+### Recorded execution data
+
+`results.json` is the run record, including its frozen Promptfoo configuration.
+Each result's `provider.label` joins `config.providers[].label`; provider ids alone
+are shared by multiple arms and models. That provider's `config` records the
+requested author `model`. Workflow and authoring providers also record `harness`,
+`condition`, runtime `payload` and selected `viewports`; native probe provider IDs
+identify their harness and carry their own installed-skill configuration.
+Reports read these saved values, never the current model pins. A copied
+or recovered run index retains the provider configurations its results name.
+
+The result's `testCase.metadata` distinguishes `authoring`, an `executor` workflow,
+and other probes. `response.metadata.diagnostics.comparison.widths` records the
+actual comparison dimensions in CSS pixels; selected viewport names in the provider
+configuration remain distinct from those dimensions. Phase records hold the saved
+pages, captures and native author traces. Each live judge's response records its own
+model under `metadata.model`, separately from the author. `eval_records.py` reads
+this identity for the report without introducing another stored representation.
 
 Executor turns, live sessions, and native Codex provider calls allow six hours;
 the outer workflow provider allows a day for multiple turns and artifact checks.

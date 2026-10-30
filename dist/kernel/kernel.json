@@ -151,7 +151,7 @@
     "runtime/page-controls.js": "fc11341b8a26458ac73e4d4e3040cfc5941c32fdd76d55e2e8dfad2a5aeefa01",
     "runtime/page-geometry.js": "8501521f10b52cac23e03899fa9d399c8d30ba32dd0c86d315de7ba266da1b7c",
     "runtime/page-identity.js": "468ef7da15a3375f33c2a6709fce59583f03a0677347f0771f77984ac9f51947",
-    "runtime/page-inspection.js": "84f1ead23b9147ab41f5c4b97063e24544023d434acafe62c8b84e4254345acb",
+    "runtime/page-inspection.js": "ea66e21973700c3660c66a86b1a7d9e2370d0bb817c344ea2d8bfed8e79f53da",
     "runtime/page-layout.js": "b1c012833a1646017963153d4fc4b7c3f5794b19397aace0041662bd7fa782cb",
     "runtime/page-map-dialog.js": "855a6dd0e4c726d5aa41813b2fa3c0c061eecf7bdc27b7cd26f3268de2a1ff83",
     "runtime/page-paint.js": "9c0ed002173a37e945613181b827fbe573b377f7d2307cb57a91a9a52740b8d5",

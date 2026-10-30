@@ -49,14 +49,14 @@ lf-tally:not(:defined)::before {
   content: "00 left to answer · 00 on the agent";
   display: inline-block;
   visibility: hidden;
-  font: var(--t-6) / var(--chip-lh) var(--sans);
+  font: var(--voice-chip);
   padding: var(--chip-pad);
 }
 lf-tally[next]:not(:defined)::after {
   content: "Next on me";
   display: inline-block;
   visibility: hidden;
-  font: var(--t-6) / var(--lf-ui-lh) var(--sans);
+  font: var(--voice-small);
   box-sizing: border-box;
   padding-inline: 10px;
   border: 1px solid transparent;

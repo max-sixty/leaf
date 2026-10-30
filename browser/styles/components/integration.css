@@ -253,7 +253,6 @@ html[data-lf-draw-mode] main {
 }
 
 .lf-react-said {
-  font-family: var(--sans);
   color: var(--mark-ink);
 }
 /* Ordinary thread shape is intrinsic. Only removed passive content reserves a gap.

@@ -141,7 +141,7 @@ interaction to express.
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
-ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the type voices
+ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces
 `--serif` for prose, `--sans` for labels and controls and `--mono` for code
 (`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
 also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that

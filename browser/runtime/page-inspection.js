@@ -251,7 +251,7 @@ function present() {
       </p>
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
-        <h2>Authored CSS</h2>
+        <h2 class="lf-label">Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${
           sourceError
@@ -287,7 +287,7 @@ function present() {
       ${
         report.javascript
           ? html`<section aria-label="Authored JavaScript">
-              <h2>Authored JavaScript</h2>
+              <h2 class="lf-label">Authored JavaScript</h2>
               <p>
                 ${number(report.javascript.page.bytes)} page-owned bytes ·
                 ${number(report.javascript.page.inline_scripts)} inline scripts ·
@@ -312,7 +312,7 @@ function present() {
       ${
         report.page_widgets?.length
           ? html`<section aria-label="Page-owned widgets">
-              <h2>Page-owned widgets</h2>
+              <h2 class="lf-label">Page-owned widgets</h2>
               <dl>
                 ${report.page_widgets.map(
                   (widget) =>
@@ -324,7 +324,7 @@ function present() {
           : nothing
       }
       <section aria-label="Browser observation">
-        <h2>This tab at opening</h2>
+        <h2 class="lf-label">This tab at opening</h2>
         ${browserReading(report.current_view)}
         <p>
           The captured view stays fixed while this dialog is open. Close and reopen to
@@ -399,7 +399,7 @@ export async function openPageInspection(intent) {
     : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
   loading = available;
   render(
-    html`<h2>Page details</h2>
+    html`<h2 class="lf-label">Page details</h2>
       ${pageControls()
         .filter((entry) => entry.copies)
         .map(

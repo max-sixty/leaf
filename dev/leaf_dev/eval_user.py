@@ -33,7 +33,7 @@ from playwright.sync_api import Page
 
 from leaf_dev.arms import (
     MODELS,
-    claude_child,
+    environment,
     run_agent,
     scratch,
     trace_result,
@@ -281,16 +281,17 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
         view.context.add_init_script(COPY_SPY)
         view.goto(url, wait_until="load")
         session = f"leaf-user-{cwd.parent.name}"
-        # The daemon keeps its socket in `sockets`, whose path is short enough for
-        # one, under the user agent's own home, so it must run in the agent's
-        # environment.
-        env = claude_child(cwd, "", env={"PWTEST_SOCKETS_DIR": sockets})["env"]
+        # Both the harness and its user attach through the same private daemon.
+        variables = {
+            "PWTEST_SOCKETS_DIR": sockets,
+            "PWTEST_DAEMON_SESSION_DIR": str(cwd / "daemon"),
+        }
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
                 [*cli(), f"-s={session}", *args],
                 cwd=cwd,
-                env=env,
+                env=environment(**variables),
                 capture_output=True,
                 text=True,
                 check=False,
@@ -314,9 +315,10 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
                 json.dumps(REPORT),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
-                env={"PWTEST_SOCKETS_DIR": sockets},
+                env=variables,
+                harness="codex",
+                dirs=[Path(sockets)],
                 model=MODELS["user"],
-                sandbox=False,
                 limit=DECIDING_LIMIT,
             )
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")

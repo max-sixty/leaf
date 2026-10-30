@@ -43,6 +43,7 @@ from leaf_dev.arms import (
     TURN_LIMIT,
     LiveChild,
     LiveSession,
+    author_failure,
     environment,
     now,
     observed_sum,
@@ -547,36 +548,46 @@ def decision_round(run: Run, live: LiveSession) -> None:
     live.send(message)
 
 
-def capture_phase(
-    run: Run, phase: int, page: Path | None = None
-) -> dict[str, list[str]]:
-    """One arrival screenshot per width for reports; the live judge owns inspection."""
-    widths = run.widths
-    captures = {name: [] for name in widths}
+def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
+    """Arrival screenshots are auxiliary evidence, not the author's outcome.
+
+    A capture failure leaves completed images intact and names every unavailable
+    viewport. It never discards the saved page, native trace or author checks.
+    """
+    captures = {name: [] for name in run.widths}
+    result = {"captures": captures, "capture_errors": {}}
     page = page or run.page(phase)
     if page is None:
-        return captures
-    run.shots.mkdir(parents=True, exist_ok=True)
+        return result
     html = run.condition == "html"
-    with headless_shell() as browser:
-        for name, (viewport, _) in widths.items():
-            with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
-                copied = Path(temporary) / "page"
-                shutil.copytree(page, copied)
-                server = (
-                    arrangement_plain.serving(copied)
-                    if html
-                    else serving(run.payload, Path(temporary) / "state", copied)
-                )
-                with (
-                    server as url,
-                    tab(browser, viewport=viewport, touch=name == "phone") as view,
-                ):
-                    (arrangement_plain.load if html else load)(view, url)
-                    image = run.shots / f"p{phase}-{name}-0.png"
-                    view.screenshot(path=image)
-                    captures[name] = [str(image)]
-    return captures
+    try:
+        run.shots.mkdir(parents=True, exist_ok=True)
+        with headless_shell() as browser:
+            for name, (viewport, _) in run.widths.items():
+                with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
+                    copied = Path(temporary) / "page"
+                    shutil.copytree(page, copied)
+                    server = (
+                        arrangement_plain.serving(copied)
+                        if html
+                        else serving(run.payload, Path(temporary) / "state", copied)
+                    )
+                    with (
+                        server as url,
+                        tab(browser, viewport=viewport, touch=name == "phone") as view,
+                    ):
+                        (arrangement_plain.load if html else load)(view, url)
+                        image = run.shots / f"p{phase}-{name}-0.png"
+                        view.screenshot(path=image)
+                        captures[name] = [str(image)]
+    except Exception as error:
+        result["capture_errors"] = {
+            name: f"{type(error).__name__}: {error}"
+            for name, images in captures.items()
+            if not images
+        } or {"session": f"{type(error).__name__}: {error}"}
+    run.record(f"capture-phase{phase}", result)
+    return result
 
 
 JUDGING_LIMIT = 20 * 60
@@ -741,7 +752,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
     )
 
 
-def capture(run: Run) -> dict[int, dict[str, list[str]]]:
+def capture(run: Run) -> dict[int, dict]:
     """Report the final page and, when applicable, its decision controls."""
     return {
         int(phase): capture_phase(run, int(phase))
@@ -942,7 +953,7 @@ def execute_scenario(
             page = run.page(phase)
             row = {
                 "trace": summary,
-                "captures": captures.get(phase, {}),
+                **captures.get(phase, {}),
             }
             if page:
                 row["page"] = str(page)
@@ -956,9 +967,14 @@ def execute_scenario(
         "author": observed_sum(authoring),
         "harness": observed_sum(harness_costs),
     }
+    failure = next(
+        (error for phase in order if (error := author_failure(split.get(phase, [])))),
+        None,
+    )
     return {
         "output": brief(case, answer, viewports),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
+        **({"error": failure} if failure else {}),
         **(
             {"cost": cost}
             if (cost := observed_sum([*authoring, *harness_costs])) is not None

@@ -160,6 +160,22 @@ def condition_labels(columns: dict) -> dict[str, str]:
     }
 
 
+def execution_status(response: dict) -> str:
+    """Read native completion before interpreting checks on its authored output."""
+    metadata = response.get("metadata") or {}
+    checks = metadata.get("checks") or {}
+    if (
+        checks.get("completed") is False
+        or (metadata.get("trace") or {}).get("completed") is False
+    ):
+        return "incomplete"
+    if response.get("error"):
+        return "error"
+    if checks.get("page") is False or not response.get("output"):
+        return "empty"
+    return "complete"
+
+
 def report_samples(runs: tuple[Path, ...]) -> dict:
     """Read every Promptfoo result, including failed attempts with no saved page."""
     found = defaultdict(lambda: defaultdict(list))
@@ -197,6 +213,7 @@ def report_samples(runs: tuple[Path, ...]) -> dict:
                 "work": work,
                 "diagnostics": diagnostics,
                 "checks": metadata.get("checks") or {},
+                "execution": execution_status(response),
                 "shots": run / "screenshots" / work.name,
                 "runs": [run],
                 "gradingResult": result.get("gradingResult"),
@@ -670,12 +687,23 @@ def check_results(sample: dict) -> list[tuple[str, str]]:
         "page": "Output saved",
         "page-valid": "Page validation",
     }
+    asserted = {
+        result.get("assertion", {}).get("metric")
+        for result in (sample.get("gradingResult") or {}).get("componentResults", [])
+    }
     return [
         (
             labels.get(name, name.replace("-", " ").capitalize()),
-            "Passed" if value else "Failed",
+            (
+                "Incomplete"
+                if name == "completed" and sample["execution"] == "incomplete"
+                else "Passed"
+                if value
+                else "Failed"
+            ),
         )
         for name, value in sample["checks"].items()
+        if name in asserted
     ]
 
 
@@ -691,6 +719,10 @@ def result_list(results: list[tuple[str, str]]) -> str:
 
 
 def check_summary(sample: dict) -> str:
+    if sample["execution"] == "incomplete":
+        return "Author did not finish"
+    if sample["execution"] == "error":
+        return "Execution unavailable"
     results = check_results(sample)
     if not results:
         return "Not checked"
@@ -700,6 +732,15 @@ def check_summary(sample: dict) -> str:
         if failed
         else f"{len(results)} checks passed"
     )
+
+
+def quality_unavailable(sample: dict) -> str | None:
+    """Execution evidence bounds which recorded grades can assess an output."""
+    return {
+        "incomplete": "Author did not finish",
+        "error": "Execution unavailable",
+        "empty": "No authored output",
+    }.get(sample["execution"])
 
 
 def quality_results(sample: dict) -> list[dict]:
@@ -727,7 +768,9 @@ def quality_name(result: dict) -> str:
     )
 
 
-def quality_status(result: dict) -> str:
+def quality_status(result: dict, sample: dict) -> str:
+    if unavailable := quality_unavailable(sample):
+        return f"Not assessed — {unavailable.lower()}"
     metadata = result.get("metadata", {})
     if metadata.get("authoring_grade"):
         status = metadata["authoring_grade"]["status"]
@@ -735,11 +778,17 @@ def quality_status(result: dict) -> str:
             status, status.replace("_", " ").capitalize()
         )
     if "page_defects" in metadata:
-        return f"{len(metadata['page_defects']['defects'])} defects found"
+        reading = metadata["page_defects"]
+        if reading["status"] == "unscored":
+            return "Unscored"
+        count = len(reading["defects"])
+        return f"{count} defect{'s' if count != 1 else ''} found"
     return "Passed" if result.get("pass") else "Failed"
 
 
 def grade_summary(sample: dict) -> str:
+    if unavailable := quality_unavailable(sample):
+        return f"No quality assessment — {unavailable.lower()}"
     results = quality_results(sample)
     if not results:
         return (
@@ -748,9 +797,13 @@ def grade_summary(sample: dict) -> str:
             else "No individual assessment"
         )
     if len(results) == 1:
-        return quality_name(results[0]) + ": " + quality_status(results[0]).lower()
-    passed = sum(result.get("pass", False) for result in results)
-    return f"{passed} of {len(results)} criteria passed"
+        return (
+            quality_name(results[0]) + ": " + quality_status(results[0], sample).lower()
+        )
+    return "; ".join(
+        f"{quality_name(result)}: {quality_status(result, sample).lower()}"
+        for result in results
+    )
 
 
 def overview(found: dict, *, table_id: str = "overview") -> str:
@@ -778,6 +831,15 @@ def overview(found: dict, *, table_id: str = "overview") -> str:
     )
 
 
+def capture_errors(sample: dict, phase: str) -> str:
+    return "".join(
+        f"<p><strong>{escape(name.capitalize())} capture unavailable:</strong> {escape(reason)}</p>"
+        for name, reason in sample["diagnostics"]["phases"][phase]
+        .get("capture_errors", {})
+        .items()
+    )
+
+
 def sample_section(page: Path, sample: dict, label: str, output_url: str | None) -> str:
     anchor = sample_anchor(sample)
     diagnostics = sample["diagnostics"]
@@ -801,7 +863,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     quality = quality_results(sample)
     assessment = (
         "".join(
-            f'<section id="{anchor}-review-{index}"><h4>{escape(quality_name(result))} — {escape(quality_status(result))}</h4>'
+            f'<section id="{anchor}-review-{index}"><h4>{escape(quality_name(result))} — {escape(quality_status(result, sample))}</h4>'
             f"<p>{escape(result.get('reason') or '')}</p>"
             + (
                 f"<p><strong>Criterion:</strong> {escape(str(result['assertion']['value']))}</p>"
@@ -910,7 +972,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
                     + "</details>"
                 )
             screens_view += "</div>"
-        content = f'<p class="sample-links">{exported}</p>{screens_view}'
+        content = f'<p class="sample-links">{exported}</p>{capture_errors(sample, phase)}{screens_view}'
         if phase == final:
             role = phase_label(sample, phase)
             final_view = (
@@ -1253,6 +1315,7 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
             + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
+            + capture_errors(sample, phase)
             + ("".join(views) or "<p>No screenshots recorded.</p>")
             + "</section>"
         )

@@ -560,7 +560,7 @@ pins; `JUDGE_MODELS` owns quality judges independently. Native Codex author turn
 use `MODELS["codex"]`; final live, pair and static screenshot judges use
 `JUDGE_MODELS["codex"]`. Native Codex author, live and pair turns use medium reasoning
 effort. Text grading uses the Claude
-judge pin, and the browser user uses `MODELS["user"]`. Hosted response
+judge pin, and the browser user runs on Codex with `MODELS["user"]`. Hosted response
 cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container

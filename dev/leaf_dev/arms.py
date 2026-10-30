@@ -102,7 +102,7 @@ HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "user": "claude-sonnet-5-5",
+    "user": "gpt-6.1-sol",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
@@ -1236,6 +1236,19 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def author_failure(trace: list[dict]) -> str | None:
+    """A failed native author is a provider error, not a page-quality judgment."""
+    if completed(trace):
+        return None
+    result = trace_result(trace)
+    error = result.get("error") or result.get("errors")
+    return (
+        f"Author did not complete: {json.dumps(error)}"
+        if error
+        else "Author did not complete; no successful closing result in the native trace"
+    )
 
 
 @overload

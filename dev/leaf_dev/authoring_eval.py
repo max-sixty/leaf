@@ -5,7 +5,9 @@ The arm's launcher initializes a writable page, so registry discovery and media
 registration use the same boundary as a real authoring run. The agent may edit,
 run commands and check rendering; this executor independently checks the final
 page, plain and with `--render`, without repairing it. Existing assertions read
-the authored HTML, not a claim in the reply. Page files, prompts, native traces
+the authored HTML, not a claim in the reply. Authors' render checks follow the
+viewed window as in normal use; evaluator-owned checks keep the fixed viewport.
+Page files, prompts, native traces
 and both checks' output survive in the sample's evidence directory. The final
 render check's screenshots survive alongside the sample. Report captures use the
 selected eval viewports, which also reach the author in its request. `check_log`
@@ -25,8 +27,10 @@ import time
 from pathlib import Path
 
 from leaf.media import media_name
+from leaf.render_gate import command as render_command_model
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    author_failure,
     blocks,
     completed,
     environment,
@@ -246,6 +250,7 @@ def execute(
                         payload=payload if condition != "adaptive" else None
                     )["PATH"],
                     "XDG_STATE_HOME": str(state),
+                    render_command_model.PIN_VARIABLE: "",
                 },
                 harness=harness,
             )
@@ -375,7 +380,7 @@ def execute(
                             "1": {
                                 "page": str(evidence / "page"),
                                 "trace": summary,
-                                "captures": captures,
+                                **captures,
                             }
                         },
                     },
@@ -406,6 +411,8 @@ def execute(
                     "completion": summary["output_tokens"],
                 },
             }
+            if error := author_failure(trace):
+                response["error"] = error
         finally:
             if condition != "adaptive":
                 stopped = run_leaf(payload, state, "server", "stop", str(page))

@@ -1981,7 +1981,7 @@ window.addEventListener("error", (e) => {
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
-	reportPageError(e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
+	reportPageError(e.error ?? e.message, e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "");
 });
 window.addEventListener("unhandledrejection", (e) => {
 	reportPageError(e.reason);

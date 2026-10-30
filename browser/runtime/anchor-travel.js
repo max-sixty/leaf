@@ -62,6 +62,7 @@ import { livePoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
+import { notice } from "./notifications.js";
 
 const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
@@ -395,7 +396,7 @@ export function createAnchorTravel({
       throw new TypeError("navigateToDatum key must be a non-empty string");
     let source = referencedProjection(owner, attribute);
     if (!source) {
-      if (missing) announce(missing);
+      if (missing) notice(missing);
       return false;
     }
 
@@ -410,25 +411,18 @@ export function createAnchorTravel({
     if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
     if (!source) {
-      if (missing) announce(missing);
+      if (missing) notice(missing);
       return false;
     }
     const destination = addressedElements(source, key)[0] ?? null;
 
-    departure.plan(destination);
     if (!destination) {
-      await arrive(
-        () => {
-          const where = referencedProjection(owner, attribute);
-          return (
-            where && { where, focus: null, scroll: [{ at: where, block: "start" }] }
-          );
-        },
-        { intent: mayArrive, departure },
-      );
-      if (mayArrive() && missing) announce(missing);
+      // An absent address is no destination: keep the departure and its history,
+      // rather than landing on the containing widget as if the request succeeded.
+      if (missing) notice(missing);
       return false;
     }
+    departure.plan(destination);
     const arrived = await arrive(
       () => {
         const source = referencedProjection(owner, attribute);
@@ -445,8 +439,10 @@ export function createAnchorTravel({
       },
       { intent: mayArrive, departure },
     );
-    if (mayArrive() && (arrived ? success : missing))
-      announce(arrived ? success : missing);
+    if (mayArrive()) {
+      if (arrived && success) announce(success);
+      else if (!arrived && missing) notice(missing);
+    }
     return arrived;
   }
 

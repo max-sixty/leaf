@@ -424,8 +424,11 @@ window.addEventListener("error", (e) => {
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
   reportPageError(
-    e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`,
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
   );
 });
 window.addEventListener("unhandledrejection", (e) => {

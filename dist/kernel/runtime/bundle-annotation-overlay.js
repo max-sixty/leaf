@@ -1499,7 +1499,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
-			voice: items.length === 1 && face.voice || "agent",
+			voice: face.voice ?? "agent",
 			context: readingContext(choice),
 			behavior,
 			rank: "reading",

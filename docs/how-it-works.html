@@ -1212,7 +1212,7 @@ flowchart TD
                     <td>Workflow</td>
                     <td>
                       An unsettled update's delivery and work stage: Queued for Claude,
-                      Up next, Got it, On it, Replying or Answered. Conditions report
+                      Up next, Delivered, On it, Replying or Answered. Conditions report
                       interruptions or failures. The workflow names its thread and owed
                       answer, if any.
                     </td>
@@ -1726,10 +1726,11 @@ flowchart TD
                 immediately, reading <em>Queued for Claude</em> until the agent has it.
               </li>
               <li id="progress-picked">
-                <time>1s</time> <small>observation</small> <strong>Got it</strong> The
-                hook puts the comment into the agent’s turn, and Claude Code's
-                transcript then confirms it reached the agent. Until the agent names its
-                work, the panel shows its leaf in the working tone and no words.
+                <time>1s</time> <small>observation</small>
+                <strong>Delivered</strong> The hook puts the comment into the agent’s
+                turn, and Claude Code's transcript then confirms it reached the agent.
+                Until the agent names its work, the panel shows its leaf in the working
+                tone and no words.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small> <strong>On it</strong> The
@@ -1759,7 +1760,10 @@ flowchart TD
             <p id="stages-lede">
               A label beside each comment or widget update records its delivery and
               handling. Leaf changes it only on recorded evidence and clears it when the
-              required answer arrives. Harnesses skip stages they do not report.
+              required answer arrives. Harnesses skip stages they do not report. Only
+              <em>On it</em> and <em>Answered</em> relay an act of the agent's own, so
+              only they read in its voice; every other label is what Leaf observed of
+              the update, set in italic.
             </p>
             <table id="stages-table">
               <thead>
@@ -1786,7 +1790,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="stages-picked">
-                  <td>Got it</td>
+                  <td>Delivered</td>
                   <td>
                     <p>
                       <strong>Claude Code and Pi.</strong> The prompt hook, or a hook
@@ -1871,7 +1875,7 @@ flowchart TD
                   <td>Codex App Server stopped the turn before it answered.</td>
                 </tr>
                 <tr id="stages-failed">
-                  <td>Couldn't answer</td>
+                  <td>Not answered</td>
                   <td>
                     The harness gave up on the update: its turn failed, or Leaf could
                     not confirm that the delivery reached a turn. The leaf.page website
@@ -2093,7 +2097,7 @@ flowchart TD
                   <td>
                     The agent is working, or the user's update was delivered into its
                     running turn, and the agent has not yet said what it is doing. The
-                    update's own label says <em>Got it</em>.
+                    update's own label says <em>Delivered</em>.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
@@ -2163,7 +2167,7 @@ flowchart TD
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
               screen readers. Simultaneous news shares one notice, such as
-              <em>Couldn't answer · New on me</em>. Some news is only announced, since
+              <em>Not answered · New on me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
               read, which the On me mark's dot and its margin marker show, and the
               user's own gesture, which the widget draws where it was made. Opening a
@@ -2195,7 +2199,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-notice-failure">
-                  <td>Couldn't answer, Interrupted mid-answer</td>
+                  <td>Not answered, Interrupted mid-answer</td>
                   <td>
                     The harness reports that a response failed or was interrupted.
                   </td>

@@ -149,7 +149,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
-    expect(held_workflow).to_have_text("Got it")
+    expect(held_workflow).to_have_text("Delivered")
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
 
     # The agent finishes the earlier task and waits on the user.
@@ -157,7 +157,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     latent_waiting = CliRunner().invoke(cli_model.cli, ["page", "open", str(d)])
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
-    expect(held_workflow).to_have_text("Got it")
+    expect(held_workflow).to_have_text("Delivered")
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -371,7 +371,7 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
-    expect(workflow).to_have_text("Got it")
+    expect(workflow).to_have_text("Delivered")
     active = CliRunner().invoke(
         cli_model.cli,
         [

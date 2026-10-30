@@ -66,7 +66,9 @@ const ENTRY_OPTIONS = new Set([
   "className",
   "scope",
 ]);
-// What a contribution reading or contribution is, and the face and word it wears.
+// What a contribution reading or contribution is, and the face and word it wears. A
+// kind whose word is Leaf's account of an update on its way to the agent says so in
+// its `voice`, as each of its receipts does alone (`workflowVoice`).
 export const KINDS = Object.freeze(
   Object.fromEntries(
     Object.entries({
@@ -85,18 +87,21 @@ export const KINDS = Object.freeze(
         icon: "sent",
         priority: 3,
         indication: true,
+        voice: "leaf",
       },
       queued: {
         label: "Up next",
         icon: "pickup",
         priority: 3,
         indication: true,
+        voice: "leaf",
       },
       pickup: {
-        label: "Got it",
+        label: "Delivered",
         icon: "pickup",
         priority: 3,
         indication: true,
+        voice: "leaf",
       },
       // Every receipt whose progress stopped short: one past the pickup grace, one
       // whose turn ended or went quiet, one the harness failed. A single receipt reads
@@ -106,6 +111,7 @@ export const KINDS = Object.freeze(
         icon: "waiting",
         priority: 3,
         indication: true,
+        voice: "leaf",
       },
       user: {
         label: "My change",

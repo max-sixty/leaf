@@ -161,8 +161,8 @@ function statusWords({
   // Until the agent writes that sentence the row says nothing, and the leaf's tone says
   // it works: the words beside the leaf are the agent's to choose (the user's choice,
   // 28 October 2026). Rejected: Leaf's guess at them ("Got your comment", "Working on
-  // it"), which put Leaf's words in the agent's mouth; the update's own Got it label
-  // already says it arrived. The step the harness observed stays in the disclosure.
+  // it"), which put Leaf's words in the agent's mouth; the update's own label already
+  // says it was Delivered. The step the harness observed stays in the disclosure.
   if (kind === "working") {
     const sentence = detail ? [{ text: detail, source: detailSource }] : [];
     // A wait the user answers in the terminal leads, ahead of the sentence it

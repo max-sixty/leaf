@@ -88,22 +88,38 @@ test("workflow labels retain exact input progress and positive conditions", () =
       }),
       "Claude",
     ),
-    "Couldn't answer",
+    "Not answered",
   );
 });
 
 // Until the agent has an update it can say nothing of it, so Leaf says the update waits
-// for the agent, in its own voice, sent or still sending, and again once it is late.
-test("an update the agent doesn't have yet is queued for it, in Leaf's voice", () => {
-  for (const stage of ["sending", "sent"]) {
+// for the agent, sent or still sending, and again once it is late. Leaf says everything
+// it observes of the update's way, in its own voice; the agent's voice relays only its
+// own acts, starting the update and answering it.
+test("Leaf says what it observes of an update, and the agent only what it did", () => {
+  for (const stage of ["sending", "sent"])
     assert.equal(workflowLabel(workflow(stage, stage), "Claude"), "Queued for Claude");
-    assert.equal(workflowVoice(workflow(stage, stage)), "leaf");
-  }
   const late = workflow("late", "sent", {
     condition: { kind: "stale", operation: "delivery" },
   });
   assert.equal(workflowLabel(late, "Claude"), "Still queued for Claude");
-  assert.equal(workflowVoice(workflow("got", "picked_up")), "agent");
+  const voices = Object.fromEntries(
+    ["sending", "sent", "queued", "picked_up", "working", "replying", "answered"].map(
+      (stage) => [stage, workflowVoice(workflow(stage, stage))],
+    ),
+  );
+  assert.deepEqual(voices, {
+    sending: "leaf",
+    sent: "leaf",
+    queued: "leaf",
+    picked_up: "leaf",
+    working: "agent",
+    replying: "leaf",
+    answered: "agent",
+  });
+  assert.equal(workflowVoice(late), "leaf");
+  const ended = workflow("ended", "working", { condition: { kind: "ended" } });
+  assert.equal(workflowVoice(ended), "leaf");
 });
 
 test("thread attention gives an open user obligation precedence over agent work", () => {
@@ -123,7 +139,6 @@ test("thread attention gives an open user obligation precedence over agent work"
     label: "Your turn",
     voice: "agent",
     workflow: recovery,
-    secondary: "On it",
   });
 });
 
@@ -140,7 +155,6 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
     label: "Still to do",
     voice: "agent",
     workflow: null,
-    secondary: "Rebuild the banner quieter",
   });
 });
 
@@ -154,7 +168,6 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
     label: "Your turn",
     voice: "agent",
     workflow: null,
-    secondary: "",
   });
 });
 

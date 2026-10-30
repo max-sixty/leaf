@@ -30,8 +30,6 @@ export function adoptRegistry(declarations) {
   for (const [name, value] of Object.entries(declarations))
     if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
-  document.documentElement.lfInitial.inputDeclaration = (host, input) =>
-    registry[host.localName]?.["x-data"]?.[input];
 }
 
 /** @param {unknown} value */

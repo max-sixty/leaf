@@ -68,8 +68,8 @@ const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
 dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
-const dialogHead = el("div", "lf-page-map-head");
-dialogHead.append(el("strong", "", "Page Map"));
+const dialogHead = el("div", "lf-dialog-head");
+dialogHead.append(el("strong", "lf-dialog-title", "Page Map"));
 const dialogClose = closeControl({
   name: "Close Page Map",
   title: "Close Page Map (Esc)",

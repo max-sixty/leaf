@@ -409,13 +409,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     source = leaf_page(
         "contents map",
         """
-<h1>Migration plan for the readers already in flight</h1>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside><div class="layout-column"><h1>Migration plan for the readers already in flight</h1>
 <style>
   html { scroll-behavior: smooth; }
   #capacity, #limits { margin-block: 0; }
 </style>
 <div id="orientation" style="height: 420px"></div>
-<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p><button id="underlying">Take a snapshot.</button></p></section>
 <div style="height: 90px"></div>
 <section>
@@ -427,7 +427,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 640px"></div>
 <section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
-<div style="height: 380px"></div>
+<div style="height: 380px"></div></div></div>
 """,
     )
     url = serve(with_one_obligation(source))
@@ -452,12 +452,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
-    # The map is all its sidebar holds, so the sidebar stands as the map alone and floats
-    # nothing beside the column.
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile(r"\bmap\b")
-    )
-    expect(page.locator("aside.sidebar")).to_have_css("float", "none")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
     motion = prepare.evaluate(
@@ -476,7 +470,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box is not None
     assert rows_box is not None
     assert toc_box is not None
-    assert 23 <= nav_box["x"] <= 25
+    assert nav_box["x"] == pytest.approx(
+        page.locator("#route .layout-track").evaluate(
+            "node => node.getBoundingClientRect().left + node.clientLeft "
+            "+ parseFloat(getComputedStyle(node).paddingLeft)"
+        ),
+        abs=1,
+    )
     assert nav_box["y"] == pytest.approx(0, abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
     padding = nav.evaluate(
@@ -794,7 +794,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     page.mouse.wheel(0, 260)
     page.mouse.wheel(0, 260)
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
-    assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
+    assert (
+        page.locator("#route > .layout-track").evaluate("node => node.scrollTop") == 0
+    )
 
     # Map travel keeps the user oriented rather than teleporting. Start recording
     # on the click so preparing the gesture cannot exhaust the frame sequence.
@@ -851,6 +853,25 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         nav_box[key] for key in ("x", "y", "height")
     ], "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
+    landing = page.locator("#prepare").evaluate(
+        """target => ({
+          top: target.getBoundingClientRect().top,
+          clearance: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(target).scrollMarginTop),
+        })"""
+    )
+    assert landing["top"] == pytest.approx(landing["clearance"], abs=1), landing
+
+    # A fragment leaves room for its focused title's ring. The lens maps the
+    # reading band itself; bring the title to that edge to compare map coordinates.
+    page.locator("#prepare").evaluate(
+        """target => document.scrollingElement.scrollBy({
+          top: target.getBoundingClientRect().top
+            - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          behavior: 'instant',
+        })"""
+    )
+    scroll_settled(page)
     current_alignment = prepare.evaluate(
         "node => ({label: node.getBoundingClientRect().top "
         "+ parseFloat(getComputedStyle(node).lineHeight) / 2, "
@@ -966,7 +987,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
     coarse = open_page(browser, url, context=context)
-    expect(coarse.locator("aside.sidebar")).to_have_css("position", "sticky")
+    expect(coarse.locator("#route > .layout-track")).to_have_css("position", "sticky")
     expect(coarse.locator("#contents")).to_have_css("position", "static")
     coarse.locator("#contents summary").click()
     expect(
@@ -974,16 +995,16 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
             "link", name="Prepare the copy", exact=False
         )
     ).to_have_css("opacity", "1")
-    coarse.locator("aside.sidebar").evaluate(
+    coarse.locator("#route > .layout-track").evaluate(
         "node => { node.style.maxHeight = '80px'; node.scrollTop = 0; }"
     )
     coarse.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
-    coarse_box = coarse.locator("aside.sidebar").bounding_box()
+    coarse_box = coarse.locator("#route > .layout-track").bounding_box()
     assert coarse_box is not None
     coarse.mouse.move(coarse_box["x"] + 40, coarse_box["y"] + 40)
     coarse.mouse.wheel(0, 80)
     coarse.wait_for_function(
-        "() => document.querySelector('aside.sidebar').scrollTop > 0"
+        "() => document.querySelector('#route > .layout-track').scrollTop > 0"
     )
     assert coarse.evaluate("document.scrollingElement.scrollTop") == 0, (
         "the in-flow ToC stole a wheel from its own overflowing sidebar"

@@ -433,24 +433,25 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
 SIDEBAR_TRACK_PAGE = leaf_page(
     "sidebar track quotes",
     """<header><h1>Release review</h1></header>
-<aside id="track">
+<aside id="track"><div class="layout-track">
   <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
   <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
-</aside>
+</div></aside>
 <div id="body"><p>The canary held its error rate at every step.</p></div>""",
     layout="sidebar",
 )
 
 
 def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
-    """The runtime gathers a sidebar page's track's blocks into a box the file doesn't
-    have (prepaint.js, `holdTrack`), and a quote from those blocks still reads the same
-    in the browser as in the file: inside one block, and across two, sectioned by the
-    track. Where the box changed the reading, a comment written in the browser would
-    detach in `leaf thread create`'s reading, or the reverse."""
+    """Quotes inside one sidebar block and across two agree between the browser
+    and authored file. Native layout keeps the original track children in place;
+    comments still resolve to the same section and passage on either reading."""
     page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
     resized(page, 1440, 900)
-    expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
+    expect(page.locator("#track > .layout-track > #owners")).to_have_count(1)
+    track = page.locator("#track").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert track["x"] + track["width"] <= body["x"], (track, body)
     registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),

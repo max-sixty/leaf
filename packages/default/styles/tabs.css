@@ -8,19 +8,14 @@
  * under the tab; down a column, a painted face. A row stands on the card's ground, or
  * on the page's where it is the page's own (below); a queue's column is a tinted
  * index.
- * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
- * as labeled sections. */
-/* The package owns whether its views are page sections or a box. Prepaint publishes
- * this reading before margin content layout; the module and Layout consume the same mark. */
-@property --lf-views-flow {
-  syntax: "*";
-  inherits: false;
-  initial-value: box;
-}
-body > main > lf-tabs:nth-child(1 of lf-tabs):not([list="side"]) {
-  --lf-views-flow: page;
-}
+ * Live pages select their panel before the strip arrives. Without the runtime,
+ * panels stack as labeled sections. */
+/* A set authored as layout-flow shares document tracks and draws no frame. Every
+ * other set is boxed. layouts.css owns the flow declaration the module reads for
+ * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
+
 :where(lf-tabs) {
+  --lf-views-flow: box;
   --lf-tab-end: calc(var(--sp-4) + var(--lf-end-room));
   display: block;
   margin: 14px 0;
@@ -40,7 +35,7 @@ body > main > lf-tabs:nth-child(1 of lf-tabs):not([list="side"]) {
   text-transform: uppercase;
   color: var(--muted);
 }
-lf-tabs.lf-rendered > lf-tab {
+lf-tabs[data-lf-views] > lf-tab {
   margin-top: 14px;
 }
 /* Laid out by the live-page block below; hidden until then, because a row of
@@ -189,27 +184,20 @@ lf-tabs.lf-rendered > lf-tab {
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block. */
 @media screen {
-  /* A set, panel or side strip that scrolls at the window's foot clears the floating
-   * panel during native focus scrolling, using the clearance its content already has. */
   :is(lf-tabs, lf-tab, .lf-tabstrip) {
     scroll-padding-block-end: var(--lf-end-room);
   }
-  /* :where keeps the frame face below the generic edge trim's specificity. A set the
-   * runtime has yet to upgrade wears each face it will have from the first paint: each
-   * rule here names it beside the upgraded set (`html[data-lf-interactive]`, "Before
-   * upgrade" below). */
-  :where(
-    lf-tabs.lf-rendered,
-    html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab)
-  ) {
-    margin: var(--sp-4) 0 32px;
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
-    --lf-ground: var(--card);
-    background: var(--lf-ground);
-    --lf-block-frame: 1;
-  }
-  /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
+  @scope (html[data-lf-interactive]) {
+    /* :where keeps the frame face below the generic edge trim's specificity. */
+    :where(lf-tabs[data-lf-views]) {
+      margin: var(--sp-4) 0 32px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r);
+      --lf-ground: var(--card);
+      background: var(--lf-ground);
+      --lf-block-frame: 1;
+    }
+    /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
      * the room the page keeps for it before upgrade (below) is one number.
      *
      * A strip is that one row whatever the set, so its names scroll sideways when they
@@ -221,113 +209,106 @@ lf-tabs.lf-rendered > lf-tab {
      * scrolls nothing of its own (below). The press's own face fades the names under
      * it into the strip's background, so the layer's edge fade is off. A finger or a
      * trackpad scrolls the strip itself, and an opened tab brings itself into view. */
-  .lf-tabstrip {
-    display: flex;
-    flex-direction: var(--lf-tabstrip-flow);
-    padding: 8px var(--lf-tabstrip-pad) 0;
-    --lf-tabstrip-pad: 8px;
-    box-sizing: border-box;
-    min-block-size: var(--lf-tabstrip-h);
-    border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-    --lf-tabstrip-bg: var(--card);
-    background: var(--lf-tabstrip-bg);
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    scroll-padding-inline: var(--lf-tabstrip-press);
-    --lf-tabstrip-press: max(36px, var(--aim-floor));
-    --lf-more-fade-to: #000;
-  }
-  lf-tabs.lf-rendered > lf-tab::before,
-  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab::before {
-    content: none;
-  } /* the strip carries the label */
-  /* Padding belongs only to the panel on screen. An until-found panel keeps a box in
+    /* Native layout keeps the strip's room while its controls load. The same
+     * stated row height sizes both; side columns reserve no additional row. */
+    :is(lf-tabs, lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
+      content: "";
+      display: block;
+      min-block-size: var(--lf-tabstrip-h);
+      flex: none;
+    }
+    .lf-tabstrip {
+      display: flex;
+      flex-direction: var(--lf-tabstrip-flow);
+      padding: 8px var(--lf-tabstrip-pad) 0;
+      --lf-tabstrip-pad: 8px;
+      box-sizing: border-box;
+      min-block-size: var(--lf-tabstrip-h);
+      border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+      --lf-tabstrip-bg: var(--card);
+      background: var(--lf-tabstrip-bg);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      scroll-padding-inline: var(--lf-tabstrip-press);
+      --lf-tabstrip-press: max(36px, var(--aim-floor));
+      --lf-more-fade-to: #000;
+    }
+    lf-tabs[data-lf-views] > lf-tab::before {
+      content: none;
+    } /* the strip carries the label */
+    /* Padding belongs only to the panel on screen. An until-found panel keeps a box in
      * flow, so padding on every panel would leave one blank band per preceding tab. */
-  lf-tabs.lf-rendered > lf-tab {
-    margin: 0;
-    padding: 0;
-  }
-  lf-tabs.lf-rendered > lf-tab:not([hidden]),
-  html[data-lf-interactive] lf-tabs:not(.lf-rendered):has(> lf-tab) > lf-tab {
-    padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
-    /* A panel made scrollable starts nested headers at the scrollport's edge,
+    lf-tabs[data-lf-views] > lf-tab {
+      margin: 0;
+      padding: 0;
+    }
+    lf-tabs[data-lf-views] > lf-tab:not([hidden]) {
+      padding: var(--sp-4) var(--sp-4) var(--lf-tab-end);
+      /* A panel made scrollable starts nested headers at the scrollport's edge,
        not below its padding, where fragments of the scrolled output show through. */
-    --lf-top-start: calc(-1 * var(--sp-4));
-    --lf-end-room: inherit;
-    --lf-block-frame: 1;
-  }
-  /* The set carries its panel's ring, anchored to the panel's border box.
+      --lf-top-start: calc(-1 * var(--sp-4));
+      --lf-end-room: inherit;
+      --lf-block-frame: 1;
+    }
+    /* The set carries its panel's ring, anchored to the panel's border box.
      An outline on the panel paints below positioned reading content; an absolute
      overlay inside it scrolls with that content. Keeping the frame outside the
      reader handles both without reserving space or clipping wide page exhibits.
      Each set scopes its anchor so nested sets keep independent frames. A page's
      parts are the same set (lf-parts.js), so the open part's ring is this one too. */
-  :is(lf-tabs, lf-parts).lf-rendered {
-    position: relative;
-    anchor-scope: --lf-tab-panel;
-  }
-  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part):not([hidden]) {
-    position: relative;
-    z-index: 0;
-    anchor-name: --lf-tab-panel;
-  }
-  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[data-lf-focus-visible] {
-    outline: none;
-  }
-  :is(lf-tabs, lf-parts).lf-rendered:has(
-      > :is(lf-tab, lf-part)[data-lf-focus-visible]
-    ) {
-    --lf-wears-ring: 1;
-  }
-  :is(lf-tabs, lf-parts).lf-rendered:has(
-      > :is(lf-tab, lf-part)[data-lf-focus-visible]
-    )::after {
-    content: "";
-    position: absolute;
-    position-anchor: --lf-tab-panel;
-    inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
-    z-index: 1;
-    pointer-events: none;
-    outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
-  }
-  /* A boxed set and a side list pad their panel inside the set's frame, and a page's
-     parts pad theirs, so the band stands inside its edge there. A page's tabs draw no
-     frame and pad no side of their panel, and inside its edge the band ran down the
-     first letter of every line, so there it stands a region's gap out (base.css) on
-     the three sides the text meets, and keeps its top on the strip's rule, which the
-     panel hangs from. Out on that side too, the strip covered the band and left three
-     sides of a box (the user's choice, 29 October 2026). */
-  lf-tabs.lf-rendered[data-lf-views-flow="page"]:has(
-      > lf-tab[data-lf-focus-visible]
-    )::after {
-    inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
-      calc(anchor(bottom) - var(--focus-region-room))
-      calc(anchor(left) - var(--focus-region-room));
-  }
-  /* until-found keeps the element's own box in flow; zero it so inactive panels
+    :is(lf-tabs, lf-parts)[data-lf-views] {
+      position: relative;
+      anchor-scope: --lf-tab-panel;
+    }
+    :is(lf-tabs, lf-parts)[data-lf-views] > :is(lf-tab, lf-part):not([hidden]) {
+      position: relative;
+      z-index: 0;
+      anchor-name: --lf-tab-panel;
+    }
+    :is(lf-tabs, lf-parts)[data-lf-views]
+      > :is(lf-tab, lf-part)[data-lf-focus-visible] {
+      outline: none;
+    }
+    :is(lf-tabs, lf-parts)[data-lf-views]:has(
+        > :is(lf-tab, lf-part)[data-lf-focus-visible]
+      ) {
+      --lf-wears-ring: 1;
+    }
+    :is(lf-tabs, lf-parts)[data-lf-views]:has(
+        > :is(lf-tab, lf-part)[data-lf-focus-visible]
+      )::after {
+      content: "";
+      position: absolute;
+      position-anchor: --lf-tab-panel;
+      inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
+      z-index: 1;
+      pointer-events: none;
+      outline: var(--focus-ring);
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
+    /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
-  lf-tabs.lf-rendered > lf-tab[hidden] {
-    margin: 0;
-  }
-  /* A panel the user stops seeing holds no one's place. The browser's scroll anchor
+    lf-tabs[data-lf-views] > lf-tab[hidden] {
+      margin: 0;
+    }
+    /* A panel the user stops seeing holds no one's place. The browser's scroll anchor
      * can stand in the panel a switch hides, and its content keeps the open panel's
      * layout until something lays it out again: a passage read, find-in-page. That
      * layout drops the open panel's padding, and the browser scrolled the page by it,
      * 24px under an embedded set's strip a moment after the switch. */
-  :is(lf-tabs, lf-parts).lf-rendered > :is(lf-tab, lf-part)[hidden] {
-    overflow-anchor: none;
-  }
+    :is(lf-tabs, lf-parts)[data-lf-views] > :is(lf-tab, lf-part)[hidden] {
+      overflow-anchor: none;
+    }
 
-  /* A boxed set's panel is a bounded box, so it is the container what it holds
-     * measures itself against (base.css in the kernel says why a framed box is one). */
-  lf-tabs.lf-rendered[data-lf-views-flow="box"] > lf-tab {
-    container-type: inline-size;
-  }
+    /* A boxed set's panel is a bounded box, so it is the container what it holds
+     * measures itself against (theme.css in the kernel says why a framed box is one). */
+    lf-tabs[data-lf-views] > lf-tab {
+      container-type: inline-size;
+    }
 
-  /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
+    /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
      * list is a column left of the open panel wherever the set holds both, and a row
      * over it below that, as a narrow window or a phone gives it. That row is one line
      * of rows scrolled sideways, so however long the queue, the open item stands one
@@ -337,187 +318,187 @@ lf-tabs.lf-rendered > lf-tab {
      * Summary and outcome each add one stated line to a horizontal strip. The same
      * authored declarations reserve those lines before upgrade, so the panel starts
      * in its final position. In a column, summaries can wrap to keep their context. */
-  :is(lf-tabs[list="side"], lf-parts) {
-    --lf-tab-summary-h: 17px;
-    --lf-tab-context-h: 0px;
-    --lf-tab-outcome-h: 0px;
-  }
-  lf-tabs[list="side"]:has(> lf-tab[summary]) {
-    --lf-tab-context-h: var(--lf-tab-summary-h);
-  }
-  lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
-    --lf-tab-outcome-h: var(--lf-tab-summary-h);
-  }
-  lf-tabs[list="side"].lf-rendered,
-  html[data-lf-interactive] lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab) {
-    container-type: inline-size;
-    display: grid;
-    grid-template-columns: minmax(10rem, 18rem) minmax(0, 1fr);
-    align-items: start;
-  }
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip,
-  html[data-lf-interactive]
-    lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab)::before {
-    grid-column: 1;
-    grid-row: 1;
-    --lf-tabstrip-flow: column;
-    --lf-tabstrip-bg: var(--field);
-    gap: 0;
-    overflow: visible;
-    /* No press stands at a column's edge, so a landing keeps clear of none, and a run
+    :is(lf-tabs[list="side"], lf-parts) {
+      --lf-tab-summary-h: 17px;
+      --lf-tab-context-h: 0px;
+      --lf-tab-outcome-h: 0px;
+    }
+    lf-tabs[list="side"]:has(> lf-tab[summary]) {
+      --lf-tab-context-h: var(--lf-tab-summary-h);
+    }
+    lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
+      --lf-tab-outcome-h: var(--lf-tab-summary-h);
+    }
+    lf-tabs[list="side"][data-lf-views] {
+      container-type: inline-size;
+      display: grid;
+      grid-template-columns: minmax(10rem, 18rem) minmax(0, 1fr);
+      align-items: start;
+    }
+    lf-tabs[list="side"][data-lf-views]::before {
+      grid-column: 1;
+      grid-row: 1;
+      min-block-size: 0;
+    }
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+      grid-column: 1;
+      grid-row: 1;
+      --lf-tabstrip-flow: column;
+      --lf-tabstrip-bg: var(--field);
+      gap: 0;
+      overflow: visible;
+      /* No press stands at a column's edge, so a landing keeps clear of none, and a run
        * from its heading to a tab, as wide as the column, fits it (lf-tabs.js,
        * `#showTab`). */
-    scroll-padding-inline: 0;
-    padding: 8px 8px calc(8px + var(--lf-end-room));
-    border-bottom: 0;
-    border-inline-end: 1px solid var(--border-2);
-    border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
-    align-self: stretch;
-  }
-  /* A row is its name, then its diff count, with the summary on a line under them.
+      scroll-padding-inline: 0;
+      padding: 8px 8px calc(8px + var(--lf-end-room));
+      border-bottom: 0;
+      border-inline-end: 1px solid var(--border-2);
+      border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
+      align-self: stretch;
+    }
+    /* A row is its name, then its diff count, with the summary on a line under them.
      * The count's margin leaves the name's focus ring clear of it, and a tab with no
      * count ends at its words. Such a tab's rule stands at its foot, a line of its own
      * under its last line, so along a row it underlines the whole tab as a lone name's
      * rule underlines the name, and takes the 2px the name gives up. The lines keep to
      * the top of a tab the strip stretches, so the rule stays against the last of them. */
-  :is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-btn {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-content: start;
-    align-items: baseline;
-    justify-items: start;
-    text-align: start;
-    & > .lf-tab-mark {
-      position: static;
-      grid-column: 1 / -1;
-      justify-self: stretch;
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-btn {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-content: start;
+      align-items: baseline;
+      justify-items: start;
+      text-align: start;
+      & > .lf-tab-mark {
+        position: static;
+        grid-column: 1 / -1;
+        justify-self: stretch;
+      }
+      & > .lf-tab-name {
+        border-bottom: 0;
+      }
+      & > .lf-tabdiff {
+        margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
+      }
     }
-    & > .lf-tab-name {
-      border-bottom: 0;
-    }
-    & > .lf-tabdiff {
-      margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
-    }
-  }
-  /* The outcome has its own reserved line below the authored summary. Neither
+    /* The outcome has its own reserved line below the authored summary. Neither
      * choosing nor undoing borrows room from the name or its context. The answer
      * contains its inline size; exceptional long values ellipsize and remain whole
      * in the tab's accessible description. */
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer {
-    container-type: inline-size;
-    grid-column: 1 / -1;
-    grid-row: 3;
-    block-size: var(--lf-tab-summary-h);
-    line-height: var(--lf-tab-summary-h);
-    padding-inline: 5px;
-    justify-self: stretch;
-    display: flex;
-    gap: 0.3em;
-    font-size: var(--t-6);
-    font-weight: 600;
-    color: var(--ink-2);
-  }
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer::before {
-    content: "✓" / "";
-    flex: none;
-    color: var(--ok-ink);
-  }
-  lf-tabs[list="side"].lf-rendered
-    > .lf-tabstrip
-    .lf-tab-answer[data-lf-obligations="open"] {
-    font-weight: 400;
-    color: var(--muted);
-    &::before {
-      content: "○" / "";
-      color: inherit;
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer {
+      container-type: inline-size;
+      grid-column: 1 / -1;
+      grid-row: 3;
+      block-size: var(--lf-tab-summary-h);
+      line-height: var(--lf-tab-summary-h);
+      padding-inline: 5px;
+      justify-self: stretch;
+      display: flex;
+      gap: 0.3em;
+      font-size: var(--t-6);
+      font-weight: 600;
+      color: var(--ink-2);
     }
-  }
-  lf-tabs[list="side"].lf-rendered
-    > .lf-tabstrip
-    .lf-tab-answer:not([data-lf-obligations]) {
-    visibility: hidden;
-  }
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
-    min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  /* A summary is what the reader chooses an item by, read down the list, so it is set
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer::before {
+      content: "✓" / "";
+      flex: none;
+      color: var(--ok-ink);
+    }
+    lf-tabs[list="side"][data-lf-views]
+      > .lf-tabstrip
+      .lf-tab-answer[data-lf-obligations="open"] {
+      font-weight: 400;
+      color: var(--muted);
+      &::before {
+        content: "○" / "";
+        color: inherit;
+      }
+    }
+    lf-tabs[list="side"][data-lf-views]
+      > .lf-tabstrip
+      .lf-tab-answer:not([data-lf-obligations]) {
+      visibility: hidden;
+    }
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer-words {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* A summary is what the reader chooses an item by, read down the list, so it is set
    * on the rung between the name's size and the label size of "To answer" beside it. */
-  :is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    padding: 0 5px;
-    font-size: var(--t-working-label);
-    line-height: var(--lf-tab-summary-h);
-    color: var(--muted);
-  }
-  /* Each run of rows sharing a group, or sharing none, is a box of its own
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-summary {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      padding: 0 5px;
+      font-size: var(--t-working-label);
+      line-height: var(--lf-tab-summary-h);
+      color: var(--muted);
+    }
+    /* Each run of rows sharing a group, or sharing none, is a box of its own
      * (lf-tabs.js), ruled off from the run before it, so a row's run is the one the
      * rule above it opens. A group's label heads its run in the column and is a word
      * before the run's first tab in the row, centred on the names. It is no tab, so it
      * takes no aim floor. */
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
-    display: flex;
-    flex-direction: column;
-  }
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
-    margin-block-start: 2px;
-    padding-block-start: 2px;
-    border-block-start: 1px solid var(--border-2);
-  }
-  lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
-    padding: 4px 12px 2px;
-  }
-  lf-tabs[list="side"].lf-rendered > lf-tab,
-  html[data-lf-interactive]
-    lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab)
-    > lf-tab {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  @container (width < 36rem) {
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip,
-    html[data-lf-interactive]
-      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab)::before {
-      grid-column: 1 / -1;
-      grid-row: auto;
-      --lf-tabstrip-flow: row;
-      --lf-tabstrip-bg: var(--card);
-      gap: 2px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scroll-padding-inline: var(--lf-tabstrip-press);
-      padding: 8px var(--lf-tabstrip-pad) 0;
-      border-inline-end: 0;
-      border-bottom: 1px solid var(--border-2);
-      border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip > .lf-tab-run {
+      display: flex;
+      flex-direction: column;
     }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip,
-    html[data-lf-interactive]
-      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab)::before {
-      min-block-size: calc(
-        var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
-      );
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+      margin-block-start: 2px;
+      padding-block-start: 2px;
+      border-block-start: 1px solid var(--border-2);
     }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
-      max-inline-size: 16rem;
+    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-group {
+      padding: 4px 12px 2px;
     }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
-      flex: none;
-      flex-direction: row;
-      --lf-tab-run-gap: 2px;
-      gap: var(--lf-tab-run-gap);
+    lf-tabs[list="side"][data-lf-views] > lf-tab {
+      grid-column: 2;
+      grid-row: 1;
     }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
-      margin-block-start: 0;
-      padding-block-start: 0;
-      border-block-start: 0;
-      padding-inline-start: 4px;
-      border-inline-start: 1px solid var(--border-2);
-    }
-    /* The label sticks at the row's start while its run scrolls under it, and the run's
+    @container (width < 36rem) {
+      lf-tabs[list="side"][data-lf-views]::before {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        --lf-tabstrip-flow: row;
+        --lf-tabstrip-bg: var(--card);
+        gap: 2px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-padding-inline: var(--lf-tabstrip-press);
+        padding: 8px var(--lf-tabstrip-pad) 0;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+      }
+      lf-tabs[list="side"][data-lf-views]::before,
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+        min-block-size: calc(
+          var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
+        );
+      }
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-btn {
+        max-inline-size: 16rem;
+      }
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip > .lf-tab-run {
+        flex: none;
+        flex-direction: row;
+        --lf-tab-run-gap: 2px;
+        gap: var(--lf-tab-run-gap);
+      }
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+        margin-block-start: 0;
+        padding-block-start: 0;
+        border-block-start: 0;
+        padding-inline-start: 4px;
+        border-inline-start: 1px solid var(--border-2);
+      }
+      /* The label sticks at the row's start while its run scrolls under it, and the run's
        * end pushes it out as the next run's label comes in, so the open item's group
        * stays named however far along a long run the user is. It stands clear of the
        * start press while that shows (`data-lf-more-before`, reach.js), which is the
@@ -527,53 +508,52 @@ lf-tabs.lf-rendered > lf-tab {
        * margin (lf-tabs.js, `#showTab`). Where the label and the open tab cannot share
        * the row (`data-lf-group-apart`), the tab lands whole and the label stands in
        * its own place, scrolling with its run. */
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
-      flex: none;
-      display: flex;
-      align-items: center;
-      padding: 0 4px;
-      position: sticky;
-      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
-      z-index: 1;
-      background: var(--lf-tabstrip-bg);
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-group {
+        flex: none;
+        display: flex;
+        align-items: center;
+        padding: 0 4px;
+        position: sticky;
+        inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+        z-index: 1;
+        background: var(--lf-tabstrip-bg);
+      }
+      lf-tabs[list="side"][data-lf-views]
+        > .lf-tabstrip[data-lf-more-before]
+        .lf-tab-group {
+        inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
+      }
+      lf-tabs[list="side"][data-lf-views]
+        > .lf-tabstrip
+        > .lf-tab-run:not([data-lf-group-apart])
+        > .lf-tab-group
+        ~ .lf-tab-btn {
+        scroll-margin-inline-start: calc(
+          var(--lf-tab-group-size) + var(--lf-tab-run-gap)
+        );
+      }
+      lf-tabs[list="side"][data-lf-views]
+        > .lf-tabstrip
+        > .lf-tab-run[data-lf-group-apart]
+        > .lf-tab-group {
+        position: static;
+      }
+      lf-tabs[list="side"][data-lf-views]
+        > .lf-tabstrip
+        .lf-tab-btn
+        > :is(.lf-tab-name, .lf-tab-summary) {
+        max-inline-size: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      lf-tabs[list="side"][data-lf-views] > lf-tab {
+        grid-column: 1 / -1;
+        grid-row: auto;
+      }
     }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip[data-lf-more-before] .lf-tab-group {
-      inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
-    }
-    lf-tabs[list="side"].lf-rendered
-      > .lf-tabstrip
-      > .lf-tab-run:not([data-lf-group-apart])
-      > .lf-tab-group
-      ~ .lf-tab-btn {
-      scroll-margin-inline-start: calc(
-        var(--lf-tab-group-size) + var(--lf-tab-run-gap)
-      );
-    }
-    lf-tabs[list="side"].lf-rendered
-      > .lf-tabstrip
-      > .lf-tab-run[data-lf-group-apart]
-      > .lf-tab-group {
-      position: static;
-    }
-    lf-tabs[list="side"].lf-rendered
-      > .lf-tabstrip
-      .lf-tab-btn
-      > :is(.lf-tab-name, .lf-tab-summary) {
-      max-inline-size: 100%;
-      box-sizing: border-box;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    lf-tabs[list="side"].lf-rendered > lf-tab,
-    html[data-lf-interactive]
-      lf-tabs[list="side"]:not(.lf-rendered):has(> lf-tab)
-      > lf-tab {
-      grid-column: 1 / -1;
-      grid-row: auto;
-    }
-  }
-  /* A side list told it has a definite height to fill (`--lf-full-height`, layouts.css),
+    /* A side list told it has a definite height to fill (`--lf-full-height`, layouts.css),
    * as a full-height workspace's body is, takes that height, and its list and its open
    * item each scroll on their own, as a mail client's do: walking a long queue never
    * moves the item being read, and reading down a long item never moves the queue. Each
@@ -581,38 +561,38 @@ lf-tabs.lf-rendered > lf-tab {
    * (`--lf-holds-height`). Stacked, the list is a row of its own height over
    * the item, which takes the rest; beside the item, both span the two rows, and an item
    * spanning the flexible row adds nothing to the row its own height would size. */
-  @container style(--lf-full-height: 1) {
-    lf-tabs[list="side"].lf-rendered {
-      min-block-size: 0;
-      grid-template-rows: auto minmax(0, 1fr);
-      --lf-full-height: inherit;
-    }
-    lf-tabs[list="side"].lf-rendered > .lf-tabstrip {
-      grid-row: 1;
-    }
-    lf-tabs[list="side"].lf-rendered > lf-tab {
-      grid-row: 2;
-    }
-    @container (width >= 36rem) {
-      lf-tabs[list="side"].lf-rendered > :is(.lf-tabstrip, lf-tab) {
-        grid-row: 1 / -1;
+    @container style(--lf-full-height: 1) {
+      lf-tabs[list="side"][data-lf-views] {
+        min-block-size: 0;
+        grid-template-rows: auto minmax(0, 1fr);
+        --lf-full-height: inherit;
       }
-    }
-    /* Only the open panel stretches: a closed one kept for find-in-page
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+        grid-row: 1;
+      }
+      lf-tabs[list="side"][data-lf-views] > lf-tab {
+        grid-row: 2;
+      }
+      @container (width >= 36rem) {
+        lf-tabs[list="side"][data-lf-views] > :is(.lf-tabstrip, lf-tab) {
+          grid-row: 1 / -1;
+        }
+      }
+      /* Only the open panel stretches: a closed one kept for find-in-page
      * (`hidden="until-found"`) still has a box in the same cell, and stretched it would
      * stand over the open one and take its presses. */
-    lf-tabs[list="side"].lf-rendered > :is(.lf-tabstrip, lf-tab:not([hidden])) {
-      align-self: stretch;
-      min-block-size: 0;
-      overflow: auto;
-      --lf-top: var(--lf-top-start);
-      overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-      --lf-holds-height: 1;
+      lf-tabs[list="side"][data-lf-views] > :is(.lf-tabstrip, lf-tab:not([hidden])) {
+        align-self: stretch;
+        min-block-size: 0;
+        overflow: auto;
+        --lf-top: var(--lf-top-start);
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        --lf-holds-height: 1;
+      }
     }
-  }
 
-  /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
+    /* A set in the page's flow (the root set, its strip a row; lf-tabs.js) is
      * navigation over sections of one page rather than a framed widget inside it: a
      * sticky horizontal index, one panel shown. It lays out nothing
      * of its own. The strip and the panel are blocks of `main` like any other, so they
@@ -620,215 +600,102 @@ lf-tabs.lf-rendered > lf-tab {
      * (a header, a sidebar) stays where it would on a page without tabs. Even a short
      * view fills the window below the sticky inset, so switching to it can land the
      * strip at that inset without the document's end clamping the scroll. */
-  :where(
-    lf-tabs.lf-rendered[data-lf-views-flow="page"],
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
-  ) {
-    --lf-tab-end: var(--lf-end-room);
-    margin-block: 0 32px;
-    min-block-size: calc(100dvh - var(--lf-top));
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    --lf-ground: inherit;
-    --lf-block-frame: 0;
-  }
-  /* Horizontal indexes stay with the panel they identify. Each set owns its
+
+    /* Horizontal indexes stay with the panel they identify. Each set owns its
    * stacking context so a nested strip releases beneath its enclosing strip,
    * and passes its stated row height to the headers inside its panel. */
-  lf-tabs:not([list="side"]) {
-    isolation: isolate;
-    --lf-top-outer: var(--lf-top);
-  }
-  lf-tabs:not([list="side"]) > lf-tab {
-    --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
-  }
-  lf-tabs:not([list="side"]) > .lf-tabstrip {
-    position: sticky;
-    top: var(--lf-top);
-    --lf-head-inset: 8px;
-    z-index: 2;
-    block-size: var(--lf-tabstrip-h);
-  }
-  lf-tabs[data-lf-views-flow="page"] > .lf-tabstrip {
-    border-radius: 0;
-    --lf-tabstrip-pad: 0px;
-    --lf-tabstrip-bg: var(--paper);
-  }
-  /* Each press stands at its edge without taking room in the row: a box no wider
+    lf-tabs:not([list="side"]) {
+      isolation: isolate;
+      --lf-top-outer: var(--lf-top);
+    }
+    lf-tabs:not([list="side"]) > lf-tab {
+      --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    }
+    lf-tabs:not([list="side"]) > .lf-tabstrip {
+      position: sticky;
+      top: var(--lf-top);
+      --lf-head-inset: 8px;
+      z-index: 2;
+      block-size: var(--lf-tabstrip-h);
+    }
+
+    /* Each press stands at its edge without taking room in the row: a box no wider
      * than nothing, stuck to that edge, whose face lies over the names beside it and
      * fades into them. Its negative margin returns the strip's gap, so a press coming
      * and going moves no name. It sticks at the strip's own edge rather than inside the
      * strip's inline padding (`--lf-tabstrip-pad`), which a sticky box otherwise keeps
      * clear, so no name shows unfaded beside the face and the face covers exactly the
      * strip's `scroll-padding`. */
-  .lf-tabstrip-scroll {
-    display: none;
-    position: sticky;
-    z-index: 1;
-    flex: none;
-    inline-size: 0;
-    align-self: stretch;
-  }
-  .lf-tabstrip-scroll[data-to="start"] {
-    inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
-    margin-inline-end: -2px;
-  }
-  .lf-tabstrip-scroll[data-to="end"] {
-    inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
-    margin-inline-start: -2px;
-  }
-  .lf-tabstrip-scroll > span {
-    position: absolute;
-    inset-block: 0;
-    inline-size: var(--lf-tabstrip-press);
-    padding-inline: 8px;
-    display: flex;
-    align-items: center;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .lf-tabstrip[data-lf-more-before] > .lf-tabstrip-scroll[data-to="start"],
-  .lf-tabstrip[data-lf-more-after] > .lf-tabstrip-scroll[data-to="end"] {
-    display: block;
-  }
-  .lf-tabstrip-scroll > span:hover {
-    color: var(--ink);
-  }
-  .lf-tabstrip-scroll[data-to="start"] > span {
-    inset-inline-start: 0;
-    justify-content: flex-start;
-    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
-  }
-  .lf-tabstrip-scroll[data-to="end"] > span {
-    inset-inline-end: 0;
-    justify-content: flex-end;
-    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
-  }
-  .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
-    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
-  }
-  .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
-    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
-  }
-  .lf-tabstrip-scroll:dir(rtl) .lf-tabstrip-scroll-icon {
-    scale: -1 1;
-  }
-  /* A page tab is a section of the page, not a box on it: like `main`, it trims its
+    .lf-tabstrip-scroll {
+      display: none;
+      position: sticky;
+      z-index: 1;
+      flex: none;
+      inline-size: 0;
+      align-self: stretch;
+    }
+    .lf-tabstrip-scroll[data-to="start"] {
+      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+      margin-inline-end: -2px;
+    }
+    .lf-tabstrip-scroll[data-to="end"] {
+      inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
+      margin-inline-start: -2px;
+    }
+    .lf-tabstrip-scroll:dir(rtl) .lf-tabstrip-scroll-icon {
+      scale: -1 1;
+    }
+    .lf-tabstrip-scroll > span {
+      position: absolute;
+      inset-block: 0;
+      inline-size: var(--lf-tabstrip-press);
+      padding-inline: 8px;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .lf-tabstrip[data-lf-more-before] > .lf-tabstrip-scroll[data-to="start"],
+    .lf-tabstrip[data-lf-more-after] > .lf-tabstrip-scroll[data-to="end"] {
+      display: block;
+    }
+    .lf-tabstrip-scroll > span:hover {
+      color: var(--ink);
+    }
+    .lf-tabstrip-scroll[data-to="start"] > span {
+      inset-inline-start: 0;
+      justify-content: flex-start;
+      background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="end"] > span {
+      inset-inline-end: 0;
+      justify-content: flex-end;
+      background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="start"]:dir(rtl) > span {
+      background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
+    }
+    .lf-tabstrip-scroll[data-to="end"]:dir(rtl) > span {
+      background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
+    }
+    /* A page tab is a section of the page, not a box on it: like `main`, it trims its
      * edges (so its first line trims under the strip) and draws nothing, so a wide
      * exhibit in a page tab grows out as it would on a page without tabs. */
-  lf-tabs.lf-rendered[data-lf-views-flow="page"] > lf-tab:not([hidden]),
-  html[data-lf-interactive]
-    lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
-    > lf-tab {
-    padding: var(--sp-4) 0 var(--lf-tab-end);
-    --lf-block-frame: trim;
-  }
-  /* Hidden panels keep their column width: shrinking a content-visibility:hidden
-   * panel to its contents also collapses its sized lazy images to zero. */
-  lf-tabs.lf-rendered[data-lf-views-flow="page"] > lf-tab[hidden] {
-    height: 0;
-    min-height: 0;
-    overflow: clip;
-    pointer-events: none;
-  }
-  /* Page tabs told they have a definite height to fill (`--lf-full-height`, layouts.css),
+
+    /* Page tabs told they have a definite height to fill (`--lf-full-height`, layouts.css),
    * as a full-height workspace's body is, give the open tab what the strip leaves. A tab
    * that is one block, such as a playground's lf-ask, passes that height on and says so,
    * so the playground fills the window as it does when its lf-ask is the body. A tab of
    * reading keeps its flow, and where it runs longer the body scrolls under the sticky
    * strip. */
-  @container style(--lf-full-height: 1) {
-    /* The set is the body's scroller here, and a block filling it, such as the
+    @container style(--lf-full-height: 1) {
+      /* The set is the body's scroller here, and a block filling it, such as the
      * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
      * keeps a region's ring room inside them (base.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
-    lf-tabs.lf-rendered[data-lf-views-flow="page"],
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab) {
-      display: flex;
-      flex-direction: column;
-      min-block-size: 0;
-      margin-block: 0;
-      margin-inline: calc(-1 * var(--focus-region-room));
-      padding: 0 var(--focus-region-room) var(--focus-region-room);
-      --lf-full-height: inherit;
     }
-    lf-tabs.lf-rendered[data-lf-views-flow="page"] > .lf-tabstrip,
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)::before {
-      flex: none;
-    }
-    lf-tabs.lf-rendered[data-lf-views-flow="page"] > lf-tab:not([hidden]),
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
-      > lf-tab[data-lf-opening] {
-      flex: 1 0 auto;
-    }
-    lf-tabs.lf-rendered[data-lf-views-flow="page"]
-      > lf-tab:not([hidden]):has(
-        > :nth-child(1 of :not(script, style, template)):nth-last-child(
-            1 of :not(script, style, template)
-          )
-      ),
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
-      > lf-tab[data-lf-opening]:has(> [data-lf-sole-content]) {
-      flex: 1 1 0;
-      min-block-size: 0;
-      display: flex;
-      flex-direction: column;
-      --lf-full-height: inherit;
-    }
-    lf-tabs.lf-rendered[data-lf-views-flow="page"]
-      > lf-tab:not([hidden])
-      > :nth-child(1 of :not(script, style, template)):nth-last-child(
-        1 of :not(script, style, template)
-      ),
-    html[data-lf-interactive]
-      lf-tabs:not(.lf-rendered)[data-lf-views-flow="page"]:has(> lf-tab)
-      > lf-tab[data-lf-opening]
-      > [data-lf-sole-content] {
-      flex: 1 1 0;
-      margin-block: 0;
-    }
-  }
 
-  /* Before upgrade: where the runtime will run, a set has the geometry above from the
-   * first paint, each rule naming it beside the upgraded set: the frame its flow draws
-   * and the panel it opens on alone, which the prepaint marks (`data-lf-opening`,
-   * runtime/prepaint.js) as the one the module will open. What is its own is the strip's
-   * room, one row kept empty for the names the module writes. The page's flow is the
-   * first set in `main` whose list is a row, declared by `--lf-views-flow`
-   * above and read before first paint. Not reserved: a side list taller than its panel. A page whose
-   * runtime is missing what it needs to start loses the mark (runtime/prepaint.js) and
-   * keeps the stacked, labeled panels, since no strip will come to reach the hidden
-   * ones. */
-  @scope (html[data-lf-interactive] lf-tabs) {
-    :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) {
-      &::before {
-        content: "";
-        display: block;
-        box-sizing: border-box;
-        block-size: var(--lf-tabstrip-h);
-        border-bottom: 1px solid var(--border-2);
-      }
-      & > lf-tab:not([data-lf-opening]) {
-        display: none;
-      }
-    }
-  }
-  @scope (html[data-lf-interactive] body > main > lf-tabs) {
-    :scope:is(lf-tabs):not(.lf-rendered)[data-lf-views-flow="page"]:has(
-        > lf-tab
-      )::before {
-      border-radius: 0;
-      background: var(--paper);
-    }
-  }
-
-  /* A page's parts (lf-parts.js). Where they stand in a `main` that carries no Layout,
+    /* A page's parts (lf-parts.js). Where they stand in a `main` that carries no Layout,
    * the page lays them out (layouts.css, "A page of parts"): the list in a column down
    * the left and the open part beside it, arranged by its own Layout. The holder draws
    * no frame; its list stands on the page's ground under the page's title, and marks
@@ -848,132 +715,91 @@ lf-tabs.lf-rendered > lf-tab {
    * A part is a section of the page, not a box on it: like `main`, it trims its edges
    * and draws nothing, and its Layout sets its padding. Its focus ring is a tab
    * panel's (above). */
-  lf-parts.lf-rendered > lf-part {
-    margin: 0;
-    padding: 0;
-  }
-  lf-parts.lf-rendered > lf-part::before {
-    content: none;
-  }
-  lf-parts.lf-rendered > lf-part:not([hidden]) {
-    --lf-block-frame: trim;
-  }
-  /* A part not shown keeps its box in flow for find-in-page (`hidden="until-found"`), in
+    lf-parts[data-lf-views] > lf-part {
+      margin: 0;
+      padding: 0;
+    }
+    lf-parts[data-lf-views] > lf-part::before {
+      content: none;
+    }
+    lf-parts[data-lf-views] > lf-part:not([hidden]) {
+      --lf-block-frame: trim;
+    }
+    /* A part not shown keeps its box in flow for find-in-page (`hidden="until-found"`), in
    * the open part's cell, so it gives up the height of what it holds, as a workspace's
    * window height, and takes no presses. */
-  lf-parts.lf-rendered > lf-part[hidden] {
-    block-size: 0;
-    min-block-size: 0;
-    overflow: clip;
-    pointer-events: none;
-  }
-  @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
-    :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-      position: fixed;
-      position-anchor: --lf-parts-title;
-      top: anchor(bottom, var(--lf-top));
-      inline-size: var(--lf-parts-list);
-      box-sizing: border-box;
-      align-self: start;
-      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
+    lf-parts[data-lf-views] > lf-part[hidden] {
+      block-size: 0;
       min-block-size: 0;
-      --lf-tabstrip-flow: column;
-      gap: 0;
-      padding: calc(var(--sp-4) - var(--focus-ring-room)) 8px
-        calc(var(--sp-4) + var(--lf-foot-room));
-      scroll-padding-block-end: var(--lf-foot-room);
-      overflow-x: hidden;
-      overflow-y: auto;
-      --lf-holds-height: 1;
-      border-bottom: 0;
-      border-radius: 0;
-      --lf-tabstrip-bg: var(--paper);
+      overflow: clip;
+      pointer-events: none;
     }
-    :scope:is(lf-parts).lf-rendered > .lf-tabstrip > .lf-tabstrip-scroll {
-      display: none;
-    }
-    :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
-      border-inline-start: 1px solid var(--rule);
-    }
-    /* On a phone the list is a row that sticks over the open part as the page tabs'
+    @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
+      :scope:is(lf-parts)[data-lf-views]::before {
+        content: none;
+      }
+      :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
+        position: fixed;
+        position-anchor: --lf-parts-title;
+        top: anchor(bottom, var(--lf-top));
+        inline-size: var(--lf-parts-list);
+        box-sizing: border-box;
+        align-self: start;
+        block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
+        min-block-size: 0;
+        --lf-tabstrip-flow: column;
+        gap: 0;
+        padding: calc(var(--sp-4) - var(--focus-ring-room)) 8px
+          calc(var(--sp-4) + var(--lf-foot-room));
+        scroll-padding-block-end: var(--lf-foot-room);
+        overflow-x: hidden;
+        overflow-y: auto;
+        --lf-holds-height: 1;
+        border-bottom: 0;
+        border-radius: 0;
+        --lf-tabstrip-bg: var(--paper);
+      }
+      :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip > .lf-tabstrip-scroll {
+        display: none;
+      }
+      :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
+        border-inline-start: 1px solid var(--rule);
+      }
+      /* On a phone the list is a row that sticks over the open part as the page tabs'
      * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
      * reaches another part from anywhere in this one, and what sticks inside the part
      * stacks under it. */
-    @container lf-shell (width < 640px) {
-      :scope:is(lf-parts) {
-        --lf-top-outer: var(--lf-top);
-      }
-      :scope:is(lf-parts) > lf-part {
-        --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
-      }
-      :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-        position-anchor: normal;
-        position: sticky;
-        --lf-head-inset: 0px;
-        top: var(--lf-top);
-        inline-size: auto;
-        z-index: 2;
-        block-size: var(--lf-tabstrip-h);
-        --lf-tabstrip-flow: row;
-        gap: 2px;
-        padding: 8px var(--lf-tabstrip-pad) 0;
-        overflow-x: auto;
-        overflow-y: hidden;
-        border-bottom: 1px solid var(--border-2);
-      }
-      :scope:is(lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
-        display: none;
-      }
-      :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
-        border-inline-start: 0;
-      }
-    }
-  }
-  /* Before the module upgrades the parts, they stand as they will, showing only the part
-   * the module will open (`data-lf-opening`, runtime/prepaint.js), unlabelled and
-   * framed as it will be. Placed anywhere but the page's own `main`, the list's row is
-   * kept empty over that part. In the page's own `main`, the page lays them out as it
-   * will (layouts.css) and keeps that row only on a phone. */
-  @scope (html[data-lf-interactive] lf-parts) {
-    :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
-      &::before {
-        content: "";
-        display: block;
-        box-sizing: border-box;
-        block-size: var(--lf-tabstrip-h);
-        border-bottom: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-        background: var(--card);
-      }
-      & > lf-part {
-        margin: 0;
-        padding: 0;
-        --lf-block-frame: trim;
-      }
-      & > lf-part::before {
-        content: none;
-      }
-      & > lf-part:not([data-lf-opening]) {
-        display: none;
-      }
-    }
-  }
-  @scope (html[data-lf-interactive]
-      body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
-    :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
-      &::before {
-        content: none;
-      }
-      & > lf-part {
-        border-inline-start: 1px solid var(--rule);
-      }
       @container lf-shell (width < 640px) {
-        &::before {
+        :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
           content: "";
-          border-radius: 0;
-          background: var(--paper);
+          grid-column: 1;
+          grid-row: auto;
         }
-        & > lf-part {
+        :scope:is(lf-parts) {
+          --lf-top-outer: var(--lf-top);
+        }
+        :scope:is(lf-parts) > lf-part {
+          --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+        }
+        :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
+          position-anchor: normal;
+          position: sticky;
+          --lf-head-inset: 0px;
+          top: var(--lf-top);
+          inline-size: auto;
+          z-index: 2;
+          block-size: var(--lf-tabstrip-h);
+          --lf-tabstrip-flow: row;
+          gap: 2px;
+          padding: 8px var(--lf-tabstrip-pad) 0;
+          overflow-x: auto;
+          overflow-y: hidden;
+          border-bottom: 1px solid var(--border-2);
+        }
+        :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-summary {
+          display: none;
+        }
+        :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
           border-inline-start: 0;
         }
       }
@@ -992,22 +818,111 @@ lf-tabs.lf-rendered > lf-tab {
 /* A region reaching the window's foot keeps clearance after its reading content.
  * A tab holding only another view or pane transfers that edge instead. */
 @media screen {
-  @container not style(--lf-end-room: 0px) {
-    lf-tabs
-      > lf-tab:not([hidden]):has(
-        > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child
-      ) {
-      --lf-tab-end: 0px;
-    }
-    lf-tabs
-      > lf-tab:not([hidden])
-      > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child {
-      --lf-end-room: inherit;
-      margin-block-end: 0;
-    }
-    @container (width >= 36rem) {
-      lf-tabs[list="side"] > .lf-tabstrip {
+  @scope (html[data-lf-interactive]) {
+    @container not style(--lf-end-room: 0px) {
+      lf-tabs
+        > lf-tab:not([hidden]):has(
+          > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child
+        ) {
+        --lf-tab-end: 0px;
+      }
+      lf-tabs
+        > lf-tab:not([hidden])
+        > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child {
         --lf-end-room: inherit;
+        margin-block-end: 0;
+      }
+      @container (width >= 36rem) {
+        lf-tabs[list="side"] > .lf-tabstrip {
+          --lf-end-room: inherit;
+        }
+      }
+    }
+  }
+}
+
+@media screen {
+  @scope (html[data-lf-interactive]) {
+    @scope (lf-tabs.layout-flow) {
+      /* Page tabs have no panel padding. Keep the ring outside the three text edges,
+     * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
+      :scope:is(lf-tabs)[data-lf-views]:has(> lf-tab[data-lf-focus-visible])::after {
+        inset: anchor(top) calc(anchor(right) - var(--focus-region-room))
+          calc(anchor(bottom) - var(--focus-region-room))
+          calc(anchor(left) - var(--focus-region-room));
+      }
+      :scope:is(lf-tabs) > lf-tab {
+        container-type: normal;
+      }
+      :where(:scope:is(lf-tabs)) {
+        --lf-tab-end: var(--lf-end-room);
+        margin-block: 0 32px;
+        min-block-size: calc(100dvh - var(--lf-top));
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        --lf-ground: inherit;
+        --lf-block-frame: 0;
+      }
+      :scope:is(lf-tabs) > .lf-tabstrip {
+        border-radius: 0;
+        --lf-tabstrip-pad: 0px;
+        --lf-tabstrip-bg: var(--paper);
+      }
+      :scope:is(lf-tabs) > lf-tab:not([hidden]) {
+        padding: var(--sp-4) 0 var(--lf-tab-end);
+        --lf-block-frame: trim;
+      }
+      :scope:is(lf-tabs) > lf-tab[hidden] {
+        height: 0;
+        min-height: 0;
+        overflow: clip;
+        pointer-events: none;
+      }
+      @container style(--lf-full-height: 1) {
+        :scope:is(lf-tabs) {
+          display: flex;
+          flex-direction: column;
+          min-block-size: 0;
+          margin-block: 0;
+          margin-inline: calc(-1 * var(--focus-region-room));
+          padding: 0 var(--focus-region-room) var(--focus-region-room);
+          --lf-full-height: inherit;
+        }
+      }
+      @container style(--lf-full-height: 1) {
+        :scope:is(lf-tabs) > .lf-tabstrip {
+          flex: none;
+        }
+      }
+      @container style(--lf-full-height: 1) {
+        :scope:is(lf-tabs) > lf-tab:not([hidden]) {
+          flex: 1 0 auto;
+        }
+      }
+      @container style(--lf-full-height: 1) {
+        :scope:is(lf-tabs)
+          > lf-tab:not([hidden]):has(
+            > :nth-child(1 of :not(script, style, template)):nth-last-child(
+                1 of :not(script, style, template)
+              )
+          ) {
+          flex: 1 1 0;
+          min-block-size: 0;
+          display: flex;
+          flex-direction: column;
+          --lf-full-height: inherit;
+        }
+      }
+      @container style(--lf-full-height: 1) {
+        :scope:is(lf-tabs)
+          > lf-tab:not([hidden])
+          > :nth-child(1 of :not(script, style, template)):nth-last-child(
+            1 of :not(script, style, template)
+          ) {
+          flex: 1 1 0;
+          margin-block: 0;
+        }
       }
     }
   }

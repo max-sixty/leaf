@@ -185,7 +185,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     assert active.exit_code == 0, active.output
     page = open_page(browser, url)
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("On it")
+    expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("On it")
     page.locator('[data-lf-margin-for="how-cap"] .lf-margin-marker').click()
     later = append_carried_log_record(
         serve.page_dir,
@@ -206,7 +206,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("On it")
+    expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("On it")
 
 
 # Paragraphs that give a page length before the thread it is about.

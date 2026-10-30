@@ -81,12 +81,9 @@ by the author; it does not discover directories or run Git in the browser.
 
 ## Initial height
 
-Leave `data-height` off textual patches, whether inline or supplied as a string
-through `source`: Leaf counts the files and rows before first paint. For `view="file"`,
-it counts the first file. The source value must already be set when the page loads.
-
-A files manifest with deferred bodies, an unavailable source, or a shown file with
-no textual hunk cannot be counted this way. Reserve its measured `data-height` when
-content below must hold still; `page check --render` reports the drawn height. An
-explicit `data-height` remains the author's reservation. This counts geometry; source
-syntax rendering still arrives with the widget module.
+An inline patch remains readable as authored source while its widget module loads;
+leave `data-height` off it. The drawing can change its height when the module loads.
+A `source` diff receives its patch through the page's data reading. Reserve its
+measured `data-height` when content below must hold still; `page check --render`
+reports the drawn height. This applies to textual patches and files manifests,
+including `view="file"` readers.

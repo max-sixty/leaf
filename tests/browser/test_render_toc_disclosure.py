@@ -12,7 +12,7 @@ from leaf.render_checks import rendered, wait_until_ready
 def test_an_outline_first_paints_with_its_complete_reading_scope(
     browser, serve, initially_open
 ):
-    """An open index waits for headings; a closed index reserves its final room."""
+    """Reading proceeds during parsing; the index later includes its complete scope."""
     source = leaf_page(
         "streamed contents",
         f"""<h1 id="page-title">Field guide</h1>
@@ -47,14 +47,7 @@ def test_an_outline_first_paints_with_its_complete_reading_scope(
         page.evaluate("() => new Promise(requestAnimationFrame)")
         assert page.evaluate("document.readyState") == "loading"
         expect(page.locator("#page-title")).to_be_visible()
-        if initially_open:
-            expect(page.locator("#first")).to_be_hidden()
-        else:
-            expect(page.locator("#first")).to_be_visible()
-            initial_height = page.locator("#contents").evaluate(
-                "node => node.getBoundingClientRect().height"
-            )
-            assert initial_height > 0
+        expect(page.locator("#first")).to_be_visible()
         assert page.locator("#contents li").count() == 0
 
         held.pop().fulfill(status=200, content_type="text/javascript", body="")
@@ -66,9 +59,6 @@ def test_an_outline_first_paints_with_its_complete_reading_scope(
         )
         if not initially_open:
             expect(page.locator("#contents summary")).to_be_visible()
-            assert page.locator("#contents").evaluate(
-                "node => node.getBoundingClientRect().height"
-            ) == pytest.approx(initial_height)
             page.locator("#contents summary").click()
         expect(page.locator("#contents li a").first).to_be_visible()
     finally:
@@ -82,11 +72,12 @@ def test_contents_disclosure_keeps_its_links_focus_and_open_state(
 ):
     source = leaf_page(
         "adaptive contents",
-        '<h1>Report</h1><aside class="sidebar"><lf-toc id="contents"'
+        '<aside><div class="layout-track"><lf-toc id="contents"'
         + (" open" if initially_open else "")
-        + "></lf-toc></aside>"
+        + '></lf-toc></div></aside><div class="layout-column"><h1>Report</h1>'
         '<section id="evidence"><h2>Evidence</h2><p>Read the counts.</p></section>'
-        '<section id="decision"><h2>Decision</h2><p>Choose the next step.</p></section>',
+        '<section id="decision"><h2>Decision</h2><p>Choose the next step.</p></section></div>',
+        layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 390, 844)
@@ -160,8 +151,9 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     )
     source = leaf_page(
         "sidebar contents",
-        '<header><h1>Review</h1></header><aside id="rail"><section class="panel">'
-        '<lf-toc id="contents"></lf-toc></section></aside>'
+        '<header><h1>Review</h1></header><aside id="rail">'
+        '<div class="layout-track"><section class="panel">'
+        '<lf-toc id="contents"></lf-toc></section></div></aside>'
         f'<div id="body">{sections}</div>',
         layout="sidebar",
     )
@@ -169,11 +161,16 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     resized(page, 1440, 900)
     toc = page.locator("lf-toc")
     disclosure = toc.locator("details")
-    expect(page.locator("#rail")).to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["x"] + rail["width"] <= body["x"], (rail, body)
     expect(toc.locator("summary")).to_be_hidden()
     expect(disclosure).to_have_attribute("open", "")
     expect(toc.get_by_role("link", name="Section 3", exact=True)).to_be_visible()
     resized(page, 700, 900)
-    expect(page.locator("#rail")).not_to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["y"] + rail["height"] <= body["y"], (rail, body)
+    assert rail["x"] == pytest.approx(body["x"], abs=1)
     expect(toc.locator("summary")).to_be_visible()
     expect(disclosure).not_to_have_attribute("open", "")

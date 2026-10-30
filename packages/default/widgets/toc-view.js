@@ -1,17 +1,6 @@
-/* lf-toc's drawing: its frame and the outline of the headings in the document it
- * stands in. The initial renderer (`initial/lf-toc.js`) draws it before first paint, so
- * the widget first shows at the box it keeps, and the module redraws the outline in the
- * same nodes, adding the map's measurement and position to them (`lf-toc.js`).
- *
- * Before modules run, the runtime's readings of a heading are not there, so each caller
- * passes its own: `label` reads a heading's words and `chrome` whether it stands in
- * Leaf's chrome. The module reads them as the rest of the runtime does (`wrote`,
- * `inChrome`), and its first redraw rewrites any label the early reading said
- * differently. Lit retains the keyed rows, and the module restores focus through moves.
- * Only the module lends ids (`lends`): the page's markup as it parsed is
- * the source a revision compares against (version.js), so the early drawing writes
- * nothing outside its host, and a destination without an id has no link until upgrade.
- */
+import { generatedElement, keeps } from "/runtime/widget-api.js";
+/* The contents view draws its frame and outline from the complete document.
+ * The live widget supplies the canonical heading and chrome readings. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
@@ -23,7 +12,7 @@ export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.
-export function drawToc(host, { generatedElement, keeps }, initialReading) {
+export function drawToc(host, headingReading) {
   const open = host.hasAttribute("open");
   let outline = { start: { label: "Top" }, items: [] };
   const href = (destination) => (destination?.id ? `#${destination.id}` : nothing);
@@ -40,10 +29,8 @@ export function drawToc(host, { generatedElement, keeps }, initialReading) {
     get lens() {
       return host.querySelector(".lf-toc-window");
     },
-    render(reading = initialReading) {
-      // Headings can follow a closed outline in a streamed document. Its frame
-      // stays in place until the complete document can decide whether it is empty.
-      if (reading && host.ownerDocument.readyState !== "loading") {
+    render(reading = headingReading) {
+      if (reading) {
         outline = readOutline(host, reading);
         keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
       }
@@ -153,7 +140,7 @@ function readOutline(host, { label, chrome, lends }) {
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
   const items = headings.map(({ heading, label }, index) => {
     const destination = destinationFor(host, heading, index + 1, lends);
-    // A lent id is no key: the early drawing lent none, and the module adopts its rows.
+    // A lent id is no key: row identity follows the authored heading.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
     const depth = Math.min(level(heading) - floor, 4);
     return { key, heading, label, destination, depth };

@@ -24,10 +24,11 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML. Pass only if the report is one scrolling column document with a
-      contents outline: main has class layout-column, and an aside with class sidebar
-      is a direct child near its opening, before the report's substantive sections.
-      That aside contains an empty lf-toc with an explicit end tag and a stable id.
-      A hand-written navigation list alone does not supply that generated outline.
-      Fail if the report is divided into page tabs,
-      placed in a workspace, or given a separate layout-sidebar track for navigation.
+      Read the HTML. Pass only if the report is one continuous scrolling document
+      with generated contents navigation kept beside its prose: main has class
+      layout-sidebar, an aside before the report body contains a layout-track, and
+      the report body has class layout-column. The track contains an empty lf-toc
+      with an explicit end tag and a stable id. A hand-written navigation list alone
+      does not supply that generated outline. Fail if the report is divided into
+      page tabs or placed in a workspace, or if the page rebuilds the sidebar's
+      sticking and scrolling in its own CSS.

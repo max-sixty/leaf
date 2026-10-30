@@ -10,7 +10,6 @@ candidate inputs never participate in publishing. Content-addressed media is wri
 at the page root, where every document, message, and card addresses it.
 """
 
-from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
@@ -33,7 +32,6 @@ def write_live_shell(
     page_dir: Path,
     destination: Path,
     *,
-    initial_data: Mapping[int, dict],
     page_root: str = "",
     server_id: str = "published",
     release_id: str | None = None,
@@ -41,10 +39,6 @@ def write_live_shell(
     head: str = "",
 ) -> None:
     """Write live documents and browser assets without copying session state.
-
-    The host supplies each revision's public data reading, already projected by its
-    canonical state producer. No event, presence or private session reading is
-    inferred here; the first authoritative API read still supplies those facts.
 
     The runtime and its API routes remain unchanged. Whatever serves this derived
     tree stamps `Leaf-Layer` and `Leaf-Release` on its page routes and released
@@ -88,7 +82,7 @@ def write_live_shell(
             executable=artifact.executable,
             resources=artifact.resources,
             registry=artifact.registry,
-            delivery=replace(delivery, head=head, data=initial_data[revision]),
+            delivery=replace(delivery, head=head),
         ).encode()
         address = DeliveryAddress(page_root, revision_root)
         for logical in sorted(

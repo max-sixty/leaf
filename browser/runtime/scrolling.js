@@ -22,11 +22,11 @@
    keeper's write returns the reader to a place they already had (reading-place.js,
    `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
-   is the keeper's. A landing in motion counts from its start (`startScroll`), since
-   layout it caused can be announced before its sequence ends. A sequence can end frames
-   after its last `scroll` event, as WebKit's do, so continuity takes a reading at the
-   end too. Like that record, this listens on the document, which a scroll inside a
-   shadow root does not reach. */
+   is the keeper's. An explicit landing counts from its start (`startScroll`), even
+   when instant, since layout it caused can be announced before its sequence ends.
+   A sequence can end frames after its last `scroll` event, as WebKit's do, so
+   continuity takes a reading at the end too. Like that record, this listens on the
+   document, which a scroll inside a shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
 import { setScroll, watchOwner } from "./arrivals.js";
@@ -139,8 +139,8 @@ export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 const chooseScroll = (box) => chosen.set(box, ++choices);
-// Record a native glide before its first compositor frame; scroll events alone
-// cannot report an outgoing placement a new gesture interrupts that early.
+// Record an explicit landing before native scroll events: an instant move can
+// coincide with layout, and a new gesture can interrupt a glide before its first frame.
 export function startScroll(box) {
   moving.set(box, { glide: true });
   chooseScroll(box);

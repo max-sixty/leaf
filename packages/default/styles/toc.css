@@ -20,7 +20,11 @@ lf-toc {
   display: block;
   margin: var(--sp-4) 0 30px;
 }
-lf-toc:is(:empty, [data-lf-toc-empty]) {
+/* The closed native toggle has the same box before its outline arrives. */
+lf-toc:empty {
+  min-block-size: max(calc(var(--t-6) * 1.3 + 14px), var(--aim-floor));
+}
+lf-toc[data-lf-toc-empty] {
   display: none;
 }
 lf-toc .lf-toc-nav {
@@ -65,7 +69,7 @@ lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
  * long review. Where the track stacks above the body, the disclosure returns with the
  * reader's own choice (lf-toc.js, `#measure`). */
 @media screen {
-  @container style(--lf-sidebar-slot: beside) {
+  @container (width > 0px) and style(--lf-sidebar-slot: beside) and style(--lf-track-beside: 1) {
     lf-toc .lf-toc-heading {
       display: block;
     }
@@ -121,285 +125,266 @@ lf-toc a[data-lf-focus] {
   color: var(--accent);
 }
 
-/* The core sidebar states its actual placement after viewport and room decisions.
- * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
- * their sticky behavior and an in-flow ToC keeps its native disclosure.
- *
- * The two questions are asked of two boxes, for the reason the core's base.css states beside
- * the declarations. The page answers the placement, because a page is always there to
- * answer; the wrapper answers only which slot it is, which is a fact that never changes
- * while the page is open, so the answer is the same one whether or not the box has been
- * away. Asking the wrapper for the placement instead cost the map: an author who hides the
- * sidebar on a narrow shell — the feature gallery does — got a ToC that never came back,
- * because the wrapper was still repeating the placement it left with. Keeping the slot in
- * the question is also what leaves an lf-toc written into ordinary prose alone; the
- * placement reaches every box on the page, and only the sidebar's map wants it. */
+/* The native sidebar track publishes its slot from its CSS-computed wrapping
+ * state. Only a fine-pointer margin slot draws the proportional map; ordinary
+ * sidebars keep the outline and a stacked track keeps its native disclosure. */
 @media screen and (hover: hover) and (pointer: fine) {
   /* The contents map reserves no document room. At rest its spine is the only box
    * over the page; the labeled surface opens when the spine is hovered or focused. */
-  @container lf-content-frame style(--lf-sidebar-placement: margin) {
-    @container style(--lf-sidebar-slot: margin) {
-      lf-toc {
-        position: fixed;
-        /* From the start of the shell its column stands in (`--lf-shell-left`,
-         * prepaint.js), which the window's edge is unless the page puts something
-         * before it, as a page's list of parts does. */
-        left: calc(var(--lf-shell-left, 0px) + var(--sp-4));
-        top: var(--lf-head-room, 0px);
-        z-index: 4;
-        /* At rest only the spine has a box. The invisible labels keep their full
+  @container (width > 0px) and style(--lf-sidebar-slot: margin) and style(--lf-track-beside: 1) {
+    lf-toc {
+      position: fixed;
+      /* An auto inline inset retains the native track's static position,
+         * including inside a page of parts; no runtime shell offset is needed. */
+      left: auto;
+      top: var(--lf-head-room, 0px);
+      z-index: 4;
+      /* At rest only the spine has a box. The invisible labels keep their full
          * measure below, without a transparent map lying over document words. */
-        width: var(--sp-4);
-        box-sizing: border-box;
-        pointer-events: none;
-        /* Between the head room and the foot room, as every region is: the floating
+      width: var(--sp-4);
+      box-sizing: border-box;
+      pointer-events: none;
+      /* Between the head room and the foot room, as every region is: the floating
          * panel's row rests at the window's foot at one stated height, so the map ends
          * above it rather than losing its last entry under the row. */
-        height: var(--lf-view-height);
-        margin: 0;
-      }
-      /* The revealed background includes the space above and below the spine, where
+      height: var(--lf-view-height);
+      margin: 0;
+    }
+    /* The revealed background includes the space above and below the spine, where
        * the first and last labels extend beyond their markers. */
-      lf-toc .lf-toc-nav {
-        width: 100%;
-        height: 100%;
-        border: 0;
-        box-sizing: border-box;
-        padding: var(--sp-4) 0;
-        --lf-toc-label-opacity: 0;
-        pointer-events: none;
-        transition: background-color 0.24s ease-out;
-      }
-      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+    lf-toc .lf-toc-nav {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      box-sizing: border-box;
+      padding: var(--sp-4) 0;
+      --lf-toc-label-opacity: 0;
+      pointer-events: none;
+      transition: background-color 0.24s ease-out;
+    }
+    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+      width: calc(var(--sidebar-max) - var(--sp-4));
+    }
+    @scope (body[data-lf-go-to-active] lf-toc) {
+      :scope:is(lf-toc) .lf-toc-nav {
         width: calc(var(--sidebar-max) - var(--sp-4));
       }
-      @scope (body[data-lf-go-to-active] lf-toc) {
-        :scope:is(lf-toc) .lf-toc-nav {
-          width: calc(var(--sidebar-max) - var(--sp-4));
-        }
-      }
-      lf-toc .lf-toc-toggle {
-        display: none;
-      }
-      lf-toc .lf-toc-disclosure {
-        display: contents;
-      }
-      lf-toc .lf-toc-rows {
-        position: relative;
-        display: flex;
-        /* A details element with display: contents gives percentages no height. */
-        height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-        --lf-toc-spine-width: 1px;
-        flex-direction: column;
-      }
-      /* At rest the map takes presses on its spine alone, a strip one step wide, so it
+    }
+    lf-toc .lf-toc-toggle {
+      display: none;
+    }
+    lf-toc .lf-toc-disclosure {
+      display: contents;
+    }
+    lf-toc .lf-toc-rows {
+      position: relative;
+      display: flex;
+      /* A details element with display: contents gives percentages no height. */
+      height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+      --lf-toc-spine-width: 1px;
+      flex-direction: column;
+    }
+    /* At rest the map takes presses on its spine alone, a strip one step wide, so it
        * never stands over the page's words beside it (the column claims no margin for
        * it). Hovering or focusing the spine opens the whole surface its labels reveal
        * onto, and that surface keeps the pointer while it moves across them. */
-      lf-toc .lf-toc-rows::after {
-        content: "";
-        position: absolute;
-        z-index: 1;
-        top: 0;
-        bottom: 0;
-        left: calc(-1 * var(--sp-2));
-        width: var(--sp-4);
+    lf-toc .lf-toc-rows::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      bottom: 0;
+      left: calc(-1 * var(--sp-2));
+      width: var(--sp-4);
+      pointer-events: auto;
+    }
+    lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]),
+    lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
+      pointer-events: auto;
+    }
+    @scope (body[data-lf-go-to-active] lf-toc) {
+      :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav) {
         pointer-events: auto;
       }
-      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]),
-      lf-toc:is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav {
-        pointer-events: auto;
-      }
-      @scope (body[data-lf-go-to-active] lf-toc) {
-        :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav) {
-          pointer-events: auto;
-        }
-      }
-      lf-toc .lf-toc-rows::before {
-        content: "";
-        position: absolute;
-        z-index: 0;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: var(--lf-toc-spine-width);
-        background: var(--border-2);
-      }
-      /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
+    }
+    lf-toc .lf-toc-rows::before {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: var(--lf-toc-spine-width);
+      background: var(--border-2);
+    }
+    /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
-      lf-toc .lf-toc-window {
-        display: block;
-        position: absolute;
-        z-index: 1;
-        top: 0;
-        left: 0;
-        width: var(--lf-toc-spine-width);
-        height: 1px;
-        transform-origin: top;
-        background: var(--accent);
-      }
-      /* A row is a span of the spine, and its link hangs from the row's top and may run
+    lf-toc .lf-toc-window {
+      display: block;
+      position: absolute;
+      z-index: 1;
+      top: 0;
+      left: 0;
+      width: var(--lf-toc-spine-width);
+      height: 1px;
+      transform-origin: top;
+      background: var(--accent);
+    }
+    /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
        * row's span never stands over that link: the link is the only thing here to
        * press. */
-      lf-toc .lf-toc-start,
-      lf-toc li {
-        --lf-toc-indent: 0px;
-        position: relative;
-        z-index: 2;
-        display: block;
-        flex: var(--lf-toc-span, 1) 1 0px;
-        min-height: 0;
-        margin: 0;
-        pointer-events: none;
-      }
-      lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] {
-        display: none;
-      }
-      lf-toc ol {
-        display: contents;
-      }
-      lf-toc .lf-toc-start::before,
-      lf-toc li::before {
-        content: "";
-        position: absolute;
-        z-index: 2;
-        top: var(--lf-toc-row-shift, 0px);
-        transform: translate(-50%, -50%);
-        left: calc(var(--lf-toc-spine-width) / 2);
-        box-sizing: border-box;
-        width: 3px;
-        height: 3px;
-        border-radius: 50%;
-        background: var(--muted);
-      }
-      lf-toc .lf-toc-start::before {
-        width: 9px;
-        height: 9px;
-      }
-      lf-toc li[data-lf-depth="0"]::before {
-        width: 6px;
-        height: 6px;
-      }
-      lf-toc .lf-toc-start::before,
-      lf-toc li[data-lf-depth="0"]::before {
-        border: 1px solid var(--muted);
-        background: var(--paper);
-      }
-      lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-        background: var(--accent);
-        border-color: var(--accent);
-      }
-      lf-toc .lf-toc-start a,
-      lf-toc li a {
-        position: absolute;
-        z-index: 3;
-        display: -webkit-box;
-        top: 0;
-        left: 0;
-        width: calc(var(--sidebar-max) - var(--sp-4));
-        overflow: hidden;
-        max-height: 2.6em;
-        padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
-        line-height: 1.3;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
-        opacity: var(--lf-toc-label-opacity);
-        pointer-events: none;
-        transition:
-          color 0.12s ease-out,
-          opacity 0.24s ease-out;
-      }
-      lf-toc .lf-toc-start a {
-        font-weight: 650;
-        line-height: 1.2;
-        max-height: 2.4em;
-      }
-      lf-toc
-        :is(.lf-toc-start a, li a[aria-current="location"]):not(
-          :hover,
-          [data-lf-focus]
-        ) {
-        color: var(--ink-2);
-      }
-      lf-toc a[data-lf-focus-visible] {
-        outline: var(--focus-ring);
-        outline-offset: calc(-1 * var(--focus-ring-w));
-      }
-      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+    lf-toc .lf-toc-start,
+    lf-toc li {
+      --lf-toc-indent: 0px;
+      position: relative;
+      z-index: 2;
+      display: block;
+      flex: var(--lf-toc-span, 1) 1 0px;
+      min-height: 0;
+      margin: 0;
+      pointer-events: none;
+    }
+    lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] {
+      display: none;
+    }
+    lf-toc ol {
+      display: contents;
+    }
+    lf-toc .lf-toc-start::before,
+    lf-toc li::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      top: var(--lf-toc-row-shift, 0px);
+      transform: translate(-50%, -50%);
+      left: calc(var(--lf-toc-spine-width) / 2);
+      box-sizing: border-box;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    lf-toc .lf-toc-start::before {
+      width: 9px;
+      height: 9px;
+    }
+    lf-toc li[data-lf-depth="0"]::before {
+      width: 6px;
+      height: 6px;
+    }
+    lf-toc .lf-toc-start::before,
+    lf-toc li[data-lf-depth="0"]::before {
+      border: 1px solid var(--muted);
+      background: var(--paper);
+    }
+    lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    lf-toc .lf-toc-start a,
+    lf-toc li a {
+      position: absolute;
+      z-index: 3;
+      display: -webkit-box;
+      top: 0;
+      left: 0;
+      width: calc(var(--sidebar-max) - var(--sp-4));
+      overflow: hidden;
+      max-height: 2.6em;
+      padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
+      line-height: 1.3;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      transform: translateY(calc(var(--lf-toc-row-shift, 0px) - 0.5lh));
+      opacity: var(--lf-toc-label-opacity);
+      pointer-events: none;
+      transition:
+        color 0.12s ease-out,
+        opacity 0.24s ease-out;
+    }
+    lf-toc .lf-toc-start a {
+      font-weight: 600;
+      line-height: 1.2;
+      max-height: 2.4em;
+    }
+    lf-toc
+      :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
+      color: var(--ink-2);
+    }
+    lf-toc a[data-lf-focus-visible] {
+      outline: var(--focus-ring);
+      outline-offset: calc(-1 * var(--focus-ring-w));
+    }
+    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
+      --lf-toc-label-opacity: 1;
+      background: color-mix(in srgb, var(--paper) 92%, transparent);
+    }
+    @scope (body[data-lf-go-to-active] lf-toc) {
+      :scope:is(lf-toc) .lf-toc-nav {
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
-      @scope (body[data-lf-go-to-active] lf-toc) {
-        :scope:is(lf-toc) .lf-toc-nav {
-          --lf-toc-label-opacity: 1;
-          background: color-mix(in srgb, var(--paper) 92%, transparent);
-        }
-      }
-      lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav a {
+    }
+    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav a {
+      pointer-events: auto;
+    }
+    @scope (body[data-lf-go-to-active] lf-toc) {
+      :scope:is(lf-toc) .lf-toc-nav a {
         pointer-events: auto;
       }
-      @scope (body[data-lf-go-to-active] lf-toc) {
-        :scope:is(lf-toc) .lf-toc-nav a {
-          pointer-events: auto;
-        }
-      }
-      /* A crowded but physically fitting map uses one line per destination before the
+    }
+    /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still reveals the complete route. */
-      lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
-        max-height: 1.25em;
-        font-size: var(--t-6);
-        line-height: 1.25;
-        -webkit-line-clamp: 1;
-      }
-      /* When the labels themselves exceed the map's height, this is an ordinary open,
+    lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
+      max-height: 1.25em;
+      font-size: var(--t-6);
+      line-height: 1.25;
+      -webkit-line-clamp: 1;
+    }
+    /* When the labels themselves exceed the map's height, this is an ordinary open,
        * scrollable outline instead. Unlike the transient map, it is always interactive,
        * so it keeps an opaque paper and fits the free gutter rather than covering the
        * document beneath it. */
-      lf-toc[data-lf-outline] .lf-toc-nav {
-        --lf-toc-label-opacity: 1;
-        width: max(
-          40px,
-          min(320px, calc(var(--lf-beside) + var(--lf-shift, 0px) - 2 * var(--sp-4)))
-        );
-        background: var(--paper);
-        overflow-y: auto;
-        pointer-events: auto;
-      }
-      lf-toc[data-lf-outline] .lf-toc-rows::before,
-      lf-toc[data-lf-outline] .lf-toc-window,
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
-        display: none;
-      }
-      lf-toc[data-lf-outline] .lf-toc-heading {
-        display: block;
-      }
-      lf-toc[data-lf-outline] .lf-toc-rows {
-        display: block;
-        height: auto;
-      }
-      lf-toc[data-lf-outline] ol {
-        display: block;
-      }
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li) {
-        display: block;
-        margin: 0 0 0 var(--lf-toc-indent);
-      }
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-hidden] {
-        display: none;
-      }
-      lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
-        position: relative;
-        display: block;
-        width: 100%;
-        max-height: none;
-        padding: 3px 0;
-        transform: none;
-        -webkit-line-clamp: initial;
-        opacity: 1;
-        pointer-events: auto;
-      }
+    lf-toc[data-lf-outline] .lf-toc-nav {
+      --lf-toc-label-opacity: 1;
+      width: min(320px, 100cqi);
+      background: var(--paper);
+      overflow-y: auto;
+      pointer-events: auto;
+    }
+    lf-toc[data-lf-outline] .lf-toc-rows::before,
+    lf-toc[data-lf-outline] .lf-toc-window,
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
+      display: none;
+    }
+    lf-toc[data-lf-outline] .lf-toc-heading {
+      display: block;
+    }
+    lf-toc[data-lf-outline] .lf-toc-rows {
+      display: block;
+      height: auto;
+    }
+    lf-toc[data-lf-outline] ol {
+      display: block;
+    }
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li) {
+      display: block;
+      margin: 0 0 0 var(--lf-toc-indent);
+    }
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-hidden] {
+      display: none;
+    }
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
+      position: relative;
+      display: block;
+      width: 100%;
+      max-height: none;
+      padding: 3px 0;
+      transform: none;
+      -webkit-line-clamp: initial;
+      opacity: 1;
+      pointer-events: auto;
     }
   }
 }

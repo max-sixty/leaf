@@ -50,6 +50,12 @@
    the selection composer (composing/selection.js) from them and its own bar commands.
    Its constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
+import {
+  pageRange,
+  programmaticSelection,
+  selectEnds,
+  selectionBackward,
+} from "../native-selection.js";
 import { signal } from "/runtime/framework.js";
 import { addressableWord } from "../addressable-names.js";
 import {
@@ -85,16 +91,7 @@ import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import {
-  elementById,
-  closestAcross,
-  inChrome,
-  pageRange,
-  pageWords,
-  programmaticSelection,
-  selectEnds,
-  selectionBackward,
-} from "../passages.js";
+import { elementById, closestAcross, inChrome, pageWords } from "../passages.js";
 import {
   leftThePage,
   pageSelection,

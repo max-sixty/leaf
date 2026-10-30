@@ -3965,7 +3965,7 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
         started.set()
         assert release.wait(COMPOSITE_TIMEOUT)
         assert fetch(state_url, token=None) == (200, before)
-        return RenderReading([], [], [])
+        return RenderReading([], [])
 
     monkeypatch.setattr(
         browser_command, "run_in_browser", lambda read: (read(None), "held browser")

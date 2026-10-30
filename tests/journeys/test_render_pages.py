@@ -11,7 +11,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
 )
-from render_cases_layout import toggle_queue
 from render_cases_widgets import (
     FRAMED_SCROLLER_PAGE,
     OWN_MARGIN_FURNITURE,
@@ -24,7 +23,6 @@ from render_harness import (
     INLINE_PAGE,
     PANEL_THREAD,
     leaf_page,
-    margins_laid_out,
     open_page,
     page_registry,
     panel_settled,
@@ -570,14 +568,9 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
       return {
         left: box.left, right: box.right, width: box.width, children,
         room: (() => {
-          const probe = document.createElement('i');
-          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
-          // Children of a breakout reset --lf-room to 100%; read its parent's
-          // allocation, which is the room the breakout itself received.
-          el.parentElement.append(probe);
-          const width = probe.getBoundingClientRect().width;
-          probe.remove();
-          return width;
+          const parent = el.parentElement, style = getComputedStyle(parent);
+          return parent.clientWidth - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight);
         })(),
       };
     }""")
@@ -595,18 +588,18 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
 </style>
-<aside class="sidebar">
+<div class="layout-sidebar"><aside><div class="layout-track">
   <p>Reference</p><p>Supporting information</p><p>Helpful link</p>
   <p>Further notes</p><p>Useful actions</p>
-</aside>
+</div></aside><div class="layout-column">
 <h1 id="t">Available package surface</h1>
-<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy></div></div>
 """,
     )
     page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
-      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const sidebar = document.querySelector('.layout-sidebar > aside').getBoundingClientRect();
       const surface = document.querySelector('lf-roomy').getBoundingClientRect();
       return {
         sidebar: {left: sidebar.left, right: sidebar.right,
@@ -749,248 +742,6 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
 
 
-def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
-    """The sidebar is a page-level margin content rather than a narrower prose column.
-
-    On a roomy page a sidebar with prose claims the full left margin while its contents
-    map rests as a spine, fixed at the window's top. The column keeps the page's axis,
-    and the map's labels reveal without moving anything. The release-notes shot, the
-    wide exhibit in the control, grows left only to the claimed margin's edge.
-
-    The On panel stands over the page from the right and moves nothing in the left
-    margin. A narrow viewport returns the aside to the flow, and print proves paper
-    reserves no blank margin for a posture it cannot use.
-
-    A sidebar that holds only the map has nothing for a float to hold, so wherever the
-    map stands in the margin that sidebar stands as the map alone and takes no room in
-    the flow: the block after it stands where it would with the sidebar gone."""
-    # Compose the wide release-note exhibit with a sidebar holding the map and a line of
-    # its own; the short public draft no longer needs one of its own.
-    release = next(p for p in EXAMPLES if p.stem == "release-notes").read_text()
-
-    def with_sidebar(holds):
-        return release.replace(
-            '<section id="rn-cli-section">',
-            f'<aside class="sidebar" id="test-sidebar">{holds}'
-            '<lf-toc id="test-sidebar-toc"></lf-toc></aside>'
-            '<section id="rn-cli-section">',
-        )
-
-    example = with_sidebar('<p id="test-sidebar-release">Release 4.2</p>')
-    page = open_page(browser, serve(example))
-    sidebar = page.locator("aside.sidebar")
-
-    reading = """() => {
-      const sidebar = document.querySelector('aside.sidebar');
-      const main = document.querySelector('main');
-      const exhibit = document.querySelector('lf-shot');
-      const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
-      const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
-      const eb = exhibit.getBoundingClientRect();
-      const toc = document.querySelector('lf-toc').getBoundingClientRect();
-      const nav = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
-      const marginClusters = [...document.querySelectorAll('.lf-margin-cluster')]
-        .filter(node => node.checkVisibility());
-      const marginRight = Math.max(0,
-        ...marginClusters.map(node => node.getBoundingClientRect().right));
-      const measure = (value) => {
-        const probe = document.createElement('i');
-        probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;height:0;padding:0;border:0;width:'
-          + value;
-        main.append(probe);
-        const width = probe.getBoundingClientRect().width;
-        probe.remove();
-        return width;
-      };
-      return {
-        taken: measure('var(--lf-taken-l, 0px)'), pageWidth: measure('100cqi'),
-        float: ss.float, position: ss.position,
-        sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
-        toc: {left: toc.left, right: toc.right, width: toc.width},
-        nav: {left: nav.left, right: nav.right, width: nav.width},
-        column: {
-          left: mb.left + parseFloat(ms.paddingLeft),
-          right: mb.right - parseFloat(ms.paddingRight),
-        },
-        marginCount: marginClusters.length, marginRight,
-        document: {
-          width: document.documentElement.scrollWidth,
-          height: document.documentElement.scrollHeight,
-        },
-        viewportWidth: document.documentElement.clientWidth,
-        exhibit: {left: eb.left, right: eb.right},
-      };
-    }"""
-    resized(page, 1400, 900)
-    margins_laid_out(page)
-    roomy = page.evaluate(reading)
-    # The sidebar also holds prose, so it keeps its full margin claim while the map
-    # rests on its spine. Its labels may reveal inside that reserved space.
-    assert 0 < roomy["toc"]["width"] < roomy["taken"], roomy
-    assert abs(roomy["taken"] - roomy["column"]["left"]) <= 1, roomy
-    assert roomy["float"] == "left" and roomy["position"] == "sticky"
-    assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
-        f"the sidebar's box reached into the reading column: {roomy}"
-    )
-    assert (
-        abs(
-            (roomy["column"]["left"] + roomy["column"]["right"]) / 2
-            - roomy["pageWidth"] / 2
-        )
-        <= 1
-    ), f"the contents map moved the reading column off the page's axis: {roomy}"
-    assert roomy["toc"]["width"] == 24
-    assert roomy["exhibit"]["left"] >= max(roomy["toc"]["right"], roomy["taken"] - 1), (
-        f"a wide exhibit painted over the reserved margin: {roomy}"
-    )
-    assert root_overflow(page) == 0
-
-    # The real pointer route reveals labels inside the map's settled rectangle. Its
-    # complete reservation and every unrelated box remain fixed under the user's aim.
-    # At rest the map takes the pointer on its spine alone.
-    nav_box = page.locator("lf-toc .lf-toc-nav").bounding_box()
-    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + nav_box["height"] / 2)
-    page.wait_for_function(
-        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
-    )
-    expanded = page.evaluate(reading)
-    assert expanded["taken"] == roomy["taken"]
-    assert expanded["toc"]["width"] == roomy["toc"]["width"]
-    assert expanded["nav"]["width"] == 320
-    assert expanded["column"] == roomy["column"]
-    assert expanded["exhibit"] == roomy["exhibit"]
-    assert expanded["document"] == roomy["document"]
-    page.locator("h1").hover()
-    page.wait_for_function(
-        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
-    )
-    page.keyboard.press("g")
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    page.wait_for_function(
-        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
-    )
-    revealed_by_keyboard = page.evaluate(reading)
-    assert revealed_by_keyboard["column"] == roomy["column"]
-    assert revealed_by_keyboard["exhibit"] == roomy["exhibit"]
-    assert revealed_by_keyboard["document"] == roomy["document"]
-    page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
-    page.wait_for_function(
-        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
-    )
-
-    # On me stands over the page in the panel and moves nothing in the left margin: the
-    # fixed ToC and the sidebar stay where the page put them while it stands.
-    resized(page, 1700, 900)
-    margin = """() => {
-          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
-          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
-          return {sidebarLeft: sidebar.left, tocLeft: toc.left};
-        }"""
-    before = page.evaluate(margin)
-    toggle_queue(page)
-    assert page.evaluate(margin) == before
-    geometry = page.evaluate(
-        """() => {
-          const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
-          const toc = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
-          const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
-          return {sidebarLeft: sidebar.left, tocLeft: toc.left,
-                  tocTop: toc.top, tocBottom: toc.bottom, panelTop: panel.top,
-                  sidebarPosition: getComputedStyle(document.querySelector('aside.sidebar')).position,
-                  tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
-        }"""
-    )
-    assert geometry["sidebarPosition"] == "sticky"
-    assert geometry["tocPosition"] == "fixed"
-    assert geometry["tocTop"] == pytest.approx(0, abs=1)
-    # The map ends above the room the panel keeps at the foot, its last entry in view.
-    assert geometry["tocBottom"] <= geometry["panelTop"] + 1, (
-        f"the map's foot runs under the panel: {geometry}"
-    )
-    toggle_queue(page, open=False)
-
-    resized(page, 1400, 900)
-
-    # Halfway through the stretch where the box stands on its own offset: past the
-    # scroll that lifts it off where it was authored, and short of the one where main's
-    # own end starts carrying it back up. Both edges are the page's, so they are read
-    # off it — a named scroll fell past the far one when the release page grew shorter.
-    parked = page.evaluate(
-        """() => {
-          const scroller = document.scrollingElement;
-          scroller.style.scrollBehavior = 'auto';
-          const sidebar = document.querySelector('aside.sidebar');
-          const main = sidebar.parentElement;
-          const box = sidebar.getBoundingClientRect();
-          const style = getComputedStyle(sidebar);
-          const offset = parseFloat(style.top);
-          const stands = scroller.scrollTop + box.top - offset;
-          const carried = scroller.scrollTop + main.getBoundingClientRect().bottom
-            - parseFloat(getComputedStyle(main).paddingBottom)
-            - parseFloat(style.marginBottom) - box.height - offset;
-          const lastScroll = scroller.scrollHeight - scroller.clientHeight;
-          const at = Math.round((stands + Math.min(carried, lastScroll)) / 2);
-          scroller.scrollTo(0, at);
-          return { at, stands, carried, lastScroll };
-        }"""
-    )
-    # The stretch has to exist before a point halfway along it says anything. A page
-    # too short to lift the box off where it was authored parks the scroll behind
-    # `stands`, and the ring assertion below would then report a position rather than
-    # the page that made it meaningless.
-    assert min(parked["carried"], parked["lastScroll"]) > parked["stands"], (
-        f"the page is too short for the sidebar to stand on its own offset: {parked}"
-    )
-    page.wait_for_function(
-        "at => document.scrollingElement.scrollTop >= at - 1", arg=parked["at"]
-    )
-    stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
-    # No chrome stands at the window's head, so the box sticks its own gap below it.
-    assert 22 <= stuck <= 26, (
-        f"the sidebar stuck at {stuck:.0f}px, not its gap below the window's top"
-    )
-
-    page.close()
-
-    page = open_page(browser, serve(with_sidebar("")))
-    for width in (1100, 1400):
-        resized(page, width, 900)
-        margins_laid_out(page)
-        band = page.evaluate(
-            """() => lfUnwatched(() => {
-              const sidebar = document.querySelector('aside.sidebar');
-              const next = sidebar.nextElementSibling;
-              const kept = next.getBoundingClientRect().top;
-              sidebar.style.display = 'none';
-              const gone = next.getBoundingClientRect().top;
-              sidebar.style.display = '';
-              return {kept, gone, float: getComputedStyle(sidebar).float,
-                      toc: getComputedStyle(sidebar.querySelector('lf-toc')).position};
-            })"""
-        )
-        assert band["toc"] == "fixed" and band["float"] == "none", (width, band)
-        assert band["kept"] == band["gone"], (
-            f"at {width}px the sidebar the map left opened a gap in the flow: {band}"
-        )
-    page.close()
-
-    page = open_page(browser, serve(example))
-    resized(page, 700, 900)
-    narrow = page.evaluate(reading)
-    assert narrow["taken"] == 0
-    assert narrow["float"] == "none" and narrow["position"] in {"static", "relative"}
-    assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
-    assert root_overflow(page) == 0
-
-    resized(page, 1400, 900)
-    page.emulate_media(media="print")
-    printed = page.evaluate(reading)
-    assert printed["taken"] == 0
-    assert printed["float"] == "none" and printed["position"] in {"static", "relative"}
-    assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
-
-
 def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
     """Cookie names distinguish real ports in one browser's shared cookie jar."""
     first_url = serve(INLINE_PAGE)
@@ -1035,12 +786,12 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
 <h1>Migration plan</h1>
-<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
-<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside><div class="layout-column layout-notes">
+<div class="layout-note"><p>Support cadence.</p><aside class="note" id="frequency">Support runs this twice a month.</aside></div>
 <h2 id="move">Move</h2>
 <p>Shift one cohort at a time while keeping the old readers available.</p>
 <div id="room" data-width="available">Available evidence.</div>
-<div style="height: 1200px"></div>
+<div style="height: 1200px"></div></div></div>
 """
     workspace_body = """
 <header><h1>Queue</h1></header>
@@ -1056,9 +807,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
       };
       const measured = {
         box: rect(target),
-        margin: target.getAttribute('data-lf-margin'),
         regions: rect(document.getElementById('regions') ?? target),
-        shifted: document.body.style.getPropertyValue('--lf-column-shift'),
         main: rect(main),
         inner: [Math.round(rect(main)[0] + main.clientLeft),
                 Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
@@ -1094,15 +843,12 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         return readings
 
     on_main, in_child = measured(column_body, "column", 1160)
-    assert on_main["margin"] == "rail sidebar", on_main
-    assert on_main["shifted"], on_main
     assert without_main(in_child) == without_main(on_main)
     mapped = column_body.replace(
         '<nav aria-label="Route"><a href="#move">Move</a></nav>',
         '<lf-toc id="contents"></lf-toc>',
     )
     on_main, in_child = measured(mapped, "column", 1440)
-    assert on_main["margin"] == "rail map note", on_main
     assert on_main["contents"][2] == "fixed", on_main
     assert without_main(in_child) == without_main(on_main)
     on_main, in_child = measured(workspace_body, "workspace", 1280)

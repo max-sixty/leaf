@@ -419,7 +419,6 @@ def publish_live_shells(
         asset_root = f"/_leaf-release/{release}/{key}"
         kind = "example" if page_root.startswith("/examples/") else "product"
         states = {}
-        initial_data = {}
         current = latest_revision(page_dir)
         for revision in list_revisions(page_dir):
             state_path = f"/_leaf/state/{key}--r{revision}.json"
@@ -430,7 +429,6 @@ def publish_live_shells(
                 json.dumps(state, ensure_ascii=False), encoding="utf-8"
             )
             states[str(revision)] = state_path
-            initial_data[revision] = state["data"]
         state_path = states[str(current)]
         state = initial_state(page_dir, page_root, kind, release)
         title, description = document_metadata(page_dir / "index.html")
@@ -449,7 +447,6 @@ def publish_live_shells(
         write_live_shell(
             page_dir,
             destination,
-            initial_data=initial_data,
             page_root=page_root,
             release_id=release,
             asset_root=asset_root,

@@ -32,7 +32,9 @@
   let semantic = null;
   let stopWatching = null;
   async function diagnostics() {
-    const entry = document.querySelector("script[data-lf-entry]").dataset.lfEntry;
+    const entry = /** @type {HTMLScriptElement | null} */ (
+      document.querySelector("script[data-lf-entry]")
+    ).dataset.lfEntry;
     semantic ??= await import(
       new URL("runtime/check-api.js", new URL(entry, location.href)).href
     );
@@ -66,8 +68,11 @@
     revision: ({ revision, id, words }) => {
       const node = document.getElementById(id);
       return (
-        Number(document.querySelector('meta[name="lf-revision"]')?.content) >=
-          revision &&
+        Number(
+          /** @type {HTMLMetaElement | null} */ (
+            document.querySelector('meta[name="lf-revision"]')
+          )?.content,
+        ) >= revision &&
         document.body.hasAttribute("data-lf-presented") &&
         shown(node) &&
         node.textContent.includes(words)
@@ -166,10 +171,16 @@
       input: () => input,
       frames: () => window.__leafMainThread.reading().frames,
       revision: () =>
-        Number(document.querySelector('meta[name="lf-revision"]')?.content),
+        Number(
+          /** @type {HTMLMetaElement | null} */ (
+            document.querySelector('meta[name="lf-revision"]')
+          )?.content,
+        ),
       quiet() {
         const ready =
-          document.querySelector("script[data-lf-entry]")?.lfReadiness?.() === null;
+          /** @type {HTMLScriptElement | null} */ (
+            document.querySelector("script[data-lf-entry]")
+          )?.lfReadiness?.() === null;
         const trips = ledger();
         return (
           ready &&

@@ -816,6 +816,15 @@ def command_reference_search(page: Page) -> None:
     page.get_by_role("combobox", name="Search commands").fill("comment")
 
 
+def page_map(page: Page) -> None:
+    """The Page Map over a plan's threads, questions and controls: its title, its
+    groups' headings and its rows' ends."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+P")
+    expect(page.locator(".lf-page-map-dialog[open]")).to_be_visible()
+
+
 def retained_quote(page: Page) -> None:
     """A thread whose passage the page no longer holds, opened in its sample's
     floating panel, where its retained quotation reads once the panel draws one."""
@@ -2510,6 +2519,7 @@ STATES = (
         touch=True,
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
+    State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",

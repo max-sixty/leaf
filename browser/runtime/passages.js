@@ -551,18 +551,20 @@ export const authored = (root) => {
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
 // A visible <br> contributes a separator even though it has no text node of its own.
-function walk(root, onText, skip = null, onBreak = null) {
+function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   const frame = frameOf(root);
   const passed = new Map();
   const contextOver = (node) => {
     const over = elementOver(node);
     return passed.get(over) ?? contextAt(over, frame);
   };
-  const visit = (node, ctx) => {
+  const visit = (node, ctx, host = null) => {
+    const element = host ?? (node.nodeType === Node.ELEMENT_NODE ? node : null);
     if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
       onBreak?.(ctx);
       return;
     }
+    if (element) onElement?.(element, ctx, true);
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
         // A shadow root's own text has no element over it, which elementOver refuses:
@@ -575,10 +577,12 @@ function walk(root, onText, skip = null, onBreak = null) {
       const inner = enter(ctx, child);
       if (child.localName === "slot") {
         passed.set(child, inner);
+        onElement?.(child, inner, true);
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE
             ? onText(assigned, contextOver(assigned))
             : visit(assigned, enter(contextOver(assigned), assigned));
+        onElement?.(child, inner, false);
       } else {
         // Only a root the registry declares (x-shadow): the capture asks
         // getComposedRanges for exactly the declared ones, and every climb
@@ -593,10 +597,11 @@ function walk(root, onText, skip = null, onBreak = null) {
         const declared = declaredRoot(child);
         if (declared && !refusesBareText(declared)) {
           passed.set(child, inner);
-          visit(declared, crossed(inner));
+          visit(declared, crossed(inner), child);
         } else visit(child, inner);
       }
     }
+    if (element) onElement?.(element, ctx, false);
   };
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
@@ -615,23 +620,59 @@ function walk(root, onText, skip = null, onBreak = null) {
 // in their tree).
 // `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
 // the walk, for a reader that stands something else in their place (render-checks,
-// `shownVerbatim`).
-export function textNodesUnder(root, reading = "says", boundary = null) {
+// `shownVerbatim`). The lines format also carries computed block boundaries and
+// whitespace; ordinary passage readings never ask the browser for these styles.
+export function textNodesUnder(
+  root,
+  reading = "says",
+  boundary = null,
+  format = "prose",
+) {
   const keeps = READINGS[reading];
   const segments = [];
   let breakBefore = false;
+  let lineBefore = "";
+  const styles = new Map();
+  const style = (element) => {
+    if (!styles.has(element)) styles.set(element, getComputedStyle(element));
+    return styles.get(element);
+  };
   walk(
     root,
     (node, ctx) => {
       if (keeps(ctx)) {
-        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        segments.push({
+          ...segmentIn(node, ctx),
+          breakBefore,
+          ...(format === "lines" && {
+            lineBefore,
+            whiteSpace: style(renderedParent(node)).whiteSpaceCollapse,
+          }),
+        });
         breakBefore = false;
+        lineBefore = "";
       }
     },
     boundary && ((child) => boundary(child, segments.length)),
     (ctx) => {
-      if (keeps(ctx)) breakBefore = true;
+      if (keeps(ctx)) {
+        breakBefore = true;
+        lineBefore = "\n";
+      }
     },
+    format === "lines"
+      ? (element, ctx, entering) => {
+          if (!keeps(ctx)) return;
+          const display = style(element).display;
+          if (display === "table-cell") {
+            if (!entering && lineBefore !== "\n") lineBefore = "\t";
+          } else if (
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+          ) {
+            lineBefore = "\n";
+          }
+        }
+      : null,
   );
   return segments;
 }
@@ -913,12 +954,48 @@ export const readingFrom = (segments) =>
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");
 
+// Copyable words use the same segments as prose, with the walk's computed line
+// boundaries and whitespace. They need no DOM-coordinate map; quote readings above
+// keep their own normalization unchanged.
+function linesFrom(segments) {
+  let text = "";
+  let separator = "";
+  for (const segment of segments) {
+    if (segment.lineBefore && text)
+      separator = segment.lineBefore === "\n" || separator === "\n" ? "\n" : "\t";
+    const { whiteSpace } = segment;
+    const collapses =
+      whiteSpace === "preserve" || whiteSpace === "break-spaces"
+        ? null
+        : whiteSpace === "preserve-breaks"
+          ? /[\t\r\f ]/
+          : /[\t\n\r\f ]/;
+    for (const character of segment.node.data.slice(segment.start, segment.end)) {
+      if (collapses?.test(character)) {
+        if (text && !text.endsWith("\n")) separator ||= " ";
+        continue;
+      }
+      if (whiteSpace === "preserve-breaks" && character === "\n" && separator === " ")
+        separator = "";
+      text += separator + character;
+      separator = "";
+    }
+  }
+  return text;
+}
+
 // What an element says, read the way this file reads the page everywhere else. A widget
 // wanting the words in one of its own slots asks for them here rather than through
 // `textContent`, because the two differ: the paint pass writes a hidden line into any text
 // block that carries a comment, including blocks inside a widget, and `textContent` returns
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
-export const says = (el) => quoteFrom(textNodesUnder(el));
+// The lines format takes block boundaries and preserved whitespace from computed
+// styles while the same composed walk determines which words belong to the page.
+/** @param {{format?: "prose" | "lines"}} [options] */
+export const says = (el, options = {}) => {
+  const segments = textNodesUnder(el, "says", null, options.format);
+  return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
+};
 // The other question, and a different answer: what the *author* wrote here, with
 // everything an upgrade generated left out. A version comparison keys sources by it and
 // paints a source's words onto the live block that reads the same; a widget asks it to name

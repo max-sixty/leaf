@@ -1594,12 +1594,13 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
     def edged(declarations):
         return any(
-            sides.fullmatch(name)
-            and thick(value)
-            or name == "box-shadow"
-            and any(
-                (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
-                for x, y in inset.findall(value)
+            (sides.fullmatch(name) and thick(value))
+            or (
+                name == "box-shadow"
+                and any(
+                    (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
+                    for x, y in inset.findall(value)
+                )
             )
             for name, value in declarations
         )
@@ -2560,7 +2561,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     def initialize():
         try:
             vendoring_model.cmd_init(page)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)

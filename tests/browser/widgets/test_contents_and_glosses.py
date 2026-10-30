@@ -1052,7 +1052,9 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
     native = lens_track()
     fallback = lens_track("delete globalThis.ScrollTimeline;")
     assert native[2][0] > native[0][0] + 300, native
-    for (native_top, native_height), (top, height) in zip(native, fallback):
+    for (native_top, native_height), (top, height) in zip(
+        native, fallback, strict=True
+    ):
         assert top == pytest.approx(native_top, abs=1), (native, fallback)
         assert height == pytest.approx(native_height, abs=1), (native, fallback)
 

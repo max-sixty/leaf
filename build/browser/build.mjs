@@ -19,10 +19,11 @@
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
  * package directories, so its CLI and editors resolve the same installed modules.
  *
- * The framework (`runtime/framework.js` and the modules behind it) is written as
- * JavaScript the type check reads, so a page serves its source as it does every other
- * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit when a page declares an initial producer,
+ * Runtime TypeScript owners compile to committed JavaScript at the same public URLs
+ * (`runtime-sources.mjs`); source fallback and installs need no compiler. The strict
+ * program checks those owners, and ESLint and the import graph check their emitted
+ * JavaScript as they check handwritten modules. Third-party packages are minified
+ * builds from the lock and the adaptations below. Delivery inlines Lit when a page declares an initial producer,
  * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
  * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
  * loads one implementation. Signals are the framework's own: the kernel compiles
@@ -50,6 +51,7 @@ import {
 } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
+import { typedHeader, typedSources } from "../runtime-sources.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
@@ -205,7 +207,8 @@ async function protocolOutputs() {
 }
 
 // Two programs type-check the browser code, and each file has one checker.
-// `tsconfig.json` holds the runtime modules that opt in with a leading `// @ts-check`
+// `tsconfig.json` holds every runtime TypeScript owner and the JavaScript modules
+// that opt in with a leading `// @ts-check`
 // to strict mode; it includes every runtime module so that each one opting in is
 // checked there. Every framework module must opt in (`frameworkOptsIn`).
 // `tsconfig.runtime.json` checks without it the rest of the runtime's modules,
@@ -222,7 +225,14 @@ async function protocolOutputs() {
 // runtime program also reaches the strict program's files and the vendored
 // third-party bundles. A diagnostic there is not the runtime program's to report, and
 // the build drops it.
+const { modules: typedModules, outputs: typedOutputs } = typedSources();
+const typedJavaScript = new Set([
+  ...typedModules.map(([, output]) => output),
+  ...typedOutputs,
+]);
 const strict = (file) =>
+  file.endsWith(".ts") ||
+  typedJavaScript.has(file) ||
   readFileSync(path.join(root, file), "utf8").startsWith("// @ts-check");
 const runtimeChecks = (file) =>
   file.endsWith(".js") &&
@@ -230,7 +240,8 @@ const runtimeChecks = (file) =>
   !strict(file);
 
 /** Refuse a framework module that doesn't opt into the strict program, since the
- * framework's types are strict wherever it puts a module. */
+ * framework's types are strict wherever it puts a module. TypeScript owners are
+ * strict without a pragma. */
 async function frameworkOptsIn() {
   const modules = [
     `${assets}/runtime/framework.js`,
@@ -290,6 +301,22 @@ export async function buildOutputs() {
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
   const outputs = new Map([
+    ...(await Promise.all(
+      typedModules.map(async ([source, output]) => {
+        const result = await build({
+          absWorkingDir: root,
+          entryPoints: [source],
+          outfile: output,
+          platform: "browser",
+          format: "esm",
+          target: "es2022",
+          banner: { js: typedHeader.trimEnd() },
+          write: false,
+          logLevel: "silent",
+        });
+        return [output, Buffer.from(result.outputFiles[0].contents)];
+      }),
+    )),
     [compilerPathsFile, paths],
     [litTypesFile, lit],
     [baselineName, Buffer.from(protocol.baseline)],
@@ -419,6 +446,7 @@ async function kernelOf(outputs) {
     for (const name of ["leaf.js", "runtime", "widgets"])
       await cp(path.join(root, assets, name), path.join(layer, name), {
         recursive: true,
+        filter: (source) => !typedJavaScript.has(path.relative(root, source)),
       });
     await mkdir(path.join(layer, "vendor"));
     for (const [name, bytes] of outputs) {
@@ -452,7 +480,7 @@ async function ownedDirectories(directory) {
 }
 
 export async function checkOutputs(outputs, directory = root) {
-  const stale = [];
+  const stale = typedSources(directory).outputs.filter((name) => !outputs.has(name));
   for (const owned of await ownedDirectories(directory))
     for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
@@ -499,7 +527,7 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    for (const owned of await ownedDirectories(root))
+    for (const owned of [...(await ownedDirectories(root)), ...typedOutputs])
       await rm(path.join(root, owned), { force: true, recursive: true });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);

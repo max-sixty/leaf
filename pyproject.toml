@@ -103,6 +103,7 @@ dev = [
   "pytest-image-snapshot[pixelmatch]>=0.5.3",
   "ty>=0.0.94",
   "ruff>=0.17.3",
+  "datamodel-code-generator>=0.87.0",
 ]
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
@@ -126,10 +127,18 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "UP"]
+select = [
+  "F", "E", "W", "I", "UP", "B", "RUF",
+  "ASYNC", "LOG", "PLE",
+  # Pytest mistakes: invalid fixture arguments, missing exception types,
+  # duplicate cases, always-failing asserts, ineffective marks and parameters.
+  "PT002", "PT010", "PT014", "PT015", "PT024", "PT025", "PT026", "PT028",
+]
 # The formatter owns line wrapping; existing module setup and callable expressions
 # may put imports after setup or use a lambda as a value.
-ignore = ["E402", "E501", "E731"]
+# Authored prose may intentionally use Unicode; collection construction and union
+# ordering are style choices rather than correctness requirements.
+ignore = ["E402", "E501", "E731", "RUF001", "RUF002", "RUF003", "RUF005", "RUF036"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]

@@ -2,6 +2,7 @@
 
 import re
 from html import escape
+from itertools import pairwise
 
 import pytest
 from playwright.sync_api import expect
@@ -88,7 +89,7 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 ), [(stat["width"], stat["content"]) for stat in row["stats"]]
                 assert all(
                     before["right"] < after["left"]
-                    for before, after in zip(row["stats"], row["stats"][1:])
+                    for before, after in pairwise(row["stats"])
                 )
             if reading["width"] > 608:
                 if width == 1280:
@@ -280,11 +281,11 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     page.locator("h1").click()
     page.evaluate("""async () => {
       const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollBy = Element.prototype.scrollBy;
-      Element.prototype.scrollBy = function(options) {
-        const result = scrollBy.call(this, options);
+      const scrollTo = Element.prototype.scrollTo;
+      Element.prototype.scrollTo = function(options) {
+        const result = scrollTo.call(this, options);
         if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollBy = scrollBy;
+          Element.prototype.scrollTo = scrollTo;
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');

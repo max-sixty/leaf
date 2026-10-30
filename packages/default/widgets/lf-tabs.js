@@ -365,7 +365,7 @@ export class TabSet extends LeafElement {
                   ${
                     run.group
                       ? html`<span
-                          class="lf-tab-group"
+                          class="lf-tab-group lf-rows-head"
                           aria-hidden="true"
                           ${generated({ says: true })}
                           >${run.group}</span

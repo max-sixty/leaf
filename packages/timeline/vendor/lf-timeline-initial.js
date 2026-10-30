@@ -467,7 +467,7 @@
       >
         ${chartTemplate()}
       </div>
-      <ol class="lf-timeline-steps" ${ref(listRef)}>
+      <ol class="lf-timeline-steps lf-rows" ${ref(listRef)}>
         ${model.steps.map(
         (step, index) => html`<li>
               <span
@@ -477,9 +477,11 @@
                 aria-current=${index === current ? "step" : nothing}
                 ?data-past=${index < current}
               >
-                <span class="lf-timeline-step-time">${clock(step.time)}</span>
+                <span class="lf-timeline-step-time lf-row-lead"
+                  >${clock(step.time)}</span
+                >
                 ${step.events.map(
-          (event) => html`<span class="lf-timeline-step-event"
+          (event) => html`<span class="lf-timeline-step-event lf-row-main"
                       ><span class="lf-timeline-step-lane"
                         >${model.lanes[event.lane].label}: </span
                       >${event.label}</span

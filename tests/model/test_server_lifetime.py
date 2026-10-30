@@ -246,7 +246,8 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
     [refused] = command_findings("page", "init", "--package", "./.leaf", str(page_dir))
 
     assert refused.code == "registry-json"
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     assert incarnation() == before
 
 
@@ -535,7 +536,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     def stop():
         try:
             outcomes.append(hosting_model.cmd_stop(page_dir))
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     stopping = threading.Thread(target=stop)
@@ -750,6 +751,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     process it didn't start nor a leaf that outlives it."""
     server = persistent_server(page_dir)
     launched = server_model.running_server(page_dir)
+    assert launched is not None
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
 
     # A session picks the page up, the way `leaf wait` does.

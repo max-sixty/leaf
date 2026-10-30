@@ -63,7 +63,7 @@ from interact_support import (
 )
 from model_folds import leaf_page
 from PIL import Image
-from playwright.sync_api import BrowserContext, Page, expect
+from playwright.sync_api import BrowserContext, Frame, Page, expect
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -1617,7 +1617,9 @@ def is_problem(problem, expected):
         if name in {"node", "field", "place"} and isinstance(value, list):
             if not isinstance(actual, list) or len(actual) != len(value):
                 return False
-            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+            if not all(
+                place_step_matches(a, e) for a, e in zip(actual, value, strict=True)
+            ):
                 return False
         elif actual != value:
             return False
@@ -1813,10 +1815,13 @@ def press_visible(page, control, *, touch=False):
 
     Locator click/tap on Chromium 156 can scroll the document while preparing a
     visible fixed control. Coordinates exercise the user's visible route directly.
+    A frame's bounding box is already in its owning page's coordinates; input
+    goes through that page while the control stays scoped to its document.
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page = page.page if isinstance(page, Frame) else page
     if touch:
         page.touchscreen.tap(x, y)
     else:

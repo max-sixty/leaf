@@ -873,6 +873,7 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     """Dropping a reused server's real handshake withdraws no existing service."""
     page = codex_claimed_page
     before = server.running_server(page)
+    assert before is not None
     caller, child = socket.socketpair()
     task = spawn(
         [
@@ -940,7 +941,8 @@ def test_failed_delivery_preserves_the_existing_preview(
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
-        assert running_server(page_dir)["url"] == url
+        assert (current := running_server(page_dir)) is not None
+        assert current["url"] == url
         assert fetch(url)[0] == 200
     finally:
         cmd_stop(page_dir)

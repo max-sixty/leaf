@@ -226,7 +226,7 @@ def moved_at(cdp, node):
     cdp.send("DOM.getDocument", {"depth": 1})
     described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
     pairs = described.get("attributes", [])
-    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    attributes = dict(zip(pairs[::2], pairs[1::2], strict=True))
     name = described.get("localName") or described.get("nodeName")
     if attributes.get("id"):
         return f"{name}#{attributes['id']}"
@@ -810,12 +810,12 @@ def displaced(before, boxes, news=False):
         if news and was[4] != now[4]:
             held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
-        return any(a != b for a, b in zip(was[:4], now[:4]))
+        return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
-        for name, was, now in zip(before["names"], before["boxes"], boxes)
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]
 
@@ -1055,8 +1055,12 @@ def glyph_action_face(control):
     )
 
 
-def mark_edges(page, ident, ink):
+def mark_edges(page, ident, ink, outset=None):
     """How wide the mark is painted on each side of an element, in device pixels.
+
+    `outset` names, in CSS px, how far out from the element's edge the mark's outer
+    edge stands on each side it doesn't start at the edge, as a region's ring does at
+    its room (base.css); each scan then starts there and counts in.
 
     Geometry can't answer this and neither can the computed style: the mark is an
     outline, so every rect is identical whether the stroke survived or something
@@ -1094,17 +1098,19 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
+    outset = outset or {}
+    pad = MARK_PAD + max(outset.values(), default=0)
     box = page.locator(f"#{ident}").bounding_box()
-    clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
-    clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
-    clip["height"] = math.ceil(box["y"] + box["height"] + MARK_PAD) - clip["y"]
+    clip = {"x": math.floor(box["x"] - pad), "y": math.floor(box["y"] - pad)}
+    clip["width"] = math.ceil(box["x"] + box["width"] + pad) - clip["x"]
+    clip["height"] = math.ceil(box["y"] + box["height"] + pad) - clip["y"]
     fits = page.evaluate(
         """([x, y, w, h]) => x >= 0 && y >= 0
              && x + w <= innerWidth && y + h <= innerHeight""",
         [clip["x"], clip["y"], clip["width"], clip["height"]],
     )
     assert fits, (
-        f"#{ident} is not wholly on screen with the {MARK_PAD}px around it this squares "
+        f"#{ident} is not wholly on screen with the {pad}px around it this squares "
         f"off, and a screenshot clip is the viewport's: scroll it in and size the "
         f"viewport to it first, or the scans measure a truncated image"
     )
@@ -1123,10 +1129,21 @@ def mark_edges(page, ident, ink):
     # whatever that side's rounding added. Snapped in CSS space and then scaled, per the
     # docstring — and a trailing side counts in from the far end of a clip whose width is
     # a whole number, which flips the half, so the two directions round opposite ways.
-    lead = {"top": box["y"] - clip["y"], "left": box["x"] - clip["x"]}
+    lead = {
+        "top": box["y"] - clip["y"] - outset.get("top", 0),
+        "left": box["x"] - clip["x"] - outset.get("left", 0),
+    }
     trail = {
-        "bottom": clip["y"] + clip["height"] - box["y"] - box["height"],
-        "right": clip["x"] + clip["width"] - box["x"] - box["width"],
+        "bottom": clip["y"]
+        + clip["height"]
+        - box["y"]
+        - box["height"]
+        - outset.get("bottom", 0),
+        "right": clip["x"]
+        + clip["width"]
+        - box["x"]
+        - box["width"]
+        - outset.get("right", 0),
     }
     edge = {s: round(math.floor(g + 0.5) * scale) for s, g in lead.items()}
     edge |= {s: round(math.ceil(g - 0.5) * scale) for s, g in trail.items()}
@@ -1134,7 +1151,8 @@ def mark_edges(page, ident, ink):
     def stroke(scan, at):
         """Mark-coloured pixels contiguous with the element's edge, and no others."""
         inked = [
-            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
+            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink, strict=True))
+            for pixel in scan
         ]
         start = next((i for i in range(at - 1, at + 2) if inked[i]), None)
         if start is None:

@@ -90,8 +90,8 @@ const place = placeKeeper(dialogList, {
 });
 const dialogEmpty = el(
   "p",
-  "lf-page-map-empty",
-  "No matching actions, statuses, or locations",
+  "lf-rows-empty",
+  "No matching actions, statuses, or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -155,20 +155,22 @@ export function createPageMapDialog({
     const thread = item && inventory.sourceItem(item)?.thread;
     return thread ? threadHeading(thread) : visibleLabel;
   };
+  // A row's kind leads it, its name follows, and what it says of its state, such as
+  // whose turn a thread is, ends it, where Threads says the same.
   const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
-    html`${
-        icon
-          ? iconTemplate(icon, "lf-margin-kind")
-          : html`<span class="lf-margin-kind">${glyph}</span>`
-      }<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word"
-          >${sheetName(item, visibleLabel)}</span
+    html`<span class="lf-row-lead"
         >${
-          context
-            ? html`<span class="lf-page-map-action-context">${context}</span>`
-            : nothing
+          icon
+            ? iconTemplate(icon, "lf-margin-kind")
+            : html`<span class="lf-margin-kind">${glyph}</span>`
         }</span
-      >`;
+      ><span class="lf-page-map-action-label-word lf-row-main"
+        >${sheetName(item, visibleLabel)}</span
+      >${
+        context
+          ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>`
+          : nothing
+      }`;
 
   function activateSheetControl(event, action) {
     const { offered, record } = action;
@@ -249,7 +251,7 @@ export function createPageMapDialog({
     if (action.record.behavior === "status")
       return html`<span
         id=${action.id}
-        class="lf-page-map-action"
+        class="lf-page-map-action lf-row-plain"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
@@ -272,12 +274,12 @@ export function createPageMapDialog({
 
   const sheetGroupTemplate = (group, query) => html`
     <section
-      class="lf-page-map-group"
+      class="lf-page-map-group lf-rows-group"
       data-lf-map-group=${group.key}
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
-      <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
+      <h3 class="lf-rows-head">${group.entry.title}</h3>
+      <div class="lf-page-map-actions lf-rows">
         ${repeat(
           group.actions,
           ({ key }) => key,
@@ -341,8 +343,8 @@ export function createPageMapDialog({
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations"
-        : "No margin controls, status indicators, or locations yet",
+        ? "No matching actions, statuses, or locations."
+        : "No margin controls, status indicators, or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }

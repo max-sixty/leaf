@@ -86,7 +86,7 @@ def get_assert(output: str, context: dict) -> dict:
             f"the check matcher read defects {sorted(indices)} of "
             f"{len(verdict['defects'])}; see {work / 'defects' / 'match'}"
         )
-    by_index = dict(zip(indices, readings["defects"]))
+    by_index = dict(zip(indices, readings["defects"], strict=True))
     defects = [
         defect | {"checks": by_index[index]}
         for index, defect in enumerate(verdict["defects"])

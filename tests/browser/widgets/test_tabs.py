@@ -1170,7 +1170,9 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
         return leaf_page(
             "Grouped queue",
             '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
-            + "".join(item(key, group) for key, group in zip("abcdef", groups))
+            + "".join(
+                item(key, group) for key, group in zip("abcdef", groups, strict=True)
+            )
             + "</lf-tabs>",
         )
 

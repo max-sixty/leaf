@@ -53,6 +53,7 @@ def test_a_terminated_page_server_stops_its_title_server(
     (page / "index.html").write_text(PAGE, encoding="utf-8")
     publish(page)
     server = server_model.running_server(page)
+    assert server is not None
     event_url = (
         urllib.parse.urlsplit(server["url"])._replace(path="/api/event").geturl()
     )

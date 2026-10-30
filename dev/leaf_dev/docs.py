@@ -300,7 +300,7 @@ def field_rows(schema, path: str = "", skip: frozenset = frozenset()) -> list[tu
     ]
     alternatives = []
     for index, ((branch, condition, alternative), nested) in enumerate(
-        zip(clauses, adding), 1
+        zip(clauses, adding, strict=True), 1
     ):
         if nested:
             label = condition or f"variant {index}"

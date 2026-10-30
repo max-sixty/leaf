@@ -1946,7 +1946,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     page.mouse.move(4, 4)
     assert strip(latest).evaluate("s => s.getBoundingClientRect().height") == 0
     assert (
-        strip(latest)
+        message(latest)
         .locator(".lf-react-trigger")
         .evaluate("b => getComputedStyle(b).opacity")
         == "0"
@@ -1962,7 +1962,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     for mid in (quiet_latest, quiet_first):
         assert strip(mid).evaluate("s => s.getBoundingClientRect().height") == 0
         assert (
-            strip(mid)
+            message(mid)
             .locator(".lf-react-trigger")
             .evaluate("b => getComputedStyle(b).opacity")
             == "0"
@@ -1975,13 +1975,13 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     # The pointer offers the control only on the message it is over, without opening it.
     message(quiet_first).hover()
     assert (
-        strip(quiet_first)
+        message(quiet_first)
         .locator(".lf-react-trigger")
         .evaluate("b => getComputedStyle(b).opacity")
         == "1"
     )
     assert (
-        strip(quiet_latest)
+        message(quiet_latest)
         .locator(".lf-react-trigger")
         .evaluate("b => getComputedStyle(b).opacity")
         == "0"
@@ -1989,7 +1989,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
     page.mouse.move(4, 4)
     assert (
-        strip(quiet_first)
+        message(quiet_first)
         .locator(".lf-react-trigger")
         .evaluate("b => getComputedStyle(b).opacity")
         == "0"
@@ -2004,7 +2004,8 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
     assert strip(latest).evaluate(
         """s => { const row = s.getBoundingClientRect();
-          const trigger = s.querySelector('.lf-react-trigger').getBoundingClientRect();
+          const trigger = s.closest('.lf-msg').querySelector('.lf-react-trigger')
+            .getBoundingClientRect();
           const palette = s.querySelector('.lf-react-palette').getBoundingClientRect();
           return row.height === 0 && palette.top >= trigger.bottom; }"""
     ), "the picker did not float below its trigger"
@@ -2013,7 +2014,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
 
     # An older reply remains available through its message-local trigger.
     message(first).hover()
-    strip(first).locator(".lf-react-trigger").click()
+    message(first).locator(".lf-react-trigger").click()
     expect(strip(first).locator(".lf-react:visible")).to_have_count(6)
 
     # Taking the last mark off a reply closes the list and returns focus to its ellipsis.
@@ -2025,8 +2026,8 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     assert withdrawn["kind"] == "undo", withdrawn
     expect(mark).to_have_attribute("aria-pressed", "false")
     expect(mark).to_be_hidden()
-    expect(strip(first).locator(".lf-react-trigger")).to_be_focused()
-    strip(first).locator(".lf-react-trigger").click()
+    expect(message(first).locator(".lf-react-trigger")).to_be_focused()
+    message(first).locator(".lf-react-trigger").click()
     with sending(page, "the reaction again"):
         mark.press("Enter")
     again = events_model.read_events(serve.page_dir)[-1]
@@ -2079,8 +2080,9 @@ def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
           const box = trigger.getBoundingClientRect();
           const message = trigger.closest('.lf-msg');
           const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
-          const metadata = [...message.querySelector('.lf-msg-head').children]
-            .map(node => node.getBoundingClientRect());
+          const metadata = [
+            ...message.querySelectorAll('.lf-msg-head > :not(.lf-msg-control-room)'),
+          ].map(node => node.getBoundingClientRect());
           const resolve = document.querySelector('.lf-fp-settle');
           const action = resolve.getBoundingClientRect();
           const range = document.createRange();
@@ -2152,7 +2154,8 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     page = open_page(browser, url, context=context)
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    strip.get_by_role("button", name="Add reaction", exact=True).tap()
+    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    trigger.tap()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     cdp = context.new_cdp_session(page)
 
@@ -2224,7 +2227,6 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
 
     # The keyboard reads the word by focusing the choice: the list opened from its
     # trigger stands on its first choice, whose word shows, and Enter reacts, once.
-    trigger = strip.get_by_role("button", name="Add reaction", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
     trigger.focus()
     page.keyboard.press("Enter")
@@ -2295,7 +2297,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     else:
         message = page.locator(f'lf-diff [data-event="{reply}"]')
     strip = message.locator(".lf-react-strip")
-    trigger = strip.get_by_role("button", name="Add reaction", exact=True)
+    trigger = message.get_by_role("button", name="Add reaction", exact=True)
     trigger.click()
     selected = strip.locator('.lf-react[data-token="keep"]')
     idle = strip.locator('.lf-react[data-token="change"]')
@@ -2366,7 +2368,8 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect_on_me(page, 1)
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    expect(strip.locator(".lf-react-trigger")).to_have_count(1)
+    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    expect(trigger).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
     expect(strip.locator(".lf-react")).to_have_count(6)
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
@@ -2375,7 +2378,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         view.locator(f'.lf-msg[data-message="{root}"] .lf-react-strip')
     ).to_have_count(0)
 
-    strip.locator(".lf-react-trigger").click()
+    trigger.click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
     with sending(page, "the reply the no carries"):
         strip.locator('.lf-react[data-token="change"]').click()
@@ -2386,7 +2389,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     )
     expect_on_me(page, 1)  # `no` settles nothing
 
-    strip.locator(".lf-react-trigger").click()
+    trigger.click()
     with sending(page, "the ok that settles the thread"):
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
@@ -2414,7 +2417,8 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     page = open_page(browser, url)
     view = open_panel_thread(page, root)
     strip = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-strip')
-    strip.locator(".lf-react-trigger").click()
+    trigger = view.locator(f'.lf-msg[data-message="{reply}"] .lf-react-trigger')
+    trigger.click()
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
 
     thread_model.cmd_resolve(serve.page_dir, root)
@@ -2498,7 +2502,10 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     strip = page.locator(
         f'{PANEL_THREAD} .lf-msg[data-message="{reply}"] .lf-react-strip'
     )
-    strip.locator(".lf-react-trigger").click()
+    trigger = page.locator(
+        f'{PANEL_THREAD} .lf-msg[data-message="{reply}"] .lf-react-trigger'
+    )
+    trigger.click()
     choices = strip.locator(".lf-react-palette > .lf-react")
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("ArrowRight")
@@ -2508,4 +2515,4 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     expect(choices.nth(0)).to_be_focused()
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
-    expect(strip.locator(".lf-react-trigger")).to_be_focused()
+    expect(trigger).to_be_focused()

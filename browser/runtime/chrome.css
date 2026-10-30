@@ -188,13 +188,9 @@ html[data-lf-region-capture] main * {
    it (`.lf-location`, below). The ring stands outside the decision, so a landing keeps
    its room at the scroller's edge, as a margin entry's does (base.css): an obligation
    landed at the top of a scrolling pane stood flush with it, the top of its ring cut
-   off under the pane's header rule. The ring is also the decision's focus cue, so an
-   arrival's focus on the decision draws no ring of its own beside it. */
+   off under the pane's header rule. */
 [data-lf-obligation] {
   scroll-margin-block: var(--focus-ring-landing);
-  &:is(:focus-visible, [data-lf-focus-visible]) {
-    outline: none;
-  }
 }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */

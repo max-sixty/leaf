@@ -120,7 +120,8 @@
   // leaves it.
   const carriesFocus = (el, focused) =>
     el.matches(".lf-visual-mark-focus") ||
-    (el.matches(".lf-location") && Boolean(focused?.matches?.("[data-lf-obligation]")));
+    (el.matches(".lf-location") &&
+      Boolean(focused?.matches?.(".lf-projected-location")));
 
   function ringCandidates() {
     const { accent, mixed } = accentSwatch();
@@ -824,7 +825,7 @@
     // The location ring drawn over a decision is its focus cue too.
     const location = e.ownerDocument.querySelector(".lf-location");
     if (
-      e.matches("[data-lf-obligation]") &&
+      e.matches(".lf-projected-location") &&
       location?.checkVisibility({ visibilityProperty: true })
     )
       overlaid(location);

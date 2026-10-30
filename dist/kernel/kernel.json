@@ -210,7 +210,7 @@
     "runtime/syntax.js": "a6e2c410728543778f99af63b0c20e32d764d787ce71d453264b51a0f96734d4",
     "runtime/tab-store.js": "f1b826205c78efb24c8387a6f67044f7e15d8e666fd9d1e1e6a534031568f039",
     "runtime/target-paint-geometry.js": "52c3f94c5bfc89ac2bf4b0814ba47f2c7b74164102f8c42584a745544e4019e3",
-    "runtime/target-paint.js": "65245ea38499024bdb2d8d3420cf3b5eb4dec9b7ae8ecbf775f662eb39cf97c5",
+    "runtime/target-paint.js": "6366ced6e19a56ef48c2a66e79c1880d24d51caa89d37beb7ed470eaf6a7ae3b",
     "runtime/text-alignment.js": "78612672d322b192190135b2a47754b4ed735b46f272ea38a287a0df7fdd22f7",
     "runtime/thread/actions.js": "b1083b48256fa60b03ee1a7198a961d18cc71efe19ddbdba9dc2189da6e6fb9c",
     "runtime/thread/box.js": "e238aeac5b3fe1e530ec59d75aa2ffca47e5afae5e42c852a995bdb25a37bc4a",

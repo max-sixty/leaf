@@ -12,6 +12,8 @@ import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { inChrome } from "./passages.js";
+import { shownParts } from "./geometry.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import {
   SVG_NS,
   paintGeometry,
@@ -54,6 +56,8 @@ let geometryFrame = 0;
 let geometryDirty = false;
 let locationElement = null;
 let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 
 export function clearAim() {
   aimPlaced = aimStood = null;
@@ -224,8 +228,14 @@ export function geometryChanged() {
 // leaves no room outside, and above the decision's contents, which covered a ring drawn
 // inside it as an outline. A control inside the decision that carries the location
 // itself stands it down (`locationStandsDown`).
+//
+// The ring is also the focus ring of a decision the user arrived on, so each box it is
+// drawn round wears `lf-projected-location`, and the focus floor draws none of its own
+// there (surfaces.css). Only a ring that is drawn says so: a native layer the chrome
+// stands under, such as a modal dialog, would cover the ring of a decision inside it,
+// so that decision keeps its own focus ring.
 export function paintLocation(element) {
-  locationElement = element && !locationStandsDown(element) ? element : null;
+  locationElement = element;
   drawLocation();
 }
 
@@ -234,16 +244,29 @@ export function paintLocation(element) {
 export const locationStandsDown = (element) =>
   getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
 
+// Whether the location's stand paints over `element`: over the document from any layer,
+// and over a native layer only from inside it.
+const paintsOver = (element) => {
+  const layer = nativeLayerHolding(element);
+  return !layer || layer === nativeLayerHolding(locationStand.root);
+};
+
 function drawLocation() {
   const element = locationElement;
-  const placed = element?.isConnected && placement(element, false, inChrome(element));
+  const placed =
+    element?.isConnected &&
+    !locationStandsDown(element) &&
+    paintsOver(element) &&
+    placement(element, false, inChrome(element));
   if (!placed?.shown) {
+    projectLocation([]);
     vacate(locationStand);
     locationBox.style.display = "none";
     locationBox.removeAttribute("data-for");
     delete locationStand.root.dataset.lfPaintPlane;
     return;
   }
+  projectLocation([element, ...shownParts(element)]);
   keeps(locationBox, "data-for", element.id || null);
   keeps(
     locationStand.root,
@@ -251,6 +274,13 @@ function drawLocation() {
     inChrome(element) ? "chrome" : "page",
   );
   standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+
+function projectLocation(boxes) {
+  for (const box of locationProjected)
+    if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+  for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+  locationProjected = boxes;
 }
 
 // Layout and scrolls move the decision as they move a trace's target.

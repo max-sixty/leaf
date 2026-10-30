@@ -3,7 +3,7 @@ import { actionElement, atLayoutPrecision, cancelRender, iconElement, keeps, lay
 import { PRESSES, carriedFrom, deepFocus, focusDestination, focused, inputCount, move, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
 import { el, notice, raiseError } from "./bundle-layer-client.js";
 import { anchorAt, anchorBox, anchorElement, anchorReaches, anchorReading, cutFrames, localScrollBy, nameAnchor, pageScroller, reachable, scrollAxes, scrollersOf, scrollsWith, startScroll } from "./bundle-content-layout.js";
-import { clippingAxes, hasArea, headerCuts, intersect, landingBand, layoutWindow, nearObserver, nearWindow, nearestScrollBy, paintClips, placeBox, placeHolder, scrollsContent, seenRect, shownBox, shownWindow, visibleBand } from "./bundle-geometry.js";
+import { clippingAxes, hasArea, headerCuts, intersect, landingBand, layoutWindow, nearObserver, nearWindow, nearestScrollBy, paintClips, placeBox, placeHolder, scrollsContent, seenRect, shownBox, shownParts, shownWindow, visibleBand } from "./bundle-geometry.js";
 import { inChrome } from "./bundle-passages.js";
 
 //#region runtime/user-intent.js
@@ -555,6 +555,8 @@ let geometryFrame = 0;
 let geometryDirty = false;
 let locationElement = null;
 let locationFrame = 0;
+let locationProjected = [];
+const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
 	aimPlaced = aimStood = null;
 	vacate(aimStand);
@@ -684,23 +686,34 @@ function geometryChanged() {
 	});
 }
 function paintLocation(element) {
-	locationElement = element && !locationStandsDown(element) ? element : null;
+	locationElement = element;
 	drawLocation();
 }
 const locationStandsDown = (element) => getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
+const paintsOver = (element) => {
+	const layer = nativeLayerHolding(element);
+	return !layer || layer === nativeLayerHolding(locationStand.root);
+};
 function drawLocation() {
 	const element = locationElement;
-	const placed = element?.isConnected && placement(element, false, inChrome(element));
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) && placement(element, false, inChrome(element));
 	if (!placed?.shown) {
+		projectLocation([]);
 		vacate(locationStand);
 		locationBox.style.display = "none";
 		locationBox.removeAttribute("data-for");
 		delete locationStand.root.dataset.lfPaintPlane;
 		return;
 	}
+	projectLocation([element, ...shownParts(element)]);
 	keeps(locationBox, "data-for", element.id || null);
 	keeps(locationStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
 	standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+function projectLocation(boxes) {
+	for (const box of locationProjected) if (!boxes.includes(box)) box.classList.toggle(PROJECTED_LOCATION, false);
+	for (const box of boxes) box.classList.toggle(PROJECTED_LOCATION, true);
+	locationProjected = boxes;
 }
 function relocate() {
 	if (locationFrame || !locationElement) return;

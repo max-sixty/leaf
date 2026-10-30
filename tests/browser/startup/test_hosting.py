@@ -429,9 +429,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     """A block sample below the window starts loading at once, but the page presents
     and takes keys without it, reading as arriving until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
-    so what follows stays put, until the frame leaves their sight. Once they press
-    inside it, its growth is theirs: a disclosure they open, and growth the child
-    makes of its own accord afterwards, apply at once.
+    so what follows stays put, until the frame leaves their sight. A wheel over the
+    frame scrolls past it and claims nothing. Once they press inside it, its growth is
+    theirs: a disclosure they open, and growth the child makes of its own accord
+    afterwards, apply at once.
 
     The inner window sample's document is held throughout, so the child is still
     arriving at every step."""
@@ -518,6 +519,18 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
 
     frame.scroll_into_view_if_needed()
     child_grows_unseen(1600)
+    # Over the frame, so the child's document hears the wheel too.
+    on_frame = frame.bounding_box()
+    x, y = on_frame["x"] + 20, max(on_frame["y"], 0) + 20
+    assert page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y)?.localName === 'iframe'", [x, y]
+    )
+    page.mouse.move(x, y)
+    before = frame.evaluate(height)
+    page.mouse.wheel(0, 40)
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate(height) == before
     child.locator("#more > summary").click()
     expect(child.locator("#more")).to_have_attribute("open", "")
     grows_to(child.locator("body").evaluate(body))

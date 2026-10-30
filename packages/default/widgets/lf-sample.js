@@ -24,8 +24,9 @@
  * starts after it has arrived, such as one of its own samples' Reset, is the child's
  * to count. Until a child has arrived a resize the reader would see, because they
  * scrolled to the sample while it loaded, waits until it would move nothing they see,
- * the frame keeping its loading height (`heldGrowth`), or until the reader gives input
- * inside the child, which makes every later resize of that document theirs; a resize
+ * the frame keeping its loading height (`heldGrowth`), or until the reader clicks,
+ * types or presses a key inside the child, which makes every later resize of that
+ * document theirs, though not a wheel or touch that scrolls past it; a resize
  * after Reset or Return to page, or one of a frame the reader saw as it mounted, is
  * theirs and applies at once. The status line keeps its room through loading, ready
  * and failure, so the frame below it stays put; a failure's words that run past it
@@ -140,7 +141,13 @@ customElements.define(
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
           host.on("arrived", () => this.#arrival?.reported?.());
-          host.on("input", () => this.#release());
+          // A click, a key or text entered in the child claims the frame. A wheel or a
+          // touch that scrolls past it claims nothing, as the platform's user
+          // activation leaves both out.
+          host.on("input", ({ type }) => {
+            if (type === "click" || type === "keydown" || type === "input")
+              this.#release();
+          });
           host.on("loading", () => {
             this.#focusedContent = false;
             this.#track(host.ready);
@@ -309,8 +316,8 @@ customElements.define(
       else fit();
     }
 
-    // The reader's input inside the child makes the frame theirs to move: a resize held
-    // while they read applies now, and so does each later one.
+    // The reader's click or key inside the child makes the frame theirs to move: a
+    // resize held while they read applies now, and so does each later one.
     #release() {
       this.#arriving = false;
       if (!this.#heldFit) return;

@@ -144,7 +144,12 @@ leaf-composition-field {
    standing on other paper than a card's restates. Rejected: showing it
    on hovering the whole box, since the pointer rests there while typing and Send
    would cover the words at the corner most of the time; and taking presses as soon
-   as it shows, which sent a press meant to place the caret. */
+   as it shows, which sent a press meant to place the caret.
+
+   Experimental: the user chose on 29 October 2026 to try this although it departs
+   from common practice, where a chat or comment box keeps Send drawn beside or below
+   its words and gives up the column above it. Keeping Send's room on every line,
+   main's layout before this, is the established alternative to return to. */
 @property --lf-field-row {
   syntax: "<length>";
   inherits: true;

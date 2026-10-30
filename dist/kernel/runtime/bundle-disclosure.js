@@ -5890,12 +5890,12 @@ function createStateApplication({ prepareActivation, acceptData, notifyDataSubsc
 async function readState(bound) {
 	countTraffic("asked");
 	try {
+		const held = runtime.data.version === null ? document.documentElement.lfInitial.initialData() ?? runtime.data : runtime.data;
 		if (offlineInteractive) return {
-			state: offlineState(),
+			state: completeData(offlineState(), held),
 			fault: null
 		};
 		const signal = globalThis.AbortSignal.timeout(bound);
-		const held = runtime.data;
 		let res;
 		try {
 			res = await fetch(pageUrl("api/state"), {

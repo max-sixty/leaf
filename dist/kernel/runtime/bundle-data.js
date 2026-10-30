@@ -9487,7 +9487,11 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 //#endregion
 //#region runtime/data.js
 function acceptData(candidate, taken) {
-	return applicationState.acceptData(candidate, taken);
+	const changed = applicationState.acceptData(candidate, taken);
+	const initial = document.documentElement.lfInitial;
+	initial.source = (source) => source ? runtime.data.sources[source] ?? null : null;
+	initial.releaseData();
+	return changed;
 }
 const joined = /* @__PURE__ */ new Set();
 async function notifyDataSubscribers() {
@@ -9617,12 +9621,11 @@ function dataReader(element, input, accepted) {
 	};
 	return () => {
 		const sourceStore = widget ? selected.read() : delivered.value;
-		const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
-		if (incompatible && reported !== sourceStore) {
-			reported = sourceStore;
-			reportPageError(`${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`);
-		}
-		if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value")) return null;
+		if (!document.documentElement.lfInitial.inputReading(declaration, sourceStore, (incompatible) => {
+			if (reported === incompatible) return;
+			reported = incompatible;
+			reportPageError(`${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${incompatible.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`);
+		})) return null;
 		if (sourceStore !== copied.store) {
 			copied = {
 				store: sourceStore,

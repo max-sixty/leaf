@@ -3,12 +3,13 @@
   var overflowFor = (path, authored) => authored ?? (/\.(?:md|markdown|txt)$/i.test(path) ? "wrap" : "scroll");
 
   // packages/diff/initial/lf-diff.js
-  document.documentElement.lfInitial.register("lf-diff", (host) => {
+  document.documentElement.lfInitial.register("lf-diff", (host, tools) => {
     const pre = host.querySelector(":scope > pre");
-    if (!pre || host.hasAttribute("source") || (host.getAttribute("view") ?? "patch") !== "patch" || host.getAttribute("data-lf-height"))
-      return null;
+    if (!pre || host.getAttribute("data-lf-height")) return null;
+    const value = host.hasAttribute("source") ? tools.inputValue("document") : pre?.textContent;
+    if (typeof value !== "string") return null;
     const authored = host.getAttribute("overflow");
-    const lines = pre.textContent.replace(/^\n+|\n+$/g, "").split("\n");
+    const lines = value.replace(/^\n+|\n+$/g, "").split("\n");
     const files = [];
     let file = null;
     let old = 0;
@@ -35,13 +36,15 @@
         if (named && named[1] !== "/dev/null") file.path = named[1];
       }
     }
-    if (!files.length || files.some((each) => !each.hunks)) return null;
-    const open = !host.hasAttribute("collapsed");
+    const singleFile = host.getAttribute("view") === "file";
+    const shown = singleFile ? files.slice(0, 1) : files;
+    if (!shown.length || shown.some((each) => !each.hunks)) return null;
+    const open = singleFile || !host.hasAttribute("collapsed");
     let rows = 0;
     let style = null;
     let width = 0;
     let ch = 0;
-    for (const each of open ? files : []) {
+    for (const each of open ? shown : []) {
       rows += each.rows;
       if (overflowFor(each.path, authored) !== "wrap") continue;
       if (!style) {
@@ -55,7 +58,7 @@
       const cols = Math.floor((width - 2 - 8 - (digits + 5) * ch) / ch);
       if (cols > 0) for (const text of each.texts) rows += wraps(text, cols);
     }
-    host.style.setProperty("--lf-diff-files", String(files.length));
+    host.style.setProperty("--lf-diff-files", String(shown.length));
     host.style.setProperty("--lf-diff-rows", String(rows));
     host.style.setProperty("--lf-diff-open", open ? "1" : "0");
     return null;

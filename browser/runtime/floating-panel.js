@@ -405,7 +405,7 @@ export function createFloatingPanel({
     // the seat moving with it moves nothing the user didn't ask to move.
     const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
     const quickHidden =
-      initial || closeAbove || (search ? !exit : drafted && !seatHeld);
+      initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -819,6 +819,11 @@ export function createFloatingPanel({
     paint();
     focusDestination(shownView(), "return");
   }
+  // While the user writes, the field runs to the row's end, the mark and the row's
+  // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
+  // the one corner, and the first key moves nothing. The user chose this on 29
+  // October over the field widening at the first key, which moved its end and the
+  // action under it by the mark's width as typing began.
   let writing = false;
   // Whether the field holds a draft, as the row last showed it: Send in the field's
   // corner, the mark stepped aside. The row takes that posture, or gives it up, only
@@ -829,8 +834,7 @@ export function createFloatingPanel({
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
   // Dictate's, until the user types again; emptying the field always ends it. A draft is
-  // anything typed, a line break included: a new line grows the field as words do, so
-  // the field takes its room from the first key (20 October).
+  // anything typed, a line break included.
   let drafted = false;
   let seatHeld = false;
   let postureMoved = true;
@@ -4148,7 +4152,6 @@ export function createFloatingPanel({
     if (exit) seatHeld = true;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
-    keeps(host, "data-words", words ? "" : null);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);

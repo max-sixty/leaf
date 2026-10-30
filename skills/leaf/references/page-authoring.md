@@ -81,13 +81,16 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
 tiles, and pages with tabs or parts.
 
-For a dashboard glance or a tuning action, keep the relevant setting or status,
-its evidence and the reader's next action together in the window. Keep the title
-and premise to a line or two,
-and give `main` `density-working` (`page-layout.md`, "A workspace"). A workspace
-fills the window from the title's left edge; a dashboard whose detail the reader may
-read on down uses `layout-sidebar` with its regions side by side. Let the working
-surface lead, with supporting reading below it or in later parts.
+A dashboard the reader glances at, or settings they tune against their evidence, keeps
+its working state in the first window, since a glance or a tuning pass doesn't scroll.
+Keep each relevant setting or status, its evidence and the reader's next action together
+in that window, and spend as little of it as the page allows on the title, the premise
+and supporting reading. By default that means a title and premise of a line or two,
+`density-working` on `main` (`page-layout.md`, "A workspace"), and the working surface
+first, with supporting reading below it or in later parts. A workspace fills the window
+from the title's left edge; a dashboard whose detail the reader may read on down is
+usually a `layout-sidebar` page with its regions side by side, so they share the window
+rather than stacking past it.
 
 Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.

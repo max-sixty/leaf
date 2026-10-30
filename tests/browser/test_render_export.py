@@ -410,6 +410,11 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
+    imports = page.evaluate("""() => JSON.parse(
+        document.querySelector('script[type="importmap"]').textContent
+    ).imports""")
+    assert imports
+    assert all(url.startswith("blob:") for url in imports.values())
     assert page.evaluate("document.characterSet") == "UTF-8"
     assert page.evaluate("window.order") == ["head", "body"]
     assert page.evaluate("document.doctype.name") == "html"

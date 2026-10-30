@@ -49,7 +49,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 RECEIPT_PHASES = {
     "Queued for Claude": "sent",
     "Still queued for Claude": "waiting",
-    "Got it": "pickup",
+    "Delivered": "pickup",
 }
 
 
@@ -964,7 +964,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Queued for Claude, Still queued for Claude, and Got it report a move already made. Their status
+    Queued for Claude, Still queued for Claude, and Delivered report a move already made. Their status
     margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
@@ -1086,7 +1086,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "borderStyle": "solid",
             "animation": "none",
             "ink": expected_ink,
-            "iconInk": pickup_ink if phase == "Got it" else expected_ink,
+            "iconInk": pickup_ink if phase == "Delivered" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -1204,7 +1204,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_status("Got it", "just now")
+    assert_status("Delivered", "just now")
 
     # A surviving semantic action carries pickup itself. Removing that carrier
     # restores the status fallback with the same canonical receipt.
@@ -1224,7 +1224,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier = page.locator(".lf-workflow-primary-probe")
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(carrier).to_have_attribute("aria-description", "Got it")
+    expect(carrier).to_have_attribute("aria-description", "Delivered")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
     )

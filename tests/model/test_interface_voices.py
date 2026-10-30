@@ -45,7 +45,11 @@ def declarations(rules, context=()):
             here = (*context, tinycss2.serialize(rule.prelude).strip())
         elif rule.type == "at-rule" and rule.content is not None:
             scope = rule.lower_at_keyword == "scope"
-            here = (*context, tinycss2.serialize(rule.prelude).strip()) if scope else context
+            here = (
+                (*context, tinycss2.serialize(rule.prelude).strip())
+                if scope
+                else context
+            )
         else:
             continue
         for item in tinycss2.parse_blocks_contents(

@@ -213,7 +213,9 @@ def report_samples(runs: tuple[Path, ...]) -> dict:
                 "work": work,
                 "diagnostics": diagnostics,
                 "checks": metadata.get("checks") or {},
+                "assertions": result.get("testCase", {}).get("assert", []),
                 "execution": execution_status(response),
+                "execution_error": response.get("error"),
                 "shots": run / "screenshots" / work.name,
                 "runs": [run],
                 "gradingResult": result.get("gradingResult"),
@@ -687,10 +689,7 @@ def check_results(sample: dict) -> list[tuple[str, str]]:
         "page": "Output saved",
         "page-valid": "Page validation",
     }
-    asserted = {
-        result.get("assertion", {}).get("metric")
-        for result in (sample.get("gradingResult") or {}).get("componentResults", [])
-    }
+    asserted = {assertion.get("metric") for assertion in sample["assertions"]}
     return [
         (
             labels.get(name, name.replace("-", " ").capitalize()),
@@ -1011,9 +1010,17 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         phases_view = (
             f"<p>No saved page was recorded. {escape(sample.get('error') or '')}</p>"
         )
+    execution = (
+        f'<p class="output-status">{escape(grade_summary(sample))}.</p>'
+        if quality_unavailable(sample)
+        else ""
+    )
+    if sample["execution_error"]:
+        execution += f"<p><strong>Execution error:</strong> {escape(sample['execution_error'])}</p>"
     return (
         f'<section id="{anchor}">'
         f'<p class="output-status">{escape(label)} · {escape(sample.get("run_group", ""))}</p>'
+        f"{execution}"
         f"{phases_view}"
         f"{checks}"
         f'<details class="report-metadata"><summary>Request, sources and run details</summary>'

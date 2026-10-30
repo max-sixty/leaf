@@ -84,7 +84,7 @@ registerPageControl({
   copies: () =>
     claimed() ? claimantDiagnostics(/** @type {any} */ (runtime.state)) : "",
   offered: claimed,
-  group: "page",
+  group: "about",
 });
 
 // The developer preview's identity: which checkout is serving this page. A user preview
@@ -129,7 +129,7 @@ registerPageControl({
   value: () => (preview() ? previewLabel() : ""),
   copies: () => (preview() ? previewDiagnostics() : ""),
   offered: () => Boolean(preview()),
-  group: "page",
+  group: "about",
 });
 
 // The runtime this document runs, which the server serving it supplied
@@ -184,7 +184,7 @@ registerPageControl({
   value: () => (layerShown() ? layerNamed() : ""),
   copies: () => (layerShown() ? layerDiagnostics() : ""),
   offered: layerShown,
-  group: "page",
+  group: "about",
 });
 
 // The public website support handle.
@@ -194,5 +194,5 @@ registerPageControl({
   label: "session reference",
   copies: () => runtime.sessionReference ?? "",
   offered: () => Boolean(runtime.sessionReference),
-  group: "page",
+  group: "about",
 });

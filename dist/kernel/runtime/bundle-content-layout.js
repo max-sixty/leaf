@@ -2354,7 +2354,8 @@ const GROUPS = Object.freeze([
 	"page",
 	"navigate",
 	"annotate",
-	"keys"
+	"keys",
+	"about"
 ]);
 const rows = /* @__PURE__ */ new Map();
 let sequence = 0;

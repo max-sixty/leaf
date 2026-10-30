@@ -52,8 +52,11 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // itself (`page`), behind its Navigate or Annotations entry, or, for a keyboard's
 // convenience for where the reader stands, such as Resume writing (`keys`), behind
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
-// reads stays short and a finger keeps a way to each.
-const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys"]);
+// reads stays short and a finger keeps a way to each. A row that says which session,
+// preview or Leaf the page runs (`about`) stands in About this page alone, which lists
+// every row that copies (page-inspection.js); the user chose that on 30 October, over
+// each such copy also standing in the menu.
+const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys", "about"]);
 
 const rows = new Map();
 let sequence = 0;

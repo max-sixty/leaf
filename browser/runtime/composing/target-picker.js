@@ -92,7 +92,7 @@ const searchCount = (position, total) => `${position}/${total}`;
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The leaf
-// menu's Annotations → Comment on an element opens this same picker. A choice
+// menu's Annotations → Select mode opens this same picker. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
 // offers no picker. Area capture also claims the page until it ends. While the picker
 // stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
@@ -811,11 +811,12 @@ export function createTargetPicker({
   pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
   // one. Either route opens Comment, while reactions wait for a target. The leaf menu's
-  // Annotations lists it for every pointer, named for what it leads to. The user chose
-  // this on 24 October 2026 over listing it, as "Select element", only where no
-  // keyboard was there to press `s`: a mouse user who never learned `s` had no visible
-  // way to comment on a whole widget or picture, since selecting words picks neither.
-  // A row at the menu's top level was shown and set aside for Annotations.
+  // Annotations lists it for every pointer. The user chose this on 24 October 2026 over
+  // listing it only where no keyboard was there to press `s`: a mouse user who never
+  // learned `s` had no visible way to comment on a whole widget or picture, since
+  // selecting words picks neither. A row at the menu's top level was shown and set
+  // aside for Annotations. It is named Select mode beside Draw and Design mode, as the
+  // user chose on 30 October over Comment on an element.
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
@@ -823,8 +824,8 @@ export function createTargetPicker({
       bindings(TARGET_HINT_TYPE).length
         ? "Choose an element by pressing it or typing its hint, then comment"
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-    title: "comment on an element",
-    touch: "Comment on an element",
+    title: "select mode",
+    touch: "Select mode",
     menu: "annotate",
     when: canChoose,
     run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>

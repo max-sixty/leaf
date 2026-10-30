@@ -402,17 +402,15 @@ def panel_corner_hover(page: Page) -> None:
 
 
 def share_link(page: Page) -> None:
-    """The page's link as a readonly field reached by keyboard, where the leaf's menu
-    leaves it to select under About because the clipboard refused the copy."""
+    """The page's link as readonly text reached by keyboard, where About this page
+    shows it to select because the clipboard refused the menu's copy."""
     page.evaluate(
         "() => { Clipboard.prototype.writeText ="
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    link = page.locator(".lf-fp-menu[data-level=group]").get_by_label(
-        "Link", exact=True
-    )
+    page.locator(".lf-fp-menu").get_by_role("button", name="Copy link").click()
+    link = page.locator(".lf-inspection-dialog").get_by_label("Link", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
     link.focus()
     expect(link).to_be_focused()
@@ -1559,10 +1557,10 @@ def option_thread_open(page: Page) -> None:
 
 
 def more_menu(page: Page) -> None:
-    """The leaf's menu, opened: the agent's state at its head over the page's
-    controls."""
+    """The leaf's menu, the On view's first tab, opened: the agent's state at its head
+    over the page's controls, the field its search and the tabs at its foot."""
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu").wait_for()
+    page.locator('.lf-fp-view[data-view="menu"] .lf-fp-menu').wait_for()
 
 
 def capture_menu(page: Page) -> None:
@@ -1600,7 +1598,7 @@ def versions_menu(page: Page) -> None:
     """Versions, opened from the leaf's menu: a row for each version, with its note."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="versions"]').click()
-    page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version").first.wait_for()
+    page.locator('.lf-fp-view[data-view="versions"] .lf-fp-version').first.wait_for()
 
 
 def ask_by_keyboard(page: Page) -> None:
@@ -2087,7 +2085,12 @@ STATES = (
         scheme="dark",
     ),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
-    State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
+    State(
+        "share-link",
+        "developer/feature-gallery",
+        share_link,
+        region=".lf-inspection-dialog",
+    ),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
         "diff-filter",

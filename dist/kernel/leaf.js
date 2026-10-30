@@ -1,6 +1,6 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, describeFailure, holdRendering, iconTemplate, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, fragmentId, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
-import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
@@ -3292,8 +3292,8 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 		id: "target.picker.open",
 		keys: ["s"],
 		description: () => bindings(TARGET_HINT_TYPE).length ? "Choose an element by pressing it or typing its hint, then comment" : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-		title: "comment on an element",
-		touch: "Comment on an element",
+		title: "select mode",
+		touch: "Select mode",
 		menu: "annotate",
 		when: canChoose,
 		run: (...args) => openTargetPicker(...args)
@@ -4175,9 +4175,7 @@ function statusModel(status, queues, agent) {
 	const counted = WITHOUT_QUEUES.has(kind) ? "" : queueWords(queues, agent);
 	if (counted) {
 		appendWords(explanationParts, counted);
-		appendWords(addsParts, counted);
 		explanation = textOf(explanationParts);
-		adds = textOf(addsParts);
 	}
 	let publicationModel = null;
 	if (publication) {
@@ -4352,6 +4350,691 @@ registerPageControl({
 	shortcut: () => commandSteps("navigation.panel.leaves"),
 	offered: leavesOffered,
 	group: "navigate"
+});
+
+//#endregion
+//#region runtime/keyboard/command-reference.js
+const commandReferenceDialog = document.createElement("dialog");
+commandReferenceDialog.id = "lf-command-reference";
+commandReferenceDialog.className = "lf-ui lf-command-reference";
+commandReferenceDialog.setAttribute("aria-label", "Command reference");
+commandReferenceDialog.setAttribute("closedby", "any");
+commandReferenceDialog.setAttribute("aria-modal", "true");
+commandReferenceDialog.tabIndex = -1;
+let stopReferenceReading = null;
+const commandReferenceSearch = searchField("lf-command-reference-search", {
+	name: "shortcut-search",
+	label: "Search commands",
+	placeholder: "Find a key or action"
+});
+commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
+const commandReferenceClose = closeControl({
+	name: "Close the command reference",
+	className: "lf-command-reference-close"
+});
+commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
+commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
+function declaredStack(origin) {
+	pruneScopedElements();
+	const sections = /* @__PURE__ */ new Map();
+	const activeScopes = scopesFor(origin);
+	const named = (section) => activeScopes.some((scope) => scope.title === section.title && (!scope.when || scope.when()));
+	const contextualIds = /* @__PURE__ */ new Map();
+	const referenceIdentity = (scope, row) => {
+		if (!scope.contextual) return row.id;
+		if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
+		return contextualIds.get(row.id);
+	};
+	const referenceRows = (scope) => scope.rows.map((row) => [referenceIdentity(scope, row), {
+		row,
+		sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence
+	}]);
+	for (const scope of pageScopes().toReversed()) {
+		if (scope !== ELEMENTS) {
+			merge(sections, {
+				...scope,
+				rows: referenceRows(scope)
+			});
+			continue;
+		}
+		const declared = /* @__PURE__ */ new Map();
+		const held = [...scopeRefs].map((ref) => ref.deref()).filter((node) => node?.isConnected && scopesAt(node).some((scope) => scope.title));
+		held.sort(renderedOrder);
+		const seen = /* @__PURE__ */ new Set();
+		for (const node of held) for (const section of scopesAt(node)) {
+			if (!section.title) continue;
+			const identity = section.identity ?? section;
+			if (seen.has(identity)) continue;
+			seen.add(identity);
+			merge(declared, {
+				...section,
+				rows: referenceRows(section)
+			});
+		}
+		for (const section of activeScopes.toReversed()) if (section.title) merge(declared, {
+			...section,
+			rows: referenceRows(section)
+		});
+		for (const section of declared.values()) merge(sections, {
+			...section,
+			at: () => named(section)
+		});
+	}
+	const exit = (row) => bindings(row).includes("Escape") ? 1 : 0;
+	return [...sections.values()].map((section) => ({
+		...section,
+		rows: [...section.rows.values()].sort((left, right) => exit(left.row) - exit(right.row))
+	}));
+}
+let commandRoutesAtOpen = {
+	on: /* @__PURE__ */ new Map(),
+	off: /* @__PURE__ */ new Map()
+};
+let commandReferenceInvoke = null;
+let commandReferenceCatalog = Object.freeze({
+	total: 0,
+	entries: Object.freeze([]),
+	sections: Object.freeze([])
+});
+let commandReferenceState = {
+	query: "",
+	selectedCommandId: null,
+	metaOverride: null
+};
+let commandReferenceView = {
+	shown: 0,
+	metadata: "",
+	bindingHeading: null,
+	sectionHeadings: [],
+	entryPresentations: [],
+	visibleCommands: [],
+	selectedCommandId: null,
+	tabStopCommandId: null
+};
+const commandReferenceWords = (value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+const commandReferenceBinding = (value) => String(value ?? "").replace(/^\s+/, "").replace(/\s+/g, " ");
+const listedTitle = (title) => `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
+const availableWhere = (row, scopeTitle, scopeReach) => {
+	const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
+	return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
+};
+const spokenReferenceSteps = (row, route, steps, declared) => {
+	const alternatives = route ? [route.binding] : declared;
+	if (alternatives.length !== 1) return steps;
+	const binding = alternatives[0];
+	const spoken = [...steps];
+	const index = spoken.lastIndexOf(spell(binding));
+	if (index !== -1) spoken[index] = spokenBinding(binding);
+	return spoken;
+};
+function captureCommandReferenceCatalog() {
+	const referenceScopes = declaredStack(openerOf(commandReferenceDialog)).map((scope) => {
+		const inScope = userIn(scope) || scope.liveInCommandReference;
+		return {
+			scope,
+			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live$1(row))).map(({ row, sequence: prefix }) => {
+				const sequence = [...word(prefix) ?? []];
+				const declared = [...allBindings(row)];
+				const shownBindings = declared.filter(bindingEnabled);
+				const referenceRow = {
+					...row,
+					keys: shownBindings
+				};
+				return {
+					row,
+					sequence,
+					declared,
+					rowBindings: [...declaredBindings(row)],
+					referenceRow,
+					baseTitle: titleOf(row),
+					baseDescription: descriptionOf(row),
+					familySteps: shownBindings.length ? [...sequence, ...completeRowSteps(referenceRow)] : [],
+					presentations: commandPresentations(row, declared, { includeUnavailable: true }).map(({ id, route }) => ({
+						id,
+						route: route && route.binding == null ? {
+							...route,
+							binding: contextBindings(route)[0]
+						} : route
+					}))
+				};
+			})
+		};
+	}).filter(({ rows }) => rows.length);
+	const available = (rowInfo, route) => {
+		const routes = commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ?? /* @__PURE__ */ new Set();
+		const alternatives = route ? [route.binding] : rowInfo.rowBindings;
+		return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
+	};
+	const actionable = (row, route) => Boolean((row.run || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false);
+	const preferred = /* @__PURE__ */ new Map();
+	const executable = /* @__PURE__ */ new Set();
+	for (const { rows } of referenceScopes) for (const rowInfo of rows) for (const { id, route } of rowInfo.presentations) {
+		const candidate = {
+			row: rowInfo.row,
+			binding: route?.binding ?? null,
+			available: available(rowInfo, route),
+			actionable: actionable(rowInfo.row, route),
+			keyed: rowInfo.declared.length > 0
+		};
+		if (candidate.available) executable.add(id);
+		const prior = preferred.get(id);
+		if (!prior || !prior.actionable && candidate.actionable || prior.actionable === candidate.actionable && (!prior.keyed && candidate.keyed || prior.keyed === candidate.keyed && !prior.available && candidate.available)) preferred.set(id, candidate);
+	}
+	const presented = /* @__PURE__ */ new Set();
+	const sections = [];
+	const entries = [];
+	let entryIndex = 0;
+	for (const { scope, rows } of referenceScopes) {
+		const sectionOrder = sections.length;
+		const sectionTitle = scope.title ?? "On this page";
+		const sectionEntries = [];
+		for (const rowInfo of rows) for (const { id, route } of rowInfo.presentations) {
+			const chosen = preferred.get(id);
+			if (chosen?.row !== rowInfo.row || chosen.binding !== (route?.binding ?? null) || presented.has(id)) continue;
+			presented.add(id);
+			const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
+			const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
+			const alternatives = (route ? [route.binding] : rowInfo.declared).filter(bindingEnabled);
+			const keySteps = alternatives.length ? [...rowInfo.sequence.map((step) => [step]), ...completeRowKeySteps(rowInfo.referenceRow, route)] : [];
+			const steps = keySteps.map(stepText);
+			const isAvailable = executable.has(id);
+			const spokenSteps = spokenReferenceSteps(rowInfo.row, route, steps, rowInfo.declared);
+			const entry = Object.freeze({
+				id,
+				rowId: `lf-command-reference-row-${entryIndex}`,
+				keyId: `lf-command-reference-key-${entryIndex}`,
+				descriptionId: `lf-command-reference-description-${entryIndex}`,
+				sectionId: `lf-command-reference-section-${sectionOrder}`,
+				sectionTitle,
+				order: sectionEntries.length,
+				sequenceControl: Boolean(rowInfo.row.sequenceControl),
+				keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
+				steps: Object.freeze(steps),
+				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps) : null,
+				title,
+				description,
+				actionable: actionable(rowInfo.row, route),
+				available: isAvailable,
+				unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
+				bindingForms: Object.freeze(alternatives.map((binding) => Object.freeze({
+					display: [...rowInfo.sequence, spell(binding)].join(" "),
+					spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" ")
+				}))),
+				directWords: commandReferenceWords(`${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`),
+				familyWords: commandReferenceWords(`${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`)
+			});
+			entryIndex += 1;
+			entries.push(entry);
+			sectionEntries.push(entry);
+		}
+		sections.push(Object.freeze({
+			id: `lf-command-reference-section-${sectionOrder}`,
+			title: sectionTitle,
+			words: commandReferenceWords(sectionTitle),
+			order: sectionOrder,
+			entries: Object.freeze(sectionEntries)
+		}));
+	}
+	return Object.freeze({
+		total: entries.length,
+		entries: Object.freeze(entries),
+		sections: Object.freeze(sections)
+	});
+}
+const selectionMeta = (entry) => [
+	entry.description || entry.title,
+	entry.steps[0],
+	"⏎ activate"
+].filter(Boolean).join(" · ");
+function projectCommandReference(catalog, state) {
+	const query = commandReferenceWords(state.query);
+	const bindingQuery = commandReferenceBinding(state.query);
+	const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
+	const directMatch = Boolean(query) && catalog.entries.some((entry) => entry.directWords.includes(query));
+	const ranked = catalog.sections.flatMap((section) => {
+		const sectionMatch = Boolean(query) && section.words.includes(query);
+		return section.entries.map((entry) => {
+			const exactBinding = Boolean(bindingQuery) && entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
+			const foldedBinding = Boolean(foldedBindingQuery) && entry.bindingForms.some(({ display }) => display.toLocaleLowerCase().startsWith(foldedBindingQuery));
+			const spokenPrefix = Boolean(foldedBindingQuery) && entry.bindingForms.some(({ spoken }) => spoken.toLocaleLowerCase().startsWith(foldedBindingQuery));
+			return {
+				entry,
+				section,
+				rank: !query ? 0 : exactBinding ? 0 : foldedBinding ? 1 : spokenPrefix ? 2 : sectionMatch || entry.directWords.includes(query) ? 3 : !directMatch && entry.familyWords.includes(query) ? 4 : Infinity
+			};
+		});
+	});
+	const bindingMatches = query ? ranked.filter(({ rank }) => rank <= 2).sort((left, right) => left.rank - right.rank || left.section.order - right.section.order || left.entry.order - right.entry.order) : [];
+	const promoted = new Set(bindingMatches.map(({ entry }) => entry.id));
+	const sections = catalog.sections.map((section) => {
+		const matches = ranked.filter((candidate) => candidate.section === section && Number.isFinite(candidate.rank) && !promoted.has(candidate.entry.id)).sort((left, right) => left.rank - right.rank || left.entry.order - right.entry.order);
+		return {
+			...section,
+			rank: matches[0]?.rank ?? Infinity,
+			entries: matches.map(({ entry }) => entry)
+		};
+	}).sort((left, right) => left.rank - right.rank || left.order - right.order);
+	const visibleCommands = [...bindingMatches.map(({ entry }) => ({
+		entry,
+		promoted: true
+	})), ...sections.flatMap(({ entries: visible }) => visible.map((entry) => ({
+		entry,
+		promoted: false
+	})))].filter(({ entry }) => entry.actionable);
+	const selectedCommandId = visibleCommands.find(({ entry }) => entry.id === state.selectedCommandId)?.entry.id ?? null;
+	const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
+	const metadata = state.metaOverride ?? (query ? `${shown} of ${catalog.total} commands · ↑↓ choose · ⏎ activate` : `${catalog.total} commands · ↑↓ choose · ⏎ activate`);
+	let presentationOrder = 0;
+	const bindingHeading = bindingMatches.length ? Object.freeze({ order: presentationOrder++ }) : null;
+	const entryPresentations = bindingMatches.map(({ entry }) => Object.freeze({
+		entry,
+		promoted: true,
+		order: presentationOrder++
+	}));
+	return {
+		shown,
+		metadata,
+		bindingHeading,
+		sectionHeadings: sections.map((section) => {
+			const heading = Object.freeze({
+				id: section.id,
+				title: section.title,
+				shown: section.entries.length > 0,
+				order: section.entries.length > 0 ? presentationOrder++ : -1
+			});
+			entryPresentations.push(...section.entries.map((entry) => Object.freeze({
+				entry,
+				promoted: false,
+				order: presentationOrder++
+			})));
+			return heading;
+		}),
+		entryPresentations,
+		visibleCommands,
+		selectedCommandId,
+		tabStopCommandId: selectedCommandId ?? visibleCommands[0]?.entry.id ?? null
+	};
+}
+function updateCommandReferenceView() {
+	let view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
+	if (commandReferenceState.selectedCommandId && !view.selectedCommandId) {
+		commandReferenceState = {
+			...commandReferenceState,
+			selectedCommandId: null
+		};
+		view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
+	}
+	commandReferenceView = view;
+}
+function activateCommandEntry(entry) {
+	if (!entry.available) {
+		commandReferenceState = {
+			...commandReferenceState,
+			metaOverride: entry.unavailableMessage
+		};
+		return presentCommandReference();
+	}
+	const invokeCommand = commandReferenceInvoke;
+	const origin = openerOf(commandReferenceDialog);
+	const returnTo = commandReferenceReturn;
+	closeLayer(() => closeCommandReference(false), () => handBack(origin));
+	if (invokeCommand?.(entry.id)) return;
+	queueMicrotask(() => {
+		openCommandReference(invokeCommand, returnTo);
+		commandReferenceState = {
+			...commandReferenceState,
+			metaOverride: "That command is no longer available"
+		};
+		presentCommandReference();
+	});
+}
+function commandEntryTemplate(entry, promoted = false, shown = true) {
+	const selected = commandReferenceView.selectedCommandId === entry.id;
+	const action = entry.actionable ? html`<button
+        type="button"
+        class="lf-command-reference-command"
+        data-lf-command=${entry.id}
+        data-lf-available=${String(entry.available)}
+        data-lf-selected=${String(selected)}
+        aria-describedby=${[entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ")}
+        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
+        @click=${() => activateCommandEntry(entry)}
+        .textContent=${entry.title}
+      ></button>` : entry.title;
+	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
+	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
+	return html`
+    <div
+      id=${entry.rowId}
+      role="row"
+      ${offeredAction("row", `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`)}
+      data-lf-command=${entry.id}
+      aria-selected=${entry.actionable ? String(selected) : nothing}
+      ?hidden=${!shown}
+    >
+      ${actionCell}
+      <div role="gridcell" class="lf-command-reference-key">
+        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
+		id: entry.keyId,
+		label: entry.keyLabel
+	}) : nothing}
+      </div>
+      ${descriptionCell}
+    </div>
+  `;
+}
+const headingRow = (id, title, hidden = false) => html`
+  <div role="rowgroup" ?hidden=${hidden}>
+    <div role="row">
+      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
+    </div>
+  </div>
+`;
+const commandReferenceItems = () => {
+	const visible = [];
+	if (commandReferenceView.bindingHeading) visible.push({
+		kind: "heading",
+		key: "heading:bindings",
+		id: "lf-command-reference-binding-matches",
+		title: "Matching shortcuts",
+		order: commandReferenceView.bindingHeading.order
+	});
+	for (const heading of commandReferenceView.sectionHeadings) if (heading.shown) visible.push({
+		kind: "heading",
+		key: `heading:${heading.id}`,
+		id: heading.id,
+		title: heading.title,
+		order: heading.order
+	});
+	for (const presentation of commandReferenceView.entryPresentations) visible.push({
+		kind: "entry",
+		key: `entry:${presentation.entry.id}`,
+		...presentation
+	});
+	visible.sort((left, right) => left.order - right.order);
+	const visibleKeys = new Set(visible.map(({ key }) => key));
+	const hidden = [
+		{
+			kind: "heading",
+			key: "heading:bindings",
+			id: "lf-command-reference-binding-matches",
+			title: "Matching shortcuts"
+		},
+		...commandReferenceCatalog.sections.map((section) => ({
+			kind: "heading",
+			key: `heading:${section.id}`,
+			id: section.id,
+			title: section.title
+		})),
+		...commandReferenceCatalog.sections.flatMap((section) => section.entries.map((entry) => ({
+			kind: "entry",
+			key: `entry:${entry.id}`,
+			entry,
+			promoted: false
+		})))
+	].filter(({ key }) => !visibleKeys.has(key));
+	return [...visible, ...hidden.map((item) => ({
+		...item,
+		hidden: true
+	}))];
+};
+function commandReferenceItemTemplate(item) {
+	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
+	return html`<div
+    role="rowgroup"
+    aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
+    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
+    ?hidden=${item.hidden}
+  >
+    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
+  </div>`;
+}
+function commandReferenceTemplate() {
+	const items = commandReferenceItems();
+	return html`
+    <div class="lf-dialog-head lf-command-reference-head">
+      <div class="lf-dialog-title">Command reference</div>
+      ${commandReferenceClose}
+    </div>
+    <label class="lf-command-reference-preference">
+      <input
+        type="checkbox"
+        name="quick-keyboard-shortcuts"
+        autocomplete="off"
+        .checked=${quickShortcuts()}
+        aria-labelledby="lf-quick-keyboard-label"
+        aria-describedby="lf-quick-keyboard-help"
+        @change=${(event) => {
+		setQuickShortcuts(event.currentTarget.checked);
+		commandReferenceCatalog = captureCommandReferenceCatalog();
+		presentCommandReference();
+		repaint();
+	}}
+      />
+      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
+      <small id="lf-quick-keyboard-help"
+        >Use letters, numbers and symbols for Leaf actions.</small
+      >
+    </label>
+    ${commandReferenceSearch}
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
+    <div
+      id="lf-command-reference-results"
+      class="lf-command-reference-results"
+      role="grid"
+      aria-label="Command reference"
+    >
+      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
+      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
+      </div>
+    </div>
+  `;
+}
+function presentCommandReference() {
+	updateCommandReferenceView();
+	render(commandReferenceTemplate(), commandReferenceDialog);
+	const search = commandReferenceSearch.input;
+	keeps(search, "role", "combobox");
+	keeps(search, "aria-autocomplete", "list");
+	keeps(search, "aria-expanded", "true");
+	keeps(search, "aria-haspopup", "grid");
+	const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+	if (search.ariaControlsElements?.[0] !== results) search.ariaControlsElements = [results];
+	const selected = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === commandReferenceView.selectedCommandId);
+	const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
+	if (search.ariaActiveDescendantElement !== row) search.ariaActiveDescendantElement = row;
+	rove(commandReferenceDialog.querySelectorAll(".lf-command-reference-command"), commandButton(commandReferenceView.tabStopCommandId));
+}
+function readCommandReferenceSearch(event) {
+	commandReferenceState = {
+		...commandReferenceState,
+		query: event.currentTarget.value,
+		metaOverride: null
+	};
+	presentCommandReference();
+}
+commandReferenceDialog.addEventListener("cancel", (event) => {
+	event.preventDefault();
+	closeCommandReference();
+});
+let commandReferenceReturn = null;
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo, query) {
+	const fresh = open && !commandReferenceDialog.open;
+	const preserveSelection = fresh && Boolean(pageSelection());
+	const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
+	const restore = handingBack ? commandReferenceReturn : null;
+	if (fresh) {
+		commandReferenceInvoke = invokeCommand;
+		dismissPopoversOutside(commandReferenceDialog);
+		openLayer(commandReferenceDialog);
+		commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
+		commandRoutesAtOpen = {
+			on: availableCommandRoutes({
+				commands: true,
+				quick: true
+			}),
+			off: availableCommandRoutes({
+				commands: true,
+				quick: false
+			})
+		};
+	}
+	if (fresh) {
+		commandReferenceCatalog = captureCommandReferenceCatalog();
+		commandReferenceState = {
+			query: query ?? "",
+			selectedCommandId: null,
+			metaOverride: null
+		};
+		presentCommandReference();
+		const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
+		const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+		search.value = query ?? "";
+		setScroll(results, {
+			top: 0,
+			behavior: "instant"
+		});
+		stopReferenceReading = registerReadingRegion({
+			id: "lf-region:command-reference",
+			host: commandReferenceDialog,
+			body: results
+		});
+	}
+	if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
+	if (!open) {
+		stopReferenceReading?.();
+		stopReferenceReading = null;
+		closeLayer(() => {
+			if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
+			if (currentLocationIn(commandReferenceDialog)) deepFocus()?.blur();
+			repaint();
+		}, handingBack && (() => handBack(restore)));
+		return;
+	}
+	reachScrollers(commandReferenceDialog);
+	focusDestination(commandReferenceDialog.querySelector(preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"), "move");
+	repaint();
+}
+const commandButton = (id) => [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find((button) => button.dataset.lfCommand === id) ?? null;
+const focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
+const commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
+function moveCommandReferenceSelection(dir) {
+	const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
+	if (!ids.length) return;
+	const focusedId = focusedCommandId();
+	const nextId = clampedRow(ids, focusedId ?? commandReferenceState.selectedCommandId, dir);
+	const nextRecord = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === nextId);
+	commandReferenceState = {
+		...commandReferenceState,
+		selectedCommandId: nextId,
+		metaOverride: selectionMeta(nextRecord.entry)
+	};
+	presentCommandReference();
+	const next = commandButton(nextId);
+	if (focusedId) focusDestination(next, "move");
+	scrollIntoView(next.closest("[role=\"row\"]"), { block: "nearest" });
+	beginWalk("shortcut-command", "Command", () => {
+		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
+		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);
+	});
+}
+function activateSelectedCommand() {
+	if (!commandReferenceCommandActive()) return false;
+	const id = focusedCommandId() ?? commandReferenceState.selectedCommandId ?? commandReferenceView.visibleCommands[0]?.entry.id;
+	const record = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === id);
+	if (!record) return false;
+	activateCommandEntry(record.entry);
+	return true;
+}
+const openCommandReference = (invokeCommand, returnTo = null, query = "") => showCommandReference(true, true, invokeCommand, returnTo, query);
+const closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null, "");
+pageScope("command reference", {
+	title: "In the command reference",
+	escape: "inner",
+	root: () => commandReferenceDialog,
+	at: () => commandReferenceDialog.open,
+	claims: EVERYTHING,
+	rows: [
+		{
+			id: "command.reference.command.next",
+			touch: false,
+			keys: ["ArrowDown"],
+			title: "choose next",
+			repeat: true,
+			travels: true,
+			runFromCommandReference: false,
+			commandReferenceWhen: () => true,
+			when: () => commandReferenceCommandActive(),
+			run: () => moveCommandReferenceSelection(1)
+		},
+		{
+			id: "command.reference.command.previous",
+			touch: false,
+			keys: ["ArrowUp"],
+			title: "choose previous",
+			repeat: true,
+			travels: true,
+			runFromCommandReference: false,
+			commandReferenceWhen: () => true,
+			when: () => commandReferenceCommandActive(),
+			run: () => moveCommandReferenceSelection(-1)
+		},
+		{
+			id: "command.reference.command.activate",
+			touch: false,
+			keys: ["Enter"],
+			title: "activate",
+			runFromCommandReference: false,
+			commandReferenceWhen: () => true,
+			when: () => commandReferenceCommandActive(),
+			run: () => activateSelectedCommand()
+		},
+		{
+			id: "command.reference.close",
+			touch: false,
+			keys: ["Escape"],
+			title: "close command reference",
+			control: () => commandReferenceClose,
+			runFromCommandReference: false,
+			run: () => closeCommandReference()
+		}
+	]
+});
+let closeInteractions = () => {};
+function mountCommandReference({ beforeOpening }) {
+	closeInteractions = beforeOpening;
+}
+const openReference = (returnTo = null, query = "") => {
+	closeInteractions();
+	openCommandReference((id) => executeCommand(id), returnTo, query);
+};
+const findCommands = (query, returnTo = null) => openReference(returnTo, query);
+pageCommand({
+	id: "command.reference.open",
+	touch: false,
+	runFromCommandReference: false,
+	keys: ["?"],
+	title: "Command reference",
+	run: () => openReference()
+});
+registerPageControl({
+	key: "keyboard",
+	rank: PAGE_CONTROL_RANK.keyboard,
+	label: "Keyboard shortcuts",
+	shortcut: ["?"],
+	group: "page",
+	press: (held) => {
+		const door = focused();
+		if (held) returnPlace(held);
+		openReference(door);
+	}
 });
 
 //#endregion
@@ -4707,6 +5390,10 @@ function paintStatusContext(goToStatus) {
 //#endregion
 //#region runtime/floating-panel.js
 const prefs = () => document.documentElement.lfChrome;
+const SEARCH_PROMPTS = Object.freeze({
+	menu: "Find a row, thread or version",
+	threads: "Find a thread or message"
+});
 const GROUPS = Object.freeze({
 	navigate: "Navigate",
 	annotate: "Annotations"
@@ -4766,14 +5453,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function panelTemplate(initial = false) {
 		const top = initial ? null : trail.value.at(-1) ?? null;
 		const search = initial ? null : activeSearch();
-		const searchMode = search ? pageSearch?.open ? "page" : "threads" : "";
+		const searchMode = initial ? "" : searchModeOf(search);
 		const searchControls = search?.controls ?? [];
-		const searchLabel = !initial && pageSearch?.open ? "Search page" : "Search threads";
+		const searchLabel = `Search ${searchMode}`;
+		const prompt = SEARCH_PROMPTS[searchMode] ?? SEARCH_PROMPTS.threads;
 		const thread = top ? threadOf(top)?.id ?? null : null;
 		const input = initial ? null : fieldInput();
 		const reading = initial ? null : fieldReading(top?.thread ?? null, input);
 		const selection = !search && reading?.says === "selection" && Boolean(draftOf(input));
-		const folded = !initial && prefs().rest === "mark" && !top && !menuOpen.value && !search;
+		const folded = !initial && prefs().rest === "mark" && !top && !search;
 		const statusModel = initial ? {
 			summary: "Connecting…",
 			tone: ""
@@ -4788,7 +5476,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const quickHidden = initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
-		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
+		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${searchMode}</span>` : selection ? "Selection" : nothing;
 		const newsName = news ? `${news} ${news === 1 ? "thread" : "threads"} with news` : "";
 		const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName].filter(Boolean).join(", ");
 		const quick = html`<button
@@ -4851,11 +5539,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             <button
               type="button"
               class="lf-fp-face lf-fp-leaf"
-              aria-haspopup="menu"
-              aria-controls="lf-fp-menu"
               aria-describedby="lf-fp-peek"
               aria-label=${`${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`}
-              aria-expanded=${folded ? nothing : String(!initial && menuOpen.value)}
+              aria-expanded=${folded ? nothing : String(!initial && menuStands())}
               @click=${pressLeaf}
               @pointerenter=${() => showPeek(true)}
               @pointerleave=${() => showPeek(false)}
@@ -4893,10 +5579,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                   type="search"
                   class="lf-fp-face lf-fp-search"
                   name="thread-search"
-                  placeholder="Find a thread or message"
-                  aria-label="Find a thread or message"
+                  placeholder=${prompt}
+                  aria-label=${prompt}
                   .value=${live(initial ? "" : query)}
-                  ?hidden=${searchMode !== "threads"}
+                  ?hidden=${searchMode !== "threads" && searchMode !== "menu"}
                   @input=${(event) => {
 			query = event.currentTarget.value;
 			refit();
@@ -4926,18 +5612,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         </div>
       </div>
       <div
-        class="lf-fp-menu scroll"
-        id="lf-fp-menu"
-        role="menu"
-        aria-label="Page"
-        ?data-leaving=${!initial && Boolean(menuFade)}
-        ?inert=${!initial && Boolean(menuFade)}
-        data-level=${initial ? nothing : menuFade ? noChange : menuOpen.value && menuAt.value ? menuAt.value.view : nothing}
-        style=${initial ? nothing : menuFade ? noChange : menuOpen.value && menuRoom ? `height: ${menuRoom}px` : nothing}
-      >
-        ${initial ? nothing : menuFade ? noChange : menuOpen.value ? menuTemplate() : nothing}
-      </div>
-      <div
         class="lf-fp-peek"
         id="lf-fp-peek"
         role="tooltip"
@@ -4959,7 +5633,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const stage = shell("stage");
 	const controls = shell("controls");
 	const row = shell("row");
-	const menu = shell("menu");
 	let peekAsked = false;
 	let peekReading = null;
 	const CORNER = {
@@ -5042,11 +5715,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	});
 	const trail = Z([]);
 	let leaving = null;
-	const menuOpen = Z(false);
-	const menuAt = Z(null);
-	let menuRoom = null;
-	let menuFade = null;
-	let menuDrawn = false;
 	let query = "";
 	let searching = false;
 	const unfolded = /* @__PURE__ */ new Set();
@@ -5056,7 +5724,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		input: threadSearchInput,
 		controls: []
 	};
-	const activeSearch = () => pageSearch?.open ? pageSearch : searching && showing({ view: "threads" }) ? threadSearch : null;
+	const menuSearching = () => showing({ view: "menu" });
+	const activeSearch = () => pageSearch?.open ? pageSearch : searching && showing({ view: "threads" }) || menuSearching() ? threadSearch : null;
+	const searchModeOf = (search) => !search ? "" : pageSearch?.open ? "page" : menuSearching() ? "menu" : "threads";
 	function searchPage(search) {
 		pageSearch = search;
 		paint();
@@ -5245,7 +5915,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const top = trail.value.at(-1);
 		return top?.thread ? threadOf(top) ? replyInput() : null : pageEditor().input;
 	};
-	const fieldExit = (search, top) => search === threadSearch ? {
+	const fieldExit = (search, top) => search === threadSearch && !menuSearching() ? {
 		label: "Close search",
 		press: closeThreadSearch,
 		disabled: false,
@@ -5303,6 +5973,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
+		menu: {
+			title: () => "Menu",
+			quiet: () => true,
+			draw: () => menuView(),
+			controls: () => ({ crumb: onTabs("menu") }),
+			rows: ".lf-fp-item"
+		},
 		threads: {
 			title: () => "Threads",
 			quiet: () => true,
@@ -5343,19 +6020,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		versions: {
 			title: () => "Versions",
 			draw: () => versionsList(),
-			menu: true,
-			row: true
+			rows: ".lf-fp-version > .lf-fp-item",
+			row: true,
+			over: ["menu"]
 		},
 		errors: {
 			title: () => "Errors",
 			draw: (route) => errorsList(route),
-			menu: true
+			over: ["menu"]
 		},
 		group: {
 			key: (route) => `group:${route.group}`,
 			title: (route) => GROUPS[route.group],
 			draw: (route) => groupList(route.group),
-			menu: true
+			rows: ".lf-fp-item",
+			over: ["menu"]
 		}
 	});
 	const viewOf = (route) => VIEWS[route?.view];
@@ -5363,9 +6042,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const titleOf = (route) => viewOf(route).title(route);
 	const OWN_VIEWS = Object.keys(VIEWS).filter((view) => VIEWS[view].row);
 	const showing = (route) => {
-		const at = viewOf(route).menu ? menuOpen.value && menuAt.value : trail.value.at(-1);
+		const at = trail.value.at(-1);
 		return Boolean(at) && routeKey(at) === routeKey(route);
 	};
+	const menuStands = () => trail.value.some((level) => level.view === "menu");
 	const freshOpening = () => ({
 		drawn: false,
 		room: null,
@@ -5389,7 +6069,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	function open(route, { replace = false, reopen = false, focus = true } = {}) {
 		const before = trail.value.at(-1);
-		setMenu(false);
 		if (before && routeKey(before) === routeKey(route) && !replace) {
 			if (reopen) return;
 			close();
@@ -5425,7 +6104,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const before = trail.value.at(-1);
 		if (prefs().rest === "mark") prefs().setRest("row");
 		if (trail.value.length) trail.value = [];
-		setMenu(false);
 		transition(before, { focus: false });
 	}
 	function writeOnPage() {
@@ -5481,49 +6159,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function putAwayThen(run) {
 		const inside = currentLocationIn(host);
-		if (!menuOpen.value) close();
-		setMenu(false);
+		close();
 		if (inside) focusDestination(leaf, "return");
 		run();
-	}
-	function setMenu(on) {
-		if (menuOpen.value === on) return;
-		menuOpen.value = on;
-		menuAt.value = null;
-		menuRoom = null;
-		held = null;
-		paint();
-	}
-	function showMenuAt(level) {
-		const before = menuOpen.value ? menuAt.value : void 0;
-		if (before && level && routeKey(before) === routeKey(level)) return;
-		if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-		menuOpen.value = true;
-		menuAt.value = level;
-		menuRoom = null;
-		held = null;
-		paint();
-		if (level) {
-			menuRoom = menu.offsetHeight;
-			paint();
-		}
-		const page = menu.firstElementChild;
-		if (before !== void 0 && page) {
-			const side = (level ? 1 : -1) * (getComputedStyle(menu).direction === "rtl" ? -1 : 1);
-			playMotion(page, [{
-				translate: `${side * 16}px 0`,
-				opacity: 0
-			}, {
-				translate: "0 0",
-				opacity: 1
-			}], {
-				duration: viewResizeMs(),
-				easing: ease()
-			});
-		}
-		if (pointedInPanel) return;
-		const target = level ? page?.querySelector(".lf-fp-item:not(.lf-fp-menu-back, :disabled)") : before && menu.querySelector(`[data-row="${routeKey(before)}"]`);
-		if (target) focusDestination(target, "move");
 	}
 	let viewMovingUntil = 0;
 	const fit = sizeObserver(() => {
@@ -5731,23 +6369,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		opening.waiting = null;
 		paint();
 	}
-	let held = null;
-	let seats = [];
-	function holdMenu() {
-		if (!menuOpen.value || held !== null || !statusReading()) return false;
-		const state = menu.querySelector(".lf-fp-state");
-		if (!state) return false;
-		const lines = (part) => {
-			const line = state.querySelector(`.lf-fp-${part}`);
-			return line ? Math.round(line.getBoundingClientRect().height / Number.parseFloat(getComputedStyle(line).lineHeight)) : 0;
-		};
-		held = {
-			summary: lines("summary"),
-			explain: lines("explain"),
-			seats
-		};
-		return true;
-	}
 	function transition(before, { focus = true, handedOn = false } = {}) {
 		const after = trail.value.at(-1);
 		postureMoved = true;
@@ -5807,17 +6428,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (target) focusDestination(target, "move");
 	}
 	let keyed$1 = false;
-	let pointedInPanel = false;
 	onUserInput((event) => {
-		if (["keydown", "pointerdown"].includes(event.type)) {
-			const inPanel = event.composedPath().includes(host);
-			keyed$1 = event.type === "keydown" && inPanel;
-			pointedInPanel = event.type === "pointerdown" && inPanel;
-		}
+		if (["keydown", "pointerdown"].includes(event.type)) keyed$1 = event.type === "keydown" && event.composedPath().includes(host);
 	});
-	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null, current = false } = {}) => html`<button
+	const menuItem = (label, end, press, { urgent = false, disabled = false, row = null, opens = false, title = null, current = false } = {}) => html`<button
       type="button"
-      role=${role ?? nothing}
       data-row=${row ?? nothing}
       title=${title ?? nothing}
       ${offeredAction("row", "lf-fp-face lf-fp-item")}
@@ -5852,7 +6467,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		copy.disabled = entry.disabled;
 		render(menuItem(`Copy ${entry.label}`, actionTemplate("copy", "lf-fp-copy-icon"), () => {}, {
 			disabled: entry.disabled,
-			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
 			title: entry.value || null
 		}), copy);
@@ -5861,36 +6475,31 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function rowFor(entry) {
 		if (entry.copies) return copyItem(entry);
 		const route = OWN_VIEWS.includes(entry.key) ? { view: entry.key } : null;
-		const menuList = Boolean(route && viewOf(route).menu);
 		return menuItem(entry.label, rowEnd(entry), () => {
-			if (menuList) showMenuAt(route);
-			else if (route) open(route);
+			if (route) open(route);
 			else putAwayThen(() => entry.press(heldCurrentLocation));
 		}, {
 			urgent: Boolean(entry.urgent),
 			disabled: entry.disabled,
-			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
-			opens: menuList,
+			opens: Boolean(route && viewOf(route).over?.includes("menu")),
 			title: entry.title || null
 		});
 	}
-	function menuTemplate() {
-		if (!menuAt.value) return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
-		return html`<div class="lf-fp-menu-page" role="none">
-      <div class="lf-fp-menu-name" role="none">${titleOf(menuAt.value)}</div>
-      ${viewOf(menuAt.value).draw(menuAt.value)}
-      <div class="lf-fp-menu-rule" role="none"></div>
-      <button
-        type="button"
-        role="menuitem"
-        ${offeredAction("row", "lf-fp-face lf-fp-menu-back")}
-        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
-        @click=${() => showMenuAt(null)}
-      >
-        ${iconTemplate("next", "lf-fp-chevron")}Menu
-      </button>
-    </div>`;
+	const menuView = () => html`<div class="lf-fp-menu">${query.trim() ? menuFound() : rootTemplate()}</div>`;
+	function menuFound() {
+		const words = query.trim();
+		const holds = (text) => String(text ?? "").toLocaleLowerCase().includes(words.toLocaleLowerCase());
+		const reached = rows().filter((entry) => !entry.exit && (listed(entry) || HELD_ELSEWHERE.includes(entry.key)) && (groupOf(entry) === "page" || groupOf(entry) in GROUPS) && holds(entry.copies ? `Copy ${entry.label}` : entry.label));
+		const named = threads().filter((thread) => holds(threadName(thread)));
+		const versions = versionsReading().rows.filter((entry) => holds(`${entry.name} ${entry.note ?? ""}`));
+		const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
+		return html`${reached.map(rowFor)}${named.map((thread) => menuItem(threadName(thread), kind("Thread"), () => open({
+			view: "thread",
+			thread: thread.key
+		}), { row: `thread:${thread.key}` }))}${versions.map((entry) => menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, kind("Version"), () => showVersion(entry), { title: entry.note }))}${reached.length || named.length || versions.length ? nothing : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`}
+      <hr />
+      ${menuItem(`Search commands for “${words}”`, nothing, () => putAwayThen(() => findCommands(words, leaf)))}`;
 	}
 	function rootTemplate() {
 		const all = rows();
@@ -5910,64 +6519,30 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             rel="noopener"
             >${publication.install}</a
           >` : said;
-		const part = (name, text) => (held ? held[name] : text) ? html`<span
-            class="lf-fp-${name}"
-            style=${held ? `--lines: ${held[name]}` : nothing}
-            >${text}</span
-          >` : nothing;
-		const seat = (entry) => ({
-			key: entry.key,
-			draw: (gone) => rowFor(gone ? {
-				...entry,
-				disabled: true
-			} : entry)
-		});
+		const part = (name, text) => text ? html`<span class="lf-fp-${name}">${text}</span>` : nothing;
 		const errors = errorsReading();
-		const offered = [
-			...errors.length ? [{
-				key: "errors",
-				draw: (gone) => menuItem("Errors", html`<span class="lf-fp-value">${errors.length}</span>`, () => {
-					showMenuAt({
-						view: "errors",
-						errors
-					});
-					seeErrors();
-				}, {
-					opens: true,
-					urgent: errors.some((error) => !error.seen),
-					disabled: gone,
-					row: "errors"
-				})
-			}] : [],
-			...page.map(seat),
-			...groups.map((group) => ({
-				key: `group:${group}`,
-				draw: (gone) => menuItem(GROUPS[group], groupValue(group) ? html`<span class="lf-fp-value">${groupValue(group)}</span>` : nothing, () => showMenuAt({
-					view: "group",
-					group
-				}), {
-					opens: true,
-					disabled: gone,
-					row: `group:${group}`
-				})
-			})),
-			{
-				key: "",
-				draw: () => html`<hr />`
-			},
-			...[keyboard, fold].filter(Boolean).map(seat)
-		];
-		const now = new Map(offered.map((row) => [row.key, row]));
-		seats = held?.seats ?? offered;
-		return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+		return html`<div class="lf-fp-state" data-tone=${tone || nothing}>
         ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part("explain", explains)}
       </div>
-      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
+      ${errors.length ? menuItem("Errors", html`<span class="lf-fp-value">${errors.length}</span>`, () => {
+			open({
+				view: "errors",
+				errors
+			});
+			seeErrors();
+		}, {
+			opens: true,
+			urgent: errors.some((error) => !error.seen),
+			row: "errors"
+		}) : nothing}${page.map(rowFor)}${groups.map((group) => menuItem(GROUPS[group], groupValue(group) ? html`<span class="lf-fp-value">${groupValue(group)}</span>` : nothing, () => open({
+			view: "group",
+			group
+		}), {
+			opens: true,
+			row: `group:${group}`
+		}))}
+      <hr />
+      ${[keyboard, fold].filter(Boolean).map(rowFor)}`;
 	}
 	const groupValue = (group) => group === "annotate" ? rows().find((entry) => entry.key === "command:annotations.toggle")?.label === "Show annotations" ? "Hidden" : "" : "";
 	function groupList(group) {
@@ -5988,7 +6563,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			current: entry.current
 		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
                       type="button"
-                      role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"
                       aria-pressed=${String(selection.on && selection.base === entry.version)}
                       aria-label=${`Compare with ${entry.name}`}
@@ -6005,22 +6579,23 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const live = new Set(errorsReading().map((error) => error.id));
 		if (!errors.length) return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
 		const movePast = (dismissed) => {
-			const presses = [...menu.querySelectorAll(".lf-fp-error button")];
+			const presses = [...stage.querySelectorAll(".lf-fp-error button")];
 			const at = errors.findIndex((error) => error.id === dismissed);
 			const after = errors.findIndex((error, index) => index > at && live.has(error.id));
 			const before = errors.findLastIndex((error, index) => index < at && live.has(error.id));
 			const next = dismissed === null ? null : presses[after >= 0 ? after : before];
-			focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+			focusDestination(next ?? controls.querySelector(".lf-fp-back"), "move");
 		};
 		const currentLocation = focused()?.closest(".lf-fp-error");
 		const currentLocationId = Number(currentLocation?.dataset.key);
 		if (currentLocation && !live.has(currentLocationId)) movePast(currentLocationId);
 		const dismiss = (dismissed) => {
 			movePast(dismissed);
-			menuAt.value = {
-				...menuAt.value,
+			const top = trail.value.at(-1);
+			trail.value = [...trail.value.slice(0, -1), {
+				...top,
 				errors: dismissed === null ? [] : errors.filter((error) => error.id !== dismissed)
-			};
+			}];
 			if (dismissed === null) dismissErrors();
 			else dismissError(dismissed);
 		};
@@ -6035,7 +6610,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           </p>
           <button
             type="button"
-            role="menuitem"
             class="lf-fp-face lf-fp-quiet"
             ?disabled=${!live.has(error.id)}
             aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
@@ -6901,14 +7475,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </div>
       <div class="lf-fp-aux">${aux}</div>`;
 	}
+	const TAB_LABELS = Object.freeze({
+		menu: "Menu",
+		threads: "Threads"
+	});
 	function onTabs(current) {
 		const lists = queueLists();
-		return tabs([...Object.keys(QUEUE_TABS), "threads"], current, (tab) => tab === "threads" ? "Threads" : tabLabel(tab), onTab, (tab) => tab === "threads" ? openCount() : lists[tab].length);
+		return tabs([
+			"menu",
+			...Object.keys(QUEUE_TABS),
+			"threads"
+		], current, (tab) => TAB_LABELS[tab] ?? tabLabel(tab), onTab, (tab) => tab === "menu" ? null : tab === "threads" ? openCount() : lists[tab].length);
 	}
 	function onTab(tab) {
-		if (tab === "threads") {
+		if (tab === "menu" || tab === "threads") {
 			query = "";
-			open({ view: "threads" }, {
+			open({ view: tab }, {
 				replace: true,
 				focus: false
 			});
@@ -7015,10 +7597,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const inside = currentLocationIn(host);
 		prefs().setRest(rest);
 		trail.value = [];
-		menuOpen.value = false;
-		menuAt.value = null;
-		menuRoom = null;
-		held = null;
 		transition(before, { focus: false });
 		if (inside) focusDestination(leaf, "return");
 	}
@@ -7038,7 +7616,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (top?.thread && !threadOf(top)) close();
 			holdRoom();
 			paintNow();
-			if (holdMenu()) paintNow();
 		} finally {
 			painting = false;
 		}
@@ -7084,28 +7661,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const top = trail.value.at(-1) ?? null;
 		const drawing = opening;
 		const search = activeSearch();
-		const folded = prefs().rest === "mark" && !top && !menuOpen.value && !search;
-		keeps(host, "data-search", search ? pageSearch?.open ? "page" : "threads" : null);
+		const folded = prefs().rest === "mark" && !top && !search;
+		keeps(host, "data-search", searchModeOf(search) || null);
 		keeps(host, "data-rest", folded ? "mark" : "row");
 		keeps(host, "data-open", top ? top.view : null);
-		keeps(host, "data-menu", menuOpen.value ? "" : null);
-		if (menuOpen.value) {
-			if (menuFade) {
-				menuFade.cancel();
-				menuFade = null;
-			}
-		} else if (menuDrawn && !menuFade && motionPlays()) {
-			menu.setAttribute("data-leaving", "");
-			menuFade = playMotion(menu, [{ opacity: 1 }, { opacity: 0 }], {
-				duration: motionTime("--lf-motion-disclosure", menu),
-				easing: "linear"
-			});
-			menuFade?.finished.then(() => {
-				menuFade = null;
-				paint();
-			}, () => {});
-		}
-		menuDrawn = menuOpen.value;
 		const heldView = shownView();
 		const restoreFocus = heldView && holdFocus(heldView, { key: "data-key" });
 		const replying = Boolean(top?.thread);
@@ -7138,11 +7697,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		render(panelTemplate(), host);
 		noteDrawnSections();
 		for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();
-		keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-		if (menuOpen.value) {
-			const rows = menuRows();
-			rove(rows, rows.includes(focused()) ? focused() : rows[0]);
-		}
 		if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
 		drawing.drawn = true;
 		regionViews();
@@ -7196,11 +7750,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			paint();
 			return;
 		}
-		setMenu(!menuOpen.value);
-		if (menuOpen.value && keyed$1) {
-			const first = menu.querySelector("button");
-			if (first) focusDestination(first, "move");
+		if (menuStands()) {
+			close();
+			return;
 		}
+		query = "";
+		open({ view: "menu" });
+		if (!coarse()) focusDestination(threadSearchInput, "move");
 	}
 	const peekAsks = () => host.dataset.rest === "mark" && peekAsked;
 	function peekPresentation() {
@@ -7231,23 +7787,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 				refit();
 				paint();
 			}
+		} : menuSearching() ? {
+			root: host,
+			title: "close menu",
+			out: () => {
+				close();
+				focusDestination(leaf, "return");
+			}
 		} : {
 			root: host,
 			title: "close search",
 			out: closeThreadSearch
-		};
-		if (menuOpen.value && menuAt.value) return {
-			root: host,
-			title: "back to menu",
-			out: () => showMenuAt(null)
-		};
-		if (menuOpen.value) return {
-			root: host,
-			title: "close menu",
-			out: () => {
-				setMenu(false);
-				focusDestination(leaf, "return");
-			}
 		};
 		if (!trail.value.length) return null;
 		if (trail.value.at(-1).view === "queue" && currentLocationIn(host) && shownView()?.querySelector(".lf-fp-on-item[data-open]")) return {
@@ -7264,45 +7814,38 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		};
 	});
-	const menuRows = () => [...menu.querySelectorAll("button:not(:disabled)")];
 	const inList = () => {
 		const at = focused();
 		const rows = listRows();
 		return rows.length > 0 && (at === shownView() || rows.includes(at));
 	};
-	const walkedRows = () => menuOpen.value ? menuRows() : listRows();
 	keys(host, "In the floating panel", rowWalk({
 		id: "panel.floating.rows",
 		noun: "Row",
-		plural: "rows of the page menu or the open view",
-		rows: walkedRows,
+		plural: "rows of the open view",
+		rows: listRows,
 		position: () => null,
-		landed: (row) => rove(walkedRows(), row)
+		landed: (row) => rove(listRows(), row)
 	}).map((row) => ({
 		...row,
-		when: () => menuOpen.value || inList()
-	})).concat({
-		id: "panel.floating.menu.level",
-		keys: ["ArrowLeft", "ArrowRight"],
-		title: "open or leave a list",
-		when: () => menuOpen.value && renderedUnder(focused(), menu),
-		run: (binding) => {
-			const [backward] = rowArrows(menu);
-			if (binding === backward) {
-				if (menuAt.value) showMenuAt(null);
-			} else if (focused()?.hasAttribute("data-opens")) focused().click();
-		}
-	}, ["Tab", "Shift+Tab"].map((key) => ({
-		id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
-		keys: [key],
-		title: key === "Tab" ? "leave forward" : "leave backward",
-		native: true,
-		when: () => menuOpen.value && renderedUnder(focused(), menu),
-		run: () => {
-			focusDestination(leaf, "move");
-			setMenu(false);
-		}
-	}))));
+		when: inList
+	})));
+	keys(threadSearchInput, "In the menu's search", [{
+		id: "panel.floating.menu.first",
+		keys: ["Enter"],
+		title: "press the first row found",
+		touch: false,
+		when: () => query.trim() !== "" && listRows().length > 0,
+		run: () => listRows()[0].click()
+	}, {
+		id: "panel.floating.menu.rows",
+		keys: ["ArrowDown"],
+		title: "to the rows",
+		touch: false,
+		travels: true,
+		when: () => listRows().length > 0,
+		run: () => focusDestination(listRows()[0], "move")
+	}], () => menuSearching());
 	keys(opened, "In the floating panel", [{
 		id: "panel.floating.threads.find",
 		keys: ["/"],
@@ -7311,7 +7854,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}], () => showing({ view: "threads" }));
 	const versionsShown = () => showing({ view: "versions" });
 	const numbered = () => versionsReading().rows.filter(({ version }) => version !== null && version <= 9).toSorted((a, b) => a.version - b.version);
-	keys(menu, "In the floating panel", [{
+	keys(opened, "In the floating panel", [{
 		id: "panel.floating.versions.pick",
 		keys: () => numbered().map(({ version }) => String(version)),
 		label: () => {
@@ -7333,7 +7876,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		keys: ["Escape"],
 		description: "The view above stays open",
 		title: "leave field",
-		when: () => !menuOpen.value && trail.value.length > 0,
+		when: () => trail.value.length > 0,
 		run: () => focusDestination(leaf, "return")
 	}]);
 	pageCommand({
@@ -7353,7 +7896,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		fromThePage.keep(event, true);
 	}, true);
 	onCurrentLocation((node, _cause, left) => {
-		if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
 		const inside = Boolean(node) && renderedUnder(node, host);
 		if (inside && !left && !fromThePage.kept()) heldCurrentLocation = null;
 		else if (inside && left?.isConnected && !renderedUnder(left, host)) heldCurrentLocation = readPlace(left);
@@ -7362,10 +7904,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		writing = next;
 		paint();
 	});
-	onPressAway((path) => (menuOpen.value || trail.value.length > 0) && !path.includes(host) && nativeModalAdmits(host), () => {
-		if (menuOpen.value) setMenu(false);
-		if (trail.value.length) close();
-	});
+	onPressAway((path) => trail.value.length > 0 && !path.includes(host) && nativeModalAdmits(host), () => close());
 	const standsOver = (where, landed) => trail.value.length > 0 && coveredShare(opened, where, landed) > 0;
 	function clearFor({ where, focus }, landed) {
 		if (doors.queue.shows() && onMe.lists(focus ?? placeHolder(where))) return;
@@ -7375,8 +7914,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (cause === "step" && node && standsOver(node, landedBox(node))) close();
 	});
 	function putVersionsAway() {
-		const inside = renderedUnder(focused(), menu);
-		setMenu(false);
+		const inside = currentLocationIn(host);
+		close();
 		if (inside) focusDestination(leaf, "return");
 	}
 	const doors = Object.freeze({
@@ -7398,7 +7937,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		},
 		versions: {
 			shows: versionsShown,
-			press: () => versionsShown() ? putVersionsAway() : showMenuAt({ view: "versions" })
+			press: () => versionsShown() ? putVersionsAway() : open({ view: "versions" })
 		}
 	});
 	function showForSample({ thread }) {
@@ -8638,7 +9177,7 @@ registerPageControl({
 	value: () => claimed() ? claimantValue(runtime.state) : "",
 	copies: () => claimed() ? claimantDiagnostics(runtime.state) : "",
 	offered: claimed,
-	group: "page"
+	group: "about"
 });
 const preview = () => runtime.state?.preview ?? null;
 function previewLabel() {
@@ -8675,7 +9214,7 @@ registerPageControl({
 	value: () => preview() ? previewLabel() : "",
 	copies: () => preview() ? previewDiagnostics() : "",
 	offered: () => Boolean(preview()),
-	group: "page"
+	group: "about"
 });
 function runtimeLines() {
 	const { delivery } = pageIdentity();
@@ -8719,7 +9258,7 @@ registerPageControl({
 	value: () => layerShown() ? layerNamed() : "",
 	copies: () => layerShown() ? layerDiagnostics() : "",
 	offered: layerShown,
-	group: "page"
+	group: "about"
 });
 registerPageControl({
 	key: "session",
@@ -8727,7 +9266,7 @@ registerPageControl({
 	label: "session reference",
 	copies: () => runtime.sessionReference ?? "",
 	offered: () => Boolean(runtime.sessionReference),
-	group: "page"
+	group: "about"
 });
 
 //#endregion
@@ -9401,690 +9940,6 @@ function paintCloseRequests() {
 	watcher = held;
 	under = nativeLayers();
 }
-
-//#endregion
-//#region runtime/keyboard/command-reference.js
-const commandReferenceDialog = document.createElement("dialog");
-commandReferenceDialog.id = "lf-command-reference";
-commandReferenceDialog.className = "lf-ui lf-command-reference";
-commandReferenceDialog.setAttribute("aria-label", "Command reference");
-commandReferenceDialog.setAttribute("closedby", "any");
-commandReferenceDialog.setAttribute("aria-modal", "true");
-commandReferenceDialog.tabIndex = -1;
-let stopReferenceReading = null;
-const commandReferenceSearch = searchField("lf-command-reference-search", {
-	name: "shortcut-search",
-	label: "Search commands",
-	placeholder: "Find a key or action"
-});
-commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
-const commandReferenceClose = closeControl({
-	name: "Close the command reference",
-	className: "lf-command-reference-close"
-});
-commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
-commandReferenceClose.setAttribute("aria-label", "Close the command reference");
-commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
-function declaredStack(origin) {
-	pruneScopedElements();
-	const sections = /* @__PURE__ */ new Map();
-	const activeScopes = scopesFor(origin);
-	const named = (section) => activeScopes.some((scope) => scope.title === section.title && (!scope.when || scope.when()));
-	const contextualIds = /* @__PURE__ */ new Map();
-	const referenceIdentity = (scope, row) => {
-		if (!scope.contextual) return row.id;
-		if (!contextualIds.has(row.id)) contextualIds.set(row.id, Symbol(row.id));
-		return contextualIds.get(row.id);
-	};
-	const referenceRows = (scope) => scope.rows.map((row) => [referenceIdentity(scope, row), {
-		row,
-		sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence
-	}]);
-	for (const scope of pageScopes().toReversed()) {
-		if (scope !== ELEMENTS) {
-			merge(sections, {
-				...scope,
-				rows: referenceRows(scope)
-			});
-			continue;
-		}
-		const declared = /* @__PURE__ */ new Map();
-		const held = [...scopeRefs].map((ref) => ref.deref()).filter((node) => node?.isConnected && scopesAt(node).some((scope) => scope.title));
-		held.sort(renderedOrder);
-		const seen = /* @__PURE__ */ new Set();
-		for (const node of held) for (const section of scopesAt(node)) {
-			if (!section.title) continue;
-			const identity = section.identity ?? section;
-			if (seen.has(identity)) continue;
-			seen.add(identity);
-			merge(declared, {
-				...section,
-				rows: referenceRows(section)
-			});
-		}
-		for (const section of activeScopes.toReversed()) if (section.title) merge(declared, {
-			...section,
-			rows: referenceRows(section)
-		});
-		for (const section of declared.values()) merge(sections, {
-			...section,
-			at: () => named(section)
-		});
-	}
-	const exit = (row) => bindings(row).includes("Escape") ? 1 : 0;
-	return [...sections.values()].map((section) => ({
-		...section,
-		rows: [...section.rows.values()].sort((left, right) => exit(left.row) - exit(right.row))
-	}));
-}
-let commandRoutesAtOpen = {
-	on: /* @__PURE__ */ new Map(),
-	off: /* @__PURE__ */ new Map()
-};
-let commandReferenceInvoke = null;
-let commandReferenceCatalog = Object.freeze({
-	total: 0,
-	entries: Object.freeze([]),
-	sections: Object.freeze([])
-});
-let commandReferenceState = {
-	query: "",
-	selectedCommandId: null,
-	metaOverride: null
-};
-let commandReferenceView = {
-	shown: 0,
-	metadata: "",
-	bindingHeading: null,
-	sectionHeadings: [],
-	entryPresentations: [],
-	visibleCommands: [],
-	selectedCommandId: null,
-	tabStopCommandId: null
-};
-const commandReferenceWords = (value) => String(value ?? "").toLocaleLowerCase().replace(/\s+/g, " ").trim();
-const commandReferenceBinding = (value) => String(value ?? "").replace(/^\s+/, "").replace(/\s+/g, " ");
-const listedTitle = (title) => `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
-const availableWhere = (row, scopeTitle, scopeReach) => {
-	const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
-	return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
-};
-const spokenReferenceSteps = (row, route, steps, declared) => {
-	const alternatives = route ? [route.binding] : declared;
-	if (alternatives.length !== 1) return steps;
-	const binding = alternatives[0];
-	const spoken = [...steps];
-	const index = spoken.lastIndexOf(spell(binding));
-	if (index !== -1) spoken[index] = spokenBinding(binding);
-	return spoken;
-};
-function captureCommandReferenceCatalog() {
-	const referenceScopes = declaredStack(openerOf(commandReferenceDialog)).map((scope) => {
-		const inScope = userIn(scope) || scope.liveInCommandReference;
-		return {
-			scope,
-			rows: scope.rows.filter(({ row }) => !inScope || (row.commandReferenceWhen ? row.commandReferenceWhen() : live$1(row))).map(({ row, sequence: prefix }) => {
-				const sequence = [...word(prefix) ?? []];
-				const declared = [...allBindings(row)];
-				const shownBindings = declared.filter(bindingEnabled);
-				const referenceRow = {
-					...row,
-					keys: shownBindings
-				};
-				return {
-					row,
-					sequence,
-					declared,
-					rowBindings: [...declaredBindings(row)],
-					referenceRow,
-					baseTitle: titleOf(row),
-					baseDescription: descriptionOf(row),
-					familySteps: shownBindings.length ? [...sequence, ...completeRowSteps(referenceRow)] : [],
-					presentations: commandPresentations(row, declared, { includeUnavailable: true }).map(({ id, route }) => ({
-						id,
-						route: route && route.binding == null ? {
-							...route,
-							binding: contextBindings(route)[0]
-						} : route
-					}))
-				};
-			})
-		};
-	}).filter(({ rows }) => rows.length);
-	const available = (rowInfo, route) => {
-		const routes = commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ?? /* @__PURE__ */ new Set();
-		const alternatives = route ? [route.binding] : rowInfo.rowBindings;
-		return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
-	};
-	const actionable = (row, route) => Boolean((row.run || routedCommand(route)) && (routedCommand(route)?.row ?? row).runFromCommandReference !== false);
-	const preferred = /* @__PURE__ */ new Map();
-	const executable = /* @__PURE__ */ new Set();
-	for (const { rows } of referenceScopes) for (const rowInfo of rows) for (const { id, route } of rowInfo.presentations) {
-		const candidate = {
-			row: rowInfo.row,
-			binding: route?.binding ?? null,
-			available: available(rowInfo, route),
-			actionable: actionable(rowInfo.row, route),
-			keyed: rowInfo.declared.length > 0
-		};
-		if (candidate.available) executable.add(id);
-		const prior = preferred.get(id);
-		if (!prior || !prior.actionable && candidate.actionable || prior.actionable === candidate.actionable && (!prior.keyed && candidate.keyed || prior.keyed === candidate.keyed && !prior.available && candidate.available)) preferred.set(id, candidate);
-	}
-	const presented = /* @__PURE__ */ new Set();
-	const sections = [];
-	const entries = [];
-	let entryIndex = 0;
-	for (const { scope, rows } of referenceScopes) {
-		const sectionOrder = sections.length;
-		const sectionTitle = scope.title ?? "On this page";
-		const sectionEntries = [];
-		for (const rowInfo of rows) for (const { id, route } of rowInfo.presentations) {
-			const chosen = preferred.get(id);
-			if (chosen?.row !== rowInfo.row || chosen.binding !== (route?.binding ?? null) || presented.has(id)) continue;
-			presented.add(id);
-			const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
-			const description = route?.description !== void 0 ? descriptionOf(route) : rowInfo.baseDescription;
-			const alternatives = (route ? [route.binding] : rowInfo.declared).filter(bindingEnabled);
-			const keySteps = alternatives.length ? [...rowInfo.sequence.map((step) => [step]), ...completeRowKeySteps(rowInfo.referenceRow, route)] : [];
-			const steps = keySteps.map(stepText);
-			const isAvailable = executable.has(id);
-			const spokenSteps = spokenReferenceSteps(rowInfo.row, route, steps, rowInfo.declared);
-			const entry = Object.freeze({
-				id,
-				rowId: `lf-command-reference-row-${entryIndex}`,
-				keyId: `lf-command-reference-key-${entryIndex}`,
-				descriptionId: `lf-command-reference-description-${entryIndex}`,
-				sectionId: `lf-command-reference-section-${sectionOrder}`,
-				sectionTitle,
-				order: sectionEntries.length,
-				sequenceControl: Boolean(rowInfo.row.sequenceControl),
-				keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
-				steps: Object.freeze(steps),
-				keySequence: steps.length ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps) : null,
-				title,
-				description,
-				actionable: actionable(rowInfo.row, route),
-				available: isAvailable,
-				unavailableMessage: availableWhere(rowInfo.row, sectionTitle, scope.reach),
-				bindingForms: Object.freeze(alternatives.map((binding) => Object.freeze({
-					display: [...rowInfo.sequence, spell(binding)].join(" "),
-					spoken: [...rowInfo.sequence, spokenBinding(binding)].join(" ")
-				}))),
-				directWords: commandReferenceWords(`${id} ${sectionTitle} ${steps.join(" ")} ${title} ${description ?? ""}`),
-				familyWords: commandReferenceWords(`${rowInfo.row.id} ${rowInfo.familySteps.join(" ")} ${rowInfo.baseTitle} ${rowInfo.baseDescription ?? ""}`)
-			});
-			entryIndex += 1;
-			entries.push(entry);
-			sectionEntries.push(entry);
-		}
-		sections.push(Object.freeze({
-			id: `lf-command-reference-section-${sectionOrder}`,
-			title: sectionTitle,
-			words: commandReferenceWords(sectionTitle),
-			order: sectionOrder,
-			entries: Object.freeze(sectionEntries)
-		}));
-	}
-	return Object.freeze({
-		total: entries.length,
-		entries: Object.freeze(entries),
-		sections: Object.freeze(sections)
-	});
-}
-const selectionMeta = (entry) => [
-	entry.description || entry.title,
-	entry.steps[0],
-	"⏎ activate"
-].filter(Boolean).join(" · ");
-function projectCommandReference(catalog, state) {
-	const query = commandReferenceWords(state.query);
-	const bindingQuery = commandReferenceBinding(state.query);
-	const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
-	const directMatch = Boolean(query) && catalog.entries.some((entry) => entry.directWords.includes(query));
-	const ranked = catalog.sections.flatMap((section) => {
-		const sectionMatch = Boolean(query) && section.words.includes(query);
-		return section.entries.map((entry) => {
-			const exactBinding = Boolean(bindingQuery) && entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
-			const foldedBinding = Boolean(foldedBindingQuery) && entry.bindingForms.some(({ display }) => display.toLocaleLowerCase().startsWith(foldedBindingQuery));
-			const spokenPrefix = Boolean(foldedBindingQuery) && entry.bindingForms.some(({ spoken }) => spoken.toLocaleLowerCase().startsWith(foldedBindingQuery));
-			return {
-				entry,
-				section,
-				rank: !query ? 0 : exactBinding ? 0 : foldedBinding ? 1 : spokenPrefix ? 2 : sectionMatch || entry.directWords.includes(query) ? 3 : !directMatch && entry.familyWords.includes(query) ? 4 : Infinity
-			};
-		});
-	});
-	const bindingMatches = query ? ranked.filter(({ rank }) => rank <= 2).sort((left, right) => left.rank - right.rank || left.section.order - right.section.order || left.entry.order - right.entry.order) : [];
-	const promoted = new Set(bindingMatches.map(({ entry }) => entry.id));
-	const sections = catalog.sections.map((section) => {
-		const matches = ranked.filter((candidate) => candidate.section === section && Number.isFinite(candidate.rank) && !promoted.has(candidate.entry.id)).sort((left, right) => left.rank - right.rank || left.entry.order - right.entry.order);
-		return {
-			...section,
-			rank: matches[0]?.rank ?? Infinity,
-			entries: matches.map(({ entry }) => entry)
-		};
-	}).sort((left, right) => left.rank - right.rank || left.order - right.order);
-	const visibleCommands = [...bindingMatches.map(({ entry }) => ({
-		entry,
-		promoted: true
-	})), ...sections.flatMap(({ entries: visible }) => visible.map((entry) => ({
-		entry,
-		promoted: false
-	})))].filter(({ entry }) => entry.actionable);
-	const selectedCommandId = visibleCommands.find(({ entry }) => entry.id === state.selectedCommandId)?.entry.id ?? null;
-	const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
-	const metadata = state.metaOverride ?? (query ? `${shown} of ${catalog.total} commands · ↑↓ choose · ⏎ activate` : `${catalog.total} commands · ↑↓ choose · ⏎ activate`);
-	let presentationOrder = 0;
-	const bindingHeading = bindingMatches.length ? Object.freeze({ order: presentationOrder++ }) : null;
-	const entryPresentations = bindingMatches.map(({ entry }) => Object.freeze({
-		entry,
-		promoted: true,
-		order: presentationOrder++
-	}));
-	return {
-		shown,
-		metadata,
-		bindingHeading,
-		sectionHeadings: sections.map((section) => {
-			const heading = Object.freeze({
-				id: section.id,
-				title: section.title,
-				shown: section.entries.length > 0,
-				order: section.entries.length > 0 ? presentationOrder++ : -1
-			});
-			entryPresentations.push(...section.entries.map((entry) => Object.freeze({
-				entry,
-				promoted: false,
-				order: presentationOrder++
-			})));
-			return heading;
-		}),
-		entryPresentations,
-		visibleCommands,
-		selectedCommandId,
-		tabStopCommandId: selectedCommandId ?? visibleCommands[0]?.entry.id ?? null
-	};
-}
-function updateCommandReferenceView() {
-	let view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
-	if (commandReferenceState.selectedCommandId && !view.selectedCommandId) {
-		commandReferenceState = {
-			...commandReferenceState,
-			selectedCommandId: null
-		};
-		view = projectCommandReference(commandReferenceCatalog, commandReferenceState);
-	}
-	commandReferenceView = view;
-}
-function activateCommandEntry(entry) {
-	if (!entry.available) {
-		commandReferenceState = {
-			...commandReferenceState,
-			metaOverride: entry.unavailableMessage
-		};
-		return presentCommandReference();
-	}
-	const invokeCommand = commandReferenceInvoke;
-	const origin = openerOf(commandReferenceDialog);
-	const returnTo = commandReferenceReturn;
-	closeLayer(() => closeCommandReference(false), () => handBack(origin));
-	if (invokeCommand?.(entry.id)) return;
-	queueMicrotask(() => {
-		openCommandReference(invokeCommand, returnTo);
-		commandReferenceState = {
-			...commandReferenceState,
-			metaOverride: "That command is no longer available"
-		};
-		presentCommandReference();
-	});
-}
-function commandEntryTemplate(entry, promoted = false, shown = true) {
-	const selected = commandReferenceView.selectedCommandId === entry.id;
-	const action = entry.actionable ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[entry.keySequence ? entry.keyId : null, entry.description ? entry.descriptionId : null].filter(Boolean).join(" ")}
-        title=${[entry.description, entry.available ? "" : entry.unavailableMessage].filter(Boolean).join("\n") || nothing}
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>` : entry.title;
-	const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-	const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
-	const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
-	return html`
-    <div
-      id=${entry.rowId}
-      role="row"
-      ${offeredAction("row", `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`)}
-      data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
-      ?hidden=${!shown}
-    >
-      ${actionCell}
-      <div role="gridcell" class="lf-command-reference-key">
-        ${entry.keySequence ? keySequenceTemplate(entry.keySequence, {
-		id: entry.keyId,
-		label: entry.keyLabel
-	}) : nothing}
-      </div>
-      ${descriptionCell}
-    </div>
-  `;
-}
-const headingRow = (id, title, hidden = false) => html`
-  <div role="rowgroup" ?hidden=${hidden}>
-    <div role="row">
-      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
-    </div>
-  </div>
-`;
-const commandReferenceItems = () => {
-	const visible = [];
-	if (commandReferenceView.bindingHeading) visible.push({
-		kind: "heading",
-		key: "heading:bindings",
-		id: "lf-command-reference-binding-matches",
-		title: "Matching shortcuts",
-		order: commandReferenceView.bindingHeading.order
-	});
-	for (const heading of commandReferenceView.sectionHeadings) if (heading.shown) visible.push({
-		kind: "heading",
-		key: `heading:${heading.id}`,
-		id: heading.id,
-		title: heading.title,
-		order: heading.order
-	});
-	for (const presentation of commandReferenceView.entryPresentations) visible.push({
-		kind: "entry",
-		key: `entry:${presentation.entry.id}`,
-		...presentation
-	});
-	visible.sort((left, right) => left.order - right.order);
-	const visibleKeys = new Set(visible.map(({ key }) => key));
-	const hidden = [
-		{
-			kind: "heading",
-			key: "heading:bindings",
-			id: "lf-command-reference-binding-matches",
-			title: "Matching shortcuts"
-		},
-		...commandReferenceCatalog.sections.map((section) => ({
-			kind: "heading",
-			key: `heading:${section.id}`,
-			id: section.id,
-			title: section.title
-		})),
-		...commandReferenceCatalog.sections.flatMap((section) => section.entries.map((entry) => ({
-			kind: "entry",
-			key: `entry:${entry.id}`,
-			entry,
-			promoted: false
-		})))
-	].filter(({ key }) => !visibleKeys.has(key));
-	return [...visible, ...hidden.map((item) => ({
-		...item,
-		hidden: true
-	}))];
-};
-function commandReferenceItemTemplate(item) {
-	if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
-	return html`<div
-    role="rowgroup"
-    aria-labelledby=${item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId}
-    class=${item.promoted ? "lf-command-reference-binding-matches" : nothing}
-    ?hidden=${item.hidden}
-  >
-    ${commandEntryTemplate(item.entry, item.promoted, !item.hidden)}
-  </div>`;
-}
-function commandReferenceTemplate() {
-	const items = commandReferenceItems();
-	return html`
-    <div class="lf-dialog-head lf-command-reference-head">
-      <div class="lf-dialog-title">Command reference</div>
-      ${commandReferenceClose}
-    </div>
-    <label class="lf-command-reference-preference">
-      <input
-        type="checkbox"
-        name="quick-keyboard-shortcuts"
-        autocomplete="off"
-        .checked=${quickShortcuts()}
-        aria-labelledby="lf-quick-keyboard-label"
-        aria-describedby="lf-quick-keyboard-help"
-        @change=${(event) => {
-		setQuickShortcuts(event.currentTarget.checked);
-		commandReferenceCatalog = captureCommandReferenceCatalog();
-		presentCommandReference();
-		repaint();
-	}}
-      />
-      <span id="lf-quick-keyboard-label">Quick keyboard shortcuts</span>
-      <small id="lf-quick-keyboard-help"
-        >Use letters, numbers and symbols for Leaf actions.</small
-      >
-    </label>
-    ${commandReferenceSearch}
-    <div
-      class="lf-command-reference-meta"
-      aria-live="polite"
-      .textContent=${commandReferenceView.metadata}
-    ></div>
-    <div
-      id="lf-command-reference-results"
-      class="lf-command-reference-results"
-      role="grid"
-      aria-label="Command reference"
-    >
-      ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
-      </div>
-    </div>
-  `;
-}
-function presentCommandReference() {
-	updateCommandReferenceView();
-	render(commandReferenceTemplate(), commandReferenceDialog);
-	const search = commandReferenceSearch.input;
-	keeps(search, "role", "combobox");
-	keeps(search, "aria-autocomplete", "list");
-	keeps(search, "aria-expanded", "true");
-	keeps(search, "aria-haspopup", "grid");
-	const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-	if (search.ariaControlsElements?.[0] !== results) search.ariaControlsElements = [results];
-	const selected = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === commandReferenceView.selectedCommandId);
-	const row = selected ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`) : null;
-	if (search.ariaActiveDescendantElement !== row) search.ariaActiveDescendantElement = row;
-	rove(commandReferenceDialog.querySelectorAll(".lf-command-reference-command"), commandButton(commandReferenceView.tabStopCommandId));
-}
-function readCommandReferenceSearch(event) {
-	commandReferenceState = {
-		...commandReferenceState,
-		query: event.currentTarget.value,
-		metaOverride: null
-	};
-	presentCommandReference();
-}
-commandReferenceDialog.addEventListener("cancel", (event) => {
-	event.preventDefault();
-	closeCommandReference();
-});
-let commandReferenceReturn = null;
-function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
-	const fresh = open && !commandReferenceDialog.open;
-	const preserveSelection = fresh && Boolean(pageSelection());
-	const handingBack = !open && restoreFocus && currentLocationIn(commandReferenceDialog);
-	const restore = handingBack ? commandReferenceReturn : null;
-	if (fresh) {
-		commandReferenceInvoke = invokeCommand;
-		dismissPopoversOutside(commandReferenceDialog);
-		openLayer(commandReferenceDialog);
-		commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-		commandRoutesAtOpen = {
-			on: availableCommandRoutes({
-				commands: true,
-				quick: true
-			}),
-			off: availableCommandRoutes({
-				commands: true,
-				quick: false
-			})
-		};
-	}
-	if (fresh) {
-		commandReferenceCatalog = captureCommandReferenceCatalog();
-		commandReferenceState = {
-			query: "",
-			selectedCommandId: null,
-			metaOverride: null
-		};
-		presentCommandReference();
-		const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
-		const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
-		search.value = "";
-		setScroll(results, {
-			top: 0,
-			behavior: "instant"
-		});
-		stopReferenceReading = registerReadingRegion({
-			id: "lf-region:command-reference",
-			host: commandReferenceDialog,
-			body: results
-		});
-	}
-	if (open && !commandReferenceDialog.open) showNativeLayer(commandReferenceDialog);
-	if (!open) {
-		stopReferenceReading?.();
-		stopReferenceReading = null;
-		closeLayer(() => {
-			if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-			if (currentLocationIn(commandReferenceDialog)) deepFocus()?.blur();
-			repaint();
-		}, handingBack && (() => handBack(restore)));
-		return;
-	}
-	reachScrollers(commandReferenceDialog);
-	focusDestination(commandReferenceDialog.querySelector(preserveSelection ? ".lf-command-reference-close" : ".lf-command-reference-search"), "move");
-	repaint();
-}
-const commandButton = (id) => [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find((button) => button.dataset.lfCommand === id) ?? null;
-const focusedCommandId = () => focused()?.matches?.(".lf-command-reference-command") ? focused().dataset.lfCommand : null;
-const commandReferenceCommandActive = () => commandReferenceView.visibleCommands.length > 0 && (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
-function moveCommandReferenceSelection(dir) {
-	const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);
-	if (!ids.length) return;
-	const focusedId = focusedCommandId();
-	const nextId = clampedRow(ids, focusedId ?? commandReferenceState.selectedCommandId, dir);
-	const nextRecord = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === nextId);
-	commandReferenceState = {
-		...commandReferenceState,
-		selectedCommandId: nextId,
-		metaOverride: selectionMeta(nextRecord.entry)
-	};
-	presentCommandReference();
-	const next = commandButton(nextId);
-	if (focusedId) focusDestination(next, "move");
-	scrollIntoView(next.closest("[role=\"row\"]"), { block: "nearest" });
-	beginWalk("shortcut-command", "Command", () => {
-		const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
-		return listWalkPosition(commandReferenceView.visibleCommands.map(({ entry }) => entry.id), current);
-	});
-}
-function activateSelectedCommand() {
-	if (!commandReferenceCommandActive()) return false;
-	const id = focusedCommandId() ?? commandReferenceState.selectedCommandId ?? commandReferenceView.visibleCommands[0]?.entry.id;
-	const record = commandReferenceView.visibleCommands.find(({ entry }) => entry.id === id);
-	if (!record) return false;
-	activateCommandEntry(record.entry);
-	return true;
-}
-const openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
-const closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
-pageScope("command reference", {
-	title: "In the command reference",
-	escape: "inner",
-	root: () => commandReferenceDialog,
-	at: () => commandReferenceDialog.open,
-	claims: EVERYTHING,
-	rows: [
-		{
-			id: "command.reference.command.next",
-			touch: false,
-			keys: ["ArrowDown"],
-			title: "choose next",
-			repeat: true,
-			travels: true,
-			runFromCommandReference: false,
-			commandReferenceWhen: () => true,
-			when: () => commandReferenceCommandActive(),
-			run: () => moveCommandReferenceSelection(1)
-		},
-		{
-			id: "command.reference.command.previous",
-			touch: false,
-			keys: ["ArrowUp"],
-			title: "choose previous",
-			repeat: true,
-			travels: true,
-			runFromCommandReference: false,
-			commandReferenceWhen: () => true,
-			when: () => commandReferenceCommandActive(),
-			run: () => moveCommandReferenceSelection(-1)
-		},
-		{
-			id: "command.reference.command.activate",
-			touch: false,
-			keys: ["Enter"],
-			title: "activate",
-			runFromCommandReference: false,
-			commandReferenceWhen: () => true,
-			when: () => commandReferenceCommandActive(),
-			run: () => activateSelectedCommand()
-		},
-		{
-			id: "command.reference.close",
-			touch: false,
-			keys: ["Escape"],
-			title: "close command reference",
-			control: () => commandReferenceClose,
-			runFromCommandReference: false,
-			run: () => closeCommandReference()
-		}
-	]
-});
-let closeInteractions = () => {};
-function mountCommandReference({ beforeOpening }) {
-	closeInteractions = beforeOpening;
-}
-const openReference = (returnTo = null) => {
-	closeInteractions();
-	openCommandReference((id) => executeCommand(id), returnTo);
-};
-pageCommand({
-	id: "command.reference.open",
-	touch: false,
-	runFromCommandReference: false,
-	keys: ["?"],
-	title: "Command reference",
-	run: () => openReference()
-});
-registerPageControl({
-	key: "keyboard",
-	rank: PAGE_CONTROL_RANK.keyboard,
-	label: "Keyboard shortcuts",
-	shortcut: ["?"],
-	group: "page",
-	press: (held) => {
-		const door = focused();
-		if (held) returnPlace(held);
-		openReference(door);
-	}
-});
 
 //#endregion
 //#region runtime/navigation.js

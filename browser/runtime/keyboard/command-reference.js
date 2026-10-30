@@ -692,7 +692,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <div role="rowgroup" ?hidden=${hidden}>
     <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
     </div>
   </div>
 `;
@@ -807,9 +807,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;

@@ -2117,8 +2117,8 @@ const cutPath = ({ x, y }, band) => {
 	const open = 1e5;
 	const width = band.right - band.left;
 	const height = band.bottom - band.top;
-	const edge = (value) => `calc(${layoutPx(value)} - var(--lf-paint-outset, 0px))`;
-	return `inset(${edge(y ? 0 : -1e5)} ${edge(-width - (x ? 0 : open))} ${edge(-height - (y ? 0 : open))} ${edge(x ? 0 : -1e5)})`;
+	const edge = (value, side) => `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+	return `inset(${edge(y ? 0 : -1e5, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -1e5, "left")})`;
 };
 const nowhere = {
 	left: 0,

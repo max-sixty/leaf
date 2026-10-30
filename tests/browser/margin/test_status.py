@@ -1117,8 +1117,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        # A rectangular trace uses the same outside stroke as target focus, in the
-        # trace's quiet ink. Read the painted bracket, not its transparent container.
+        # A rectangular trace uses the same outside stroke as target focus, on the
+        # region's perimeter, in the trace's quiet ink. Read the painted bracket, not its transparent container.
         trace = page.evaluate(
             """() => {
               const trace = document.querySelector('.lf-target-trace');
@@ -1127,16 +1127,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 boxWidth: box.outlineWidth,
                 boxColor: box.outlineColor,
                 gap: box.outlineOffset,
+                region: getComputedStyle(document.documentElement)
+                  .getPropertyValue('--focus-region-gap').trim(),
                 leader: getComputedStyle(
                   document.querySelector('.lf-margin-cluster'), '::before',
                 ).content,
               };
             }"""
         )
+        assert trace.pop("gap") == trace.pop("region"), trace
         assert trace == {
             "boxWidth": "2px",
             "boxColor": resolved_color("--target-trace-ink"),
-            "gap": "0px",
             "leader": "none",
         }
 

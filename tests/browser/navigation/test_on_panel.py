@@ -452,7 +452,9 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     def back_to_the_tally():
         for _ in range(30):
-            if button.evaluate("button => button === document.activeElement"):
+            if button.evaluate(
+                "button => button === button.getRootNode().activeElement"
+            ):
                 return
             page.keyboard.press("Shift+Tab")
         raise AssertionError("Shift+Tab never reached Next on me")

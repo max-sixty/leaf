@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE
+from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -25,6 +25,7 @@ from render_harness import (
     panel_view,
     resized,
     shown,
+    told,
 )
 
 from browser.navigation import expect_walk_position
@@ -35,23 +36,15 @@ from leaf.render_checks import one_frame, rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
-    browser, serve
-):
-    """The link's treatment stands inside the link, so a render that rebuilds the
-    children around a kept link leaves nothing beside it to lose. A render that rebuilds
-    the link's own words drops its mark, and the link must get the mark back, or it keeps
-    describing itself by an id nothing carries."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "kept link",
-                '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
-                'href="https://example.com/source">the source</a> first.</p>',
-            )
-        ),
+def test_a_render_of_an_external_links_words_keeps_its_treatment(browser, serve):
+    """CSS paint and the root's accessible description survive a link's text render."""
+    source = leaf_page(
+        "kept link",
+        '<h1 id="t">Links</h1><p id="holder">Read <a id="ext" '
+        'href="https://example.com/source">the source</a> first.</p>'
+        '<p id="other">Other words.</p>',
     )
+    page = open_page(browser, live_url(serve(source)))
     link = page.locator("#ext")
     expect(link).to_have_accessible_description("opens in a new tab")
     expect(page.locator("#ext ~ *")).to_have_count(0)
@@ -63,7 +56,19 @@ def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
         }"""
     )
     rendered(page)
-    expect(link.locator(":scope > .lf-external-mark")).to_have_count(1)
+    expect(link).to_have_attribute("data-lf-external", "")
+    expect(link).to_have_accessible_description("opens in a new tab")
+
+    # A source revision compares authored hrefs, not the marker prepaint lent the
+    # first document. An unrelated edit leaves the same link and its treatment.
+    page.evaluate("window.keptLink = document.getElementById('ext')")
+    (serve.page_dir / "index.html").write_text(
+        source.replace("Other words.", "Revised other words.")
+    )
+    told(page)
+    expect(page.locator("#other")).to_have_text("Revised other words.")
+    assert page.evaluate("window.keptLink === document.getElementById('ext')")
+    expect(link).to_have_attribute("data-lf-external", "")
     expect(link).to_have_accessible_description("opens in a new tab")
 
 
@@ -95,7 +100,7 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
           await new Promise(requestAnimationFrame);
           return {
             target: link.getAttribute('target'),
-            marked: Boolean(link.querySelector(':scope > .lf-external-mark')),
+            marked: link.hasAttribute('data-lf-external'),
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight - log.scrollTop - log.clientHeight <= 2,
           };
@@ -205,14 +210,15 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
             leaf_page(
                 "generated page links",
                 """
-<h1>Migration plan</h1>
-<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>
+<aside><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
+<div class="layout-column"><h1>Migration plan</h1>
 <section><h2>Prepare</h2><p>Take a snapshot.</p></section>
 <div style="height: 700px"></div>
 <section><h2 id="move">Move</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 700px"></div>
-<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section>
+<section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section></div>
 """,
+                layout="sidebar",
             )
         ),
     )

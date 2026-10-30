@@ -189,7 +189,7 @@ test("a return stays interrupted until its refreshed reading is actually present
   }
 });
 
-test("the first matching response completes from its held delivery after a newer admission", async (t) => {
+test("a matching response completes from its held data after a newer admission", async (t) => {
   const held = {
     version: "initial",
     sources: { builds: { contract: "c", value: "old" } },
@@ -200,9 +200,7 @@ test("the first matching response completes from its held delivery after a newer
   };
   const { runtime } = await import("/runtime/context.js");
   const { acceptData } = await import("/runtime/data.js");
-  applicationState.acceptData({ version: null, sources: {} }, ++taken);
-  t.mock.method(document.documentElement.lfInitial, "initialData", () => held);
-  t.mock.method(document.documentElement.lfInitial, "releaseData", () => {});
+  applicationState.acceptData(held, ++taken);
   t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
   const response = Promise.withResolvers();
   const earlier = state("initial-response");

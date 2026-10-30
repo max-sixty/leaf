@@ -20,7 +20,7 @@
       </p>
       <lf-dial id="detail-dial"></lf-dial>
 
-      <section id="detail-impact">
+      <section id="detail-impact" class="layout-flow">
         <h2>Impact</h2>
         <p class="gist" id="detail-impact-gist">
           For 3 hours 40 minutes, checkout p99 sat at 410 ms instead of 180 ms; no
@@ -65,7 +65,7 @@
         </table>
       </section>
 
-      <section id="detail-cause">
+      <section id="detail-cause" class="layout-flow">
         <h2>Cause</h2>
         <p class="gist" id="detail-cause-gist">
           The release appended the currency to the cart's cache key, and nothing warmed
@@ -91,7 +91,7 @@ cart:{user_id}            →  cart:{user_id}:{currency}
         </details>
       </section>
 
-      <section id="detail-missed">
+      <section id="detail-missed" class="layout-flow">
         <h2>Why the checks missed it</h2>
         <p class="gist" id="detail-missed-gist">
           Staging starts every test run with an empty cache, so it measures the cold
@@ -109,7 +109,7 @@ cart:{user_id}            →  cart:{user_id}:{currency}
         </p>
       </section>
 
-      <section id="detail-fix">
+      <section id="detail-fix" class="layout-flow">
         <h2>What to do next</h2>
         <p class="gist" id="detail-fix-gist">
           Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
@@ -147,7 +147,7 @@ cart:{user_id}            →  cart:{user_id}:{currency}
         </details>
       </section>
 
-      <section id="detail-timeline">
+      <section id="detail-timeline" class="layout-flow">
         <h2>Timeline</h2>
         <p class="gist" id="detail-timeline-gist">
           From the first region's deploy to a finished rollback took 3 hours 42 minutes,

@@ -16,10 +16,11 @@
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
-export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
+export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
+export { holdAuthoredBody } from "./widget-elements.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -188,7 +189,7 @@ export { retainUserIntent } from "./user-intent.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { highlightBlocks, langForPath } from "./syntax.js";
 export {
   saidAt,
@@ -202,20 +203,12 @@ export {
   PRESSABLE,
   dragging,
   el,
-  generated,
-  generatedElement,
   motionPreview,
   nameAction,
   namedAction,
-  offer,
-  offerAction,
-  offered,
-  offeredAction,
   reachedForWords,
   relabel,
   searchField,
-  selectableOffer,
-  selectableOffered,
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

@@ -18,8 +18,10 @@ settings every item shares in the rail. A control in the preview still belongs t
 playground. Its value is submitted, and presets and Reset set it.
 
 Choose the playground's space by what the user needs to see and operate together
-(`references/page-authoring.md`, "Composing a page"). `data-width="available"` lets it
-break out of a reading column; a workspace gives it the window. Candidates the user
+(`references/page-authoring.md`, "Composing a page"). For more room in a reading
+column, put `data-width="available"` on the enclosing `lf-ask`, or on the playground
+when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
+gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says. Shared controls stay in their rail on wide
 layouts and above the preview on narrow layouts, where their own contents scroll if
@@ -99,13 +101,9 @@ between whole labels. When the comparison needs a particular arrangement of eith
 columns, such as `repeat(2, minmax(0, 1fr))`.
 
 ```html
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground
-    id="notification-playground"
-    submit-label="Create notification"
-    data-width="available"
-  >
+  <lf-playground id="notification-playground" submit-label="Create notification">
     <lf-playground-control
       name="radius"
       label="Corner radius"

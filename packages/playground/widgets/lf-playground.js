@@ -1,8 +1,9 @@
+import { createPlayground } from "./playground-view.js";
 /* lf-playground: one declarative control loop with one durable decision.
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
- * DOM. The synchronous initial producer owns their DOM and typed control values;
- * this module adopts that drawing and owns the live mechanics: working state,
+ * DOM. The retained view owns their DOM and typed control values;
+ * this module owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  * The instruction opens from its actions in a popover over the page, so reading it
@@ -19,8 +20,8 @@
  * demonstrate. Required views subscribe to the aggregate and paint inside this
  * LeafElement's render, so local edits and canonical restoration share its failure
  * and presentation boundary.
- * Consumers retain native editors and keep no second configuration model. The initial
- * producer draws once; this module adopts its nodes and values without rebuilding.
+ * Consumers retain native editors and keep no second configuration model. The view
+ * retains their nodes and values across working configuration changes.
  * Values awaiting a contributor declaration stay pending until it joins. They are
  * restoration input, never another working model. Simple previews read reflected
  * --playground-NAME properties and data-playground-NAME attributes on the host and
@@ -46,13 +47,14 @@ import {
   closeNativeLayer,
   copyControl,
   focusDestination,
+  holdFocus,
   layoutChanged,
   onCurrentLocation,
   onPress,
-  initialRender,
   isNativeLayer,
   keeps,
   LeafElement,
+  render,
   registerReadingRegion,
   reachedForWords,
   says,
@@ -126,7 +128,7 @@ customElements.define(
       return value.instruction;
     }
 
-    #initial = null;
+    #view = null;
     #controlByName = new Map();
     #views = new Set();
     #contributorEditors = new Set();
@@ -170,7 +172,7 @@ customElements.define(
         // Height alone changes as a phone's toolbars come and go, which keeps it.
         let width = innerWidth;
         const putAway = () => {
-          const instruction = this.#initial.instruction;
+          const instruction = this.#view.instruction;
           if (innerWidth !== width && instruction && isNativeLayer(instruction))
             closeNativeLayer(instruction);
           width = innerWidth;
@@ -229,8 +231,11 @@ customElements.define(
     }
 
     #build() {
-      this.#initial = initialRender(this);
-      const initial = this.#initial;
+      const restore = holdFocus(this);
+      this.#view = createPlayground(this);
+      render(this.#view.render(), this.#view.root ?? this, { host: this });
+      restore?.();
+      const initial = this.#view;
       this.#controlByName = initial.controlByName;
       this.#defaults = initial.defaults;
       this.#values = initial.values;
@@ -247,7 +252,7 @@ customElements.define(
         ...region,
         id: compoundReadingRegionId(this, region.name),
       }));
-      const reflection = this.#initial.reflection(this.#values);
+      const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
@@ -332,7 +337,7 @@ customElements.define(
             const control = this.#controlByName.get(name);
             const value = candidate[name];
             if (!control) return [name, jsonSnapshot(value, `contributor ${name}`)];
-            return [name, this.#initial.typed(control, value)];
+            return [name, this.#view.typed(control, value)];
           }),
         ),
       );
@@ -474,7 +479,7 @@ customElements.define(
     }
 
     #paint() {
-      const reflection = this.#initial.reflection(this.#values);
+      const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
@@ -497,7 +502,7 @@ customElements.define(
     #instruction() {
       const provided = this.#providedInstruction();
       if (provided !== null) return provided;
-      return says(this.#initial.output, { format: "lines" }).trim();
+      return says(this.#view.output, { format: "lines" }).trim();
     }
 
     #choose() {
@@ -551,7 +556,7 @@ customElements.define(
       }
       if (Number.isInteger(choice?.seq))
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
-      const template = this.#initial.render({
+      const template = this.#view.render({
         values: this.#values,
         instruction: this.#providedInstruction(),
         chosen: () => this.#chosen(),

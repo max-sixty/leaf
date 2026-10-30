@@ -90,7 +90,7 @@ if (child) {
 	});
 	registerSampleCommand("window", async ({ window: asWindow }) => {
 		child.settings.window = asWindow;
-		document.documentElement.lfInitial.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
+		document.documentElement.lfRootState.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
 		measure();
 		return { height };
 	});

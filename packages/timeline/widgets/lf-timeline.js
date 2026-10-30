@@ -1,7 +1,10 @@
-/* Step through an authored sequence of events. The drawing, its layout and what each
- * step shows belong to `timeline-view.js` beside this file, which delivery runs before
- * first paint; this module adopts that drawing and adds the routes that move between
- * steps, the comment targets and relayout on resize.
+import {
+  render as timelineTemplate,
+  timelineModel,
+  timelineLayout,
+} from "./timeline-view.js";
+/* Step through an authored sequence of events. One Lit template draws in this
+ * element throughout its lifetime, with native authored lanes as its source.
  *
  * Previous and Next, the Left and Right arrows, Home and End, a row of the step list
  * and a press on a mark all set the step. The step is tab-local view state, never a
@@ -24,9 +27,7 @@
 import {
   announce,
   commandsChanged,
-  drawsFirst,
   failSoft,
-  initialRender,
   once,
   registerVisualParts,
   render,
@@ -36,18 +37,22 @@ import {
   whileConnected,
 } from "/runtime/portable-api.js";
 
-// The drawing's producer, which this module draws with only where nothing drew before
-// the first paint (below).
-let drawTimeline;
-
 class Timeline extends HTMLElement {
   #drawing;
+  #layout;
   #parts;
   // Labels are laid out against the ruler's width, so they follow it in the same
   // frame: a timeline first shown in a closed tab places them before it paints.
   // The ruler's own size doesn't change with the layout, so this never loops.
   #relayout = () => {
-    if (this.#drawing.layout()) {
+    const ruler = this.querySelector(".lf-timeline-ruler");
+    if (ruler?.clientWidth) {
+      const style = getComputedStyle(ruler);
+      this.#layout = timelineLayout(
+        this.#drawing.model,
+        ruler.clientWidth,
+        `600 ${style.fontSize} ${style.fontFamily}`,
+      );
       this.#draw();
       this.#parts?.update();
     }
@@ -64,15 +69,40 @@ class Timeline extends HTMLElement {
 
   #draw() {
     try {
-      render(this.#drawing.render(), this, { host: this });
+      render(
+        timelineTemplate(
+          this,
+          this.#drawing.current,
+          this.#drawing.model,
+          this.#layout,
+        ),
+        this,
+        { host: this },
+      );
     } catch (error) {
       failSoft(this, error);
     }
   }
 
   #setup() {
-    const drawing = (this.#drawing = initialRender(this, drawTimeline));
-    const { model } = drawing;
+    const model = timelineModel(this);
+    const saved = Number(tabStore.get(`timeline:${this.id}`));
+    const drawing = (this.#drawing = {
+      model,
+      current: Math.max(
+        0,
+        model.steps.findIndex((step) => step.time === saved),
+      ),
+    });
+    this.#draw();
+    drawing.chart = this.querySelector(".lf-timeline-chart");
+    drawing.rows = [...this.querySelectorAll(".lf-timeline-step")];
+    drawing.previous = this.querySelector(".lf-timeline-previous");
+    drawing.next = this.querySelector(".lf-timeline-next");
+    drawing.eventElement = (id) =>
+      this.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
+    for (const lane of this.querySelectorAll(":scope > lf-lane"))
+      lane.setAttribute("hidden", "");
     for (const problem of model.problems) reportFailure(this, new Error(problem));
     const steps = model.steps.length;
     // A key pressed on a row of the step list carries the user to the step's row.
@@ -173,6 +203,7 @@ class Timeline extends HTMLElement {
       // shortcut to the same step.
       for (const region of [drawing.chart, ...drawing.rows])
         region.addEventListener("click", pick, { signal });
+      document.fonts.addEventListener("loadingdone", this.#relayout, { signal });
       const sizes = sizeObserver(this.#relayout);
       sizes.observe(drawing.chart.querySelector(".lf-timeline-ruler"));
       // Chromium lays the page out for paper before it prints but runs no size
@@ -186,7 +217,7 @@ class Timeline extends HTMLElement {
   #go(index, keyed) {
     const drawing = this.#drawing;
     const before = drawing.current;
-    drawing.current = index;
+    drawing.current = Math.max(0, Math.min(drawing.model.steps.length - 1, index));
     const step = drawing.current;
     if (step === before) return;
     this.#draw();
@@ -202,15 +233,4 @@ class Timeline extends HTMLElement {
   }
 }
 
-const define = () => customElements.define("lf-timeline", Timeline);
-
-// Delivery draws the timeline before first paint on a Leaf page, so the element is
-// defined at once and fetches nothing it doesn't run. Elsewhere it is defined once its
-// producer arrives, so every timeline upgrades with the producer in hand and draws in
-// the task that upgrades it, on either kind of page.
-if (drawsFirst()) define();
-else
-  import("./timeline-view.js").then((module) => {
-    drawTimeline = module.drawTimeline;
-    define();
-  });
+customElements.define("lf-timeline", Timeline);

@@ -131,6 +131,9 @@ its state, such as Expand all turning to Collapse all; it swaps only the symbol.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
 
+For a Lit control, `actionClass(role, className)` supplies the same face classes as
+`offerAction`; `actionName(action)` supplies the action's accessible name.
+
 ## Page readings
 
 A widget reads these values in its `LeafElement.render()`, which redraws when they

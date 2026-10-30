@@ -2097,13 +2097,9 @@ def open_page(
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
     its own medium instead, just as it owns the rest of its browser state.
 
-    False is for the one test whose subject is the interval between them, which holds the
-    registry fetch open and so never earns either. It waits on the panel instead, which
-    says only that the runtime's module evaluated — long before the anchor pass has run,
-    and so before the Comment button can answer a selection at all. A test that reads
-    there without an auto-retrying wait is racing the upgrade and loses on a loaded
-    machine: the passage sweep lost it on the corpus, the heaviest page here, and what
-    it reported was a passage it had not tested rather than one that failed."""
+    False waits only for panel construction, after registry loading and before
+    presentation. A reader there must await the particular state its assertion uses;
+    chrome existing does not say that the anchor pass can answer a selection."""
     page = (
         context.new_page()
         if context

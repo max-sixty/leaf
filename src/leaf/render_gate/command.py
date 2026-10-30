@@ -157,7 +157,6 @@ class BrowserCheck:
         if self.render is not None:
             assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
-            reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
             into, saved = self.screens
             reading["screens"] = {

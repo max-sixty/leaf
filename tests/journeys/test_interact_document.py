@@ -1020,7 +1020,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     a table) already gives the aim something to hold."""
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
-        '<aside class="sidenote">The retry path is deliberately separate.</aside>'
+        '<aside class="note">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
     (page_dir / "index.html").write_text(
@@ -1052,7 +1052,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
-            '<aside class="sidenote" id="retry-note">The retry path is deliberately '
+            '<aside class="note" id="retry-note">The retry path is deliberately '
             "separate.</aside>",
         )
     )

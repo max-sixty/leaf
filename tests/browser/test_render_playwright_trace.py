@@ -992,20 +992,17 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     with user.expect_request("**/widgets/lf-trace-compare.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
-    user.wait_for_function(
-        "() => document.querySelector('lf-trace-compare > [data-lf-opening]')"
-    )
+    expect(workspace.locator(":scope > figure")).to_have_count(2)
+    expect(workspace.locator(":scope > figure").first).to_be_visible()
+    expect(workspace.locator(":scope > figure").last).to_be_hidden()
     before = workspace.evaluate("""node => ({
         children: [...node.children].map(child => ({
-            opening: child.hasAttribute('data-lf-opening'),
-            drawn: child.checkVisibility()
+            drawn: child.getBoundingClientRect().height > 0
         })),
         reserved: parseFloat(getComputedStyle(node, '::before').height)
     })""")
     assert len(before["children"]) == 2
-    assert [child["drawn"] for child in before["children"]] == [
-        child["opening"] for child in before["children"]
-    ]
+    assert [child["drawn"] for child in before["children"]] == [True, False]
     assert before["reserved"] >= 44
     assert held
     user.unroute("**/widgets/lf-trace-compare.js")

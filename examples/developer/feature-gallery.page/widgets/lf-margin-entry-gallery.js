@@ -1,9 +1,8 @@
-/* The early renderer owns the exhibit grid and words. This upgrade adopts its
- * controls, adds the public margin-entry paint and behavior, and registers one live
- * action shared by the exhibit's compact margin face and full Page Map row. */
+/* The exhibit grid and its contribution controls share one live Lit view. */
+import { render } from "/runtime/widget-api.js";
+import { createView } from "../margin-entry-gallery-view.js";
 import {
   contributionEntry,
-  initialRender,
   once,
   presentContributionEntry,
   presentContributionReceipts,
@@ -61,7 +60,8 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
-      const initial = initialRender(this);
+      const initial = createView(this);
+      render(initial.render(), this);
       initial.samples.forEach(wireSample);
       whileConnected(this, () => {
         const projection = this.#registerProjection(initial.result);

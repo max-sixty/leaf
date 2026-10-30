@@ -21,14 +21,16 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
-// The draft as the renderer reads it, placed. A blank last line is where the next words
-// will be typed, so it is read holding a word, and stands in whichever block those words
-// will join, as a line of an open fence's code, or of a quote or list item they continue
-// lazily; a block that takes it ends past the draft. Nothing is placed in the word
-// itself. Empty until the renderer has loaded.
+// The draft as the renderer reads it, placed. A last line holding nothing past its
+// quotes' `>` is where the next words will be typed, so it is read holding a word, and
+// stands in whichever block those words will join, as a line of an open fence's code, or
+// of a quote or list item they continue lazily, and not in a list the line only trails;
+// a block that takes it ends past the draft. Nothing is placed in the word itself. Empty
+// until the renderer has loaded.
 const read = (state) => {
   const source = state.doc.toString();
-  if (state.doc.line(state.doc.lines).text.trim()) return placedMarkdownTokens(source);
+  if (!/^[\s>]*$/.test(state.doc.line(state.doc.lines).text))
+    return placedMarkdownTokens(source);
   return placedMarkdownTokens(`${source}x`).filter(
     ({ token, to }) => token.block || to <= source.length,
   );
@@ -624,21 +626,37 @@ function fieldEditor(
   // on a line holding nothing past its markers, outside code, it leaves the innermost
   // container. An item directly in another item outdents, as rich editors do: its line
   // becomes the next item of the list outside. Otherwise the line keeps what it holds
-  // for the containers outside, and unless the line above already parts two blocks, it
-  // becomes that parting and the caret takes a new line in them. With the caret among
-  // the markers, or in no container, the press is a plain new line. The numbers of the
-  // items after a new one stay as typed, since the message numbers a list from its
-  // first. Rejected: CodeMirror's Markdown continuation (until October 2026), whose
-  // grammar, a second beside the renderer's, read the whole draft again on every key,
-  // ended a quote or item at a fence inside it, and took three presses to leave a list.
+  // for the containers outside and becomes the blank line that parts the two blocks, or
+  // the line above does where it is already bare, and the caret takes a new line in
+  // them. A task's next item is an open task, and an item holding only that checkbox is
+  // empty. With the caret among the markers, in no container, or on a line it would
+  // leave as it stands, the press is a plain new line. The numbers of the items after a
+  // new one stay as typed, since the message numbers a list from its first. Rejected:
+  // CodeMirror's Markdown continuation (until October 2026), whose grammar, a second
+  // beside the renderer's, read the whole draft again on every key, ended a quote or
+  // item at a fence inside it, and took three presses to leave a list.
   const CONTAINERS = new Set(["blockquote_open", "list_item_open"]);
+  const CHECKBOX = "[ ] ";
   function continueBlocks(view) {
     const { state } = view;
     const placed = view.plugin(livePreview)?.placed ?? [];
     const { from, to } = state.selection.main;
     const line = state.doc.lineAt(from);
     const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-    const holding = (c) => c.from <= line.from && line.from < c.to;
+    // An item's reading takes in the blank lines after its blocks, but words typed on
+    // one stand outside it: it ends with its last block, or its last item's marker line.
+    const blocks = placed.filter(
+      ({ token }) => token.block && !token.type.endsWith("list_open"),
+    );
+    const end = (c) =>
+      c.token.type === "list_item_open"
+        ? Math.max(
+            ...blocks
+              .filter((b) => b.from >= c.from && b.to <= c.to)
+              .map((b) => (b.token.type === "list_item_open" ? b.from + 1 : b.to)),
+          )
+        : c.to;
+    const holding = (c) => c.from <= line.from && line.from < end(c);
     const containers = all.filter(holding);
     if (!containers.length) return false;
     const code = placed.some((c) => c.token.type === "fence" && holding(c));
@@ -646,39 +664,57 @@ function fieldEditor(
     // Where the markers that open a line end: a line holding nothing past them is bare.
     const opened = (l, among) =>
       Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
-    const bare = (l) => !state.sliceDoc(opened(l, all), l.to).trim();
+    const bare = (l) => {
+      const rest = state.sliceDoc(opened(l, all), l.to).trim();
+      return !rest || `${rest} ` === CHECKBOX;
+    };
     if (from < opened(line, containers)) return false;
     // A line a container holds without its marker carries the quote's `>`, or the
     // item's indent.
     const carried = ({ token }) =>
       token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
     const item = (c) => c?.token.type === "list_item_open";
-    const next = ({ token }) =>
-      `${token.info && Number(token.info) + 1}${token.markup} `;
+    const task = ({ token }) =>
+      token.attrGet("class")?.split(" ").includes("task-list-item");
+    const next = (c) =>
+      `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
     const inner = containers.at(-1);
     const outside = containers.slice(0, -1);
     let change;
     if (!code && to <= line.to && bare(line)) {
       const parent = outside.at(-1);
       const outdent = item(inner) && item(parent);
-      let kept = "";
-      for (const c of outdent ? outside.slice(0, -1) : outside) {
-        const own = markerOn(c, line);
-        kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
-      }
+      const around = outdent ? outside.slice(0, -1) : outside;
+      // What a line keeps of its markers for the containers it stays in.
+      const kept = (l) => {
+        let text = "";
+        for (const c of around) {
+          const own = markerOn(c, l);
+          text = own ? state.sliceDoc(l.from, own[1]) : text + carried(c);
+        }
+        return text;
+      };
       const above = line.number > 1 && state.doc.line(line.number - 1);
-      const insert = outdent
-        ? `${kept}${next(parent)}`
-        : above && !bare(above)
-          ? `${kept.trimEnd()}\n${outside.map(carried).join("")}`
-          : kept;
-      change = { from: line.from, to: line.to, insert };
+      change = outdent
+        ? { from: line.from, to: line.to, insert: kept(line) + next(parent) }
+        : above && bare(above)
+          ? {
+              from: above.from,
+              to: line.to,
+              insert: `${kept(above).trimEnd()}\n${kept(line)}`,
+            }
+          : {
+              from: line.from,
+              to: line.to,
+              insert: `${kept(line).trimEnd()}\n${around.map(carried).join("")}`,
+            };
     } else {
       const marker =
         item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
       const insert = `\n${outside.map(carried).join("")}${marker}`;
       change = { from, to, insert };
     }
+    if (state.sliceDoc(change.from, change.to) === change.insert) return false;
     view.dispatch(
       state.update({
         changes: change,

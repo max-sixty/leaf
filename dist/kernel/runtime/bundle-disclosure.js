@@ -1206,7 +1206,7 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 const read = (state) => {
 	const source = state.doc.toString();
-	if (state.doc.line(state.doc.lines).text.trim()) return placedMarkdownTokens(source);
+	if (!/^[\s>]*$/.test(state.doc.line(state.doc.lines).text)) return placedMarkdownTokens(source);
 	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
 };
 const FACE_PROBE = "<div></div><p></p><h1></h1><h2></h2><h3></h3><h4></h4><h5></h5><h6></h6><pre></pre><blockquote></blockquote><ul><li></li><li></li></ul><ol></ol><div></div>";
@@ -1606,40 +1606,58 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		provide: (plugin) => [EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none), EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]))]
 	});
 	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", "list_item_open"]);
+	const CHECKBOX = "[ ] ";
 	function continueBlocks(view) {
 		const { state } = view;
 		const placed = view.plugin(livePreview)?.placed ?? [];
 		const { from, to } = state.selection.main;
 		const line = state.doc.lineAt(from);
 		const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-		const holding = (c) => c.from <= line.from && line.from < c.to;
+		const blocks = placed.filter(({ token }) => token.block && !token.type.endsWith("list_open"));
+		const end = (c) => c.token.type === "list_item_open" ? Math.max(...blocks.filter((b) => b.from >= c.from && b.to <= c.to).map((b) => b.token.type === "list_item_open" ? b.from + 1 : b.to)) : c.to;
+		const holding = (c) => c.from <= line.from && line.from < end(c);
 		const containers = all.filter(holding);
 		if (!containers.length) return false;
 		const code = placed.some((c) => c.token.type === "fence" && holding(c));
 		const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
 		const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
-		const bare = (l) => !state.sliceDoc(opened(l, all), l.to).trim();
+		const bare = (l) => {
+			const rest = state.sliceDoc(opened(l, all), l.to).trim();
+			return !rest || `${rest} ` === CHECKBOX;
+		};
 		if (from < opened(line, containers)) return false;
 		const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
 		const item = (c) => c?.token.type === "list_item_open";
-		const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup} `;
+		const task = ({ token }) => token.attrGet("class")?.split(" ").includes("task-list-item");
+		const next = (c) => `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
 		const inner = containers.at(-1);
 		const outside = containers.slice(0, -1);
 		let change;
 		if (!code && to <= line.to && bare(line)) {
 			const parent = outside.at(-1);
 			const outdent = item(inner) && item(parent);
-			let kept = "";
-			for (const c of outdent ? outside.slice(0, -1) : outside) {
-				const own = markerOn(c, line);
-				kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
-			}
+			const around = outdent ? outside.slice(0, -1) : outside;
+			const kept = (l) => {
+				let text = "";
+				for (const c of around) {
+					const own = markerOn(c, l);
+					text = own ? state.sliceDoc(l.from, own[1]) : text + carried(c);
+				}
+				return text;
+			};
 			const above = line.number > 1 && state.doc.line(line.number - 1);
-			const insert = outdent ? `${kept}${next(parent)}` : above && !bare(above) ? `${kept.trimEnd()}\n${outside.map(carried).join("")}` : kept;
-			change = {
+			change = outdent ? {
 				from: line.from,
 				to: line.to,
-				insert
+				insert: kept(line) + next(parent)
+			} : above && bare(above) ? {
+				from: above.from,
+				to: line.to,
+				insert: `${kept(above).trimEnd()}\n${kept(line)}`
+			} : {
+				from: line.from,
+				to: line.to,
+				insert: `${kept(line).trimEnd()}\n${around.map(carried).join("")}`
 			};
 		} else {
 			const marker = item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
@@ -1649,6 +1667,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				insert: `\n${outside.map(carried).join("")}${marker}`
 			};
 		}
+		if (state.sliceDoc(change.from, change.to) === change.insert) return false;
 		view.dispatch(state.update({
 			changes: change,
 			selection: { anchor: change.from + change.insert.length },

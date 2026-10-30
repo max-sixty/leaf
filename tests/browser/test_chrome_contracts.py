@@ -1545,6 +1545,9 @@ CONTINUED = {
         "1. a\n2. b\n   - c\n3. d",
     ),
     "splitting an item": ("- one two←←←⏎", "- one \n- two"),
+    "leaving a list, then its quote": ("> - a⏎⏎⏎x", "> - a\n\nx"),
+    "continuing a task": ("- [ ] a⏎b", "- [ ] a\n- [ ] b"),
+    "leaving a task list": ("- [ ] a⏎⏎b", "- [ ] a\n\nb"),
 }
 
 
@@ -1554,9 +1557,12 @@ def test_shift_enter_continues_the_containers_the_message_will_hold(
 ):
     """Shift+Enter begins a line in each quote and list item the message will read the
     caret's line in, a fence's code included, and on a line holding only their markers
-    leaves the innermost, an item in an item outdenting. CodeMirror's own Markdown grammar decided it, which stopped at
-    a fence, so a fence's next line fell out of its quote or item and its closing fence
-    opened another; leaving a list took a third press, the second only loosening it."""
+    leaves the innermost, an item in an item outdenting; a task's next item is an open
+    task. CodeMirror's own Markdown grammar decided it, which stopped at a fence, so a
+    fence's next line fell out of its quote or item and its closing fence opened
+    another; leaving a list took a third press, the second only loosening it. A bare
+    `> ` after a list read as inside the list's last item, so leaving the quote did
+    nothing."""
     page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
     field = page_comment(page)
     keys = {"⏎": "Shift+Enter", "⌫": "Backspace", "←": "ArrowLeft"}

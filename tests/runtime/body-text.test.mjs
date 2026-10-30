@@ -233,6 +233,18 @@ test("editor tokens retain native constructs and exact source syntax after parse
     assert.equal(link.contentFrom, automatic.indexOf(expected));
     assert.equal(link.contentTo, automatic.indexOf(expected) + expected.length);
   }
+  // Emphasis after a `*` bullet starts at its own mark, not the bullet's, on an item's
+  // first line and on a later line inside a quote.
+  for (const [source, expected] of [
+    ["* *e*", "*e*"],
+    ["> * **b** w", "**b**"],
+    ["> * a\n>   *e*", "*e*"],
+  ]) {
+    const emphasis = placedMarkdownTokens(source).find(({ token }) =>
+      /^(em|strong)_open$/.test(token.type),
+    );
+    assert.equal(source.slice(emphasis.from, emphasis.to), expected, source);
+  }
   // Each span the message shows otherwise, and what it shows there.
   const spelling = "**a &amp; b** \\* &#123; c\\\nd";
   assert.deepEqual(

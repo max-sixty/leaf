@@ -2146,7 +2146,9 @@ function paintMarkdown(element, source) {
 	if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 const characters = new Intl.Segmenter(void 0, { granularity: "grapheme" });
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+	const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+	if (!cell && start >= at && source.startsWith(raw, start)) return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
 	const positions = [at];
 	let sourceAt = at;
 	let inlineAt = 0;
@@ -2171,7 +2173,10 @@ function placedMarkdownTokens(source) {
 	starts.push(source.length);
 	const found = [];
 	let inlineAt = 0;
+	let previous;
 	for (const token of tokens) {
+		const before = previous;
+		previous = token;
 		const from = token.map ? starts[token.map[0]] : 0;
 		const to = token.map ? starts[token.map[1]] : source.length;
 		if (token.type !== "inline") {
@@ -2184,7 +2189,11 @@ function placedMarkdownTokens(source) {
 			});
 			continue;
 		}
-		const positions = inlineSourcePositions(source, token.meta.sourceContent, Math.max(from, inlineAt), to);
+		let wordsAt = Math.max(from, inlineAt);
+		for (const { token: block, markers } of found) if (/^(blockquote|list_item)_open$/.test(block.type)) {
+			for (const [a, b] of markers) if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
+		}
+		const positions = inlineSourcePositions(source, token.meta.sourceContent, wordsAt, to, /^t[dh]_open$/.test(before?.type));
 		const stack = [];
 		for (const child of token.children) {
 			if (!child.meta?.source) continue;

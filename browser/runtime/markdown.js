@@ -112,7 +112,12 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // Align within the parser's declared block span, rather than reimplement its block
 // normalization. That normalization can both remove prefixes and expand a tab into
 // spaces. The shared lossless aligner maps either transformation back to source.
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+  // A block whose words the parser kept verbatim ends with them, so each sits where it
+  // was typed, after whatever markers opened the block. A table cell shares its line.
+  const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+  if (!cell && start >= at && source.startsWith(raw, start))
+    return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
   // Even an empty inline token has one boundary (for example, an empty table cell).
   const positions = [at];
   let sourceAt = at;
@@ -148,7 +153,10 @@ export function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
+  let previous;
   for (const token of tokens) {
+    const before = previous;
+    previous = token;
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
@@ -165,11 +173,19 @@ export function placedMarkdownTokens(source) {
         });
       continue;
     }
+    // The words start past the container markers on their first line, so a list
+    // item's `*` is never read as the emphasis after it.
+    let wordsAt = Math.max(from, inlineAt);
+    for (const { token: block, markers } of found)
+      if (/^(blockquote|list_item)_open$/.test(block.type))
+        for (const [a, b] of markers)
+          if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
     const positions = inlineSourcePositions(
       source,
       token.meta.sourceContent,
-      Math.max(from, inlineAt),
+      wordsAt,
       to,
+      /^t[dh]_open$/.test(before?.type),
     );
     const stack = [];
     for (const child of token.children) {

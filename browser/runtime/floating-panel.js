@@ -821,7 +821,7 @@ export function createFloatingPanel({
   }
   // While the user writes, the field runs to the row's end, the mark and the row's
   // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
-  // the one corner, and the first key moves nothing. The user asked for this on 28
+  // the one corner, and the first key moves nothing. The user chose this on 29
   // October over the field widening at the first key, which moved its end and the
   // action under it by the mark's width as typing began.
   let writing = false;

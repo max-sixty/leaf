@@ -709,7 +709,7 @@
   /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
      tinted chip of the qualifying size, whose press is the word that ends it. The
      field gives up the room it takes, so the seat keeps its place, and while the
-     user types it stands aside with the mark. */
+     user writes it stands aside with the mark. */
   .lf-fp-row-notice {
     flex: none;
     display: flex;

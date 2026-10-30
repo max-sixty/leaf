@@ -507,8 +507,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      takes both tracks, and its controls stand at the card's edge rather than mid-card
      at the first track's end. On the actions' line it keeps to the first track, as the
      first message's head does, cutting there what it can't fit, and its controls
-     stand aside (`data-lf-beside-actions`, thread-preview.js): a narrow card's actions
-     leave too little room for even its name and time. */
+     give up their room (`data-lf-beside-actions`, thread-preview.js): a narrow card's
+     actions leave too little room for even its name and time. They stand aside, but
+     an open rewrite's Discard and Save stay, since the rewrite is still open below,
+     standing over the head's words, as far past the head's start as the track is
+     short of them. */
   .lf-margin-thread
     .lf-thread-transcript
     > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
@@ -518,7 +521,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     &[data-lf-beside-actions] > .lf-msg-head {
       grid-column: 1;
       & > .lf-msg-control-room {
-        visibility: hidden;
+        min-inline-size: 0;
+        &:not(:has(> .lf-msg-controls > .lf-msg-edit-actions)) {
+          visibility: hidden;
+        }
       }
     }
   }

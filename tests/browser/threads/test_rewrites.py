@@ -11,7 +11,7 @@ import pytest
 from interact_support import append_carried_log_record
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE
+from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE, panel_comment
 from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -34,6 +34,7 @@ from render_harness import (
 from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.test_render_drawing import draw_over
 from browser.threads import (
+    LANDING_WORDS,
     PANEL_REPLY,
     open_panel_thread,
 )
@@ -390,13 +391,16 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Discard", "Save"):
-        box = message.get_by_role("button", name=name, exact=True).bounding_box()
+        control = message.get_by_role("button", name=name, exact=True)
+        box = control.bounding_box()
         middle = box["y"] + box["height"] / 2
         assert head["y"] - 1 <= middle <= head["y"] + head["height"] + 1, (
             name,
             box,
             head,
         )
+        # A pointer reaches it: a seat's first head once cut Save off at its end.
+        control.click(trial=True, timeout=2000)
     page.keyboard.type("Z")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
     page.keyboard.press("Escape")
@@ -505,8 +509,13 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     assert editing["says"] == shown["says"]
     for side in ("x", "y", "width", "height"):
         for part in ("head", "picture"):
-            # The card's head takes the room its Resolve leaves while a rewrite is open.
-            if (surface, part, side) == ("card", "head", "width"):
+            # A head beside its thread's Resolve takes the room Resolve leaves while a
+            # rewrite is open.
+            if (part, side) == ("head", "width") and surface in (
+                "card",
+                "seat",
+                "shelf",
+            ):
                 continue
             assert editing[part][side] == pytest.approx(shown[part][side], abs=0.5), (
                 part,
@@ -960,6 +969,71 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
     page.keyboard.press("Escape")
     expect(resolve).to_be_visible()
+
+
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
+    browser, serve, phone
+):
+    """A later message's controls stand aside while its head sticks on the line of the
+    card's actions, and that once hid an open rewrite's Discard and Save too, though the
+    rewrite stood open below them. On a narrow phone card beside Previous and Next, the
+    pair, two fingers wide, then ran past the head into the actions, and a tap on Save
+    pressed Previous. The pair stays, over the head's words."""
+    url = serve(PANEL_PAGE)
+    section = {"section": "how-store"}
+    root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
+    for author, text in (
+        ("agent", "Fitted. " + LANDING_WORDS * 2),
+        ("user", "And the south one? " + LANDING_WORDS * 2),
+        ("agent", "Both fitted. " + LANDING_WORDS * 12),
+    ):
+        mine = append_carried_log_record(
+            serve.page_dir,
+            {"kind": "reply", "author": author, "parent": root, "text": text},
+        )
+        if author == "user":
+            later = mine["id"]
+    if phone:
+        panel_comment(serve.page_dir, "Make the banner quieter", section)
+        context = browser.new_context(
+            viewport={"width": 320, "height": 844}, has_touch=True, is_mobile=True
+        )
+        page = open_page(browser, url, context=context)
+    else:
+        page = open_page(browser, url)
+        resized(page, 1200, 700)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(f'.lf-msg[data-event="{later}"]')
+    expect(message).to_be_visible()
+    rendered(page)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    # The message's opening stands a line above the transcript's top.
+    card.locator(".lf-thread-transcript").evaluate(
+        """(box, id) => {
+          const message = box.querySelector(`.lf-msg[data-event="${id}"]`);
+          box.scrollTop += message.getBoundingClientRect().top
+            - box.getBoundingClientRect().top + 20;
+        }""",
+        later,
+    )
+    rendered(page)
+    expect(message).to_have_attribute("data-lf-beside-actions", "")
+    for name in ("Discard", "Save"):
+        control = message.get_by_role("button", name=name, exact=True)
+        expect(control).to_be_visible()
+        # A press at its middle reaches it where it stands, with no scroll first.
+        hit = control.evaluate(
+            """node => {
+              const box = node.getBoundingClientRect();
+              const at = node.getRootNode().elementFromPoint(
+                box.left + box.width / 2, box.top + box.height / 2);
+              return node.contains(at) || at?.outerHTML.slice(0, 120);
+            }"""
+        )
+        assert hit is True, (name, hit)
 
 
 @pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])

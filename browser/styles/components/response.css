@@ -554,17 +554,25 @@ button.lf-media-open {
 /* While a rewrite is open its thread offers no Resolve or Reopen: the row is the
    rewrite's, and saving reopens a resolved thread anyway. The control leaves the row, so
    the controls after it shift over (the user's choice, 2026-10-25). */
-:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) :is(.lf-resolve, .lf-reopen) {
-  display: none;
-}
-/* Beside a thread's first message the thread's controls keep their own room past the
-   head (surfaces.css), so there the pair moves over into Resolve's place. */
-.lf-thread-content:has(> .lf-thread-controls)
-  > .lf-thread-transcript
-  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-  > .lf-msg-head
-  > .lf-msg-control-room:has(> .lf-msg-controls > .lf-msg-edit-actions) {
-  margin-inline-end: calc(-1 * (var(--lf-thread-action-room) + var(--sp-2)));
+:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) {
+  & :is(.lf-resolve, .lf-reopen) {
+    display: none;
+  }
+  /* Here the thread's controls beside its first message's head hold only that control
+     (thread-card.js), so their box goes too, and a rewrite of that message takes the
+     room the head keeps for them (surfaces.css): the pair stands in Resolve's place. */
+  & .lf-thread-controls {
+    display: none;
+  }
+  &
+    .lf-thread-content:has(> .lf-thread-controls)
+    > .lf-thread-transcript
+    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+    > .lf-msg-head:has(
+      > .lf-msg-control-room > .lf-msg-controls > .lf-msg-edit-actions
+    ) {
+    margin-inline-end: 0;
+  }
 }
 
 :is(.lf-fab-bar, .lf-margin-preview) {

@@ -596,8 +596,9 @@ summary {
   padding-inline: var(--lf-thread-text-inset) 0;
 }
 /* Conversation flow is separate from the outer flex body that retains reply room.
-   The positioning parent stays outside the transcript's scroll clip, so a message
-   control's focus ring can extend past the transcript's top edge. */
+   The positioning parent stays outside the transcript's scroll clip, so the thread's
+   controls and its notice of news, placed beside the first head, keep their focus
+   rings past the transcript's top edge. */
 .lf-thread-content {
   display: flow-root;
   position: relative;
@@ -941,6 +942,13 @@ summary {
 }
 .lf-thread-meta-actions > button {
   block-size: 100%;
+}
+/* Under a finger each control is already a finger's width, its symbol a third of that,
+   so a gap between them only spreads the symbols further apart. */
+@media (pointer: coarse) {
+  .lf-thread-meta-actions {
+    gap: 0;
+  }
 }
 .lf-thread-controls > .lf-thread-meta-actions {
   min-height: var(--lf-thread-action-room);

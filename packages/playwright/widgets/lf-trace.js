@@ -484,10 +484,14 @@ customElements.define(
         const resizer = sizeObserver(this.#resize);
         resizer.observe(this.#viewport.value);
         const stopReading = [
-          ["recording", this, this.#body.value],
-          ["point-details", this.#metadata.value, this.#metadata.value],
-          ["saved-elements", this.#tree.value, this.#tree.value],
-        ].map(([name, host, body]) =>
+          { name: "recording", host: this, body: this.#body.value },
+          {
+            name: "point-details",
+            host: this.#metadata.value,
+            body: this.#metadata.value,
+          },
+          { name: "saved-elements", host: this.#tree.value, body: this.#tree.value },
+        ].map(({ name, host, body }) =>
           registerReadingRegion({
             id: compoundReadingRegionId(this, name),
             host,

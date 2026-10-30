@@ -15,6 +15,7 @@ import { createJavaScriptRegexEngine } from "@shikijs/engine-javascript";
 
 export const themeName = "leaf";
 
+/** @satisfies {import("@shikijs/core").ThemeRegistration} */
 export const leafTheme = {
   name: themeName,
   type: "light",

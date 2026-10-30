@@ -9,6 +9,10 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
   const { default: grade } = await import("../../leaf_dev/authoring_assertion.mjs");
   const work = await mkdtemp(join(tmpdir(), "leaf-judge-smoke-"));
   t.after(() => rm(work, { recursive: true }));
+  /** @type {Record<string, string>} */
+  const phaseIds = { "": "4", _before_decision: "3" };
+  /** @type {Record<string, { page?: string }>} */
+  const phases = { 3: { page: "/before" }, 4: { page: "/final" } };
   const context = {
     config: {
       rubric: "The final decision remains readable.",
@@ -26,10 +30,10 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
             brief:
               "Build a review page. Later request: keep the chosen option visible.",
             decision_task: "Select the second option and submit the review.",
-            phases: { "": "4", _before_decision: "3" },
+            phases: phaseIds,
             widths: { phone: [390, 844] },
           },
-          phases: { 3: { page: "/before" }, 4: { page: "/final" } },
+          phases,
         },
       },
     },
@@ -50,6 +54,7 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
       : "Comment answer: the second option remains selected.";
     let calls = 0;
     const result = await grade(output, sample, async () => ({
+      id: () => "test judge",
       callApi: async (prompt, { vars }) => {
         calls++;
         assert.ok(
@@ -64,11 +69,22 @@ ${output}`),
           assert.match(prompt, /Select the second option and submit the review/);
         assert.match(prompt, /The final decision remains readable/);
         assert.doesNotMatch(prompt, /undefined/);
-        assert.equal(vars.pages.final.page, "/final");
-        assert.equal(
-          vars.pages.before_decision?.page,
-          shortTask ? undefined : "/before",
-        );
+        assert.deepEqual(vars.pages, {
+          final: {
+            page: "/final",
+            payload: "/runtime",
+            condition: diagnostics.condition,
+          },
+          ...(shortTask
+            ? {}
+            : {
+                before_decision: {
+                  page: "/before",
+                  payload: "/runtime",
+                  condition: diagnostics.condition,
+                },
+              }),
+        });
         return {
           output: { status: "pass", reason: "The final decision is readable." },
         };

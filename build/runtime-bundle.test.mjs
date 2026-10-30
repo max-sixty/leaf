@@ -60,14 +60,16 @@ test("the kernel preserves native packages and shared state", async () => {
     const record = await vendor(layer, kernel, output);
     await writeFile(join(output, "package.json"), '{"type":"module"}');
 
-    const leaf = await import(pathToFileURL(join(output, "leaf.js")));
-    const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")));
-    const checks = await import(pathToFileURL(join(output, "runtime/check-api.js")));
+    const leaf = await import(pathToFileURL(join(output, "leaf.js")).href);
+    const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")).href);
+    const checks = await import(
+      pathToFileURL(join(output, "runtime/check-api.js")).href
+    );
     const portable = await import(
-      pathToFileURL(join(output, "runtime/portable-api.js"))
+      pathToFileURL(join(output, "runtime/portable-api.js")).href
     );
     const overlayChecks = await import(
-      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js"))
+      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js")).href
     );
     assert.equal(leaf.state.annotations, false);
     assert.equal(checks.state, leaf.state);
@@ -76,7 +78,7 @@ test("the kernel preserves native packages and shared state", async () => {
     const annotations = await leaf.annotations();
     assert.equal(leaf.state.annotations, true);
     const bridge = await import(
-      pathToFileURL(join(output, "runtime/vendor-bridge.js"))
+      pathToFileURL(join(output, "runtime/vendor-bridge.js")).href
     );
     assert.equal(api.state, leaf.state);
     assert.equal(bridge.state, leaf.state);
@@ -133,7 +135,7 @@ test("the kernel preserves native packages and shared state", async () => {
     const historical = join(temporary, "historical");
     await vendor(layer, await kernelOutputs(layer), historical);
     await writeFile(join(historical, "package.json"), '{"type":"module"}');
-    const prior = await import(pathToFileURL(join(historical, "leaf.js")));
+    const prior = await import(pathToFileURL(join(historical, "leaf.js")).href);
     assert.equal(prior.state.annotations, false);
   } finally {
     await rm(temporary, { recursive: true });

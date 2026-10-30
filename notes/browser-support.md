@@ -389,3 +389,20 @@ evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a
 native-window recording when available; filtering missing frames would conceal
 the unresolved gap.
+
+### A short body's colour stops above the window's foot in Firefox
+
+A live page with no Layout whose body the page coloured, and which is shorter
+than the window, ends above a band of the root's colour in Firefox: the body is
+a size container (`lf-shell`), containment keeps its background off the canvas,
+and base.css fills the window with `min-height: stretch`, which subtracts the
+body's own margins. Playwright Firefox 157 (build 1555) rejected `stretch`
+and treated `-moz-available` as `auto` in the block axis on 2026-10-29;
+Chromium 156 (build 1248) and WebKit 27.2 (build 2370) filled the window less
+the default 8px margin with no scroll. A
+Layout's body has no margin, so its `min-height: 100%` (layouts.css) fills the
+window there too; 100% would make a body that keeps the browser's margin scroll
+by it. Recheck with `leaf-dev probe --browser firefox` on a short page that
+colours `body` and keeps its margin, reading the body's bottom against
+`innerHeight` and the root's scroll height; once Firefox fills it, the Layout
+rule can go.

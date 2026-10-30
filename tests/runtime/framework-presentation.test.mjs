@@ -4,8 +4,9 @@ import { effect } from "/vendor/signals-core.js";
 import {
   createPresentationCoordinator,
   createPresentationSchedule,
-  describeFailure,
 } from "../../browser/runtime/framework/presentation.js";
+
+import { describeFailure } from "../../browser/runtime/exception.js";
 
 // Complete a region immediately.
 const presented = (handle) => {

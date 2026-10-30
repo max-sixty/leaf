@@ -4213,28 +4213,14 @@ ROW_CENTRES = """() => {
       ?.getBoundingClientRect().toJSON(),
   };
 }"""
-# The right end of each line of words in the field, top to bottom.
-WORD_LINES = """host => {
-  const rows = [];
-  for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
-    const range = document.createRange();
-    range.selectNodeContents(line);
-    for (const r of range.getClientRects()) {
-      if (r.width < 0.5) continue;
-      const row = rows.find(o => Math.abs(o.top - r.top) < 4);
-      if (row) row.right = Math.max(row.right, r.right);
-      else rows.push({top: r.top, right: r.right});
-    }
-  }
-  return rows.sort((a, b) => a.top - b.top).map((row) => row.right);
-}"""
 
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
     leaf, Dictate, the counts, and Send while the user types, each centred on the
     field's last line of words, however many lines it holds. Send floats in the field's
-    end corner, as an anchored comment box's does, and every line keeps room for it."""
+    end corner, as an anchored comment box's does, and under a mouse the words take its
+    column (drafts/test_send_corner.py follows Send out of their way)."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     field(page).click()
     settled(page)
@@ -4251,8 +4237,11 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     assert seats["press"]["right"] == pytest.approx(seats["field"], abs=1), seats
-    lines = field(page).evaluate(WORD_LINES)
-    assert max(lines) <= seats["press"]["left"], (lines, seats)
+    column = field(page).evaluate(
+        """host => window.editorRoots.get(host).querySelector('.cm-content')
+          .getBoundingClientRect().right"""
+    )
+    assert column > seats["press"]["left"], (column, seats)
 
 
 def test_a_long_draft_offers_more_room_at_a_press(browser, serve):

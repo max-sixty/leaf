@@ -59,16 +59,12 @@ def _open_card_reply(page):
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     card.get_by_role("textbox", name="Reply", exact=True).click()
-    return card.locator(".lf-thread-reply .lf-compose-field"), card.locator(
-        ".lf-msg.user"
-    )
+    return card.locator(".lf-thread-reply .lf-compose-field")
 
 
 def _open_panel_field(page):
     page.locator(".lf-fp-field leaf-text").click()
-    return page.locator(".lf-fp-field .lf-compose-field"), page.locator(
-        ".lf-margin-preview .lf-msg.user"
-    )
+    return page.locator(".lf-fp-field .lf-compose-field")
 
 
 def _type_to_the_corner(page, field):
@@ -103,18 +99,12 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     Send over the words at once, in a square no taller than the row, and it takes a
     press once the pointer has rested there; typing puts it away again. The firefox case
     is the user's browser, which follows nearly every move with a leave."""
-    browser = request.getfixturevalue(engine)
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
-    context.clock.install()
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]),
-        context=context,
         init_script=KEEP_ROOTS,
     )
-    field, messages = (_open_card_reply if composer == "card" else _open_panel_field)(
-        page
-    )
+    field = (_open_card_reply if composer == "card" else _open_panel_field)(page)
     page.keyboard.type("Short")
     rendered(page)
     free = field.evaluate(CORNER)
@@ -124,13 +114,16 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     taken = field.evaluate(CORNER)
     assert taken["rowEnd"] > taken["sendStart"], "the words stop short of Send's column"
     assert not taken["shown"] and not taken["presses"], taken
-    sent = messages.count()
 
-    # A quick press: the pointer arrives and presses before the rest that arms Send,
-    # which the paused clock holds off however slowly the driver delivers the moves.
+    # A quick press: the pointer arrives and presses just short of the rest that arms
+    # Send, on a paused clock, however slowly the driver delivers the moves.
     page.keyboard.press("ControlOrMeta+Home")
-    page.clock.pause_at(page.evaluate("() => Date.now()") + 1000)
+    page.clock.install()
+    page.clock.pause_at(
+        page.evaluate("() => new Date(Date.now() + 1000).toISOString()")
+    )
     _arrive(page, taken["middle"])
+    page.clock.run_for(SEND_DWELL - 1)
     pointed = field.evaluate(CORNER)
     assert pointed["shown"] and not pointed["presses"], pointed
     page.mouse.down()
@@ -151,4 +144,4 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     with sending(page, "the draft"):
         page.mouse.down()
         page.mouse.up()
-    expect(messages).to_have_count(sent + 1)
+    expect(field.locator(":scope > leaf-text")).to_have_js_property("value", "")

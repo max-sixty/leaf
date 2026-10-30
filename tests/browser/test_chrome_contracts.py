@@ -164,10 +164,11 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
             expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
-def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """At a narrow allocation, Space must not create a blank line while the
-    words and Send still fit. The text's right inset already clears part of
-    Send's hit box; reserving its full width again wasted eleven pixels."""
+def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the words
+    still fit. Under a mouse the words keep no room for Send, which takes the corner
+    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    as they start."""
     page = open_page(
         browser,
         serve(
@@ -196,15 +197,13 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
-    reservation = field.evaluate("""el => {
-      const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
-      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        sendStart: send.left};
+    insets = field.evaluate("""el => {
+      const style = getComputedStyle(el);
+      return [parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart),
+        parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd)
+        + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+    assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.

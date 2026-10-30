@@ -1210,9 +1210,9 @@ WORD_LINES = """node => {
 def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
     browser, serve, touch
 ):
-    """The card's reply box is the comment box the card grew from, and ends its words,
-    on every line, where the card's messages end theirs, so a reply breaks each line
-    where it did as it was typed."""
+    """The comment box and the card's reply box each end their words, on every line,
+    where the card's messages end theirs, so a comment and a reply break each line
+    where they did as they were typed."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1229,7 +1229,12 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
     """,
     )
     STEP.open(page, touch)
-    page.keyboard.insert_text(COMMENT)
+    page.keyboard.insert_text(
+        "This step should say which runner it targets, and whether the workspace it "
+        "leaves behind is kept for inspection once a run fails."
+    )
+    rendered(page)
+    commented = page.locator(".lf-fab-input").evaluate(WORD_LINES)
     if touch:
         page.locator(".lf-fab-bar").get_by_role(
             "button", name="Comment", exact=True
@@ -1238,6 +1243,10 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    messages = card.locator(".lf-msg.user")
+    rendered(page)
+    assert len(commented) > 1, "the comment never wrapped"
+    assert messages.first.locator(".lf-msg-text").evaluate(WORD_LINES) == commented
     reply = card.locator(".lf-thread-reply leaf-text")
     if touch:
         reply.tap()
@@ -1251,7 +1260,6 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
     )
     rendered(page)
     typed = reply.evaluate(WORD_LINES)
-    messages = card.locator(".lf-msg.user")
     with sending(page, "reply"):
         if touch:
             card.locator(".lf-thread-reply .lf-compose-submit").tap()

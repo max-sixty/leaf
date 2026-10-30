@@ -69,7 +69,7 @@ variants:
       now: "2026-10-12T18:00:00-07:00"
       draft: |
         <!-- Historical handoff draft, revision 85; settled evidence omitted and local URLs anonymized. -->
-        <main class="layout-column">
+        <main class="layout-sidebar">
         <header id="next-extracts">
           <p class="eyebrow">Branch briefing · 12 October 2026 · source 05a5008b3</p>
           <h1>What remains on the UI branch</h1>
@@ -78,7 +78,8 @@ variants:
           <p><strong>Current state:</strong> the runtime changes on <code>codex/simplify-diff-controls</code> are committed at <code>05a5008b3</code>, with main included through <code>3fe3eb0af</code>. The committed diff against that main snapshot is <strong>105 files, +9,086 / −1,782 lines</strong>; including the two TODO additions, the working diff is <strong>+9,094 / −1,782</strong>. Local main has advanced to <code>f69a287d2</code>, so these are merge-base counts, not a freshly reconciled list of everything still absent from main. The draft-annotation requirement and inline-discussion reading problem are recorded in <code>TODO.md</code> as uncommitted planning changes. The parent branch has no remote branch or open PR; refresh it from current main before extracting.</p>
           </details>
         </header>
-        <aside class="sidebar" id="outline"><lf-toc id="contents" max-level="2"></lf-toc></aside>
+        <aside id="outline"><div class="layout-track"><lf-toc id="contents" max-level="2"></lf-toc></div></aside>
+        <article class="layout-column">
 
         <section id="remaining-next">
           <h2>What is left, and what needs a decision</h2>
@@ -270,6 +271,7 @@ variants:
           <details><summary>Inspect the full remaining branch</summary><pre id="inspect-branch"><code>wt -C '/Users/maximilian/.codex/worktrees/07dc/leaf' step diff</code></pre></details>
         </section>
 
+        </article>
         </main>
       question: |
         <lf-ask id="next-touch-question">

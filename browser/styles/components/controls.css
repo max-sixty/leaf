@@ -606,7 +606,7 @@ summary,
   }
 }
 /* The faces of Leaf's control roles, one face each. A widget builds a control by its
- * role (`offerAction`), and prepaint.js (`ACTION_FACES`) lists the roles, is the one
+ * role (`offerAction`), and control-faces.js (`ACTION_FACES`) lists the roles, is the one
  * place a role's classes are spelled and says what each role is for. Each face holds
  * across document and shadow trees; a package places a control and may set its
  * density (`--lf-icon-action-face`), but restates none of its face, so a surface's
@@ -878,6 +878,106 @@ wa-copy-button.lf-icon-action {
     border: 1px solid ButtonText;
   }
 }
+
+/* The general leaf text box, in one rule. It is stated page-side like the rest of the
+   shared vocabulary's faces (chrome.css), so a widget's own box that names the same
+   property wins. The compact response field is excluded because it shares its complete
+   control geometry with the response buttons (chrome.css). The box grows with its
+   words — a textarea through field-sizing, a text field through its own content — so
+   no script measures one: the JS that did had to reset height to auto to re-measure,
+   which made the box briefly too small for its own text on every keystroke — and a
+   box that overflows, however briefly, flashes a scrollbar. Past max-height the
+   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
+   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
+   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
+   class itself. */
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
+  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: inherit;
+  resize: none;
+  field-sizing: content;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
+   button's height, so a row of them beside .lf-btn reads as one set of controls. With
+   no face the browser drew its own: a 2px inset border and square corners, 21px tall
+   beside 30px buttons. At a class's weight, so a component rule naming its own field
+   still wins by coming later. */
+:where(
+  select,
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"]
+  )
+):is(.lf-ui, .field) {
+  --lf-field-pad-inline: 8px;
+  box-sizing: border-box;
+  min-height: var(--lf-line);
+  padding: 4px var(--lf-field-pad-inline);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  &[data-lf-focus-visible] {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-color: transparent;
+  }
+}
+/* Native picker arrows ignore padding. Draw only the closed control's chevron;
+   the browser still owns opening, selection and keyboard input. Listboxes keep
+   their native face. The two strokes use the text color in either scheme. */
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
+  .lf-ui,
+  .field
+) {
+  --lf-select-arrow-wing: 4px;
+  appearance: none;
+  padding-inline-end: calc(
+    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
+  );
+  background-image:
+    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
+    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
+  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
+  background-repeat: no-repeat;
+  background-position:
+    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
+    right var(--lf-field-pad-inline) center;
+  &:dir(rtl) {
+    background-position:
+      left var(--lf-field-pad-inline) center,
+      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
+  }
+}
+.lf-ui :is(input, textarea)::placeholder,
+:is(input, textarea):is(.lf-ui, .field)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus-visible],
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus-visible] {
+  outline: var(--focus-ring);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
 /* The inline face, for a press read as part of the line of words it stands in, such
    as a thread's held news, the activity feed's notice, the floating panel's Next
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the

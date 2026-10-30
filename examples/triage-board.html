@@ -60,34 +60,36 @@
       </lf-board>
 
       <aside id="triage-status">
-        <div class="layout-tiles" id="triage-counts">
-          <dl id="count-cut" class="metric">
-            <dt>to the Thursday cut</dt>
-            <dd><strong>2 days</strong></dd>
-          </dl>
-          <dl id="count-open" class="metric">
-            <dt>open since Monday</dt>
-            <dd><strong>7</strong> <small>change: -3</small></dd>
-          </dl>
+        <div class="layout-track">
+          <div class="layout-tiles" id="triage-counts">
+            <dl id="count-cut" class="metric">
+              <dt>to the Thursday cut</dt>
+              <dd><strong>2 days</strong></dd>
+            </dl>
+            <dl id="count-open" class="metric">
+              <dt>open since Monday</dt>
+              <dd><strong>7</strong> <small>change: -3</small></dd>
+            </dl>
+          </div>
+          <section class="panel" id="triage-why">
+            <h2>Why only the migration blocks</h2>
+            <p>
+              The deploy script writes the schema version after the post-deploy hook,
+              and the hook exits non-zero on a warning. So the stamp never lands, and
+              every deploy runs 0041 again. 0041 only adds a column, so rerunning it is
+              a no-op. 0042 credits every account that was billed twice in March. Run
+              twice, it pays twice.
+            </p>
+            <p>
+              None of the other cards gets worse by waiting a week. Each is cosmetic for
+              most users, safe to retry, has a manual workaround, or has few reports.
+            </p>
+          </section>
+          <section class="panel" id="triage-moves">
+            <h2>Recent moves</h2>
+            <lf-activity id="triage-activity"></lf-activity>
+          </section>
         </div>
-        <section class="panel" id="triage-why">
-          <h2>Why only the migration blocks</h2>
-          <p>
-            The deploy script writes the schema version after the post-deploy hook, and
-            the hook exits non-zero on a warning. So the stamp never lands, and every
-            deploy runs 0041 again. 0041 only adds a column, so rerunning it is a no-op.
-            0042 credits every account that was billed twice in March. Run twice, it
-            pays twice.
-          </p>
-          <p>
-            None of the other cards gets worse by waiting a week. Each is cosmetic for
-            most users, safe to retry, has a manual workaround, or has few reports.
-          </p>
-        </section>
-        <section class="panel" id="triage-moves">
-          <h2>Recent moves</h2>
-          <lf-activity id="triage-activity"></lf-activity>
-        </section>
       </aside>
     </main>
   </body>

@@ -35,8 +35,9 @@ representative desktop viewport.
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The rail and the
-  margin"). Only the left margin content and sidenotes move the column, through
-  `marginContentLayout` in `prepaint.js`. Checks:
+  margin"). Native document tracks and wrapping rows place the page's own sidebars and notes
+  from the first paint. `runtime/content-layout.js` reads their CSS geometry for
+  annotations and never reallocates document space. Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
@@ -86,7 +87,7 @@ representative desktop viewport.
   a thread's reply and the seated comment box share the floating panel's field.
   The container grows only for content, such as typed words, or an explicit action,
   such as More room. Changing labels (`data-room`, below) and rendering a widget
-  after its first paint (`keeps-first-box`) follow the same sizing rule. A
+  after its first visible paint follow the same sizing rule. A
   one-line control's visible height is `--lf-line` (base.css); its touch target meets
   the minimum size set by surfaces.css. A control that instead derives its visible
   height from its font or the touch-target minimum changes the height of every
@@ -118,11 +119,11 @@ representative desktop viewport.
   `thread/card-anchor.js` owns what each interaction preserves. A box a scroll carried
   away comes back when the user types into it (`off-flow.js`). Only a field in flow
   scrolls to keep its controls in view (`thread/reply-landing.js`).
-- **A widget paints its final box before it upgrades.** The theme sizes each widget
-  under `html[data-lf-interactive]` as its module will draw it
-  (`../skills/leaf/references/module-authoring.md`, "First paint"). Check: the widget quality check
-  `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
-  doesn't list.
+- **Deliver readable content before activating it.** Authored HTML paints while
+  browser modules load. Each widget owns one Lit view across its lifetime; native
+  slots retain authored children and CSS owns their initial layout. Let each control
+  wait only for the behavior or state it needs. Never hold the whole document behind
+  widget readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
 - **Generated interface appears in its final position, and room is held only for what
   will be drawn**, such as a widget's upgraded controls. A state that may never come,
   such as a failed save, shows in a slot already on screen, as a message's head carries
@@ -206,7 +207,7 @@ representative desktop viewport.
   what its task needs, and the leaf's menu holds the rest.
 - **A control wears its role's face.** Code builds a control by its role, with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
-  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
@@ -234,15 +235,17 @@ representative desktop viewport.
 `leaf.js` only boots the page: it imports the owner modules, each of which exports its
 capability, and starts them in the order "Startup and presentation" lists. Two classic
 scripts run before any module. `runtime/prepaint.js` runs inline in every document,
-served or exported, and sets `data-lf-interactive` so the theme gives widgets their
-upgraded size. When something the page needs fails, it removes that attribute and names
-the reason in `data-lf-startup-error`, and every widget shows its readable fallback.
+served or exported. It marks the interactive document, restores native reading state
+and reports startup failures. Content remains readable while modules load; controls
+activate through their owning widget lifecycle. A failure removes the interactive mark
+and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
 and shows a startup failure.
 
 Content modules import only `runtime/widget-api.js`, the public helper surface, or a
 widget that also runs off Leaf only its part any document loads,
-`runtime/portable-api.js`, whose header says what its homes owe. Owners
+`runtime/portable-api.js`;
+`module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use

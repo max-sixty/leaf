@@ -1,6 +1,6 @@
-import { actionElement, iconElement, nativeLayerHolding, nextRender, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
+import { actionElement, iconElement, nativeLayerHolding, nextRender, offer, offeredActionElement, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
 import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
-import { notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
+import { notice, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
 import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 
@@ -249,7 +249,7 @@ function copyThroughSelection(value, trigger) {
 	}
 }
 function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
-	const copy = role ? offerActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
+	const copy = role ? offeredActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
 	const symbol = copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon");
 	for (const [icon, slot] of [
 		[symbol, "copy-icon"],

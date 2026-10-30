@@ -228,7 +228,10 @@ def test_the_root_names_the_layout_of_a_child_of_a_main_without_one():
 def test_the_root_names_the_layouts_of_a_page_of_parts():
     """Which part opens is the browser's, so every part's Layout goes across, and a box
     at a part's depth under any other child names none."""
-    registry = {"lf-parts": {"x-views": "parts"}, "lf-tabs": {"x-views": True}}
+    registry = {
+        "lf-parts": {"x-views": {"members": "lf-part", "parts": True}},
+        "lf-tabs": {"x-views": {"members": "lf-tab"}},
+    }
     parts = structure_model.SourceDocument(
         '<main><header><h1>Review</h1></header><lf-parts id="parts">'
         '<lf-part id="try" label="Try"><div class="layout-workspace"></div></lf-part>'

@@ -1,3 +1,5 @@
+import { render } from "/vendor/lit.js";
+import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
@@ -31,12 +33,10 @@
  * Targets stay live: a held row keeps its historical words and geometry, but its
  * fragment link follows only a destination in the current document. A departed
  * destination leaves historical text in the same node, without an active link.
- * Tab memory retains the drawn presentation through a fresh document. Its initial
- * producer draws it before first paint, then the ready authoritative reading is
- * compared through HeldReading. This never folds events or records a decision. */
+ * Tab memory retains the drawn presentation through a fresh document. The ready
+ * authoritative reading is compared through HeldReading. This never folds events or records a decision. */
 import {
   HeldReading,
-  initialRender,
   tabStore,
   addressableLabel,
   addressableWord,
@@ -169,7 +169,8 @@ customElements.define(
     #ready = false;
 
     setup() {
-      const drawing = initialRender(this);
+      const drawing = createActivity(this);
+      render(drawing.render(), drawing.root ?? this, { host: this });
       this.#storageKey = drawing.storageKey;
       this.#list = drawing.list;
       this.#empty = drawing.empty;

@@ -767,9 +767,10 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
     takes the room the margin would have."""
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1200, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')

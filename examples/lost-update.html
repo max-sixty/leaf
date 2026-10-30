@@ -8,7 +8,7 @@
     />
   </head>
   <body>
-    <main>
+    <main class="layout-column">
       <h1 id="race-title">Two jobs race on one balance</h1>
       <p id="race-lede">
         Job A deposits 50 and job B withdraws 30 from the same account, which holds 100.
@@ -16,13 +16,17 @@
         result. The final balance should be 120. Step through each run with Previous and
         Next, or the arrow keys; the times are illustrative.
       </p>
-      <lf-tabs id="race-runs">
-        <lf-tab id="race-before-tab" label="Before the fix">
+      <lf-tabs id="race-runs" class="layout-flow">
+        <lf-tab id="race-before-tab" label="Before the fix" class="layout-flow">
           <p id="race-before-summary">
             B reads the balance before A has written, so B's write is computed from a
             read that is four seconds stale and replaces A's deposit.
           </p>
-          <lf-timeline id="race-before" aria-label="The race before the fix">
+          <lf-timeline
+            id="race-before"
+            data-width="available"
+            aria-label="The race before the fix"
+          >
             <lf-lane label="Job A">
               <lf-event id="before-a-read" at="0" label="Reads balance: 100"></lf-event>
               <lf-event
@@ -58,12 +62,16 @@
             </lf-lane>
           </lf-timeline>
         </lf-tab>
-        <lf-tab id="race-after-tab" label="After the fix">
+        <lf-tab id="race-after-tab" label="After the fix" class="layout-flow">
           <p id="race-after-summary">
             Each job takes a row lock before it reads. B waits until A has written and
             unlocked, so B reads 150 and both changes survive.
           </p>
-          <lf-timeline id="race-after" aria-label="The run after the fix">
+          <lf-timeline
+            id="race-after"
+            data-width="available"
+            aria-label="The run after the fix"
+          >
             <lf-lane label="Job A">
               <lf-event
                 id="after-a-read"

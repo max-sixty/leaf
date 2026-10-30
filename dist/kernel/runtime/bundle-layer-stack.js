@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterScript, bindQueuedWork, excludedByInert, isNativeLayer, isStage, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
-import { AsyncDirective, Directive, LitElement, PartType, directive, guard, html, keyed, live, noChange, nothing, ref, render as render$1, repeat } from "/vendor/lit.js";
+import { afterScript, bindQueuedWork, excludedByInert, isNativeLayer, isStage, keeps, liveStages, nativeLayerHolding, nativeLayerKind, nextRender, renderedParent, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
+import { AsyncDirective, LitElement, PartType as PartType$1, directive as directive$1, guard, html as html$1, keyed, live, noChange, nothing as nothing$1, ref, render, repeat } from "/vendor/lit.js";
 
 //#region vendor/signals-core.js
 var j = Symbol.for("preact-signals");
@@ -295,20 +295,6 @@ function q(t) {
 		}
 	};
 }
-
-//#endregion
-//#region runtime/keeps.js
-const keeps = (...args) => document.documentElement.lfInitial.keepsAttribute(...args);
-function keepsHidden(node, hidden) {
-	if (node && node.hidden !== hidden) node.hidden = hidden;
-}
-function keepsText(node, text) {
-	const said = String(text ?? "");
-	if (node && node.textContent !== said) node.textContent = said;
-}
-const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
-const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
-const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 
 //#endregion
 //#region runtime/control-selectors.js
@@ -1214,7 +1200,7 @@ function move(parent, node, before) {
 	}
 	return node;
 }
-document.documentElement.lfInitial.move = move;
+window.lfMove = move;
 
 //#endregion
 //#region runtime/framework/snapshot.js
@@ -1697,10 +1683,6 @@ const marks = {
 		"paint": "data-lf-reading-role",
 		"message": true
 	},
-	"x-margin-content": {
-		"paint": "data-lf-margin-content",
-		"message": false
-	},
 	"x-views": {
 		"paint": "data-lf-views",
 		"message": true
@@ -1744,6 +1726,14 @@ const anchorKey = (anchor) => {
 	return JSON.stringify(Object.entries(anchor ?? {}).filter(([key, value]) => PRIMITIVE.has(typeof value) && !(identified && RENDERING.has(key))).sort(([left], [right]) => left.localeCompare(right)));
 };
 const sameAnchor = (a, b) => a === b || Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b);
+const fragmentId = (fragment) => {
+	const raw = fragment.slice(1);
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return raw;
+	}
+};
 
 //#endregion
 //#region runtime/thread/identity.js
@@ -3464,7 +3454,6 @@ const elementDeclarations = () => Object.entries(registry).filter(([tag]) => isE
 function adoptRegistry(declarations) {
 	for (const [name, value] of Object.entries(declarations)) if (name.startsWith("$")) freeze(value);
 	Object.assign(registry, declarations);
-	document.documentElement.lfInitial.inputDeclaration = (host, input) => registry[host.localName]?.["x-data"]?.[input];
 }
 function freeze(value) {
 	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
@@ -3538,27 +3527,6 @@ const uiInside = (el, within) => {
 };
 const inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 let shadowRules = "";
-const SHADOW_LEADING_CSS = `
-@layer {
-  [hidden]:not([hidden="until-found"]),
-  :host([hidden]:not([hidden="until-found"])) {
-    display: none !important;
-  }
-  @media screen {
-    @container style(--lf-before-presentation: 1) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
-    }
-    @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
-        visibility: hidden !important;
-      }
-    }
-  }
-}`;
 let loading = null;
 function loadShadowRules() {
 	loading ??= readShadowRules();
@@ -3771,4 +3739,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, atLayoutPrecision, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keeps, keepsHidden, keepsText, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, layoutPx, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render$1 as render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, roomPx, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };
+export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };

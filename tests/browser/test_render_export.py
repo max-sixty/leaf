@@ -807,8 +807,10 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         leaf_page(
             "Exported notes",
             '<h1 id="title">Migration</h1>'
-            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
-            '<p id="passage">Advance the migration one cohort at a time.</p>',
+            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
+            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
+        ).replace(
+            '<main class="layout-column">', '<main class="layout-column layout-notes">'
         )
     )
     interactive = tmp_path / "margin-notes.html"
@@ -818,13 +820,17 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#note")).to_have_css("float", "right")
+    wide = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert wide["x"] >= prose["x"] + prose["width"]
     page.set_viewport_size({"width": 390, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "none")
-    page.set_viewport_size({"width": 1440, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "right")
+    narrow = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert narrow["y"] >= prose["y"] + prose["height"]
+    page.set_viewport_size({"width": 1600, "height": 900})
+    assert page.locator("#note").bounding_box() == pytest.approx(wide)

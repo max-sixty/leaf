@@ -16,10 +16,10 @@
  * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
  * option instead of the accent. It keeps a class's specificity, so the element rules of the
  * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
- * win over every layer. And it matches only under the document's root: a declared tree copies this
- * sheet, but no element in a shadow tree descends from `:root`, so what a widget draws
- * there keeps its host's face. lf-diff marks its line numbers and hunk separators `lf-ui`,
- * and a plain `.lf-ui` repainted them at the control's size and ink.
+ * win over every layer. It applies under both the document root and a declared shadow
+ * host, so native controls share one face in either tree. It does not select the
+ * general `lf-ui` apparatus: lf-diff's line numbers and hunk separators retain their
+ * component's type and ink.
  *
  * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
  * them: the same declarations there beat every component's own rule, and .lf-ref drew
@@ -38,17 +38,18 @@
  * A native control the page writes without either class takes the type from that
  * weightless rule too, so a page that styles it anywhere still wins. Left to the
  * browser it drew 13.33px Arial beside the page's own type (#2559). */
-:where(:root) :is(.lf-ui-face, .button, .field) {
+:where(:root, :host) :is(.lf-ui-face, .button, .field) {
   font-family: var(--sans);
   font-size: var(--t-5);
   line-height: var(--lf-ui-lh);
   color: var(--ink);
 }
 :where(
-  :root .lf-ui-face,
-  :root .button,
-  :root .field,
-  :root main :is(button, input, select, textarea)
+  :is(:root, :host) .lf-ui-face,
+  :is(:root, :host) .button,
+  :is(:root, :host) .field,
+  :root main :is(button, input, select, textarea),
+  :host :is(button, input, select, textarea)
 ) {
   font: var(--t-5) / var(--lf-ui-lh) var(--sans);
   font-feature-settings: normal;
@@ -192,18 +193,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-binding-seat {
   position: absolute;
 }
+:root,
+:host {
+  --lf-external-icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22black%22 stroke-width=%221.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 d=%22M6.5 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V9.5M9 3h4v4M13 3 7.5 8.5%22/%3E%3C/svg%3E");
+}
+a[data-lf-external]::after,
 .lf-external-mark {
+  content: "";
   display: inline-block;
   width: 0.75em;
   height: 0.75em;
   margin-inline-start: 0.24em;
   vertical-align: 0.03em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  overflow: visible;
+  background: currentColor;
+  mask: var(--lf-external-icon) center / contain no-repeat;
   user-select: none;
   -webkit-user-select: none;
 }

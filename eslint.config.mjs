@@ -1,8 +1,16 @@
 import js from "@eslint/js";
 import globals from "globals";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
+import { PAGE_PAINT_ATTRIBUTE } from "./browser/runtime/page-paint.js";
+
+const publicRuntimePaths = kernel["$public-modules"].paths.filter((path) =>
+  path.startsWith("/runtime/"),
+);
+const publicRuntimeModules = publicRuntimePaths
+  .map((path) => path.slice("/runtime/".length).replaceAll(".", "\\."))
+  .join("|");
 
 // The runtime's primitives, by path under `runtime/`: modules that may use the browser
 // but import no owner, which the rule naming them below holds.
@@ -43,6 +51,7 @@ const browserGlobals = Object.fromEntries(
     "DOMException",
     "DOMParser",
     "DOMRect",
+    "Document",
     "Element",
     "ErrorEvent",
     "Event",
@@ -177,9 +186,8 @@ const publicRuntimeImports = {
   ],
   patterns: [
     {
-      regex: "^/runtime/(?!(?:widget-api|portable-api)\\.js$)",
-      message:
-        "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
+      regex: `^/runtime/(?!(?:${publicRuntimeModules})$)`,
+      message: "Use the public package API described in module-authoring.md.",
     },
     {
       regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -198,10 +206,8 @@ const publicRuntimeSyntax = [
     message: "Import Leaf capabilities statically from /runtime/widget-api.js.",
   },
   {
-    selector:
-      'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"], [source.value="/runtime/portable-api.js"])',
-    message:
-      "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
+    selector: `ImportExpression[source.value=/^\\/runtime\\//]:not(${publicRuntimePaths.map((path) => `[source.value="${path}"]`).join(", ")})`,
+    message: "Use the public package API described in module-authoring.md.",
   },
   {
     selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",
@@ -278,61 +284,7 @@ const runtimeRoot = fileURLToPath(new URL("./browser/runtime/", import.meta.url)
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
 
-let pagePaintAttributeValues;
-function pagePaintAttributesFrom(parser) {
-  if (pagePaintAttributeValues) return pagePaintAttributeValues;
-  const file = path.join(runtimeRoot, "page-paint.js");
-  const ast = parser.parse(fs.readFileSync(file, "utf8"), {
-    ecmaVersion: "latest",
-    sourceType: "module",
-  });
-  const declarations = ast.body.flatMap((statement) => {
-    const declaration =
-      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
-    return declaration?.type === "VariableDeclaration" ? declaration.declarations : [];
-  });
-  const record = declarations.find(
-    (declaration) =>
-      declaration.id.type === "Identifier" &&
-      declaration.id.name === "PAGE_PAINT_ATTRIBUTE",
-  );
-  const attributes =
-    record?.init?.type === "CallExpression" &&
-    record.init.callee.type === "MemberExpression" &&
-    !record.init.callee.computed &&
-    record.init.callee.object.type === "Identifier" &&
-    record.init.callee.object.name === "Object" &&
-    record.init.callee.property.type === "Identifier" &&
-    record.init.callee.property.name === "freeze" &&
-    record.init.arguments[0]?.type === "ObjectExpression"
-      ? record.init.arguments[0]
-      : null;
-  if (!attributes)
-    throw new Error(
-      "PAGE_PAINT_ATTRIBUTE must remain a frozen object literal for root-state linting",
-    );
-  pagePaintAttributeValues = new Map();
-  for (const property of attributes.properties) {
-    const name =
-      property.type === "Property" && !property.computed
-        ? property.key.type === "Identifier"
-          ? property.key.name
-          : property.key.value
-        : null;
-    const value =
-      property.type === "Property" &&
-      property.value.type === "Literal" &&
-      typeof property.value.value === "string"
-        ? property.value.value
-        : null;
-    if (typeof name !== "string" || value === null)
-      throw new Error(
-        "PAGE_PAINT_ATTRIBUTE keys and values must remain static strings for root-state linting",
-      );
-    pagePaintAttributeValues.set(name, value);
-  }
-  return pagePaintAttributeValues;
-}
+const pagePaintAttributeValues = new Map(Object.entries(PAGE_PAINT_ATTRIBUTE));
 
 export const semanticStoreOwnershipRule = {
   meta: { type: "problem", schema: [] },
@@ -1055,9 +1007,7 @@ const architecturePlugin = {
         // root's attributes. root-state.js is the sole mutation boundary after that.
         if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
-        const pagePaintAttributes = pagePaintAttributesFrom(
-          context.languageOptions.parser,
-        );
+        const pagePaintAttributes = pagePaintAttributeValues;
         const propertyName = (node) =>
           node?.type === "MemberExpression"
             ? node.computed
@@ -1434,31 +1384,9 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing the icon table
-    // and the time axis's geometry adds no private runtime dependency to the package
-    // shipped to a page.
-    files: ["packages/*/initial/*.js"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          ...publicRuntimeImports,
-          patterns: publicRuntimeImports.patterns.map((pattern) =>
-            pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
-              ? {
-                  ...pattern,
-                  regex: "^\\.{1,2}/(?:.*/)?runtime/(?!(?:icon-paths|time-axis)\\.js$)",
-                }
-              : pattern,
-          ),
-        },
-      ],
-    },
-  },
-  {
     // Build tools share private runtime declarations with the browser rather than
     // duplicating them. The public facade boundary applies to page consumers.
-    files: ["build/**/*.mjs", "worker/*.mjs"],
+    files: ["build/**/*.mjs", "worker/*.mjs", "eslint.config.mjs"],
     rules: entryBoundary,
   },
   {
@@ -1627,7 +1555,8 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
-    ignores: ["browser/runtime/rendering.js"],
+    // Prepaint runs before the module graph, so it cannot call the scheduler.
+    ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
     rules: {
       "no-restricted-globals": [
         "error",

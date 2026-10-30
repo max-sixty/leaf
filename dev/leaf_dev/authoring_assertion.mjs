@@ -72,6 +72,10 @@ exploration cannot settle it.`;
         widths: diagnostics.comparison.widths,
         schema: z.toJSONSchema(Verdict),
         evidence,
+        handovers:
+          diagnostics.comparison.decision_task != null
+            ? { final: diagnostics.decision ?? null }
+            : {},
       },
     });
     if (response.error) throw new Error(response.error);

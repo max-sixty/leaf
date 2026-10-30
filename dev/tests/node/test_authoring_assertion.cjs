@@ -26,6 +26,11 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
           criterion: "Preserve the user's final decision.",
           payload: "/runtime",
           condition: "html",
+          decision: {
+            route: "copied",
+            gestures: [],
+            message: "Keep the second option and record my additional review note.",
+          },
           comparison: {
             brief:
               "Build a review page. Later request: keep the chosen option visible.",
@@ -69,6 +74,10 @@ ${output}`),
           assert.match(prompt, /Select the second option and submit the review/);
         assert.match(prompt, /The final decision remains readable/);
         assert.doesNotMatch(prompt, /undefined/);
+        assert.deepEqual(
+          vars.handovers,
+          shortTask ? {} : { final: diagnostics.decision },
+        );
         assert.deepEqual(vars.pages, {
           final: {
             page: "/final",

@@ -589,6 +589,10 @@ compare the runs in the viewer, starting with the `dashboard/reader-*` calibrati
 That setting does not change complete-task live judges. Their model follows the
 Codex judge pin; `eval-pairs` rejudges saved samples with the current live judge
 while retaining their original authored pages and runtimes.
+Both live and pair judges receive each author's recorded decision handover alongside
+the common task: the actual page events or copied/typed message can differ from the
+prescribed decision summary. Those inputs establish what the final revision responds
+to; they do not change the decision task the judge operates on the earlier page.
 
 ### Independent live audits
 

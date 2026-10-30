@@ -62,7 +62,7 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
         "metadata": {"trace": {"completed": True}},
     }
 
-    def model(pages, widths, prompt, schema, evidence):
+    def model(pages, widths, prompt, schema, evidence, *, handovers):
         assert set(pages) == {"page", "page_before_decision"}
         assert pages["page_before_decision"]["page"] == work / "page-phase3"
         assert pages["page"]["page"] == work / "page-phase4"
@@ -72,6 +72,7 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
         assert "Investigate long decision premises" in prompt
         assert "overall" not in schema["properties"]
         assert evidence.is_dir()
+        assert handovers == {"page": None}
         return response
 
     monkeypatch.setattr(eval_discover, "judge_pages", model)

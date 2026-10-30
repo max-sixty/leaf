@@ -75,6 +75,15 @@ def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
     }
 
 
+def comparison_handovers(samples: dict[str, dict], comparison: dict) -> dict:
+    """Actual inputs by final page, retaining missing decision evidence as unknown."""
+    return {
+        label: sample["diagnostics"].get("decision")
+        for label, sample in samples.items()
+        if comparison["decision_task"] is not None
+    }
+
+
 def judge(a: dict, b: dict, evidence: Path) -> dict | None:
     """One judgment of completed outputs, or None when grading is unavailable."""
     evidence.mkdir(parents=True, exist_ok=True)
@@ -97,6 +106,7 @@ def judge(a: dict, b: dict, evidence: Path) -> dict | None:
         ),
         VERDICT,
         attempt,
+        handovers=comparison_handovers({"A": a, "B": b}, comparison),
     )
     (evidence / "response.json").write_text(json.dumps(response, indent=2))
     return response.get("output")

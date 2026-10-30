@@ -203,9 +203,9 @@ ON_ME_MARK = ".lf-fp-on-user"
 
 
 def panel_tab(page: Page | FrameLocator, name: str):
-    """The On view's tab `name` at the foot of On and of Threads, Threads being one of
-    its tabs: `On me`, `On <agent>`, `Threads` and, while a plan exists, `Plan`. Each
-    but Plan says its count after its name, in `.lf-fp-count`."""
+    """The On view's tab `name` at the foot of the menu, On and Threads, each one of
+    its tabs: `Menu`, `On me`, `On <agent>`, `Threads` and, while a plan exists,
+    `Plan`. Each but Menu and Plan says its count after its name, in `.lf-fp-count`."""
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 

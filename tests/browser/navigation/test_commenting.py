@@ -491,7 +491,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(card("sug-window")).to_have_count(1)
     # The picked group has left the user's list for its Done.
     expect(card("picked")).to_have_attribute("data-list", "done")
-    page.locator(".lf-fp-filters button").nth(1).click()
+    page.locator(".lf-fp-filters button").nth(2).click()
     agent_rows = page.locator('.lf-fp-on-item[data-list="agent"]')
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")

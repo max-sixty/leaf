@@ -4397,24 +4397,14 @@ export function createFloatingPanel({
   );
   // A key the page has acts on the view standing open where the view has that act of
   // its own, as d and u already page the view the user is in (navigation.js): `/` in
-  // Threads finds a thread rather than the page's words. Rooted at the view and its
-  // controls together, so the filters find too; the search box's own `/` is a character.
-  keys(
-    opened,
-    "In the floating panel",
-    [
-      {
-        id: "panel.floating.threads.find",
-        keys: ["/"],
-        title: "find a thread",
-        run: findThreads,
-      },
-    ],
-    () => showing({ view: "threads" }),
-  );
-  // Versions is a list for choosing, so while it stands the page's character keys rest
-  // rather than move the page under it, and a version's number shows it. Two doors stay
-  // open: `?`, and Go-to, whose `g V` puts Versions away as it opened it.
+  // Threads finds a thread rather than the page's words, and a number in Versions shows
+  // that version. Versions is a list for choosing, so while it stands the page's
+  // character keys rest rather than move the page under it; two doors stay open: `?`,
+  // and Go-to, whose `g V` puts Versions away as it opened it. Rooted at the view and
+  // its controls together, so the filters find too; the search box's own `/` is a
+  // character. An element holds one declaration (keyboard/scopes.js), so both views'
+  // keys share this one.
+  const threadsShown = () => showing({ view: "threads" });
   const versionsShown = () => showing({ view: "versions" });
   const numbered = () =>
     versionsReading()
@@ -4425,6 +4415,13 @@ export function createFloatingPanel({
     "In the floating panel",
     [
       {
+        id: "panel.floating.threads.find",
+        keys: ["/"],
+        title: "find a thread",
+        when: threadsShown,
+        run: findThreads,
+      },
+      {
         id: "panel.floating.versions.pick",
         keys: () => numbered().map(({ version }) => String(version)),
         label: () => {
@@ -4432,16 +4429,17 @@ export function createFloatingPanel({
           return top > 1 ? `1–${top}` : "1";
         },
         title: "show version",
-        when: () => numbered().length > 0,
+        when: () => versionsShown() && numbered().length > 0,
         run: (binding) =>
           showVersion(numbered().find(({ version }) => String(version) === binding)),
       },
     ],
     {
-      when: versionsShown,
+      when: () => threadsShown() || versionsShown(),
       claims: (binding) => {
         const { key, mods } = parsed(binding);
         return (
+          versionsShown() &&
           key.length === 1 &&
           key !== " " &&
           mods.every((mod) => mod === "Shift") &&

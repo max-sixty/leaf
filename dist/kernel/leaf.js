@@ -7979,15 +7979,16 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		when: () => listRows().length > 0,
 		run: () => focusDestination(listRows()[0], "move")
 	}], () => menuSearching());
+	const threadsShown = () => showing({ view: "threads" });
+	const versionsShown = () => showing({ view: "versions" });
+	const numbered = () => versionsReading().rows.filter(({ version }) => version !== null && version <= 9).toSorted((a, b) => a.version - b.version);
 	keys(opened, "In the floating panel", [{
 		id: "panel.floating.threads.find",
 		keys: ["/"],
 		title: "find a thread",
+		when: threadsShown,
 		run: findThreads
-	}], () => showing({ view: "threads" }));
-	const versionsShown = () => showing({ view: "versions" });
-	const numbered = () => versionsReading().rows.filter(({ version }) => version !== null && version <= 9).toSorted((a, b) => a.version - b.version);
-	keys(opened, "In the floating panel", [{
+	}, {
 		id: "panel.floating.versions.pick",
 		keys: () => numbered().map(({ version }) => String(version)),
 		label: () => {
@@ -7995,13 +7996,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			return top > 1 ? `1–${top}` : "1";
 		},
 		title: "show version",
-		when: () => numbered().length > 0,
+		when: () => versionsShown() && numbered().length > 0,
 		run: (binding) => showVersion(numbered().find(({ version }) => String(version) === binding))
 	}], {
-		when: versionsShown,
+		when: () => threadsShown() || versionsShown(),
 		claims: (binding) => {
 			const { key, mods } = parsed(binding);
-			return key.length === 1 && key !== " " && mods.every((mod) => mod === "Shift") && !pageDoor(binding);
+			return versionsShown() && key.length === 1 && key !== " " && mods.every((mod) => mod === "Shift") && !pageDoor(binding);
 		}
 	});
 	keys(editorSeat, "In the comment field", [{

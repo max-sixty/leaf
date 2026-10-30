@@ -673,7 +673,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(title).to_have_text("On me")
     assert title.bounding_box()["width"] <= 1
     expect(page.locator(".lf-fp-filters button")).to_have_text(
-        ["On me 0", "On Claude 0", "Threads 1"]
+        ["Menu", "On me 0", "On Claude 0", "Threads 1"]
     )
     expect(page.locator(".lf-fp-on-list > .lf-rows-head")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
@@ -3529,8 +3529,8 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     )
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["On me 2", "On Claude 0", "Threads 0"])
-    tabs.nth(1).click()
+    expect(tabs).to_have_text(["Menu", "On me 2", "On Claude 0", "Threads 0"])
+    panel_tab(page, "On Claude").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
     head = page.locator(".lf-fp-plan-head")
     expect(head).to_have_text("Plan 1 of 3")
@@ -3545,7 +3545,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On me")
-    expect(tabs.nth(0)).to_be_focused()
+    expect(panel_tab(page, "On me")).to_be_focused()
 
 
 def test_only_an_open_thread_says_new_in_threads(browser, serve):

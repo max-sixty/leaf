@@ -1487,8 +1487,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.wait_for_function(
         "expected => getSelection().toString() === expected", arg=selected
     )
-    # The command closes the borrowed menu and keeps the On view open.
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    # The menu took the On view's place, as its tab does, and the command puts it away.
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -1500,7 +1500,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
-    expect(page.locator(".lf-fp-menu")).to_have_attribute("data-level", "versions")
+    expect(page.locator(panel_view("versions"))).to_be_visible()
     assert take_browser_errors(page) == []
 
 

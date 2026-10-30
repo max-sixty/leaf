@@ -66,6 +66,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     resized,
     root_overflow,
@@ -594,8 +595,10 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
-    menu = page.locator(".lf-fp-menu[data-level=versions]")
-    row = menu.locator(".lf-fp-version .lf-fp-item").first
+    versions = page.locator(panel_view("versions"))
+    expect(versions).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
     broken = []
@@ -616,7 +619,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         lambda message: "read failed" in message.text
     ) as fault:
         nudge(d)
-    expect(menu).to_be_visible()
+    expect(versions).to_be_visible()
     expect(row).to_be_focused()
     page.lf_errors.remove(console_finding(fault.value))
 

@@ -1119,7 +1119,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     else:
         assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
 
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):

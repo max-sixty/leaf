@@ -1262,7 +1262,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
     reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
@@ -1327,7 +1327,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
 
     page.locator("body").focus()
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
     reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()

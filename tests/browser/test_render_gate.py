@@ -68,6 +68,7 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    close_panel_menu,
     compare_with,
     confirming_resize_notices,
     consume_browser_errors,
@@ -1959,9 +1960,7 @@ def other_pages(page):
     are live; the menu is put away again."""
     offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
     count = offered.count()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
     return count > 0
 
 

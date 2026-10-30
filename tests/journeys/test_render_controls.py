@@ -418,10 +418,10 @@ RING_CASES = (
     # On me opens on its view; the walk's first step lands on a card.
     ("On me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
-    # The leaf's menu, opened by its press; the walk's step lands on a row.
+    # The leaf's menu, opened by its press into its search; ↓ lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
-    # The menu's Versions, which `g V` opens focused on the version being read; the
-    # walk's step lands on the earlier one.
+    # The menu's Versions, which `g V` opens holding focus itself; the walk's step
+    # lands on its first row.
     (
         "the versions menu",
         ("g", "Shift+v", "ArrowDown"),
@@ -512,8 +512,8 @@ RING_SCOPE_SURFACE = {
     "the response bar": ".lf-fab-bar .lf-composer[data-lf-open]",
     "On me": '.lf-floating-panel[data-open="queue"]',
     "All pages": '.lf-floating-panel[data-open="leaves"]',
-    "the leaf's menu": ".lf-floating-panel[data-menu]",
-    "the versions menu": ".lf-floating-panel[data-menu]",
+    "the leaf's menu": '.lf-floating-panel[data-open="menu"]',
+    "the versions menu": '.lf-floating-panel[data-open="versions"]',
     "the command reference": ".lf-command-reference[open]",
     "a reaction palette": ".lf-react-strip:has(> .lf-react-palette:popover-open)",
 }
@@ -658,9 +658,9 @@ AIM_SURFACES = (
 def _each_aim_surface(page, page_dir):
     """Stand each surface up in turn, yielding at every stop.
 
-    In turn rather than all at once, because they do not coexist: the reference is modal
-    and takes the leaf's menu down as it opens, so a sweep that waited for the last of
-    them would meet a page that had put two of the controls away again.
+    In turn rather than all at once, because they do not coexist: the panel stands one
+    view at a time, the leaf's menu among them, and the reference is modal, so a sweep
+    that waited for the last of them would meet a page that had put the others away.
     """
     comment, answered = [
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
@@ -692,14 +692,13 @@ def _each_aim_surface(page, page_dir):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # The leaf's menu, which holds the preview's badge, and then its Versions, which
-    # hold Compare.
+    # The leaf's menu, and then its Versions, which hold Compare.
     panel_menu(page)
     yield
     panel_menu(page, "versions")
     yield
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()
@@ -1026,7 +1025,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
     wait_until_ready(page)
-    panel_menu(page).get_by_role("menuitem", name="Copy link").click()
+    panel_menu(page).locator('.lf-fp-item[data-row="share"]').click()
     expect_panel_says(page, "Link copied")
     copied = page.evaluate("navigator.clipboard.readText()")
     assert parse_qs(urlsplit(copied).query) == {
@@ -1318,18 +1317,15 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     # The leaf's menu, and its Versions, each read once its fade has finished.
     panel_menu(page)
-    panel_settled(page, open=False)
     sweep("in the leaf's menu")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    open_versions(page)
-    expect(page.locator(".lf-fp-version").first).to_be_visible()
     panel_settled(page, open=False)
+    open_versions(page)
+    panel_settled(page, view="versions")
     sweep("in the versions menu")
-    # Escape steps back to the menu's root, and then puts the menu away.
+    # Escape puts Versions away with the menu under it.
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    panel_settled(page, open=False)
 
     # The command reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")

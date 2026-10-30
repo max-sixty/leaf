@@ -27,7 +27,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
-    panel_menu,
+    panel_control,
     panel_view,
     refuse,
     round_trip,
@@ -108,14 +108,14 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
         context=context,
     )
-    # The leaf's menu names the preview on its copy row, and the copy says so where
-    # the empty field's placeholder would.
-    badge = panel_menu(page).locator('.lf-fp-item[data-row="preview"]')
-    expect(badge).to_have_text("Copy preview diagnostics")
-    expect(badge).to_have_attribute("title", "User · fb77@26499ea1abcd+ · 3d ago")
-    badge.click()
-    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Preview diagnostics copied")
+    # About this page, a row of the leaf's menu, names the preview and copies its
+    # diagnostics.
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about.get_by_text("User · fb77@26499ea1abcd+ · 3d ago")).to_be_visible()
+    about.get_by_role("button", name="Copy Preview diagnostics", exact=True).click()
+    page.wait_for_function(
+        "navigator.clipboard.readText().then(text => text.startsWith('Leaf preview'))"
     )
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")
     assert "example: triage-board" in diagnostics
@@ -137,9 +137,11 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
         context=context,
     )
-    expect(
-        panel_menu(ordinary).locator('.lf-fp-item[data-row="preview"]')
-    ).to_have_count(0)
+    panel_control(ordinary, "inspection").click()
+    about = ordinary.get_by_role("dialog", name="About this page", exact=True)
+    version = about.get_by_label("Leaf version", exact=True)
+    expect(version).to_be_visible()
+    expect(about.get_by_label("Preview diagnostics", exact=True)).to_have_count(0)
     layer = served_layer(load_registry(serve.page_dir)["$layer"], serve.page_dir)
     producer = layer.get("producer", {})
     identity = (
@@ -147,19 +149,18 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         if producer.get("commit")
         else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
     )
-    reference = ordinary.locator('.lf-fp-menu .lf-fp-item[data-row="layer"]')
     dated = producer.get("committed") or producer.get("installed")
-    expect(reference).to_have_text("Copy Leaf version")
-    expect(reference).to_have_attribute(
-        "title",
-        re.compile(
-            rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
-            + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
-        ),
-    )
-    reference.click()
-    expect(ordinary.locator(".lf-fp-field leaf-text")).to_have_attribute(
-        "placeholder", re.compile("^Leaf version copied")
+    expect(
+        about.get_by_text(
+            re.compile(
+                rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
+                + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
+            )
+        )
+    ).to_be_visible()
+    about.get_by_role("button", name="Copy Leaf version", exact=True).click()
+    ordinary.wait_for_function(
+        "navigator.clipboard.readText().then(text => text.startsWith('Leaf layer'))"
     )
     diagnostics = ordinary.evaluate("() => navigator.clipboard.readText()")
     assert f"fingerprint: {layer['fingerprint']}" in diagnostics

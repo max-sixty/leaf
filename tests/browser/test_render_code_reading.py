@@ -8,10 +8,10 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    PANEL,
     consume_browser_errors,
     leaf_page,
     open_page,
+    panel_menu,
     scroll_settled,
     told,
 )
@@ -76,12 +76,7 @@ def test_sample_code_copy_keeps_its_clipboard_boundary(browser, serve):
 def open_keyboard_shortcuts(page):
     """Tap the panel's leaf, unfolding it first where it rests as the mark, then its
     menu's Keyboard shortcuts row: a finger's door to the command reference."""
-    leaf = page.locator(".lf-fp-leaf")
-    if page.locator(PANEL).get_attribute("data-rest") == "mark":
-        leaf.tap()
-        expect(page.locator(PANEL)).to_have_attribute("data-rest", "row")
-    leaf.tap()
-    page.locator('.lf-fp-menu .lf-fp-item[data-row="keyboard"]').tap()
+    panel_menu(page, touch=True).locator('.lf-fp-item[data-row="keyboard"]').tap()
 
 
 def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):

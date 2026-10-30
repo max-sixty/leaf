@@ -4279,7 +4279,7 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
     page.unroute(view_request)
 
     menu = panel_menu(page, "versions")
-    compare = menu.get_by_role("menuitem", name="Compare with v2")
+    compare = menu.get_by_role("button", name="Compare with v2")
     expect(compare).to_have_attribute("aria-pressed", "false")
     # A pending choice left behind would treat this press as cancellation.
     compare.click()
@@ -4316,22 +4316,22 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # Reopened, the list says which comparison stands.
     menu = panel_menu(page, "versions")
-    expect(menu.get_by_role("menuitem", name="Compare with v1")).to_have_attribute(
+    expect(menu.get_by_role("button", name="Compare with v1")).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(menu.get_by_role("menuitem", name="Compare with v2")).to_have_attribute(
+    expect(menu.get_by_role("button", name="Compare with v2")).to_have_attribute(
         "aria-pressed", "false"
     )
 
     # Pressing the current base again is the way off, and clears the marks.
-    menu.get_by_role("menuitem", name="Compare with v1").click()
+    menu.get_by_role("button", name="Compare with v1").click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
     # Compare is reachable by keyboard too: the walk stands on it after its version.
     menu = panel_menu(page, "versions")
     menu.locator(".lf-fp-version").filter(has_text="v1").locator(".lf-fp-item").focus()
     page.keyboard.press("ArrowDown")
-    compare = menu.get_by_role("menuitem", name="Compare with v1")
+    compare = menu.get_by_role("button", name="Compare with v1")
     expect(compare).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-ins-block")).to_have_count(2)

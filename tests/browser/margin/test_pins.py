@@ -496,7 +496,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Hide annotations")
     press_visible(page, toggle, touch=True)
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
     margins_laid_out(page)

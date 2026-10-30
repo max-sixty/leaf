@@ -20,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    close_panel_menu,
     compare_with,
     draft_control,
     leaf_page,
@@ -169,7 +170,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     expect(
         panel_menu(page, "versions").locator('.lf-fp-compare[aria-pressed="true"]')
     ).to_have_count(1)
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
@@ -430,15 +431,15 @@ def test_a_comparison_reads_nothing_from_a_server_running_another_runtime(
     page.route("**/api/view*", another_runtime)
     page.route("**/registry.json", source)
     compare_with(page)
-    # Compare starts an asynchronous read. Wait for its refusal before opening the
-    # menu, whose rows deliberately stay as they were when it opened.
+    # Compare starts an asynchronous read. Wait for its refusal, which Errors lists.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "placeholder", re.compile("Couldn't load v1")
     )
-    menu = panel_menu(page)
-    menu.locator('.lf-fp-item[data-row="errors"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-row="errors"]').click()
     expect(
-        menu.locator(".lf-fp-error-words b").filter(has_text="Couldn't load v1")
+        page.locator(panel_view("errors"))
+        .locator(".lf-fp-error-words b")
+        .filter(has_text="Couldn't load v1")
     ).to_have_count(1)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
     assert asked, "the refused reading asked no source whether it moved"

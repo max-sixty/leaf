@@ -152,7 +152,7 @@ async function boot() {
   await document.documentElement.lfSample?.ready;
   initializeServedDocument();
   const initialStateRead = beginRead();
-  let initialDocument = takeInitialDocument();
+  const initialDocument = takeInitialDocument();
   if (!(await prepareDocument(initialDocument))) return;
   holdArrivingBounds();
 
@@ -348,7 +348,6 @@ async function boot() {
       items.restoreCurrentLocation(currentLocation),
     versions: { press: () => floatingPanel.doors.versions.press() },
   });
-  initialDocument = null;
 
   const inputs = createCompositionInputs({
     uploadMedia,

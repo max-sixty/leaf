@@ -1934,9 +1934,7 @@ customElements.define(
         </div>
         <section class="lf-trace-bookmarks">
           <div class="lf-trace-options">
-            <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
-              Moments
-            </p>
+            <p class="lf-rows-head" ?hidden=${!this.#moments.length}>Moments</p>
             <a
               ${offered("lf-trace-viewer")}
               target="_blank"
@@ -1970,7 +1968,7 @@ customElements.define(
               },
             )}
             <p
-              class="lf-trace-no-moments"
+              class="lf-rows-empty"
               ?hidden=${!!available.length || !!unavailable.length}
             >
               No saved moments in this stream.

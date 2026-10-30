@@ -191,7 +191,7 @@ def live_leaves(among: set[Path] | None = None) -> list:
                         },
                     )
                 )
-        except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
+        except Exception:
             continue
     return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 

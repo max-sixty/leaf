@@ -27,7 +27,8 @@ def test_browser_health_rejects_an_unconsumed_problem():
 
     with (
         pytest.raises(
-            AssertionError, match="https://leaf.test/example: unexpected browser fault"
+            AssertionError,
+            match=r"https://leaf\.test/example: unexpected browser fault",
         ),
         clean_browser(),
     ):

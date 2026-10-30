@@ -9,9 +9,9 @@ names another ref (`base_ref`).
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
-the user's `~/.claude/CLAUDE.md`). The home carries the login and, for a sandboxed
-Claude Code child, generated instructions naming its scratch directory and
-restriction. A trace is the child's normalized tool/turn evidence; it counts when
+the user's `~/.claude/CLAUDE.md`). The home carries the login; sandboxed children
+receive instructions naming their scratch directory and restriction. A trace is
+the child's normalized tool/turn evidence; it counts when
 its harness turn completed (`completed`). CC raw stdout and Codex notifications
 are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
@@ -646,6 +646,14 @@ def authoring_sandbox(*owned: Path) -> str:
     )
 
 
+def authoring_sandbox_instructions(cwd: Path) -> str:
+    """The scratch capability of the outer sandbox, shared by native harnesses."""
+    return (
+        f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
+        "An outer process sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
+    )
+
+
 def private_program(executable: Path, home: Path, *owned: Path) -> Path:
     """Wrap an executable with inherited temporary-file isolation.
 
@@ -693,10 +701,7 @@ def claude_child(
     instructions = home / ".claude" / "CLAUDE.md"
     if sandbox and shutil.which("sandbox-exec"):
         instructions.parent.mkdir(exist_ok=True)
-        instructions.write_text(
-            f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
-            "The sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
-        )
+        instructions.write_text(authoring_sandbox_instructions(cwd))
         profile = authoring_sandbox(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:

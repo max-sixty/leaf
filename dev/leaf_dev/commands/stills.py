@@ -3044,7 +3044,8 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive  # noqa: B009 - Callable does not expose function attributes to ty.
+    for state in STATES
 }
 
 

@@ -304,7 +304,7 @@ def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | Page
                 raise Refused(
                     f"--host {host}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"
-                )
+                ) from None
         # Over the record, not in place of it: a --host restates where the page
         # is reached, and the record's other facts — the exact port an open tab
         # polls, the persistent lifetime — restate nothing and must survive, or

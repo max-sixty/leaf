@@ -1,11 +1,12 @@
 """The comment composer's contents and recovery: the smallest message, pasted pictures
-and uploads, Return on a phone, and Resume writing."""
+and uploads, what Return and Shift+Return do, and Resume writing."""
 
 import base64
+import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, live_url
+from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -647,6 +648,73 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
         if event["kind"] == "comment"
     ]
     assert [event["text"] for event in comments] == [exact]
+
+
+# What a box's placeholder shows on the one line it draws, part by part; whether its
+# label is shortened; and which of the field's actions any shown part stands on.
+PLACEHOLDER_SHOWN = """hint => {
+  const box = hint.getBoundingClientRect();
+  const parts = [...hint.children].filter(
+    (part) => part.checkVisibility() && part.getBoundingClientRect().top < box.bottom,
+  );
+  const actions = [...hint.closest('.lf-compose-field').children].filter(
+    (node) => node.matches('button') && node.checkVisibility({ opacityProperty: true }),
+  );
+  const overlaps = (a, b) =>
+    a.left < b.right && Math.min(a.right, box.right) > b.left &&
+    a.top < b.bottom && a.bottom > b.top;
+  return {
+    parts: parts.map((part) => part.textContent.replace(/\\s+/g, ' ').trim()),
+    shortened: [...hint.querySelectorAll('.lf-compose-placeholder-words')].some(
+      (words) => words.scrollWidth > words.clientWidth + 0.5,
+    ),
+    covers: parts.flatMap((part) =>
+      actions
+        .filter((action) =>
+          overlaps(part.getBoundingClientRect(), action.getBoundingClientRect()),
+        )
+        .map((action) => action.getAttribute('aria-label')),
+    ),
+  };
+}"""
+NEW_LINE = re.compile(r"· New line (⇧|Shift\+)⏎")
+
+
+def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve):
+    """Return sends, so a focused box that holds lines says the key for a new line
+    beside its send key, and a writer meets it before a Return sends half a message.
+    An option's one-line field, where Return only adds, says none."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
+    page_comment(page)
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    shown = hint.evaluate(PLACEHOLDER_SHOWN)
+    assert len(shown["parts"]) == 3 and NEW_LINE.fullmatch(shown["parts"][2]), shown
+
+    field = page.locator("#jobs > .lf-another leaf-text")
+    field.click()
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    assert shown["parts"] == ["Add another option", "⏎"], shown
+
+
+def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):
+    """Where a box is narrow, its label shortens first and both keys stay, and nothing
+    the placeholder shows stands on the field's actions: the panel's page comment, and
+    a seat's box, whose actions stand in its corner."""
+    context = browser.new_context(viewport={"width": 320, "height": 700})
+    page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
+    page_comment(page)
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    shown = hint.evaluate(PLACEHOLDER_SHOWN)
+    assert shown["shortened"] and NEW_LINE.fullmatch(shown["parts"][-1]), shown
+    assert not shown["covers"], shown
+
+    seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"] leaf-text')
+    seat.click()
+    expect(seat).to_be_focused()
+    shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    assert "⏎" in shown["parts"], shown
+    assert not shown["covers"], shown
 
 
 def test_markdown_decoration_keeps_source_editable(browser, serve):

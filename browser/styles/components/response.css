@@ -82,6 +82,31 @@ leaf-composition-field {
 .lf-compose-placeholder-lead:empty {
   display: none;
 }
+/* The new-line key a focused box that holds lines says after its send key
+   (composing/input.js, `lineHint`). Where room runs short the label shortens first,
+   down to a few letters, and the send key and the hint stay; only where even that
+   shortened label can't stand beside them does the hint go, whole, onto a line the
+   placeholder doesn't show, and the label takes its room back. The gap carries that
+   line clear of the badge's overhang. */
+.lf-compose-placeholder:has(> .lf-compose-placeholder-line) {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  row-gap: 2lh;
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+.lf-compose-placeholder:has(> .lf-compose-placeholder-line)
+  > .lf-compose-placeholder-words {
+  flex: 1 1 4em;
+  max-inline-size: max-content;
+}
+.lf-compose-placeholder > .lf-compose-placeholder-line {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+  overflow: visible;
+}
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
   color: var(--muted);
@@ -160,6 +185,15 @@ leaf-composition-field {
     --lf-field-end-room: 0px;
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
     min-height: 0;
+  }
+  /* An empty field's actions stand in that corner with no words to give way to, so
+     its hint keeps their room and stops short of them, as the passage composer's does
+     (`.lf-response-trigger`, below); the first word takes the room back. */
+  .lf-compose-field:where(:not([data-words]):has(> .lf-compose-submit))
+    > leaf-text:not(.lf-fab-input) {
+    --lf-field-end-room: calc(
+      var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
+    );
   }
   .lf-compose-field:has(> .lf-compose-submit) {
     --lf-field-row: 1lh;

@@ -408,8 +408,7 @@
   --msg-size: max(var(--entry-floor), var(--t-5));
   --voice-message: var(--msg-size) / 1.5 var(--sans);
   /* A message's author name, one rung larger than the time and status beside it, also
-     resolves at the root, for the same reason. The interface's other voices are
-     declared with the ladder's derived tokens (below). */
+     resolves at the root, for the same reason. */
   --voice-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
@@ -690,11 +689,9 @@
      family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
      its words by naming one, `font: var(--voice-small)`, or by inheriting its holder's.
      Within a voice, a run may take weight 400, 500 or 600 for emphasis, and a box may
-     set its line height to a length it is laid out by, such as a badge's height. The
-     interface used to set each face where it stood and drifted into near-duplicates:
-     13px beside 14px, 12px beside 11.5px, line heights from 1.2 to 1.5, and weights of
-     450, 650 and 700. tests/model/test_interface_voices.py now fails a rule that sets a
-     face of its own, so a new face is added here, beside the others. The two faces a
+     set its line height to a length it is laid out by, such as a badge's height.
+     tests/model/test_interface_voices.py fails a rule that sets a face of its own, so
+     a new face is added here, beside the others. The two faces a
      thread's words take, `--voice-message` and `--voice-name`, are declared on the
      root instead (above), so a density leaves them alone. */
   --voice-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
@@ -1593,8 +1590,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   align-items: center;
   justify-content: center;
   gap: 0;
-  font: var(--voice-small);
-  font-weight: 600;
+  font: var(--voice-heading);
   line-height: 1;
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-landing);

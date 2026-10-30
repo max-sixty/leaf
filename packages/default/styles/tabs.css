@@ -28,19 +28,17 @@ body > main > lf-tabs:nth-child(1 of lf-tabs):not([list="side"]) {
 :is(lf-tab, lf-parts, lf-part) {
   display: block;
 }
-/* A stacked panel's name and a queue's group label (below) are one face: a small
- * heading over what follows it. */
-:is(lf-tab, lf-part)::before,
-.lf-tabstrip .lf-tab-group {
-  font-size: var(--t-6);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
+/* A stacked panel's name takes the label voice (base.css, `.lf-label`), which a
+ * generated name can't wear as a class. A side list's group label is a list's group
+ * heading (controls.css, `.lf-rows-head`). */
 :is(lf-tab, lf-part)::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
+  font: 600 var(--t-6) / 1.3 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 lf-tabs.lf-rendered > lf-tab {
   margin-top: 14px;

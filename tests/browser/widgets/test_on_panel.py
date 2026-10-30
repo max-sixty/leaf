@@ -527,7 +527,7 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
     # A group of two has a heading; the card alone in its group says its name.
-    groups = view.locator(".lf-fp-on-group")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
     expect(groups).to_have_text([re.compile(r"^\s*Implementation\s*2\s*$")])
     cards = view.locator(".lf-fp-on-item")
     expect(cards.locator(".lf-fp-prompt")).to_have_text(
@@ -624,7 +624,7 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-group")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-head")
     expect(groups).to_have_text([re.compile(r"^\s*Options\s*1\s*$")])
     runners = on_card(page, "widget:runners")
     # Where the first `m` lands depends on the reading position, so it may take a

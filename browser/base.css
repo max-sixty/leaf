@@ -1399,10 +1399,12 @@ details::details-content {
   text-decoration: underline;
 }
 
-/* The label voice: small capitals in the UI sans that name a region or a group, ranking
-   below every heading they stand among. A pane's name takes it, and so does each label
-   a widget or the chrome draws, by wearing `.lf-label`; a wearer keeps only where it
-   stands. */
+/* The label voice: small capitals in the UI sans that name a region, ranking below every
+   heading they stand among. A pane's name takes it, and so does each label a widget or
+   the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
+   label that can't wear the class, a generated or authored one, states these four
+   declarations itself. A group of a list's rows is named by the list's group heading
+   instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
 .lf-label,
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
   font: 600 var(--t-6)/1.3 var(--sans);

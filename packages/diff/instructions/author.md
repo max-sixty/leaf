@@ -75,7 +75,18 @@ The worktree path itself is supplied by `path` and shown above the body. Include
 path in the authored details too when the reader needs to comment on it.
 
 `lf-diff` remains the patch reader: supply the exact Git patch inline or through its
-existing source contract. An inline patch reserves the height it draws at, while a
-`source` patch arrives after first paint, so only the bound one takes a `data-height`. Describe binary changes in the authored body when
+existing source contract. Describe binary changes in the authored body when
 there is no textual patch to inspect. This widget displays snapshots supplied
 by the author; it does not discover directories or run Git in the browser.
+
+## Initial height
+
+Leave `data-height` off textual patches, whether inline or supplied as a string
+through `source`: Leaf counts the files and rows before first paint. For `view="file"`,
+it counts the first file. The source value must already be set when the page loads.
+
+A files manifest with deferred bodies, an unavailable source, or a shown file with
+no textual hunk cannot be counted this way. Reserve its measured `data-height` when
+content below must hold still; `page check --render` reports the drawn height. An
+explicit `data-height` remains the author's reservation. This counts geometry; source
+syntax rendering still arrives with the widget module.

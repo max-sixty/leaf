@@ -7,6 +7,7 @@ import pytest
 from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
 
+from leaf.data import browser_data_from, read_data
 from leaf.files import revision_path
 from leaf.live_shell import write_live_shell
 from leaf.registry.storage import load_registry
@@ -86,6 +87,15 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     write_live_shell(
         page_dir,
         destination,
+        initial_data={
+            revision: browser_data_from(
+                read_data(page_dir, artifact.registry), artifact.registry
+            )
+            for revision, artifact in [
+                (first, first_artifact),
+                (second, second_artifact),
+            ]
+        },
         page_root=page_root,
         asset_root=asset_root,
         release_id="release",

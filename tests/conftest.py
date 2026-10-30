@@ -477,7 +477,7 @@ def _base_sources(root, since):
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
     sources = set()
-    for path in paths:
+    for _ in paths:
         header, _, batch = batch.partition(b"\n")
         size = int(header.split()[2])
         text, batch = batch[:size].decode(), batch[size + 1 :]

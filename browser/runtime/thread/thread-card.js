@@ -126,6 +126,12 @@ export function quoteReading(thread, anchors) {
 // it follows, or as a face of its own (transcript.js). An answer already
 // streaming at the thread's end replaces the working message and pending progress.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
+// A first header's words, which a held-news notice stands after: everything it holds
+// but the message's own controls at its end.
+const words = (header) =>
+  /** @type {HTMLElement[]} */ ([
+    ...header.querySelectorAll(":scope > :not(.lf-msg-control-room)"),
+  ]);
 function workingMessage(thread, attention, messages) {
   if (thread.resolved || messages.at(-1)?.provisional) return null;
   const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
@@ -665,9 +671,18 @@ export class ThreadView {
       const style = getComputedStyle(head);
       const name = head.querySelector(":scope > b");
       const time = head.querySelector(":scope > .lf-msg-meta > time");
+      // The controls' room is as wide as their group, and the head lends it to its
+      // words unless it is held whole (controls.css).
+      const room = head.querySelector(":scope > .lf-msg-control-room");
+      const controls =
+        room?.querySelector(":scope > .lf-msg-controls")?.getBoundingClientRect()
+          .width ?? 0;
+      const held =
+        room && getComputedStyle(room).minInlineSize !== "0px" ? controls : 0;
       const need =
         parseFloat(style.paddingInlineStart) +
-        parseFloat(style.getPropertyValue("--lf-msg-control")) +
+        parseFloat(style.paddingInlineEnd) +
+        controls +
         wordsWidth(name) +
         (name && time ? parseFloat(style.columnGap) : 0) +
         wordsWidth(time);
@@ -676,11 +691,8 @@ export class ThreadView {
         need,
         spare: head.getBoundingClientRect().width - need,
         // What the head gives up before its name: its time, and its controls' room
-        // where that isn't held whole (controls.css).
-        yields:
-          parseFloat(style.getPropertyValue("--lf-msg-control")) -
-          parseFloat(getComputedStyle(head, "::after").minInlineSize) +
-          wordsWidth(time),
+        // where that isn't held whole.
+        yields: controls - held + wordsWidth(time),
       });
     }
     if (!heads.length || !notice.isConnected) {
@@ -791,21 +803,15 @@ export class ThreadView {
           margin: "0",
           anchorName: "none",
         });
-        for (const node of /** @type {HTMLCollectionOf<HTMLElement>} */ (
-          reading.children
-        )) {
+        for (const node of words(reading)) {
           node.classList.toggle("lf-held-header-item", false);
           node.style.removeProperty("--lf-held-header-width");
         }
         header.after(reading);
       } else this.#releaseHeaderItems();
-      const widths = [...reading.children].map(
-        (node) => node.getBoundingClientRect().width,
-      );
+      const widths = words(reading).map((node) => node.getBoundingClientRect().width);
       if (resizing) reading.remove();
-      const items = [
-        .../** @type {HTMLCollectionOf<HTMLElement>} */ (header.children),
-      ].map((node, index) => ({
+      const items = words(header).map((node, index) => ({
         node,
         width: widths[index],
       }));

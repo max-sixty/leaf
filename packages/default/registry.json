@@ -674,7 +674,7 @@
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
-    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence, or an lf-options decision for permission to use the finished wording. Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
+    "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence. For approval of editable wording, read authoring-on-me.md, \"Permission\". Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
     "type": "object",
     "properties": {
       "id": {

@@ -155,9 +155,14 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 Other unanswered questions do not block it. When permission depends on an earlier
 choice, resolve that choice first, then ask for the resulting action.
 
+Approval of an editable proposal applies to the submitted values, while later edits
+remain a working copy. A playground records its complete values together on submission
+([playground authoring](../../../packages/playground/instructions/author.md)); a draft
+edit and an options pick are independent answers. Choose a composition that keeps the
+approved wording or settings distinct from subsequent edits.
+
 The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
 If the action or evidence changes enough to invalidate the permission, explain the
 change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). Distinguish approved wording from later edits to a draft. A new
-stamp neither requests nor renews permission, and recording it does not end the page
-or report that the permitted work has been done.
+"Honor user state"). A new stamp neither requests nor renews permission, and recording
+it does not end the page or report that the permitted work has been done.

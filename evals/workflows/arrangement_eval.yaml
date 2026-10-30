@@ -165,8 +165,11 @@ cases:
             review and not sent to the customer. Corrected current facts remain readable and reachable:
             34 affected workspaces, 09:10–09:42 UTC incident, completed queued exports, no files
             lost, no retry needed, root cause not yet confirmed and next update by 11:00 UTC.
-            Older proposed wording is not presented as the current approved reply. Judge usable
-            editing and recording outcomes, not a particular widget, editor engine or layout geometry."
+            Older proposed wording is not presented as the current approved reply.
+            On the before-decision page, complete the offered action that approves or records
+            the reply for internal review. Then change and save the wording where offered, without
+            approving it again; the changed wording must not be presented as approved.
+            Judge usable editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
       comment: &queue-comment

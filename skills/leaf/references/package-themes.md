@@ -159,9 +159,12 @@ sets both.
 
 Any other property, such as `letter-spacing` or `display`, goes in the package's
 `chrome.css`. Leaf wraps each of its style rules in the chrome's scope, with more weight
-than any of the chrome's own selectors, so the rule wins over Leaf's stylesheets
-whatever selectors either writes and reaches nothing outside the chrome. A rule inside
-`@layer` loses to them, as every layered rule does.
+than any of the chrome's own selectors, so the rule wins over the chrome's stylesheet
+rules whatever selectors either writes and reaches nothing outside the chrome. It
+still loses to a style Leaf's script sets on an element, and to Leaf's few
+`!important` declarations, such as its borders in forced colours. A rule the sheet
+puts inside `@layer` loses to the chrome's rules too, and a sheet holding `@scope` is
+refused, since Leaf already scopes it.
 
 ```css
 [part~="panel"],

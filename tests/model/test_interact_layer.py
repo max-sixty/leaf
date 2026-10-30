@@ -2181,6 +2181,27 @@ def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    "css",
+    [
+        "@scope (body) { #outside { color: red; } }",
+        "@media screen { @scope (body) { p { color: red; } } }",
+        '[part~="card"] { @scope (&) { :scope > p { color: red; } } }',
+    ],
+)
+def test_a_chrome_sheet_holding_scope_is_refused(tmp_path, css):
+    """An @scope of the theme's own would stand beside the chrome's and reach the page,
+    or, nested in a rule, match nothing in Chromium, so composition refuses it by
+    name rather than serving either."""
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    for root in (kernel, package):
+        root.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "chrome.css").write_text(css)
+    with pytest.raises(Refused, match=r"chrome\.css holds @scope"):
+        layer_model.composed_sheets([kernel, package])
+
+
 def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     """A package splits its sheet into files with `@import` and needs no build: each
     file's rules stand where its import stood, in the layer it asks for, and each file

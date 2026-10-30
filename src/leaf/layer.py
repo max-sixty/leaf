@@ -327,7 +327,21 @@ CHROME_RESTYLE_GROUPS = frozenset(
 )
 
 
-def chrome_restyle(sheet: str) -> str:
+def _holds_scope(nodes) -> bool:
+    """Whether any rule among `nodes`, at any depth, is an @scope."""
+    for node in nodes:
+        keyword = getattr(node, "lower_at_keyword", None) or (
+            node.lower_value if node.type == "at-keyword" else None
+        )
+        if keyword == "scope":
+            return True
+        for child in ("prelude", "content", "arguments"):
+            if (tokens := getattr(node, child, None)) and _holds_scope(tokens):
+                return True
+    return False
+
+
+def chrome_restyle(sheet: str, source: Path) -> str:
     """A package's chrome.css as the chrome's sheet takes it, above Leaf's own rules.
 
     The chrome's rules stand outside every layer, so they beat the page and every
@@ -338,10 +352,20 @@ def chrome_restyle(sheet: str) -> str:
     and so loses to every unlayered chrome rule. A package names what it restyles by
     part (`[part~="panel"]`), the chrome's public names for its surfaces; its other
     classes are private and change without notice.
+
+    A sheet holding @scope is refused: at its top it would set a scope of its own
+    beside the chrome's, reaching the page, and nested in a rule Chromium matches
+    nothing in it.
     """
     import tinycss2
 
     from .styles import css_stylesheet
+
+    if _holds_scope(css_stylesheet(sheet)):
+        raise Refused(
+            f"{source} holds @scope; Leaf already scopes chrome.css to its chrome, "
+            "so write its rules without one"
+        )
 
     def restyled(nodes):
         parts = []
@@ -407,7 +431,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(theme, "lf-base", root, "defaults.css")
         place(theme, "lf-overrides", root, "overrides.css")
         if (source := root / "chrome.css").is_file():
-            chrome.append(chrome_restyle(stylesheet(source, root)))
+            chrome.append(chrome_restyle(stylesheet(source, root), source))
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
             sheet = stylesheet(source, kernel)

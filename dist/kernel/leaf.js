@@ -410,9 +410,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span class="lf-compose-placeholder-words">${parts ?? word}</span
               ><kbd class="lf-key-badge">${suffix}</kbd>${lineHint ? html`<span class="lf-compose-placeholder-line"
-                      ><span
-                        >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
-                      ></span
+                      >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
                     >` : nothing}
             </span>` : nothing, ta);
 			let error = inputError.value;

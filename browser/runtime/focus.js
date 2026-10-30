@@ -319,6 +319,7 @@ function landLabelPress() {
 // while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+/** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());

@@ -1296,12 +1296,18 @@ const marked = (box) => box.checkVisibility() && getComputedStyle(box).getProper
 function syncLayoutRegion() {
 	const main = layoutBox();
 	const bodies = main ? [...main.children].flatMap((child) => {
-		if (marked(child)) return [[child, child.id]];
+		if (marked(child)) return [{
+			body: child,
+			name: child.id
+		}];
 		const only = child.childElementCount === 1 ? child.firstElementChild : null;
-		return only && marked(only) ? [[only, only.id || child.id]] : [];
+		return only && marked(only) ? [{
+			body: only,
+			name: only.id || child.id
+		}] : [];
 	}) : [];
 	let unnamed = 0;
-	const ids = new Map(bodies.map(([body, name]) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
+	const ids = new Map(bodies.map(({ body, name }) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
 	for (const [body, region] of layoutRegions) if (ids.get(body) !== region.id) {
 		region.stop();
 		layoutRegions.delete(body);

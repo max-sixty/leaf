@@ -140,9 +140,9 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     first = card.locator(".lf-msg.user")
     first.hover()
     first.locator(".lf-msg-copy").click()
-    shown = """message => [getComputedStyle(message, '::after').opacity,
-      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
-        .map(control => getComputedStyle(control).opacity)]"""
+    shown = """message => { const controls = message.querySelector('.lf-msg-controls');
+      return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
+        ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
     assert first.evaluate(shown) == ["1", "1", "1"]
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
@@ -175,7 +175,7 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
 RECEIPT_BESIDE_CONTROLS = """message => {
   const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
   const box = receipt.getBoundingClientRect();
-  const shown = [...message.querySelectorAll(':scope > .lf-msg-control')]
+  const shown = [...message.querySelectorAll(':scope > .lf-msg-head .lf-msg-controls > *')]
     .filter((control) => getComputedStyle(control).opacity === '1')
     .map((control) => control.getBoundingClientRect().left);
   const controls = shown.length ? Math.min(...shown) : null;

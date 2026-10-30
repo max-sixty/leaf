@@ -1,7 +1,8 @@
 """The comment composer's contents and recovery: the smallest message, pasted pictures
-and uploads, Return on a phone, and Resume writing."""
+and uploads, what Return and Shift+Return do, and Resume writing."""
 
 import base64
+import re
 
 import pytest
 from playwright.sync_api import expect
@@ -649,7 +650,28 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
-def test_markdown_decoration_keeps_source_editable(browser, serve):
+def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve):
+    """Return sends, so a focused box that holds lines says the key for a new line
+    beside its send key, and a writer meets it before a Return sends half a message.
+    An option's one-line field, where Return only adds, says none."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
+    # The hint's words stand inside its line, not wrapped onto the line it doesn't show.
+    shown = """hint => {
+      const line = hint.querySelector('.lf-compose-placeholder-line');
+      if (!line?.checkVisibility()) return '';
+      const words = line.firstElementChild;
+      return words.getBoundingClientRect().top < line.getBoundingClientRect().bottom
+        ? words.textContent.replace(/\\s+/g, ' ').trim() : '';
+    }"""
+    page_comment(page)
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    expect(hint.locator(".lf-key-badge").first).to_be_visible()
+    assert re.fullmatch(r"· New line (⇧|Shift\+)⏎", hint.evaluate(shown))
+
+    field = page.locator("#jobs > .lf-another leaf-text")
+    field.click()
+    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    assert field.locator(".lf-compose-placeholder").evaluate(shown) == ""
     """Headings and code follow the renderer; new bullets render before typing text."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page_comment(page)

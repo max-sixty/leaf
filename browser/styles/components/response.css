@@ -82,6 +82,31 @@ leaf-composition-field {
 .lf-compose-placeholder-lead:empty {
   display: none;
 }
+/* The new-line key a focused box that holds lines says after its send key
+   (composing/input.js, `lineHint`) stands whole in the room the label and the send key
+   leave, or not at all: where that room is too narrow, its words wrap onto a line the
+   hint doesn't show, so a narrow box reads as it would without it, and only then
+   shortens its label. The empty first item keeps the hint's baseline where it is
+   drawn alone, and the gap carries the wrapped line clear of the badge's overhang. */
+.lf-compose-placeholder > .lf-compose-placeholder-line {
+  flex: 1 1 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: flex-start;
+  row-gap: 2lh;
+  block-size: 1lh;
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+.lf-compose-placeholder-line::before {
+  content: "\200b";
+}
+.lf-compose-placeholder-line > span {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+}
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
   color: var(--muted);

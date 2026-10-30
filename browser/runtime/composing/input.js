@@ -74,6 +74,8 @@ import { coarsePointer } from "../pointer.js";
 import { namedAction, offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
+// What Shift+Return does in a box that holds lines, as its hint and Send's tooltip say it.
+const NEW_LINE = "New line";
 // How long the pointer rests on Send's corner, once words reach it, before Send takes
 // presses there: longer than a press aimed at the words' end takes to land.
 const SEND_DWELL = 150;
@@ -388,8 +390,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hydrate(ta.value);
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
     // The accessible name stays independent of that changing hint. The send button's
-    // tooltip spells out its keys. A focused box claims the send key; an unfocused box
-    // may show the contextual key that enters it; a finger is shown neither
+    // tooltip spells out its keys. A focused box claims the send key, and where Return
+    // sends a box that holds lines, the key for a new line after it; an unfocused box
+    // may show the contextual key that enters it; a finger is shown none
     // (`advertisesKeys`). Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
@@ -456,7 +459,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           : enteringHint.value;
       const status = dictationStatus();
       const word = status || label();
-      const placeholder = suffix && !status ? `${word} ${suffix}` : word;
+      // Where Return sends a box that holds lines, the box says which key makes one,
+      // beside the key that sends, so a writer meets Shift+Return before Return sends
+      // half a message; the send control's tooltip says the same.
+      const lineKey =
+        sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+      const lineHint = focusedHere.value && !status ? lineKey : "";
+      const placeholder =
+        suffix && !status
+          ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+          : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
@@ -467,7 +479,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         richHint
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><kbd class="lf-key-badge">${suffix}</kbd>${
+                lineHint
+                  ? html`<span class="lf-compose-placeholder-line"
+                      ><span
+                        >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                      ></span
+                    >`
+                  : nothing
+              }
             </span>`
           : nothing,
         ta,
@@ -483,10 +504,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         else watchError.unobserve(ta);
       }
       const action = sendLabel();
-      const newline =
-        sendKeys === spell("Enter") && !oneLine
-          ? ` · ${spell("Shift+Enter")} new line`
-          : "";
+      const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;

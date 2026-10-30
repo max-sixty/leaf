@@ -751,7 +751,7 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     expect(page.locator(".lf-fp-send")).to_be_visible()
     # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
+        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
@@ -2693,9 +2693,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
     # differently from one moment to the next.
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     ink = """node => getComputedStyle(node).color"""
 
     def sheen(running):
@@ -2763,9 +2761,7 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     peek = page.locator(".lf-fp-peek")
 
     def alpha():

@@ -169,6 +169,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
+const NEW_LINE = "New line";
 const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
@@ -397,7 +398,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const suffix = !advertising ? "" : focusedHere.value ? sendKeys : enteringHint.value;
 			const status = dictationStatus();
 			const word = status || label();
-			const placeholder = suffix && !status ? `${word} ${suffix}` : word;
+			const lineKey = sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+			const lineHint = focusedHere.value && !status ? lineKey : "";
+			const placeholder = suffix && !status ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}` : word;
 			if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
 			const ariaLabel = name();
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
@@ -405,7 +408,12 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const lead = status ? "" : hintLead();
 			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><kbd class="lf-key-badge">${suffix}</kbd>${lineHint ? html`<span class="lf-compose-placeholder-line"
+                      ><span
+                        >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                      ></span
+                    >` : nothing}
             </span>` : nothing, ta);
 			let error = inputError.value;
 			if (error && !(ta.isConnected && ta.checkVisibility())) {
@@ -418,7 +426,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				else watchError.unobserve(ta);
 			}
 			const action = sendLabel();
-			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
 			const phase = dictationPhase();
 			const live = phase === "starting" || phase === "listening";
 			const failed = loadingFailure || dictation?.failure;

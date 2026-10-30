@@ -505,9 +505,11 @@
      A press the field offers, an open thread's Reply or the words selected on the page,
      reads instead in ink with the key that makes it, so the next action stands apart
      from the agent's words; words standing before it keep the dim face (`offers`, and
-     composing/input.js, `hintLead`). No other reading shows a key. The rule is the
-     panel's alone: the user kept a card's reply box dim on 27 October, since in a box
-     that says nothing but its own hint, an ink Reply read as words already typed. */
+     composing/input.js, `hintLead`). The ink is the panel's alone: the user kept a
+     card's reply box dim on 27 October, since in a box that says nothing but its own
+     hint, an ink Reply read as words already typed. Once the caret is in, where the
+     words go stands dim with the key that sends them and the key for a new line, as in
+     every box that holds lines (response.css). No other reading shows a key. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
@@ -517,7 +519,13 @@
   .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder-lead {
     color: var(--lf-fp-quiet);
   }
-  .lf-fp-field leaf-text:not([data-offers]) .lf-compose-placeholder kbd {
+  .lf-fp-field
+    leaf-text:not([data-offers], [data-says="destination"])
+    .lf-compose-placeholder
+    kbd {
+    display: none;
+  }
+  .lf-fp-field leaf-text:not([data-says="destination"]) .lf-compose-placeholder-line {
     display: none;
   }
   /* An offer's key shows only while c goes to it (composing/surface.js,
@@ -534,7 +542,7 @@
   /* In an open thread, whose turn it is stands beside the leaf, the agent's words as
      the status is at rest, and Reply stands at the field's end (floating-panel.js,
      `turnLead`). */
-  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder > span:last-of-type {
+  .lf-fp-field leaf-text[data-says="turn"] .lf-compose-placeholder-words {
     margin-inline-start: auto;
   }
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {

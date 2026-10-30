@@ -1119,13 +1119,6 @@
             "kind": { "const": "status" },
             "seq": { "type": "integer", "minimum": 1 },
             "state": { "enum": ["waiting", "idle"] },
-            "text": {
-              "description": "The status line a `waiting` page shows while no start holds an item (`activity.canonical_activity`).",
-              "type": "string",
-              "minLength": 1,
-              "pattern": "\\S",
-              "not": { "pattern": "[\\r\\n]" }
-            },
             "agent": { "type": "string", "minLength": 1 },
             "session": { "type": "string", "minLength": 1 }
           },

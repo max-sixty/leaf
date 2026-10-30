@@ -4,16 +4,13 @@ what Leaf writes from that answer and tells the agent at its next step."""
 import json
 
 import pytest
-from interact_support import activity_reading, append_carried_log_record, declare_work
+from interact_support import append_carried_log_record
 
 from leaf import clerk as clerk_model
 from leaf import event_log as events_model
 from leaf import hooks as hooks_model
-from leaf.activity import declaration
 from leaf.agent_state import cmd_page_state
 from leaf.refusals import Refused
-
-LINE = "Waiting on your pick of the retry limit"
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -31,26 +28,20 @@ def asked() -> dict:
     return question
 
 
-def reply(page, *, items=(), missed=()) -> str:
+def reply(page, *titles: str) -> str:
     return json.dumps(
         {
-            "status": {str(page): LINE},
-            "on_me": [
-                {"page": str(page), "title": title, "kind": kind, "quote": title}
-                for title, kind in items
-            ],
-            "missed": list(missed),
+            "asks": [
+                {"page": str(page), "title": title, "quote": title} for title in titles
+            ]
         }
     )
 
 
-def test_the_clerk_writes_what_the_reply_left_and_the_next_step_hears_it(
-    claimed, capsys
-):
-    """A fork's asks and calls land On me as to-dos marked as Leaf's, its line becomes
-    the open page's status, and the next tool boundary tells the agent each thing Leaf
-    wrote and each step it missed, once. A to-do the user drops is shown to the next
-    fork as settled, so it isn't added again."""
+def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
+    """Each ask the fork names lands On me as a to-do marked as Leaf's, and the next
+    tool boundary tells the agent each one, once. An ask On me already holds isn't
+    added again, and one the user drops is shown to the next fork as settled."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     question = asked()
@@ -62,47 +53,26 @@ def test_the_clerk_writes_what_the_reply_left_and_the_next_step_hears_it(
 
     wrote = clerk_model.take_answer(
         "s1",
-        reply(
-            page,
-            items=[
-                ("Choose the retry limit: 3 or 5?", "ask"),
-                ("Keep the guard?", "call"),
-            ],
-            missed=[f"{page} is still open, though its work is done."],
-        ),
+        reply(page, "Choose the retry limit: 3 or 5?", "Open a PR for this branch?"),
         question["basis"],
     )["wrote"]
-    assert [record["kind"] for record in wrote] == ["todo", "todo", "status"]
     on_me = [
-        record
+        (record["prompt"]["text"], record["source"].get("by"))
         for record in cmd_page_state(claimed)["obligations"]
         if record["source"]["kind"] == "todo"
     ]
-    assert [
-        (record["prompt"]["text"], record["source"].get("by")) for record in on_me
-    ] == [
+    assert on_me == [
         ("Choose the retry limit: 3 or 5?", "leaf"),
-        ("Keep the guard?", "leaf"),
+        ("Open a PR for this branch?", "leaf"),
     ]
-    assert declaration(events_model.read_events(claimed)) == {
-        "state": "waiting",
-        "ts": wrote[-1]["ts"],
-        "text": LINE,
-    }
-    reading = activity_reading(claimed)
-    assert (reading["kind"], reading["detail"]) == ("listening", LINE)
 
     context = hook(capsys, "PostToolBatch")
     assert 'Leaf added "Choose the retry limit: 3 or 5?" to On me' in context
-    assert "Leaf set the status on" in context
-    assert "is still open, though its work is done." in context
+    assert f"leaf task end {page} {wrote[1]['id']} dropped" in context
     assert hook(capsys, "PostToolBatch") == ""
 
-    # The same answer again finds the ask On me and the line shown.
     again = clerk_model.take_answer(
-        "s1",
-        reply(page, items=[("Choose the retry limit: 3 or 5?", "ask")]),
-        question["basis"],
+        "s1", reply(page, "Choose the retry limit: 3 or 5?"), question["basis"]
     )
     assert again["wrote"] == []
 
@@ -116,8 +86,8 @@ def test_the_clerk_writes_what_the_reply_left_and_the_next_step_hears_it(
         },
     )
     assert (
-        "don't add these again:\n- to-do: Keep the guard? (dropped)"
-        in asked()["prompt"]
+        "don't add these again:\n- Open a PR for this branch? (dropped)"
+        in (asked()["prompt"])
     )
 
 
@@ -129,30 +99,19 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
     hook(capsys, "UserPromptSubmit", "p2")
     before = len(events_model.read_events(claimed))
     dropped = clerk_model.take_answer(
-        "s1", reply(claimed.resolve(), items=[("Pick one?", "ask")]), question["basis"]
+        "s1", reply(claimed.resolve(), "Pick one?"), question["basis"]
     )
     assert "dropped" in dropped
     assert len(events_model.read_events(claimed)) == before
     assert clerk_model.queued("s1") == []
 
 
-def test_the_clerk_leaves_a_line_the_agent_wrote_on_work_in_hand(claimed, capsys):
-    """A start holding an item says what the agent does; the fork's line doesn't
-    replace it or put the work down."""
-    hook(capsys, "UserPromptSubmit")
-    declare_work(claimed, "running the suite", session="s1")
-    question = asked()
-    wrote = clerk_model.take_answer("s1", reply(claimed.resolve()), question["basis"])
-    assert wrote["wrote"] == []
-    assert activity_reading(claimed)["detail"] == "running the suite"
-
-
 @pytest.mark.parametrize(
     "text",
     [
         "Nothing to report.",
-        '{"status": {}, "on_me": [], "missed": [], "extra": 1}',
-        '{"status": {}, "on_me": [{"page": "p", "title": "x", "kind": "maybe", "quote": ""}], "missed": []}',
+        '{"asks": [], "extra": 1}',
+        '{"asks": [{"page": "p", "title": "x"}]}',
     ],
 )
 def test_an_answer_outside_the_schema_writes_nothing(text):
@@ -170,6 +129,4 @@ def test_a_long_title_is_cut_at_a_word_to_fit_a_to_do():
 
 
 def test_a_fenced_answer_is_read():
-    assert clerk_model.read_answer(
-        '```json\n{"status": {}, "on_me": [], "missed": []}\n```'
-    )
+    assert clerk_model.read_answer('```json\n{"asks": []}\n```') == {"asks": []}

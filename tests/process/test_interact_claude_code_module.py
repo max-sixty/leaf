@@ -392,16 +392,13 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     page = page_dir.resolve()
     reply = json.dumps(
         {
-            "status": {str(page): "Waiting on your pick of the retry limit"},
-            "on_me": [
+            "asks": [
                 {
                     "page": str(page),
                     "title": "Choose the retry limit: 3 or 5?",
-                    "kind": "ask",
                     "quote": "Should the retry limit be 3 or 5?",
                 }
-            ],
-            "missed": [],
+            ]
         }
     )
     driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})
@@ -425,7 +422,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         lambda line: line.startswith("Leaf: the clerk"),
         failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
     )
-    assert "wrote 2 records" in told, told
+    assert "added 1 to On me" in told, told
     assert driven.forks.empty()
     [todo] = [
         event for event in events_model.read_events(page_dir) if event["kind"] == "todo"

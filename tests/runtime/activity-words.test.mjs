@@ -156,14 +156,6 @@ test("listening says where a comment starts, with input on its way counted after
     "Ready — select text to comment",
     "Ready — select text to comment. 1 response owed on updates awaiting delivery.",
   ]);
-  // The line a waiting declaration carries says what the agent waits for, and the
-  // invitation follows it in the disclosure and on the row.
-  const line = "Waiting on your pick of the retry limit";
-  assert.deepEqual(said({ kind: "listening", detail: line }), [
-    line,
-    `${line}. Ready — select text to comment`,
-  ]);
-  assert.equal(leafRow(state({ kind: "listening", detail: line })).line, line);
 });
 
 test("a quiet claim is dated by its last word, and a dropped one by the turn's ending", () => {

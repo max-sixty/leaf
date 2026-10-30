@@ -98,7 +98,7 @@ const TONES: Record<string, string> = {
 };
 
 /** What a line says of the agent's work, in the words of an All pages row
- * (`leafRow` in activity-words.js), less its bare Ready and Awaits, since
+ * (`leafRow` in activity-words.js), less its bare Listening and Awaits, since
  * listening is the usual case. */
 function statusOf({ kind, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
@@ -106,8 +106,6 @@ function statusOf({ kind, detail }: Leaf["activity"]) {
   if (kind === "working") return detail || "Working on it";
   if (kind === "stalled") return stated("Quiet");
   if (kind === "away") return "Away";
-  // The line a waiting declaration carries, which says what the agent waits for.
-  if (kind === "listening") return detail;
   return "";
 }
 
@@ -302,7 +300,7 @@ async function clerk($: EngineInterface, session: string) {
           basis: asked.basis,
         });
         $.ui.log(
-          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `wrote ${applied?.wrote?.length ?? 0} records and told ${applied?.told?.length ?? 0} lines`}`,
+          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `added ${applied?.wrote?.length ?? 0} to On me`}`,
           { to: "debug" },
         );
       } catch (error) {

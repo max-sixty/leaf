@@ -143,10 +143,6 @@
             "ts": {
               "description": "When the agent declared it, or when a start reopened an idle page; absent before the first declaration.",
               "type": "string"
-            },
-            "text": {
-              "description": "The line a `waiting` declaration carries, which the status shows while no start holds an item.",
-              "type": "string"
             }
           },
           "required": ["state"],

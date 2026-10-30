@@ -127,7 +127,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "UP", "B"]
+select = ["F", "E", "W", "I", "UP", "B", "RUF100", "RUF043"]
 # The formatter owns line wrapping; existing module setup and callable expressions
 # may put imports after setup or use a lambda as a value.
 # Review zip length semantics separately before enabling B905.

@@ -653,10 +653,10 @@
     }
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. While the field holds a draft, the
-     mark steps aside, so the field takes its room, and Send stays in its corner
-     with the caret elsewhere, so no line of the draft moves (floating-panel.js,
-     `drafted`). */
+     not a press of its own, in Dictate's seat. While the user writes or the field
+     holds a draft, the mark steps aside, so the field takes its room, and Send stays
+     in its corner with the caret elsewhere, so no line of the draft moves
+     (floating-panel.js, `writing` and `drafted`). */
   .lf-fp-field .lf-compose-submit {
     display: none;
   }
@@ -730,17 +730,18 @@
   /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
      tinted chip of the qualifying size, whose press is the word that ends it. The
      field gives up the room it takes, so the seat keeps its place, and while the
-     user types it stands aside with the mark. */
+     user writes it stands aside with the mark. */
   .lf-fp-row-notice {
     flex: none;
     display: flex;
     align-items: center;
     min-height: var(--lf-line);
   }
-  /* The field gives the notice its room only while it holds no words: words a notice
-     arriving would narrow rewrap, and the field grows up over its line under the
-     reader. It stands aside while they stand, as it does while the user types. */
-  .lf-floating-panel[data-words] .lf-fp-row-notice {
+  /* The field gives the notice its room only at rest: words a notice arriving would
+     narrow rewrap, and the field grows up over its line under the reader. It stands
+     aside with the mark while the user writes or the field holds a draft
+     (floating-panel.js, `writing`). */
+  .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-row-notice {
     display: none;
   }
   /* The press takes the row's whole line, as every mark does, so a finger finds it;

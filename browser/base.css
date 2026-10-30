@@ -2045,6 +2045,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-pane-top: var(--pane-inset);
   padding: var(--lf-pane-top) var(--pane-inset)
     calc(var(--pane-inset) + var(--lf-end-room));
+  scroll-padding-block-end: var(--lf-end-room);
   container-type: inline-size;
   --lf-block-frame: 1;
 }

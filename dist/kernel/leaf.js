@@ -4785,7 +4785,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
 		const closeAbove = expanded && exit?.press === close && viewControls !== nothing;
-		const quickHidden = initial || closeAbove || (search ? !exit : drafted && !seatHeld);
+		const quickHidden = initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
 		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
@@ -5605,7 +5605,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
 	stage.addEventListener("click", judgePress);
-	const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+	const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg:has(> .lf-msg-body > .lf-msg-editor)"));
 	const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
 	onCurrentLocation((node, cause) => {
 		if (!trail.value.at(-1)?.thread || cause === "drop" || overPanel(node)) return;
@@ -7128,7 +7128,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (exit) seatHeld = true;
 		postureMoved = false;
 		keeps(host, "data-drafted", drafted ? "" : null);
-		keeps(host, "data-words", words ? "" : null);
 		if (!words) expanded = false;
 		markRoom();
 		keeps(host, "data-expanded", expanded ? "" : null);

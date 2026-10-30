@@ -1312,7 +1312,33 @@
     }
   };
 
+  // Delivery lends input values only until the first authoritative data admission.
+  // Its raw JSON is consumed now; releaseData clears the remaining holder when
+  // data.js transfers reads to the immutable application root.
+  const inputData = document.querySelector("script[data-lf-input-data]");
+  let deliveryData = inputData ? JSON.parse(inputData.textContent) : null;
+  inputData?.remove();
   root.lfInitial = {
+    // Both parser-time and live readers use this declared-input boundary. The
+    // live reader owns diagnostics because it also observes later deliveries.
+    inputReading(declaration, reading, incompatible) {
+      if (!reading) return null;
+      if (reading.contract !== declaration?.contract) {
+        incompatible?.(reading);
+        return null;
+      }
+      return Object.hasOwn(reading, "value") ? reading : null;
+    },
+    initialData: () => deliveryData?.data ?? null,
+    releaseData() {
+      deliveryData = null;
+    },
+    inputDeclaration: (host, input) => deliveryData?.inputs[host.localName]?.[input],
+    source(source) {
+      return source && deliveryData
+        ? (deliveryData.data.sources[source] ?? null)
+        : null;
+    },
     // Parser-time producers create their first nodes before runtime modules exist.
     // dom-move.js installs the live mover before any module uses the shared Lit.
     move(parent, node, before) {
@@ -1355,6 +1381,17 @@
       for (let node = /** @type {Node} */ (host); node; node = node.parentNode)
         sourceScopes.add(node);
       const drawing = render(host, {
+        inputValue(input) {
+          const declaration = root.lfInitial.inputDeclaration(host, input);
+          const source = declaration?.source
+            ? host.getAttribute(declaration.source)
+            : null;
+          const reading = root.lfInitial.inputReading(
+            declaration,
+            root.lfInitial.source(source),
+          );
+          return reading ? structuredClone(reading.value) : null;
+        },
         tabStore,
         offer,
         offerElement,

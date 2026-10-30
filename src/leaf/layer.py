@@ -240,8 +240,8 @@ def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
     opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise Refused(f"{source} must be UTF-8")
+    except UnicodeDecodeError as error:
+        raise Refused(f"{source} must be UTF-8") from error
     # A layer's sheet is a package's maintained code, so a declaration a browser
     # drops refuses it here, though a page's own sheets only hear it as advice.
     if errors := css_syntax_errors(css, str(source)):
@@ -383,8 +383,8 @@ def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
                 continue
             try:
                 instructions = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                raise Refused(f"{path} must be UTF-8")
+            except UnicodeDecodeError as error:
+                raise Refused(f"{path} must be UTF-8") from error
             if instructions.strip():
                 parts.setdefault(path.name, []).append(
                     f"# Package `{root.name}`\n\n{instructions.strip()}\n"

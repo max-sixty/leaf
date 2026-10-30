@@ -260,13 +260,32 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
         geometry
     )
 
-    # Native fragment navigation brings the eyebrow with the heading; the viewport
-    # lens meets that destination's marker rather than the top of its link box.
+    # Native fragment navigation brings the eyebrow with the heading and leaves
+    # the focused title's ring clear of the reading band's edge.
     standalone.focus()
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#standalone-title$"))
     scroll_settled(page)
     expect(standalone).to_have_attribute("aria-current", "location")
+    landing = page.locator("#standalone-title").evaluate(
+        """target => ({
+          top: target.getBoundingClientRect().top,
+          clearance: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(target).scrollMarginTop),
+        })"""
+    )
+    assert landing["top"] == pytest.approx(landing["clearance"], abs=1), landing
+
+    # The lens maps the reading band, including the room before a focused title.
+    # Scroll the title to the band's edge to compare its map coordinate directly.
+    page.locator("#standalone-title").evaluate(
+        """target => document.scrollingElement.scrollBy({
+          top: target.getBoundingClientRect().top
+            - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          behavior: 'instant',
+        })"""
+    )
+    scroll_settled(page)
     alignment = standalone.evaluate(
         """link => {
           const row = link.parentElement;

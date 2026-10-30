@@ -853,6 +853,25 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         nav_box[key] for key in ("x", "y", "height")
     ], "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
+    landing = page.locator("#prepare").evaluate(
+        """target => ({
+          top: target.getBoundingClientRect().top,
+          clearance: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(target).scrollMarginTop),
+        })"""
+    )
+    assert landing["top"] == pytest.approx(landing["clearance"], abs=1), landing
+
+    # A fragment leaves room for its focused title's ring. The lens maps the
+    # reading band itself; bring the title to that edge to compare map coordinates.
+    page.locator("#prepare").evaluate(
+        """target => document.scrollingElement.scrollBy({
+          top: target.getBoundingClientRect().top
+            - parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
+          behavior: 'instant',
+        })"""
+    )
+    scroll_settled(page)
     current_alignment = prepare.evaluate(
         "node => ({label: node.getBoundingClientRect().top "
         "+ parseFloat(getComputedStyle(node).lineHeight) / 2, "

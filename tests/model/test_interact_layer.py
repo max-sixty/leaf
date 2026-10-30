@@ -2560,7 +2560,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     def initialize():
         try:
             vendoring_model.cmd_init(page)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)

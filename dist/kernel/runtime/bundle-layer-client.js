@@ -1164,7 +1164,7 @@ function detachScope(element, scope) {
 }
 function declaredScope(title, rows, options) {
 	const { when, escape, ready, claims } = typeof options === "function" ? { when: options } : options ?? {};
-	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be \"inner\", got ${String(escape)}`);
+	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be "inner", got ${String(escape)}`);
 	return {
 		title,
 		rows: checked(rows, title ?? "a scope", ready),

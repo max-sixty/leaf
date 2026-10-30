@@ -554,7 +554,7 @@
         style.visibility === "visible" &&
         style.opacity !== "0" &&
         !["none", "normal"].includes(style.content) &&
-        (style.content !== '\"\"' || paintsBox(style))
+        (style.content !== '""' || paintsBox(style))
       );
     });
   // Whether anything that can change a node's reading has happened since the last

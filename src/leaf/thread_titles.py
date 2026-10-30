@@ -222,7 +222,7 @@ def _name_thread(
         return
     # Every class, because this thread's only way to report is `record`: a failure
     # here leaves the thread untitled, and nothing else would say why.
-    except Exception as error:  # noqa: BLE001 - reported, never raised
+    except Exception as error:
         record(
             "thread_title_failed",
             thread=thread,

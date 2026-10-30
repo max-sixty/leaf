@@ -1,3 +1,5 @@
+import js from "@eslint/js";
+import globals from "globals";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
@@ -1309,9 +1311,65 @@ export default [
     ],
   },
   { linterOptions: { noInlineConfig: true } },
+  js.configs.recommended,
   {
-    files: ["**/*.{js,mjs}"],
-    languageOptions: { ecmaVersion: "latest", sourceType: "module" },
+    files: [
+      "*.mjs",
+      ".github/scripts/*.mjs",
+      "build/**/*.mjs",
+      "worker/*.mjs",
+      "dev/**/*.mjs",
+      "evals/**/*.mjs",
+      "tests/*.mjs",
+    ],
+    languageOptions: { globals: globals.nodeBuiltin },
+  },
+  {
+    files: ["**/*.cjs"],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: [
+      "examples/**/*.js",
+      "evals/**/fixtures/**/*.js",
+      "tests/fixtures/**/*.js",
+      "tests/*_watch.js",
+      "tests/watch_platform.js",
+      "dev/leaf_dev/main_thread.js",
+    ],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    // Playwright's Node drivers also execute callbacks in the page's realm.
+    files: [
+      "evals/ui-review-detection/provider.mjs",
+      "evals/widget-formats/interaction.mjs",
+    ],
+    languageOptions: { globals: browserGlobals },
+  },
+  {
+    // render_harness.shift_watch_source binds these runtime readings around the sensor.
+    files: ["tests/shift_watch.js"],
+    languageOptions: {
+      globals: Object.fromEntries(
+        [
+          "interactive",
+          "pressControls",
+          "caretKeys",
+          "clippingAxes",
+          "renderedParent",
+          "elementAxes",
+          "scrollAxes",
+          "nativePerformance",
+          "nativeFrame",
+          "nativeTask",
+        ].map((name) => [name, "readonly"]),
+      ),
+    },
+  },
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: { ecmaVersion: "latest" },
     rules: publicRuntimeBoundary,
   },
   {
@@ -1365,23 +1423,16 @@ export default [
     // Runtime tests exercise browser owners; compiler tests run in Node.
     files: ["tests/runtime/**/*.mjs"],
     languageOptions: { globals: browserGlobals },
-    rules: { "no-undef": "error" },
-  },
-  {
-    files: ["build/pierre/*.mjs"],
-    rules: { "no-undef": "error" },
   },
   {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
     files: ["tests/page_scripts/**/*.js"],
     languageOptions: { globals: browserGlobals },
-    rules: { "no-undef": "error" },
   },
   {
     files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
-    rules: { "no-undef": "error" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
@@ -1392,7 +1443,6 @@ export default [
     ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
-      "no-undef": "error",
       "no-restricted-syntax": [
         "error",
         ...publicRuntimeBoundary["no-restricted-syntax"]
@@ -1408,7 +1458,6 @@ export default [
     languageOptions: { globals: browserGlobals },
     rules: {
       ...publicRuntimeBoundary,
-      "no-undef": "error",
       "no-restricted-syntax": [
         "error",
         {
@@ -1486,7 +1535,6 @@ export default [
   {
     files: ["browser/**/*.js", "packages/*/**/*.js"],
     languageOptions: { globals: browserGlobals },
-    rules: { "no-undef": "error" },
   },
   {
     // What the kernel build and the website's rebundle compile (`topLevelAwaitRule`).
@@ -1734,7 +1782,7 @@ export default [
     // An import or binding nothing reads is a dependency edge the graph still carries
     // and a name the next reader has to account for. Arguments and caught errors are
     // left alone: a signature says what a callback is handed.
-    files: ["**/*.{js,mjs}"],
+    files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [
         "error",

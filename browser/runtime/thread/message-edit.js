@@ -456,7 +456,7 @@ export class MessageEditor {
         // words between the box and the new ones.
         const flight = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
         leave(false, { painting: false });
-        let sent = null;
+        let sent;
         try {
           sent = await flight;
         } finally {

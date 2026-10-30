@@ -3711,7 +3711,7 @@ var MessageEditor = class {
 					base
 				}));
 				leave(false, { painting: false });
-				let sent = null;
+				let sent;
 				try {
 					sent = await flight;
 				} finally {
@@ -7076,8 +7076,8 @@ var ThreadView = class {
 	};
 	#createReply(model) {
 		const replyChanged = () => {
-			if (!this.#reply) return;
-			this.#draftFrame ||= nextRender(() => {
+			if (!this.#reply || this.#draftFrame) return;
+			this.#draftFrame = nextRender(() => {
 				this.#draftFrame = 0;
 				if (!this.#reply) return;
 				if (this.#model.resolved) this.repaint();

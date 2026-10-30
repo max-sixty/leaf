@@ -247,7 +247,7 @@ function boundFile(binding) {
 				...options
 			}, "file");
 		} catch (error) {
-			if (error instanceof LayerRefused) throw new Error("Leaf changed while accessing the file.");
+			if (error instanceof LayerRefused) throw new Error("Leaf changed while accessing the file.", { cause: error });
 			if (error.status === void 0) throw new Error("The page's server did not answer.", { cause: error });
 			if (error.said === void 0) throw new Error(error.status < 400 ? "The page's server answered in a form the page cannot read." : `The page's server answered HTTP ${error.status}.`, { cause: error });
 			throw error;

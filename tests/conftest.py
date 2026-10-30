@@ -674,7 +674,7 @@ def collect_app_server_error(found: list, message: dict, sender: str) -> None:
     connection failure rather than reach the test."""
     try:
         error = app_server_message_error(message, sender)
-    except Exception as failure:  # noqa: BLE001 - reported at the test's end
+    except Exception as failure:
         error = f"{message.get('method')}: not checked: {failure!r}"
     if error:
         found.append(error)

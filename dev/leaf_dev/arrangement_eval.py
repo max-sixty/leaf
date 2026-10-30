@@ -725,7 +725,7 @@ Task and criterion:
                 if value is not None
             }
             return response | {"output": output, "tokenUsage": tokens}
-    except Exception as error:  # noqa: BLE001 - model/transport boundary
+    except Exception as error:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
 
 

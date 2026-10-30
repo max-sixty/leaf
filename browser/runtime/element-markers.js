@@ -97,7 +97,6 @@ export const selectableOfferElement = (node, role, cls, face) => {
   );
   keeps(node, "data-lf-gen", "1");
   keeps(node, "data-lf-offer", role);
-  keeps(node, "data-lf-selectable-offer", "");
 };
 
 export const selectableOffer = (role, cls, label, face) => {

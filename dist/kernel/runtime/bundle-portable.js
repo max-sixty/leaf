@@ -1087,7 +1087,6 @@ const selectableOfferElement = (node, role, cls, face) => {
 	].filter(Boolean).join(" "));
 	keeps(node, "data-lf-gen", "1");
 	keeps(node, "data-lf-offer", role);
-	keeps(node, "data-lf-selectable-offer", "");
 };
 const selectableOffer = (role, cls, label, face) => {
 	const node = document.createElement("span");

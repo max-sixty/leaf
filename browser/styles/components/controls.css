@@ -2,7 +2,8 @@
   display: block;
   margin-top: 2px;
   color: var(--muted-2);
-  font: 500 var(--t-6)/1.35 var(--sans);
+  font: var(--voice-small);
+  font-weight: 500;
 }
 /* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
@@ -28,7 +29,7 @@
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
   color: var(--muted);
-  font: var(--t-6)/var(--lf-ui-lh) var(--sans);
+  font: var(--voice-small);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -63,10 +64,7 @@
   white-space: nowrap;
   border: 1px solid transparent;
   border-radius: var(--chip-r);
-  font: inherit;
-  font-family: var(--sans);
-  font-size: var(--t-6);
-  line-height: var(--chip-lh);
+  font: var(--voice-chip);
   outline-offset: 0;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
@@ -138,7 +136,7 @@
   background: var(--tip-bg);
   color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  font: var(--tip-font);
+  font: var(--voice-tip);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -376,7 +374,7 @@ svg[data-lf-icon] {
   inline-size: 32px;
   block-size: 32px;
   padding: 0;
-  font-size: 16px;
+  font: var(--voice-emoji);
 }
 @media (hover: none) {
   .lf-msg {
@@ -650,7 +648,7 @@ summary,
   min-inline-size: var(--aim-floor);
   box-sizing: border-box;
   cursor: pointer;
-  font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  font: var(--voice-ui);
   outline-offset: var(--focus-ring-inset);
 }
 .choice > input {
@@ -1045,7 +1043,7 @@ wa-copy-button.lf-icon-action {
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
    end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
-   on the name's first line, its numbers ending together; the end is muted, at `--t-6`
+   on the name's first line, its numbers ending together; the end is muted, in the small voice
    as every qualifier in the chrome is, on the first line's baseline. Every row has the same padding, at least 30px
    tall, and reaches the aim floor under a finger. A row takes this layout by naming its
    main part, so a way back or a command in the reference keeps its own; one that offers
@@ -1063,7 +1061,7 @@ wa-copy-button.lf-icon-action {
   width: 100%;
   min-height: max(30px, var(--aim-floor));
   padding: 5px 8px 5px 6px;
-  line-height: 1.45;
+  line-height: var(--lf-ui-lh);
 }
 .lf-row-plain {
   border-inline-start: 2px solid transparent;
@@ -1104,7 +1102,7 @@ wa-copy-button.lf-icon-action {
   justify-self: end;
   margin-inline-start: 12px;
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--voice-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1125,7 +1123,7 @@ wa-copy-button.lf-icon-action {
    short of the rows' ends, until they shared this one. */
 .lf-rows-head {
   margin: 0;
-  font: 600 var(--t-6) / 1.45 var(--sans);
+  font: var(--voice-heading);
   color: var(--muted);
 }
 .lf-rows-head:where(:not(:has(> .lf-row))) {
@@ -1140,6 +1138,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-rows-head .lf-row-end {
   color: inherit;
+  font-weight: inherit;
 }
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where

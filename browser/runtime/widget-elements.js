@@ -36,7 +36,7 @@ export {
    accessibility stay the browser's. A page word that is also a control — a tab name, a
    chosen option — has to stay selectable, so `selectableOffer` builds it as a span with
    the role. One with a button's role takes a button's Enter and Space from
-   selectable-press.js, on any page; for another role its widget supplies the keyboard
+   role-button-press.js, on any page; for another role its widget supplies the keyboard
    pattern the native element would have. A `<button>` would not do:
    Chromium and Firefox begin a selection inside one styled `user-select: text`, but
    WebKit, so Safari and every iOS browser, begins none inside a form control whatever

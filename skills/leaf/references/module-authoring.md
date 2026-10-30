@@ -429,9 +429,10 @@ generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable
-span. With the role `"button"`, Enter and Space press it as they do a button, on a page
-with Leaf or without it; for another role, such as `"tab"`, the widget declares its
-keys. In a template, use
+span. Leaf presses any span it offers as a button as it does a button, so with the
+role `"button"` Enter and Space press it, on a page with Leaf or without it, and the
+widget declares no keys for that press; for another role, such as `"tab"`, the widget
+declares its keys. In a template, use
 `<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
 face, such as `"row"` for a list whose rows are the page's words, name the role last:
 `selectableOffer(role, className, label, "row")` or `selectableOffered(role,

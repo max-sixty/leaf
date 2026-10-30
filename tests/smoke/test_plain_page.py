@@ -13,8 +13,9 @@ serves its own pages: this tree's runtime, the compiled kernel where it is curre
 beside the composed layer's widgets and vendor modules. A widget that imports only the portable helpers
 (`runtime/portable-api.js`) defines itself, draws, and shows a body it cannot draw as
 an error box and an `error` event the host may hear, with nothing in the console. What
-Leaf adds to a widget it reads off the widget, so here there is none of it: no key
-bound or advertised, no Copy control, no quiet word. Its own buttons still work.
+Leaf adds to a widget it reads off the widget, so here there is none of it: no
+widget key bound or advertised, no Copy control, no quiet word. Its own buttons still
+work, and so do its spans offered as buttons, by Enter and Space too.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf

@@ -222,7 +222,7 @@ and Firefox 157.0, build 1555, selected part of the label, a word and the
 paragraph. A drag beginning outside still extends into the button in all three.
 So a control whose label is the page's own words is a span with a role
 (`selectableOffer`, `browser/runtime/widget-elements.js`), and one with a
-button's role takes Enter and Space from `browser/runtime/selectable-press.js`,
+button's role takes Enter and Space from `browser/runtime/role-button-press.js`,
 on a page with Leaf or without it. Recheck with that button and a double click
 on one of its words, reading `getSelection().toString()`.
 

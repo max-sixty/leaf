@@ -2,7 +2,7 @@
    A base module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "/runtime/framework.js";
+import { html, unsafeSVG } from "/vendor/lit.js";
 
 import { actionIcon, iconMarkup } from "./icon-paths.js";
 
@@ -16,8 +16,9 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
     aria-hidden="true"
     class=${className}
     data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
+  >
+    ${unsafeSVG(iconMarkup(icon))}
+  </svg>`;
 }
 
 /** The template of `action`'s symbol (icon-paths.js, `ACTIONS`) where it is not a

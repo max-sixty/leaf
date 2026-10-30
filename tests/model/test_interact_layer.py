@@ -1390,7 +1390,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-space`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -1455,14 +1455,12 @@ def test_kernel_selectors_name_no_package_tag():
 
 
 def test_layout_style_and_widgets_never_read_each_other():
-    """A Layout places boxes, a style sets type and spacing, and a widget reads its own
-    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
-    class is named only in layouts.css and a style class only in the kernel theme, and
-    layouts.css sets no type: where one has to answer another, the owner sets a token
-    saying what the box is, as `--lf-full-height` does, and the reader keys on that.
+    """Layouts own placement, styles own type, and widgets consume their own box.
 
-    A Layout class is one layouts.css styles; a style class is one the kernel theme
-    gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
+    Margin placement reads authored notes to keep annotations clear of them.
+    Packages do not depend on Layout containers, and no other sheet
+    restates a Layout's rules. Style classes remain private to the kernel theme.
+    """
     layouts = schema_model.ASSETS / "layouts.css"
     theme = schema_model.ASSETS / "base.css"
     owned = {
@@ -1487,7 +1485,16 @@ def test_layout_style_and_widgets_never_read_each_other():
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
             continue
-        foreign = [names for home, names in owned.items() if home != source]
+        foreign = [
+            names
+            for home, names in owned.items()
+            if home != source
+            and not (
+                home == layouts
+                and source
+                == schema_model.ASSETS / "runtime/annotation-overlay/margin-layout.js"
+            )
+        ]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
         where = source.relative_to(schema_model.ASSETS.parent)
         if source.suffix == ".css":
@@ -1522,12 +1529,12 @@ def test_layout_style_and_widgets_never_read_each_other():
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
-    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
     module-authoring.md lists the roles for package authors, in the table's order.
     `primary` and the authored `button` face are ordinary words too, so they count
     where a string lists classes or a template's `class` attribute names them."""
-    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
@@ -1766,22 +1773,13 @@ _LAYER_SHEET_ORDER = [
 ]
 
 
-def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
-    component that states the same property overrides it, so the face stands first in
-    the layer's page-side order and loses on position. It keeps a class's specificity,
-    so the page's own element rules lose to it. And a declared tree copies shadow.css,
-    where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
-    under the document's root.
+def test_the_injected_control_face_is_one_default_in_both_trees():
+    """Document and declared-shadow controls share one default before component rules.
 
-    Each of the three has broken once: stated in base.css after shadow.css, Send drew
-    near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
-    diff's line numbers took the control's size and ink; as `:where(.lf-ui)`, a page's
-    `button, a` rule took the family of half corpus.html's widget controls. The browser
-    cases that read those faces are `test_a_single_space_is_message_content_in_every_
-    composer`, `test_a_diff_is_colored_by_each_files_own_path` and
-    `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
-    single rule all three depend on."""
+    Class specificity protects the face from layered element rules. Only controls
+    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as
+    diff line numbers, retains the component's own typography.
+    """
     faces = [
         (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
@@ -1791,9 +1789,8 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # Public controls and injected controls share this one default; its root boundary
-    # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
+    # Both delivery trees use the same face classes and cascade order.
+    control_face = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
     defaults = [
         face
@@ -1820,7 +1817,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
 
     spelling = (
         "["
-        + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.obligation"]
+        + read[str(page_paint)]["constants"]["RUNTIME_PAINT_ATTRIBUTE.obligation"]
         + "]"
     )
     assert spelling in sheet, f"the layer sheets no longer spell {spelling}"

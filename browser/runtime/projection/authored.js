@@ -8,7 +8,6 @@ import { elementReading } from "../passages.js";
 import { readPart } from "../semantic-state.js";
 import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
-import { initialParent, initialSource } from "../initial-render.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
@@ -44,6 +43,7 @@ import { initialParent, initialSource } from "../initial-render.js";
    and record kinds coexist, including scalar state on a member or container. */
 export const authoredStates = readPart((root) => root.document.authored);
 export const authoredParents = new WeakMap();
+
 /** @param {Element} member @param {StateRecord} record */
 const recordedOwner = (member, record) => {
   const selector = recordedWidgetSelector(record);
@@ -70,13 +70,26 @@ export function domValue(el, record) {
 // `parent` states where a root that is not yet in the document will stand, so the
 // readings that ask about its place are right before insertion; a root already in the
 // document answers for itself.
-/** @param {Document | Element | DocumentFragment} [root] @param {Element | null} [parent] */
-export function rememberAuthoredParents(root = document, parent = root.parentElement) {
-  if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
-    authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
-  for (const element of root.querySelectorAll("*"))
-    if (!authoredParents.has(element))
-      authoredParents.set(element, initialParent(element));
+/** @param {Document | Element | DocumentFragment} [root] @param {Element | null} [parent]
+ * @param {(node: Element) => Element} [original] */
+export function rememberAuthoredParents(
+  root = document,
+  parent = root.parentElement,
+  original = (node) => node,
+) {
+  /** @param {Element} element */
+  const remember = (element) => {
+    const live = original(element);
+    if (authoredParents.has(live)) return;
+    authoredParents.set(
+      live,
+      element.parentElement
+        ? original(element.parentElement)
+        : (parent ?? live.parentElement),
+    );
+  };
+  if (root.nodeType === Node.ELEMENT_NODE) remember(/** @type {Element} */ (root));
+  for (const element of root.querySelectorAll("*")) remember(element);
 }
 
 /** @param {Element} widget @param {ActionSpec} spec @returns {AuthoredWidget["state"][string]} */
@@ -111,7 +124,6 @@ function initialState(widget, spec) {
 
 /** @param {Document | Element | DocumentFragment} root @param {AuthoredMap} existing @returns {Map<string, AuthoredWidget>} */
 export function stageAuthoredStates(root = document, existing = authoredStates()) {
-  root = initialSource(root);
   /** @type {Map<string, AuthoredWidget>} */
   const captured = new Map();
   /** @type {Map<string, Map<string, ActionSpec>>} */

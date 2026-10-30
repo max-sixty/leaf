@@ -740,3 +740,30 @@ leaf-text.lf-fab-input,
      Keep its scrollbar-clearance float inside the source's own box. */
   display: flow-root;
 }
+
+/* A disclosure arranged in columns gives its evidence the whole row. Keep this
+   native pseudo-element rule outside package scopes: Firefox computes scoped
+   ::details-content declarations but does not use them for grid placement. */
+details::details-content {
+  grid-column: 1 / -1;
+}
+
+/* Frame edges propagate through generated shadow wrappers and their slots by the
+ * same rule as ordinary document wrappers (theme.css, block-flow frames). */
+@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
+  * {
+    --lf-block-frame: 0;
+  }
+}
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
+  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
+  }
+}
+@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
+  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+    margin-block-end: 0;
+    --lf-frame-end: 1;
+  }
+}

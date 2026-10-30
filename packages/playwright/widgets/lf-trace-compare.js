@@ -13,6 +13,7 @@ import {
   once,
   offer,
   openingView,
+  viewMembers,
   quoted,
 } from "/runtime/widget-api.js";
 import "./lf-trace.js";
@@ -27,15 +28,14 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
-      for (const child of this.children) {
+      for (const child of viewMembers(this)) {
         const recording = child.matches("lf-trace")
           ? child
           : child.querySelector("lf-trace");
-        if (!recording) continue;
         this.#views.push(child);
         this.#recordings.push(recording);
       }
-      this.#selected = this.#views.indexOf(openingView(this, this.#views));
+      this.#selected = this.#views.indexOf(openingView(this));
       const header = el("div", "lf-trace-compare-controls");
       generatedElement(header, { says: false });
       /** @type {any} Web Awesome's radio group exposes form properties. */
@@ -84,17 +84,11 @@ customElements.define(
     #draw() {
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
-      keeps(this.#views[this.#selected], "hidden", null);
+      keepView(this, this.#views[this.#selected]);
       for (const [index, recording] of this.#recordings.entries()) {
         if (index !== this.#selected) recording.pause();
-        keeps(
-          this.#views[index],
-          "hidden",
-          index === this.#selected ? null : "until-found",
-        );
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
       layoutChanged(this);
     }
   },

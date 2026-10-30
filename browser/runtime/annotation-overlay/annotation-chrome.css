@@ -442,7 +442,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: center;
     gap: 0;
     color: var(--muted-2);
-    font-size: 10px;
+    font-size: var(--t-7);
   }
   .lf-margin-preview-position {
     white-space: nowrap;

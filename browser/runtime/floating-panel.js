@@ -1442,6 +1442,9 @@ export function createFloatingPanel({
     transition(before);
   }
   function close({ handedOn = false } = {}) {
+    // Closing the view ends the writing posture too. A saved page draft keeps
+    // its own posture; entering the field starts writing again.
+    writing = false;
     const before = trail.value.at(-1);
     trail.value = [];
     searching = false;
@@ -4156,7 +4159,9 @@ export function createFloatingPanel({
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", !search && reading.offers ? "" : null);
+    // Only the page field competes with the seated annotation composer. An open
+    // view already keeps that seat out, regardless of what its reply field says.
+    keeps(host, "data-offers", !top && !search && reading.offers ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
 

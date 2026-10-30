@@ -42,6 +42,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
@@ -832,7 +833,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        raiseError(`Could not add image — ${error?.message ?? error}`, { subject: ta });
+        raiseError(`Could not add image — ${describeFailure(error)}`, { subject: ta });
         return false;
       } finally {
         uploading = false;

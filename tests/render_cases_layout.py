@@ -413,8 +413,8 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     """<lf-ask id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
-    <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
-    <p>An option carrying a note written inside it.</p>
+    <div class="layout-note"><p>An option carrying a note written inside it.</p>
+    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
 </lf-options></lf-ask>
@@ -426,14 +426,13 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 # elements in the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
-    """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside>
-<lf-suggestion id="sug-level">
+    """<div class="layout-note"><lf-suggestion id="sug-level">
   <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
   <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion>
+</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
+moved twice inside it.</aside></div>
 </main>""",
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
@@ -1035,10 +1034,10 @@ def glyph_action_face(control):
     """What a user sees of a glyph action, as one reading both its tests share.
 
     Send and Add option are the same face: a bare glyph in the action's own ink over a
-    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    disc that stays clear at rest and takes the action's tint under the pointer.
     The press paints nothing of its own in either state, so `press` is the claim that
-    the disc is the whole of the paint and `discWidth` is why it does not grow with the
-    hit box around it.
+    the disc is the whole of the paint. `discWidth` measures that face separately from
+    the hit box around it.
     """
     return control.evaluate(
         """el => {

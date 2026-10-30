@@ -489,7 +489,7 @@ button.lf-media-open {
   inset-inline: 0;
   inset-block-end: 0;
   padding: 2px;
-  font: 10px/1.2 var(--sans);
+  font: var(--t-7)/1.2 var(--sans);
   background: var(--paper);
   color: var(--ink-2);
 }

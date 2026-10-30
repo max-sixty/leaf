@@ -172,11 +172,10 @@ MARGIN_ACTIONS_PAGE = leaf_page(
 )
 
 
-# The right edge of the column's words, inside `main`'s padding. A thread card beside
-# them stands clear of it, over the margin cluster if its measure needs that room.
+# The heading shares the prose track. A thread card stands clear of its words,
+# over the margin cluster if its measure needs that room.
 WORDS_RIGHT = """() => {
-  const main = document.querySelector('main');
-  return main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
+  return document.querySelector('main h1').getBoundingClientRect().right;
 }"""
 
 

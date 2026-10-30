@@ -1,6 +1,6 @@
-import { LAYOUT, afterScript, cancelRender, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
-import { TAB_STOP, atLayoutPrecision, coarsePointer, hoveringPointer, keeps, layoutPx, move, renderedChildren } from "./bundle-layer-stack.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
+import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -326,7 +326,7 @@ function marginSpot(target, point = null, passage = null) {
 	const main = marginColumn();
 	if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
 	const hang = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rail-hang")) || 0;
-	const left = main.getBoundingClientRect().right + hang;
+	const left = proseRect(main).right + hang;
 	return {
 		left,
 		right: left + restingRail().row
@@ -497,9 +497,10 @@ function reach(anchor, box, main, reaches) {
 		let edge = reaches.get(el);
 		if (edge === void 0) {
 			const b = el.getBoundingClientRect();
+			const style = getComputedStyle(el);
 			edge = {
-				right: b.right,
-				clip: getComputedStyle(el).overflowX === "visible" ? null : b.left + el.clientLeft + el.clientWidth
+				right: style.gridTemplateColumns.includes("prose-start") || style.gridTemplateColumns.startsWith("subgrid") && style.gridColumnStart === "full" ? -Infinity : b.right,
+				clip: style.overflowX === "visible" ? null : b.left + el.clientLeft + el.clientWidth
 			};
 			reaches.set(el, edge);
 		}
@@ -800,7 +801,7 @@ function layoutMarginRows() {
 	laidOutScrollX = scrollX;
 	const present = [];
 	const main = marginColumn();
-	const columnRect = main.getBoundingClientRect();
+	const columnRect = proseRect(main);
 	const columnHeight = main.scrollHeight;
 	const shell = shellRight();
 	const stands = railStands(main);
@@ -810,7 +811,7 @@ function layoutMarginRows() {
 	const railInner = columnRect.right + hang;
 	let railEntry;
 	const railEntrySize = () => railEntry ??= layer.root.parentElement.querySelector(".lf-margin-cluster:not([data-lf-place=\"pin\"]) .lf-margin-entry:not([hidden])")?.offsetWidth || restingRail().entry;
-	const notes = [...main.querySelectorAll("aside.sidenote")].filter((note) => !skipped(note)).map((note) => note.getBoundingClientRect()).filter((note) => note.width && note.left >= columnRect.right - 1);
+	const notes = [...main.querySelectorAll(".layout-note > aside")].filter((note) => !skipped(note)).map((note) => note.getBoundingClientRect()).filter((note) => note.width && note.left >= columnRect.right - 1);
 	const bands = /* @__PURE__ */ new Map();
 	const reaches = /* @__PURE__ */ new Map();
 	const reads = [];

@@ -768,11 +768,10 @@ def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
 
 
 def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
-    """A thread's view in the panel stands at what the thread is about, open or
-    resolved, as the side panel's cards did: the ask it is about wears the ring, and
-    its digits answer it from the view. Opening a resolved thread left focus nowhere,
-    and nothing about the view said the previous location, so the ask stayed plain and
-    2 chose nothing. A digit typed in the reply is still a word in the reply."""
+    """Open and resolved panel threads stand at their ask: its ring stays on and
+    digits answer it from the view. Opening either thread focuses its reply; Escape
+    leaves the reply for the view. A digit typed in the reply stays reply text.
+    """
     url = serve(STORE_ASK_PAGE)
     seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
     seed_thread_about_the_ask(serve.page_dir, "t-open")
@@ -780,12 +779,16 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     ask = page.locator("#store-ask")
 
     view = open_panel_thread(page, "t-done")
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("Escape")
     expect(view).to_be_focused()
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
-
     page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
     view = open_panel_thread(page, "t-open")
     reply = page.locator(PANEL_REPLY)
     expect(reply).to_be_focused()
@@ -793,7 +796,9 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     page.keyboard.type("3")
     expect(reply).to_have_js_property("value", "3")
     expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
-    view.focus()
+    page.keyboard.press("Escape")
+    expect(view).to_be_focused()
+    rendered(page)
     page.keyboard.press("3")
     expect(page.locator("#store-db")).to_have_attribute("chosen", "")
 

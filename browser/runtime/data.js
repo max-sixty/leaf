@@ -27,13 +27,7 @@ import { reportPageError, requestJson } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 
 export function acceptData(candidate, taken) {
-  const changed = applicationState.acceptData(candidate, taken);
-  const initial = document.documentElement.lfInitial;
-  initial.source = (source) => (source ? (runtime.data.sources[source] ?? null) : null);
-  // The accepted immutable root now owns these values. Drop delivery's initial
-  // holder even for a crossed stale answer; the canonical owner kept the newer one.
-  initial.releaseData();
-  return changed;
+  return applicationState.acceptData(candidate, taken);
 }
 
 // The regions that hold the data version until they have drawn a delivery.
@@ -233,19 +227,16 @@ export function dataReader(element, input, accepted) {
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
       widget ? selected.read() : delivered.value
     );
-    const reading = document.documentElement.lfInitial.inputReading(
-      declaration,
-      sourceStore,
-      (incompatible) => {
-        if (reported === incompatible) return;
-        reported = incompatible;
-        reportPageError(
-          `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${incompatible.contract}; ` +
-            `<${element.localName}> input ${input} requires ${declaration.contract}`,
-        );
-      },
-    );
-    if (!reading) return null;
+    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+    if (incompatible && reported !== sourceStore) {
+      reported = sourceStore;
+      reportPageError(
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
+          `<${element.localName}> input ${input} requires ${declaration.contract}`,
+      );
+    }
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return null;
     // One copy a delivery: a render that reads it again gets the same value, so a widget
     // tells a new delivery by identity, and none can mutate the accepted snapshot.
     if (sourceStore !== copied.store) {

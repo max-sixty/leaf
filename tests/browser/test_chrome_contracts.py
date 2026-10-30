@@ -1530,3 +1530,45 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, 
     assert typed["face"] == empty["face"]
     one, two = typed["words"]
     assert two == pytest.approx(one, abs=0.5), typed
+
+
+# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫` and ArrowLeft as `←`,
+# and the draft they leave.
+CONTINUED = {
+    "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
+    "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
+    "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
+    "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
+    "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
+    "leaving a nested list": (
+        "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
+        "1. a\n2. b\n   - c\n\n   d",
+    ),
+    "splitting an item": ("- one two←←←⏎", "- one \n- two"),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_shift_enter_continues_the_containers_the_message_will_hold(
+    engine, request, serve
+):
+    """Shift+Enter begins a line in each quote and list item the message will read the
+    caret's line in, a fence's code included, and on a line holding only their markers
+    leaves the innermost. CodeMirror's own Markdown grammar decided it, which stopped at
+    a fence, so a fence's next line fell out of its quote or item and its closing fence
+    opened another; leaving a list took a third press, the second only loosening it."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    keys = {"⏎": "Shift+Enter", "⌫": "Backspace", "←": "ArrowLeft"}
+    left = {}
+    for name, (typed, _) in CONTINUED.items():
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+        for key in typed:
+            if key in keys:
+                page.keyboard.press(keys[key])
+            else:
+                page.keyboard.type(key)
+        left[name] = field.evaluate("box => box.value")
+    assert left == {name: draft for name, (_, draft) in CONTINUED.items()}

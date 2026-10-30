@@ -283,6 +283,29 @@ test("block markers retain native source spans inside containers and fences", as
   }
 });
 
+test("a list item records the indent its later lines stand at past its container's", async () => {
+  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  await loadMarkdown();
+  for (const [source, expected] of [
+    ["- a", [2]],
+    ["10. a", [4]],
+    ["-   a", [4]],
+    ["-      a", [2]],
+    ["-", [2]],
+    ["  - a\n     - b", [4, 3]],
+    ["- a\n  1. b", [2, 3]],
+    ["- - a", [2, 2]],
+    ["> - a\n>   > 2) b", [2, 3]],
+  ])
+    assert.deepEqual(
+      placedMarkdownTokens(source)
+        .filter(({ token }) => token.type === "list_item_open")
+        .map(({ token }) => token.meta.indent),
+      expected,
+      source,
+    );
+});
+
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
   const { registry } = await import("/runtime/registry.js");
   const { preloadWidgets } = await import("/runtime/widget-loader.js");

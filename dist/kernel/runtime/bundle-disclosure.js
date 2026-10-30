@@ -1327,7 +1327,7 @@ function standBlocks(state, blocks, out, line) {
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= import("/vendor/codemirror.esm.js").then((codemirror) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, LanguageSupport, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects, markdownLanguage, insertNewlineContinueMarkup }, LeafEditorView) {
+function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
@@ -1605,6 +1605,55 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 		decorations: (plugin) => plugin.drawn.decorations,
 		provide: (plugin) => [EditorView.outerDecorations.of((view) => view.plugin(plugin)?.drawn.runs ?? Decoration.none), EditorView.blockWrappers.of((view) => view.plugin(plugin)?.drawn.boxes ?? BlockWrapper.set([]))]
 	});
+	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", "list_item_open"]);
+	function continueBlocks(view) {
+		const { state } = view;
+		const placed = view.plugin(livePreview)?.placed ?? [];
+		const { from, to } = state.selection.main;
+		const line = state.doc.lineAt(from);
+		const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
+		const holding = (c) => c.from <= line.from && line.from < c.to;
+		const containers = all.filter(holding);
+		if (!containers.length) return false;
+		const code = placed.some((c) => c.token.type === "fence" && holding(c));
+		const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+		const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+		const bare = (l) => !state.sliceDoc(opened(l, all), l.to).trim();
+		if (from < opened(line, containers)) return false;
+		const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+		const inner = containers.at(-1);
+		const outside = containers.slice(0, -1);
+		let change;
+		if (!code && to <= line.to && bare(line)) {
+			let kept = "";
+			for (const c of outside) {
+				const own = markerOn(c, line);
+				kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
+			}
+			const above = line.number > 1 && state.doc.line(line.number - 1);
+			const insert = above && !bare(above) ? `${kept.trimEnd()}\n${outside.map(carried).join("")}` : kept;
+			change = {
+				from: line.from,
+				to: line.to,
+				insert
+			};
+		} else {
+			const { token } = inner;
+			const marker = token.type === "list_item_open" && inner.from === line.from && !code ? `${token.info && Number(token.info) + 1}${token.markup} ` : carried(inner);
+			change = {
+				from,
+				to,
+				insert: `\n${outside.map(carried).join("")}${marker}`
+			};
+		}
+		view.dispatch(state.update({
+			changes: change,
+			selection: { anchor: change.from + change.insert.length },
+			scrollIntoView: true,
+			userEvent: "input"
+		}));
+		return true;
+	}
 	const editable = new Compartment();
 	const histories = new Compartment();
 	const attributes = new Compartment();
@@ -1667,7 +1716,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					},
 					{
 						key: "Shift-Enter",
-						run: insertNewlineContinueMarkup
+						run: continueBlocks
 					},
 					{
 						key: "Shift-Enter",
@@ -1679,7 +1728,6 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
 					...historyKeymap
 				]),
-				new LanguageSupport(markdownLanguage),
 				livePreview,
 				EditorView.lineWrapping,
 				editable.of(EditorState.readOnly.of(field.readOnly)),

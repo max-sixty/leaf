@@ -200,6 +200,8 @@ const bundles = {
       'export { default as taskLists } from "markdown-it-task-lists";\n',
     // Record block syntax where native rules consume it. Public maps expose only
     // lines; guessing delimiters again disagrees with containers and code content.
+    // A list item also records the columns its later lines stand past its
+    // container's, where the item's own blocks start.
     adapt: [
       {
         file: /markdown-it\/dist\/markdown-it\.mjs$/,
@@ -241,7 +243,7 @@ const bundles = {
             [
               'token = state.push("list_item_open", "li", 1);',
               `token = state.push("list_item_open", "li", 1);
-          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
+          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))], indent: indent - state.blkIndent };`,
             ],
           ].reduce(
             (text, [original, replacement]) =>
@@ -348,10 +350,10 @@ const bundles = {
   // One bundle holds the editor core and the GFM Markdown language, exporting the
   // names composers and the file-editor adapter import. Optional autocomplete and
   // merge live in the file-editor package and import this same state/view/language
-  // implementation. The runtime owns the live-preview decorations; nothing here
-  // styles a document. The language comes without `markdown()`, whose HTML-block
-  // support would carry the HTML, CSS and JavaScript grammars into the bundle for
-  // syntax a comment never highlights.
+  // implementation. The runtime owns the live-preview decorations and reads a draft
+  // with markdown-it alone; only the file editor highlights with the language. It
+  // comes without `markdown()`, whose HTML-block support would carry the HTML, CSS
+  // and JavaScript grammars into the bundle for syntax a file never highlights.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
     entry:
@@ -361,8 +363,7 @@ const bundles = {
       "export { history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }" +
       ' from "@codemirror/commands";\n' +
       'export { LanguageSupport } from "@codemirror/language";\n' +
-      "export { markdownLanguage, insertNewlineContinueMarkup }" +
-      ' from "@codemirror/lang-markdown";\n' +
+      'export { markdownLanguage } from "@codemirror/lang-markdown";\n' +
       'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n' +
       'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip, placeholder } from "@codemirror/view";\n' +
       'export { defaultKeymap } from "@codemirror/commands";\n' +

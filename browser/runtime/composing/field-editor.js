@@ -217,7 +217,6 @@ function fieldEditor(
     WidgetType,
     Decoration,
     BlockWrapper,
-    LanguageSupport,
     ViewPlugin,
     keymap,
     history,
@@ -225,8 +224,6 @@ function fieldEditor(
     historyKeymap,
     isolateHistory,
     invertedEffects,
-    markdownLanguage,
-    insertNewlineContinueMarkup,
   },
   LeafEditorView,
 ) {
@@ -618,6 +615,75 @@ function fieldEditor(
     },
   );
 
+  // Shift+Enter in a quote or a list item begins a line in each container the caret's
+  // line stands in, as the preview reads the draft (`livePreview`), which is how the
+  // message will read it, a fence's code included: each quote's `>`, each item's indent,
+  // and on the line holding the innermost item's marker, the next item's marker. Pressed
+  // on a line holding nothing past its markers, outside code, it leaves the innermost
+  // container: the line keeps what it holds for the containers outside, and unless the
+  // line above already parts two blocks, it becomes that parting and the caret takes a
+  // new line in them. With the caret among the markers, or in no container, the press is
+  // a plain new line. The numbers of the items after a new one stay as typed, since the
+  // message numbers a list from its first. Rejected: CodeMirror's Markdown continuation
+  // (until October 2026), whose grammar, a second beside the renderer's, read the whole
+  // draft again on every key, ended a quote or item at a fence inside it, and took three
+  // presses to leave a list.
+  const CONTAINERS = new Set(["blockquote_open", "list_item_open"]);
+  function continueBlocks(view) {
+    const { state } = view;
+    const placed = view.plugin(livePreview)?.placed ?? [];
+    const { from, to } = state.selection.main;
+    const line = state.doc.lineAt(from);
+    const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
+    const holding = (c) => c.from <= line.from && line.from < c.to;
+    const containers = all.filter(holding);
+    if (!containers.length) return false;
+    const code = placed.some((c) => c.token.type === "fence" && holding(c));
+    const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+    // Where the markers that open a line end: a line holding nothing past them is bare.
+    const opened = (l, among) =>
+      Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+    const bare = (l) => !state.sliceDoc(opened(l, all), l.to).trim();
+    if (from < opened(line, containers)) return false;
+    // A line a container holds without its marker carries the quote's `>`, or the
+    // item's indent.
+    const carried = ({ token }) =>
+      token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+    const inner = containers.at(-1);
+    const outside = containers.slice(0, -1);
+    let change;
+    if (!code && to <= line.to && bare(line)) {
+      let kept = "";
+      for (const c of outside) {
+        const own = markerOn(c, line);
+        kept = own ? state.sliceDoc(line.from, own[1]) : kept + carried(c);
+      }
+      const above = line.number > 1 && state.doc.line(line.number - 1);
+      const insert =
+        above && !bare(above)
+          ? `${kept.trimEnd()}\n${outside.map(carried).join("")}`
+          : kept;
+      change = { from: line.from, to: line.to, insert };
+    } else {
+      const { token } = inner;
+      const marker =
+        token.type === "list_item_open" && inner.from === line.from && !code
+          ? `${token.info && Number(token.info) + 1}${token.markup} `
+          : carried(inner);
+      const insert = `\n${outside.map(carried).join("")}${marker}`;
+      change = { from, to, insert };
+    }
+    view.dispatch(
+      state.update({
+        changes: change,
+        selection: { anchor: change.from + change.insert.length },
+        scrollIntoView: true,
+        userEvent: "input",
+      }),
+    );
+    return true;
+  }
+
   const editable = new Compartment();
   const histories = new Compartment();
   const attributes = new Compartment();
@@ -713,7 +779,7 @@ function fieldEditor(
           // A one-line field takes no line break (`field.oneLine`).
           { key: "Shift-Enter", run: () => field.oneLine() },
           { key: "Enter", run: (view) => field.returned() && insertNewline(view) },
-          { key: "Shift-Enter", run: insertNewlineContinueMarkup },
+          { key: "Shift-Enter", run: continueBlocks },
           // Outside a list or quote, a plain new line, which asks to be seen as typing
           // does, so a field at its height limit scrolls to it.
           {
@@ -733,7 +799,6 @@ function fieldEditor(
           ),
           ...historyKeymap,
         ]),
-        new LanguageSupport(markdownLanguage),
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

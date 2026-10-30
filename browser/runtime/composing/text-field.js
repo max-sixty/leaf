@@ -14,8 +14,8 @@
  * character. Nothing is converted: the value is always the source the user typed,
  * which is what the agent reads. The constructs come from the renderer that sends the
  * message (`markdownTokens`), never from a second grammar, so the preview and the
- * message agree on what is a link, a heading or code. CodeMirror's own Markdown
- * grammar serves only editing: Shift+Enter continuing a list.
+ * message agree on what is a link, a heading or code, and Shift+Enter continues the
+ * quotes and list items the message will hold.
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
@@ -109,9 +109,10 @@
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
- * editing route is explicit. Shift+Enter inserts a line and continues a list or
- * quote. A host the page marks `aria-multiline="false"`, such as an option's title,
- * holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
+ * editing route is explicit. Shift+Enter inserts a line and continues each quote and
+ * list item the caret stands in; on a line holding only their markers, it leaves the
+ * innermost (`continueBlocks`, field-editor.js). A host the page marks
+ * `aria-multiline="false"`, such as an option's title, holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
  * way becomes a space, and its owner reserves Return. Mod+Z
  * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
  * for what its draft holds beside them (`record`), such as a composer's drawing, each

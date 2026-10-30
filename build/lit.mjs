@@ -42,7 +42,7 @@ const specifiers = (pairs) =>
 // under distinct tag names; polyfill support targets browsers older than Leaf's.
 function litModules() {
   const { exports } = JSON.parse(
-    readFileSync(new URL("../node_modules/lit/package.json", import.meta.url)),
+    readFileSync(new URL("../node_modules/lit/package.json", import.meta.url), "utf8"),
   );
   return Object.keys(exports)
     .filter(

@@ -99,7 +99,8 @@ def _launch(read):
     with ExitStack() as stack:
         try:
             p = stack.enter_context(sync_playwright())
-        except Exception as error:  # noqa: BLE001 - Playwright raises bare Exception on driver EOF
+        except Exception as error:
+            # Playwright raises bare Exception on driver EOF.
             return f"Playwright's driver did not start: {error}"
         try:
             browser, browser_name = launch_browser(p)
@@ -119,8 +120,8 @@ class BrowserCheck:
     code that fails ends the check before the render reading, so `render` is None
     there as well as where it was not asked for, and `ran` names only the gates that
     read the page. `screens` is the directory and each
-    saved screen with what it shows, for a page the render gate passed. `desktop` is
-    the window the render check reads the desktop at, where it was asked for."""
+    saved screen with what it shows, including when the render gate found failures.
+    `desktop` is the window the render check reads the desktop at, where it was asked for."""
 
     gates: list[str]
     browser: str | None = None
@@ -154,6 +155,7 @@ class BrowserCheck:
         if self.unavailable is not None:
             reading["unavailable"] = self.unavailable
         if self.render is not None:
+            assert self.desktop is not None
             reading["desktop"] = self.desktop.json()
             reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
@@ -178,7 +180,7 @@ def browser_check(
     """Serve the candidate source once and, in one browser, run the page's own code
     (`page_code` says which run and which errors fail it), then the render invariants
     at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
-    the pre-handover review reads for a page they pass. Page code that fails ends the
+    the author reads, including when there are findings. Page code that fails ends the
     check before the render reading."""
     artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
@@ -192,6 +194,7 @@ def browser_check(
         errors = run_page_code(browser, url) if page_code else None
         if errors or not render:
             return errors, None, None
+        assert desktop is not None
         reading = render_version(
             browser,
             url,
@@ -199,8 +202,6 @@ def browser_check(
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
         )
-        if reading.failures:
-            return errors, reading, None
         screens = save_screens(browser, url, reading, page_dir, desktop.viewport)
         return errors, reading, screens
 

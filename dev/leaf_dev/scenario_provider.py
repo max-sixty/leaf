@@ -46,7 +46,7 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         return response
     executor = import_module(metadata["executor"])
     parameters = signature(executor.execute_scenario).parameters
-    inputs = (
+    inputs: dict = (
         {"shots": Path(config["screenshots"]) / work.name}
         if "shots" in parameters
         else {}

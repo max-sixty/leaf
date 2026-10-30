@@ -48,7 +48,7 @@ from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, TypedDict
 
 import click
 from starlette.responses import Response
@@ -422,6 +422,35 @@ def next_unaccepted_agent_event(
         )
 
 
+class AgentHarness(Protocol):
+    """The hosted-agent operations a website request can invoke."""
+
+    def attach(self, page_dir: Path, event_id: str) -> str | None: ...
+
+    def failure_receipt(
+        self, page_dir: Path, event_id: str, failure: str
+    ) -> dict | None: ...
+
+
+class AgentProcess(Protocol):
+    """The provider process identity passed to a delivery's page claim."""
+
+    @property
+    def pid(self) -> int: ...
+
+
+# The functional form keeps schema fields out of vulture's variable scan.
+TokenUsage = TypedDict(  # noqa: UP013
+    "TokenUsage",
+    {
+        "modelRequests": int,
+        "inputTokens": int,
+        "cachedInputTokens": int,
+        "outputTokens": int,
+    },
+)
+
+
 class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
@@ -442,6 +471,7 @@ class HostedTurn(CarriedTurn):
     """
 
     silence = STREAM_SILENCE
+    delivery_id: str
 
     def __init__(
         self,
@@ -453,7 +483,7 @@ class HostedTurn(CarriedTurn):
         turn_id: str,
         socket=None,
         *,
-        lifecycle: dict,
+        lifecycle: dict | None,
         reply_target: dict | None = None,
         buffered=(),
     ):
@@ -467,6 +497,7 @@ class HostedTurn(CarriedTurn):
             lifecycle=lifecycle,
         )
         self.harness = harness
+        self.delivery_id = delivery_id
         self.page_dir = page_dir
         self.event_ids = event_ids
         self.fields = agent_event_fields(event_ids)
@@ -474,9 +505,12 @@ class HostedTurn(CarriedTurn):
         self.started = time.monotonic()
         self.milestones: set[str] = set()
         # What the turn's model requests read and wrote, summed over the requests.
-        self.tokens = dict.fromkeys(
-            ("modelRequests", "inputTokens", "cachedInputTokens", "outputTokens"), 0
-        )
+        self.tokens: TokenUsage = {
+            "modelRequests": 0,
+            "inputTokens": 0,
+            "cachedInputTokens": 0,
+            "outputTokens": 0,
+        }
 
     def elapsed(self) -> int:
         return elapsed_ms(self.started)
@@ -570,9 +604,13 @@ class HostedTurn(CarriedTurn):
     def observe_reply(self, update: dict | None, published: bool) -> None:
         """Record published reply milestones, keeping text in private diagnostics."""
         message_update = update.get("message") if update is not None else None
-        if published and (
-            update.get("opening")
-            or (message_update is not None and bool(message_update["text"]))
+        if (
+            published
+            and update is not None
+            and (
+                update.get("opening")
+                or (message_update is not None and bool(message_update["text"]))
+            )
         ):
             self.milestone(
                 "turn_reply_first_text_published",
@@ -587,7 +625,7 @@ class HostedTurn(CarriedTurn):
                 reply=message_update,
             )
 
-    def ended(self, error: BaseException) -> dict:
+    def ended(self, error: BaseException) -> dict | None:
         """End the provider turn this container has stopped reading, and say so.
 
         Nobody else is watching it: every follower here interrupts its turn before
@@ -767,6 +805,7 @@ class WebsiteCodexHarness:
         if thread_id in self.waiter_leases:
             return
         path = waiter_lease_path(page_dir, thread_id)
+        assert path is not None
         lease = take_wait_lease(path)
         if lease is None:
             raise RuntimeError("another Leaf waiter already owns this Codex task")
@@ -867,7 +906,7 @@ class WebsiteCodexHarness:
                             restarted = self._resume_and_start(
                                 page_dir, turn.session_id, process, turn.event_ids[0]
                             )
-                    except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
+                    except Exception as error:
                         log_agent(
                             "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
@@ -919,7 +958,7 @@ class WebsiteCodexHarness:
             try:
                 if self.attach(page_dir, continuation) is not None:
                     return
-            except Exception:  # noqa: BLE001 - receipted, never raised
+            except Exception:
                 # `attach` has already recorded the fault; what this adds is which of
                 # the two owners answered for it. Every class, because what the user
                 # is owed does not depend on which one: this is the top of a daemon
@@ -994,7 +1033,7 @@ class WebsiteCodexHarness:
                 {"threadId": thread_id, "turnId": turn_id},
             )
             log_agent("turn_interrupted", turnId=turn_id or None, **fields)
-        except Exception as error:  # noqa: BLE001 - reported, never raised
+        except Exception as error:
             # This runs where a turn is already ending badly, so a fault of its own
             # would replace the ending its caller is in the middle of accounting for.
             log_agent(
@@ -1033,7 +1072,7 @@ class WebsiteCodexHarness:
         socket,
         page_dir: Path,
         thread_id: str,
-        process: subprocess.Popen,
+        process: AgentProcess,
         pending: list[dict] | None = None,
     ) -> HostedTurn:
         started = time.monotonic()
@@ -1164,7 +1203,7 @@ class WebsiteCodexHarness:
             abandon_codex_delivery(thread_id, event_id)
 
     def _start_thread(
-        self, page_dir: Path, process: subprocess.Popen, event_id: str
+        self, page_dir: Path, process: AgentProcess, event_id: str
     ) -> str:
         started = time.monotonic()
 
@@ -1198,7 +1237,7 @@ class WebsiteCodexHarness:
         self,
         page_dir: Path,
         thread_id: str,
-        process: subprocess.Popen,
+        process: AgentProcess,
         event_id: str,
     ) -> bool:
         started = time.monotonic()
@@ -1391,7 +1430,7 @@ class WebsitePageEndpoint(PageEndpoint):
         routes: tuple[PageRoute, ...],
         pages: dict,
         release: str,
-        agent_harness: WebsiteCodexHarness,
+        agent_harness: AgentHarness | None,
     ) -> None:
         super().__init__(request, server, release=release)
         self.routes = routes
@@ -1467,12 +1506,14 @@ class WebsitePageEndpoint(PageEndpoint):
     # can reach them too, but what it posts lands in this visitor's page, which it can
     # already write, so they read the body as given.
     def _start_agent(self) -> Response:
+        assert self.agent_harness is not None
         thread_id = self.agent_harness.attach(self.page_dir, self.posted["event"])
         if thread_id is None:
             return self._json({"status": "settled"})
         return self._json({"status": "started", "thread": thread_id})
 
     def _fail_agent(self) -> Response:
+        assert self.agent_harness is not None
         try:
             accepted = self.agent_harness.failure_receipt(
                 self.page_dir, self.posted["event"], self.posted["failure"]
@@ -1542,7 +1583,7 @@ class WebsitePageEndpoint(PageEndpoint):
 
 def site_endpoint(
     site_root: Path,
-    agent_harness: WebsiteCodexHarness | None = None,
+    agent_harness: AgentHarness | None = None,
 ) -> partial[WebsitePageEndpoint]:
     """Bind every page directory in one site build to the endpoint a request becomes."""
     root = site_root.resolve()
@@ -1565,6 +1606,7 @@ def initial_state(
 ) -> dict:
     """Build the canonical state shared by users before any private mutation."""
     revision = latest_revision(page_dir)
+    assert revision is not None
     captured = capture_page_snapshot(
         page_dir,
         read_revision(page_dir, revision).document,

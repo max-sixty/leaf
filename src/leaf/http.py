@@ -38,6 +38,7 @@ from starlette.responses import FileResponse, Response
 from .data import (
     DataError,
     StaleDataError,
+    browser_data_from,
     deferred_value,
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
@@ -295,7 +296,7 @@ class PageEndpoint:
         # The page this request is against. A one-page server binds it here for the
         # life of the server, through `page_endpoint`; a multiplexed transport binds
         # each request in `_select_page`, from the address it arrived at.
-        self.page_dir = page_dir
+        self._page_dir = page_dir
         self.token = token
         self.layer_identity = layer_identity
         self.preview = preview
@@ -339,6 +340,16 @@ class PageEndpoint:
         self.posted = {}
         self.posted_error: str | None = None
         self.retained_samples = []
+
+    @property
+    def page_dir(self) -> Path:
+        """The page bound before a request enters a page route."""
+        assert self._page_dir is not None
+        return self._page_dir
+
+    @page_dir.setter
+    def page_dir(self, value: Path | None) -> None:
+        self._page_dir = value
 
     @property
     def samples(self) -> Samples:
@@ -408,7 +419,7 @@ class PageEndpoint:
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
         if (
-            self.page_dir is not None
+            self._page_dir is not None
             and self.parent is None
             and not (self.housekeeping and status < 400)
         ):
@@ -522,16 +533,16 @@ class PageEndpoint:
 
     def deferred_value(self) -> dict:
         """One contract-declared payload from the source revision the tab holds."""
-        source = self.query.get("source", [None])[-1]
-        revision = self.query.get("source_revision", [None])[-1]
-        key = self.query.get("key", [None])[-1]
-        for name, value in (
-            ("source", source),
-            ("source_revision", revision),
-            ("key", key),
-        ):
+
+        def required(name: str) -> str:
+            value = self.query.get(name, [None])[-1]
             if not isinstance(value, str) or not value:
                 raise ValueError(f"{name} is required")
+            return value
+
+        source = required("source")
+        revision = required("source_revision")
+        key = required("key")
         view_revision = self.named_revision()
         registry = (
             self._registry(view_revision)
@@ -566,6 +577,7 @@ class PageEndpoint:
         works after one keyed arrival. Every same-host server receives the cookie
         regardless of its name; this does not isolate the key from other ports.
         """
+        assert self.token is not None
         digest = hashlib.sha256(self.token.encode()).hexdigest()[:32]
         return f"lf_key_{digest}"
 
@@ -576,6 +588,7 @@ class PageEndpoint:
         address in the tab, which the cookie authorizes on reload or from a
         bookmark. Delivery also declares the key for the explicit Share control;
         ordinary page requests continue to use the cookie."""
+        assert self.token is not None
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
@@ -762,7 +775,7 @@ class PageEndpoint:
                 self.posted, self.posted_error = prepare()
                 prepared = True
             return route()
-        except Exception as error:  # noqa: BLE001 - the boundary answers, never buries
+        except Exception as error:
             # Not a refusal: a fault may have landed either side of the append, so the
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
@@ -916,9 +929,16 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary."""
+        """Serve one immutable document with an initial data reading.
+
+        This reads no state projection: authored HTML remains available if a later
+        state fold fails. The first API state answer reuses these data bytes by
+        version, or supplies a newer value, and owns their admission timestamp.
+        """
         self.response_layer = artifact.registry["$layer"]["generation"]
         artifact = executing(artifact)
+        with self.source.state_read() as (context, _reading, _error):
+            data = browser_data_from(context.data, artifact.registry)
         projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
@@ -926,7 +946,7 @@ class PageEndpoint:
             executable=artifact.executable,
             resources=artifact.resources,
             registry=artifact.registry,
-            delivery=self._delivery(artifact, revision),
+            delivery=replace(self._delivery(artifact, revision), data=data),
         )
         response = self._content(200, "text/html; charset=utf-8", projected.encode())
         response.headers["Leaf-Document"] = str(revision)
@@ -1332,6 +1352,7 @@ class PageEndpoint:
         )
 
     def _store_media(self) -> Response:
+        assert isinstance(self.posted, bytes)
         try:
             media_path = store_uploaded_media(
                 self.page_dir,
@@ -1428,6 +1449,7 @@ class SampleEndpoint(PageEndpoint):
         # parent alone. Recording there also names the address the browser asked at
         # rather than the path inside the child, which is the request an operator
         # reading the fault is looking for.
+        assert self.parent is not None
         self.parent.record_fault(error)
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:

@@ -13,7 +13,6 @@ from journeys import (
     detached_threads,
     listed_threads,
 )
-from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -96,6 +95,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1970,7 +1970,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["block"] == [255, 255, 255], appearance
     assert all(
         channel > page_channel
-        for channel, page_channel in zip(appearance["block"], appearance["page"])
+        for channel, page_channel in zip(
+            appearance["block"], appearance["page"], strict=True
+        )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
     assert appearance["note"] == appearance["block"], appearance
@@ -2912,11 +2914,13 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
           background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
+          region: parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue('--focus-region-gap')),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] == 0, look
+    assert look["offset"] == look["region"], look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -4608,6 +4612,10 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
     expect(
         page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
+    # Card focus precedes the smooth scroll; observe arrival before settling it.
+    expect(
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
     assert page.evaluate("history.length") == entries + 1

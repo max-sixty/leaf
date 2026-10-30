@@ -14,7 +14,7 @@ import {
 } from "/runtime/annotation-overlay/comment-placement.js";
 import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
-// The card's widths as theme.css declares them, which the placement reads off the root.
+// The card's widths as base.css declares them, which the placement reads off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
 

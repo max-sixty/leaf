@@ -462,9 +462,22 @@ def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
                 record["next_actor"] = "agent"
 
 
+def shown_in(rec: dict, registry: dict) -> bool:
+    """Inside an element whose tag declares x-exhibit, a widget is shown rather than
+    asked, so it puts nothing on the user's list, whether or not the declaration's
+    condition holds there. The condition decides only whether it also takes no input
+    (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
+    page's log and Undo as a demonstration, and a page's On me holds only what the page
+    itself asks. Same holder-chain walk as `quoted_in`."""
+    return any(
+        bool(registry.get(node["tag"], {}).get("x-exhibit"))
+        for node in enclosing_widgets(rec)
+    )
+
+
 def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks x-exhibit, a widget is a mention
-    rather than a use, and asks nothing.
+    """Inside an element the registry marks x-exhibit where its condition holds, a
+    widget is a mention rather than a use: it takes no input and asks nothing.
 
     The holder chain answers it, which is the walk `enclosing_slot` makes and the
     one `quotedBy` makes over the DOM for a descriptor's own `quoted` flag. Asked of
@@ -568,7 +581,7 @@ class ObligationSources(NamedTuple):
     vocabulary.
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
-    (`quoted_in`).
+    (`shown_in`).
     `nodes` maps each id to its authoring node, whose words name an obligation's
     prompt.
 
@@ -602,7 +615,7 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
     return ObligationSources(
-        tuple((record, quoted_in(record, registry)) for record in declared),
+        tuple((record, shown_in(record, registry)) for record in declared),
         {
             node["attrs"]["id"]: node
             for document in documents
@@ -624,7 +637,7 @@ class _ObligationReducer:
         registry: dict,
         dropped: set,
         revision: int | None = None,
-        events: list = (),
+        events: list | None = None,
         data: dict | None = None,
     ):
         self.projection = projection
@@ -632,17 +645,17 @@ class _ObligationReducer:
         self.spk = spk
         self.registry = registry
         self.revision = revision
-        self.events = events
+        self.events = [] if events is None else events
         self.data = data or {"sources": {}}
         self.nodes = sources.nodes
-        self.records = [record for record, _quoted in sources.asking]
+        self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}
-        for record, quoted in sources.asking:
+        for record, shown in sources.asking:
             unit = record["attrs"].get("id")
-            self.exists[id(record)] = not ((unit and unit in dropped) or quoted)
+            self.exists[id(record)] = not ((unit and unit in dropped) or shown)
             self.local[id(record)] = self.exists[id(record)] and self._local(record)
 
     def _entry(self, record):
@@ -961,7 +974,7 @@ def page_obligation_readings(
     settled_away: set[str] | None = None,
     prior=None,
     revision: int | None = None,
-    events: list = (),
+    events: list | None = None,
     data: dict | None = None,
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:

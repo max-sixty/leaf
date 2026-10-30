@@ -95,6 +95,8 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
+/** @param {{id: string, host: Element, body: Element,
+ * paintContinuation?: (above: boolean) => void}} options */
 export function registerReadingRegion({
   id,
   host,
@@ -135,8 +137,8 @@ export function registerReadingRegion({
 // scrolls. Its id is the authored id of the box or, for an only child, of the child of
 // `main` holding it, as a sidebar page's `aside` names that box, so a neighbour's
 // arrival or removal never renames it; an unnamed one takes its place among the unnamed
-// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
-// replace `main`'s children and a resize can change which of them the stylesheet marks.
+// ones, in a namespace of its own. Document composition asks on every pass, since a
+// revision can replace `main`'s children and a resize can change which of them the stylesheet marks.
 const layoutRegions = new Map();
 const marked = (box) =>
   box.checkVisibility() &&
@@ -145,14 +147,14 @@ export function syncLayoutRegion() {
   const main = layoutBox();
   const bodies = main
     ? [...main.children].flatMap((child) => {
-        if (marked(child)) return [[child, child.id]];
+        if (marked(child)) return [{ body: child, name: child.id }];
         const only = child.childElementCount === 1 ? child.firstElementChild : null;
-        return only && marked(only) ? [[only, only.id || child.id]] : [];
+        return only && marked(only) ? [{ body: only, name: only.id || child.id }] : [];
       })
     : [];
   let unnamed = 0;
   const ids = new Map(
-    bodies.map(([body, name]) => [
+    bodies.map(({ body, name }) => [
       body,
       name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
     ]),
@@ -234,8 +236,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
-// named its place.
+// That focus belongs to the same press while it is down (focus.js, `pressing`);
+// pointerdown has already named its place.
 const readingInputReaders = new Set();
 export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
@@ -248,7 +250,7 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageDocument())) &&
-    !(arriving && at === document.body && pressing())
+    !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
 };
@@ -309,7 +311,13 @@ const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
 export const regionScrollBehavior = (regionOrNode) => {
   const region = asRegion(regionOrNode);
-  return region && live(region) && scrolls(region.body) ? "bounded" : "flow";
+  return region &&
+    live(region) &&
+    !concealed(region) &&
+    !skipped(region.body) &&
+    scrolls(region.body)
+    ? "bounded"
+    : "flow";
 };
 
 export function effectiveScroller(regionOrNode) {

@@ -277,7 +277,7 @@ def data_manifest(value, contract: str, registry: dict):
     }
 
 
-def browser_data_from(stored: dict, registry: dict) -> dict:
+def browser_data_from(stored: dict, registry: dict | None) -> dict:
     """The reading a browser receives: each value with its deferred fields omitted,
     which the deferred door serves from the same source file."""
     return {
@@ -287,7 +287,7 @@ def browser_data_from(stored: dict, registry: dict) -> dict:
                 {
                     **reading,
                     "value": data_manifest(
-                        reading["value"], reading["contract"], registry
+                        reading["value"], reading["contract"], registry or {}
                     ),
                 }
                 if "value" in reading
@@ -318,6 +318,7 @@ def deferred_value(
         raise DataError(f"data source {source!r} defers no record field")
     # `read_source` judged the value by its contract (`payload_error`): every record
     # is an object with a unique key. Its item schema decides which fields it carries.
+    assert value is not None
     item = next(
         (item for item in value[spec["items"]] if item[spec["key"]] == key), None
     )
@@ -377,7 +378,9 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
                 }
             },
         )
-        return read_source(page_dir, source, registry)
+        reading = read_source(page_dir, source, registry)
+        assert reading is not None
+        return reading
 
 
 def cmd_data_set(page_dir: Path, source: str, value) -> dict:

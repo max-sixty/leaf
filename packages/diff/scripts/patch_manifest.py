@@ -17,6 +17,7 @@ a path travel together, including a native delete/add file-type replacement.
 """
 
 import codecs
+import io
 import json
 import re
 import sys
@@ -49,6 +50,8 @@ def patch_manifest(source: str) -> dict:
 
 
 def main() -> int:
+    assert isinstance(sys.stdin, io.TextIOWrapper)
+    assert isinstance(sys.stdout, io.TextIOWrapper)
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     try:

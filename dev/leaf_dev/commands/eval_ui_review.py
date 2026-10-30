@@ -66,10 +66,10 @@ def served(site):
     """Expose only staged public files; directory listings and private paths fail."""
 
     class Handler(SimpleHTTPRequestHandler):
-        def list_directory(self, _):
+        def list_directory(self, path):
             self.send_error(404)
 
-        def log_message(self, *_):
+        def log_message(self, format, *args):
             pass
 
     with ThreadingHTTPServer(
@@ -283,7 +283,7 @@ def grading(output, login):
 def summarize(output):
     """Derive outcomes from Promptfoo's export, excluding unscored denominators."""
     exported = json.loads((output / "results.json").read_text())
-    rows = []
+    rows: list[dict] = []
     for result in exported["results"]["results"]:
         metadata = result["testCase"]["metadata"]
         components = (result.get("gradingResult") or {}).get("componentResults", [])

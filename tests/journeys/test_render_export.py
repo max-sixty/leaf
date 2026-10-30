@@ -285,7 +285,10 @@ def test_playground_examples_keep_their_offline_interaction_mode(
         live.locator('.query-row[data-filter-id="filter-2"] input').fill("80")
         submit = playground.get_by_role("button", name="Build query")
     else:
-        playground.get_by_role("button", name="B at 320px").click()
+        width = playground.get_by_role("slider", name="Comparison viewport")
+        for _ in range(5):
+            width.press("ArrowLeft")
+        playground.get_by_role("radio", name="B", exact=True).click()
         submit = playground.get_by_role("button", name="Apply treatment")
     with sending(live, f"the {stem} configuration"):
         submit.click()

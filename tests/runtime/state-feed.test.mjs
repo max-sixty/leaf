@@ -189,6 +189,36 @@ test("a return stays interrupted until its refreshed reading is actually present
   }
 });
 
+test("the first matching response completes from its held delivery after a newer admission", async (t) => {
+  const held = {
+    version: "initial",
+    sources: { builds: { contract: "c", value: "old" } },
+  };
+  const newer = {
+    version: "new",
+    sources: { builds: { contract: "c", value: "new" } },
+  };
+  const { runtime } = await import("/runtime/context.js");
+  const { acceptData } = await import("/runtime/data.js");
+  applicationState.acceptData({ version: null, sources: {} }, ++taken);
+  t.mock.method(document.documentElement.lfInitial, "initialData", () => held);
+  t.mock.method(document.documentElement.lfInitial, "releaseData", () => {});
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  const response = Promise.withResolvers();
+  const earlier = state("initial-response");
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    assert.equal(init.headers["Leaf-Data-Version"], "initial");
+    return response.promise;
+  });
+  const reading = beginRead();
+  acceptData(newer, ++taken);
+  response.resolve(Response.json({ ...earlier, data: { version: "initial" } }));
+  const { state: answer } = await reading;
+  assert.deepEqual(answer.data, held);
+  assert.equal(acceptData(answer.data, answer.taken), false);
+  assert.deepEqual(runtime.data, newer);
+});
+
 test("a read keeps the data it named when the answer leaves its sources out", async (t) => {
   const held = {
     version: "v1",

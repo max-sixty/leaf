@@ -138,7 +138,7 @@ export function restoreCarry(
         });
     }
     // Initial generated controls have boxes but stay hidden until upgrade
-    // (theme.css). Their focus joins the post-layout correction; authored fields
+    // (base.css). Their focus joins the post-layout correction; authored fields
     // already took focus above so typing can continue while presentation is held.
     restoreFocus(true);
   };

@@ -63,6 +63,7 @@ import { setScroll } from "./arrivals.js";
 import {
   clippedContents,
   landingBand,
+  seenRect,
   shownBox,
   shownWindow,
   userScrollport,
@@ -340,6 +341,8 @@ export function landingPlace(from = null) {
     const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
     const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
     if (shown) return shown;
+    // A widget holding no text block, such as an ask's options, is its own landing.
+    if (!own.length && seenRect(from, new Map())) return from;
   }
   return pageReading({ bodies: true });
 }

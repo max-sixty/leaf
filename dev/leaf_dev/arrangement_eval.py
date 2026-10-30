@@ -284,9 +284,11 @@ def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
         href = link.attrs.get("href")
         if not href:
             continue
+        assert isinstance(href, str)
         address, fragment = urldefrag(href)
         if address not in addresses:
             continue
+        assert link.source_location is not None
         location = link.source_location.attrs["href"]
         target = addresses[address] + (f"#{fragment}" if fragment else "")
         edits.append(
@@ -323,6 +325,7 @@ def restored_page(saved: dict):
         copies = {}
         addresses = {}
         for entry in archived:
+            assert isinstance(entry["page"], str)
             source = original.parent / entry["page"]
             copied = work / entry["page"]
             shutil.copytree(source, copied)
@@ -427,7 +430,9 @@ def author(run: Run, cwd: Path) -> None:
                 elif phase == 4:
                     decision_round(run, live)
                 elif phase == 5:
-                    live.send(CASES[run.subject].revision)
+                    revision = CASES[run.subject].revision
+                    assert revision is not None
+                    live.send(revision)
                 settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
                 snapshot_phase(run, phase)
                 if not settled or not (page / "index.html").exists():
@@ -435,6 +440,7 @@ def author(run: Run, cwd: Path) -> None:
                 if leaf and not live.url:
                     break
                 if leaf and phase == 1:
+                    assert live.url is not None
                     open_as_user(run, live.url)
     finally:
         if leaf:
@@ -448,12 +454,15 @@ def comment(run: Run, live: LiveSession):
     return the check that records it ahead of the record that shows it."""
     scenario = CASES[run.subject]
     remark = scenario.comment
+    assert remark is not None
     if not run.leaf_condition:
         live.send(comment_message(remark))
         return None
+    assert live.url is not None
+    url = live.url
     posted = live.during(
         lambda: comment_on_passage(
-            live.url,
+            url,
             remark.quotes,
             remark.text,
             comment_message(remark),
@@ -493,6 +502,7 @@ def decision_round(run: Run, live: LiveSession) -> None:
     before the model's report of displayed copy text; without either, retain that
     report for a page offering a manual export, or type the decision."""
     decision = CASES[run.subject].decision
+    assert decision is not None
     page = run.authored_page
     before = latest_seq(page)
 
@@ -500,6 +510,7 @@ def decision_round(run: Run, live: LiveSession) -> None:
 
     def deciding():
         if run.leaf_condition:
+            assert live.url is not None
             return decide(
                 live.url, decision.task, run.directory / "user", viewport=viewport
             )
@@ -714,7 +725,7 @@ Task and criterion:
                 if value is not None
             }
             return response | {"output": output, "tokenUsage": tokens}
-    except Exception as error:  # noqa: BLE001 - model/transport boundary
+    except Exception as error:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
 
 
@@ -903,7 +914,11 @@ def execute_scenario(
         split = phase_traces(trace)
         order = list(phases(case))
         session = dict(
-            zip(order, resumed([trace_summary(split.get(p, [])) for p in order]))
+            zip(
+                order,
+                resumed([trace_summary(split.get(p, [])) for p in order]),
+                strict=True,
+            )
         )
         if run.leaf_condition:
             served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)

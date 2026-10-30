@@ -54,6 +54,7 @@
  * history, so undo never walks back into a draft the runtime swapped out.
  * `edit(text)` replaces the words as external text input, such as dictation: it keeps
  * undo history and emits the same before-edit/input bracket as native typing.
+ * That bracket bubbles across enclosing shadow stages, as a textarea's input does.
  * `lf-caret-move` says the user moved the caret or selection without editing, as an
  * arrow key does; a write to the selection triple fires nothing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
@@ -104,6 +105,13 @@
  * caret's surroundings: an inline spacer after the last word wrapped alone or carried
  * that word with it, so typing a space after a word could pull it back up a line,
  * and it needed separate modes under a finger and while the field scrolled.
+ *
+ * A box may instead give the words the whole line and set `--lf-field-corner` to the
+ * square at the field's trailing foot its action stands in. The field then says
+ * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
+ * the box shows its action while the corner is free, and over the words only when
+ * focus comes to it or the pointer rests on it. Wrapping still turns on nothing but the words; only the
+ * action comes and goes. Under a mouse, Return sends when the action is hidden.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
@@ -169,7 +177,7 @@ sheet.replaceSync(`
   .lf-field > * { grid-area: 1 / 1; min-width: 0; }
   /* An owner moving the field's edges can carry the words from where they were with
      them, by the host's --lf-field-carry, and cut them to the box it draws growing, by
-     --lf-field-cut (theme.css): a transform and a cut that move neither the field nor
+     --lf-field-cut (base.css): a transform and a cut that move neither the field nor
      its layout. The field's content box cuts off what the field doesn't hold yet,
      such as a new line and its caret, and keeps the travel from widening the host's
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
@@ -243,7 +251,7 @@ sheet.replaceSync(`
     border-end-start-radius: var(--r); border-end-end-radius: var(--r);
     padding-block-end: 8px; }
   /* A picture fits the field as media fits its container on the page, centred on its
-     line (theme.css), and the mark after a link that leaves the page is the page's
+     line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
@@ -396,7 +404,7 @@ class LeafText extends HTMLElement {
     this.#view?.requestMeasure({
       key: this.#overflow,
       // Words, not the host's padding, run past an edge.
-      read: () => {
+      read: (view) => {
         const style = getComputedStyle(this);
         return {
           scrolls: this.scrollHeight > this.clientHeight,
@@ -404,6 +412,7 @@ class LeafText extends HTMLElement {
           below:
             this.scrollTop + this.clientHeight <
             this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
+          corner: this.#cornerTaken(view, style),
         };
       },
       write: (reading) => {
@@ -414,6 +423,7 @@ class LeafText extends HTMLElement {
         for (const [state, on] of [
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
+          ["corner-taken", reading.corner],
         ]) {
           // Adding a state already set restyles all the same, on every scrolled frame.
           if (this.#internals.states.has(state) === on) continue;
@@ -422,6 +432,42 @@ class LeafText extends HTMLElement {
         }
       },
     });
+  }
+
+  // Whether words in view, or the caret, reach the square `--lf-field-corner` wide at
+  // the host's trailing foot, where a box stands its action over the words. The action
+  // stands beside one row, the one across the square's middle, counted at its line
+  // height. Rejected: every row whose line box touches the square, since the action
+  // is taller than a row, so a row above that ran to the edge hid it beside a short
+  // last row, and a new empty line brought it back.
+  #cornerTaken(view, style) {
+    const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
+    if (!(size > 0)) return false;
+    const { scaleX, scaleY } = view;
+    const box = this.getBoundingClientRect();
+    const rtl = style.direction === "rtl";
+    const left = rtl ? box.left : box.right - size * scaleX;
+    const right = rtl ? box.left + size * scaleX : box.right;
+    const top = box.bottom - size * scaleY;
+    const middle = box.bottom - (size * scaleY) / 2;
+    const reaches = (rect, leading) =>
+      rect.left < right &&
+      rect.right > left &&
+      rect.top - leading <= middle &&
+      rect.bottom + leading > middle;
+    for (const line of view.contentDOM.children) {
+      const block = line.getBoundingClientRect();
+      if (block.bottom <= top || block.top >= box.bottom) continue;
+      const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
+      const words = document.createRange();
+      words.selectNodeContents(line);
+      for (const rect of words.getClientRects())
+        if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
+    }
+    if (!view.hasFocus) return false;
+    const { rectangle: caret } = view.caretAt(view.state.selection.main.head);
+    const { left: x, top: y, bottom: foot } = caret;
+    return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
   }
 
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
@@ -490,7 +536,7 @@ class LeafText extends HTMLElement {
     else if (this.#composing || /** @type {InputEvent} */ (event).isComposing) return;
     this.#readRest();
     this.#paintEmpty();
-    this.dispatchEvent(new Event("input", { bubbles: true }));
+    this.#emit("input");
     if (event.type === "compositionend" && editor) this.#build();
   }
 
@@ -568,6 +614,8 @@ class LeafText extends HTMLElement {
       attributes: this.#contentAttributes(),
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
+      // The caret counts toward the corner only while it shows.
+      focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
       typed: (native, insert) => {
         this.#nativeInput = native;
@@ -713,7 +761,7 @@ class LeafText extends HTMLElement {
         module.runOwnerSteps(transactions);
         this.#paintEmpty();
         this.#measureOverflow();
-        if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
+        if (edited) this.#emit("input");
         else if (transactions.some((tr) => tr.isUserEvent("select")))
           this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
       },
@@ -740,8 +788,12 @@ class LeafText extends HTMLElement {
     this.#measureOverflow();
   }
 
+  #emit(type) {
+    this.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+  }
+
   #beforeEdit() {
-    this.dispatchEvent(new Event("lf-before-edit", { bubbles: true }));
+    this.#emit("lf-before-edit");
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -749,6 +801,7 @@ class LeafText extends HTMLElement {
     queueMicrotask(() => {
       if (this.isConnected) return;
       this.#internals.states.delete("ready");
+      this.#internals.states.delete("corner-taken");
       if (!this.#view) return;
       this.#model = this.#view.state;
       this.#sizes.disconnect();
@@ -861,7 +914,7 @@ class LeafText extends HTMLElement {
         if (!this.isConnected) return;
         this.#paintRest();
         this.#paintEmpty();
-        this.dispatchEvent(new Event("input", { bubbles: true }));
+        this.#emit("input");
       },
     );
   }

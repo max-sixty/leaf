@@ -31,6 +31,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    primed,
     resized,
     round_trip,
     select,
@@ -164,10 +165,11 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
             expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
-def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """At a narrow allocation, Space must not create a blank line while the
-    words and Send still fit. The text's right inset already clears part of
-    Send's hit box; reserving its full width again wasted eleven pixels."""
+def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the words
+    still fit. Under a mouse the words keep no room for Send, which takes the corner
+    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    as they start."""
     page = open_page(
         browser,
         serve(
@@ -196,15 +198,13 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
-    reservation = field.evaluate("""el => {
-      const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
-      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        sendStart: send.left};
+    insets = field.evaluate("""el => {
+      const style = getComputedStyle(el);
+      return [parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart),
+        parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd)
+        + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+    assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -384,8 +384,10 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 navLeft: box('.lf-margin-preview-nav').left,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
                 overflow: actions.scrollWidth - actions.clientWidth
-                  + head.scrollWidth - head.clientWidth,
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
               };
             }"""
         )
@@ -659,11 +661,20 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
         " ![blocked *image*](javascript&#58;window.leaked=true)"
         " beside [the page](https://example.com/?a=1&amp;b=2)"
         " and <https://example.com/?a=1&amp;b=2>"
-        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/icon.svg "Sales &amp; revenue")'
+        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/chart.png "Sales &amp; revenue")'
         f" and ![A **media** chart]({media})",
         {"section": "p0"},
     )
-    page = open_page(browser, url)
+    prepared = primed(
+        browser,
+        lambda page: page.route(
+            "**/chart.png",
+            lambda route: route.fulfill(
+                content_type="image/png", body=pixels.getvalue()
+            ),
+        ),
+    )
+    page = open_page(prepared, url)
     view = open_panel_thread(page, root)
 
     prose = view.locator(".lf-msg-text").first
@@ -1326,7 +1337,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     def find(node):
         attrs = node.get("attributes", [])
-        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+        if (
+            dict(zip(attrs[::2], attrs[1::2], strict=True)).get("id")
+            == "draft-face-editor"
+        ):
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):

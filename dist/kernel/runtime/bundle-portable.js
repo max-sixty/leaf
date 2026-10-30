@@ -184,7 +184,7 @@ function cancelRender(id) {
 	]) {
 		const job = queue?.get(id);
 		if (!job) continue;
-		queue.delete(id);
+		queue?.delete(id);
 		cancelWork(job);
 		return;
 	}
@@ -226,16 +226,16 @@ function afterScript(callback) {
 }
 let deliveringSizes = 0;
 function sizeObserver(callback, { counted = true } = {}) {
-	const pending = /* @__PURE__ */ new Map();
+	const pending2 = /* @__PURE__ */ new Map();
 	let installation = null;
-	const observer = new ResizeObserver((entries, observer) => {
+	const observer = new ResizeObserver((entries, observer2) => {
 		if (counted) {
 			heard = true;
 			unsettle();
 		}
 		deliveringSizes++;
 		try {
-			callback(entries, observer);
+			callback(entries, observer2);
 		} finally {
 			deliveringSizes--;
 		}
@@ -245,30 +245,30 @@ function sizeObserver(callback, { counted = true } = {}) {
 	const disconnect = observer.disconnect.bind(observer);
 	const install = () => {
 		installation = null;
-		for (const [target, options] of pending) observe(target, options);
-		pending.clear();
+		for (const [target, options] of pending2) observe(target, options);
+		pending2.clear();
 	};
 	const retireInstallation = () => {
-		if (pending.size || installation === null) return;
+		if (pending2.size || installation === null) return;
 		(counted ? cancelRender : cancelAnimation)(installation);
 		installation = null;
 	};
 	observer.observe = (target, options) => {
 		if (!deliveringSizes) {
-			pending.delete(target);
+			pending2.delete(target);
 			retireInstallation();
 			return observe(target, options);
 		}
-		pending.set(target, options);
+		pending2.set(target, options);
 		if (installation === null) installation = (counted ? nextRender : nextAnimation)(install);
 	};
 	observer.unobserve = (target) => {
-		pending.delete(target);
+		pending2.delete(target);
 		retireInstallation();
 		unobserve(target);
 	};
 	observer.disconnect = () => {
-		pending.clear();
+		pending2.clear();
 		retireInstallation();
 		disconnect();
 	};
@@ -1047,6 +1047,7 @@ function elementBox(el) {
 }
 const measurements = /* @__PURE__ */ new WeakMap();
 const drawn = (el) => {
+	if (skipped(el)) return false;
 	const box = elementBox(el);
 	return Boolean(box.width || box.height);
 };

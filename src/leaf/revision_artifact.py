@@ -327,8 +327,10 @@ def _javascript_imports(data: bytes, path: str):
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
             # A tree the parser recovered from may lack the arguments.
-            if function.type == "import" and (
-                arguments := node.child_by_field_name("arguments")
+            if (
+                function is not None
+                and function.type == "import"
+                and (arguments := node.child_by_field_name("arguments"))
             ):
                 literal = next(
                     (child for child in arguments.named_children if not child.is_extra),

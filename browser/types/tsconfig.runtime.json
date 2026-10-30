@@ -2,6 +2,11 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": false,
+    "alwaysStrict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "strictBuiltinIteratorReturn": true,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
     "checkJs": true

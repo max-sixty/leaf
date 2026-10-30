@@ -23,7 +23,7 @@
    * a block sample, fills the window's height. Body rules key on the root's
    * `data-lf-layout` (revision_delivery.py), since the body is styled before the parser
    * reaches `main`. The column and sidebar page are documents: they set the text measure
-   * (`--lf-measure`, read by theme.css) and allocate each block's declared room
+   * (`--lf-measure`, read by base.css) and allocate each block's declared room
    * (`data-lf-space`), whose rules name the document Layouts in one list (Breakouts,
    * below). A workspace does neither: its grid sizes its regions.
    */
@@ -52,9 +52,9 @@
    * parent is the shell the Layout places it in: `body`, `main` or the part. The box says so
    * (`--lf-layout-box`), and the runtime finds the shown one by that (prepaint.js,
    * `layoutBox`) rather than by reading a Layout class. It is the style container a
-   * margin content asks for the Layout's readings (`lf-content-frame`, theme.css), and a
+   * margin content asks for the Layout's readings (`lf-content-frame`, base.css), and a
    * shell other than `body` is the size its `cqi` measure. Its padding draws nothing, so
-   * it trims what it holds at its edges (`--lf-block-frame: trim`, theme.css). */
+   * it trims what it holds at its edges (`--lf-block-frame: trim`, base.css). */
   @property --lf-layout-box {
     syntax: "*";
     inherits: false;
@@ -93,7 +93,7 @@
    * part stack. Before the module upgrades the holder, the column holds only the title.
    *
    * The room the floating panel's row keeps at the window's foot (`--lf-foot-room`,
-   * theme.css) is the open part's own end rather than the body's, since the part is what
+   * base.css) is the open part's own end rather than the body's, since the part is what
    * reads to the page's end. So the part, the rule beside it and the column all reach
    * the window's foot, and no band stands below them that belongs to neither. */
   @media screen {
@@ -270,7 +270,7 @@
       }
     }
   }
-  /* The pane role's grammar (its box: theme.css): which row each child stands in, and
+  /* The pane role's grammar (its box: base.css): which row each child stands in, and
    * a body held to the pane's width. Not a page Layout, but it resets what a widget
    * sets on the children it arranges, so it shares their tier. */
   [data-lf-reading-role="pane"] > header {
@@ -564,7 +564,7 @@
         width: calc(100% + var(--lf-surplus));
         margin-left: calc(-1 * var(--lf-grow-l));
         margin-right: calc(-1 * var(--lf-grow-r));
-        /* The allocation is the outer width, as the column's is (theme.css). */
+        /* The allocation is the outer width, as the column's is (base.css). */
         box-sizing: border-box;
       }
       /* `wide` is one width wherever the block stands: capped at --wide even in a holder
@@ -712,7 +712,7 @@
    * and alone on a line each fills it. `auto`, the default, keeps the 2:1 shares. A
    * header or footer takes the whole row. Flex margins do
    * not collapse, so the items' block margins go. The row holds its edge
-   * (`--lf-holds-edge`, theme.css): each item beside another stands at both of its
+   * (`--lf-holds-edge`, base.css): each item beside another stands at both of its
    * edges, so the trim follows into each alike, a header only from the top and a footer
    * only from the foot. */
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {
@@ -797,7 +797,7 @@
     /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track body
      * beside the body and a widget's track stand below the window's head room and any tab
      * strip, and scroll what they hold within the window below that, so each restarts
-     * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
+     * `--lf-top` and its landing band (base.css), a focused link keeps the ring's room
      * (`--lf-head-inset`), and it anchors no scroll. It holds that height on purpose
      * (`--lf-holds-height`). Only the window's scroll keeps one in view, since its height
      * is the window's: inside a box that scrolls ([data-lf-scrolls], state.css), inside
@@ -843,8 +843,9 @@
           --lf-holds-height: 1;
         }
         /* A scrolling box clips at its padding edge, and a track body's blocks run its
-         * full width, so a full-width control's ring would be cut at both sides and the
-         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * full width, so a full-width block's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the widest ring's room, a region's
+         * (base.css), as padding. It gives
          * the block-axis room back as a negative margin, so its blocks start where they
          * would without it; the inline room stays inside the track, since a box set
          * past the track's sides stands past the column (render check `past-column`). */
@@ -852,9 +853,9 @@
           > aside[data-lf-beside]
           > [data-lf-track-body] {
           box-sizing: border-box;
-          padding: var(--focus-ring-room);
-          margin-block: calc(-1 * var(--focus-ring-room));
-          scroll-padding: var(--focus-ring-room);
+          padding: var(--focus-region-room);
+          margin-block: calc(-1 * var(--focus-region-room));
+          scroll-padding: var(--focus-region-room);
         }
       }
     }
@@ -881,7 +882,7 @@
    * stick, which kept native page scrolling at the cost of reworking full-height
    * widgets, footers, margin lanes and phone stacking.
    *
-   * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
+   * A pane is any element in the pane role (`data-lf-reading-role="pane"`, base.css),
    * painted by delivery; a widget-generated one also carries `data-lf-generated`. The
    * workspace takes the whole window, with minimal gutter, gap and header, since every
    * pixel of frame comes from the panes. Type is the theme's (`.density-working`). */
@@ -986,7 +987,7 @@
    * tally under the finger. As it sticks, the header covers the workspace's gutters with
    * shadows in its ground colour, which paint without moving its box out of the column.
    * What it stands over adds its height to the sticky-header slot (`--lf-top`,
-   * theme.css), so a landing and a sticky box below clear it; no CSS reads a box's
+   * base.css), so a landing and a sticky box below clear it; no CSS reads a box's
    * height, so the runtime writes it (prepaint.js, `--lf-layout-head-h`). The workspace
    * passes its own slot down as `--lf-workspace-top` rather than `--lf-top-outer`, which
    * a tab set in the body names for its own strip. The body is a stacking context of
@@ -1045,14 +1046,14 @@
     /* The body passes the window's height to its panes; one that is not a pane scrolls
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
      * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
-     * on purpose (`--lf-holds-height`, theme.css). */
+     * on purpose (`--lf-holds-height`, base.css). */
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
       --lf-holds-height: 1;
     }
-    /* A pane (a grid of header, body and footer, theme.css) told it has a definite height
+    /* A pane (a grid of header, body and footer, base.css) told it has a definite height
      * by its holder may shrink below its content and scrolls its body; a pane not told,
      * inside a section or another pane's body, is content and scrolls with its holder. */
     @container style(--lf-full-height: 1) {
@@ -1064,7 +1065,7 @@
         min-block-size: 0;
         overflow: auto;
         /* A sticking box stops at the scroller's padding edge, so the body's top inset is
-         * taken back (`--lf-top-start`, theme.css). */
+         * taken back (`--lf-top-start`, base.css). */
         --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
         --lf-top: var(--lf-top-start);
         overscroll-behavior: contain;
@@ -1073,7 +1074,7 @@
       }
     }
     /* A bounded block that is all a workspace scroller holds takes that height, or its
-     * stated bound where less (`[data-lf-bound]`, theme.css), rather than scrolling inside
+     * stated bound where less (`[data-lf-bound]`, base.css), rather than scrolling inside
      * a box that also scrolls. */
     @container style(--lf-holds-height: 1) {
       :is(

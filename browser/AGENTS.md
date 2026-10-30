@@ -22,7 +22,7 @@ representative desktop viewport.
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`theme.css`) sets type, spacing and form as tokens,
+  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
   and a widget reads only its own box and the theme's tokens. A widget therefore behaves
   the same in a shipped Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
@@ -87,7 +87,7 @@ representative desktop viewport.
   The container grows only for content, such as typed words, or an explicit action,
   such as More room. Changing labels (`data-room`, below) and rendering a widget
   after its first paint (`keeps-first-box`) follow the same sizing rule. A
-  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  one-line control's visible height is `--lf-line` (base.css); its touch target meets
   the minimum size set by surfaces.css. A control that instead derives its visible
   height from its font or the touch-target minimum changes the height of every
   container that holds it. Check:
@@ -210,7 +210,7 @@ representative desktop viewport.
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
@@ -551,9 +551,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
-modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
-type-checks the runtime and widget modules, strictly where a module is marked
-`// @ts-check`, which the build requires of every framework module; `types/` holds the
-check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
-`types/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). `pnpm run check:browser` type-checks runtime and widget
+modules, strictly for TypeScript owners and JavaScript marked `// @ts-check`;
+every framework owner is strict. TypeScript owners deliver committed JavaScript;
+`../build/browser/build.mjs` owns compilation and checker selection. `types/` holds
+the check's configuration and declarations. Declare a new global, event detail or
+runtime element tag in `types/runtime-globals.d.ts`.

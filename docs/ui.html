@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  UI: what a page can contain, and how layout, styling,
+  navigation and interaction behave. How it works explains the shared concepts
+  and mechanisms; Extending explains how to implement widgets, themes and packages.
+-->
 <html lang="en">
   <head>
     <title>Leaf UI</title>
@@ -98,17 +103,16 @@
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
         <p class="eyebrow">UI</p>
-        <h1>Pages and interface</h1>
+        <h1>UI</h1>
         <p class="lede" id="intro">
           Build a page around the work, choose its presentation, and keep its controls
           reachable by keyboard, pointer and touch.
         </p>
         <p id="ui-scope">
-          Start with the page's content and widgets, then choose a theme and Layout.
-          <a href="/extending/#responsibilities">Extending</a> explains the contracts
-          for reusable packages;
-          <a href="/how-it-works/#state">How it works</a> explains the record behind the
-          interface.
+          This guide covers page content, layout, styling, navigation and interaction.
+          <a href="/how-it-works/">How it works</a> explains the core concepts and
+          mechanisms behind the interface. <a href="/extending/">Extending</a> covers
+          implementing widgets, themes and packages.
         </p>
       </header>
       <lf-tabs id="ui"
@@ -135,12 +139,13 @@
             </p>
             <ol class="steps" id="sources">
               <li id="src-html">
-                <strong>Ordinary HTML.</strong> Leaf styles headings, paragraphs,
-                tables, code, and <code>details</code> without requiring CSS classes.
-                These elements provide most of a page's content.
+                <strong>Ordinary HTML.</strong> Leaf's reading theme, which a page takes
+                by default, styles headings, paragraphs, tables, code, and
+                <code>details</code> without requiring CSS classes. These elements
+                provide most of a page's content.
               </li>
               <li id="src-idioms">
-                <strong>Theme classes.</strong> Leaf supplies classes for common
+                <strong>Theme classes.</strong> The theme supplies classes for common
                 presentation patterns, including <code>.eyebrow</code>,
                 <code>.lede</code>, <code>.callout</code>,
                 <code>aside.sidenote</code> for a margin note, and
@@ -182,8 +187,9 @@
             <h2>Widgets</h2>
             <p id="dogfood">
               These examples are interactive parts of this page. Their choices, card
-              moves, and comments share its event log, Undo, and On me. Each activity
-              feed shows the same page history, including actions in other examples.
+              moves, and comments share its event log and Undo; as samples, they ask
+              nothing, so On me stays empty. Each activity feed shows the same page
+              history, including actions in other examples.
             </p>
             <figure id="options-demo">
               <h3>Example page: a release review</h3>
@@ -312,12 +318,15 @@ flowchart TD
               <p id="styles-user-preference">
                 <code>leaf theme list</code> exposes the user's named themes and their
                 author instructions. <code>page init --theme NAME</code> selects one; a
-                new page otherwise uses the user's default. Re-initializing keeps the
-                captured choice unless explicitly changed. The author follows the user's
-                request first, then the task and the theme's instructions.
+                new page otherwise uses the user's default, or Leaf's reading theme. A
+                page with a design wholly its own takes none with
+                <code>--no-theme</code> and starts from the browser's defaults, while
+                Leaf's widgets, threads and panel keep their faces. Re-initializing
+                keeps the captured choice unless explicitly changed. The author follows
+                the user's request first, then the task and the theme's instructions.
               </p>
               <p id="styles-platform-preferences">
-                The default theme supports light and dark schemes. Authors preserve
+                The reading theme supports light and dark schemes. Authors preserve
                 supported platform preferences when composing a page; an explicit visual
                 comparison may need a fixed appearance, declared with
                 <code>color-scheme</code>. CSS precedence determines which rule wins,
@@ -1859,17 +1868,8 @@ flowchart TD
                       <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd> in a margin card
                     </td>
                     <td>
-                      Escape returns to the passage. While its card accompanies it, t
-                      advances from that thread.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd>
-                    </td>
-                    <td>
-                      The second Escape releases the passage and closes its card. The
-                      next t starts from the reading place and may reopen that thread.
+                      Escape closes the card and leaves the user beside its passage, so
+                      Tab goes on into it. The next t enters that thread again.
                     </td>
                   </tr>
                   <tr>

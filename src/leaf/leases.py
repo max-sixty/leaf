@@ -85,7 +85,7 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
     shared probes rather than refusing a legitimate lease.
     """
     while True:
-        record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
+        record = open(path, "a+b")
         if prepare is not None:
             try:
                 fcntl.flock(record, fcntl.LOCK_SH | fcntl.LOCK_NB)
@@ -126,7 +126,7 @@ def supersede_lease(path: Path, content: bytes = b""):
     A process it displaces still holds a lock, on a file the name no longer
     reaches, and learns it lost the lease from `still_named`."""
     staged = path.with_name(f"{path.name}.{os.getpid()}")
-    record = open(staged, "w+b")  # noqa: SIM115 - returned and held by the caller
+    record = open(staged, "w+b")
     try:
         fcntl.flock(record, fcntl.LOCK_EX)
         record.write(content)

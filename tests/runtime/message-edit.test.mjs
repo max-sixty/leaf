@@ -43,7 +43,7 @@ function discard(id, text, said = "Original words") {
   );
   editor.input.value = text;
   editor.input.dispatchEvent(new Event("input", { bubbles: true }));
-  editor.node.querySelector(".lf-msg-edit-cancel").click();
+  editor.actions.querySelector(".lf-msg-edit-cancel").click();
   editor.dispose();
   assert.equal(loadDraft(rewriteContext(id)), null);
 }

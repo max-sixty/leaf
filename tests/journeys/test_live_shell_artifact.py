@@ -10,11 +10,10 @@ from interact_support import append_carried_log_record as append_event
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
-from leaf.data import browser_data_from, read_data
 from leaf.files import revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
-from leaf.revision_artifact import read_artifact, resource_type
+from leaf.revision_artifact import resource_type
 from leaf.revisioning import activate_source
 
 
@@ -55,7 +54,6 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
     (page_dir / "index.html").write_text(source)
     activation = activate_source(page_dir)
     assert activation.error is None, activation.error
-    assert activation.revision is not None
     append_event(
         page_dir,
         {
@@ -72,15 +70,8 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             page_dir,
             destination,
             server_id=server.httpd.server_id,
-            initial_data={
-                activation.revision: browser_data_from(
-                    read_data(
-                        page_dir, read_artifact(page_dir, activation.revision).registry
-                    ),
-                    read_artifact(page_dir, activation.revision).registry,
-                )
-            },
         )
+        assert activation.revision is not None
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
         if bundled:
             bundler = Path(__file__).parents[2] / "worker" / "bundle-runtime.mjs"

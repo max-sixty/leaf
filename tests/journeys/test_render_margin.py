@@ -236,8 +236,7 @@ THREAD_CARD_GEOMETRY = """() => {
     .getBoundingClientRect();
   return {
     mainLeft: main.left, mainRight: main.right,
-    wordsRight: main.right - parseFloat(getComputedStyle(document.querySelector('main'))
-      .paddingRight),
+    wordsRight: document.querySelector('main h1').getBoundingClientRect().right,
     controlsLeft: controls.left, controlsRight: controls.right,
     controlsTop: controls.top,
     controlsBottom: controls.bottom,
@@ -378,9 +377,10 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     the marker strip where clearing it would narrow the message."""
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(
         browser,
         serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]),
@@ -700,9 +700,10 @@ def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, ser
 
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(
         browser,
         serve(sidebar_page, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),

@@ -24,11 +24,21 @@ import { sizeObserver } from "./rendering.js";
 // own style is not skipped either. A disclosure skips through a pseudo-element of its
 // own, so it is asked by its state rather than by its style.
 //
-// The reading is prepaint.js's, which needs it before any module runs. A document Leaf
-// did not compose has no prepaint, and nothing there is left out on its word: a reading
-// asks the browser about every box and pays the passes this saves.
-export const skipped = (el) =>
-  document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
+export const skipped = (element) => {
+  if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+  // A boxed descendant can retain layout while its auto container skips drawing.
+  // Ask the native skip state before any geometry forces that content back.
+  if (element.checkVisibility()) return true;
+  let child = element;
+  let box = renderedParent(element);
+  while (box && !box.checkVisibility()) {
+    child = box;
+    box = renderedParent(box);
+  }
+  if (!box) return false;
+  if (box.localName === "details") return !box.open && child.localName !== "summary";
+  return getComputedStyle(box).contentVisibility === "hidden";
+};
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are

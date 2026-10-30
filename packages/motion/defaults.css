@@ -6,6 +6,18 @@ lf-motion {
   --lf-motion-control-height: var(--lf-line);
   --lf-motion-toolbar-height: calc(var(--lf-motion-control-height) + 16px);
 }
+
+lf-motion:not(:defined)::before {
+  content: "";
+  display: block;
+  block-size: calc(var(--lf-motion-toolbar-height) + var(--sp-3));
+}
+@container (max-width: 30rem) {
+  lf-motion:not(:defined)::before {
+    --lf-motion-toolbar-height: calc(2 * var(--lf-motion-control-height) + 24px);
+  }
+}
+
 .lf-motion-controls {
   position: sticky;
   top: var(--lf-top);
@@ -23,9 +35,11 @@ lf-motion {
   --lf-head-inset: 8px;
   font: var(--t-6)/1.5 var(--sans);
 }
-.lf-motion-body {
+.lf-motion-transport {
+  display: contents;
+}
+lf-motion > :not(.lf-motion-transport) {
   --lf-top: calc(var(--lf-motion-top) + var(--lf-motion-toolbar-height));
-  display: flow-root;
 }
 .lf-motion-time {
   min-inline-size: 80px;
@@ -49,7 +63,7 @@ lf-motion {
 }
 @container (max-width: 30rem) {
   .lf-motion-controls,
-  .lf-motion-body {
+  lf-motion > :not(.lf-motion-transport) {
     --lf-motion-toolbar-height: calc(2 * var(--lf-motion-control-height) + 24px);
   }
   .lf-motion-controls {

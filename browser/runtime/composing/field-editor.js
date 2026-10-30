@@ -12,6 +12,8 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
+import { externalMark as externalLinkMark, opensElsewhere } from "../declared-words.js";
+
 import { leafEditorView } from "../editor-view.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
@@ -362,13 +364,13 @@ function fieldEditor(
       return false;
     }
   }
-  // The mark the page draws after a link that leaves it (prepaint.js).
+  // The mark the page draws after a link that leaves it (declared-words.js).
   class ExternalMark extends WidgetType {
     eq() {
       return true;
     }
     toDOM() {
-      return document.documentElement.lfExternalLink.mark();
+      return externalLinkMark();
     }
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
@@ -412,8 +414,6 @@ function fieldEditor(
       return false;
     }
   }
-  const opensElsewhere = (href) =>
-    document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 
   // The draft's decorations, and the boxes its quotes and list items stand in.
   function decorate(state, placed) {

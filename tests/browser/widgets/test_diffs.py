@@ -2,7 +2,6 @@
 and their paths, the pinned file header, hunk landing, and print."""
 
 import json
-import re
 
 import pytest
 from playwright.sync_api import expect
@@ -186,13 +185,11 @@ FIRST_PAINT_PAGE = leaf_page(
 @pytest.mark.parametrize(
     "viewport, touch", [((1280, 900), False), ((390, 844), True)], ids=["wide", "touch"]
 )
-def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
+def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
     browser, serve, viewport, touch
 ):
-    """An inline patch's first paint holds the height its drawing lands at, so nothing
-    after it moves when it upgrades: each file's frame and name row, a row per line
-    and hunk separator, and each prose row as many lines as it wraps to at the column
-    the drawing gives it. Under a finger the name rows stand at a finger's reach."""
+    """Authored source is readable with modules held; the live drawing then keeps
+    file selection, collapsed files, and wrapped prose at desktop and touch widths."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         has_touch=touch,
@@ -201,7 +198,6 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
     page = context.new_page()
     boot = []
     page.route("**/leaf.js", lambda route: boot.append(route))
-    heights = "() => [...document.querySelectorAll('lf-diff')].map(d => [d.id, d.getBoundingClientRect().height])"
     try:
         with page.expect_request("**/leaf.js"):
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
@@ -209,23 +205,31 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
         assert boot, "the runtime was not held"
         # First paint can precede later patches; measure their complete authored input.
         page.wait_for_function("document.readyState !== 'loading'")
-        first = page.evaluate(heights)
+        sources = page.locator("lf-diff > pre")
+        expect(sources).to_have_count(6)
+        for source in sources.all():
+            expect(source).to_be_visible()
+            expect(source).to_contain_text("diff --git")
+        expect(page.locator("#single > lf-diff-note")).to_be_visible()
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
             "() => [...document.querySelectorAll('lf-diff')].every(d => d.matches('.lf-rendered'))"
         )
-        drawn = page.evaluate(heights)
+        expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
+        expect(page.locator("#single lf-diff-note")).to_be_visible()
+        expect(page.locator("#folded details[open]")).to_have_count(0)
+        expect(page.locator("#file-view [data-line]").last).to_contain_text(
+            "The first file remains readable."
+        )
+        expect(page.locator("#file-view .lf-diff-fold:visible")).to_have_count(1)
+        expect(page.locator("#relative-font [data-line]").last).to_contain_text(
+            "A wrapped row uses its inherited code font."
+        )
     finally:
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    moved = [
-        (id, before, after)
-        for (id, before), (_, after) in zip(first, drawn, strict=True)
-        if abs(after - before) >= 1
-    ]
-    assert not moved, moved
 
 
 def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
@@ -334,15 +338,16 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                f'<aside><div class="layout-track" id="side">{long_diff("in-side")}</div></aside>'
+                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
                 '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
                 '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
-                + "<p>Filler.</p>"
-                * 60,
+                + "<p>Filler.</p>" * 60
+                + "</div>",
+                layout="sidebar",
                 head="<style>:root:root { --lf-safe-top: 40px; }"
                 "html { overflow-y: scroll; }"
                 "#box, .tall { max-height: 320px; overflow: auto; }"
@@ -351,9 +356,7 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         ),
     )
     resized(page, 1600, 1000)
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile("sidebar")
-    )
+    expect(page.locator("#side")).to_have_css("position", "sticky")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
@@ -386,7 +389,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
                 '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
@@ -397,7 +400,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-views-flow", "page")
+    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )

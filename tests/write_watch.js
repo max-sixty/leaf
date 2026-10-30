@@ -62,7 +62,7 @@
     const changes = new Map();
     const positions = new Map();
     const shadows = new Map(
-      [...trees]
+      [...liveTrees()]
         .filter((tree) => tree instanceof ShadowRoot)
         .map((root) => [root.host, root]),
     );
@@ -137,7 +137,7 @@
   const hasFrame = (node) =>
     node instanceof HTMLIFrameElement ||
     [...node.childNodes].some(hasFrame) ||
-    [...trees].some(
+    [...liveTrees()].some(
       (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
     );
   const renderedChildren = (nodes) =>
@@ -313,7 +313,16 @@
   // close. Modals escape ancestor inertness, including inside closed shadow roots.
   // Credit only roots inhibited during an actual native transition and only inert
   // roundtrips that changed eligibility; unrelated restatements remain failures.
-  const trees = new Set([document]);
+  // Enumeration must not keep a discarded component's shadow tree alive. Detached
+  // trees still retained by the page remain observable, including closed roots.
+  const trees = new Set([new WeakRef(document)]);
+  function* liveTrees() {
+    for (const reference of trees) {
+      const tree = reference.deref();
+      if (tree) yield tree;
+      else trees.delete(reference);
+    }
+  }
   let dialogTransitions = new WeakSet();
   let focusGuards = new WeakSet();
   const posture = (dialog) =>
@@ -328,7 +337,7 @@
             ? [this]
             : [
                 document.documentElement,
-                ...[...trees].flatMap((tree) => [
+                ...[...liveTrees()].flatMap((tree) => [
                   ...tree.querySelectorAll("dialog:modal"),
                 ]),
               ]
@@ -505,7 +514,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    trees.add(root);
+    trees.add(new WeakRef(root));
     observer.observe(root, options);
     return root;
   };

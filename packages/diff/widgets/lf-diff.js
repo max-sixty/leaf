@@ -860,6 +860,11 @@ function deferredError(details, error, retry) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
+    // shadowStage owns the imperative diff; Lit owns no nodes in that stage.
+    createRenderRoot() {
+      return this;
+    }
+
     // The source the last render read, a bound value or an inline patch, and the one
     // whose rendering last started; a departure that cuts a rendering short forgets
     // it, so the return draws it again.

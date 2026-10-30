@@ -19,11 +19,6 @@ lf-event {
 lf-event::before {
   content: attr(at) " ms: " attr(label);
 }
-@scope (html[data-lf-interactive] :is(lf-event, lf-lane)) {
-  :scope:is(lf-lane, lf-event) {
-    display: none;
-  }
-}
 
 .lf-timeline-controls {
   display: flex;
@@ -134,11 +129,11 @@ lf-event::before {
     var(--lf-timeline-edge) + var(--lf-timeline-at) *
       (100% - 2 * var(--lf-timeline-edge))
   );
-  z-index: 2;
   inset-block-start: calc(
     (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
       var(--lf-timeline-row) + 3px
   );
+  z-index: 2;
   box-sizing: border-box;
   block-size: calc(var(--lf-timeline-row) - 4px);
   display: flex;
@@ -247,4 +242,8 @@ lf-event::before {
 }
 .lf-timeline-step-lane {
   font-weight: 600;
+}
+
+lf-timeline > lf-lane[hidden] {
+  display: none;
 }

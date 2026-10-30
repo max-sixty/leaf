@@ -5,13 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { runInNewContext } from "node:vm";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { typedHeader } from "../runtime-sources.mjs";
-import { initialOutputs } from "../initial.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -53,13 +51,13 @@ test("compiler paths discover package modules and type the framework's bundles",
     "export declare const count: (value: number) => number;\n",
   );
   await put("browser/vendor/signals-core.js", "export const count = 1;\n");
-  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playground/vendor/playground-support.js", "void 0;\n");
   await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
     "browser/types/imports.ts",
     `
 import { count } from "/vendor/signals-core.js";
-import "/vendor/lf-playground-initial.js";
+import "/vendor/playground-support.js";
 import { trace } from "/widgets/lf-trace.js";
 import { future } from "/vendor/lf-future.js";
 import { widget } from "/widgets/lf-future.js";
@@ -87,7 +85,7 @@ count("wrong");
   assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
   assert.doesNotMatch(
     missing.stdout,
-    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+    /Cannot find module '\/(?:vendor\/playground-support|widgets\/lf-trace)/,
   );
 
   await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
@@ -270,35 +268,4 @@ test("notices name the packages whose code reached an output", () => {
     "/w/node_modules/@s/b",
     "/w/node_modules/@s/b/node_modules/c",
   ]);
-});
-
-test("initial producers read TypeScript owners before missing or stale JavaScript delivery", async (context) => {
-  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-initial-typescript-"));
-  context.after(() => rm(scratch, { recursive: true }));
-  const put = async (name, text) => {
-    const destination = path.join(scratch, name);
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, text);
-  };
-  await put(
-    "packages/proof/registry.json",
-    JSON.stringify({
-      "lf-proof": { "x-initial": "/vendor/proof-initial.js" },
-    }),
-  );
-  await put(
-    "packages/proof/initial/lf-proof.js",
-    'import {value} from "/runtime/entry.js"; globalThis.typingProof = value;',
-  );
-  await put("browser/runtime/entry.ts", 'export {value} from "./value.js";');
-  await put("browser/runtime/value.ts", 'export const value: string = "typed source";');
-  const withoutDelivery = await initialOutputs(scratch);
-  const name = "packages/proof/vendor/proof-initial.js";
-  assert.equal(
-    runInNewContext(withoutDelivery.get(name).toString() + ";globalThis.typingProof"),
-    "typed source",
-  );
-  await put("browser/runtime/entry.js", 'export const value = "stale entry";');
-  await put("browser/runtime/value.js", 'export const value = "stale value";');
-  assert.deepEqual(await initialOutputs(scratch), withoutDelivery);
 });

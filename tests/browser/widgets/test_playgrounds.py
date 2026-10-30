@@ -1406,7 +1406,7 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
     """
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     drawing = page.evaluate(
-        """source => {
+        """async source => {
           const template = document.createElement('template');
           template.innerHTML = source;
           const host = template.content.querySelector('#card-playground');
@@ -1433,10 +1433,13 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
               </lf-playground-output>
             </lf-playground>`;
           host.querySelector('lf-playground-output').append(quotedOutput);
-          document.documentElement.lfInitial.paint(
-            quotedOutput.querySelector('lf-playground'));
-          const initial = document.documentElement.lfInitial.paint(host);
-          initial.render({values: {...initial.values, tone: 'bold'}});
+          const { createPlayground } = await import('/widgets/playground-view.js');
+          const { render } = await import('/vendor/lit.js');
+          const nested = quotedOutput.querySelector('lf-playground');
+          const nestedView = createPlayground(nested);
+          render(nestedView.render(), nested, {host: nested});
+          const initial = createPlayground(host);
+          render(initial.render({values: {...initial.values, tone: 'bold'}}), host, {host});
           return {
             controls: initial.controls.map(control => control.getAttribute('name')),
             values: initial.values,

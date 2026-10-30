@@ -174,13 +174,15 @@
       cursor: default;
       background: none;
     }
-    /* The ring of the panel's controls and of On me's cards. The card the `m` walk
-       stands on wears it too, though focus is at its ask on the page
-       (floating-panel.js, `walkedStop`). */
-    :is(.lf-fp-face, .lf-fp-on-item):focus-visible,
+    /* The panel's controls and On me's cards stand their ring inside their edge, since
+       the panel's rows meet edge to edge and its presses fill its row (base.css, "Where
+       it stands"). The card the `m` walk stands on wears the ring too, though focus is
+       at its ask on the page (floating-panel.js, `walkedStop`). */
+    :is(.lf-fp-face, .lf-fp-on-item) {
+      outline-offset: var(--focus-ring-inset);
+    }
     .lf-fp-on-item[data-walked] {
       outline: var(--focus-ring);
-      outline-offset: -2px;
     }
   }
 
@@ -403,7 +405,6 @@
      so a key that moves it there, `c` among them, shows where the words will go. */
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 0;
     border-radius: var(--r);
     --lf-wears-ring: 1;
   }
@@ -1078,6 +1079,7 @@
     min-height: var(--lf-fp-press);
     border-radius: var(--r);
     color: var(--lf-fp-muted);
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-fp-chooser:hover {
     color: var(--ink);
@@ -1089,9 +1091,8 @@
     opacity: 0;
     cursor: pointer;
   }
-  .lf-fp-chooser:has(> select:focus-visible) {
+  .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: -2px;
   }
   :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;

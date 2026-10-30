@@ -29,11 +29,13 @@
    property keeps its text verbatim instead, so the same drift there is a write of
    different text; a measured length written to one goes through `layoutPx` too. */
 
-// Attribute writes also exist before modules run. Adopt that initial writer, whose
-// null/string comparison governs both initial producers and later renderers.
-/** @type {LeafInitial["keepsAttribute"]} */
-export const keeps = (...args) =>
-  document.documentElement.lfInitial.keepsAttribute(...args);
+/** @type {LeafRootState["keeps"]} */
+export const keeps = (node, name, value) => {
+  const next = value == null ? null : String(value);
+  if (!node || node.getAttribute(name) === next) return;
+  if (next === null) node.removeAttribute(name);
+  else node.setAttribute(name, next);
+};
 
 export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;

@@ -1,4 +1,4 @@
-import { render } from "/vendor/lit.js";
+import { Directive, PartType, directive, html, nothing, unsafeSVG } from "/vendor/lit.js";
 
 //#region runtime/queued-work.js
 const jobObservers = /* @__PURE__ */ new Set();
@@ -324,6 +324,25 @@ onFrameVisibility((visibility) => {
 unsettle();
 
 //#endregion
+//#region runtime/keeps.js
+const keeps = (node, name, value) => {
+	const next = value == null ? null : String(value);
+	if (!node || node.getAttribute(name) === next) return;
+	if (next === null) node.removeAttribute(name);
+	else node.setAttribute(name, next);
+};
+function keepsHidden(node, hidden) {
+	if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+function keepsText(node, text) {
+	const said = String(text ?? "");
+	if (node && node.textContent !== said) node.textContent = said;
+}
+const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+
+//#endregion
 //#region runtime/shadow-tree.js
 const shadowHost = (root) => root?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? root.host ?? null : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
@@ -451,8 +470,8 @@ ${evidence}`}`;
 
 //#endregion
 //#region runtime/page-paint.js
-const PAGE_PAINT_ATTRIBUTE = Object.freeze({
-	class: "class",
+const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
+	external: "data-lf-external",
 	obligation: "data-lf-obligation",
 	done: "data-lf-done",
 	restated: "data-lf-restated",
@@ -474,8 +493,12 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	moreBelow: "data-lf-more-below",
 	goto: "data-lf-go-to-active",
 	traffic: "data-lf-traffic",
-	player: "data-lf-player",
-	kept: "data-lf-kept",
+	player: "data-lf-player"
+});
+const PAGE_PAINT_ATTRIBUTE = Object.freeze({
+	class: "class",
+	viewMember: "data-lf-view",
+	...RUNTIME_PAINT_ATTRIBUTE,
 	mediaWidth: "data-lf-media-width",
 	mediaHeight: "data-lf-media-height",
 	quiet: "data-lf-quiet"
@@ -724,110 +747,19 @@ function watchScrollEnds(listener) {
 }
 
 //#endregion
-//#region runtime/widget-upgrade.js
-const initialized = /* @__PURE__ */ new WeakSet();
-function once(el) {
-	if (initialized.has(el)) return false;
-	initialized.add(el);
-	if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
-	return true;
-}
-const dataBody = (el) => el.querySelector(":scope > pre").textContent;
-const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
-const PENDING_TASK = "pending-task";
-var PendingTaskEvent = class extends Event {
-	constructor(complete) {
-		super(PENDING_TASK, {
-			bubbles: true,
-			composed: true
-		});
-		this.complete = complete;
-	}
+//#region runtime/control-faces.js
+const ACTION_FACES = {
+	symbol: "lf-icon-action",
+	word: "lf-btn",
+	commit: "lf-btn primary",
+	mark: "lf-mark-action",
+	inline: "lf-inline-action",
+	row: "lf-row"
 };
-const LAYOUT = "lf-layout";
-const layoutChanged = (el) => {
-	el.dispatchEvent(new CustomEvent(LAYOUT, {
-		bubbles: true,
-		composed: true
-	}));
-};
-const COMMANDS = "lf-commands";
-const CHANGED = Symbol("element whose commands changed");
-const REFUSED = Symbol("why Leaf refused the declaration");
-function commandsChanged(el) {
-	const event = new Event(COMMANDS, {
-		bubbles: true,
-		composed: true
-	});
-	event[CHANGED] = el;
-	(el.isConnected ? el : window).dispatchEvent(event);
-	if (event[REFUSED]) throw event[REFUSED];
-}
-const ANNOUNCE = "lf-announce";
-const announce = (words) => window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
-const commandsChangedOn = (event) => event[CHANGED];
-const refuseCommands = (event, error) => {
-	event[REFUSED] = error;
-};
-function failSoft(el, err, source) {
-	reportFailure(el, err);
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`, source);
-}
-function reportFailure(el, err) {
-	const event = new ErrorEvent("error", {
-		error: exceptionError(err),
-		message: describeFailure(err),
-		bubbles: true,
-		composed: true
-	});
-	event[FAILURE] = {
-		element: el,
-		reason: err
-	};
-	(el.isConnected ? el : window).dispatchEvent(event);
-}
-const FAILURE = Symbol("failure");
-function failureOf(event) {
-	if (event[FAILURE]) return event[FAILURE];
-	const [origin] = event.composedPath();
-	return origin instanceof Element ? {
-		element: origin,
-		reason: event.error
-	} : null;
-}
-function failureContext(el) {
-	const owner = widgetOf(el);
-	return `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`;
-}
-function failSoftUnreported(el, err) {
-	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`);
-}
-const widgetOf = (el) => {
-	let owner = el;
-	while (owner.parentElement && !owner.localName.includes("-")) owner = owner.parentElement;
-	return owner.localName.includes("-") ? owner : el;
-};
-const placers = /* @__PURE__ */ new WeakMap();
-const placesFailure = (el, place) => placers.set(el, place);
-const stages = /* @__PURE__ */ new WeakMap();
-const stagesFailure = (host, place) => stages.set(host, place);
-function showFailure(el, text, source) {
-	const box = document.createElement("div");
-	box.className = "lf-error";
-	box.textContent = text;
-	if (source) {
-		const pre = document.createElement("pre");
-		pre.textContent = source;
-		box.append(pre);
-	}
-	if (placers.get(el)?.(box) || stages.get(el)?.(box)) return;
-	const part = el._$litPart$;
-	if (!part) {
-		el.replaceChildren(box);
-		return;
-	}
-	el.replaceChildren(part.startNode);
-	(part._$AI ?? part._$setValue).call(part, box);
+function actionClass(role, className = "") {
+	const face = ACTION_FACES[role];
+	if (!face) throw new TypeError(`A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`);
+	return className ? `${face} ${className}` : face;
 }
 
 //#endregion
@@ -1107,8 +1039,224 @@ function actionOffers(base) {
 }
 
 //#endregion
+//#region runtime/element-markers.js
+const offerElement = (node, cls, pressable = false) => {
+	if (node instanceof HTMLButtonElement && !node.hasAttribute("type")) keeps(node, "type", "button");
+	const face = node.localName.includes("-") ? "" : " lf-ui-face";
+	keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node.localName === "input" && ["checkbox", "radio"].includes(node.type) ? node.type ?? node.localName : "");
+	return node;
+};
+const generatedElement = (node, { says } = {}) => {
+	if (typeof says !== "boolean" && says !== "echo") throw new TypeError("Say whether these words are the page speaking: true, false, or \"echo\" for a copy of words it says elsewhere");
+	keeps(node, "data-lf-gen", "1");
+	node.toggleAttribute("data-lf-said", says === true);
+	node.toggleAttribute("data-lf-echo", says === "echo");
+	return node;
+};
+const offer = (tag, cls, label, inputType, pressable = false) => {
+	const node = document.createElement(tag);
+	if (inputType !== void 0) {
+		if (tag !== "input") throw new TypeError("only an input offer can declare an input type");
+		node.type = inputType;
+	}
+	offerElement(node, cls, pressable);
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
+const roleElement = (node, role, cls, label, { title = label } = {}) => {
+	offerElement(node, actionClass(role, cls));
+	if (label !== void 0 && (role === "symbol" || role === "mark")) {
+		keeps(node, "aria-label", label);
+		keeps(node, "title", title);
+	}
+	return node;
+};
+const buildAction = (role, cls, label, options) => {
+	const node = roleElement(document.createElement("button"), role, cls, label, options);
+	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
+	return node;
+};
+const selectableOfferElement = (node, role, cls, face) => {
+	keeps(node, "role", role);
+	keeps(node, "class", [
+		face && actionClass(face),
+		cls,
+		"lf-ui lf-ui-face"
+	].filter(Boolean).join(" "));
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", role);
+	keeps(node, "data-lf-selectable-offer", "");
+};
+const selectableOffer = (role, cls, label, face) => {
+	const node = document.createElement("span");
+	selectableOfferElement(node, role, cls, face);
+	node.tabIndex = 0;
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
+function elementDirective(name, write) {
+	return directive(class extends Directive {
+		constructor(part) {
+			super(part);
+			if (part.type !== PartType.ELEMENT) throw new TypeError(`${name} belongs in a template's element part`);
+		}
+		render(...args) {
+			return nothing;
+		}
+		update(part, args) {
+			write(part.element, ...args);
+			return nothing;
+		}
+	});
+}
+const offered = elementDirective("offered", offerElement);
+const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
+	offerAction: buildAction,
+	offerActionElement: roleElement
+});
+const offeredAction = elementDirective("offeredAction", offeredActionElement);
+const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
+const generated = elementDirective("generated", generatedElement);
+
+//#endregion
+//#region runtime/widget-upgrade.js
+const initialized = /* @__PURE__ */ new WeakSet();
+function once(el) {
+	if (initialized.has(el)) return false;
+	initialized.add(el);
+	if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
+	return true;
+}
+const dataBody = (el) => el.querySelector(":scope > pre").textContent;
+const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
+const PENDING_TASK = "pending-task";
+var PendingTaskEvent = class extends Event {
+	constructor(complete) {
+		super(PENDING_TASK, {
+			bubbles: true,
+			composed: true
+		});
+		this.complete = complete;
+	}
+};
+const LAYOUT = "lf-layout";
+const layoutChanged = (el) => {
+	el.dispatchEvent(new CustomEvent(LAYOUT, {
+		bubbles: true,
+		composed: true
+	}));
+};
+const COMMANDS = "lf-commands";
+const CHANGED = Symbol("element whose commands changed");
+const REFUSED = Symbol("why Leaf refused the declaration");
+function commandsChanged(el) {
+	const event = new Event(COMMANDS, {
+		bubbles: true,
+		composed: true
+	});
+	event[CHANGED] = el;
+	(el.isConnected ? el : window).dispatchEvent(event);
+	if (event[REFUSED]) throw event[REFUSED];
+}
+const ANNOUNCE = "lf-announce";
+const announce = (words) => window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
+const commandsChangedOn = (event) => event[CHANGED];
+const refuseCommands = (event, error) => {
+	event[REFUSED] = error;
+};
+function failSoft(el, err, source) {
+	reportFailure(el, err);
+	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`, source);
+}
+function reportFailure(el, err) {
+	const event = new ErrorEvent("error", {
+		error: exceptionError(err),
+		message: describeFailure(err),
+		bubbles: true,
+		composed: true
+	});
+	event[FAILURE] = {
+		element: el,
+		reason: err
+	};
+	(el.isConnected ? el : window).dispatchEvent(event);
+}
+const FAILURE = Symbol("failure");
+function failureOf(event) {
+	if (event[FAILURE]) return event[FAILURE];
+	const [origin] = event.composedPath();
+	return origin instanceof Element ? {
+		element: origin,
+		reason: event.error
+	} : null;
+}
+function failureContext(el) {
+	const owner = widgetOf(el);
+	return `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`;
+}
+function failSoftUnreported(el, err) {
+	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`);
+}
+const widgetOf = (el) => {
+	let owner = el;
+	while (owner.parentElement && !owner.localName.includes("-")) owner = owner.parentElement;
+	return owner.localName.includes("-") ? owner : el;
+};
+const placers = /* @__PURE__ */ new WeakMap();
+const placesFailure = (el, place) => placers.set(el, place);
+const stages = /* @__PURE__ */ new WeakMap();
+const stagesFailure = (host, place) => stages.set(host, place);
+function showFailure(el, text, source) {
+	const box = document.createElement("div");
+	box.className = "lf-error";
+	box.textContent = text;
+	if (source) {
+		const pre = document.createElement("pre");
+		pre.textContent = source;
+		box.append(pre);
+	}
+	if (placers.get(el)?.(box) || stages.get(el)?.(box)) return;
+	const part = el._$litPart$;
+	if (!part) {
+		el.replaceChildren(box);
+		return;
+	}
+	el.replaceChildren(part.startNode);
+	(part._$AI ?? part._$setValue).call(part, box);
+}
+
+//#endregion
+//#region runtime/icons.js
+function iconTemplate(icon, className = "lf-margin-entry-icon") {
+	return html`<svg
+    viewBox="0 0 16 16"
+    focusable="false"
+    aria-hidden="true"
+    class=${className}
+    data-lf-icon=${icon}
+  >
+    ${unsafeSVG(iconMarkup(icon))}
+  </svg>`;
+}
+const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
+
+//#endregion
 //#region runtime/shown-box.js
-const skipped = (el) => document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
+const skipped = (element) => {
+	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+	if (element.checkVisibility()) return true;
+	let child = element;
+	let box = renderedParent(element);
+	while (box && !box.checkVisibility()) {
+		child = box;
+		box = renderedParent(box);
+	}
+	if (!box) return false;
+	if (box.localName === "details") return !box.open && child.localName !== "summary";
+	return getComputedStyle(box).contentVisibility === "hidden";
+};
 function elementBox(el) {
 	const r = el.getBoundingClientRect();
 	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;
@@ -1222,74 +1370,6 @@ function registeredVisualPartAt(source, target, admits = () => true) {
 	}
 	return null;
 }
-
-//#endregion
-//#region runtime/tab-store.js
-const tabStore = document.documentElement.lfStorage?.tabStore ?? {
-	read: () => ({
-		available: false,
-		value: null
-	}),
-	get: () => null,
-	set: () => false,
-	where: (key) => ({
-		store: "session",
-		key
-	}),
-	keys: () => []
-};
-
-//#endregion
-//#region runtime/initial-render.js
-const drawsFirst = () => Boolean(document.documentElement.lfInitial);
-const coordinator = (node) => node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial;
-const offerElement = (node, cls) => {
-	if (node instanceof HTMLButtonElement && !node.hasAttribute("type")) node.setAttribute("type", "button");
-	if (cls) node.classList.add(...cls.split(" ").filter(Boolean));
-	return node;
-};
-const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
-	offerElement(node, cls);
-	if (label !== void 0 && (role === "symbol" || role === "mark")) {
-		node.setAttribute("aria-label", label);
-		node.setAttribute("title", title);
-	}
-	return node;
-};
-const offerAction = (role, cls, label, options) => {
-	const node = offerActionElement(document.createElement("button"), role, cls, label, options);
-	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
-	return node;
-};
-const plainTools = (host) => ({
-	tabStore,
-	offerElement,
-	offerActionElement,
-	offerAction,
-	selectableOfferElement(node, role, cls) {
-		if (cls) node.classList.add(...cls.split(" ").filter(Boolean));
-		node.removeAttribute("tabindex");
-	},
-	generatedElement: (node) => node,
-	authoredBody(node) {
-		node.append(...host.childNodes);
-		return node;
-	}
-});
-function initialRender(host, draw) {
-	const leaf = coordinator(host);
-	if (leaf) return leaf.paint(host);
-	const drawing = draw(host, plainTools(host));
-	if (drawing !== null) render(drawing.render(), drawing.root ?? host, { host });
-	return drawing;
-}
-const initialOrigin = (node) => coordinator(node).origin(node) ?? node;
-const initialParent = (node) => coordinator(node).parent(node);
-const authoredBody = (host) => coordinator(host).authoredBody(host);
-const initialSource = (node) => coordinator(node).reading(node);
-const restoreInitialSource = (root) => coordinator(root).restoreSource(root);
-const unmarkedCopy = (node) => coordinator(node).authoredCopy(node);
-const fragmentId = (fragment) => document.documentElement.lfInitial.fragmentId(fragment);
 
 //#endregion
 //#region runtime/syntax-languages.js
@@ -1525,4 +1605,20 @@ function textWidth(text, font) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, actionElement, actionIcon, actionName, actionOffers, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, authoredBody, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, drawsFirst, elementBox, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, fragmentId, frameFor, frameVisibility, holdRendering, iconElement, iconMarkup, inBaseLayer, initialOrigin, initialParent, initialRender, initialSource, isNativeLayer, isStage, layoutChanged, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restoreInitialSource, returnDuration, revealRegisteredVisualPart, revealsVisualParts, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, unmarkedCopy, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+//#region runtime/tab-store.js
+const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+	read: () => ({
+		available: false,
+		value: null
+	}),
+	get: () => null,
+	set: () => false,
+	where: (key) => ({
+		store: "session",
+		key
+	}),
+	keys: () => []
+};
+
+//#endregion
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

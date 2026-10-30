@@ -254,6 +254,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     import time
 
     from playwright._impl._fetch import APIRequestContext, APIResponse
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     from leaf.render_gate import scheme, widget_quality
 
@@ -278,7 +279,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
         released.set()
         await asyncio.wait_for(finished.wait(), SERVED_TIMEOUT_MS / 1000)
 
-    def abandoned_check(page, url):
+    def abandoned_check(page):
         pages.append(page)
         observe_output_documents(page)
         page.goto(url, wait_until="commit")
@@ -286,14 +287,14 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
         while not reading.is_set():
             assert time.monotonic() < deadline, "the observer never read its entry body"
             page.evaluate("1")
-        raise scheme.PreUpgradeFailed("never-reached", arrival="load", requesting=[])
+        raise PlaywrightTimeout("the check was abandoned during output capture")
 
     url = serve(leaf_page("closing observer", "<h1>Closing</h1>"), packages=())
     with monkeypatch.context() as patch:
         patch.setattr(APIResponse, "body", held_body)
         patch.setattr(APIRequestContext, "dispose", disposed)
         owner = scheme if reader == "page" else widget_quality
-        patch.setattr(owner, "start_with_pre_upgrade_proof", abandoned_check)
+        patch.setattr(owner, "observe_output_documents", abandoned_check)
         if reader == "page":
             _findings, _notices, complete = _render_scheme(
                 browser.unwatched, url, "light", RENDER_VIEWPORT, SERVED_TIMEOUT_MS, []

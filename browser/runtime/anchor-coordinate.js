@@ -29,3 +29,13 @@ export const anchorKey = (anchor) => {
 /** @param {Anchor | null | undefined} a @param {Anchor | null | undefined} b */
 export const sameAnchor = (a, b) =>
   a === b || (Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b));
+
+/** @param {string} fragment */
+export const fragmentId = (fragment) => {
+  const raw = fragment.slice(1);
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};

@@ -255,8 +255,8 @@ CARET_ROOM = rf"""box => {{{CARET_AT}
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     """The caret after a line's last character stands at the very end of the text
-    column: in a box that grows with its words, and after a trailing space that fits
-    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    column: in a box that grows with its words, and in a narrow allocation. Firefox
+    paints the caret a pixel wide from that offset onward, pulled
     inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
     clipping its words at the column's end hid it, and it read as gone under Send.
     Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
@@ -284,11 +284,14 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     })""")
     assert field.evaluate(CARET_ROOM) >= 1
     finish_held(page)
-    # At a narrow allocation the trailing space fits beside Send (see above).
+    # Check the last ink at a narrow allocation too. A trailing pre-wrap space can
+    # hang outside the line: its Range box is not the native caret's painted box,
+    # which Chromium pulls back inside the line. Read before that space instead.
     resized(page, 346, 900)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
     page.keyboard.press("Space")
+    page.keyboard.press("ArrowLeft")
     rendered(page)
     assert field.evaluate(CARET_ROOM) >= 1
 
@@ -414,7 +417,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='sidenote'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "

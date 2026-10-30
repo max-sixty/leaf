@@ -7,7 +7,7 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module type-checks the runtime, builds the framework's
  * third-party packages, and writes and checks every other committed Node-built output
- * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * beside them: the third-party
  * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
@@ -23,12 +23,11 @@
  * (`runtime-sources.mjs`); source fallback and installs need no compiler. The strict
  * program checks those owners, and ESLint and the import graph check their emitted
  * JavaScript as they check handwritten modules. Third-party packages are minified
- * builds from the lock and the adaptations below. Delivery inlines Lit when a page declares an initial producer,
- * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
- * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
- * loads one implementation. Signals are the framework's own: the kernel compiles
- * them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether each output's
- * imports resolve on every page and writes the notices for the packages that reached
+ * builds from the lock and the adaptations below. Runtime and package modules load
+ * one ordinary Lit module (`build/lit.mjs`). Signals are the framework's own: the
+ * kernel compiles them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether
+ * each output's imports resolve on every page and writes notices for the packages
+ * that reached
  * them, as it does for every vendored bundle.
  */
 import { readFileSync } from "node:fs";
@@ -40,15 +39,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
-import { initialOutputs } from "../initial.mjs";
-import {
-  initialLitPath,
-  sharedLitPath,
-  litFacade,
-  litGlobal,
-  litNamespace,
-  litPath,
-} from "../lit.mjs";
+import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
 import { typedHeader, typedSources } from "../runtime-sources.mjs";
@@ -106,11 +97,11 @@ async function litTypes() {
   );
 }
 /**
- * Build the classic Lit implementation, adapting the locked published modules in memory.
+ * Build the shared Lit implementation, adapting the locked published modules in memory.
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through the mover a Leaf page installs on its root
- * (`lfInitial.move`: prepaint's plain insertion, then `runtime/dom-move.js`, which keeps
+ * (`lfMove`, installed by `runtime/dom-move.js`, which keeps
  * the user's place and native state across the move). A document Leaf did not compose
  * has no mover, and Lit inserts as it always does, so this Lit loads in any document.
  *
@@ -122,7 +113,7 @@ async function litTypes() {
 async function litModule() {
   const contents = await litNamespace();
   const move =
-    "const leafMove = (parent, node, before) => { const move = document.documentElement.lfInitial?.move; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
+    "const leafMove = (parent, node, before) => { const move = window.lfMove; return move ? move(parent, node, before) : parent.insertBefore(node, before); };\n";
   return [
     {
       name: "leaf-lit",
@@ -375,34 +366,10 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const initialLit = await build({
-    absWorkingDir: root,
-    stdin: {
-      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
-      resolveDir: root,
-      sourcefile: "leaf-initial-lit.js",
-    },
-    outfile: `${assets}/${initialLitPath}`,
-    plugins: await litModule(),
-    platform: "browser",
-    format: "iife",
-    target: "es2022",
-    bundle: true,
-    minify: true,
-    legalComments: "eof",
-    metafile: true,
-    write: false,
-    logLevel: "silent",
-  });
-  const [initialLitFile] = initialLit.outputFiles;
-  checkModule(initialLitFile.text, initialLitPath);
-  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
   const moduleLit = await build({
     absWorkingDir: root,
     stdin: {
-      // A Leaf page's later initial producers bind to this instance; a document Leaf
-      // did not compose has no root coordinator to hold it.
-      contents: `import * as lit from "leaf:lit"; if (document.documentElement.lfInitial) ${litGlobal} = lit; export * from "leaf:lit";`,
+      contents: `export * from "leaf:lit";`,
       resolveDir: root,
       sourcefile: "leaf-module-lit.js",
     },
@@ -414,23 +381,23 @@ export async function buildOutputs() {
     bundle: true,
     minify: true,
     legalComments: "eof",
+    metafile: true,
     write: false,
     logLevel: "silent",
   });
   const [moduleLitFile] = moduleLit.outputFiles;
   checkModule(moduleLitFile.text, litPath);
   outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
-  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  // Each served bundle's notices, named after it; both builds of Lit hold one Lit.
+  // Each served bundle's notices, named after it.
   for (const [name, metafile] of [
     ["signals-core", result.metafile],
-    ["lit", initialLit.metafile],
+    ["lit", moduleLit.metafile],
   ])
     outputs.set(
       `${assets}/vendor/${name}.LICENSES.txt`,
       Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
     );
-  for (const producer of [initialOutputs, styleOutputs, vendorOutputs])
+  for (const producer of [styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
     outputs.set(`${kernelDirectory}/${name}`, bytes);

@@ -173,7 +173,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["aside.sidenote"]["x-example"]
+    sidenote = registry["aside.note"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )
@@ -3691,14 +3691,14 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "ship-thursday")
-    expect(aim).to_have_attribute("data-lf-mark-on", "inset")
+    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(inner) == "-2px"
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
     open_compact_comment(page)
     pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
-    expect(pending).to_have_attribute("data-lf-mark-on", "inset")
-    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    expect(pending).to_be_visible()
     assert pending.evaluate(inner) == "-2px"
 
 
@@ -4139,8 +4139,8 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
 
 COMPOSER_ATTACHMENT_PAGE = leaf_page(
     "An open comment keeps its writer",
-    """<h1 id="title">Resize an active comment</h1>
-<aside class="sidebar" id="bg-sidebar"><lf-toc id="bg-contents" max-level="2"></lf-toc></aside>
+    """<aside id="bg-sidebar"><div class="layout-track"><lf-toc id="bg-contents" max-level="2"></lf-toc></div></aside>
+<div class="layout-column"><h1 id="title">Resize an active comment</h1>
 <h2 id="first">First section</h2><p id="ordinary" tabindex="0">An ordinary paragraph remains visible at both widths.</p>
 <h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
 <details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
@@ -4152,10 +4152,11 @@ COMPOSER_ATTACHMENT_PAGE = leaf_page(
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.</p>
-<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section>
+<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section></div>
 """,
+    layout="sidebar",
     head="""<style>
-main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {display:none}
+@media (max-width: 800px) { #bg-sidebar {display:none} }
 </style>""",
 )
 

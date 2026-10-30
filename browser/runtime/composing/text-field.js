@@ -8,7 +8,7 @@
  * message's disabled checkbox, a rule as the rule, an entity as the character it
  * names, a picture as the picture, drawn after its source while the caret is in it,
  * and a link that leaves the page with the mark the page draws after one
- * (prepaint.js). The syntax that produces each (backticks, asterisks, brackets,
+ * (declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
  * hashes, list markers, a rule's dashes, an escape's or a break's backslash, an
  * entity's name, a picture's source) is hidden unless the selection touches the
  * construct; the spaces that lead a line, which the message drops, stay hidden. A
@@ -275,8 +275,8 @@ sheet.replaceSync(`
   .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
-    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
-    stroke-linejoin: round; overflow: visible; user-select: none;
+    background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
+    user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
      and the end of a fence its container or the draft ends, where no fence line

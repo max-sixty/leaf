@@ -1047,6 +1047,7 @@ function elementBox(el) {
 }
 const measurements = /* @__PURE__ */ new WeakMap();
 const drawn = (el) => {
+	if (skipped(el)) return false;
 	const box = elementBox(el);
 	return Boolean(box.width || box.height);
 };

@@ -57,10 +57,10 @@ def test_page_registry_composes_declarations_and_implementations_independently(
     }
     layer_before = deepcopy(layer)
     page_before = deepcopy(declarations)
+    layer_2 = registry_storage.layer_record(page_dir)
+    assert layer_2 is not None
     widget_paths = {
-        *registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        ),
+        *registry_storage.layer_widgets(layer_2, page_dir),
         "widgets/lf-local.js",
         "page/widgets/lf-page-only.js",
         "page/widgets/lf-tabs.js",
@@ -99,11 +99,9 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
-    widget_paths = set(
-        registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        )
-    )
+    layer_3 = registry_storage.layer_record(page_dir)
+    assert layer_3 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-gone": member}, widget_paths
@@ -125,11 +123,9 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     declaration = element_declaration("lf-local")
     declaration["properties"]["tone"] = schema
     declaration["x-tone"] = "tone"
-    widget_paths = set(
-        registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        )
-    )
+    layer_4 = registry_storage.layer_record(page_dir)
+    assert layer_4 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, widget_paths
@@ -160,11 +156,9 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
             "record": {"kind": "value", "attr": "reading"},
         },
     }
-    widget_paths = set(
-        registry_storage.layer_widgets(
-            registry_storage.layer_record(page_dir), page_dir
-        )
-    )
+    layer_5 = registry_storage.layer_record(page_dir)
+    assert layer_5 is not None
+    widget_paths = set(registry_storage.layer_widgets(layer_5, page_dir))
 
     composed = registry_page.compose_page_registry(
         layer, {"lf-local": declaration}, {*widget_paths, "widgets/lf-local.js"}
@@ -319,6 +313,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         registry_storage.active_registry(page_dir),
         page_view_model.PageView(page_dir).registry(None),
     ):
+        assert vocabulary is not None
         assert vocabulary["lf-local"] == declaration
 
 
@@ -349,7 +344,10 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     publish_choice(not active_attention)
     original = files_model.latest_revision(page_dir)
     publish_choice(active_attention)
-    assert files_model.latest_revision(page_dir) > original
+    value_2 = files_model.latest_revision(page_dir)
+    assert value_2 is not None
+    assert original is not None
+    assert value_2 > original
 
     action = append_command(
         page_dir,
@@ -478,6 +476,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
         },
     )
     events = events_model.read_events(page_dir)
+    assert revision is not None
     historical = read_artifact(page_dir, revision)
     after_undo = [
         *events,
@@ -597,6 +596,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     assert activated.error is None and activated.created
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
+    assert first_revision is not None
     historical = page_reading(
         passages_model.SourceReading(
             structure_model.SourceDocument(original),
@@ -645,6 +645,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     refused = revisioning_model.activate_source(page_dir)
 
     assert refused.error is None and refused.created
+    assert revision is not None
     assert refused.revision == revision + 1
 
 

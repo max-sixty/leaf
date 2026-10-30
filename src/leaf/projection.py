@@ -678,7 +678,7 @@ def page_reading(
             lambda: (
                 (previous, revision_reader(previous))
                 for previous in sorted(revisions, reverse=True)
-                if previous < revision
+                if revision_reader is not None and previous < revision
             )
         )
         if revision_reader is not None

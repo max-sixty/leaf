@@ -134,7 +134,9 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
     # A new generation returns to the installed default.
     cleanup_model.end_session("selected-runtime")
     cleanup_model.ensure_session("selected-runtime", {})
-    assert "launcher" not in cleanup_model.session_record("selected-runtime")
+    value = cleanup_model.session_record("selected-runtime")
+    assert value is not None
+    assert "launcher" not in value
 
 
 def _registrations(harness):
@@ -339,7 +341,9 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
     payload = json.dumps({"hook_event_name": event, "session_id": "s1"})
-    turn = service_model.page_claim(claimed)["turn"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    turn = claim_record["turn"]
     if event == "PostToolBatch":
         worker = run(
             json.dumps(
@@ -357,8 +361,12 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
     if event == "PostToolBatch":
-        assert service_model.page_claim(claimed)["turn"] == turn
-        assert service_model.page_claim(claimed)["turn_closed"] is None
+        claim_record_2 = service_model.page_claim(claimed)
+        assert claim_record_2 is not None
+        assert claim_record_2["turn"] == turn
+        claim_record_3 = service_model.page_claim(claimed)
+        assert claim_record_3 is not None
+        assert claim_record_3["turn_closed"] is None
         # The next tool boundary adds no repeated response-debt reminders.
         again = run(payload)
         assert (again.returncode, again.stdout, again.stderr) == (0, "", "")
@@ -512,7 +520,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
         assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
         return json.loads(called.read_text()) if called.exists() else None
 
-    session = harness_model.session_harness().session
+    harness_2 = harness_model.session_harness()
+    assert harness_2 is not None
+    session = harness_2.session
     assert run("PostToolUse", session) is None
     assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
 
@@ -788,7 +798,10 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
         page.take_claim(harness)
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
+    assert claim is not None
     assert claim["turn"] == ("first-turn" if started else None)
     assert claim["turn_opened"] == (opened if started else None)
     assert claim["turn_closed"] is None
-    assert cleanup_model.session_record(sid)["transcript_path"] == str(source)
+    turn_record = cleanup_model.session_record(sid)
+    assert turn_record is not None
+    assert turn_record["transcript_path"] == str(source)

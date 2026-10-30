@@ -43,6 +43,7 @@ from .schema import (
     WIDGET_NAME_RULE,
 )
 from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
+from .themes import DEFAULT_THEME
 
 
 @contextlib.contextmanager
@@ -270,12 +271,15 @@ def validate_package_dir(package: Path) -> list:
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The complete mandatory layer, with this package when it is not already in it."""
+    """The layer a new page selecting this package composes: the mandatory layer and
+    Leaf's default theme before this package when it is not already in it."""
     inputs = layer_inputs()
-    for root in inputs:
-        if paths_same(package, root):
-            return inputs
-    return [*inputs, package]
+    theme = named_package(DEFAULT_THEME)
+    if theme is not None and not any(paths_same(theme, root) for root in inputs):
+        inputs.append(theme)
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
+    return inputs
 
 
 def check_package(
@@ -384,9 +388,9 @@ def init_starter_widget(
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
     if not (
-        (package / "widgets.css").exists() or (package / "widgets.css").is_symlink()
+        (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
     ):
-        creates.append((package / "widgets.css", b""))
+        creates.append((package / "defaults.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -409,7 +413,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
 
         files = {
             "registry.json": b"{}\n",
-            "theme.css": b"",
+            "overrides.css": b"",
         }
         package.mkdir(parents=True, exist_ok=True)
         for name in PACKAGE_DIRS:

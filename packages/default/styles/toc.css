@@ -125,7 +125,7 @@ lf-toc a[data-lf-focus] {
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC keeps its native disclosure.
  *
- * The two questions are asked of two boxes, for the reason the core theme states beside
+ * The two questions are asked of two boxes, for the reason the core's base.css states beside
  * the declarations. The page answers the placement, because a page is always there to
  * answer; the wrapper answers only which slot it is, which is a fact that never changes
  * while the page is open, so the answer is the same one whether or not the box has been

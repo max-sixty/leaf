@@ -71,6 +71,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             destination,
             server_id=server.httpd.server_id,
         )
+        assert activation.revision is not None
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
         if bundled:
             bundler = Path(__file__).parents[2] / "worker" / "bundle-runtime.mjs"

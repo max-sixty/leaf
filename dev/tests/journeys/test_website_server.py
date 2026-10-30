@@ -3,12 +3,13 @@
 import json
 import shutil
 
-from leaf_dev import ROOT
-from leaf_dev.commands import refresh_previews
 from process.website_server import (
     _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
     get,
 )
+
+from leaf_dev import ROOT
+from leaf_dev.commands import refresh_previews
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):

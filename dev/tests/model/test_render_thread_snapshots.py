@@ -7,9 +7,11 @@ reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
 """
 
 import pytest
-from leaf_dev.commands.thread_snapshots import visible_capture
 from PIL import Image
+from playwright.sync_api import FloatRect
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
+
+from leaf_dev.commands.thread_snapshots import visible_capture
 
 
 def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
@@ -59,7 +61,7 @@ def test_response_pixels_exclude_chrome_but_keep_frame_and_shadow(
     image_snapshot, pytestconfig, tmp_path, monkeypatch
 ):
     """Chrome outside the visible band cannot fail the response appearance oracle."""
-    clip = {"x": 10, "y": 10, "width": 100, "height": 100}
+    clip: FloatRect = {"x": 10, "y": 10, "width": 100, "height": 100}
     window = {"left": 10, "top": 26, "right": 110, "bottom": 110}
     approved = Image.new("RGB", (100, 100), "white")
     expected = tmp_path / "expected.png"

@@ -501,7 +501,7 @@ RING_EXAMPLE_FILES = {
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
-    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
@@ -1506,7 +1506,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
         url = serve(example, comments=2, anchored=anchored)
         if name == RING_CHROME:
-            current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+            match = re.search(r"/v(\d+)\.html", url)
+            assert match is not None
+            current_version = int(match.group(1))
             next_version = current_version + 1
             _publish(
                 serve.page_dir,

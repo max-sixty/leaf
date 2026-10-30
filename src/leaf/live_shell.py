@@ -89,6 +89,7 @@ def write_live_shell(
             artifact.resources.keys() | artifact.widget_aliases.keys()
         ):
             resource = delivered_resource(artifact, logical, address)
+            assert resource is not None
             write(relative_root / logical.lstrip("/"), resource.data)
 
     write(Path("index.html"), documents[active])

@@ -820,7 +820,8 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
         ("panel.floating.menu.leave-backward", "Leave backward"),
     ], rows
     # The arrows' glyphs read the same on every platform; Tab's modifier does not.
-    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← / →"], rows
+    # Alternatives stand as keys of their own: ← and → each open or leave a list.
+    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← →"], rows
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

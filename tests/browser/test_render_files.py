@@ -12,6 +12,7 @@ from render_harness import (
     open_page,
     primed,
     rendered,
+    rgb_pixels,
     scroll_settled,
 )
 
@@ -177,7 +178,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
         assert (
             sum(
                 red > 245 and green < 10 and blue > 245
-                for red, green, blue in pixels.crop(edge).get_flattened_data()
+                for red, green, blue in rgb_pixels(pixels.crop(edge))
             )
             > 100
         )

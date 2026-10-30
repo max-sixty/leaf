@@ -5,8 +5,8 @@
 `findings.Finding.json` gives it, the markup checks' first; and `browser`, the browser
 gates `asked` for and those that `ran` (failing page code ends the check before the
 render gate reads anything), in which browser or why none could, with the render
-gate's margin widths and saved screens where it passed. `browser` is null where no
-gate needed one.
+gate's margin widths and saved screens even when it reports findings. `browser` is
+null where no gate needed one.
 """
 
 from pathlib import Path
@@ -46,6 +46,7 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
             return reported(1, found)
         from leaf.render_gate.page_code import needs_browser
 
+        assert result.artifact is not None
         runs_code = needs_browser(result.document, result.artifact)
         if not (runs_code or render):
             return reported(0, found)

@@ -54,13 +54,6 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
-from leaf_website import (
-    SITE_MANIFEST,
-    SITE_ORIGIN,
-    initial_state,
-    published_page,
-    site_metadata,
-)
 
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
@@ -84,6 +77,13 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     source_packages,
+)
+from leaf_website import (
+    SITE_MANIFEST,
+    SITE_ORIGIN,
+    initial_state,
+    published_page,
+    site_metadata,
 )
 
 EXAMPLES = ROOT / "examples"
@@ -310,7 +310,9 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
     )
 
 
-def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
+def deduplicate_tree(
+    root: Path, *, mutable_names: frozenset[str] | set[str] = frozenset()
+) -> None:
     """Hard-link identical build outputs without changing their public paths.
 
     `mutable_names` names files, or directories whose files, a served page rewrites;

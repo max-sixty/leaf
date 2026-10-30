@@ -13,7 +13,6 @@ from journeys import (
     detached_threads,
     listed_threads,
 )
-from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -96,6 +95,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -4608,6 +4608,10 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
     expect(
         page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
+    # Card focus precedes the smooth scroll; observe arrival before settling it.
+    expect(
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
     assert page.evaluate("history.length") == entries + 1

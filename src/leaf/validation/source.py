@@ -184,7 +184,7 @@ def sample_errors(
                 child_events = []
             pending.append((child, child_events, child, samples))
             child_readings = initial_data_document_readings(
-                child, child_events, registry
+                child, child_events, registry or {}
             )
             child_errors = _authored_document_checks(
                 page_dir,
@@ -355,6 +355,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     # with errors keeps no capture.
     artifact = None
     if registry is not None:
+        assert page_registry is not None
         try:
             artifact = capture_artifact(
                 page_dir,

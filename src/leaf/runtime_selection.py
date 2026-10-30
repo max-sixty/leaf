@@ -49,14 +49,14 @@ from .revision_artifact import (
     RevisionArtifact,
     resource_type,
 )
-from .schema import ASSETS, KERNEL, LAYER_TOP_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
+from .schema import ASSETS, KERNEL, KERNEL_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
 from .state import PLUGIN_ROOT, json_bytes
+from .themes import theme_package
 
 # Every input of a layer this tree composes: the core layer files beside the
 # runtime, and the bundled packages (`layer.layer_inputs`).
 LAYER_SOURCES = (
-    *(f"browser/{name}" for name in LAYER_TOP_FILES if name != "registry.json"),
-    "browser/registry.json",
+    *(f"browser/{name}" for name in KERNEL_FILES),
     "browser/widgets",
     "packages",
 )
@@ -256,8 +256,8 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     from .vendoring import package_files
 
     names = [*record["packages"]]
-    if record["theme"]:
-        names.append(record["theme"]["name"])
+    if theme := theme_package(record["theme"]):
+        names.append(theme)
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(
             package_files(root)

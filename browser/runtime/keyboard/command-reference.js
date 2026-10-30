@@ -26,9 +26,10 @@
    shows it in place of the title for the row ↑↓ selects, so the keyboard reaches it
    too. As a grey line under the title it made the catalog harder to scan for the few
    rows that have one, so that line shows only where there is no hover to raise the
-   tooltip. The meta line stacks every description's line, hidden, in the cell it
-   shows in, so it is as tall as the longest from opening and the results never move
-   under the walk.
+   tooltip. The meta line keeps one line, cutting a long description short, as the
+   selected row does, so the results never move under the walk; a screen reader hears
+   it whole. It once stacked every description, hidden, to stand as tall as the
+   longest, which left the resting count over a blank line or two.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -67,7 +68,9 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
+  completeRowKeySteps,
   completeRowSteps,
+  stepText,
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
@@ -83,7 +86,7 @@ import {
   currentLocationIn,
   deepFocus,
 } from "../focus.js";
-import { closeControl, searchField } from "../widget-elements.js";
+import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
@@ -212,7 +215,6 @@ const EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
   sections: Object.freeze([]),
-  describedMeta: Object.freeze([]),
 });
 /** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
@@ -386,9 +388,13 @@ function captureCommandReferenceCatalog() {
         const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
           bindingEnabled,
         );
-        const steps = alternatives.length
-          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+        const keySteps = alternatives.length
+          ? [
+              ...rowInfo.sequence.map((step) => [step]),
+              ...completeRowKeySteps(rowInfo.referenceRow, route),
+            ]
           : [];
+        const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -408,7 +414,7 @@ function captureCommandReferenceCatalog() {
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
           keySequence: steps.length
-            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
+            ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps)
             : null,
           title,
           description,
@@ -449,11 +455,6 @@ function captureCommandReferenceCatalog() {
     total: entries.length,
     entries: Object.freeze(entries),
     sections: Object.freeze(sections),
-    describedMeta: Object.freeze(
-      entries
-        .filter((entry) => entry.actionable && entry.description)
-        .map(selectionMeta),
-    ),
   });
 }
 
@@ -664,7 +665,10 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction(
+        "row",
+        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
+      )}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
@@ -790,16 +794,11 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map(
-        (text) => html`<span aria-hidden="true">${text}</span>`,
-      )}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"

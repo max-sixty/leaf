@@ -20,6 +20,7 @@
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
    Leaf page says in its live region (notifications.js) and a plain page leaves unsaid. */
+import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const initialized = new WeakSet();
@@ -102,7 +103,11 @@ export const refuseCommands = (event, error) => {
 // runs the page.
 export function failSoft(el, err, source) {
   reportFailure(el, err);
-  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
+  showFailure(
+    el,
+    `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`,
+    source,
+  );
 }
 
 // The report alone, for a widget that shows a part's failure its own way, such as a
@@ -114,8 +119,8 @@ export function failSoft(el, err, source) {
 // and Leaf reports the reason as thrown.
 export function reportFailure(el, err) {
   const event = new ErrorEvent("error", {
-    error: err instanceof Error ? err : siteless(err),
-    message: err?.message ?? String(err),
+    error: exceptionError(err),
+    message: describeFailure(err),
     bubbles: true,
     composed: true,
   });
@@ -125,11 +130,6 @@ export function reportFailure(el, err) {
 
 // The element and reason a failure event of `reportFailure`'s carries.
 const FAILURE = Symbol("failure");
-
-// An Error for a reason thrown as something else, with no stack: its site would be the
-// line here rather than the failure's (`exceptionText`, layer-client.js).
-const siteless = (reason) =>
-  Object.assign(Object.create(Error.prototype), { message: String(reason) });
 
 // The failure an `error` event reports, as Leaf reads it: the element and reason
 // `reportFailure` gave it, or, for one another element dispatched, that element, where
@@ -151,7 +151,7 @@ export function failureContext(el) {
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
 // any failure it falls back from that no paint reported, so this path reports nothing.
 export function failSoftUnreported(el, err) {
-  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
+  showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`);
 }
 
 const widgetOf = (el) => {

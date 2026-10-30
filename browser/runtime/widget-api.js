@@ -151,6 +151,7 @@ export { shadowStage } from "./shadow-stage.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
+export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

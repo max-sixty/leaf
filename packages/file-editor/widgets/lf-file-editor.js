@@ -42,6 +42,8 @@ import {
   allButCommandReference,
   announce,
   boundFile,
+  describeFailure,
+  RequestError,
   closeLayer,
   closeNativeLayer,
   commandsOn,
@@ -415,11 +417,11 @@ customElements.define(
           latest = null;
           failure = null;
         } catch (fault) {
-          if (fault.current) {
+          if (fault instanceof RequestError && fault.current) {
             latest = fault.current;
             failure = null;
           } else {
-            failure = { kind: "save", message: fault.message, replace };
+            failure = { kind: "save", message: describeFailure(fault), replace };
             owed ||= owedBefore;
           }
         } finally {
@@ -460,7 +462,7 @@ customElements.define(
           recovering = false;
           failure = null;
         } catch (fault) {
-          failure = { kind: "read", message: fault.message };
+          failure = { kind: "read", message: describeFailure(fault) };
         } finally {
           busy = false;
           if (connected) remember();

@@ -1089,8 +1089,9 @@ wa-copy-button.lf-icon-action {
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where
    the first row would stand, starting where the rows' marks do, so it reads as the
-   list's one line rather than a notice about it. Lists set it three ways, centred in
-   a dialog and inset in the panel, until they shared this one. */
+   list's one line rather than a notice about it. Lists that take the height of their
+   rows set it three ways, centred in a dialog and inset in the panel, until they
+   shared this one; a box of fixed height, as a file tree's is, centres it instead. */
 .lf-rows-empty {
   margin: 0;
   padding: 5px 8px;

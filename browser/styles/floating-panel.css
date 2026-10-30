@@ -1466,6 +1466,11 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
+  /* A card's question stands as close under its group's heading as a lone card's
+     stands under the group's name, so a group's name sits one way over its card. */
+  .lf-rows-head + .lf-fp-on-item[data-card] {
+    padding-top: 2px;
+  }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row of the list (controls.css,
      `.lf-rows`) in the heading's voice, so its disclosure arrow (controls.css) stands

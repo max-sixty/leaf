@@ -236,6 +236,30 @@ def _line(at: str, v: dict) -> str:
     return f"{at} (line {v['line']})"
 
 
+def _blocks(v: dict) -> str:
+    """The blocks of the author's file a finding lists (`values.elements`), as they
+    find them: a run of one tag in a row, under one enclosing id, reads as one, with
+    its count and its lines."""
+    runs: list[list[dict]] = []
+    for element in v["elements"]:
+        if runs and all(
+            runs[-1][0].get(key) == element.get(key) for key in ("tag", "enclosing")
+        ):
+            runs[-1].append(element)
+        else:
+            runs.append([element])
+
+    def said(run: list[dict]) -> str:
+        first, last = run[0]["line"], run[-1]["line"]
+        lines = f"line {first}" if first == last else f"lines {first}–{last}"
+        count = f"{len(run)} " if len(run) > 1 else ""
+        enclosing = run[0].get("enclosing")
+        within = f" in #{enclosing}" if enclosing else ""
+        return f"{count}<{run[0]['tag']}> ({lines}){within}"
+
+    return ", ".join(said(run) for run in runs)
+
+
 def _bearing(at: str, v: dict, value: str) -> str:
     """The element `at` names, written with the attribute the finding is about and
     its `value` as the words quote it."""
@@ -989,16 +1013,17 @@ _TEXT = {
     ),
     # Advice on the source.
     "unpointable-section": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so no comment or reading position"
-        " can hold to it"
+        "unpointable — no comment or reading position can hold to a section with"
+        f" no id: {_blocks(v)}; give each an id"
     ),
     "unpointable": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, nor anything enclosing it, so"
-        " element selection has no target"
+        "unpointable — these blocks have no id, nor does anything enclosing them, so"
+        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
-        f" the whole of #{v['enclosing']}"
+        "unpointable — a comment aimed at a block with no id lands on the whole of"
+        f" the section named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"

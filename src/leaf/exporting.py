@@ -205,7 +205,7 @@ class ReadableAssets(AssetInliner):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument]
+    artifact: RevisionArtifact, markup: list[SourceDocument], inliner: AssetInliner
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
@@ -242,7 +242,7 @@ def _module_urls(
         imports = list(captured_imports(resource.data, path, artifact.resources))
         pending.extend(target for _, _, target in imports)
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
-        urls[path] = _data_url(Resource(source, resource.mime))
+        urls[path] = inliner.embed(Resource(source, resource.mime))
     return urls | {alias: urls[path] for alias, path in widgets.items()}
 
 
@@ -261,23 +261,13 @@ def export_document(
     live sample is refused before this, by `cmd_export`.
 
     The import map is an address table: every module is the exact
-    captured module with only its parsed local imports rebound to an in-file ``data:``
-    URL. The normal application publisher, widgets, and presentation coordinator boot
+    captured module with its parsed local imports rebound to ``leaf:`` names.
+    The shared resource allocator gives each embedded module one object URL.
+    The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
     state = {**state, "others": []}
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
-    )
     resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
@@ -293,6 +283,18 @@ def export_document(
     ]
     while any(inliner.prefix in text for text in authored_text):
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+    modules = _module_urls(
+        artifact,
+        [
+            document,
+            *(
+                logged_fragment(event)
+                for event in state["events"]
+                if event.get("markup")
+            ),
+        ],
+        inliner,
+    )
     embedded_resources = {
         path: inliner.address(path)
         for path, resource in resources.items()

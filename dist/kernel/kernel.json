@@ -146,7 +146,7 @@
     "runtime/obligations/view-elements.js": "8dcb50af3cd2a4e2d57dfd37e134ceddc7688acd53bc62c3fece85e225927123",
     "runtime/obligations/view.js": "216e881f740ca54989bb3fa20628c74ad2d5f0c70e433a9af7795c94a3f18d3e",
     "runtime/off-flow.js": "752767afa7f5ec87db6555bb686114d11d377d965f1098e001f3662bc31bb1e3",
-    "runtime/offline-delivery.js": "4818293781d54c0361e1e9abb51a9060f10ea7da79098cb81cdb8a30baba06c6",
+    "runtime/offline-delivery.js": "e7a8859147b56f0d11c8c5825c40e4cf57de27c628b437d3334c8e3691897997",
     "runtime/page-about.js": "61e2d8b83ce48c9503532a2330c362af28b292ac42a08a5ccb6caf18cbe13040",
     "runtime/page-controls.js": "fc11341b8a26458ac73e4d4e3040cfc5941c32fdd76d55e2e8dfad2a5aeefa01",
     "runtime/page-geometry.js": "8501521f10b52cac23e03899fa9d399c8d30ba32dd0c86d315de7ba266da1b7c",

@@ -1296,12 +1296,18 @@ const marked = (box) => box.checkVisibility() && getComputedStyle(box).getProper
 function syncLayoutRegion() {
 	const main = layoutBox();
 	const bodies = main ? [...main.children].flatMap((child) => {
-		if (marked(child)) return [[child, child.id]];
+		if (marked(child)) return [{
+			body: child,
+			name: child.id
+		}];
 		const only = child.childElementCount === 1 ? child.firstElementChild : null;
-		return only && marked(only) ? [[only, only.id || child.id]] : [];
+		return only && marked(only) ? [{
+			body: only,
+			name: only.id || child.id
+		}] : [];
 	}) : [];
 	let unnamed = 0;
-	const ids = new Map(bodies.map(([body, name]) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
+	const ids = new Map(bodies.map(({ body, name }) => [body, name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`]));
 	for (const [body, region] of layoutRegions) if (ids.get(body) !== region.id) {
 		region.stop();
 		layoutRegions.delete(body);
@@ -2117,8 +2123,8 @@ const cutPath = ({ x, y }, band) => {
 	const open = 1e5;
 	const width = band.right - band.left;
 	const height = band.bottom - band.top;
-	const edge = (value) => `calc(${layoutPx(value)} - var(--lf-paint-outset, 0px))`;
-	return `inset(${edge(y ? 0 : -1e5)} ${edge(-width - (x ? 0 : open))} ${edge(-height - (y ? 0 : open))} ${edge(x ? 0 : -1e5)})`;
+	const edge = (value, side) => `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+	return `inset(${edge(y ? 0 : -1e5, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -1e5, "left")})`;
 };
 const nowhere = {
 	left: 0,

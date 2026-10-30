@@ -34,7 +34,7 @@ from render_harness import (
 
 from browser.margin import (
     COMMENT_ON_OBLIGATION,
-    leave_card_by_its_target,
+    leave_card,
 )
 from browser.threads import open_panel_thread
 from leaf import cli as cli_model
@@ -344,7 +344,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    leave_card_by_its_target(page)
+    leave_card(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
@@ -1117,8 +1117,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        # A rectangular trace uses the same outside stroke as target focus, in the
-        # trace's quiet ink. Read the painted bracket, not its transparent container.
+        # A rectangular trace uses the same outside stroke as target focus, on the
+        # region's perimeter, in the trace's quiet ink. Read the painted bracket, not its transparent container.
         trace = page.evaluate(
             """() => {
               const trace = document.querySelector('.lf-target-trace');
@@ -1127,16 +1127,18 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 boxWidth: box.outlineWidth,
                 boxColor: box.outlineColor,
                 gap: box.outlineOffset,
+                region: getComputedStyle(document.documentElement)
+                  .getPropertyValue('--focus-region-gap').trim(),
                 leader: getComputedStyle(
                   document.querySelector('.lf-margin-cluster'), '::before',
                 ).content,
               };
             }"""
         )
+        assert trace.pop("gap") == trace.pop("region"), trace
         assert trace == {
             "boxWidth": "2px",
             "boxColor": resolved_color("--target-trace-ink"),
-            "gap": "0px",
             "leader": "none",
         }
 

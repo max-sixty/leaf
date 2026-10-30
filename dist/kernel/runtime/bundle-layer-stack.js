@@ -1165,9 +1165,8 @@ const onLetGo = (read) => {
 	letGoReaders.add(read);
 	return () => letGoReaders.delete(read);
 };
-function letGo() {
+function letGo(from = focused()) {
 	letGoes++;
-	const from = focused();
 	const block = readingBlock(from);
 	if (!block?.isConnected) releaseFocus();
 	else {
@@ -1256,9 +1255,9 @@ function share(prior, next) {
 	if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object") return next;
 	if (Array.isArray(next)) {
 		if (!Array.isArray(prior)) return next;
-		const children = next.map((child, index) => share(prior[index], child));
-		if (prior.length === next.length && children.every((child, index) => child === prior[index])) return prior;
-		return children.every((child, index) => child === next[index]) ? next : children;
+		const children2 = next.map((child, index) => share(prior[index], child));
+		if (prior.length === next.length && children2.every((child, index) => child === prior[index])) return prior;
+		return children2.every((child, index) => child === next[index]) ? next : children2;
 	}
 	if (next instanceof Map) {
 		if (!(prior instanceof Map)) return next;
@@ -1281,7 +1280,7 @@ function share(prior, next) {
 	const children = keys.map((key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
 	if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])) return prior;
 	if (keys.every((key, index) => children[index] === after[key])) return next;
-	const copy = Object.getPrototypeOf(next) === null ? Object.create(null) : {};
+	const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
 	keys.forEach((key, index) => Object.defineProperty(copy, key, {
 		value: children[index],
 		writable: true,
@@ -3181,10 +3180,7 @@ const tick = (version) => {
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({ reportFailure: (reason) => reportPresentationFailure(reason) });
 const schedule = createPresentationSchedule(bindQueuedWork);
-const applicationState = createSemanticApplication({ presentation: {
-	begin: () => presentation.begin(),
-	seal: (publication) => presentation.seal(publication)
-} });
+const applicationState = createSemanticApplication({ presentation });
 const readApplication = applicationState.read;
 const readPart = (derive) => applicationState.select(derive).read;
 const agent = readPart((root) => root.authoritative?.agent ?? null);
@@ -3207,8 +3203,8 @@ const queueWidgetUpdate = (widget, update, committed) => {
 		for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
 			if (seen.has(parent)) return [];
 			seen.add(parent);
-			const dom = widgetCommits.get(parent);
-			if (dom) pending.push(dom);
+			const dom2 = widgetCommits.get(parent);
+			if (dom2) pending.push(dom2);
 		}
 		return pending;
 	}, update, committed);
@@ -3250,17 +3246,17 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			forget();
 			const generation = following;
 			const stretch = (run) => {
-				let first = true;
+				let first2 = true;
 				let outcome;
 				const stop = x$1(() => {
-					if (!first) {
+					if (!first2) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
 							if (next !== null) claim(next);
 						});
 						return;
 					}
-					first = false;
+					first2 = false;
 					try {
 						outcome = { value: run() };
 					} catch (error) {

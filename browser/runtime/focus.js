@@ -319,6 +319,7 @@ function landLabelPress() {
 // while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+/** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
@@ -1475,15 +1476,16 @@ export function release() {
 }
 // A landing on the page is the user going on to it, a `move`. It leaves them at nothing,
 // beside what they let go of rather than anywhere else, and each reader `onLetGo` names
-// hears that node once the landing is done (current-target.js, `walkOrigin`).
+// hears that node once the landing is done (current-target.js, `walkOrigin`). A closer
+// whose layer stands for a place on the page, as a thread card stands for its target,
+// names that place as `from`, since the node focused in the layer is beside nothing.
 const letGoReaders = new Set();
 export const onLetGo = (read) => {
   letGoReaders.add(read);
   return () => letGoReaders.delete(read);
 };
-export function letGo() {
+export function letGo(from = focused()) {
   letGoes++;
-  const from = focused();
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {

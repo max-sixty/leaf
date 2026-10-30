@@ -136,24 +136,26 @@ const sourceRows = (owner) =>
 const observations = (label, rows, describe) =>
   html` <dt>${label}</dt>
     <dd>
-      ${rows.length
-        ? html`<ul>
-            ${rows.map(
-              (row) =>
-                html` <li>
-                  <code>${row.at}</code>: ${describe(row)}
-                  ${destinations.has(row)
-                    ? html`<button
-                        ${offeredAction("symbol", "", "Show on page", {
-                          action: "show",
-                        })}
-                        @click=${() => showOnPage(row)}
-                      ></button>`
-                    : nothing}
-                </li>`,
-            )}
-          </ul>`
-        : "None observed"}
+      ${
+        rows.length
+          ? html`<ul>
+              ${rows.map(
+                (row) =>
+                  html` <li>
+                    <code>${row.at}</code>: ${describe(row)}
+                    ${
+                      destinations.has(row)
+                        ? html`<button
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
+                            @click=${() => showOnPage(row)}
+                          ></button>`
+                        : nothing
+                    }
+                  </li>`,
+              )}
+            </ul>`
+          : "None observed"
+      }
     </dd>`;
 
 async function showOnPage(row) {
@@ -188,43 +190,44 @@ function browserReading(view) {
       ${copyableText("rendering environment", JSON.stringify(view.identity, null, 2))}
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
-    ${view.readiness
-      ? html`<p>Captured while the page was settling: ${view.readiness}.</p>`
-      : nothing}
-    ${checks
-      ? html`<dl>
-          <dt>Horizontal overflow</dt>
-          <dd>${number(checks.horizontal_overflow_px)} px</dd>
-          ${observations(
-            "Overflowing regions",
-            checks.overflowing_regions,
-            (row) => `${row.over} px beyond its scrollport`,
-          )}
-          ${observations(
-            "Scrollbar clearance",
-            checks.scrollbar_clearance,
-            (row) =>
-              `${row.clear} px available; ${row.required} px needed for ${row.content}`,
-          )}
-          ${observations(
-            `Scaled labels below ${checks.shrunk_labels.threshold_px} px (heuristic)`,
-            checks.shrunk_labels.drawings,
-            (row) =>
-              `${row.labels} labels; smallest ${row.drawn} px, authored ${row.set} px; “${row.words}”`,
-          )}
-          ${observations(
-            "Arrangement",
-            view.checks.reading.layout.arrangement,
-            (row) => `${row.rows} items by row · ${row.path}`,
-          )}
-        </dl>`
-      : nothing}
+    ${
+      view.readiness
+        ? html`<p>Captured while the page was settling: ${view.readiness}.</p>`
+        : nothing
+    }
+    ${
+      checks
+        ? html`<dl>
+            <dt>Horizontal overflow</dt>
+            <dd>${number(checks.horizontal_overflow_px)} px</dd>
+            ${observations(
+              "Overflowing regions",
+              checks.overflowing_regions,
+              (row) => `${row.over} px beyond its scrollport`,
+            )}
+            ${observations(
+              "Scrollbar clearance",
+              checks.scrollbar_clearance,
+              (row) =>
+                `${row.clear} px available; ${row.required} px needed for ${row.content}`,
+            )}
+            ${observations(
+              `Scaled labels below ${checks.shrunk_labels.threshold_px} px (heuristic)`,
+              checks.shrunk_labels.drawings,
+              (row) =>
+                `${row.labels} labels; smallest ${row.drawn} px, authored ${row.set} px; “${row.words}”`,
+            )}
+            ${observations(
+              "Arrangement",
+              view.checks.reading.layout.arrangement,
+              (row) => `${row.rows} items by row · ${row.path}`,
+            )}
+          </dl>`
+        : nothing
+    }
     <details>
       <summary>Browser observations and locations</summary>
-      ${copyableText(
-        "browser observations and locations",
-        JSON.stringify(view, null, 2),
-      )}
+      ${copyableText("browser observations and locations", JSON.stringify(view, null, 2))}
     </details>`;
 }
 
@@ -250,65 +253,76 @@ function present() {
       <section aria-label="Authored CSS">
         <h2 class="lf-label">Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
-        ${sourceError
-          ? html`<p role="status">${sourceError}</p>
-              ${report.basis
-                ? html`<button
-                    ${offeredAction("symbol", "", "Retry source inspection", {
-                      action: "retry",
-                    })}
-                    @click=${loadSource}
-                  ></button>`
-                : nothing}`
-          : nothing}
-        ${report.css
-          ? html`
-              <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
-              ${metrics(report.css.page)}
-              <h3>Page sources and locations</h3>
-              ${sourceRows("page")}
-              <details>
-                <summary>Selected layer CSS</summary>
-                ${metrics(report.css.layer)}${sourceRows("layer")}
-              </details>
-              ${report.css.coverage.map((line) => html`<p>${line}</p>`)}
-            `
-          : nothing}
+        ${
+          sourceError
+            ? html`<p role="status">${sourceError}</p>
+                ${
+                  report.basis
+                    ? html`<button
+                        ${offeredAction("symbol", "", "Retry source inspection", {
+                          action: "retry",
+                        })}
+                        @click=${loadSource}
+                      ></button>`
+                    : nothing
+                }`
+            : nothing
+        }
+        ${
+          report.css
+            ? html`
+                <p>Source captured for r${report.basis.revision}. Static CSS only.</p>
+                ${metrics(report.css.page)}
+                <h3>Page sources and locations</h3>
+                ${sourceRows("page")}
+                <details>
+                  <summary>Selected layer CSS</summary>
+                  ${metrics(report.css.layer)}${sourceRows("layer")}
+                </details>
+                ${report.css.coverage.map((line) => html`<p>${line}</p>`)}
+              `
+            : nothing
+        }
       </section>
-      ${report.javascript
-        ? html`<section aria-label="Authored JavaScript">
-            <h2 class="lf-label">Authored JavaScript</h2>
-            <p>
-              ${number(report.javascript.page.bytes)} page-owned bytes ·
-              ${number(report.javascript.page.inline_scripts)} inline scripts ·
-              ${number(report.javascript.page.files)} files
-            </p>
-            <details>
-              <summary>JavaScript sources</summary>
+      ${
+        report.javascript
+          ? html`<section aria-label="Authored JavaScript">
+              <h2 class="lf-label">Authored JavaScript</h2>
+              <p>
+                ${number(report.javascript.page.bytes)} page-owned bytes ·
+                ${number(report.javascript.page.inline_scripts)} inline scripts ·
+                ${number(report.javascript.page.files)} files
+              </p>
+              <details>
+                <summary>JavaScript sources</summary>
+                <dl>
+                  ${report.javascript.sources.map(
+                    (source) =>
+                      html`<dt><code>${source.path}:${source.line}</code></dt>
+                        <dd>
+                          ${source.owner} · ${source.kind} · ${number(source.bytes)}
+                          bytes
+                        </dd>`,
+                  )}
+                </dl>
+              </details>
+            </section>`
+          : nothing
+      }
+      ${
+        report.page_widgets?.length
+          ? html`<section aria-label="Page-owned widgets">
+              <h2 class="lf-label">Page-owned widgets</h2>
               <dl>
-                ${report.javascript.sources.map(
-                  (source) =>
-                    html`<dt><code>${source.path}:${source.line}</code></dt>
-                      <dd>
-                        ${source.owner} · ${source.kind} · ${number(source.bytes)} bytes
-                      </dd>`,
+                ${report.page_widgets.map(
+                  (widget) =>
+                    html`<dt><code>${widget.tag}</code></dt>
+                      <dd><code>${widget.path}</code></dd>`,
                 )}
               </dl>
-            </details>
-          </section>`
-        : nothing}
-      ${report.page_widgets?.length
-        ? html`<section aria-label="Page-owned widgets">
-            <h2 class="lf-label">Page-owned widgets</h2>
-            <dl>
-              ${report.page_widgets.map(
-                (widget) =>
-                  html`<dt><code>${widget.tag}</code></dt>
-                    <dd><code>${widget.path}</code></dd>`,
-              )}
-            </dl>
-          </section>`
-        : nothing}
+            </section>`
+          : nothing
+      }
       <section aria-label="Browser observation">
         <h2 class="lf-label">This tab at opening</h2>
         ${browserReading(report.current_view)}

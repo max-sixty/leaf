@@ -754,7 +754,7 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted);
+  color: var(--muted-2);
   font: var(--voice-small);
   font-weight: 500;
 }

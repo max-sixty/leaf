@@ -1423,10 +1423,6 @@
     background: var(--lf-fp-faint);
     margin: 4px 8px;
   }
-  .lf-fp-empty {
-    margin: 14px 8px;
-    color: var(--lf-fp-muted);
-  }
   .lf-fp-quiet {
     color: var(--lf-fp-muted);
   }
@@ -1435,19 +1431,6 @@
   }
 
   /* ---------- On: a card or a line per item ---------- */
-  /* A group's heading over its items, in the label voice (`.lf-label`), with how many
-     it holds. */
-  .lf-fp-on-group {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0;
-    padding: 10px 8px 2px;
-  }
-  .lf-fp-on-group:first-child,
-  .lf-fp-on-rule + .lf-fp-on-group {
-    padding-top: 2px;
-  }
   /* Each line is a list row (`.lf-fp-item`) that shares its first column, what each
      item is, with every line, so every title starts on one edge: the line takes the
      list's columns (`subgrid`), the widest word setting the first up to a share of the
@@ -1507,30 +1490,21 @@
     flex-direction: column;
     padding: 10px 8px 12px;
   }
+  /* A card's question stands as close under its group's heading as a lone card's
+     stands under the group's name, so a group's name sits one way over its card. */
+  .lf-rows-head + .lf-fp-on-item[data-card] {
+    padding-top: 2px;
+  }
   /* What left a list, folded under its group heading (floating-panel.js,
      `settledHeading`): the heading is the press, a row of the list (controls.css,
-     `.lf-rows`), so its disclosure arrow (controls.css) stands in the column the rows'
-     news mark takes, its name starts where their names do, and its count ends where
-     their status does. The heading element only names it a heading and stands aside
-     from the layout; as a grid of its own between list and press, it moved the press's
-     words 4px past the rows'. */
-  .lf-fp-settled-group {
-    display: contents;
-  }
+     `.lf-rows`) in the heading's voice, so its disclosure arrow (controls.css) stands
+     in the column the rows' news mark takes, its name starts where their names do, and
+     its count ends where their status does. */
   .lf-fp-settled {
     align-items: center;
     font: inherit;
-    letter-spacing: inherit;
-    text-transform: inherit;
     color: inherit;
     text-align: start;
-  }
-  /* Its count ends where the rows' status does, in the heading's own voice, as On me's
-     group counts are. */
-  .lf-fp-settled > .lf-fp-count {
-    color: inherit;
-    font-size: inherit;
-    text-align: end;
   }
   .lf-fp-settled::before {
     grid-column: lead;
@@ -1540,12 +1514,21 @@
   .lf-fp-on-place,
   .lf-fp-on-title {
     margin: 0 0 2px;
-    font: inherit;
-    font-size: 12px;
-    color: var(--lf-fp-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* A card alone in its group names the group over its question in the group heading's
+     voice (controls.css, `.lf-rows-head`), as a heading names the group of two or more,
+     standing where the card's words start. */
+  .lf-fp-on-place {
+    display: block;
+    padding: 0;
+  }
+  .lf-fp-on-title {
+    font: inherit;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
   }
   .lf-fp-prompt {
     margin: 0;

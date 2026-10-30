@@ -1800,7 +1800,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     widget.get_by_role("radio", name="Page 1", exact=True).click()
     # The list's numbered rows count the scope's moments; its heading doesn't.
     moments = widget.locator(".lf-trace-bookmark:visible")
-    expect(widget.locator(".lf-trace-moments-heading")).to_have_text("Moments")
+    expect(widget.locator(".lf-trace-bookmarks .lf-rows-head")).to_have_text("Moments")
     expect(moments).to_have_count(20)
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     pins = widget.locator(".lf-trace-moment-pin")

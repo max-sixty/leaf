@@ -860,11 +860,13 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     shot = page.locator("#rn-console-shot")
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
+    # Room for the trace, which stands at the region's gap outside the target.
+    room = 12
     clip = {
-        "x": math.floor(box["x"]) - 2,
-        "y": math.floor(box["y"]) - 2,
-        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 4,
-        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 4,
+        "x": math.floor(box["x"]) - room,
+        "y": math.floor(box["y"]) - room,
+        "width": math.ceil(box["x"] + box["width"]) - math.floor(box["x"]) + 2 * room,
+        "height": math.ceil(box["y"] + box["height"]) - math.floor(box["y"]) + 2 * room,
     }
 
     def screenshot():

@@ -298,18 +298,19 @@ const pathSizes = sizeObserver((entries) => {
       folders: parts
         .filter((part) => part.matches(".lf-diff-dir"))
         .map((part) => {
-          return [
+          return {
             part,
-            Number.parseFloat(getComputedStyle(part, "::before").width) >
+            hidden:
+              Number.parseFloat(getComputedStyle(part, "::before").width) >
               part.getBoundingClientRect().width,
-          ];
+          };
         }),
     };
   });
   for (const { path, cut, folders } of readings) {
     path.parentElement.toggleAttribute("data-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
-    for (const [part, hidden] of folders)
+    for (const { part, hidden } of folders)
       part.toggleAttribute("data-folder-hidden", hidden);
   }
 });

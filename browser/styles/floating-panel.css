@@ -9,12 +9,13 @@
    and what anyone wrote (questions, messages, a plan) in a thread's,
    `--voice-message`; none of it takes the page's prose face. It once set its own 13px and
    12px, which put its qualifiers half a pixel larger than the headings and statuses
-   it shares with the other lists. Two inks, full and 72%, and
-   the accent for what is on the user, with the empty field's status a step dimmer
-   at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
-   panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
-   there, where the 48% the status first wore read 3.1:1. The user chose a dim
-   status, so it stays the dimmest words in the panel. Every row is one line. */
+   it shares with the other lists. Its words take the interface's inks: the ink, the
+   interface muted (`--muted-2`, base.css) for what qualifies them and for the empty
+   field's status, and the accent for what is on the user. It once mixed its own 72%
+   and 62% inks, which set its qualifiers a step brighter than every other list's.
+   The user chose a dim status (the 48% it first wore read 3.1:1 against AA's 4.5:1
+   for text), so it wears the dimmest ink the panel's ground holds legible. Every row
+   is one line. */
 @scope (.lf-chrome) {
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
@@ -25,8 +26,6 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
-    --lf-fp-muted: color-mix(in srgb, var(--ink) 72%, transparent);
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
@@ -170,7 +169,7 @@
       background: var(--lf-fp-hover);
     }
     button:where(.lf-fp-face):is(:disabled, [aria-disabled="true"]) {
-      color: var(--lf-fp-muted);
+      color: var(--muted-2);
       cursor: default;
       background: none;
     }
@@ -293,7 +292,7 @@
     color: var(--ink);
   }
   .lf-fp-search::placeholder {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-search:focus-visible {
     outline: none;
@@ -514,13 +513,13 @@
      panel's alone: the user kept a card's reply box dim on 27 October, since in a box
      that says nothing but its own hint, an ink Reply read as words already typed. */
   .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-quiet);
+    color: var(--muted-2);
   }
   .lf-fp-field leaf-text[data-offers]::part(placeholder) {
     color: var(--ink);
   }
   .lf-fp-field leaf-text[data-offers] .lf-compose-placeholder-lead {
-    color: var(--lf-fp-quiet);
+    color: var(--muted-2);
   }
   .lf-fp-field leaf-text:not([data-offers]) .lf-compose-placeholder kbd {
     display: none;
@@ -543,7 +542,7 @@
     margin-inline-start: auto;
   }
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font-weight: 500;
   }
   /* An error the field says stands in its status's place, in the danger's ink, until
@@ -567,7 +566,8 @@
     .lf-floating-panel[data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text[data-says="status"]::part(placeholder) {
-      /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
+      /* At rest the words are ink at 62%, as dim as the interface muted they wear
+         when the work stops. */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
@@ -597,8 +597,8 @@
     --lf-fp-asks: var(--danger-ink);
   }
   /* A report in the blocked tone, a server the page can't reach or one answering with
-     its own error, reads in the danger's ink at the quiet face's strength: red, so the
-     words agree with the leaf, and dim, since the page retries on its own. */
+     its own error, reads in the danger's ink at 62%, as dim as the status's other words: red,
+     so the words agree with the leaf, and dim, since the page retries on its own. */
   .lf-floating-panel[data-tone="blocked"]:not([data-asks])
     .lf-fp-field
     leaf-text[data-says="status"]::part(placeholder) {
@@ -708,7 +708,7 @@
     gap: 4px;
     min-height: var(--lf-line);
     padding: 0 7px;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-chip:hover {
@@ -785,7 +785,7 @@
     );
   }
   .lf-fp-row-notice-sep {
-    color: var(--lf-fp-quiet);
+    color: var(--muted-2);
   }
   .lf-fp-row-notice-act {
     text-decoration: underline;
@@ -1040,7 +1040,7 @@
   }
   .lf-fp-filters button {
     flex-shrink: 0;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font: var(--voice-small);
     min-height: var(--lf-fp-tab);
   }
@@ -1061,7 +1061,7 @@
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-count[data-zero] {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   /* A view's chooser: its symbol, an icon press's size and face, under the select that
      takes the press (floating-panel.js, `chooser`), which wears the ring. */
@@ -1072,7 +1072,7 @@
     min-width: max(var(--lf-fp-press), var(--aim-floor));
     min-height: var(--lf-fp-press);
     border-radius: var(--r);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     outline-offset: var(--focus-ring-inset);
   }
   .lf-fp-chooser:hover {
@@ -1198,7 +1198,7 @@
     overflow-wrap: anywhere;
   }
   .lf-fp-value {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font: var(--voice-small);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -1242,13 +1242,13 @@
     font: var(--voice-compact);
   }
   .lf-fp-copy-icon {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-chevron {
     width: 12px;
     height: 12px;
     margin-inline-end: -2px;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-item[data-lf-urgent] .lf-fp-value {
     color: var(--accent);
@@ -1261,7 +1261,7 @@
     color: var(--accent);
   }
   :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
      its passage's hover wash, so the row and the lit words read as one thread. */
@@ -1329,7 +1329,7 @@
   }
   .lf-fp-page > .lf-external-mark {
     margin: 0;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   a.lf-fp-page {
     padding-inline-start: 6px;
@@ -1412,7 +1412,7 @@
   }
   .lf-fp-note {
     margin-inline-start: 8px;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font-weight: 400;
   }
   .lf-fp-compare {
@@ -1428,7 +1428,7 @@
     margin: 4px 8px;
   }
   .lf-fp-quiet {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-quiet:hover {
     color: var(--ink);
@@ -1534,7 +1534,7 @@
   }
   .lf-fp-on-title {
     font: var(--voice-small);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-prompt {
     margin: 0;
@@ -1589,7 +1589,7 @@
   .lf-fp-answer:has(> .lf-action-icon) {
     display: grid;
     place-items: center;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-answer:has(> .lf-action-icon):hover {
     color: var(--ink);
@@ -1611,7 +1611,7 @@
     -webkit-line-clamp: 2;
     overflow: hidden;
     font: var(--voice-small);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-answer[aria-pressed="true"] {
     color: var(--ok-ink);
@@ -1623,7 +1623,7 @@
     margin-right: 6px;
   }
   .lf-fp-said {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font: var(--voice-small);
     margin-right: 4px;
   }
@@ -1665,7 +1665,7 @@
   .lf-fp-plan-count {
     margin-left: auto;
     font: var(--voice-small);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-plan-steps {
@@ -1692,7 +1692,7 @@
     align-self: center;
     width: 16px;
     height: 16px;
-    color: var(--lf-fp-quiet);
+    color: var(--muted-2);
   }
   .lf-fp-plan-step[data-state="open"] > .lf-fp-plan-mark::before {
     content: "";
@@ -1709,7 +1709,7 @@
   }
   .lf-fp-plan-step[data-state="done"] > .lf-fp-plan-title,
   .lf-fp-plan-step[data-state="dropped"] > .lf-fp-plan-title {
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-plan-step[data-state="dropped"] > .lf-fp-plan-title {
     text-decoration: line-through;
@@ -1726,7 +1726,7 @@
   .lf-fp-plan-time,
   .lf-fp-plan-line {
     font: var(--voice-small);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-plan-line {
@@ -1748,7 +1748,7 @@
     align-items: center;
     gap: 6px;
     font: var(--voice-small);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
   }
   .lf-fp-plan-head[aria-expanded="true"] {
     color: var(--ink);
@@ -1855,7 +1855,7 @@
     gap: 1px;
     padding: 6px 8px 8px;
     margin-bottom: 6px;
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font: var(--voice-small);
   }
   .lf-fp-summary {
@@ -1912,7 +1912,7 @@
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
       var(--raise-1);
-    color: var(--lf-fp-muted);
+    color: var(--muted-2);
     font: var(--voice-small);
     pointer-events: none;
     display: none;

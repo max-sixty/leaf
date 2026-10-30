@@ -28,7 +28,7 @@
   border-radius: var(--r);
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
-  color: var(--muted);
+  color: var(--muted-2);
   font: var(--voice-small);
   white-space: nowrap;
   overflow: hidden;
@@ -85,7 +85,7 @@
   min-width: max(26px, var(--aim-floor));
 }
 .lf-react:not(.lf-margin-entry) {
-  color: var(--muted);
+  color: var(--muted-2);
   border-color: transparent;
   background: transparent;
 }
@@ -388,7 +388,7 @@ svg[data-lf-icon] {
   min-width: 0;
 }
 .lf-msg-sending {
-  color: var(--muted);
+  color: var(--muted-2);
   white-space: nowrap;
 }
 /* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
@@ -623,7 +623,7 @@ summary,
   border-radius: var(--r);
   background: transparent;
   cursor: pointer;
-  color: var(--muted);
+  color: var(--muted-2);
   display: inline-block;
 }
 :is(.lf-btn, .button):where(
@@ -724,7 +724,7 @@ summary,
   border: 1px solid transparent;
   border-radius: var(--r);
   background: transparent;
-  color: var(--muted);
+  color: var(--muted-2);
 }
 .lf-icon-action:where(:not(:disabled, [aria-disabled="true"])[data-lf-focus-visible]) {
   background: var(--chip);
@@ -780,7 +780,7 @@ wa-copy-button.lf-icon-action {
 }
 :is(.lf-btn, .button).primary:is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
-  color: var(--muted);
+  color: var(--muted-2);
   background: var(--paper);
   border-color: var(--border-2);
 }
@@ -814,7 +814,7 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--r-s);
   font: inherit;
   background: none;
-  color: color-mix(in srgb, var(--ink) 72%, transparent);
+  color: var(--muted-2);
   box-shadow: none;
   cursor: pointer;
   outline-offset: 0;
@@ -939,7 +939,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .field)::placeholder {
-  color: var(--muted);
+  color: var(--muted-2);
   opacity: 1;
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
@@ -1088,7 +1088,7 @@ wa-copy-button.lf-icon-action {
   place-items: center end;
   min-height: 1lh;
   margin-inline-end: 8px;
-  color: var(--muted);
+  color: var(--muted-2);
   font-variant-numeric: tabular-nums;
 }
 .lf-row-main {
@@ -1100,7 +1100,7 @@ wa-copy-button.lf-icon-action {
   grid-column: end;
   justify-self: end;
   margin-inline-start: 12px;
-  color: var(--muted);
+  color: var(--muted-2);
   font: var(--voice-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1123,7 +1123,7 @@ wa-copy-button.lf-icon-action {
 .lf-rows-head {
   margin: 0;
   font: var(--voice-heading);
-  color: var(--muted);
+  color: var(--muted-2);
 }
 .lf-rows-head:where(:not(:has(> .lf-row))) {
   display: flex;
@@ -1148,5 +1148,5 @@ wa-copy-button.lf-icon-action {
 .lf-rows-empty {
   margin: 0;
   padding: 5px 8px;
-  color: var(--muted);
+  color: var(--muted-2);
 }

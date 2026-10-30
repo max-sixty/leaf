@@ -67,11 +67,11 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     """Escape removes the user's current layer of thread or disclosure.
 
     From the page, `t` opens the margin's thread view to reach the thread. However
-    many threads the walk then visits, Escape leaves the thread for the element it is
-    about, with the view still beside it, and then lets go of both. It never hands back
-    the heading the walk left, since Escape unwinds the hierarchy rather than the
-    travel, nor the rail control the view hung from, which the pointer's close lands on
-    because the pointer pressed it.
+    many threads the walk then visits, one Escape takes the view down and lets the
+    user go beside the element the thread is about. It never hands back the heading
+    the walk left, since Escape unwinds the hierarchy rather than the travel, nor the
+    rail control the view hung from, which the pointer's close lands on because the
+    pointer pressed it.
 
     A thread open in the panel leaves through the panel's own way out, which puts its
     view away.
@@ -102,14 +102,11 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
         for root in roots
     ]
 
-    # From the page: the walk is lateral, and its way out is the thread's element.
+    # From the page: the walk is lateral, and its way out is beside the thread's element.
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator("#p2")).to_be_focused()
-    expect(threads[1]).to_be_visible()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -124,31 +121,27 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     agents = preview.locator(f'.lf-page-thread[data-thread="{asked}"]')
     expect(agents).to_be_focused()
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
     expect(agents).to_be_focused()
     page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
-    # From a heading the user was located on, the same way out: the landing is the element
-    # the thread is about rather than the heading the walk left.
+    # From a heading the user was located on, the same way out: the landing is beside
+    # the element the thread is about rather than the heading the walk left.
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator("#p")).to_be_focused()
-    # The element with its card beside it is at the thread without being in it, so the
-    # walk goes back into that thread, and on from it with the next press.
+    expect(preview).to_be_hidden()
+    # Beside the element, the user is at the thread without being in it, so the walk
+    # goes back into that thread, and on from it with the next press.
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator("#p2")).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -206,11 +199,10 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     The panel and the margin's thread view each have one way out, and a click, a
     keyboard activation of the same control and a walk that arrived from somewhere else
-    all take it. Where that way out ends is what holds the thread — the panel, whose
-    view goes away, or the element a card's thread is about — and then the page: the
-    Threads mark, the margin marker and the page mark are Leaf's own controls rather
-    than places the user was reading, so none of them is a landing, and a user who
-    reached one by Tab or by pointer is owed no return to it.
+    all take it in one press. It ends on the page, beside the element a card's thread is
+    about: the Threads mark, the margin marker and the page mark are Leaf's own
+    controls rather than places the user was reading, so none of them is a landing, and
+    a user who reached one by Tab or by pointer is owed no return to it.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -238,16 +230,13 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
 
-    def out_through(element):
-        """The card's thread leaves onto its element, and letting go takes the card."""
-        page.keyboard.press("Escape")
-        expect(page.locator(element)).to_be_focused()
-        expect(preview).to_be_visible()
+    def out():
+        """One press takes the card down and lets the user go beside its element."""
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         assert page.evaluate(on_body)
 
-    # A margin marker by pointer, a walk on to the next thread, and out through the
+    # A margin marker by pointer, a walk on to the next thread, and out beside the
     # element that thread is about: the marker the card hangs from is not a landing.
     marker.click()
     expect(preview).to_be_visible()
@@ -262,13 +251,13 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     )
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    out_through("#p2")
+    out()
 
     # The mark on the page is the same door and the same way out.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
-    out_through("#p")
+    out()
 
     # And from the keyboard, focused on the marker itself: the same way out, to the
     # same place. The marker is Leaf's own control beside the words it marks, so it is
@@ -277,7 +266,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
-    out_through("#p")
+    out()
 
     toggle.focus()
     page.keyboard.press("Enter")

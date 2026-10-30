@@ -1165,9 +1165,8 @@ const onLetGo = (read) => {
 	letGoReaders.add(read);
 	return () => letGoReaders.delete(read);
 };
-function letGo() {
+function letGo(from = focused()) {
 	letGoes++;
-	const from = focused();
 	const block = readingBlock(from);
 	if (!block?.isConnected) releaseFocus();
 	else {

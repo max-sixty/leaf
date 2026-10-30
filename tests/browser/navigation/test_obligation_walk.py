@@ -567,15 +567,13 @@ def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
 def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
     """`m` from the page reaches an obligation in a reply to a thread about a passage
     through that thread's margin card, which draws the reply's widgets, so the press
-    opens the card on the way and leaves the panel shut. Escape steps back to the
-    passage, and again puts the card away."""
+    opens the card on the way and leaves the panel shut. Escape puts the card away,
+    leaving the user beside the passage."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("m")
     item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(CARD)).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

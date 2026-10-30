@@ -169,6 +169,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
+const NEW_LINE = "New line";
 const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
@@ -397,7 +398,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const suffix = !advertising ? "" : focusedHere.value ? sendKeys : enteringHint.value;
 			const status = dictationStatus();
 			const word = status || label();
-			const placeholder = suffix && !status ? `${word} ${suffix}` : word;
+			const lineKey = sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+			const lineHint = focusedHere.value && !status ? lineKey : "";
+			const placeholder = suffix && !status ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}` : word;
 			if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
 			const ariaLabel = name();
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
@@ -405,7 +408,10 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const lead = status ? "" : hintLead();
 			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><kbd class="lf-key-badge">${suffix}</kbd>${lineHint ? html`<span class="lf-compose-placeholder-line"
+                      >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                    >` : nothing}
             </span>` : nothing, ta);
 			let error = inputError.value;
 			if (error && !(ta.isConnected && ta.checkVisibility())) {
@@ -418,7 +424,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				else watchError.unobserve(ta);
 			}
 			const action = sendLabel();
-			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
 			const phase = dictationPhase();
 			const live = phase === "starting" || phase === "listening";
 			const failed = loadingFailure || dictation?.failure;
@@ -5953,7 +5959,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			})),
 			{
 				key: "",
-				draw: () => html`<hr />`
+				draw: () => html`<hr class="lf-fp-rule" />`
 			},
 			...[keyboard, fold].filter(Boolean).map(seat)
 		];
@@ -6043,7 +6049,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >
             Dismiss
           </button>
-        </div>`)}${errors.length > 1 ? html`<hr />
+        </div>`)}${errors.length > 1 ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
 	function shownThreads() {
@@ -6723,7 +6729,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span

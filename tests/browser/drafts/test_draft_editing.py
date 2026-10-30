@@ -221,9 +221,9 @@ leaf page init ./workshop
 > ### Quoted
 >
 > Practice beats theory.
+>
 
-Setext
-------
+## Heading two
 
 ![Room layout](/media/051bee487bfb5d13.png)
 
@@ -299,7 +299,7 @@ def test_a_draft_edits_where_it_reads(browser, serve):
         "leaf",
         "Quoted",
         "Practice",
-        "Setext",
+        "Heading",
         "Tables",
     ]
     draft.locator(".lf-draft-body img").evaluate("image => image.decode()")

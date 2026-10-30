@@ -751,7 +751,7 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     expect(page.locator(".lf-fp-send")).to_be_visible()
     # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
+        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
@@ -2488,7 +2488,9 @@ def test_floating_status_records_feedback_only_when_its_words_show(
         with page.expect_response(lambda response: batch_has(response, "keydown")):
             page.keyboard.press("Backspace")
         expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment"))
-        expect(field(page).locator(".lf-key-badge")).to_contain_text("⏎")
+        expect(
+            field(page).locator(".lf-compose-placeholder > .lf-key-badge")
+        ).to_have_text("⏎")
         assert visible() == []
     with page.expect_response(lambda response: batch_has(response, "reply_visible")):
         if hidden_by == "draft":
@@ -2693,9 +2695,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
     # differently from one moment to the next.
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     ink = """node => getComputedStyle(node).color"""
 
     def sheen(running):
@@ -2763,9 +2763,7 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     peek = page.locator(".lf-fp-peek")
 
     def alpha():
@@ -5279,12 +5277,16 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                 words.setStartAfter(mark);
                 words.setEnd(line, line.childNodes.length);
                 const rows = [...words.getClientRects()];
-                const style = getComputedStyle(line);
+                // The marker is the item's box's, the nearest list item holding the line.
+                let item = line;
+                while (item && getComputedStyle(item).display !== 'list-item')
+                  item = item.parentElement?.closest('.cm-content *') ?? null;
+                const style = item && getComputedStyle(item);
                 return {
                   words: rows[0].left - content.left,
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
-                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  marker: style && style.listStyleType !== 'none' ? style.listStyleType : null,
                   source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
@@ -5306,6 +5308,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]

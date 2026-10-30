@@ -1,6 +1,6 @@
 /* The page's own rules stop at the chrome unless they mean to reach it. Restyling the
-   chrome on purpose is intended: a package's chrome.css follows the chrome's own rules
-   and outweighs them (`chrome_restyle` in layer.py), naming the chrome's surfaces by
+   chrome on purpose is intended: a package's chrome.css outweighs the chrome's own
+   rules (`chrome_restyle` in layer.py), naming the chrome's surfaces by
    their public parts (`[part~="panel"]`), and a page sets tokens on those parts, which
    this rule leaves alone. What this rule stops is accidental reach: the page's
    sheet is unlayered, as this one is, so a page rule for `button`, `summary` or `p`,

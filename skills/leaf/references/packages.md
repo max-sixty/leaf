@@ -100,7 +100,7 @@ adding a widget does not change its theme styling.
 | `defaults.css`      | `lf-base`                          | —                     |
 | `widget-shadow.css` | `lf-base`                          | `lf-shadow`           |
 | `overrides.css`     | Page-wide in `lf-overrides`        | —                     |
-| `chrome.css`        | Leaf's chrome, after its own rules | —                     |
+| `chrome.css`        | Leaf's chrome, above its own rules | —                     |
 
 Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders

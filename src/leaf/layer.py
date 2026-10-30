@@ -327,7 +327,7 @@ NESTABLE_AT_RULES = frozenset(
 
 
 def chrome_restyle(sheet: str) -> str:
-    """A package's chrome.css as the chrome's sheet takes it, after Leaf's own rules.
+    """A package's chrome.css as the chrome's sheet takes it, above Leaf's own rules.
 
     The chrome's rules stand outside every layer, so they beat the page and every
     package; a theme restyles the chrome on purpose only from here. Each rule is nested
@@ -365,8 +365,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     including core views placed there, such as a diff's threads. overrides.css
     holds rules meant to win over every package's defaults and the Layouts, in
     lf-overrides. A theme reaches shadow trees through the custom properties they
-    inherit. chrome.css restyles Leaf's chrome, and the chrome's sheet takes it after
-    its own rules (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
+    inherit. chrome.css restyles Leaf's chrome, which takes it above its own rules
+    (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
     is read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic

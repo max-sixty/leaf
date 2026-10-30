@@ -154,10 +154,10 @@ with the page. To restyle one of them alone, name it by its part:
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
 cards their own ground and corners. Any other property, such as `font-family` or
-`display`, goes in the package's `chrome.css`. Leaf adds that sheet to the chrome's
-after its own rules, inside the chrome and with more weight than any of the chrome's
-own selectors, so its rules win over Leaf's whatever selectors either writes and reach
-nothing outside the chrome:
+`display`, goes in the package's `chrome.css`. Leaf adds that sheet to the chrome's,
+nested inside the chrome with more weight than any of the chrome's own selectors, so
+its rules win over Leaf's whatever selectors either writes and reach nothing outside
+the chrome:
 
 ```css
 [part~="panel"] {

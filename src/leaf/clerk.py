@@ -384,7 +384,9 @@ def apply_answer(session_id: str, answer: dict) -> dict:
     """Write `answer`'s status lines and On me items onto the pages `session_id` holds,
     and queue a line for each, and for each missed step, for the agent's next step;
     what it wrote."""
+    from .agent_state import page_state
     from .event_contracts import append_admitted
+    from .leases import page_locked
     from .service import PageTransaction, owned_pages
 
     pages = {str(page): page for page in owned_pages(session_id)}
@@ -395,13 +397,12 @@ def apply_answer(session_id: str, answer: dict) -> dict:
         line = answer["status"].get(path)
         if not items and line is None:
             continue
-        with PageTransaction(page_dir) as page:
+        # As a command's write takes them (`leases.contract_writer`).
+        with page_locked(page_dir), PageTransaction(page_dir) as page:
             claim = page.active_claim
             if claim is None or claim["id"] != session_id:
                 continue
             identity = {"agent": claim["agent"], "session": claim["id"]}
-            from .agent_state import page_state
-
             state = page_state(page_dir, page.events)
             listed = {
                 " ".join(todo["title"].casefold().split())
@@ -428,7 +429,7 @@ def apply_answer(session_id: str, answer: dict) -> dict:
                 told.append(
                     f'Leaf added "{record["title"]}" to On me on {path} from your '
                     f"reply, as to-do {record['id']}; leave it, or end it with "
-                    f"`leaf task end {path} {record['id']} --outcome dropped` if it "
+                    f"`leaf task end {path} {record['id']} dropped` if it "
                     "isn't the user's to decide."
                 )
             activity = state["activity"]

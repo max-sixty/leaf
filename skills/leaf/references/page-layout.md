@@ -94,9 +94,9 @@ that width, the body takes the rest, and the two stack when the body no longer f
 beside it.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
-such as a dashboard's log; it then sits on the right. Stack the regions inside the body
-and inside the `aside`, so every region shares the same two vertical edges, rather than
-splitting each row anew.
+such as a dashboard's log; it then sits on the right. Arrange the regions inside the
+body and inside the `aside` so their edges line up down the page. A reader scanning
+down then follows one edge instead of finding each region's edge anew.
 
 While the two sit side by side, Leaf keeps everything the `aside` holds in view at the
 window's top as the body scrolls, however many blocks it is, and scrolls it within the

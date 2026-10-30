@@ -328,7 +328,10 @@ When pages keep failing the same way, improve the guidance the author reads whil
 writing, and measure it in `evals/`. That guidance is usually the workflow's reference
 rather than a registry entry (`skills/leaf/references/packages.md`, "A widget"), and a
 passage that has grown into a list is rewritten around its goals
-(`/improving-instructions`, "Authoring the change").
+(`/improving-instructions`, "Authoring the change"). The fix states the goal the
+failing page missed and what an author weighs to meet it, and offers the form that
+passed the eval as a default to depart from where the content calls for it, not as a
+requirement.
 
 ## Score an instruction change
 

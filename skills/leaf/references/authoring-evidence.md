@@ -28,12 +28,15 @@ Draw what automatic layout can't place, such as a page layout, a wireframe or a
 thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
-units in a 720px column draw an 11px label at 5px. Keep the drawing schematic: a window is a
-rounded box, a line of text a grey bar, and only the figure's subject takes the accent
-colour. Put compared states side by side in one figure at one scale, drawn alike except
-where they differ. The idiom's classes use theme tokens, so the drawing follows light
-and dark schemes; an SVG file added with `leaf page media` can't. Use the
-`<figcaption>` for what the drawing can't show.
+units in a 720px column draw an 11px label at 5px. Draw only the detail the figure's
+point needs, so its subject stands out, and give the accent colour to the subject
+alone. Where the drawing shows wording or an interface that is itself being decided,
+draw it as the product shows it, so the reader judges the real thing. Draw compared
+states in one figure at one scale, alike except where they differ, side by side or one
+above the other, whichever keeps the difference large and lined up. The idiom's
+classes use theme tokens, so the drawing follows light and dark schemes; an SVG file
+added with `leaf page media` can't. Use the `<figcaption>` for what the drawing can't
+show.
 
 Use `lf-chart` for quantities, not Mermaid's charts. Keep a few numbers in prose
 when a sentence explains them clearly.

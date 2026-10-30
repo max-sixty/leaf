@@ -43,6 +43,7 @@ interface LeafInitialView {
 type LeafInitialRenderer = (
   host: HTMLElement,
   tools: {
+    inputValue(input: string): any;
     tabStore: LeafStore;
     offer: LeafInitial["offer"];
     selectableOffer: LeafInitial["selectableOffer"];
@@ -59,6 +60,15 @@ type LeafInitialRenderer = (
 
 /** The prepaint's initial drawing and root-state registries (`prepaint.js`). */
 interface LeafInitial {
+  inputReading(
+    declaration: any,
+    reading: any,
+    incompatible?: (reading: any) => void,
+  ): any;
+  initialData(): any;
+  releaseData(): void;
+  inputDeclaration(host: Element, input: string): any;
+  source(source: string | null): any;
   /** The single Lit namespace initialized by the classic delivery, before modules. */
   lit?: typeof import("lit") & Record<string, any>;
   /** Initial insertion, replaced by dom-move.js before live module rendering. */

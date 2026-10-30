@@ -41,9 +41,16 @@ import {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return { state: offlineState(), fault: null };
+    // Before the first admission, the request can name the exact data reading
+    // delivered with the document. Keep it in this request closure until its
+    // answer is completed, even if another answer transfers ownership first.
+    const held =
+      runtime.data.version === null
+        ? (document.documentElement.lfInitial.initialData() ?? runtime.data)
+        : runtime.data;
+    if (offlineInteractive)
+      return { state: completeData(offlineState(), held), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
-    const held = runtime.data;
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {

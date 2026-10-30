@@ -3472,6 +3472,7 @@ const elementDeclarations = () => Object.entries(registry).filter(([tag]) => isE
 function adoptRegistry(declarations) {
 	for (const [name, value] of Object.entries(declarations)) if (name.startsWith("$")) freeze(value);
 	Object.assign(registry, declarations);
+	document.documentElement.lfInitial.inputDeclaration = (host, input) => registry[host.localName]?.["x-data"]?.[input];
 }
 function freeze(value) {
 	if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;

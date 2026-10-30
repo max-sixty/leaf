@@ -302,9 +302,9 @@ export function createThreadPreview({
           const room = slotTop(transcript);
           const top =
             transcript.getBoundingClientRect().top + transcript.clientTop + room;
-          // A later message's controls stand in the actions' track at its head line
-          // (annotation-chrome.css), so while that line shares the actions' they
-          // stand aside.
+          // A later message's head spans the actions' track (annotation-chrome.css),
+          // so while its line shares the actions' it keeps to its own track and its
+          // controls stand aside.
           for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
             const head = message.querySelector(":scope > .lf-msg-head");
             const box = head?.getBoundingClientRect();

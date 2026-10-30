@@ -389,8 +389,10 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 navLeft: box('.lf-margin-preview-nav').left,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
                 overflow: actions.scrollWidth - actions.clientWidth
-                  + head.scrollWidth - head.clientWidth,
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
               };
             }"""
         )

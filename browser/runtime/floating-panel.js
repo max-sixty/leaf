@@ -1713,7 +1713,10 @@ export function createFloatingPanel({
   }
   stage.addEventListener("click", (event) => pressAt(event.target), { capture: true });
   stage.addEventListener("click", judgePress);
-  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const inRewrite = (node) =>
+    Boolean(
+      node && closestAcross(node, ".lf-msg:has(> .lf-msg-body > .lf-msg-editor)"),
+    );
   // A modal over the panel, such as the image viewer opened from a rewrite's attachment,
   // is a layer the user steps into from the panel, which hands them back as it closes:
   // standing in it leaves them rewriting, so the view keeps the height it holds for the

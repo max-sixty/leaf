@@ -83,8 +83,8 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
         attempt="response-failed-attempt",
     )
     told(page)
-    said(page).to_have_attribute("placeholder", re.compile("^Couldn't answer"))
-    expect(page.locator(".lf-live")).to_have_text("Couldn't answer")
+    said(page).to_have_attribute("placeholder", re.compile("^Not answered"))
+    expect(page.locator(".lf-live")).to_have_text("Not answered")
 
 
 def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, request):

@@ -157,7 +157,7 @@ export function createPageMapDialog({
   };
   // A row's kind leads it, its name follows, and what it says of its state, such as
   // whose turn a thread is, ends it, where Threads says the same.
-  const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
+  const sheetFace = ({ icon, glyph, item, visibleLabel, context, contextVoice }) =>
     html`<span class="lf-row-lead"
         >${
           icon
@@ -168,7 +168,11 @@ export function createPageMapDialog({
         >${sheetName(item, visibleLabel)}</span
       >${
         context
-          ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>`
+          ? html`<span
+              class="lf-page-map-action-context lf-row-end"
+              data-voice=${contextVoice ?? nothing}
+              >${context}</span
+            >`
           : nothing
       }`;
 

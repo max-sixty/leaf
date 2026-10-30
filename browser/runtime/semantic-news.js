@@ -16,6 +16,7 @@
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
 import { moved } from "./thread/model.js";
+import { NOT_ANSWERED } from "./thread/workflow.js";
 import { excerptWords } from "./words.js";
 
 const identity = (record) => record.attempt ?? record.id;
@@ -214,8 +215,7 @@ export function semanticNewsNotice(news) {
   const interrupted = failures.filter(
     (item) => item.condition === "interrupted",
   ).length;
-  if (failed)
-    clauses.push(failed === 1 ? "Couldn't answer" : `Couldn't answer ${failed}`);
+  if (failed) clauses.push(failed === 1 ? NOT_ANSWERED : `${failed} not answered`);
   if (interrupted)
     clauses.push(
       interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`,

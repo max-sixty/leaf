@@ -391,9 +391,10 @@ svg[data-lf-icon] {
   color: var(--muted-2);
   white-space: nowrap;
 }
-/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
-   own, as the panel's italic does (`workflowVoice`). */
-.lf-msg-sending[data-voice="leaf"] {
+/* Leaf's words about an update or the agent, such as Delivered, Gone quiet or Not
+   answered, stand apart from words the agent's own acts set, as a stage direction
+   does from the lines (`workflowVoice`, glossary.md "Reader-facing words"). */
+span[data-voice="leaf"] {
   font-style: italic;
 }
 .lf-msg-sending::before {

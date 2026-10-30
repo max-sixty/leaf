@@ -62,7 +62,7 @@ const listedPages = (state) =>
 export const leavesRows = (state) =>
   Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {
-      const { tone, line } = leafRow(entry);
+      const { tone, line, parts } = leafRow(entry);
       return Object.freeze({
         key,
         self: key === "self",
@@ -70,6 +70,7 @@ export const leavesRows = (state) =>
         title,
         tone,
         line,
+        parts,
         account: rowAccount(entry, title, line),
       });
     }),

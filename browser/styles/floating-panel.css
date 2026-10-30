@@ -606,12 +606,12 @@
     leaf-text[data-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
   }
-  /* Words the agent can't be saying are set in italic, as a stage direction stands
-     apart from the lines spoken: an error, Leaf's own state, or an instruction about
-     the agent (the user's choice, 26 October 2026; `saying`). */
-  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder),
-  .lf-compose-placeholder-lead [data-voice="leaf"],
-  .lf-fp-value [data-voice="leaf"] {
+  /* Words the agent didn't write are set in italic, as a stage direction stands
+     apart from the lines spoken: Leaf's account of the agent's state, an error, or an
+     instruction about the agent (the user's choices, 26 and 28 October 2026;
+     `saying`, activity-words.js). The panel's spans take the page's rule
+     (components/controls.css); the field's placeholder sits in its own tree. */
+  .lf-fp-field leaf-text[data-voice="leaf"]::part(placeholder) {
     font-style: italic;
   }
   /* The field's presses float in its foot's end corner, as an anchored comment box's

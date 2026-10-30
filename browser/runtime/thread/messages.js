@@ -514,7 +514,9 @@ export class MessageView {
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>`
+              ? html`<span class="lf-msg-failure" data-voice="leaf"
+                  >${NOT_ANSWERED}</span
+                >`
               : nothing
           }
           ${

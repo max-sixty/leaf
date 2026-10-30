@@ -53,7 +53,7 @@ test("a reply streaming paints the working face under its own word", () => {
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "picked_up");
   assert.equal(
     control.getAttribute("aria-description"),
-    "Got it · Preparing an update",
+    "Delivered · Preparing an update",
   );
 });
 

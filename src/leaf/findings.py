@@ -443,6 +443,16 @@ def _listed(findings: list[dict]) -> str:
     return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
 
 
+# What each element `structure.document_declarations` holds declares.
+_DECLARES = {"<base>": "base URL", "<meta>": "HTTP headers", "<script>": "import map"}
+
+# How a page names a module, since delivery owns the import map: said the same way
+# where a bare name is refused and where the page's own map is.
+_IMPORT_BY_URL = (
+    "import a file under page/ by its path, or a package by its full http(s) URL"
+    " (such as https://esm.sh/NAME)"
+)
+
 # The fix for a page's own file named outside page/, whichever reference names it.
 _MOVE_UNDER_PAGE = (
     "move the file into page/ beside index.html and name it by that path, such as"
@@ -803,8 +813,8 @@ _TEXT = {
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
     "document-declaration": lambda at, v: (
-        f"{_line(at, v)} declares something about the whole document, which delivery"
-        " owns"
+        f"{_line(at, v)} declares the document's {_DECLARES[at]}, which delivery"
+        " owns; remove it" + (f", and {_IMPORT_BY_URL}" if at == "<script>" else "")
     ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
@@ -1561,9 +1571,7 @@ _TEXT = {
     ),
     "module-not-local": _captured(
         lambda v: (
-            "a bare module name has no import map to resolve it; import a file under"
-            " page/ by its path, or a package by its full http(s) URL (such as"
-            " https://esm.sh/NAME)"
+            f"a bare module name has no import map to resolve it; {_IMPORT_BY_URL}"
         )
     ),
     "module-type": _captured(

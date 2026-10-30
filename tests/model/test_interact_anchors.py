@@ -1849,7 +1849,7 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     ):
         refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
         assert refused.exit_code != 0, declaration
-        assert "declares something about the whole document" in refused.output
+        assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
     assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 

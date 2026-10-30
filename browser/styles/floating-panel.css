@@ -425,7 +425,9 @@
      so the offsets take that padding back. */
   :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
-    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
+    bottom: calc(
+      anchor(--lf-fp-panel top) + var(--lf-media-gap) - var(--lf-media-room)
+    );
     left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));

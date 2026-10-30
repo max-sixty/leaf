@@ -694,7 +694,8 @@ def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats)
 def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visible(
     browser, serve
 ):
-    """The attachment keeps its own row above the editor in a bounded card."""
+    """The attachment keeps its own row above the editor in a bounded card, standing
+    the shelf's gap clear of the ring the field wears."""
     page, preview, editor, transcript = long_thread_in_reply(browser, serve)
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     editor.evaluate(
@@ -710,6 +711,23 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     )
     image = preview.locator(".lf-composer-media img")
     expect(image).to_have_count(1)
+    rendered(page)
+    clearance = image.evaluate(
+        """image => {
+          const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
+          const ring = Math.max(...[field, field.querySelector('leaf-text')].map(box => {
+            const style = getComputedStyle(box);
+            return style.outlineStyle === 'none'
+              ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+          }));
+          const shelf = getComputedStyle(image.closest('.lf-composer-media'));
+          return {ring, gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
+                  clear: field.getBoundingClientRect().top - ring
+                    - image.getBoundingClientRect().bottom};
+        }"""
+    )
+    assert clearance["ring"] > 0, clearance
+    assert clearance["clear"] >= clearance["gap"] - 0.5, clearance
     write(
         editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))
     )

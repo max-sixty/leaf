@@ -191,8 +191,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
-     6px under the composer row, or 6px over the
-     field when the box stands above its passage. The user chose this on 20 October
+     the shelf's gap clear of the field's ring (response.css), under the field, or over
+     it when the box stands above its passage. The user chose this on 20 October
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
      field. The pictures cover the page beside the box while the draft holds them, and
@@ -205,7 +205,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
     grid-area: auto;
     inset-block-start: calc(
-      100% - var(--lf-comment-frame-bottom) + 6px - var(--lf-media-room)
+      100% - var(--lf-comment-frame-bottom) + var(--lf-media-gap) +
+        var(--focus-ring-w) - var(--lf-media-room)
     );
     inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
     max-width: calc(
@@ -218,7 +219,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
     .lf-composer-media:not([hidden]) {
     inset-block: auto
-      calc(100% - var(--lf-comment-frame-top) + 6px - var(--lf-media-room));
+      calc(
+        100% - var(--lf-comment-frame-top) + var(--lf-media-gap) + var(--focus-ring-w) -
+          var(--lf-media-room)
+      );
     align-items: flex-end;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"])

@@ -3794,7 +3794,7 @@ function createReactionController({ marginEntryChoices, marginEntryContextContai
 						});
 						return;
 					}
-					pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react")[+binding - 1]?.click();
+					(pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react"))?.[+binding - 1]?.click();
 				}
 			},
 			{

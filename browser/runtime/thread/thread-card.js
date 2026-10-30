@@ -937,8 +937,8 @@ export class ThreadView {
     // A settled thread keeps its box while a session stands, which every pass and the
     // margin follow (`replyIsEditing`), so a keystroke repaints this card alone.
     const replyChanged = () => {
-      if (!this.#reply) return;
-      this.#draftFrame ||= nextRender(() => {
+      if (!this.#reply || this.#draftFrame) return;
+      this.#draftFrame = nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;
         if (this.#model.resolved) this.repaint();

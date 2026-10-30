@@ -93,8 +93,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
         expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
         assert not any(
             event["kind"] == "undo"
-            or event.get("token") == "keep"
-            and event["id"] != "saved-reaction"
+            or (event.get("token") == "keep" and event["id"] != "saved-reaction")
             for event in events_model.read_events(serve.page_dir)
         )
     release()

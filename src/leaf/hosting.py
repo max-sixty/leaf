@@ -296,7 +296,7 @@ def _page_uvicorn():
             for connection in list(self.server_state.connections):
                 connection.shutdown()
             state = self.server_state
-            while (state.connections or state.tasks) and not self.force_exit:
+            while (state.connections or state.tasks) and not self.force_exit:  # noqa: ASYNC110 - Uvicorn owns this state and exposes no completion event.
                 await asyncio.sleep(0.005)
             for server in self.servers:
                 await server.wait_closed()

@@ -1183,7 +1183,10 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     assert len(cut) == 4 and max(cut) > -48, ("the pane cuts nothing", rest)
     assert clips, "Send showed the card without growing it out of the box"
     for clip in clips:
-        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
+        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut, strict=True)), (
+            clip,
+            rest,
+        )
 
 
 # The words of `node`, or of the editor `node` hosts, grouped into the lines they stand on.

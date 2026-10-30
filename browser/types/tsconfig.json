@@ -19,7 +19,8 @@
     "noEmit": true,
     "noUnusedLocals": true,
     "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": false
   },
-  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js"]
+  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js", "../runtime/**/*.ts"]
 }

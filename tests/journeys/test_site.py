@@ -973,7 +973,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         assert revision is not None
         version_url = f"{url}versions/v{revision}.html"
         for page, address in zip(
-            pages, (url, version_url, other_url, f"{url}?other-release")
+            pages, (url, version_url, other_url, f"{url}?other-release"), strict=True
         ):
             page.route("**/api/state*", passive_session)
             page.route("**/registry.json", passive_session)

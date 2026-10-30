@@ -258,13 +258,13 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             yield from ((start, end) for start, end, _ in _srcset_urls(value))
         return
     if (
-        name in {"src", "poster"}
-        and normalized_tag not in {"script", "iframe"}
-        or name in {"href", "xlink:href"}
-        and (
-            normalized_tag in {"feimage", "image", "use"}
-            or normalized_tag == "link"
-            and "icon" in attrs.get("rel", [])
+        (name in {"src", "poster"} and normalized_tag not in {"script", "iframe"})
+        or (
+            name in {"href", "xlink:href"}
+            and (
+                normalized_tag in {"feimage", "image", "use"}
+                or (normalized_tag == "link" and "icon" in attrs.get("rel", []))
+            )
         )
         or (
             (reference := _local_resource(value)) is not None

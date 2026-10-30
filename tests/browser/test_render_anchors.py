@@ -1971,7 +1971,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["block"] == [255, 255, 255], appearance
     assert all(
         channel > page_channel
-        for channel, page_channel in zip(appearance["block"], appearance["page"])
+        for channel, page_channel in zip(
+            appearance["block"], appearance["page"], strict=True
+        )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
     assert appearance["note"] == appearance["block"], appearance

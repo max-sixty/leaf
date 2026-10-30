@@ -533,7 +533,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     # page writes its own reading position on the way out of every load, so a store
     # holding that too is a page that departed, not a restore case that leaked.
     arranged = {a["key"] for a in restore_cases}
-    for finding, restore_case in zip(arrived, restore_cases):
+    for finding, restore_case in zip(arrived, restore_cases, strict=True):
         held = set(finding.split("returned holding ")[1].split(","))
         assert held & arranged == {restore_case["key"]}, finding
 

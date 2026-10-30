@@ -2,6 +2,7 @@
 
 import re
 from html import escape
+from itertools import pairwise
 
 import pytest
 from playwright.sync_api import expect
@@ -90,7 +91,7 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 ), [(stat["width"], stat["content"]) for stat in row["stats"]]
                 assert all(
                     before["right"] < after["left"]
-                    for before, after in zip(row["stats"], row["stats"][1:])
+                    for before, after in pairwise(row["stats"])
                 )
             if reading["width"] > 608:
                 if width == 1280:

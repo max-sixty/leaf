@@ -2844,7 +2844,9 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     page.keyboard.down("Alt")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, armed)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3280,7 +3282,9 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, painted)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3899,7 +3903,9 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
                 box.width - item.width, box.height - item.height].map(Math.abs);
     }""")
     assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
-    pixels = zip(*[iter(ImageChops.difference(quiet, armed).tobytes())] * 3)
+    pixels = zip(
+        *[iter(ImageChops.difference(quiet, armed).tobytes())] * 3, strict=True
+    )
     changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
     assert changed > 0.5, (
         f"arming changed {changed:.0%} of the card's pixels — the promise is not "

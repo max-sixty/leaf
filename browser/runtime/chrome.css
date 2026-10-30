@@ -199,7 +199,7 @@ html[data-lf-region-capture] main * {
 [data-lf-obligation] {
   outline: var(--lf-obligation-ring, var(--focus-ring));
   outline-offset: var(--focus-region-gap);
-  scroll-margin-block: var(--focus-region-landing);
+  scroll-margin-block: var(--focus-ring-landing);
 }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */

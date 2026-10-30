@@ -576,15 +576,19 @@
   }
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
-  /* What a landing keeps clear for the ring at a scroller's edge: its room and two
-     pixels to spare, because the browser rounds both a box laid out at fractions of a
-     pixel and the whole-pixel offset it scrolls to. A code block Tab brought to a
-     pane's top with the room alone stood 3.5px under the edge, short of the ring's
-     5px. */
-  --focus-ring-landing: calc(var(--focus-ring-room) + 2px);
-  --focus-region-gap: var(--focus-ring-gap);
+  /* A region's gap is wider than a control's: a control's label already has its
+     padding inside the ring, while prose has none, so at the control's 3px the band
+     stood 3px from the first letter of every line (the user's choice, 29 October
+     2026). Past 6px a bracket meets a heading's link, which shows 9px left of it. */
+  --focus-region-gap: 6px;
   --focus-region-room: calc(var(--focus-ring-w) + var(--focus-region-gap));
-  --focus-region-landing: calc(var(--focus-region-room) + 2px);
+  /* What a landing keeps clear for a ring at a scroller's edge: the widest ring's room,
+     a region's, since a landing reads it as focus arrives, before the runtime marks
+     what the box is, and two pixels to spare, because the browser rounds both a box
+     laid out at fractions of a pixel and the whole-pixel offset it scrolls to. A code
+     block Tab brought to a pane's top with the room alone stood 3.5px under the edge,
+     short of the ring's 5px. */
+  --focus-ring-landing: calc(var(--focus-region-room) + 2px);
   --focus-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so

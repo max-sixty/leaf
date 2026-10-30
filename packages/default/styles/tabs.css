@@ -730,7 +730,7 @@ lf-tabs.lf-rendered > lf-tab {
   @container style(--lf-full-height: 1) {
     /* The set is the body's scroller here, and a block filling it, such as the
      * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
-     * keeps the ring's room inside them; its margin gives the inline room back, so the
+     * keeps a region's ring room inside them (theme.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     lf-tabs.lf-rendered[data-lf-views-flow="page"],
     html[data-lf-interactive]
@@ -739,8 +739,8 @@ lf-tabs.lf-rendered > lf-tab {
       flex-direction: column;
       min-block-size: 0;
       margin-block: 0;
-      margin-inline: calc(-1 * var(--focus-ring-room));
-      padding: 0 var(--focus-ring-room) var(--focus-ring-room);
+      margin-inline: calc(-1 * var(--focus-region-room));
+      padding: 0 var(--focus-region-room) var(--focus-region-room);
       --lf-full-height: inherit;
     }
     lf-tabs.lf-rendered[data-lf-views-flow="page"] > .lf-tabstrip,

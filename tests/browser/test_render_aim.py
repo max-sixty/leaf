@@ -3550,7 +3550,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 head="""<style>
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
-  #port { height:360px; width:440px; overflow:auto; border:1px solid; }
+  #port { height:400px; width:440px; overflow:auto; border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
   .authored-contour { outline:1px dashed var(--ink-2); }
   </style>""",
@@ -3660,6 +3660,42 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 aimed = boundary(target, ".lf-aim")
                 assert aimed["radius"] == clipped["radius"], (aimed, clipped)
                 page.keyboard.up("Alt")
+
+
+def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
+    browser, serve
+):
+    """A joined choice clips its cells, so a cell leaves no room for a mark outside it.
+    The aim and the comment's mark both stand just inside it: the aim stood outside,
+    across the frame and the next cell, while the comment's stood inside, so going from
+    one to the other moved the frame 7px."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cramped cell",
+                """<h1 id="h">Cramped cell</h1>
+<lf-options id="ship" choose>
+  <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
+  <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
+</lf-options>""",
+            )
+        ),
+    )
+    cell = page.locator("#ship-thursday")
+    cell.hover(position={"x": 300, "y": 10})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "ship-thursday")
+    expect(aim).to_have_attribute("data-lf-mark-on", "inset")
+    page.mouse.down()
+    page.mouse.up()
+    page.keyboard.up("Alt")
+    open_compact_comment(page)
+    pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
+    expect(pending).to_have_attribute("data-lf-mark-on", "inset")
+    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert pending.evaluate(inner) == "-2px"
 
 
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(

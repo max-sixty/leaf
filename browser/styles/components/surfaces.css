@@ -51,7 +51,7 @@
   :root main :is(button, input, select, textarea),
   :host :is(button, input, select, textarea)
 ) {
-  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+  font: var(--voice-ui);
   font-feature-settings: normal;
   font-variation-settings: normal;
   letter-spacing: normal;
@@ -142,8 +142,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--danger-ink);
   border-radius: var(--r);
   padding: 8px 12px;
-  font-family: var(--sans);
-  font-size: var(--t-5);
+  font: var(--voice-ui);
   font-variant-numeric: tabular-nums;
   white-space: normal;
   --lf-block-frame: 1;
@@ -173,8 +172,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
-  font-family: var(--mono);
-  font-size: var(--t-6);
+  font: var(--voice-code);
   /* The line box the size token is built from: the badge less its border. */
   line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
@@ -487,9 +485,7 @@ summary {
   min-width: 0;
   position: relative;
   padding: var(--sp-1);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: var(--lf-ui-lh);
+  font: var(--voice-ui);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -657,7 +653,7 @@ summary {
   box-sizing: border-box;
   min-width: 0;
   white-space: nowrap;
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-working-head {
   overflow: hidden;
@@ -708,8 +704,7 @@ summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--lf-msg-name-size);
-  font-weight: 600;
+  font: var(--voice-name);
   color: var(--ink);
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
@@ -763,12 +758,12 @@ summary {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: 500 var(--t-6)/1.3 var(--sans);
+  font: var(--voice-small);
+  font-weight: 500;
 }
 .lf-summary-text {
   color: var(--ink-2);
-  font-size: var(--t-5);
-  line-height: 1.5;
+  font: var(--voice-ui);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -808,7 +803,7 @@ summary {
 .lf-summary-required {
   margin-top: 6px;
   color: var(--turn-ink);
-  font: 600 var(--t-6)/1.4 var(--sans);
+  font: var(--voice-heading);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -824,7 +819,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: var(--msg-font);
+  font: var(--voice-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);
@@ -905,7 +900,7 @@ summary {
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -1001,7 +996,8 @@ summary {
   white-space: nowrap;
 }
 button.lf-thread-news {
-  font-size: var(--t-6);
+  font: var(--voice-small);
+  font-weight: 600;
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,
@@ -1119,7 +1115,7 @@ button.lf-primary-news {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-todo-title {
   flex: 1 1 auto;

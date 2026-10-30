@@ -588,7 +588,7 @@
   }
 }
 /* One owner for message type and spacing on every surface, including widget shadow
-   trees: a message and the comment field it is typed in read in `--msg-font`
+   trees: a message and the comment field it is typed in read in `--voice-message`
    (base.css). A contextual
    card supplies its editor's vertical inset; retaining its viewport never changes
    these rules.
@@ -601,7 +601,7 @@
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
-  font: var(--msg-font);
+  font: var(--voice-message);
   color: var(--ink);
 }
 /* A message runs to the width of the box that holds it, a card, a seat or the

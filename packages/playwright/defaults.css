@@ -88,7 +88,9 @@ lf-trace[hidden="until-found"] {
 /* Keep source names visible and let the shared control own keyboard selection. */
 .lf-trace-sources {
   --wa-form-control-height: var(--lf-trace-control-size);
+  display: block;
   flex: 0 1 auto;
+  min-block-size: var(--lf-trace-control-size);
   min-inline-size: 0;
   max-inline-size: 100%;
 }
@@ -946,12 +948,16 @@ lf-trace-bookmark {
  * A recording is replaced in place, so its outgoing descendants cannot anchor
  * document scrolling. The stable surrounding page remains the reader's anchor. */
 lf-trace-compare {
+  --lf-trace-compare-top: var(--lf-top);
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
   font: var(--t-5) / 1.45 var(--sans);
+}
+lf-trace-compare > :not(.lf-trace-compare-controls) {
+  --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head-h, 0px));
 }
 .lf-trace-compare-controls {
   position: sticky;
@@ -964,13 +970,7 @@ lf-trace-compare {
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
-}
-@media (max-width: 600px) {
-  .lf-trace-compare-controls {
-    position: static;
-    --lf-head-inset: initial;
-    padding-block: var(--sp-1);
-  }
+  --lf-head-inset: initial;
 }
 lf-trace-compare > *,
 lf-trace-compare lf-trace {

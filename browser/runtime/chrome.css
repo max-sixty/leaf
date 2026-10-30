@@ -1078,6 +1078,7 @@ html[data-lf-region-capture] main * {
      than the reading theme's bold summary, which outranked the section's heading. */
   .lf-inspection-body :is(h2, h3) {
     font: var(--voice-heading);
+    letter-spacing: normal;
     color: var(--muted);
   }
   .lf-inspection-body h2 {

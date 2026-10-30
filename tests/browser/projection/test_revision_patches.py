@@ -737,7 +737,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     same element it always was, still holding the user's focus. Its image, SVG link,
     custom media attribute, inline CSS and scripts carry different delivery roots in
     each revision. The deferred classic script's line padding changes too. None changes
-    authored identity, and parser-time initial-render marks must not make it look rewritten."""
+    authored identity, and delivery-owned presentation must not make it look rewritten."""
     first = leaf_page(
         "Widgets first",
         """

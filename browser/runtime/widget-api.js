@@ -38,10 +38,12 @@ export {
   iconTemplate,
   showAction,
 } from "./icons.js";
+export { actionName } from "./icon-paths.js";
+export { actionClass } from "./control-faces.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
-export { initialRender } from "./initial-render.js";
+export { holdAuthoredBody } from "./widget-elements.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -218,7 +220,7 @@ export { retainUserIntent } from "./user-intent.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView, tabStore } from "./storage.js";
+export { keepView, openingView, viewMembers, tabStore } from "./storage.js";
 export {
   ensureSyntaxLanguage,
   highlightBlocks,
@@ -245,6 +247,9 @@ export {
   layoutChanged,
   motionPreview,
   offer,
+  offerElement,
+  offerActionElement,
+  selectableOfferElement,
   offerAction,
   offered,
   offeredAction,

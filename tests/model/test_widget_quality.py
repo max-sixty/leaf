@@ -1,7 +1,4 @@
-"""The widget quality report (`leaf/render_gate/widget_quality.py`): Leaf's own widgets
-held to it, and `package check --render` telling a package's author what it found. And
-the first box a widget keeps where the report's served examples do not reach: a tab set
-opening on a later panel, and an export."""
+"""Widget quality examples and their data contracts."""
 
 from known_widget_findings import KNOWN, PACKAGES
 

@@ -2,7 +2,11 @@
  * every surface (browser/AGENTS.md, "Visual grammar"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { offerAction, offeredAction } from "/runtime/widget-elements.js";
+import {
+  offerAction,
+  offerActionElement,
+  offeredAction,
+} from "/runtime/widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>
@@ -56,4 +60,26 @@ test("a template's symbol is drawn once and swaps only when its action's symbol 
   assert.equal(button.getAttribute("aria-label"), "Reopen");
   draw("play");
   assert.deepEqual(symbolOf(button), ["play"]);
+});
+
+test("an existing control owns its icon while a template action supplies its symbol", () => {
+  const copy = document.createElement("wa-copy-button");
+  const ownedIcon = document.createElement("span");
+  ownedIcon.slot = "copy-icon";
+  ownedIcon.textContent = "Own copy glyph";
+  copy.append(ownedIcon);
+  assert.equal(offerActionElement(copy, "mark", "copy-control", "Copy code"), copy);
+  assert.equal(copy.firstElementChild, ownedIcon);
+  assert.equal(copy.children.length, 1);
+  assert.equal(copy.classList.contains("lf-mark-action"), true);
+  assert.equal(copy.getAttribute("aria-label"), "Copy code");
+
+  const root = document.createElement("div");
+  render(
+    html`<button ${offeredAction("mark", "", undefined, { action: "copy" })}></button>`,
+    root,
+  );
+  const action = root.querySelector("button");
+  assert.deepEqual(symbolOf(action), ["copy"]);
+  assert.equal(action.getAttribute("aria-label"), "Copy");
 });

@@ -27,7 +27,6 @@ import {
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
 import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./markdown.js";
-import { initialOrigin, initialSource } from "./initial-render.js";
 import { widgetImports } from "./widget-imports.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
@@ -65,36 +64,40 @@ const within = (scope, selector) => [
   ...scope.querySelectorAll(selector),
 ];
 
-/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
-export function rememberPassageParts(scope = document, source = ["page", null]) {
-  scope = initialSource(scope);
+/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source]
+ * @param {(node: Element) => Element} [original] */
+export function rememberPassageParts(
+  scope = document,
+  source = ["page", null],
+  original = (node) => node,
+) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
     for (const root of within(scope, tag)) {
-      const live = initialOrigin(root);
+      const live = original(root);
       if (rememberedPassageRoots.has(live)) continue;
       rememberedPassageRoots.add(live);
-      fencePassageParts(live, [...root.children].map(initialOrigin));
+      fencePassageParts(live, [...root.children].map(original));
     }
   for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-    const live = initialOrigin(root);
+    const live = original(root);
     if (rememberedPassageRoots.has(live)) continue;
     rememberedPassageRoots.add(live);
-    identifyPreserving(root, [...source, ownerIndex]);
+    identifyPreserving(root, [...source, ownerIndex], original);
   }
 }
 
 const preservingOwners = (scope) =>
   within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
 
-function identifyPreserving(root, owner) {
-  verbatimOwnerIdentity.set(initialOrigin(root), owner);
+function identifyPreserving(root, owner, original = (node) => node) {
+  verbatimOwnerIdentity.set(original(root), owner);
   let boundaryIndex = 0;
   const visit = (parent) => {
     for (const child of parent.children) {
       if (registry[child.localName]?.["x-upgrade"])
-        verbatimBoundaryIdentity.set(initialOrigin(child), {
+        verbatimBoundaryIdentity.set(original(child), {
           owner,
           index: boundaryIndex++,
         });
@@ -112,7 +115,7 @@ function identifyPreserving(root, owner) {
 // for the same reason: the order is the whole document's.
 /** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
 export function reindexPassageOwners(scope = document, source = ["page", null]) {
-  for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries())
+  for (const [ownerIndex, root] of preservingOwners(scope).entries())
     identifyPreserving(root, [...source, ownerIndex]);
 }
 
@@ -151,12 +154,6 @@ async function loadWidgetDependencies(scope) {
 
 async function importWidgetModules(scope) {
   const required = widgetImports(scope, registry);
-  await Promise.all(
-    required.initializers.map(({ tag, path }) => {
-      if (document.documentElement.lfInitial.has(tag)) return;
-      return import(offlineInteractive ? runtimeModule(path) : runtimeResource(path));
-    }),
-  );
   await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 
@@ -180,18 +177,6 @@ export async function importWidgets(scope) {
 async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation");
   try {
-    rememberPassageParts(scope);
-    rememberAuthoredParents(scope);
-    const descriptors = stageWidgetDescriptors(scope);
-    const authored = stageAuthoredStates(scope, new Map());
-    const prior = readApplication().document;
-    applicationState.captureDocument({
-      ...prior,
-      registry: { ...registry },
-      authored: new Map([...prior.authored, ...authored]),
-      descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
-    });
-    commitWidgetDescriptors(descriptors);
     watchExternalLinks();
     watchCodeBlocks();
     watchHeadingLinks();
@@ -243,13 +228,37 @@ async function settle(presentation, scope, arrived, presented) {
   reachScrollers(scope);
 }
 
-export async function upgradeWidgets({ buildReactionBar }) {
+export async function prepareDocument(captured) {
   const response = await fetch(registryUrl());
   if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   adoptRegistry(await response.json());
   if (!sameLayer(registry.$layer.generation)) return false;
+  const scope = captured.source;
+  const original = (node) => captured.pairs.get(node);
+  rememberPassageParts(scope, ["page", null], original);
+  rememberAuthoredParents(scope, null, original);
+  const descriptors = stageWidgetDescriptors(scope);
+  const authored = stageAuthoredStates(scope, new Map());
+  const prior = readApplication().document;
+  applicationState.captureDocument({
+    ...prior,
+    registry: { ...registry },
+    authored: new Map([...prior.authored, ...authored]),
+    descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
+  });
+  commitWidgetDescriptors({
+    ...descriptors,
+    bindings: descriptors.bindings.map(({ element, descriptor }) => ({
+      element: original(element),
+      descriptor,
+    })),
+  });
+  return true;
+}
+
+export async function upgradeWidgets({ buildReactionBar }) {
   revealLayer();
   buildReactionBar();
   await installDocument(document.body);

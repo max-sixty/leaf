@@ -60,8 +60,7 @@ const DEPTHS = [
 const HEADING = "h1, h2, h3, h4, h5, h6, hgroup";
 const KEPT = `${HEADING}, .lede, .gist`;
 // Never folded: what the reader steers by or what isn't the page's flow.
-const STANDS =
-  "script, style, template, [data-lf-gen], aside.sidebar, [data-lf-margin-content]";
+const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
 // Marks the blocks that can hold the reader's place while the dial turns.
 const BLOCK = "data-lf-dial-block";

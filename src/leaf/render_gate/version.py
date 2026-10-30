@@ -3,20 +3,17 @@
 from dataclasses import dataclass, replace
 
 from leaf.findings import Finding
-from leaf.registry.contract import element_declarations
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
-    margin_changes,
     open_widgets,
     settle_at,
     shrunk_label_advice,
     squeezed_table_advice,
     sweep,
     swept_faults,
-    unreserved_height_advice,
 )
 from .scheme import _render_scheme
 
@@ -26,13 +23,11 @@ PHONE_VIEWPORT = {"width": 540, "height": 720}
 @dataclass(frozen=True, slots=True)
 class RenderReading:
     """What the browser gate read of a version: its findings, of which an `error`
-    refuses it and `advice` does not. `margin_widths` are the widths, besides the fixed
-    viewports, it rendered because the page's margin content changes there.
+    refuses it and `advice` does not.
     `arrangement` is each swept width at which the page's own arrangement is at its
     tightest before it changes, with what changes."""
 
     findings: list[Finding]
-    margin_widths: list[int]
     arrangement: list[tuple[int, str, str]]
 
     @property
@@ -104,10 +99,7 @@ def _render_version_attempt(
     top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
-    also finds each width where the page's margin content changes (a sidebar,
-    contents map or note first standing in the margin), and the gate renders the page
-    there too, in the light scheme: what stands in the margin is layout, which the
-    scheme does not change. Console warnings and the issues Chrome's DevTools raises
+    reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
     are advice wherever they are read. No failures is a pass.
 
     The geometry has one reading (`readings.swept_faults`), reported by the runs of
@@ -137,7 +129,6 @@ def _render_version_attempt(
     completed = []
     samples = []
     advice = []
-    changes = []
     arrangement = []
     phone = PHONE_VIEWPORT
     fixed = {desktop["width"], phone["width"]}
@@ -149,19 +140,13 @@ def _render_version_attempt(
         )
 
     def desktop_sweep(page, registry):
-        # First, at the first paint's viewport, which the sweep then leaves.
-        advice.extend(unreserved_height_advice(page, element_declarations(registry)))
+        # Read the desktop viewport before the sweep changes it.
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
         advice.extend(shrunk_label_advice(widths))
         advice.extend(squeezed_table_advice(widths))
         arrangement.extend(arrangement_changes(widths))
-        changes.extend(
-            width
-            for width in margin_changes(page, widths, desktop["height"])
-            if width not in fixed
-        )
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])
 
@@ -193,8 +178,6 @@ def _render_version_attempt(
         render(desktop, "dark", sample)
         render(phone, "light", phone_sweep)
         render(phone, "dark", sample)
-        for width in changes:
-            render({"width": width, "height": desktop["height"]}, "light", sample)
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
@@ -202,7 +185,6 @@ def _render_version_attempt(
         raise
     reading = RenderReading(
         [*_findings_with_viewports(failures, desktop), *swept_faults(samples), *advice],
-        changes,
         arrangement,
     )
     return reading, _findings_with_viewports(notices, desktop), all(completed)
@@ -249,7 +231,7 @@ def render_version(
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})
-            return RenderReading([failure], [], []), [], False
+            return RenderReading([failure], []), [], False
 
     first, notices, complete = attempt()
     retain(first.failures)

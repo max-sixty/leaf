@@ -1,20 +1,9 @@
-/* Step through an authored sequence of events. The drawing, its layout and what each
- * step shows belong to `initial/timeline-view.js`, which delivery runs before first
- * paint; this module adopts that drawing and adds the routes that move between steps,
- * the comment targets and relayout on resize.
- *
- * Previous and Next, the Left and Right arrows, Home and End, a row of the step list
- * and a press on a mark all set the step. The step is tab-local view state, never a
- * page event: two readers stepping the same page don't disagree about anything Leaf
- * records. A step moves only the playhead, which glides to its new time unless the
- * reader asked for less motion; every other box keeps its place.
- *
- * Each event is a visual part `event:<id>`, so a comment names the event however the
- * layout changes. Following a comment to an event steps to it.
- */
+/* One Lit lifecycle owns the timeline. The ruler column supplies its measured
+ * width; measured packing is independent of the selected step.
+ * Keyboard, pointer and touch all change the same tab-local step. */
+import { render, timelineModel, timelineLayout } from "./timeline-view.js";
 import {
   LeafElement,
-  initialRender,
   commands,
   whileConnected,
   sizeObserver,
@@ -31,74 +20,63 @@ import {
 customElements.define(
   "lf-timeline",
   class extends LeafElement {
-    #drawing;
+    #model;
+    #current = 0;
     #parts;
-    // Labels are laid out against the ruler's width, so they follow it in the same
-    // frame: a timeline first shown in a closed tab places them before it paints.
-    // The ruler's own size doesn't change with the layout, so this never loops.
-    #relayout = () => {
-      if (this.#drawing.layout()) {
-        this.requestUpdate();
-        this.performUpdate();
-        this.#parts?.update();
-      }
-    };
 
-    setup() {
-      const drawing = (this.#drawing = initialRender(this));
-      const { model } = drawing;
-      for (const problem of model.problems) reportFailure(this, new Error(problem));
-      const steps = model.steps.length;
+    #wiredRows = new WeakSet();
+
+    get #rows() {
+      return [...this.renderRoot.querySelectorAll(".lf-timeline-step")];
+    }
+
+    firstUpdated() {
+      const root = this.renderRoot;
       commands(this, "On a timeline", [
         {
           id: "timeline.previous",
           title: "Previous step",
           keys: ["ArrowLeft"],
           repeat: true,
-          control: drawing.previous,
-          when: () => drawing.current > 0,
-          run: () => this.#go(drawing.current - 1, true),
+          control: root.querySelector(".lf-timeline-previous"),
+          when: () => this.#current > 0,
+          run: () => this.#go(this.#current - 1, true),
         },
         {
           id: "timeline.next",
           title: "Next step",
           keys: ["ArrowRight"],
           repeat: true,
-          control: drawing.next,
-          when: () => drawing.current < steps - 1,
-          run: () => this.#go(drawing.current + 1, true),
+          control: root.querySelector(".lf-timeline-next"),
+          when: () => this.#current < this.#model.steps.length - 1,
+          run: () => this.#go(this.#current + 1, true),
         },
         {
           id: "timeline.first",
           title: "First step",
           keys: ["Home"],
-          when: () => drawing.current > 0,
+          when: () => this.#current > 0,
           run: () => this.#go(0, true),
         },
         {
           id: "timeline.last",
           title: "Last step",
           keys: ["End"],
-          when: () => drawing.current < steps - 1,
-          run: () => this.#go(steps - 1, true),
+          when: () => this.#current < this.#model.steps.length - 1,
+          run: () => this.#go(this.#model.steps.length - 1, true),
         },
       ]);
-      for (const row of drawing.rows)
-        commands(row, "On a timeline step", [
-          {
-            id: "timeline.step",
-            title: "Go to step",
-            keys: ["Enter", " "],
-            run: () => row.click(),
-          },
-        ]);
-      const events = new Map(model.events.map((event) => [event.id, event]));
-      const describe = (event) => `${model.lanes[event.lane].label}: ${event.label}`;
+      const eventById = (id) =>
+        this.#model.events.find((event) => event.id === id.slice("event:".length));
+      const describe = (event) =>
+        `${this.#model.lanes[event.lane].label}: ${event.label}`;
       this.#parts = registerVisualParts(
         this,
         () =>
-          model.events.flatMap((event) => {
-            const element = drawing.eventElement(event.id);
+          this.#model.events.flatMap((event) => {
+            const element = root.querySelector(
+              `.lf-timeline-event[data-event="${CSS.escape(event.id)}"]`,
+            );
             if (!element) return [];
             const surface = element.querySelector(
               event.end === null ? ".lf-timeline-label" : ".lf-timeline-mark",
@@ -109,59 +87,114 @@ customElements.define(
           }),
         {
           label: (id) => {
-            const event = events.get(id.slice("event:".length));
+            const event = eventById(id);
             return event ? describe(event) : null;
           },
           reveal: (id) => {
-            const event = events.get(id.slice("event:".length));
+            const event = eventById(id);
             if (event) this.#go(event.step, false);
           },
         },
       );
       whileConnected(this, (signal) => {
-        const pick = (event) => {
-          const target = event.target.closest?.("[data-step]");
-          if (target && this.contains(target))
-            this.#go(Number(target.dataset.step), false);
-        };
-        // The step list's rows are its buttons; a press on a mark is the pointer's
-        // shortcut to the same step.
-        for (const region of [drawing.chart, ...drawing.rows])
-          region.addEventListener("click", pick, { signal });
-        const sizes = sizeObserver(this.#relayout);
-        sizes.observe(drawing.chart.querySelector(".lf-timeline-ruler"));
-        // Chromium lays the page out for paper before it prints but runs no size
-        // observer there; it does report the print media change, at the paper's width.
-        matchMedia("print").addEventListener("change", this.#relayout, { signal });
-        this.#relayout();
-        return () => sizes.disconnect();
+        const observer = sizeObserver(() => this.#resize());
+        observer.observe(root.querySelector(".lf-timeline-ruler"));
+        document.fonts.addEventListener("loadingdone", () => this.#resize(), {
+          signal,
+        });
+        window.addEventListener("beforeprint", () => this.#resize(), { signal });
+        root.addEventListener(
+          "click",
+          (event) => {
+            const target = /** @type {HTMLElement} */ (event.target).closest(
+              "[data-step]",
+            );
+            if (target && root.contains(target))
+              this.#go(Number(target.getAttribute("data-step")), false);
+          },
+          { signal },
+        );
+        return () => observer.disconnect();
       });
+      this.requestUpdate();
+      // The saved tab position changes only states and the retained playhead.
+      const saved = Number(tabStore.get(`timeline:${this.id}`));
+      const restored = this.#model.steps.findIndex((step) => step.time === saved);
+      if (restored > 0) {
+        this.#current = restored;
+        this.requestUpdate();
+      }
+    }
+
+    #readModel() {
+      const time = this.#model?.steps[this.#current]?.time;
+      this.#model = timelineModel(this);
+      const retained = this.#model.steps.findIndex((step) => step.time === time);
+      this.#current =
+        retained >= 0
+          ? retained
+          : Math.max(0, Math.min(this.#current, this.#model.steps.length - 1));
     }
 
     render() {
-      return this.#drawing.render();
+      this.#readModel();
+      const chart = this.renderRoot.querySelector(".lf-timeline-chart");
+      const width = this.renderRoot.querySelector(".lf-timeline-ruler")?.clientWidth;
+      const style = chart && getComputedStyle(chart);
+      // Reserve the current label's bold width for every step, keeping rows fixed.
+      const layout = width
+        ? timelineLayout(
+            this.#model,
+            width,
+            `600 ${style.fontSize} ${style.fontFamily}`,
+          )
+        : null;
+      return render(this, this.#current, this.#model, layout);
+    }
+
+    updated(changed) {
+      super.updated(changed);
+      for (const row of this.#rows) {
+        if (this.#wiredRows.has(row)) continue;
+        this.#wiredRows.add(row);
+        commands(row, "On a timeline step", [
+          {
+            id: "timeline.step",
+            title: "Go to step",
+            keys: ["Enter", " "],
+            run: () => /** @type {HTMLElement} */ (row).click(),
+          },
+        ]);
+      }
+      for (const problem of this.#model.problems)
+        reportFailure(this, new Error(problem));
+      this.#parts?.update();
+      paintKeys();
+    }
+
+    #resize() {
+      this.requestUpdate();
+      this.performUpdate();
     }
 
     #go(index, keyed) {
-      const drawing = this.#drawing;
-      const before = drawing.current;
-      drawing.current = index;
-      const step = drawing.current;
+      const before = this.#current;
+      const step = (this.#current = Math.max(
+        0,
+        Math.min(this.#model.steps.length - 1, index),
+      ));
       if (step === before) return;
       this.requestUpdate();
       this.performUpdate();
       if (!quoted(this))
-        tabStore.set(`timeline:${this.id}`, String(drawing.model.steps[step].time));
-      this.#parts.update();
-      paintKeys();
-      const row = drawing.rows[step];
-      if (keyed && drawing.rows.includes(focused())) focusDestination(row, "move");
+        tabStore.set(`timeline:${this.id}`, String(this.#model.steps[step].time));
+      const rows = this.#rows;
+      if (keyed && rows.includes(focused())) focusDestination(rows[step], "move");
       if (keyed) {
-        const { model } = drawing;
-        const events = model.steps[step].events
-          .map((event) => `${model.lanes[event.lane].label}: ${event.label}`)
+        const events = this.#model.steps[step].events
+          .map((event) => `${this.#model.lanes[event.lane].label}: ${event.label}`)
           .join("; ");
-        announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
+        announce(`Step ${step + 1} of ${this.#model.steps.length}. ${events}`);
       }
     }
   },

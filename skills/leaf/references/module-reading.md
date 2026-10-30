@@ -121,6 +121,9 @@ press its face itself. `showAction(control, action)` makes a control show `actio
 symbol, replacing the symbol it shows if that differs, for a press whose action follows
 its state, such as Expand all turning to Collapse all.
 
+For a Lit control, `actionClass(role, className)` supplies the same face classes as
+`offerAction`; `actionName(action)` supplies the action's accessible name.
+
 ## Page readings
 
 A widget reads these values in its `LeafElement.render()`, which redraws when they

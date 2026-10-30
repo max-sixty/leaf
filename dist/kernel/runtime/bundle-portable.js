@@ -379,6 +379,8 @@ function excludedByInert(node) {
 //#region runtime/page-paint.js
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	class: "class",
+	external: "data-lf-external",
+	viewMember: "data-lf-view",
 	obligation: "data-lf-obligation",
 	done: "data-lf-done",
 	restated: "data-lf-restated",
@@ -401,7 +403,6 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	goto: "data-lf-go-to-active",
 	traffic: "data-lf-traffic",
 	player: "data-lf-player",
-	kept: "data-lf-kept",
 	mediaWidth: "data-lf-media-width",
 	mediaHeight: "data-lf-media-height"
 });
@@ -724,7 +725,19 @@ function showFailure(el, text, source) {
 
 //#endregion
 //#region runtime/shown-box.js
-const skipped = (el) => document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
+const skipped = (element) => {
+	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+	if (element.checkVisibility()) return true;
+	let child = element;
+	let box = renderedParent(element);
+	while (box && !box.checkVisibility()) {
+		child = box;
+		box = renderedParent(box);
+	}
+	if (!box) return false;
+	if (box.localName === "details") return !box.open && child.localName !== "summary";
+	return getComputedStyle(box).contentVisibility === "hidden";
+};
 function elementBox(el) {
 	const r = el.getBoundingClientRect();
 	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;

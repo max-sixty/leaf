@@ -156,7 +156,6 @@ class BrowserCheck:
             reading["unavailable"] = self.unavailable
         if self.render is not None:
             reading["desktop"] = self.desktop.json()
-            reading["margin_widths"] = self.render.margin_widths
         if self.screens is not None:
             into, saved = self.screens
             reading["screens"] = {

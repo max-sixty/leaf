@@ -33,7 +33,3 @@ export function move(parent, node, before) {
   }
   return node;
 }
-
-// The early Lit instance keeps this indirection: once modules run, every keyed move
-// uses the same focus-preserving implementation as the rest of the runtime.
-document.documentElement.lfInitial.move = move;

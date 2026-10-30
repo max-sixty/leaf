@@ -1382,7 +1382,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-space`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -1514,12 +1514,12 @@ def test_layout_style_and_widgets_never_read_each_other():
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
-    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
     module-authoring.md lists the roles for package authors, in the table's order.
     `primary` and the authored `button` face are ordinary words too, so they count
     where a string lists classes or a template's `class` attribute names them."""
-    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
     assert {"symbol", "word", "commit"} <= roles.keys(), roles

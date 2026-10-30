@@ -158,10 +158,6 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
-def _requests(v: dict) -> str:
-    return f"; still requesting {', '.join(v['requesting'])}" if v["requesting"] else ""
-
-
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -456,18 +452,13 @@ _TEXT = {
             "incomplete": " (the confirming render attempt did not complete)",
         }[v.get("confirmation")]
     ),
-    "upgraded-early": lambda at, v: (
-        f"pre-upgrade: widgets upgraded before Leaf entry ran: {', '.join(v['tags'])}"
-    ),
-    "ready-early": lambda at, v: (
-        "pre-upgrade: runtime readiness appeared before Leaf entry ran: "
-        + ", ".join(v["stamps"])
-    ),
-    "main-unlaid": lambda at, v: (
-        "pre-upgrade: authored main has no measurable pre-upgrade layout"
-    ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
+    "startup-layout-shift": lambda at, v: (
+        f"startup CLS {v['cls']:.4f} before first settled presentation; "
+        "inspect the movement and whether it interrupts reading: "
+        + json.dumps(v["entries"], ensure_ascii=False)
+    ),
     "moved-without-input": lambda at, v: (
         f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
@@ -513,23 +504,13 @@ _TEXT = {
     "gate-failed": lambda at, v: (
         f"the browser gate failed while running its probe module: {v['error']}"
     ),
-    "probe-failed": lambda at, v: f"the browser probe module failed: {v['error']}",
+    "probe-failed": lambda at, v: (
+        f"the browser probe module failed: {v['error']}"
+        + (" — " + _explained(v["console"]) if v.get("console") else "")
+    ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
-    ),
-    "never-reached": lambda at, v: (
-        f"pre-upgrade proof failed: the document never reached {v['arrival']}"
-        + _requests(v)
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-single": lambda at, v: (
-        "pre-upgrade proof failed: the document has no single canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-requested": lambda at, v: (
-        "pre-upgrade proof failed: the browser did not request one canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
     ),
     "never-upgraded": lambda at, v: (
         "the widget layer never finished upgrading — "
@@ -627,11 +608,6 @@ _TEXT = {
         f"{at} grows into the margin and is drawn over {v['marginContent']}, which already"
         " sits there; that side of the page has no free room for it"
     ),
-    "off-axis": lambda at, v: (
-        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
-        " of room, so it stands off the prose axis — a width or max-width set on it"
-        " overrides the room's"
-    ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
     ),
@@ -673,6 +649,18 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
+    "flow-tracks": lambda at, v: (
+        f"{at} is a reading flow under {v['parent']}, but its columns are"
+        f" {v['columns']!r} and its span is {v['start']} / {v['end']}; share all"
+        " document columns with grid-template-columns: subgrid and grid-column: full;"
+        " data-width can narrow that span, and layout containment or container-type can prevent subgrid"
+    ),
+    "contained-space": lambda at, v: (
+        f"{at} declares {v['space']} space but stays inside "
+        + ", ".join(v["holders"])
+        + "; if it should use the document's wider tracks, give those holders"
+        ' class="layout-flow"'
+    ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
@@ -681,17 +669,6 @@ _TEXT = {
         " and its labels with it, so set them larger in the viewBox's units, draw"
         " the viewBox nearer the width it is shown at, or give it more room"
         " (authoring-evidence.md, Interactive and visual evidence)"
-    ),
-    "unreserved-height": lambda at, v: (
-        f"{at} first paints {v['first']}px tall, "
-        + (
-            "reserving no height"
-            if v["reserved"] is None
-            else f"reserving {v['reserved']}px"
-        )
-        + f", and draws {v['drawn']}px tall, so what follows it moves"
-        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
-        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -1568,8 +1545,8 @@ _TEXT = {
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
-        f" {_size(v['first'])}, {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
+        f" before upgrade, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
@@ -2010,9 +1987,6 @@ _CONSOLE = {
     "page-exception",
     "window-error",
     "resize-loop",
-    "upgraded-early",
-    "ready-early",
-    "main-unlaid",
 }
 
 

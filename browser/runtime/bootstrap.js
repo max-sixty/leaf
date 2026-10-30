@@ -59,7 +59,7 @@
         send,
         receive: (callback) => listeners.add(callback),
         present() {
-          document.documentElement.lfInitial.setRuntimeRootAttribute(
+          document.documentElement.lfRootState.setRuntimeRootAttribute(
             document.body,
             "inert",
             null,
@@ -71,12 +71,12 @@
       let worn = { attributes: {}, properties: {} };
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
-        root.lfInitial.wear(root, next);
+        root.lfRootState.wear(root, next);
         worn = next;
       };
       bridge.install = () => {
         const root = document.documentElement;
-        root.lfInitial.setRuntimeRootAttribute(
+        root.lfRootState.setRuntimeRootAttribute(
           root,
           "data-lf-sample-block",
           settings.window ? null : "",
@@ -105,7 +105,11 @@
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
-        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", null);
+        root.lfRootState.setRuntimeRootAttribute(
+          root,
+          "data-lf-sample-connecting",
+          null,
+        );
         readyResolve();
         for (const value of queued.splice(0)) port.postMessage(value);
       };
@@ -115,7 +119,7 @@
       // shows a playground's candidate undressed. Opened as a window of its own, it
       // has no containing page to answer and paints at once.
       if (window.parent !== window)
-        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
+        root.lfRootState.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       // A frame's own navigation never keeps its document in the page cache, so a

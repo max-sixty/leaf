@@ -243,17 +243,13 @@ function pathTemplate(path) {
   const parts = path.split("/");
   const base = parts.pop();
   const parent = parts.pop();
-  return html`${
-      parts.length
-        ? html`<span class="lf-diff-dir lf-diff-dir-ancestor"
-            >${parts.map((part) => html`${part}/<wbr />`)}</span
-          >`
-        : ""
-    }${
-      parent !== undefined
-        ? html`<span class="lf-diff-dir lf-diff-dir-parent">${parent}/</span><wbr />`
-        : ""
-    }<span class="lf-diff-base">${base}</span>`;
+  return html`${parts.length
+      ? html`<span class="lf-diff-dir lf-diff-dir-ancestor"
+          >${parts.map((part) => html`${part}/<wbr />`)}</span
+        >`
+      : ""}${parent !== undefined
+      ? html`<span class="lf-diff-dir lf-diff-dir-parent">${parent}/</span><wbr />`
+      : ""}<span class="lf-diff-base">${base}</span>`;
 }
 
 // While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
@@ -327,13 +323,11 @@ function filePathTemplate({ path, previousPath }) {
   return html`<span
     class="lf-diff-path"
     data-path=${displayPath.replaceAll("/", "/\u200b")}
-    >${
-      previousPath
-        ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
-            ><span class="lf-diff-arrow"> → </span
-            ><span class="lf-diff-destination-path">${pathTemplate(path)}</span>`
-        : pathTemplate(name)
-    }</span
+    >${previousPath
+      ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
+          ><span class="lf-diff-arrow"> → </span
+          ><span class="lf-diff-destination-path">${pathTemplate(path)}</span>`
+      : pathTemplate(name)}</span
   >`;
 }
 
@@ -346,18 +340,16 @@ function paintSummary(details, record, verified = true) {
     html`${keyed(
       JSON.stringify([path, verified && previousPath ? previousPath : null]),
       filePathTemplate(verified ? record : { path }),
-    )}${
-      verified
-        ? html`<span class="lf-diff-stat" ${generated({ says: false })}
-            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-              class="lf-diff-deletions"
-              >−${deletions}</span
-            ><span class="lf-diff-metadata-words"
-              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
-            ></span
-          >`
-        : null
-    }`,
+    )}${verified
+      ? html`<span class="lf-diff-stat" ${generated({ says: false })}
+          ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+            class="lf-diff-deletions"
+            >−${deletions}</span
+          ><span class="lf-diff-metadata-words"
+            >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
+          ></span
+        >`
+      : null}`,
     details.firstElementChild,
   );
   const current = pathParts(details);
@@ -844,6 +836,11 @@ function deferredError(details, error, retry) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
+    // shadowStage owns the imperative diff; Lit owns no nodes in that stage.
+    createRenderRoot() {
+      return this;
+    }
+
     // The source the last render read, a bound value or an inline patch, and the one
     // whose rendering last started; a departure that cuts a rendering short forgets
     // it, so the return draws it again.

@@ -78,25 +78,17 @@ lf-deck[data-lf-deck-flying] {
     display: none;
   }
 }
-/* Where the runtime runs, the open card stands alone in its frame, with the edges of
-   the cards still waiting under it. Before upgrade the card the deck will open on
-   (`data-lf-opening`) stands so already, below the bar's room. Elsewhere, as after a
-   failed startup or on paper, the cards stand one after another. */
+/* The open card stands alone, with the waiting cards' edges beneath it.
+ * Without the runtime and on paper, cards stand one after another. */
 @media screen {
   @scope (html[data-lf-interactive] lf-deck) {
     /* The room under the open card holds the edges of the cards waiting under it. */
     :scope:is(lf-deck) {
       padding-block-end: calc(2 * var(--lf-deck-edge));
     }
-    :scope:is(lf-deck):not(.lf-rendered) {
-      padding-block-start: var(--lf-deck-bar-h);
-    }
-    :scope:is(lf-deck):not(.lf-rendered)[data-lf-views] > :not([data-lf-opening]) {
-      display: none;
-    }
+
     :scope:is(lf-deck).lf-rendered > [data-lf-deck-open],
-    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving],
-    :scope:is(lf-deck):not(.lf-rendered) > [data-lf-opening] {
+    :scope:is(lf-deck).lf-rendered > [data-lf-deck-leaving] {
       display: block;
       box-sizing: border-box;
       margin: 0;
@@ -114,10 +106,11 @@ lf-deck[data-lf-deck-flying] {
       /* A sideways touch drag is the card's; a vertical one still scrolls the page. */
       touch-action: pan-y;
     }
-    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :first-child {
+
+    :scope:is(lf-deck) > [data-lf-deck-open] > :first-child {
       margin-block-start: 0;
     }
-    :scope:is(lf-deck) > :is([data-lf-deck-open], [data-lf-opening]) > :last-child {
+    :scope:is(lf-deck) > [data-lf-deck-open] > :last-child {
       margin-block-end: 0;
     }
     :scope:is(lf-deck)[data-lf-deck-behind="1"] > [data-lf-deck-open] {

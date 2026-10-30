@@ -296,7 +296,7 @@ function q(t) {
 
 //#endregion
 //#region runtime/keeps.js
-const keeps = (...args) => document.documentElement.lfInitial.keepsAttribute(...args);
+const keeps = (...args) => document.documentElement.lfRootState.keeps(...args);
 function keepsHidden(node, hidden) {
 	if (node && node.hidden !== hidden) node.hidden = hidden;
 }
@@ -1140,7 +1140,6 @@ function move(parent, node, before) {
 	}
 	return node;
 }
-document.documentElement.lfInitial.move = move;
 
 //#endregion
 export { CARET_KEYS, J, LENT_REACH_STOP, MODIFIER_KEYS, PRESSES, TAB_STOP, TEXT_BOX, TEXT_FIELD, W, WORKS, Z, atLayoutPrecision, canPlaceFocus, caretAtKey, carriedFrom, closeLayer, controlNavigationKeys, currentLocationIn, currentLocationNodes, currentLocationTouches, d, declareReading, declareRelease, deepFocus, drawn, focusDestination, focusRevision, focused, handBack, holdCurrentLocation, holdFocus, inputCount, inputInFrame, keeps, keepsHidden, keepsText, layerLanding, layoutPx, letGo, move, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, pressLed, pressing, q, readCaret, recentPlaceInput, recoveredLabelFocus, release, releaseFocus, ringBox, roomPx, rove, selectsAll, tabStops, takesLetters, typesText, visibleFocus, watchCurrentLocationIn, wearsLentStop, whenLeft, x };

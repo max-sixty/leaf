@@ -108,3 +108,14 @@
     }
   }
 }
+
+/* Native until-found leaves the member's box; a closed view owns no layout room. */
+@media screen {
+  html[data-lf-interactive] [data-lf-view][hidden="until-found"] {
+    block-size: 0 !important;
+    min-block-size: 0 !important;
+    margin-block: 0 !important;
+    padding-block: 0 !important;
+    border-block-width: 0 !important;
+  }
+}

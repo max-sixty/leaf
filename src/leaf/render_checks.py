@@ -58,8 +58,6 @@ _RENDERING_SETTLED = """facts => {
   const state = globalThis.__leafRenderDriver.renderingState();
   return (facts ?? Object.keys(state)).every(fact => state[fact]);
 }"""
-_THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
-_PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
@@ -137,8 +135,8 @@ def observe_output_documents(page) -> None:
         )
         page._leaf_output_documents[frame] = document
 
-    # The main document's pre-upgrade proof holds its own entry; subsequent child
-    # entries reach this route, including samples opened later by the check's sweep.
+    # Observe publications before each document's entry runs, including the main
+    # document and samples opened later by the check's sweep.
     page.route("**/leaf.js", before_entry)
 
 
@@ -367,19 +365,6 @@ def wait_until_ready(
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
-
-
-def wait_for_theme(page) -> None:
-    """Wait until the authored document's theme stylesheet is readable."""
-    _ensure_driver(page)
-    page.wait_for_function(_THEME_READY)
-
-
-def pre_upgrade_findings(page) -> list[dict]:
-    """Read authored structure before the held Leaf entry is released, as finding
-    records (`leaf.findings`)."""
-    _ensure_driver(page)
-    return page.evaluate(_PRE_UPGRADE_FINDINGS)
 
 
 def install_window_errors(page, heard) -> None:

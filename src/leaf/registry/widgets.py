@@ -96,10 +96,6 @@ def _validate_widget_structure(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
     properties = entry.get("properties", {})
-    if entry.get("x-initial") and not entry["x-upgrade"]:
-        raise registry_error(
-            "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
-        )
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":

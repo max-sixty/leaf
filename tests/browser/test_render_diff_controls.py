@@ -58,7 +58,9 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
             reading = page.locator("#trees").evaluate("""node => {
               const box = n => n && n.getBoundingClientRect().toJSON();
               return {width: node.clientWidth, viewport: innerWidth,
-                rows: [...node.querySelectorAll('.lf-worktree-summary')].map(summary => ({
+                rows: [...node.querySelectorAll(':scope > lf-worktree')]
+                  .map(host => host.shadowRoot.querySelector('.lf-worktree-summary'))
+                  .map(summary => ({
                   box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
                   line: parseFloat(getComputedStyle(summary).lineHeight),
                   status: box(summary.querySelector('.lf-worktree-status')),
@@ -102,13 +104,17 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 )
             else:
                 assert rows[0]["stats"][0]["top"] >= rows[0]["label"]["bottom"]
-            page.locator("#short > details > summary").click()
-            expect(page.locator("#evidence")).to_be_visible()
-            evidence = page.locator("#short .lf-worktree-body").bounding_box()
-            assert (
-                evidence["width"] > page.locator("#short").bounding_box()["width"] * 0.8
-            )
-            page.locator("#short > details > summary").click()
+            summary = page.locator("#short .lf-worktree-summary")
+            summary.click()
+            try:
+                expect(page.locator("#evidence")).to_be_visible()
+                evidence = page.locator("#short .lf-worktree-body").bounding_box()
+                assert (
+                    evidence["width"]
+                    > page.locator("#short").bounding_box()["width"] * 0.8
+                )
+            finally:
+                summary.click()
 
 
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
@@ -159,7 +165,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
             )
         ),
     )
-    overview = page.locator("#trees > .lf-worktree-overview")
+    overview = page.locator("#trees .lf-worktree-overview")
     expect(overview).to_contain_text("5 worktrees")
     expect(overview).to_contain_text("2 files")
     expect(overview).to_contain_text("+2")
@@ -170,14 +176,14 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.locator("#empty").get_by_text("0 files", exact=True)
     ).not_to_be_visible()
 
-    row = page.locator("#drafts > details")
+    row = page.locator("#drafts .lf-worktree-disclosure")
     summary = row.locator(":scope > summary")
     expect(row).to_contain_text("/workspace/leaf.retain-drafts")
     expect(summary).to_contain_text(head[:8])
     # Counts say a row changed; a word names only what counts can't.
     expect(summary).not_to_contain_text("Changed")
-    expect(page.locator("#clean-0 > details > summary")).to_contain_text("Clean")
-    snapshot = row.locator(
+    expect(page.locator("#clean-0 .lf-worktree-summary")).to_contain_text("Clean")
+    snapshot = page.locator("#drafts").locator(
         "details", has=page.get_by_text("Snapshot details", exact=True)
     )
     snapshot.locator("summary").click()
@@ -193,7 +199,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     expect(search).not_to_be_visible()
     # Tab reaches the next worktree; Enter opens it independently of the first.
     page.keyboard.press("Tab")
-    missing_summary = page.locator("#missing > details > summary")
+    missing_summary = page.locator("#missing .lf-worktree-summary")
     expect(missing_summary).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
@@ -226,13 +232,15 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.get_by_text("The supplied checkout is temporarily unavailable.")
     ).to_be_visible()
     expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
-    expect(row.locator("aside")).to_have_attribute("title", "Agent commentary")
+    expect(page.locator("#drafts > aside")).to_have_attribute(
+        "title", "Agent commentary"
+    )
     expect(search).to_have_value("app.py")
     expect(file_summary.locator("..")).not_to_have_attribute("open")
     expect(snapshot.locator("code")).to_be_visible()
     file_summary.click()
     expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
-    fifth_summary = page.locator("#clean-2 > details > summary")
+    fifth_summary = page.locator("#clean-2 .lf-worktree-summary")
     fifth_summary.click()
     expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
     # A related navigator must reveal the worktree around its destination too.

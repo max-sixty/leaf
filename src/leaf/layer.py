@@ -340,6 +340,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             sheets.append(f"@layer {tier} {{\n{stylesheet(source, root)}}}\n")
 
     kernel, *packages = inputs
+    if (leading := kernel / "styles/shadow-leading.css").is_file():
+        shadow.insert(0, stylesheet(leading, kernel))
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "theme.css")

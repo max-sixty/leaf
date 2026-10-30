@@ -1,15 +1,14 @@
-/* The playground's shared Lit view, drawn before first paint and on every live
- * update. Native fields and the viewer's tab-local values determine the first
- * layout; upgrade keeps this view and adds commands, projection and delivery.
- *
- * Every authored playground has passed validation, page source and message markup
- * alike, so what the registry states is not checked again here: control names and
- * kinds, unique control names, choice values and preset settings (x-unique), and each
- * setting's and value slot's `for` naming a control of this playground (a keyed
- * x-refers). This producer checks only what needs the values themselves, such as a
- * range value against its bounds or a choice control's value among its choices. */
+/* The playground's retained Lit view reads native controls and tab-local values.
+ * Its live widget owns commands, projection and delivery.
+ */
+import {
+  offerElement,
+  offeredAction,
+  generatedElement,
+  tabStore,
+} from "/runtime/widget-api.js";
+
 import { html, nothing, ref, render } from "/vendor/lit.js";
-import { actionOffers } from "../../../browser/runtime/icon-paths.js";
 
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 const belongsTo = (host, member) =>
@@ -24,9 +23,7 @@ const ownControls = (host, preview) => [
   ),
 ];
 
-function createPlayground(host, tools) {
-  const { tabStore, offerElement, generatedElement } = tools;
-  const { offerActionElement } = actionOffers(tools);
+export function createPlayground(host) {
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
@@ -211,16 +208,19 @@ function createPlayground(host, tools) {
     });
   const inputOffer = offered((element) => offerElement(element, "lf-playground-input"));
   const radioOffer = offered((element) => offerElement(element, ""));
-  const action = (role, cls, label, options) =>
-    offered((element) => offerActionElement(element, role, cls, label, options));
-  const resetOffer = action("symbol", "lf-playground-reset", undefined, {
+  const resetOffer = offeredAction("symbol", "lf-playground-reset", undefined, {
     action: "reset",
   });
-  const revealOffer = action("symbol", "lf-playground-reveal", "Show instruction", {
-    action: "more",
-  });
-  const submitOffer = action("commit", "lf-playground-submit");
-  const presetOffer = action("word", "lf-playground-preset");
+  const revealOffer = offeredAction(
+    "symbol",
+    "lf-playground-reveal",
+    "Show instruction",
+    {
+      action: "more",
+    },
+  );
+  const submitOffer = offeredAction("commit", "lf-playground-submit");
+  const presetOffer = offeredAction("word", "lf-playground-preset");
   const nativeInputs = (control) => [
     ...control.querySelectorAll(
       ":scope > input, :scope > select, :scope > .choice > input, :scope > .lf-playground-choices > lf-playground-choice > .choice > input",
@@ -547,4 +547,3 @@ function createPlayground(host, tools) {
   host.classList.add("lf-rendered");
   return view;
 }
-document.documentElement.lfInitial.register("lf-playground", createPlayground);

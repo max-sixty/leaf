@@ -62,13 +62,9 @@
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
 
-   A floor asks about the room its rule governs. Whether a margin element (the rail, a
-   contents map, a sidebar, a sidenote) stands in the margin is measured, since what it
-   asks is the room the page's Layout and CSS left beside `main`: the margin pass writes
-   the answer on `main` (prepaint.js, `marginContentLayout`) and the rules below key on
-   it. Facts ask the nearest container (640): the shell on a column page, a pane's body
-   or a card where one holds them. One answering to the device, such as
-   a phone's vertical rhythm, asks the window, and a package's widget asks its own box
+   A floor asks about the room its rule governs. Native grid tracks and wrapping flex
+   layout arrange the reading column, sidebars and notes before modules load. Widgets
+   ask their own container; device typography asks the window
    (references/package-themes.md).
 
    Text may break at any character needed to keep the page inside its column.
@@ -305,27 +301,21 @@
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
      margin-model.js): two entries and the cluster's gap (`--margin-gap`), hung
-     `--rail-hang` off the column, with the focus ring's room at the outer edge. A
+     `--rail-hang` from the prose track, including its gutter, with the focus ring's
+     room at the outer edge. A
      finger's larger entries spend the room the hang would, so it shrinks with them. A
      cluster that unfolds past it stands over whatever lies beyond. The rule that spends
      it is beside .lf-margin-cluster below; the overlay reads the hang to seat a row
      (margin-layout.js). */
   --margin-gap: 4px;
-  --rail-hang: 22px;
+  --rail-hang: calc(var(--col-pad) + 22px);
   --rail: calc(
     2 * var(--margin-entry) + var(--margin-gap) + var(--rail-hang) +
       var(--focus-ring-room)
   );
-  /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
-     off anything the way --rail is. The 360px it leaves the note sets about fifty-six
-     characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
-     Half of it is also how far off the window's centre the column comes to sit, the
-     column centring in what the strip leaves — so this number is the page's axis as
-     much as the note's measure, and the two are set together on purpose. It held 216px
-     while the strip was on the left, which put a note at thirty characters: a measure
-     short enough that one sentence took four lines, and an axis close enough to centre
-     that the arrangement read as a centred page with something in the margin rather
-     than as a page with a margin. */
+  /* A note's preferred text measure plus the gutter beside its passage. The
+     column Layout centers this pair when both fit; native flex wrapping stacks
+     them otherwise (layouts.css). */
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
@@ -339,17 +329,12 @@
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
-     labels without making a second prose column. The rule beside aside.sidebar spends
-     it; the margin pass decides when the page can afford it (prepaint.js, `marginContentLayout`). */
+     labels without making a second prose column. The rule beside the sidebar track spends
+     it; native flex wrapping decides when both columns fit (layouts.css). */
   --sidebar: 264px;
-  /* A contents map at rest in the margin: its spine and the gutter beside it. */
-  --map: 48px;
-  /* The widest left-margin allocation any sidebar posture can request: the contents
-     map's, whose labels reveal over the page (the default package). */
+  /* The contents map's unfolded label width, including its gutter (default package). */
   --sidebar-max: 344px;
-  /* The measure, and the gutter main sets it in. Named because three rules now want
-     main's width: the element itself and the strip arithmetic beside aside.sidenote.
-     A second copy of 720 would be a release behind the first. */
+  /* The document Layouts' prose measure and outer gutter. */
   --col: 720px;
   --col-pad: 24px;
   /* The room a page Layout leaves above its first block and below its last. A phone's
@@ -368,7 +353,7 @@
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
      code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column.
      That row is 109 characters (the gutter's `digits + 5`, then the text) and 10px of
-     borders and padding (packages/diff/initial/lf-diff.js, which counts the same
+     borders and padding (packages/diff/styles/geometry.css, which counts the same
      anatomy). It is derived from --code-size rather than stated, so a code size the
      root sets carries it. A character is taken as 0.61em: the --mono stack's widest
      common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
@@ -666,7 +651,7 @@ html:not([data-lf-live]) {
     --entry-floor: 16px;
     --lf-line: 34px;
     --lf-fp-row-pad: 7px;
-    --rail-hang: 10px;
+    --rail-hang: calc(var(--col-pad) + 10px);
   }
 }
 
@@ -769,24 +754,6 @@ html:not([data-lf-live]) {
   inherits: false;
   initial-value: 0;
 }
-@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
-  * {
-    --lf-block-frame: 0;
-  }
-}
-@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-start: 0;
-    --lf-frame-start: 1;
-  }
-}
-@container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
-    margin-block-end: 0;
-    --lf-frame-end: 1;
-  }
-}
-
 /* A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it — this page's subject is code, so its prose carries paths, identifiers
  * and shas, and there is no width at which one of them can't be longer. It reaches
@@ -880,17 +847,8 @@ html {
 :has(> .lf-markdown-body[data-lf-prepaint]) > pre {
   display: none;
 }
-/* A widget drawn before first paint stays out of the page until its whole source
-   has parsed, so no frame shows that source half arrived. The script after its end
-   tag takes the mark off and draws it (revision_delivery.mark_declared). */
-html[data-lf-interactive] [data-lf-arriving] {
-  display: none;
-}
-/* Authored HTML is the page's useful initial condition, so it paints from stylesheet
- * parse while JavaScript upgrades widgets and reads the current log. Generated page
- * interface joins it as soon as widget and page-interface upgrade gives that apparatus
- * its settled upgrade geometry; durable controls still guard mutation until presentation.
- * Ordinary prose, links, scrolling, and layout remain available.
+/* Suppress startup transitions while keeping the document readable. Native hidden
+ * remains authoritative across component styling.
  *
  * The anonymous layer leads lf-base, which only lf-reset precedes, and lf-reset states
  * nothing important, so these important declarations outrank every other layer and
@@ -901,36 +859,23 @@ html[data-lf-interactive] [data-lf-arriving] {
  * element, which the UA's own rule loses to, so no rule restores it per selector. A box
  * shown without its contents takes another state than `hidden`; `until-found` keeps its
  * box for find-in-page, and the owner of that box states it. Shadow trees repeat this
- * (runtime/shadow.js, `SHADOW_LEADING_CSS`). */
+ * (styles/shadow-leading.css). */
 @layer {
   [hidden]:not([hidden="until-found"]) {
     display: none !important;
   }
   @media screen {
-    /* An initial drawing can depend on later markup in its reading scope. Keep that
-     * scope's geometry but withhold its paint until the producer has those inputs;
-     * opacity also covers descendants with their own visibility declaration. */
-    html[data-lf-interactive] [data-lf-initial-pending] {
-      opacity: 0 !important;
-      visibility: hidden !important;
-    }
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
     html[data-lf-interactive] body:not([data-lf-presented]) > main *,
     html[data-lf-interactive] body:not([data-lf-presented]) .lf-ui {
       transition: none !important;
     }
-    html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
-      visibility: hidden !important;
-    }
-    /* A declared shadow tree cannot see body's stamps, so the same two boundaries
-     * reach it as inherited properties its startup rules query
-     * (runtime/shadow.js, `SHADOW_LEADING_CSS`). */
+    /* A declared shadow tree cannot see body's stamp, so transition suppression
+     * reaches it as an inherited property its startup rule queries
+     * (styles/shadow-leading.css). */
     html[data-lf-interactive] body:not([data-lf-presented]) {
       --lf-before-presentation: 1;
-    }
-    html[data-lf-interactive] body:not([data-lf-upgraded]) {
-      --lf-before-upgrade: 1;
     }
     /* A sample document paints once its containing page has said what it wears
      * (runtime/bootstrap.js). Opacity, because a descendant can make itself visible
@@ -1000,104 +945,6 @@ html[data-lf-interactive] [data-lf-arriving] {
   syntax: "<length>+ | none";
   inherits: true;
   initial-value: none;
-}
-/* The general leaf text box, in one rule. It is stated page-side like the rest of the
-   shared vocabulary's faces (chrome.css), so a widget's own box that names the same
-   property wins. The compact response field is excluded because it shares its complete
-   control geometry with the response buttons (chrome.css). The box grows with its
-   words — a textarea through field-sizing, a text field through its own content — so
-   no script measures one: the JS that did had to reset height to auto to re-measure,
-   which made the box briefly too small for its own text on every keystroke — and a
-   box that overflows, however briefly, flashes a scrollbar. Past max-height the
-   scrollbar is real and stays — and the ceiling is the viewport's share, not a count
-   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
-   Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
-   class itself. */
-.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
-  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: inherit;
-  resize: none;
-  field-sizing: content;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-/* A single-line field or select, authored as .field or offered by a widget, wears the text box's frame at a
-   button's height, so a row of them beside .lf-btn reads as one set of controls. With
-   no face the browser drew its own: a 2px inset border and square corners, 21px tall
-   beside 30px buttons. At a class's weight, so a component rule naming its own field
-   still wins by coming later. */
-:where(
-  select,
-  input:not(
-    [type="checkbox"],
-    [type="radio"],
-    [type="range"],
-    [type="color"],
-    [type="file"],
-    [type="button"],
-    [type="submit"],
-    [type="reset"],
-    [type="image"]
-  )
-):is(.lf-ui, .field) {
-  --lf-field-pad-inline: 8px;
-  box-sizing: border-box;
-  min-height: var(--lf-line);
-  padding: 4px var(--lf-field-pad-inline);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  &[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 0;
-    border-color: transparent;
-  }
-}
-/* Native picker arrows ignore padding. Draw only the closed control's chevron;
-   the browser still owns opening, selection and keyboard input. Listboxes keep
-   their native face. The two strokes use the text color in either scheme. */
-:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
-  .lf-ui,
-  .field
-) {
-  --lf-select-arrow-wing: 4px;
-  appearance: none;
-  padding-inline-end: calc(
-    2 * (var(--lf-field-pad-inline) + var(--lf-select-arrow-wing))
-  );
-  background-image:
-    linear-gradient(45deg, transparent 25%, currentColor 25% 75%, transparent 75%),
-    linear-gradient(135deg, transparent 25%, currentColor 25% 75%, transparent 75%);
-  background-size: var(--lf-select-arrow-wing) var(--lf-select-arrow-wing);
-  background-repeat: no-repeat;
-  background-position:
-    right calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center,
-    right var(--lf-field-pad-inline) center;
-  &:dir(rtl) {
-    background-position:
-      left var(--lf-field-pad-inline) center,
-      left calc(var(--lf-field-pad-inline) + var(--lf-select-arrow-wing)) center;
-  }
-  @media (forced-colors: active) {
-    appearance: auto;
-    background-image: none;
-  }
-}
-.lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea):is(.lf-ui, .field)::placeholder {
-  color: var(--muted);
-  opacity: 1;
-}
-.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus-visible],
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
-  border-color: transparent;
 }
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
@@ -1234,14 +1081,9 @@ main {
   inherits: true;
   initial-value: 99999px;
 }
-/* Registered so the runtime reads each margin element's width in pixels, whatever
- * unit a page restates it in (prepaint.js, `marginContentLayout`). */
+/* Registered so native layout and annotation placement read widths in pixels,
+ * whatever unit a page uses. */
 @property --rail {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
-}
-@property --map {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
@@ -1492,12 +1334,7 @@ details:has(+ details) {
 details + details {
   margin-block-start: 0;
 }
-/* A disclosure arranged in columns gives its evidence the whole row. Keep this
-   native pseudo-element rule outside package scopes: Firefox computes scoped
-   ::details-content declarations but does not use them for grid placement. */
-details::details-content {
-  grid-column: 1 / -1;
-}
+
 summary {
   cursor: pointer;
   font-weight: 600;
@@ -1628,8 +1465,8 @@ summary {
 .eyebrow:has(+ h3) {
   margin-top: var(--h3-start);
 }
-.eyebrow + :is(h2, h3) {
-  margin-top: 0;
+.eyebrow + :is(h1, h2, h3) {
+  margin-top: 10px;
 }
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
@@ -1638,6 +1475,9 @@ summary {
   font-size: var(--t-3);
   line-height: 1.5;
   margin: 0 0 10px;
+}
+h1 + .lede {
+  margin-block-start: 12px;
 }
 /* Riding in a line is all this adds to the chip above: in the middle of a line of prose,
  * and of a row a page lays out as flex or grid, at its own height. Stretched, it took
@@ -1705,24 +1545,11 @@ section.panel > :is(h2, h3):first-child,
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);
 }
-/* A sidebar is page-level supporting material rather than an annotation on one block:
-   contents, a facts list, a short aside. In flow it is a block where it was written;
-   where a column's sidebar or a sidenote stands in the margin is the column Layout's
-   (layouts.css). Its edges trim what it holds, drawing nothing, because a sidebar is a
-   placement wrapper, not a second rhythm around what it holds. */
-aside.sidebar {
-  display: flow-root;
-  margin: var(--sp-4) 0 30px;
-  --lf-block-frame: trim;
-}
-
-/* A sidenote is a small indented block where it was written, and on paper; where it hangs
-   in the column's margin is the column Layout's (layouts.css). */
-aside.sidenote {
+/* A note is secondary text; its row's placement belongs to layouts.css. */
+aside.note {
   font-size: var(--t-5);
   line-height: 1.45;
   color: var(--muted);
-  margin: 12px 0 12px var(--sp-4);
 }
 .facts {
   display: grid;
@@ -1798,6 +1625,9 @@ td.num {
   text-align: right;
 }
 /* Steps keep native list numbers and add space between entries. */
+ol.steps {
+  margin-block-start: 0;
+}
 ol.steps > li {
   margin: 10px 0;
 }

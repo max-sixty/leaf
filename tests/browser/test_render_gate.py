@@ -112,7 +112,6 @@ from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
-from leaf.schema import ELEMENT_ID
 from leaf.validation import composition as validation_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -138,64 +137,20 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser, serve):
-    """A row that fits the wide viewport and spills from the compact one fails at the
-    widths it spills at, read once by the sweep. On the same page, a widget that
-    states the height its module draws at holds it from first paint, so the gate has
-    nothing to say about it; one stating none, or another height, is told the height
-    to state. One whose first paint a stylesheet sized from its markup, as an inline
-    patch's counted rows size an lf-diff, is told nothing: missing that height is the
-    widget's defect, and a data-height would go stale with the markup."""
+def test_the_render_gate_reports_a_compact_spill(browser, serve):
     source = leaf_page(
-        "compact spill and reserved heights",
-        """
-<style>
-@media (max-width: 600px) {
-  #compact-overflow { width: 700px; }
-}
-lf-test-drawn { display: block; }
-html[data-lf-interactive] #counted:not(.lf-rendered) { block-size: 60px; }
-</style>
-<h1>Compact route</h1>
-<p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
-<lf-test-drawn id="reserved" data-height="120"></lf-test-drawn>
-<lf-test-drawn id="unreserved"></lf-test-drawn>
-<lf-test-drawn id="misreserved" data-height="40"></lf-test-drawn>
-<lf-test-drawn id="counted"></lf-test-drawn>
-""",
+        "Compact spill",
+        "<h1>Compact route</h1>"
+        '<p id="compact-overflow">This row spills only from compact viewports.</p>',
+        head="<style>@media(max-width:600px){#compact-overflow{width:700px}}</style>",
     )
-
-    reading = render_gate_model.render_version(
-        browser,
-        serve(
-            source,
-            packages=(),
-            layer_registry=RESERVING_LAYER,
-            layer_widgets=RESERVING_WIDGETS,
-        ),
-    )
-
-    overflow = [f for f in reading.failures if f.code == "page-scrolls"]
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+    overflow = [
+        finding for finding in reading.failures if finding.code == "page-scrolls"
+    ]
     assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
         ((360, 600), None, ())
     ], reading.failures
-    assert [(f.code, f.at, f.values) for f in reading.advice] == [
-        (
-            "unreserved-height",
-            "<lf-test-drawn id=unreserved>",
-            {"first": 0, "drawn": 120, "reserved": None},
-        ),
-        (
-            "unreserved-height",
-            "<lf-test-drawn id=misreserved>",
-            {"first": 40, "drawn": 120, "reserved": "40"},
-        ),
-    ]
-    assert str(reading.advice[1]) == (
-        "<lf-test-drawn id=misreserved> first paints 40px tall, reserving 40px, and "
-        "draws 120px tall, so what follows it moves 80px when it is drawn: state "
-        'data-height="120"'
-    )
 
 
 def _panel(name: str) -> str:
@@ -402,119 +357,36 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.
-RESERVING_LAYER = {
-    "lf-test-drawn": {
-        "description": "A drawing its module makes at a height no rule knows ahead of it.",
-        "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-height": True,
-        "x-example": '<lf-test-drawn id="drawn" data-height="120"></lf-test-drawn>',
-    }
-}
-RESERVING_WIDGETS = {
-    "lf-test-drawn.js": """
-import { once } from '/runtime/widget-api.js';
-
-customElements.define('lf-test-drawn', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const drawing = document.createElement('div');
-    drawing.style.blockSize = '120px';
-    this.append(drawing);
-    this.classList.add('lf-rendered');
-  }
-});
-"""
-}
-
-
-def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
-    source = leaf_page(
-        "pre-upgrade structure",
-        "<h1>Held before Leaf starts</h1>",
-    )
-    page = browser.new_page()
-    page.route(
-        "**/theme.css",
-        lambda route: route.fulfill(body="main { display: none; }"),
-    )
-    findings = render_gate_scheme.start_with_pre_upgrade_proof(
-        page, serve(source, packages=())
-    )
-
-    assert [finding.code for finding in findings] == ["main-unlaid"]
-
-
-def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
-    """A dropped subresource is the timeout the gate used to misattribute.
-
-    The runtime has already started and injected its chrome by the time a held module
-    stalls the load event, so "the runtime never injected its chrome" named the one
-    thing that had happened. The document stays at `interactive` with nothing logged
-    and no error raised, which leaves the open request as the only evidence of which
-    file never arrived — this is where the local server dropping a request the browser
-    wrote onto a socket it had already closed reaches the gate.
-    """
-    source = leaf_page("held module", "<h1>Waiting on a module</h1>")
-    page = browser.unwatched.new_page()
-    page.set_default_timeout(EXPECTED_STALL_MS)
+@pytest.mark.parametrize("resource", ["module", "theme"])
+def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, resource):
+    """A missing response fails navigation rather than admitting an unread page."""
     holding = []
 
-    def hold_module(route):
-        if holding or route.request.url.endswith("/leaf.js"):
-            route.continue_()
-            return
-        holding.append(route)
+    def configure(page):
+        page.set_default_timeout(EXPECTED_STALL_MS)
 
-    page.route("**/runtime/*.js", hold_module)
-    try:
-        with pytest.raises(RuntimeError) as stopped:
-            render_gate_scheme.start_with_pre_upgrade_proof(
-                page, serve(source, packages=())
-            )
-    finally:
-        for route in holding:
-            route.abort()
+        def hold(route):
+            if holding:
+                route.continue_()
+            else:
+                holding.append(route)
 
-    assert holding, "the page asked for no runtime module, so nothing was held"
-    path = urlsplit(holding[0].request.url).path
-    assert stopped.value.finding.code == "never-reached"
-    assert stopped.value.finding.values["arrival"] == "load"
-    assert stopped.value.finding.values["requesting"] == [path]
+        page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-
-def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
-    browser, serve
-):
-    """A held head stylesheet may stop parsing before main. At whichever wait
-    stops first, the diagnostic names the page's request, not the entry held by
-    the gate itself."""
-    source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
-    page = browser.unwatched.new_page()
-    page.set_default_timeout(EXPECTED_STALL_MS)
-    holding = []
-
-    def hold_theme(route):
-        holding.append(route)
-
-    page.route("**/theme.css", hold_theme)
-    try:
-        with pytest.raises(RuntimeError) as stopped:
-            render_gate_scheme.start_with_pre_upgrade_proof(
-                page, serve(source, packages=())
-            )
-    finally:
-        for route in holding:
-            route.abort()
-
-    assert holding, "the page asked for no theme stylesheet, so nothing was held"
-    path = urlsplit(holding[0].request.url).path
-    assert stopped.value.finding.code == "never-reached"
-    assert stopped.value.finding.values["requesting"] == [path]
+    failures, _, completed = render_gate_scheme._render_scheme(
+        primed(browser.unwatched, configure),
+        serve(
+            leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
+            packages=(),
+        ),
+        "light",
+        {"width": 1200, "height": 900},
+        EXPECTED_STALL_MS,
+        [],
+    )
+    assert holding, "the positive control held no resource"
+    assert completed is False
+    assert [failure.code for failure in failures] == ["no-runtime"]
 
 
 @pytest.fixture
@@ -556,26 +428,28 @@ def dropped_entry_page(dropped_entry_server, browser):
     return browser.unwatched.new_page()
 
 
-def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
+def test_an_unanswered_entry_fails_the_render_gate(
     dropped_entry_server, dropped_entry_page
 ):
-    """Past the release the entry is the page's own request. What the wait above
-    leaves out is the hold, not the file — and a load event still waiting on an entry
-    the server accepted and then dropped is exactly the ending this reading exists to
-    name, so the release has to hand the entry back to the page."""
     dropped, asked = dropped_entry_server
     page = dropped_entry_page
     page.set_default_timeout(EXPECTED_STALL_MS)
-    with pytest.raises(RuntimeError) as stopped:
-        render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
-    entry_path = urlsplit(
-        page.locator('script[src$="/leaf.js"]').get_attribute("src")
-    ).path
 
-    assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
-    assert stopped.value.finding.code == "never-reached"
-    assert stopped.value.finding.values["arrival"] == "load"
-    assert stopped.value.finding.values["requesting"] == [entry_path]
+    class ExistingPage:
+        def new_page(self, **options):
+            return page
+
+    failures, _, completed = render_gate_scheme._render_scheme(
+        ExistingPage(),
+        dropped,
+        "light",
+        {"width": 1200, "height": 900},
+        EXPECTED_STALL_MS,
+        [],
+    )
+    assert asked.is_set(), "the browser never requested the held entry"
+    assert completed is False
+    assert [failure.code for failure in failures] == ["no-runtime"]
 
 
 def test_browser_like_console_words_remain_console_diagnostics(browser):
@@ -600,30 +474,23 @@ def test_browser_like_console_words_remain_console_diagnostics(browser):
     assert str(problem) == "ordinary failure — http://page/author.js"
 
 
-def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
-    browser, serve, monkeypatch
-):
-    """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no authored console message. The browser's native diagnostic
-    explains the refusal, so the named wait retains its complete text and URL."""
-    real_proof = render_gate_scheme.start_with_pre_upgrade_proof
-
-    def promptly(page, url):
-        page.set_default_timeout(EXPECTED_STALL_MS)
-        return real_proof(page, url)
-
-    monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
-    served = serve(leaf_page("refused", "<h1>Refused</h1>"), packages=())
+def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, serve):
+    served = serve(leaf_page("Refused", "<h1>Refused</h1>"), packages=())
     refused = served.split("?")[0] + "?t=not-the-page-key"
-
-    failures, _notices, completed = render_gate_scheme._render_scheme(
-        browser.unwatched, refused, "light", {"width": 1200, "height": 900}, 3_000, []
+    controlled = primed(
+        browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-
+    failures, _, completed = render_gate_scheme._render_scheme(
+        controlled,
+        refused,
+        "light",
+        {"width": 1200, "height": 900},
+        EXPECTED_STALL_MS,
+        [],
+    )
     assert completed is False
     [failure] = failures
-    assert (failure.code, failure.scheme) == ("never-reached", "light")
-    assert failure.values["arrival"] == "an authored main"
+    assert (failure.code, failure.scheme) == ("probe-failed", "light")
     assert {
         "code": "console-error",
         "severity": "error",
@@ -633,55 +500,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
         },
     } in failure.values["console"], failure
 
-
-def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
-    browser, serve, monkeypatch
-):
-    """The hold on the entry is also what keeps request interception installed, and
-    taking it down belongs after the document has loaded rather than at the release.
-
-    Playwright turns a page's interception off as soon as its last route handler is
-    spent, so a `times=1` hold is spent exactly when the module layer starts its
-    burst, and the burst loses requests to that transition: measured on the corpus
-    page over interleaved attempts, the document never reached load in 5 of 60 with
-    the single-shot hold and 0 of 60 with one registered across the load wait. The
-    ending is silent — `interactive` with a module still in flight, or with nothing in
-    flight at all — so nothing downstream can tell it from a page that is merely slow,
-    and the ordering is the only place it can be stated."""
-    page = browser.new_page()
-    # Observe only the temporary hold; the output observer owns a persistent route.
-    render_gate_scheme.observe_output_documents(page)
-    registrations = []
-    order = []
-    route, unroute = page.route, page.unroute
-    wait_for_load_state = page.wait_for_load_state
-
-    def recorded_route(url, handler, **kwargs):
-        registrations.append((url, kwargs))
-        order.append(f"route {url}")
-        return route(url, handler, **kwargs)
-
-    def recorded_unroute(url, handler=None):
-        order.append(f"unroute {url}")
-        return unroute(url, handler)
-
-    def recorded_wait_for_load_state(state="load", **kwargs):
-        order.append(f"reached {state}")
-        return wait_for_load_state(state, **kwargs)
-
-    monkeypatch.setattr(page, "route", recorded_route)
-    monkeypatch.setattr(page, "unroute", recorded_unroute)
-    monkeypatch.setattr(page, "wait_for_load_state", recorded_wait_for_load_state)
-    source = leaf_page("entry hold", "<h1>Held before Leaf starts</h1>")
-    assert (
-        render_gate_scheme.start_with_pre_upgrade_proof(
-            page, serve(source, packages=())
-        )
-        == []
-    )
-
-    assert registrations == [("**/leaf.js", {})], registrations
-    assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
+    assert "401 (Unauthorized)" in str(failure)
 
 
 RECURSIVE_ROWS_PAGE = leaf_page(
@@ -3327,7 +3146,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
           const svg=box.querySelector('svg');
           const ink=svg?.getBBox({stroke:true});
           const bottom=ink && new DOMPoint(ink.x,ink.y+ink.height).matrixTransform(svg.getScreenCTM()).y;
-          window.diagramFrames.push({drawn:!!svg,
+          window.diagramFrames.push({drawn:!!svg,visible:box.checkVisibility({visibilityProperty:true}),
             height:box.getBoundingClientRect().height,
             following:following.getBoundingClientRect().top,
             track:box.offsetHeight-box.clientHeight,
@@ -3338,14 +3157,15 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
       requestAnimationFrame(read);
     """)
     render_checks_model.install_driver(page)
-    assert not render_gate_scheme.start_with_pre_upgrade_proof(page, serve(source))
+    page.goto(serve(source))
     wait_until_ready(page)
     frames = page.evaluate("""async () => {
       for(let i=0;i<3;i++) await new Promise(requestAnimationFrame);
       window.diagramFramesDone=true;
       return window.diagramFrames;
     }""")
-    assert any(not frame["drawn"] for frame in frames), frames
+    frames = [frame for frame in frames if frame["visible"]]
+    assert frames and all(frame["drawn"] for frame in frames), frames
     assert frames[-1]["drawn"], frames
     assert frames[-1]["track"] == track, frames
     assert frames[-1]["clear"] >= max(15, track + 1), frames
@@ -3783,53 +3603,53 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 
-def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serve):
-    """A breakout's margins move it out past its holder and its width is the room's,
-    so an iframe granted `wide` covers the prose and the room past its end where it had
-    collapsed to its borders at the room's left edge. A page rule sizing it keeps the margins and
-    replaces the width: the frame stood out in the left margin and stopped short of
-    the prose's right edge, and the gate read it as clean. A width past the prose's
-    edge but short of the room is off the axis too, and a room inside a scroller is
-    read inside its scrollbar gutter, which a styled scrollbar keeps classic headless. The reading asks only of a
-    box the margins grew that the user can see: a positioned frame is placed by its
-    own offsets, and its parent is not what holds it. A link around a frame holds it
-    no more than a wrapper drawing no box does, so the room is read past the link."""
+def test_declared_space_names_containing_holders_as_advice(browser, serve):
+    """An authored or declared breakout names the containers withholding its tracks.
+    Shared flows, already allocated room, ordinary tables and workspace cells keep
+    their intended containment without a warning."""
     source = leaf_page(
-        "Sized breakouts",
-        """
-<h1>Sized breakouts</h1>
-<style>.sized { width: 100%; }</style>
-<p id="prose">Prose sets the column the frames break out of.</p>
-<iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
-<iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
-<iframe id="wider" title="Wider" data-width="wide" style="display: block; width: 110%"></iframe>
-<a href="#prose"><iframe id="linked" title="Linked" data-width="wide" style="display: block"></iframe></a>
-<style>#gutter::-webkit-scrollbar { width: 15px; height: 15px; }</style>
-<div id="gutter" style="overflow: scroll; scrollbar-gutter: stable">
-  <iframe id="guttered" title="Guttered" data-width="wide" style="display: block"></iframe>
-</div>
-<iframe id="unseen" class="sized" title="Unseen" data-width="wide"
-  style="display: block; opacity: 0"></iframe>
-<div style="position: relative; height: 160px"><div style="width: 50%; margin-left: 25%">
-  <iframe id="placed" title="Placed" data-width="wide"
-    style="position: absolute; left: 0; width: 50%"></iframe>
-</div></div>
-""",
+        "Contained exhibits",
+        """<div class="layout-column">
+          <h1>Evidence</h1>
+          <section id="plain">
+            <table id="wide-table" data-width="wide"><tr><td>Wide evidence</td></tr></table>
+            <lf-diff id="declared-wide"><pre>diff --git a/count.py b/count.py
+--- a/count.py
++++ b/count.py
+@@ -1 +1 @@
+-old
++new
+</pre></lf-diff>
+            <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
+          </section>
+          <section id="flow" class="layout-flow">
+            <div id="wide-flow" data-width="wide">Shared tracks.</div>
+            <div id="allocated" data-width="available"><section id="inside-wide">
+              <div id="nested-wide" data-width="wide">Already has room.</div>
+            </section></div>
+          </section>
+          <div id="custom-grid" style="display:grid;grid-template-columns:1fr 1fr">
+            <p>A companion.</p><div id="grid-wide" data-width="wide">Contained.</div>
+          </div>
+        </div>
+        <div class="layout-workspace"><section id="workspace-cell">
+          <div id="workspace-wide" data-width="wide">Uses its workspace cell.</div>
+        </section></div>""",
+        layout=None,
     )
     page = open_page(browser, serve(source))
-    resized(page, 1440, 900)
-    at = page.evaluate("""() => Object.fromEntries(['prose', 'granted'].map(id => {
-      const b = document.getElementById(id).getBoundingClientRect();
-      return [id, {left: b.left, right: b.right}];
-    }))""")
-    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    page.close()
-
-    grown = at["granted"]["right"] - at["prose"]["right"]
-    assert grown > 100, at
-    assert at["granted"]["left"] == pytest.approx(at["prose"]["left"], abs=1), at
-    off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
-    assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
+    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+    contained = reading["contained"]
+    assert {finding["at"]: finding["holders"] for finding in contained} == {
+        "<table id=wide-table>": ["<section id=plain>"],
+        "<lf-diff id=declared-wide>": ["<section id=plain>"],
+        "<div id=grid-wide>": ["<div id=custom-grid>"],
+    }
+    findings = render_gate_readings.swept_faults([(1280, reading)])
+    advice = [finding for finding in findings if finding.code == "contained-space"]
+    assert len(advice) == 3
+    assert all(finding.severity == "advice" for finding in advice)
+    assert 'class="layout-flow"' in str(advice[0])
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
@@ -3893,7 +3713,7 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
         const note = document.getElementById('level-note');
         const row = document.querySelector("[data-lf-margin-for='sug-level']");
         const n = note.getBoundingClientRect(), b = row.getBoundingClientRect();
-        return {float: getComputedStyle(note).float, place: row.dataset.lfPlace,
+        return {beside: note.left >= prose.right, place: row.dataset.lfPlace,
                 across: Math.min(n.right, b.right) - Math.max(n.left, b.left),
                 down: Math.min(n.bottom, b.bottom) - Math.max(n.top, b.top)};
     }"""
@@ -3949,13 +3769,12 @@ COMPARE_NOTE_PAGE = leaf_page(
     "compare note",
     """
 <h1 id="title">Maps</h1>
-<section id="comparison">
+<section id="comparison" class="layout-flow">
   <h2>Compare, Variants, and Chips</h2>
-  <aside class="sidenote" id="compare-note">The page puts short alternatives in a row
-  and longer explanations below. Narrow the window to see this note return to the text
-  flow.</aside>
-  <p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
-  attributes.</p>
+  <div class="layout-note"><p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
+  attributes.</p><aside class="note" id="compare-note">The page puts short alternatives in a row
+  and longer explanations below. Narrow the window to see this note follow the text.
+  </aside></div>
   <div id="compare" class="layout-tiles">
     <section class="panel"><small class="tag">power: none</small><small class="tag ok"
     >weight: low</small> <strong>Paper map</strong> Easy to annotate and fold.</section>
@@ -3968,7 +3787,7 @@ COMPARE_NOTE_PAGE = leaf_page(
         f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
         for i in range(8)
     ),
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 
 
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
@@ -4584,9 +4403,10 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     expect(page.locator("#compare-note")).to_be_visible()
     resized(page, 1600, 900)
     reading = """() => {
-        const note = document.querySelector('aside.sidenote');
+        const note = document.querySelector('aside.note').getBoundingClientRect();
+        const prose = document.querySelector('#compare-guide').getBoundingClientRect();
         const main = document.querySelector('main'), s = getComputedStyle(main);
-        return {float: getComputedStyle(note).float,
+        return {beside: note.left >= prose.right,
                 column: Math.round(main.getBoundingClientRect().width
                     - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
     }"""
@@ -4599,15 +4419,15 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     wide = page.evaluate(reading)
     page.close()
 
-    assert roomy["float"] == "right", (
+    assert roomy["beside"], (
         f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
     )
-    assert cramped["float"] == "none", (
+    assert not cramped["beside"], (
         f"the strip outlived the room for it: {cramped}, {misplaced}"
     )
     assert misplaced == [], (
         f"content set outside a column the strip had crushed: {misplaced}"
     )
-    assert wide["float"] == "right", (
+    assert wide["beside"], (
         f"a window wide enough for both moved the notes anyway: {wide}"
     )

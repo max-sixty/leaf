@@ -71,6 +71,7 @@ import {
   offerAction,
   placeOf,
   openingView,
+  viewMembers,
   quoted,
   readObligations,
   scrollBehavior,
@@ -99,9 +100,6 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 // Whether a card's obligations, by the reading, wait on the user.
 const waitsOn = (held) =>
   held.some((item) => item.status === "open" && item.next_actor === "user");
-
-const isCard = (node) =>
-  node instanceof HTMLElement && !node.matches("script, style, template");
 
 customElements.define(
   "lf-deck",
@@ -133,7 +131,7 @@ customElements.define(
     }
 
     setup() {
-      this.#cards = [...this.children].filter(isCard);
+      this.#cards = viewMembers(this);
       if (!this.#cards.length) return;
       this.#bar = offer("div", "lf-deck-bar");
       this.#status = document.createElement("span");
@@ -180,7 +178,7 @@ customElements.define(
       this.prepend(this.#bar);
       this.append(this.#end);
       this.classList.add("lf-rendered");
-      const opening = openingView(this, this.#cards, null);
+      const opening = openingView(this, null);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (quoted(this)) return;
@@ -207,16 +205,15 @@ customElements.define(
       // leaves that motion to finish.
       if (card === this.#open.value) return;
       this.#landing?.();
+      keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
-        keeps(each, "hidden", each === card ? null : "until-found");
       }
       keepsHidden(this.#end, Boolean(card));
       this.#open.value = card;
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      if (card) keepView(this, card);
       layoutChanged(this);
     }
 
@@ -306,17 +303,15 @@ customElements.define(
         card.style.setProperty("--lf-deck-leave-top", `${card.offsetTop}px`);
         keeps(card, "data-lf-deck-leaving", side);
       }
+      keepView(this, next, moving ? card : null);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
-        if (each !== card || !moving)
-          keeps(each, "hidden", each === next ? null : "until-found");
       }
       keepsHidden(this.#end, Boolean(next));
       this.#open.value = next;
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      if (next) keepView(this, next);
       if (running.length) {
         const after = parseFloat(getComputedStyle(this).height);
         if (Math.abs(after - before) > 1)
@@ -339,7 +334,7 @@ customElements.define(
         away = true;
         keeps(card, "data-lf-deck-leaving", null);
         card.style.removeProperty("--lf-deck-leave-top");
-        if (card !== upcoming) keeps(card, "hidden", "until-found");
+        keepView(this, this.#open.value, card === upcoming ? card : null);
       };
       const land = (upcoming) => {
         if (this.#landing !== land) return;

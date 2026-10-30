@@ -41,13 +41,13 @@ test("compiler paths discover package modules and type the framework's bundles",
     "export declare const count: (value: number) => number;\n",
   );
   await put("browser/vendor/signals-core.js", "export const count = 1;\n");
-  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playground/vendor/playground-support.js", "void 0;\n");
   await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
     "browser/types/imports.ts",
     `
 import { count } from "/vendor/signals-core.js";
-import "/vendor/lf-playground-initial.js";
+import "/vendor/playground-support.js";
 import { trace } from "/widgets/lf-trace.js";
 import { future } from "/vendor/lf-future.js";
 import { widget } from "/widgets/lf-future.js";
@@ -75,7 +75,7 @@ count("wrong");
   assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
   assert.doesNotMatch(
     missing.stdout,
-    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+    /Cannot find module '\/(?:vendor\/playground-support|widgets\/lf-trace)/,
   );
 
   await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");

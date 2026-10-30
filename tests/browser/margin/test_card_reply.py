@@ -984,9 +984,10 @@ def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve)
     """A draft opened below its target keeps its card's top once the rail widens."""
     sidebar_page = OBLIGATION_PAGE.replace(
         '<main class="layout-column">',
-        '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
+        '<main class="layout-sidebar"><aside><div class="layout-track">Page reference</div></aside>'
+        '<div class="layout-column">',
         1,
-    )
+    ).replace("</main>", "</div></main>", 1)
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1200, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()

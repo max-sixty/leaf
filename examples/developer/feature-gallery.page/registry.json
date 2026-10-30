@@ -25,7 +25,6 @@
     "x-content": "empty",
     "x-exhibit": true,
     "x-upgrade": true,
-    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>",
-    "x-initial": "/page/margin-entry-gallery-initial.js"
+    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
   }
 }

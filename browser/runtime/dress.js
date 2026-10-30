@@ -19,7 +19,7 @@ export function registerSampleDress(frame, send) {
 /** Apply one appearance to an element and its sample descendants. Replacing it
  * removes earlier attributes and properties absent from the new appearance. */
 export function wear(owner, dress) {
-  document.documentElement.lfInitial.wear(owner, dress);
+  document.documentElement.lfRootState.wear(owner, dress);
   dresses.set(owner, dress);
   for (const frame of owner.querySelectorAll("iframe[data-lf-contained]")) {
     if (dressFor(frame) === dress) children.get(frame)?.(dress);

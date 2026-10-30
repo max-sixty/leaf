@@ -111,6 +111,12 @@ def _attributes(attributes: Mapping[str, str | bool | None]) -> str:
     )
 
 
+def attribute_insertion(element, index) -> int:
+    """Insert after the tag name, never inside an unquoted trailing attribute."""
+    start = element.source_location.start_tag
+    return index(start.start_line, start.start_col) + 1 + len(element.tag)
+
+
 def _raw_text(tag: str, text: str) -> str:
     """`text` to write inside a `tag` element whose content the parser reads raw, a
     script or a style, where `</tag` would otherwise end the element."""
@@ -266,8 +272,7 @@ def rebase_document(
                 and "crossorigin" not in attrs
                 and page_path(attrs.get("href", ""), "/index.html") is not None
             ):
-                _, end = span(location.start_tag)
-                at = end - (2 if source[end - 2 : end] == "/>" else 1)
+                at = attribute_insertion(element, index)
                 edits.append((at, at, ' crossorigin="anonymous"'))
             for name, value in attrs.items():
                 if name == "style":
@@ -409,29 +414,13 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
-_ARRIVING_MARK = " data-lf-arriving"
-
-
 def mark_declared(
     source: str,
     registry: Mapping,
     resources: Mapping[str, Resource],
-    *,
-    initial: bool = False,
 ) -> str:
     """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
-    start tag, the rest byte-for-byte, and the size of the page media it names. With
-    `initial`, an `x-initial` host is marked `data-lf-arriving`, which the theme hides
-    while the runtime will run, and a parser invocation follows its end tag. The script
-    takes the mark off and draws the complete host in one synchronous turn; nested
-    initial hosts share the outer mark and draw deepest-first.
-
-    The script removes itself as it runs, so the host keeps its authored siblings, and
-    a rule for the first or last child still finds it. With scripts disabled, or in a
-    DOMParser source reading, the mark hides nothing (`html[data-lf-interactive]`)
-    and the raw authored host stays readable. A template opened by `document.write`
-    once held the arriving source instead; Firefox reparses the rest of the document
-    after any unbalanced write, and says so in the console of every such page.
+    start tag, the rest byte-for-byte, and the size of the page media it names.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -447,6 +436,12 @@ def mark_declared(
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
     edits = []
+    members = {
+        member
+        for holder in tree.find_all(True)
+        if (views := registry.get(holder.tag, {}).get("x-views"))
+        for member in holder.select(f":scope > :is({views['members']})")
+    }
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
@@ -458,7 +453,7 @@ def mark_declared(
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
-        marks = {}
+        marks = {"data-lf-view": ""} if element in members else {}
         for key, mark in kernel_marks().items():
             declared = (
                 exhibits(attrs, declaration)
@@ -475,6 +470,8 @@ def mark_declared(
                 )
             else:
                 continue
+            if key == "x-views":
+                value = "parts" if declared.get("parts") else ""
             marks[mark["paint"]] = value
         sizes = [
             size
@@ -489,8 +486,7 @@ def mark_declared(
             marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
         if marks:
-            start = index(location.start_tag.start_line, location.start_tag.start_col)
-            edits.append((start + 1 + len(element.tag), _attributes(marks)))
+            edits.append((attribute_insertion(element, index), _attributes(marks)))
         if registry.get(element.tag, {}).get("x-text-format") == "markdown":
             pre = element.select_one(":scope > pre")
             if pre is not None:
@@ -510,58 +506,7 @@ def mark_declared(
                         ),
                     )
                 )
-        if (
-            initial
-            and registry.get(element.tag, {}).get("x-initial")
-            and not any(
-                registry.get(getattr(parent, "tag", ""), {}).get("x-initial")
-                for parent in element.ancestors
-            )
-        ):
-            if location.end_tag is None:
-                raise ValueError(
-                    f"<{element.tag}> initial rendering needs a closing tag"
-                )
-            start = index(location.start_tag.start_line, location.start_tag.start_col)
-            end = index(location.end_tag.end_line, location.end_tag.end_col)
-            edits.append((start + 1 + len(element.tag), _ARRIVING_MARK))
-            edits.append(
-                (
-                    end,
-                    runtime_element(
-                        "script",
-                        {"data-lf-initial": True},
-                        "document.documentElement.lfInitial.mount("
-                        "document.currentScript.previousElementSibling);"
-                        "document.currentScript.remove();",
-                    ),
-                )
-            )
     return _spliced(source, [(offset, offset, text) for offset, text in edits])
-
-
-def initial_script_paths(source: str, registry: Mapping) -> list[str]:
-    """Shared Lit followed by the used classic producers, before parsing their hosts.
-
-    Every producer can return a Lit view, including a page-owned classic script with
-    no build step. Delivery owns that prerequisite; producer imports are irrelevant.
-    A producer inside a template does not run during parsing.
-    """
-    tree = turbohtml.parse(source, scripting=True)
-    used = dict.fromkeys(
-        path
-        for element in tree.find_all(True)
-        if element.closest("template") is None
-        and (path := registry.get(element.tag, {}).get("x-initial"))
-    )
-    return ["/vendor/lit-initial.js", *used] if used else []
-
-
-def initial_scripts(paths: list[str], resources: Mapping[str, Resource]) -> str:
-    """Inline captured producers and their prerequisites before the body parses."""
-    return "".join(
-        runtime_element("script", {}, resources[path].data.decode()) for path in paths
-    )
 
 
 @dataclass(frozen=True)
@@ -795,49 +740,29 @@ def compose_document(
     prepaint (`runtime/prepaint.js`), which says before the first paint what the
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
-    hears of it, so it comes before that. The shared Lit implementation follows the
-    prepaint whenever the document uses an `x-initial` producer. Used bundles then
-    register the package producers that the body's parser invocations run. Later
-    modules export this same Lit instance; other pages load Lit as a normal module.
-    These scripts stand before the theme, since a
-    script after a stylesheet still loading waits for it. The root carries the host's attributes and the
+    hears of it, so it comes before that. These scripts stand before the theme,
+    since a script after a stylesheet still loading waits for it.
+    The root carries the host's attributes and the
     page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
-    initial = (
-        initial_script_paths(source, registry) if delivery.runtime is not None else []
-    )
     import_map = delivery.import_map
-    if initial and import_map is not None:
-        imports = import_map["imports"]
-        # Hosted documents map directories. Export's exact leaf: graph already
-        # embeds the selected facade under Lit's canonical module identity. Both
-        # rooted layer imports and rebased page imports must select that instance.
-        if "/vendor/" in imports:
-            import_map = {
-                **import_map,
-                "imports": {
-                    **imports,
-                    "/vendor/lit.js": delivery.address("/vendor/lit-shared.js"),
-                    delivery.address("/vendor/lit.js"): delivery.address(
-                        "/vendor/lit-shared.js"
-                    ),
-                },
-            }
+    source = mark_declared(source, registry, resources)
     source = rebase_document(
-        mark_declared(
-            source, registry, resources, initial=delivery.runtime is not None
-        ),
+        source,
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )
     document = SourceDocument(source)
     if "head" not in document.authoring.wrapper_tags:
         raise ValueError("document has no explicit <head>")
+    theme_css = (
+        delivery.inline_stylesheet("/theme.css") if delivery.inline_stylesheet else None
+    )
     theme = (
-        runtime_element("style", {}, delivery.inline_stylesheet("/theme.css"))
-        if delivery.inline_stylesheet is not None
+        runtime_element("style", {}, theme_css)
+        if theme_css is not None
         else runtime_element(
             "link",
             {
@@ -884,7 +809,6 @@ def compose_document(
             runtime_element(
                 "script", {}, resources["/runtime/prepaint.js"].data.decode()
             )
-            + initial_scripts(initial, resources)
             if delivery.runtime is not None
             else ""
         )
@@ -904,21 +828,6 @@ def compose_document(
     )
     head_start, head_end = document.authoring.wrapper_tags["head"]
     insertions = [(head_end, head)]
-    if delivery.runtime is not None:
-        # A classic parser checkpoint waits for every preceding stylesheet, including
-        # the author's head overrides. The initial observer then receives styled body
-        # nodes before their first paint, rather than placing margin content on CSS load's
-        # later task. It shares the same margin layout computation used after upgrade.
-        insertions.append(
-            (
-                document.authoring.wrapper_tags["body"][1],
-                runtime_element(
-                    "script",
-                    {},
-                    "document.documentElement.lfInitial.marginContentLayout()",
-                ),
-            )
-        )
     root = dict(delivery.html_attributes)
     if (layout := page_layout(document, registry)) is not None:
         root["data-lf-layout"] = layout

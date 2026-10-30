@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import kernel from "./browser/runtime/kernel-registry.json" with { type: "json" };
+
+const publicRuntimeModules = kernel["$public-modules"].paths
+  .filter((path) => path.startsWith("/runtime/"))
+  .map((path) => path.slice("/runtime/".length).replaceAll(".", "\\."))
+  .join("|");
 
 // The runtime's primitives, by path under `runtime/`: modules that may use the browser
 // but import no owner, which the rule naming them below holds.
@@ -40,6 +46,7 @@ const browserGlobals = Object.fromEntries(
     "DOMException",
     "DOMParser",
     "DOMRect",
+    "Document",
     "Element",
     "ErrorEvent",
     "Event",
@@ -177,9 +184,8 @@ const publicRuntimeBoundary = {
       ],
       patterns: [
         {
-          regex: "^/runtime/(?!(?:widget-api|portable-api)\\.js$)",
-          message:
-            "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
+          regex: `^/runtime/(?!(?:${publicRuntimeModules})$)`,
+          message: "Use the public package API described in module-authoring.md.",
         },
         {
           regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -201,8 +207,7 @@ const publicRuntimeBoundary = {
     {
       selector:
         'ImportExpression[source.value=/^\\/runtime\\//]:not([source.value="/runtime/widget-api.js"], [source.value="/runtime/portable-api.js"])',
-      message:
-        "Behavior and probe modules use /runtime/widget-api.js, or /runtime/portable-api.js where a widget must also load off a Leaf page.",
+      message: "Use the public package API described in module-authoring.md.",
     },
     {
       selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?runtime\\//]",
@@ -1365,33 +1370,9 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // Initial sources are compiled to self-contained scripts. Sharing the icon table
-    // and the time axis's geometry adds no private runtime dependency to the package
-    // shipped to a page.
-    files: ["packages/*/initial/*.js"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          ...publicRuntimeBoundary["no-restricted-imports"][1],
-          patterns: publicRuntimeBoundary["no-restricted-imports"][1].patterns.map(
-            (pattern) =>
-              pattern.regex === "^\\.{1,2}/(?:.*/)?runtime/"
-                ? {
-                    ...pattern,
-                    regex:
-                      "^\\.{1,2}/(?:.*/)?runtime/(?!(?:icon-paths|time-axis)\\.js$)",
-                  }
-                : pattern,
-          ),
-        },
-      ],
-    },
-  },
-  {
     // Build tools share private runtime declarations with the browser rather than
     // duplicating them. The public facade boundary applies to page consumers.
-    files: ["build/**/*.mjs", "worker/*.mjs"],
+    files: ["build/**/*.mjs", "worker/*.mjs", "eslint.config.mjs"],
     rules: entryBoundary,
   },
   {
@@ -1576,7 +1557,8 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["browser/**/*.js", "packages/*/**/*.js"],
-    ignores: ["browser/runtime/rendering.js"],
+    // Prepaint runs before the module graph, so it cannot call the scheduler.
+    ignores: ["browser/runtime/rendering.js", "browser/runtime/prepaint.js"],
     rules: {
       "no-restricted-globals": [
         "error",

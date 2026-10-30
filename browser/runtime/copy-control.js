@@ -8,6 +8,8 @@
  * A control wrapping a trigger of its own wears that trigger's face
  * instead of the icon. A failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
+import { offerActionElement } from "./widget-elements.js";
+
 import { offer } from "./widget-elements.js";
 import { actionElement, iconElement } from "./icons.js";
 import { notice } from "./notifications.js";
@@ -53,11 +55,7 @@ export function copyControl(
   { label = "", success, error, action = "copy", role = undefined },
 ) {
   const copy = role
-    ? document.documentElement.lfInitial.offerActionElement(
-        document.createElement("wa-copy-button"),
-        role,
-        className,
-      )
+    ? offerActionElement(document.createElement("wa-copy-button"), role, className)
     : offer("wa-copy-button", className);
   for (const [icon, slot] of [
     [actionElement(action, "lf-copy-icon"), "copy-icon"],

@@ -40,18 +40,17 @@ from dataclasses import dataclass, field, replace
 from functools import cache, cached_property
 from types import MappingProxyType
 
-from .layer import files_identity, stylesheet
+from .layer import composed_sheets, files_identity, stylesheet
 from .registry.storage import selected
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import Resource, RevisionArtifact, resource_type
 from .schema import ASSETS, KERNEL, LAYER_TOP_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
 from .state import PLUGIN_ROOT, json_bytes
 
-# Every input of a layer this tree composes: the core layer files beside the
-# runtime, and the bundled packages (`layer.layer_inputs`).
+# Non-CSS core inputs and the bundled packages. Core stylesheet identity comes
+# from the same composition that delivers them, including its imports and roles.
 LAYER_SOURCES = (
-    *(f"browser/{name}" for name in LAYER_TOP_FILES if name != "registry.json"),
-    "browser/registry.json",
+    *(f"browser/{name}" for name in LAYER_TOP_FILES if not name.endswith(".css")),
     "browser/widgets",
     "packages",
 )
@@ -99,6 +98,10 @@ class ServingRuntime:
                     f"kernel:{path}": data for path, data in (self.kernel or {}).items()
                 },
                 **self.probes,
+                **{
+                    f"layer:/browser/{name}": data
+                    for name, data in composed_sheets([ASSETS]).items()
+                },
                 **{
                     f"layer:{path}": data
                     for path, data in _files(PLUGIN_ROOT, *LAYER_SOURCES).items()

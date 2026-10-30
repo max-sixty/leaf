@@ -15,7 +15,6 @@
     "../leaf.js",
     "../runtime/**/*.js",
     "../widgets/*.js",
-    "../../packages/*/initial/*.js",
     "../../packages/*/widgets/**/*.js",
     "../../src/leaf/render-checks/*.js"
   ]

@@ -68,8 +68,8 @@ finished failure doesn't fail every later draw.
 
 State the user arranges but doesn't record, such as which groups they collapsed, stays
 out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
-for this page in this tab; set `null` to remove it. An `x-initial` drawing reads the same
-store, so the first paint can show it (`module-authoring.md`, "First paint").
+for this page in this tab; set `null` to remove it. Read it during setup so the first visible state reflects it
+(`module-authoring.md`, "First paint").
 
 ## Declared widget state
 

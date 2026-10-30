@@ -10,7 +10,7 @@ for (const phase of ["waiting", "offline"])
     applicationState.setPhase(phase);
     const owner = document.createElement("section");
     owner.innerHTML =
-      '<lf-tabs id="reading-views"><lf-tab id="first" label="First">One</lf-tab><lf-tab id="second" label="Second">Two</lf-tab></lf-tabs>';
+      '<lf-tabs id="reading-views"><lf-tab data-lf-view id="first" label="First">One</lf-tab><lf-tab data-lf-view id="second" label="Second">Two</lf-tab></lf-tabs>';
     document.body.append(owner);
     const tabs = [...owner.querySelectorAll('[role="tab"]')];
     try {

@@ -164,6 +164,7 @@ export function prepareAuthoredMessage(message, thread) {
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
+    markDeclared(template.content);
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",

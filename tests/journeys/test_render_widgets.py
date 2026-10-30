@@ -409,13 +409,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     source = leaf_page(
         "contents map",
         """
-<h1>Migration plan for the readers already in flight</h1>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside><div class="layout-column"><h1>Migration plan for the readers already in flight</h1>
 <style>
   html { scroll-behavior: smooth; }
   #capacity, #limits { margin-block: 0; }
 </style>
 <div id="orientation" style="height: 420px"></div>
-<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+
 <section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p><button id="underlying">Take a snapshot.</button></p></section>
 <div style="height: 90px"></div>
 <section>
@@ -427,7 +427,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
 <div style="height: 640px"></div>
 <section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
-<div style="height: 380px"></div>
+<div style="height: 380px"></div></div></div>
 """,
     )
     url = serve(with_one_obligation(source))
@@ -452,12 +452,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(toc).to_have_css("position", "fixed")
-    # The map is all its sidebar holds, so the sidebar stands as the map alone and floats
-    # nothing beside the column.
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile(r"\bmap\b")
-    )
-    expect(page.locator("aside.sidebar")).to_have_css("float", "none")
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
     motion = prepare.evaluate(

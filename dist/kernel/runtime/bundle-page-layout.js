@@ -1,11 +1,11 @@
-import { PENDING_TASK, afterScript, bindQueuedWork, byRenderedOrder, composedParentNode, failSoft, failSoftUnreported, frameVisibility, holdRendering, isNativeLayer, nextRender, onFrameVisibility, once, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, reportFailure, shadowHost, sizeObserver, under, upFrom, watchOwner, whileConnected } from "./bundle-portable.js";
-import { TEXT_FIELD, Z, canPlaceFocus, closeLayer, d, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, move, onCurrentLocation, onUserInput, openLayer, openerOf, q, takesLetters, whenLeft, x } from "./bundle-dom-move.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentName, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, html, isMessageEvent, isThreadEvent, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
+import { PENDING_TASK, afterScript, bindQueuedWork, byRenderedOrder, composedParentNode, failSoft, failSoftUnreported, frameVisibility, holdRendering, isNativeLayer, nextRender, onFrameVisibility, once, placesFailure, readSampleVisibility, renderedOrder, renderedParent, renderedUnder, reportFailure, shadowHost, sizeObserver, stagesFailure, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
+import { TEXT_FIELD, Z, canPlaceFocus, closeLayer, d, deepFocus, drawn, focusDestination, focused, handBack, holdFocus, inputCount, keeps, keepsHidden, keepsText, move, onCurrentLocation, onUserInput, openLayer, openerOf, q, takesLetters, watchCurrentLocationIn, whenLeft, x } from "./bundle-dom-move.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, actionForWidget, agentName, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, closeNativeLayer, discussed, documentChanged, drawingSchema, editable, html, isMessageEvent, isThreadEvent, marksSheet, matchesWhen, moved, offlineInteractive, offlineState, pageUrl, presentDocument, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, threadKey, tokenChoices, turns, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, actionIcon, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, elementDirective, generatedElement, holdingError, iconTemplate, isCommandScope, keys, layerHeaders, notice, offer, offerAction, paintKeys, paintKeysWithin, postEvent, pressIsKeyboardActivation, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
-import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleMarginContentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
+import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, sectionOf, settlePageInterface, syncLayoutRegion, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
+import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, intersect, layoutWindow, placeBox, placeHolder, presented as presented$1, seenRect, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
-import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
+import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { agentArrivalDuration, isCanonicalMediaUrl, reducedMotion, scopedMediaUrl, scrollBehavior } from "./bundle-media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -1391,14 +1391,13 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 			return true;
 		}
 		toDOM() {
-			return document.documentElement.lfExternalLink.mark();
+			return externalMark();
 		}
 	}
-	const externalMark = Decoration.widget({
+	const externalMark$1 = Decoration.widget({
 		widget: new ExternalMark(),
 		side: -1
 	});
-	const opensElsewhere = (href) => document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 	function decorate(state, placed) {
 		const out = [];
 		const lists = [];
@@ -1424,7 +1423,7 @@ function fieldEditor({ EditorView, EditorState, StateEffect, Compartment, Widget
 				if (INLINE[token.type]) add(from, to, INLINE[token.type]);
 				else if (token.type === "link_open" && token.meta.linked) {
 					add(words[0], words[1], link);
-					if (opensElsewhere(token.attrGet("href"))) out.push(externalMark.range(words[1]));
+					if (opensElsewhere(token.attrGet("href"))) out.push(externalMark$1.range(words[1]));
 				}
 				add(from, words[0], syntax);
 				add(words[1], to, syntax);
@@ -1765,8 +1764,8 @@ sheet.replaceSync(`
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
-    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
-    stroke-linejoin: round; overflow: visible; user-select: none;
+    background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
+    user-select: none;
     -webkit-user-select: none; }
   /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
      and code with no fence lines takes that padding at its ends instead. A field that
@@ -6890,6 +6889,72 @@ document.addEventListener(PENDING_TASK, (event) => {
 });
 
 //#endregion
+//#region runtime/keyboard/disclosure.js
+const disclosureWatch = new MutationObserver((records) => {
+	for (const r of records) if (r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
+});
+const watchDisclosures = (root) => disclosureWatch.observe(root, {
+	subtree: true,
+	attributeFilter: ["open", "aria-expanded"],
+	attributeOldValue: true
+});
+const DISCLOSE = (el) => {
+	const open = disclosed(el);
+	if (open === null) return [
+		...PRESS,
+		"ArrowLeft",
+		"ArrowRight"
+	];
+	const [back, ahead] = rowArrows(el);
+	return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
+};
+const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
+function disclosed(el) {
+	return !el?.matches?.("details > summary, :is(button, [role=\"button\"])[aria-expanded]") ? null : el.matches("details > summary") ? el.parentElement.open : el.getAttribute("aria-expanded") === "true";
+}
+
+//#endregion
+//#region runtime/shadow-stage.js
+const stageStyles = /* @__PURE__ */ new WeakMap();
+function adoptShadowStage(root) {
+	document.documentElement.lfStorage.keepDisclosures(root);
+	watchArrivalsIn(root);
+	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
+		...root.adoptedStyleSheets,
+		...annotationMarkSheets,
+		marksSheet
+	])];
+	watchDisclosures(root);
+	watchLayers(root);
+	watchCurrentLocationIn(root);
+	let style = stageStyles.get(root);
+	if (!style) {
+		style = document.createElement("style");
+		style.setAttribute("data-lf-gen", "1");
+	}
+	if (style.textContent !== shadowRules) style.textContent = shadowRules;
+	stageStyles.set(root, style);
+	if (style.parentNode !== root) move(root, style, root.firstChild);
+	watchPassageRoot(root);
+	return root;
+}
+function shadowStage(host, nodes) {
+	const root = adoptShadowStage(host.shadowRoot ?? stageFor(host));
+	const style = stageStyles.get(root);
+	setChildren(root, [style, ...nodes]);
+	for (const child of [...host.childNodes]) child.remove();
+	watchPassageRoot(root);
+	return root;
+}
+function stageFor(host) {
+	stagesFailure(host, (box) => {
+		shadowStage(host, [box]);
+		return true;
+	});
+	return host.attachShadow({ mode: "open" });
+}
+
+//#endregion
 //#region runtime/leaf-element.js
 let regions = 0;
 var UpdateBoundary = class extends LitElement {
@@ -6946,7 +7011,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#inputs = [];
 	#sent = /* @__PURE__ */ new Map();
 	createRenderRoot() {
-		return this;
+		return registry[this.localName]?.["x-shadow"] ? adoptShadowStage(super.createRenderRoot()) : this;
 	}
 	scheduleUpdate() {
 		return this.#scheduled ?? this.#queueUpdate();
@@ -7234,7 +7299,7 @@ function registerRootHeader(header) {
 function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refreshFab, pageShifted, repaintPage }) {
 	function syncLayout() {
 		syncLayoutRegion();
-		scheduleMarginContentLayout();
+		scheduleDocumentLayout();
 		scheduleThreadPreviewPosition?.();
 		if (syncReactLayout()) return;
 		refreshFab();
@@ -7260,29 +7325,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-//#region runtime/keyboard/disclosure.js
-const disclosureWatch = new MutationObserver((records) => {
-	for (const r of records) if (r.target.getAttribute(r.attributeName) !== r.oldValue) paintKeysWithin(r.target);
-});
-const watchDisclosures = (root) => disclosureWatch.observe(root, {
-	subtree: true,
-	attributeFilter: ["open", "aria-expanded"],
-	attributeOldValue: true
-});
-const DISCLOSE = (el) => {
-	const open = disclosed(el);
-	if (open === null) return [
-		...PRESS,
-		"ArrowLeft",
-		"ArrowRight"
-	];
-	const [back, ahead] = rowArrows(el);
-	return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
-};
-const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
-function disclosed(el) {
-	return !el?.matches?.("details > summary, :is(button, [role=\"button\"])[aria-expanded]") ? null : el.matches("details > summary") ? el.parentElement.open : el.getAttribute("aria-expanded") === "true";
-}
-
-//#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosed, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosed, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };

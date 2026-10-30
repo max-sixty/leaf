@@ -792,7 +792,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         scroller = "#reading"
     elif container == "views":
         content = (
-            '<lf-tabs id="outer"><lf-tab id="review" label="Review">'
+            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review" label="Review">'
             '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
             + reading
             + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'

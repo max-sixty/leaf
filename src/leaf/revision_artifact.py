@@ -57,7 +57,7 @@ from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
 from leaf.registry.storage import revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES
+from leaf.schema import CONTENT_TYPES, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -66,11 +66,7 @@ from leaf.structure import (
     script_kind,
 )
 
-PUBLIC_MODULES = (
-    "/runtime/widget-api.js",
-    "/runtime/portable-api.js",
-    "/vendor/floating-ui.esm.js",
-)
+PUBLIC_MODULES = tuple(kernel_registry()["$public-modules"]["paths"])
 # The page's own declarations, which a revision captures beside its modules; the
 # layer they compose over is the reading Leaf's.
 PAGE_DECLARATIONS = "/page/registry.json"
@@ -799,14 +795,6 @@ def _capture_artifact(
     # The layer is the reading Leaf's (`registry.storage.revision_vocabulary`), so a
     # revision captures only what its page owns: `page/`, its declarations among it,
     # and what its document names. Its manifest names the layer's selection.
-    for tag, entry in registry.items():
-        if (
-            is_element_name(tag)
-            and (initial := entry.get("x-initial"))
-            and initial.startswith("/page/")
-        ):
-            capture.add(initial)
-
     if widget_sources is None:
         widget_sources = {
             tag: f"widgets/{tag}.js"

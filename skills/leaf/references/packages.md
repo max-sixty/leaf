@@ -4,7 +4,8 @@ A package is a directory Leaf adds to a page. It can hold a theme, widgets, help
 modules, libraries and external-data contracts. `page init` combines Leaf's kernel with
 the page's packages, checks the result, and copies it into the page as the page's
 layer. Packages need no browser build or npm command: write widgets and helpers as
-JavaScript the browser loads directly, importing the shipped `/runtime/widget-api.js`.
+JavaScript the browser loads directly. Behavior imports `/runtime/widget-api.js`;
+[Rendering](module-authoring.md#rendering) describes the widget lifecycle.
 
 This file covers what every package follows and how to declare a widget.
 [package-themes.md](package-themes.md) covers packages that change the theme, and
@@ -131,8 +132,9 @@ declaration or module does not withdraw the selected package's stylesheet
 contribution. Inherited values cross every widget boundary. Adjust another widget's
 internals through its inputs or API; theme contributions are deliberately page-wide.
 
-Document selectors don't reach into a shadow root. A declared `x-shadow` root built with
-`shadowStage` gets the composed shared stylesheet. Use theme inputs for changes across
+Document selectors don't reach into a shadow root. A declared `x-shadow` root gets
+the composed shared stylesheet through `LeafElement` for `x-shadow`, or through
+`shadowStage` for an imperative renderer. Use theme inputs for changes across
 both trees, `widget-shadow.css` for owned internals, and `::part` to expose a public
 control.
 
@@ -150,9 +152,9 @@ documents any further inputs it supports. No type or colour override may shrink 
 control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-Import Leaf only through `/runtime/widget-api.js`, or its portable part
-`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf"),
-and `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
+Import Leaf behavior through `/runtime/widget-api.js`, or its portable part
+`/runtime/portable-api.js` (module-authoring.md, "A widget that also runs off Leaf").
+Package `runtime/` modules can add paths but not replace the kernel's. The Leaf serving a page supplies its runtime,
 `widget-api.js` and the kernel's `vendor/` modules included, and composes the page's
 packages from its own catalogue, so a package runs against the runtime of whichever
 Leaf serves its page, and a package's `vendor/` file at one of those paths replaces it
@@ -211,7 +213,6 @@ role on the page:
 | Key                | Shipped example                                                |
 | ------------------ | -------------------------------------------------------------- |
 | `x-reading-role`   | `lf-pane`                                                      |
-| `x-margin-content` | `lf-toc`                                                       |
 | `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
 | `x-bound`          | `lf-activity`                                                  |
 | `x-height`         | `lf-chart`                                                     |
@@ -245,11 +246,6 @@ separate pages, so each keeps its own values.
 The presentation checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.
-- `keeps-first-box`: the widget's box changed size after first paint. Size the widget
-  for first paint as [module-authoring.md, "First
-  paint"](module-authoring.md#first-paint) describes. A widget containing others is
-  named only for the change left once its changed children are back at their first
-  sizes.
 - `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
   it, where a widget in normal flow should grow with its content (`page-layout.md`,
   "Bounds and widths"). The check also finds a fixed height while the widget is empty,

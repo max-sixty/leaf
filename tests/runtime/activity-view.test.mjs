@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/widget-api.js";
-import { initialRender } from "/runtime/initial-render.js";
 import { tabStore } from "/runtime/storage.js";
-import { ACTIVITY_VIEW } from "../../packages/default/widgets/activity-view.js";
-import "../../packages/default/initial/lf-activity.js";
+import {
+  ACTIVITY_VIEW,
+  createActivity,
+} from "../../packages/default/widgets/activity-view.js";
 
 const row = (id, target) => ({
   id,
@@ -24,7 +25,7 @@ const reading = (rows) => ({
   news: false,
 });
 
-test("Activity's retained rows keep their nodes, focus and live targets through adoption and reorder", () => {
+test("Activity's retained rows keep their nodes, focus and live targets through restored readings and reorder", () => {
   const host = document.createElement("lf-activity");
   host.id = "activity-template";
   const destination = document.createElement("section");
@@ -34,7 +35,8 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   const first = reading([widget, thread]);
   tabStore.set(ACTIVITY_VIEW + host.id, JSON.stringify(first));
   document.body.append(host, destination);
-  const drawing = initialRender(host);
+  const drawing = createActivity(host);
+  render(drawing.render(), host, { host });
   const renderReading = (...args) => render(drawing.render(...args), host, { host });
   const notice = drawing.notice;
   const items = [...drawing.list.children];
@@ -48,7 +50,6 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   };
   try {
     assert.equal(drawing.restored, true);
-    assert.equal(initialRender(host), drawing);
     renderReading(first, live);
     assert.equal(drawing.notice, notice);
     assert.deepEqual([...drawing.list.children], items);

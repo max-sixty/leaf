@@ -1197,11 +1197,12 @@ def test_render_reads_widget_chrome_where_it_stands(
 CONTENTS_MAP_PAGE = leaf_page(
     "Contents map",
     """
-<aside class="sidebar" id="contents-sidebar"><lf-toc id="contents"></lf-toc></aside>
-<h1 id="t">Contents map</h1>
+<aside id="contents-sidebar"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
+<div class="layout-column"><h1 id="t">Contents map</h1>
 <h2 id="first">First</h2><p>The first section's words.</p>
-<h2 id="second">Second</h2><p>The second section's words.</p>
+<h2 id="second">Second</h2><p>The second section's words.</p></div>
 """,
+    layout="sidebar",
 )
 
 

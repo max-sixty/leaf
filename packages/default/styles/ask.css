@@ -40,15 +40,8 @@ lf-ask[data-lf-obligation]::after {
  * or `available` stands inside it rather than clipped to the measure. Only its children
  * count.
  *
- * On a column page such a block breaks out of the column (layouts.css), and the lf-ask
- * spans the reach the block lends it, its padding giving everything else it holds the
- * column back. Nothing in it moves, since its content box is still its holder's, and
- * the block still breaks out exactly as it did; what changes is the box, so the ring
- * the user is in (chrome.css, `[data-lf-obligation]`) goes round the block rather than
- * cutting across it at the column's edges. Where the block does not break out, the lf-ask
- * does not either: in a box that draws a frame the room is the frame's (layouts.css,
- * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
- * prepaint.js) it lends no reach. An lf-ask granted room itself is a breakout already. */
+ * The document grid grants the wrapper its widest child's requested track;
+ * ordinary holders constrain both naturally. */
 @media screen {
   lf-ask {
     box-sizing: border-box;
@@ -59,13 +52,6 @@ lf-ask[data-lf-obligation]::after {
   }
   lf-ask:has(> [data-lf-space="available"]) {
     max-inline-size: none;
-  }
-  lf-ask:not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
-    margin-left: calc(-1 * var(--lf-grow-l));
-    margin-right: calc(-1 * var(--lf-grow-r));
-    padding-left: var(--lf-grow-l);
-    padding-right: var(--lf-grow-r);
-    --lf-breakout: 1;
   }
 }
 /* An lf-ask whose evidence is a figure before its option list outruns a window when its

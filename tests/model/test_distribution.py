@@ -89,6 +89,36 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
     assert b"@import" not in chrome.data
 
 
+@pytest.mark.parametrize(
+    "sheet",
+    ["styles/shadow-leading.css", "styles/shared.css", "layouts.css", "state.css"],
+)
+def test_runtime_identity_names_every_composed_core_stylesheet(
+    tmp_path, monkeypatch, sheet
+):
+    """A CSS-only restart cannot reuse the identity of the old rendered page."""
+    assets = tmp_path / "browser"
+    (assets / "styles").mkdir(parents=True)
+    (assets / "theme.css").write_text(":root { color: black; }\n")
+    (assets / "shadow.css").write_text('@import "./styles/shared.css";\n')
+    for name in (
+        "styles/shadow-leading.css",
+        "styles/shared.css",
+        "layouts.css",
+        "state.css",
+    ):
+        (assets / name).write_text(".before { color: black; }\n")
+    monkeypatch.setattr(runtime_selection, "ASSETS", assets)
+    monkeypatch.setattr(runtime_selection, "PLUGIN_ROOT", tmp_path)
+
+    def identity():
+        return runtime_selection.ServingRuntime({}, None, frozenset(), {}).identity
+
+    before = identity()
+    (assets / sheet).write_text(".after { color: red; }\n")
+    assert identity() != before
+
+
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])
 @pytest.mark.parametrize("suffix", [".js", ".mjs"])
 def test_package_private_imports_are_refused(directory, suffix, tmp_path):

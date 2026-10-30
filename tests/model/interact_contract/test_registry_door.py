@@ -69,17 +69,6 @@ def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
     assert registry_schema.schema_error(schema, {}) is not None
 
 
-def test_initial_rendering_requires_an_upgraded_handler(page_dir):
-    registry = vocabulary(page_dir)
-    tag = next(tag for tag in registry if tag.startswith("lf-"))
-    entry = registry[tag]
-    entry.update({"x-initial": "/vendor/early.js", "x-upgrade": False})
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found([finding], "requires", f"<{tag}>", key="x-initial", needs="x-upgrade")
-
-
 @pytest.mark.parametrize(
     ("entry", "code", "values"),
     [
@@ -449,8 +438,6 @@ def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallbac
     registry = vocabulary(page_dir)
     registry[tag][key] = registry[tag].get(key, fallback)
     registry[tag]["x-upgrade"] = False
-    # An initial renderer needs an upgrade too, but answers through its own finding.
-    registry[tag].pop("x-initial", None)
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)

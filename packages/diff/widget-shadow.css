@@ -1,4 +1,5 @@
 @import "./styles/disclosure.css";
+@import "./styles/worktrees.css";
 
 /* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay

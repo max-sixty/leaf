@@ -1,7 +1,7 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
 import { bindQueuedWork, isNativeLayer, isStage, liveStages, nativeLayerHolding, nativeLayerKind, renderedUnder, shadowHost, under, watchOwner } from "./bundle-portable.js";
 import { J, W, Z, canPlaceFocus, closeLayer, d, focused, handBack, move, releaseFocus, x } from "./bundle-dom-move.js";
-import { AsyncDirective, Directive, LitElement, PartType, classMap, createRef, directive, guard, html, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "/vendor/lit.js";
+import { AsyncDirective, Directive, LitElement, PartType, classMap, createRef, directive, guard, html as html$1, keyed, live, noChange, nothing, ref, render, repeat, styleMap, unsafeHTML } from "/vendor/lit.js";
 
 //#region runtime/framework/snapshot.js
 const secured = /* @__PURE__ */ new WeakSet();
@@ -483,10 +483,6 @@ const marks = {
 		"paint": "data-lf-reading-role",
 		"message": true
 	},
-	"x-margin-content": {
-		"paint": "data-lf-margin-content",
-		"message": false
-	},
 	"x-views": {
 		"paint": "data-lf-views",
 		"message": true
@@ -530,6 +526,14 @@ const anchorKey = (anchor) => {
 	return JSON.stringify(Object.entries(anchor ?? {}).filter(([key, value]) => PRIMITIVE.has(typeof value) && !(identified && RENDERING.has(key))).sort(([left], [right]) => left.localeCompare(right)));
 };
 const sameAnchor = (a, b) => a === b || Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b);
+const fragmentId = (fragment) => {
+	const raw = fragment.slice(1);
+	try {
+		return decodeURIComponent(raw);
+	} catch {
+		return raw;
+	}
+};
 
 //#endregion
 //#region runtime/thread/identity.js
@@ -2340,27 +2344,6 @@ const uiInside = (el, within) => {
 };
 const inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 let shadowRules = "";
-const SHADOW_LEADING_CSS = `
-@layer {
-  [hidden]:not([hidden="until-found"]),
-  :host([hidden]:not([hidden="until-found"])) {
-    display: none !important;
-  }
-  @media screen {
-    @container style(--lf-before-presentation: 1) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
-    }
-    @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
-        visibility: hidden !important;
-      }
-    }
-  }
-}`;
 let loading = null;
 function loadShadowRules() {
 	loading ??= readShadowRules();
@@ -2573,4 +2556,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHADOW_LEADING_CSS, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, classMap, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, guard, hostIn, html, inUi, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerRoot, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, pageClaimed, pageShadowRoots, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, unsafeHTML, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };
+export { AsyncDirective, COLLAPSE, DELIVERY, DRAFT_FORMAT, Directive, LIVE_ROOT, LitElement, PAGE_ROOT, PENDING, PRESENTATION_DOM, PartType, SAID, SHARE_ROOT, TEXT_BLOCK, UI_MARKS, WEBSITE_DELIVERY, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, carriesObligation, chromeSharedClasses, chromeSheet, classMap, closeNativeLayer, createPresentationSchedule, createRef, decisionFor, declarationFor, declaredRoot, describeFailure, directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, fragmentId, guard, hostIn, html$1 as html, inUi, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerRoot, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, moved, nativeLayers, nativeModalAdmits, noChange, nothing, obligationValue, offlineData, offlineInteractive, offlineState, overIn, pageClaimed, pageShadowRoots, pageUrl, pendingForParent, presentDocument, projectView, projectionOrigins, projectionRegionsPresented, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readPart, recordedWidgetSelector, ref, refuseShadowRoot, registry, render, renderedChildren, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, styleMap, tagsDeclaring, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, uiInside, unsafeHTML, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented };

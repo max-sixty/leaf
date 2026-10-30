@@ -2,7 +2,6 @@
 and their paths, the pinned file header, hunk landing, and print."""
 
 import json
-import re
 
 import pytest
 from leaf_dev.example_data import patch_manifest
@@ -320,15 +319,16 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
+                f'<aside><div class="layout-track" id="side">{long_diff("in-side")}</div></aside>'
+                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
                 '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
                 '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
-                + "<p>Filler.</p>"
-                * 60,
+                + "<p>Filler.</p>" * 60
+                + "</div>",
+                layout="sidebar",
                 head="<style>:root:root { --lf-safe-top: 40px; }"
                 "html { overflow-y: scroll; }"
                 "#box, .tall { max-height: 320px; overflow: auto; }"
@@ -337,9 +337,7 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         ),
     )
     resized(page, 1600, 1000)
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile("sidebar")
-    )
+    expect(page.locator("#side")).to_have_css("position", "sticky")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
@@ -372,7 +370,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
                 '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
@@ -383,7 +381,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-views-flow", "page")
+    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )

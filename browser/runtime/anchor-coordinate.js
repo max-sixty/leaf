@@ -24,3 +24,12 @@ export const anchorKey = (anchor) => {
 
 export const sameAnchor = (a, b) =>
   a === b || (Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b));
+
+export const fragmentId = (fragment) => {
+  const raw = fragment.slice(1);
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+};

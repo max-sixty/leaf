@@ -4,16 +4,30 @@
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "resolves": { "type": "string", "pattern": "^[a-z0-9]+$" },
-      "restated": { "type": "boolean" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "resolves": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+$"
+      },
+      "restated": {
+        "type": "boolean"
+      }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-inline": true,
     "x-upgrade": true,
-    "x-awaits": { "value": "decide", "answered": { "decide": {} }, "all": "accept" },
+    "x-awaits": {
+      "value": "decide",
+      "answered": {
+        "decide": {}
+      },
+      "all": "accept"
+    },
     "x-withdrawn-as": "reject",
     "x-word": "module",
     "x-state": {
@@ -21,7 +35,11 @@
         "decides": true,
         "detail": {
           "type": "object",
-          "properties": { "outcome": { "enum": ["accept", "reject"] } },
+          "properties": {
+            "outcome": {
+              "enum": ["accept", "reject"]
+            }
+          },
           "required": ["outcome"],
           "additionalProperties": false
         },
@@ -35,7 +53,10 @@
     "x-instructions": "Copy the current markup verbatim, including its ids. Omit this slot for an insertion.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -49,7 +70,10 @@
     "x-instructions": "Omit this slot for a deletion.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
     },
     "additionalProperties": false,
     "x-owners": ["lf-suggestion"],
@@ -126,7 +150,6 @@
     "x-patch": "How a revision reaches an upgraded widget the user has open. By default any change to the widget's markup replaces the whole widget, rebuilding whatever the user had open in it. `members` says the module builds beside its direct authored children, leaves them where the author wrote them or moves them all into the authored body its initial drawing builds, and reads only their attributes; those children may be native markup or declared member widgets. While a revision keeps the element's attributes and each child's tag and attributes in order, Leaf edits inside those children in place. A module that moved them into an authored body reads none of them, so there only the element's own attributes need to stay the same. Requires `x-content: members` or `markup`, and x-upgrade.",
     "x-owners": "The element declarations that may directly own this element. An owner's direct children of these kinds are its members, and a gesture on the owner's whole box stops at them.",
     "x-refers": "A map from each attribute whose value names another element to the contract its target must meet. An empty contract accepts any element id, as an option's `for` does. A typed contract names a shared registry map with `via` and an equality test with `where`, and `page check` requires a target whose tag's entry in that map passes the test, so a package can tell a goal reference from a worker reference without Leaf knowing either. With `owns: true` the referrer fills its target: `page check` requires the target in the referrer's own document, and requires each element there that the test selects to be named by exactly one referrer. A keyed contract `{tag, key}` names a member by an attribute instead of an id: the `tag` element whose `key` holds the value, inside the referrer's nearest owner in which `key` is unique (x-unique), as a playground preset's setting names a control by `name`. In the browser a module passes the attribute to `navigateToDatum` to reach the named widget; it looks in the referrer's own document (its message, for a widget in a reply) before the page.",
-    "x-margin-content": "How the element sits in a column page's first `aside.sidebar`. The only value is `map`, a contents map: where the margin has room and the pointer is precise, it shows as a spine in the left margin whose labels appear over the page. Delivery writes `data-lf-margin-content` into the served document, except in a thread message, which has no margin.",
     "x-retired-when": "On a member: the outcome of its owner's decision that removes it from the page, as `accept` removes a suggestion's `lf-old`. Requires x-owners. The outcome is a value of the `outcome` field on the owner's one deciding verb. Leaf renders the decision itself, including its undo: it writes `data-lf-state=\"<outcome>\"` on the owner and `data-lf-retired` on the removed members, which one theme rule hides. A widget reads the decision from its state, not these attributes. Once the log decides, `page check` lets a revision drop the member's ids, and `page check --render` reports a removed member that still shows words.",
     "x-says": "Attributes whose values show as selectable text: `after` inside the element after its content, `before` at its start, in declaration order. The runtime writes real text nodes, unlike CSS `content: attr()`, so the user can select, quote and comment on the words.",
     "x-shadow": "The module renders the page's words into an open shadow root, and Leaf's passage reading, selection capture and id lookups reach into it. A shadow root attached without this key, as a page script's own custom element attaches one, is opaque: its own words can't be quoted, and the passage reading reads its host by its light children.",
@@ -138,8 +161,7 @@
     "x-unique": "A map from each attribute whose value must differ between members of one owner to that owner's tag. `page check` and message markup refuse a repeat inside the same nearest owner, such as two controls of one playground sharing a `name`. A keyed x-refers contract names members by such an attribute.",
     "x-upgrade": "A module at `widgets/<tag>.js` enhances the element in the browser, loaded only where a page's markup uses the tag. `page init` refuses a layer that declares it without the module, and the render check refuses a module that defines no element for a widget on the page. Required.",
     "x-verbatim": "The upgraded element keeps its authored words, and its nested upgraded widgets in authored order, so the passage reader can quote those words; each nested widget's own declarations cover the words it generates. Without this key the passage reader treats the widget as opaque, since its module may insert or replace words. The render check refuses a page where the wrapper's own words changed or a nested widget was removed or reordered.",
-    "x-initial": "The rooted path of a classic JavaScript bundle that registers the widget's synchronous first drawing. The producer API and delivery lifecycle are defined in module-authoring.md, First paint. Requires `x-upgrade: true`.",
-    "x-views": "`true`: the element shows one member at a time, as a tab set shows one panel. Its module opens the member the runtime names (`openingView`) and records each member it shows (`keepView`). The runtime opens the member holding the element the URL fragment names, else the member this tab last showed, else the first, or the holder's own choice where it passes `openingView` a null fallback; a reload prefers the member last shown. Before first paint Leaf marks the member it will open `data-lf-opening`, so the package theme can show that member alone until the module upgrades. `parts`: as `true`, and the members are the parts of the page: written directly in a `main` that carries no Layout, each member holds one child carrying that part's Layout, and the page lists the members in a column down its left under its title (layouts.css, \"A page of parts\").",
+    "x-views": "An object with members, a CSS selector matching direct authored children shown one at a time, and optional parts: true for a page's parts. Delivery marks those members and the browser owns their hidden attribute from first paint onward; authored hidden does not select a view. openingView returns the fragment's member, else the tab's saved member, else its supplied fallback (first member by default); reload prefers the saved member. keepView both shows a member and remembers it, or shows none when passed null without forgetting the last member. Its optional third argument keeps an outgoing member visible for an animation without selecting or saving it. A parts holder stands directly in a main with no Layout, each member holding its own Layout. module-authoring.md owns view-state behavior.",
     "x-visual": "How a rendered picture offers Comment targets. Declaring it also tells the theme the widget is a picture (painted `data-lf-visual`), so an `lf-ask` lays out options that hold one as it does options holding images. `whole` makes the picture one target. With `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, the module calls `registerVisualParts(source, read)` once, and `read` returns the current list of `{id, element, label, surface?}`; a comment on a part stores its id as `anchor.visual`. Under `parts`, ATTR names an attribute of the widget, as in `<lf-diagram parts=\"all\">`: the registered parts become targets where the widget carries it, and without it the picture stays one target. Under `prefixes`, Leaf accepts any longer id starting with one of them, such as `commit:3f2a` under `commit:`. `surface` may name a descendant whose own paint, without decoration, gives the outline Leaf marks; `element` stays the target for hits and travel. A comment whose part is gone detaches on replay instead of widening to the whole picture. A visual that draws its parts over time also passes `{reveal}`: `reveal(id)` must synchronously show a state that holds that part, cancelling any pending change that would remove it, and Leaf calls it before going to the part from a thread or `navigateToDatum`. While a declared part is missing from the current state, its threads sit on the whole picture. Call the registration's `update()` after any change to rendering or geometry, including an attribute or style change in place. The render check validates each registered record.",
     "x-space": "The width past the reading measure the element takes in a column or sidebar Layout: `wide` takes the shared, capped width for a block slightly wider than the column, from the prose's start edge; `available` takes all the width the page shell can give, into both margins. Without it the element fills its container, as every element does in other Layouts; an element read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`). An authored element may override it with `data-width=wide|available`, which the theme applies without moving the prose.",
     "x-bound": "The element has its own height and scrolls inside it, so a long log or feed never grows the page. `start` opens at the first line; `end` follows the newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored element may set or override it with `data-bound=start|end`; delivery writes it as `data-lf-bound`.",
@@ -233,20 +255,16 @@
     "x-example": "<span class=\"tag\">experimental</span>"
   },
   ".callout": {
-    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
+    "description": "An aside set off from the prose by a tint, for something the user must not miss; a note they can skip can accompany its passage in a layout-note row. Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },
   "section.panel": {
     "description": "A titled region on a sidebar page (`<main class=\"layout-sidebar\">`) holding one thing, such as a table, a log or a list of steps, under a short heading that names it. The heading and spacing group the region without an enclosing card; its contents keep their own visual structure.",
     "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
   },
-  "aside.sidebar": {
-    "description": "Page-level supporting material in the left margin, such as local navigation, a compact legend, or reference facts the user needs throughout a long page. Write one, as a direct child of `main` near the start of the page; a note on one paragraph is an `aside.sidenote` instead. On a wide screen, the first sidebar of a column page sits left of the prose and stays in view, and with a mouse or trackpad an `lf-toc` there shows as a thin spine in the margin whose labels open over the page. Where the window has no room beside the column, in print, and for any second sidebar, it stays in the flow where it was written. Keep its content readable at about 240px wide.",
-    "x-example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
-  },
-  "aside.sidenote": {
-    "description": "A note in the page's right margin, such as a caveat or a source, that the reader can skip without leaving the column. Write it just before the paragraph, list or block it annotates; it then sits level with that block's first line, or above a heading it precedes. A note inside a section, tab panel or disclosure still reaches the margin. Inside a box that clips, such as an `lf-options` group, a board or a table, it is not drawn at all, and `page check --render` fails the version. Where the window has no room beside the column, and in print, the note is a small indented block where it was written, so it must make sense there too. Keep a note to a few lines. The margin fits about fifty-six characters a line, and a long note pushes the next one below its own block. Put longer material in the column as a paragraph.",
-    "x-example": "<aside class=\"sidenote\" id=\"logout-frequency\">Support runs \"log out all devices\" during account-takeover response, about twice a month.</aside>\n<p>Logout must revoke immediately, which rules out any store whose invalidation is eventually consistent.</p>"
+  "aside.note": {
+    "description": "A short qualification or source the reader can skip. Group it after its passage in a layout-note row: it stands beside the passage when the row has room, then follows it when narrow. The next exhibit follows the whole row. Put longer material in the main document.",
+    "x-example": "<div class=\"layout-note\"><p>Logout must revoke immediately.</p><aside class=\"note\" id=\"logout-frequency\">Support revokes all devices during account-takeover response.</aside></div>"
   },
   ".facts": {
     "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",

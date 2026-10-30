@@ -43,13 +43,15 @@ import { build } from "rolldown";
 import { parse } from "acorn";
 
 import { signalsPath } from "./browser/build.mjs";
+import kernel from "../browser/runtime/kernel-registry.json" with { type: "json" };
 
 export const runtimeEntries = [
   "leaf.js",
   "runtime/layer-client.js",
   "runtime/media.js",
-  "runtime/widget-api.js",
-  "runtime/portable-api.js",
+  ...kernel["$public-modules"].paths
+    .filter((path) => path.startsWith("/runtime/"))
+    .map((path) => path.slice(1)),
   "runtime/check-api.js",
 ];
 

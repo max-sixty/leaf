@@ -111,8 +111,8 @@
         </p>
       </header>
 
-      <lf-tabs id="how"
-        ><lf-tab id="overview" label="Overview"
+      <lf-tabs id="how" class="layout-flow"
+        ><lf-tab id="overview" label="Overview" class="layout-flow"
           ><details class="topic-outline" id="overview-outline">
             <summary>In this topic</summary>
             <nav aria-label="Overview sections">
@@ -126,7 +126,7 @@
               </ul>
             </nav>
           </details>
-          <section id="architecture">
+          <section id="architecture" class="layout-flow">
             <h2>The agent, Leaf, and the browser</h2>
             <p id="architecture-lede">
               Leaf connects an agent session to a browser page. The <em>harness</em> is
@@ -158,7 +158,7 @@ flowchart TD
               answer.
             </p>
           </section>
-          <section id="exchange">
+          <section id="exchange" class="layout-flow">
             <h2>The exchange</h2>
             <p id="exchange-lede">
               Suppose an agent is helping choose a queue policy for an importer. It puts
@@ -223,7 +223,7 @@ flowchart TD
               attached to the work, and the user can continue from there.
             </p>
           </section>
-          <section id="architecture-parts">
+          <section id="architecture-parts" class="layout-flow">
             <h2>Responsibilities and boundaries</h2>
             <table id="responsibility-map">
               <thead>
@@ -288,7 +288,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="specification-map">
+          <section id="specification-map" class="layout-flow">
             <h2>Find the right guide</h2>
             <p id="specification-purpose">
               This guide follows the exchange: how an update reaches the agent, what
@@ -327,7 +327,7 @@ flowchart TD
             </table>
           </section></lf-tab
         >
-        <lf-tab id="workflow" label="Workflow"
+        <lf-tab id="workflow" label="Workflow" class="layout-flow"
           ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
@@ -342,7 +342,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="communication-map">
+          <section id="communication-map" class="layout-flow">
             <h2>Author, hand over, and respond</h2>
 
             <p id="agent-host">
@@ -352,7 +352,7 @@ flowchart TD
               available operations; <a href="#delivery">Harness connections</a> explains
               delivery and receipt.
             </p>
-            <section id="loop-shell">
+            <section id="loop-shell" class="layout-flow">
               <h3>Publish a page</h3>
               <p id="instructions-skill">
                 The agent reads Leaf’s skill and the reference for each step: page
@@ -423,7 +423,7 @@ leaf server start ./review</code></pre>
                 </p>
               </details>
             </section>
-            <section id="you">
+            <section id="you" class="layout-flow">
               <h3>Answer updates</h3>
               <p id="reactions">
                 A reaction records brief feedback on a passage or agent reply without
@@ -610,7 +610,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
               </details>
             </section>
-            <section id="agent">
+            <section id="agent" class="layout-flow">
               <h3>Change the live page</h3>
               <p id="agent-changes-reading">
                 The agent can save HTML, replace a widget’s data source, or report a
@@ -652,7 +652,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
               </details>
             </section>
-            <section id="page-ending-flow">
+            <section id="page-ending-flow" class="layout-flow">
               <h3>Wait for updates or finish</h3>
               <p id="waiting-flow">
                 <code>leaf page open ./review</code> leaves the page available for
@@ -759,7 +759,7 @@ flowchart TD
               </details>
             </section>
           </section>
-          <section id="communication-commands">
+          <section id="communication-commands" class="layout-flow">
             <h2>Agent command inventory</h2>
             <p id="command-syntax">
               The table groups Leaf's commands by what the agent uses them for, with
@@ -903,7 +903,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="delivery">
+          <section id="delivery" class="layout-flow">
             <h2>Harness connections and receipt</h2>
             <p id="wait-trick">
               Claude Code’s background Stop hook watches between turns and wakes the
@@ -1081,7 +1081,7 @@ flowchart TD
           </section>
         </lf-tab>
 
-        <lf-tab id="state" label="State"
+        <lf-tab id="state" label="State" class="layout-flow"
           ><details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
@@ -1488,7 +1488,7 @@ flowchart TD
             </section>
           </div></lf-tab
         >
-        <lf-tab id="revisions" label="Revisions"
+        <lf-tab id="revisions" label="Revisions" class="layout-flow"
           ><details class="topic-outline" id="revisions-outline">
             <summary>In this topic</summary>
             <nav aria-label="Revisions sections">
@@ -1499,7 +1499,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="versions">
+          <section id="versions" class="layout-flow">
             <h2>Revisions</h2>
             <p id="agent-versions">
               When Leaf reads changed, valid page source or dependencies, it captures an
@@ -1554,7 +1554,7 @@ flowchart TD
             </lf-sample>
           </section>
 
-          <section id="gate">
+          <section id="gate" class="layout-flow">
             <h2>Checks before a revision goes live</h2>
             <p>
               Before making a revision live or stamping a version, Leaf validates the
@@ -1566,7 +1566,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="edits">
+          <section id="edits" class="layout-flow">
             <h2>Decisions across revisions</h2>
             <div class="revision-pair" id="revision-example">
               <figure id="revision-before">
@@ -1657,7 +1657,7 @@ flowchart TD
             </p>
           </section>
         </lf-tab>
-        <lf-tab id="progress" label="Progress"
+        <lf-tab id="progress" label="Progress" class="layout-flow"
           ><details class="topic-outline" id="progress-outline">
             <summary>In this topic</summary>
             <nav aria-label="Progress sections">
@@ -1680,7 +1680,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="progress-seats">
+          <section id="progress-seats" class="layout-flow">
             <h2>Progress on an update and the page</h2>
             <p id="progress-lede">
               Leaf distinguishes <strong>progress on one update</strong> from
@@ -1731,7 +1731,7 @@ flowchart TD
             </ol>
           </section>
 
-          <section id="stages">
+          <section id="stages" class="layout-flow">
             <h2>Stages of an update</h2>
             <p id="stages-lede">
               A label beside each comment or widget update records its delivery and
@@ -1867,7 +1867,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="progress-on-lists">
+          <section id="progress-on-lists" class="layout-flow">
             <h2>On me and the agent’s list</h2>
             <p id="progress-lists-meaning">
               The On view gathers outstanding work across the page, using the
@@ -1924,7 +1924,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="panel-line">
+          <section id="panel-line" class="layout-flow">
             <h2>What the panel's line says</h2>
             <p id="panel-line-lede">
               The panel's comment field, while empty, is Leaf's one line of words about
@@ -1989,7 +1989,7 @@ flowchart TD
               notices beside the leaf.
             </p>
           </section>
-          <section id="updates-silence">
+          <section id="updates-silence" class="layout-flow">
             <h2>Status readings</h2>
             <p id="updates-silence-lede">
               The server combines the agent’s latest start or status with observed
@@ -2131,7 +2131,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="updates-notices">
+          <section id="updates-notices" class="layout-flow">
             <h2>Notices</h2>
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
@@ -2187,7 +2187,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="progress-map">
+          <section id="progress-map" class="layout-flow">
             <h2>Where the agent's messages appear</h2>
             <p id="progress-map-lede">
               The agent writes progress messages, statuses, replies, and version notes.
@@ -2276,7 +2276,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="progress-when">
+          <section id="progress-when" class="layout-flow">
             <h2>When the agent says what it is doing</h2>
             <ul id="progress-moments">
               <li id="progress-on-input">
@@ -2312,7 +2312,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="progress-plan">
+          <section id="progress-plan" class="layout-flow">
             <h2>The work plan</h2>
             <p id="progress-plan-reading">
               For work with several steps, the agent can publish an outline, which the
@@ -2347,7 +2347,7 @@ EOF</code></pre>
           </section>
         </lf-tab>
 
-        <lf-tab id="runtime" label="Runtime">
+        <lf-tab id="runtime" label="Runtime" class="layout-flow">
           <details class="topic-outline" id="runtime-outline">
             <summary>In this topic</summary>
             <nav aria-label="Runtime sections">
@@ -2369,7 +2369,7 @@ EOF</code></pre>
             </nav>
           </details>
 
-          <section id="browser-state">
+          <section id="browser-state" class="layout-flow">
             <h2>Browser runtime</h2>
             <p id="browser-lede">
               The browser runtime upgrades Leaf elements, draws threads and shared
@@ -2402,7 +2402,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="browser-startup">
+          <section id="browser-startup" class="layout-flow">
             <h2>Loading the runtime</h2>
             <p id="browser-startup-lede">
               Startup prepares a stable page before enabling its controls.
@@ -2437,8 +2437,8 @@ flowchart TD
             </figure>
           </section>
 
-          <section id="loading">
-            <section id="loading-stages">
+          <section id="loading" class="layout-flow">
+            <section id="loading-stages" class="layout-flow">
               <h2>Page loading</h2>
               <p id="loading-lede">
                 These stages describe the document, interface and saved state.
@@ -2493,7 +2493,7 @@ flowchart TD
             </section>
           </section>
 
-          <section id="browser-updates">
+          <section id="browser-updates" class="layout-flow">
             <h2>Pending browser updates</h2>
             <p id="browser-updates-drawn">
               A pick, drag or comment enters an ordered pending list. Its result appears
@@ -2566,7 +2566,7 @@ flowchart TD
             </details>
           </section>
 
-          <section id="browser-freshness">
+          <section id="browser-freshness" class="layout-flow">
             <h2>Freshness checks and state reads</h2>
             <figure id="runtime-freshness-flow" class="diagram-figure">
               <lf-diagram
@@ -2627,7 +2627,7 @@ flowchart TD
             </table>
           </section>
 
-          <section id="browser-drawing">
+          <section id="browser-drawing" class="layout-flow">
             <h2>Drawing current state</h2>
             <p id="browser-drawing-proof">
               Computing state and drawing it are separate. Widgets, threads, the
@@ -2694,7 +2694,7 @@ flowchart TD
             </table>
           </section>
 
-          <section id="browser-local">
+          <section id="browser-local" class="layout-flow">
             <h2>Browser-owned state</h2>
             <p id="browser-local-owned">
               Focus, scroll, selection, open disclosures, unsent text and active drags
@@ -2729,7 +2729,7 @@ flowchart TD
             </table>
           </section>
 
-          <section id="browser-revisions">
+          <section id="browser-revisions" class="layout-flow">
             <h2>Live revisions</h2>
             <div id="browser-revisions-install">
               <p>
@@ -2778,7 +2778,7 @@ flowchart LR
               immediately.
             </p>
           </section>
-          <section id="lifetime">
+          <section id="lifetime" class="layout-flow">
             <h2>Server lifetime</h2>
             <p id="wait-stateless">
               The HTTP server exposes the <a href="#data-home">page directory</a> to
@@ -2794,7 +2794,7 @@ flowchart LR
               >).
             </p>
           </section>
-          <section id="local">
+          <section id="local" class="layout-flow">
             <h2>Addresses and access</h2>
             <p id="serving-address">
               A local session binds to loopback; an SSH session uses its SSH
@@ -2813,7 +2813,7 @@ flowchart LR
               covers addresses, authentication and lifetime.
             </p>
           </section>
-          <section id="runtime-export">
+          <section id="runtime-export" class="layout-flow">
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
               <code>leaf page export PAGE -o FILE</code> captures a stamped version, its

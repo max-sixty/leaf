@@ -1,14 +1,15 @@
-import { PAGE_PAINT_ATTRIBUTE, failureContext, failureOf, isNativeLayer, nextRender, renderedParent, under } from "./bundle-portable.js";
-import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, keeps, keepsText, onCurrentLocation, onFocusVisibility, takesLetters, x as x$1 } from "./bundle-dom-move.js";
-import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer, tagsDeclaring } from "./bundle-layer-stack.js";
+import { PAGE_PAINT_ATTRIBUTE, failureContext, failureOf, isNativeLayer, nextRender, renderedParent, renderedUnder, under } from "./bundle-portable.js";
+import { CARET_KEYS, PRESSES, TEXT_BOX, WORKS, Z, controlNavigationKeys, focusRevision, focused, keeps, keepsText, move, onCurrentLocation, onFocusVisibility, takesLetters, x as x$1 } from "./bundle-dom-move.js";
+import { AsyncDirective, DELIVERY, Directive, PAGE_ROOT, PartType, describeFailure, directive, html as html$1, nothing, offlineInteractive, pageShadowRoots, pageUrl, render, runtime, showNativeLayer, tagsDeclaring } from "./bundle-layer-stack.js";
+import { html, unsafeSVG } from "/vendor/lit.js";
 
 //#region runtime/root-state.js
-const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
-const setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-const removeRuntimeRootStyle = (...args) => document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
+const setRuntimeRootAttribute = (...args) => document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
+const setRuntimeRootStyle = (...args) => document.documentElement.lfRootState.setRuntimeRootStyle(...args);
+const removeRuntimeRootStyle = (...args) => document.documentElement.lfRootState.removeRuntimeRootStyle(...args);
 const runtimeRootState = (root) => ({
-	attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),
-	styles: document.documentElement.lfInitial.runtimeRootStyles(root)
+	attributes: document.documentElement.lfRootState.attributes(root),
+	styles: document.documentElement.lfRootState.styles(root)
 });
 
 //#endregion
@@ -391,6 +392,71 @@ if (enabled) {
 			post(body).catch(() => {});
 		}
 	}, true);
+}
+
+//#endregion
+//#region runtime/native-selection.js
+function pageRange(sel) {
+	const plain = sel.getRangeAt(0);
+	const shadowRoots = pageShadowRoots();
+	if (!shadowRoots.length) return plain;
+	const [composed] = sel.getComposedRanges({ shadowRoots });
+	const { startContainer, startOffset, endContainer, endOffset } = composed;
+	if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
+	const range = document.createRange();
+	range.setStart(startContainer, startOffset);
+	range.setEnd(endContainer, endOffset);
+	return range;
+}
+let writtenSelection = null;
+let writtenBackward = false;
+function selectEnds(anchor, focus) {
+	const selection = getSelection();
+	const from = document.createRange(), to = document.createRange();
+	from.setStart(...anchor);
+	to.setStart(...focus);
+	writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+	selection.setBaseAndExtent(...anchor, ...focus);
+	writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+	const range = selection.rangeCount ? pageRange(selection) : null;
+	return [
+		selection.anchorNode,
+		selection.anchorOffset,
+		selection.focusNode,
+		selection.focusOffset,
+		range?.startContainer,
+		range?.startOffset,
+		range?.endContainer,
+		range?.endOffset
+	];
+};
+function programmaticSelection(selection) {
+	if (!writtenSelection) return false;
+	if (selectionEnds(selection).every((end, i) => end === writtenSelection[i])) return true;
+	writtenSelection = null;
+	return false;
+}
+function selectionBackward(selection, range = pageRange(selection)) {
+	if (selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()) return programmaticSelection(selection) ? writtenBackward : selection.direction === "backward";
+	const probe = document.createRange();
+	probe.setStart(selection.anchorNode, selection.anchorOffset);
+	return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
+}
+
+//#endregion
+//#region runtime/control-faces.js
+const ACTION_FACES = {
+	symbol: "lf-icon-action",
+	word: "lf-btn",
+	commit: "lf-btn primary",
+	mark: "lf-mark-action"
+};
+function actionClass(role, className = "") {
+	const face = ACTION_FACES[role];
+	if (!face) throw new TypeError(`A control's role is one of ${Object.keys(ACTION_FACES).join(", ")}, not ${role}`);
+	return className ? `${face} ${className}` : face;
 }
 
 //#endregion
@@ -1653,7 +1719,7 @@ const actionIcon = (action) => {
 };
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
-function actionFace(role, label, action) {
+function actionName(role, label, action) {
 	if (!SYMBOLIC.has(role)) {
 		if (action !== void 0) throw new TypeError(`A ${role} says its label and shows no action's symbol`);
 		return label;
@@ -1675,12 +1741,12 @@ function actionOffers(base) {
 	const titled = (title) => title === void 0 ? void 0 : { title };
 	return {
 		offerAction(role, className, label, { title, action } = {}) {
-			const node = base.offerAction(role, className, actionFace(role, label, action), titled(title));
+			const node = base.offerAction(role, className, actionName(role, label, action), titled(title));
 			if (SYMBOLIC.has(role)) drawAction(node, role, action);
 			return node;
 		},
 		offerActionElement(node, role, className, label, { title, action } = {}) {
-			base.offerActionElement(node, role, className, actionFace(role, label, action), titled(title));
+			base.offerActionElement(node, role, className, actionName(role, label, action), titled(title));
 			if (SYMBOLIC.has(role)) drawAction(node, role, action);
 			return node;
 		}
@@ -1696,8 +1762,9 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
     aria-hidden="true"
     class=${className}
     data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
+  >
+    ${unsafeSVG(iconMarkup(icon))}
+  </svg>`;
 }
 const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
 
@@ -1767,8 +1834,58 @@ function worksInside(node, container) {
 	].join(","));
 	return inner && inner !== container && container.contains(inner) ? inner : null;
 }
-const offer = (...args) => document.documentElement.lfInitial.offer(...args);
-const offerElement = (...args) => document.documentElement.lfInitial.offerElement(...args);
+const offerElement = (node, cls, pressable = false) => {
+	if (node instanceof HTMLButtonElement && !node.hasAttribute("type")) keeps(node, "type", "button");
+	const face = node.localName.includes("-") ? "" : " lf-ui-face";
+	keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node.localName === "input" && ["checkbox", "radio"].includes(node.type) ? node.type ?? node.localName : "");
+	return node;
+};
+const generatedElement = (node, { says } = {}) => {
+	if (typeof says !== "boolean" && says !== "echo") throw new TypeError("Say whether these words are the page speaking: true, false, or \"echo\" for a copy of words it says elsewhere");
+	keeps(node, "data-lf-gen", "1");
+	node.toggleAttribute("data-lf-said", says === true);
+	node.toggleAttribute("data-lf-echo", says === "echo");
+	return node;
+};
+const offer = (tag, cls, label, inputType, pressable = false) => {
+	const node = document.createElement(tag);
+	if (inputType !== void 0) {
+		if (tag !== "input") throw new TypeError("only an input offer can declare an input type");
+		node.type = inputType;
+	}
+	offerElement(node, cls, pressable);
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
+const offerActionElement = (node, role, cls, label, { title = label } = {}) => {
+	offerElement(node, actionClass(role, cls));
+	if (label !== void 0 && (role === "symbol" || role === "mark")) {
+		keeps(node, "aria-label", label);
+		keeps(node, "title", title);
+	}
+	return node;
+};
+const buildAction = (role, cls, label, options) => {
+	const node = offerActionElement(document.createElement("button"), role, cls, label, options);
+	if (label !== void 0 && role !== "symbol" && role !== "mark") node.textContent = label;
+	return node;
+};
+const selectableOfferElement = (node, role, cls) => {
+	keeps(node, "role", role);
+	keeps(node, "class", cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face");
+	keeps(node, "data-lf-gen", "1");
+	keeps(node, "data-lf-offer", role);
+	keeps(node, "data-lf-selectable-offer", "");
+};
+const selectableOffer = (role, cls, label) => {
+	const node = document.createElement("span");
+	selectableOfferElement(node, role, cls);
+	node.tabIndex = 0;
+	if (label !== void 0) node.textContent = label;
+	return node;
+};
 function searchField(cls, { name, label, placeholder = label }) {
 	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
 	field.type = "search";
@@ -1799,28 +1916,28 @@ function elementDirective(name, write) {
 	});
 }
 const offered = elementDirective("offered", offerElement);
-const { offerAction, offerActionElement } = actionOffers({
-	offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
-	offerActionElement: (...args) => document.documentElement.lfInitial.offerActionElement(...args)
+const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
+	offerAction: buildAction,
+	offerActionElement
 });
-const offeredAction = elementDirective("offeredAction", offerActionElement);
-const selectableOfferElement = (node, role, cls) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls);
-const selectableOffer = (role, cls, label) => document.documentElement.lfInitial.selectableOffer(role, cls, label);
+const offeredAction = elementDirective("offeredAction", offeredActionElement);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {
 	const sel = getSelection();
-	return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
+	if (!sel?.rangeCount) return false;
+	const range = pageRange(sel);
+	const focus = selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+	return !range.collapsed && renderedUnder(focus, el);
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.(`${PRESSES},[data-lf-offer]`);
+	const control = ev.composedPath().find((node) => node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`));
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();
 	}
 }, true);
-const generatedElement = (...args) => document.documentElement.lfInitial.generatedElement(...args);
 const generated = elementDirective("generated", generatedElement);
 function relabel(node, label, { says } = {}) {
 	generatedElement(node, { says });
@@ -1839,7 +1956,7 @@ function responseAction(control, { glyph = null, action = null, label, behavior 
 	if (behavior !== "action" && !control.hasAttribute("aria-expanded")) control.setAttribute("aria-expanded", "false");
 	if (behavior === "action") control.removeAttribute("aria-expanded");
 	if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-	render(html`${action ? actionTemplate(action) : html`<span class="lf-response-action-glyph" aria-hidden="true"
+	render(html$1`${action ? actionTemplate(action) : html$1`<span class="lf-response-action-glyph" aria-hidden="true"
               >${glyph}</span
             >`}<span class="lf-response-action-space" aria-hidden="true"> </span
       ><span class="lf-response-action-label">${label}</span>`, control);
@@ -1850,6 +1967,13 @@ function motionPreview(label) {
 	preview.inert = true;
 	preview.setAttribute("aria-hidden", "true");
 	return preview;
+}
+const authoredBodies = /* @__PURE__ */ new WeakMap();
+const authoredBody = (host) => authoredBodies.get(host) ?? null;
+function holdAuthoredBody(host, body) {
+	for (const node of [...host.childNodes]) move(body, node, null);
+	authoredBodies.set(host, body);
+	return body;
 }
 
 //#endregion
@@ -2266,4 +2390,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionElement, actionIcon, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LAYOUT, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionClass, actionElement, actionIcon, actionName, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimReleaseClick, claimsEsc, clampedRow, closeControl, coarsePointer, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdAuthoredBody, holdStatus, holdingError, hoveringPointer, iconElement, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, layoutChanged, live, liveEl, merge, motionPreview, mountRepaint, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offerElement, offered, offeredAction, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, plainPress, pointerAt, postEvent, pressIsKeyboardActivation, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, restorePointer, reveal, revealLayer, routedCommand, rowArrows, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectableOffer, selectableOfferElement, selectableOffered, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, showAction, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

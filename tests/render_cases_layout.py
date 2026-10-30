@@ -412,8 +412,8 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     """<lf-ask id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
-    <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
-    <p>An option carrying a note written inside it.</p>
+    <div class="layout-note"><p>An option carrying a note written inside it.</p>
+    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
 </lf-options></lf-ask>
@@ -425,14 +425,13 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 # elements in the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
-    """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside>
-<lf-suggestion id="sug-level">
+    """<div class="layout-note"><lf-suggestion id="sug-level">
   <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
   <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion>
+</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
+moved twice inside it.</aside></div>
 </main>""",
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before

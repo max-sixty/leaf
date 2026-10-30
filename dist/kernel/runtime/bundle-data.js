@@ -1,10 +1,10 @@
 import { PAGE_PAINT_ATTRIBUTE, afterScript, bindQueuedWork, cancelRender, dataBody, frameFor, measure, nextAnimation, nextFrame, nextRender, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, sizeObserver, skipped, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, J, PRESSES, TEXT_BOX, TEXT_FIELD, W, Z, caretAtKey, currentLocationIn, currentLocationNodes, currentLocationTouches, d, deepFocus, drawn as drawn$2, focusDestination, focused, holdCurrentLocation, holdFocus, inputCount, keeps, keepsHidden, layoutPx, move, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, readCaret, recentPlaceInput, selectsAll, takesLetters, typesText, x } from "./bundle-dom-move.js";
 import { COLLAPSE as COLLAPSE$1, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, decisionFor, declarationFor, editable, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, html, inUi, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, moved, nothing, obligationValue, offlineData, offlineInteractive, pageClaimed, pageUrl, pendingForParent, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readPart, recordedWidgetSelector, registry as registry$1, render as render$1, repeat, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, share, stateSpecs, tagsDeclaring, threadKey, threadNames, tick, tokenEntry, turns, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, actionElement, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, layoutChanged, live as live$1, notice, offer, offered, offeredAction, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, authoredBody, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, initialOrigin, initialParent, initialSource, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, restoreInitialSource, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleMarginContentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, unmarkedCopy, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { LayerRefused, PRESS, PRESSABLE, actionElement, actionTemplate, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, claimReleaseClick, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, generatedElement, holdStatus, holdingError, keys, labelOf, layoutChanged, live as live$1, notice, offer, offered, offeredAction, pageRange, paintKeys, passErrorsAt, plainPress, pointerAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, restorePointer, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageRange, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, selectEnds, selectionBackward, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { backgroundFlash, flashDuration, foldBlock, isCanonicalMediaUrl, motion, motionPlays, readAttachedMedia, scopedMediaUrl, scrollBehavior, writeAttachedMedia } from "./bundle-media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -1127,12 +1127,104 @@ function quietWord(el, word) {
 	generatedElement(span, { says: false });
 	move(el, span, title ? title.nextSibling : el.firstChild);
 }
-const isExternalPageLink = (link) => document.documentElement.lfInitial.externalLinks.matches(link);
+const EXTERNAL_LINK_ATTRIBUTES = [
+	"target",
+	"rel",
+	"aria-describedby"
+];
+const externalLinkState = /* @__PURE__ */ new WeakMap();
+let externalDescriptionSequence = 0;
+const externalDescriptions = /* @__PURE__ */ new WeakMap();
+const opensElsewhere = (href) => document.documentElement.lfLinks.opensElsewhere(href);
+const isExternalPageLink = (link) => link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+function externalMark() {
+	return Object.assign(document.createElement("span"), {
+		className: "lf-ui lf-external-mark",
+		ariaHidden: "true"
+	});
+}
+function externalDescription(link) {
+	const root = link.getRootNode();
+	let description = externalDescriptions.get(root);
+	if (!description) {
+		description = generatedElement(document.createElement("span"), { says: false });
+		description.id = `lf-external-description-${++externalDescriptionSequence}`;
+		description.hidden = true;
+		description.dataset.lfRuntime = "";
+		description.textContent = "opens in a new tab";
+		externalDescriptions.set(root, description);
+	}
+	const holder = root instanceof Document ? root.body : root;
+	if (description.parentNode !== holder) move(holder, description);
+	return description.id;
+}
+const linkAttributes = (link) => Object.fromEntries(EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]));
+const tokens$2 = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+function withToken(value, token, insensitive = false) {
+	const values = tokens$2(value);
+	const wanted = insensitive ? token.toLowerCase() : token;
+	if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted)) values.push(token);
+	return values.join(" ");
+}
+function withoutToken(value, token, insensitive = false) {
+	if (value === null) return null;
+	const unwanted = insensitive ? token.toLowerCase() : token;
+	return tokens$2(value).filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted).join(" ");
+}
+function writeLinkAttributes(link, values) {
+	for (const [name, value] of Object.entries(values)) keeps(link, name, value);
+}
+function rememberExternalLinkChanges(link, state) {
+	if (!state.painted) return;
+	const current = linkAttributes(link);
+	for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+		if (current[name] === state.painted[name]) continue;
+		let value = current[name];
+		if (name === "rel" && state.addedNoopener) value = withoutToken(value, "noopener", true);
+		if (name === "aria-describedby") value = withoutToken(value, state.markId);
+		state.baseline[name] = value;
+	}
+}
+function clearExternalLink(link, state) {
+	rememberExternalLinkChanges(link, state);
+	writeLinkAttributes(link, state.baseline);
+	link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
+	externalLinkState.delete(link);
+}
+function leaveExternalLink(link) {
+	const state = externalLinkState.get(link);
+	if (state) clearExternalLink(link, state);
+}
+function renderExternalLink(link) {
+	if (!(link instanceof HTMLAnchorElement)) return;
+	document.documentElement.lfLinks.markExternalLink(link);
+	if (!isExternalPageLink(link)) {
+		leaveExternalLink(link);
+		return;
+	}
+	let state = externalLinkState.get(link);
+	if (!state) {
+		state = {
+			baseline: linkAttributes(link),
+			painted: null,
+			markId: null,
+			addedNoopener: false
+		};
+		externalLinkState.set(link, state);
+	} else rememberExternalLinkChanges(link, state);
+	state.markId = externalDescription(link);
+	state.addedNoopener = !tokens$2(state.baseline.rel).some((value) => value.toLowerCase() === "noopener");
+	writeLinkAttributes(link, {
+		target: "_blank",
+		rel: withToken(state.baseline.rel, "noopener", true),
+		"aria-describedby": withToken(state.baseline["aria-describedby"], state.markId)
+	});
+	state.painted = linkAttributes(link);
+}
 function watchExternalLinks() {
-	const links = document.documentElement.lfInitial.externalLinks;
-	watchArrivals("a", ["href", ...links.attributes], {
-		arrive: links.arrive,
-		leave: links.leave
+	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: renderExternalLink,
+		leave: leaveExternalLink
 	});
 }
 function paintDeclaredWords(root) {
@@ -1153,6 +1245,11 @@ function markDeclared(root) {
 			const declared = registry$1[tag][key];
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
+				if (key === "x-views") {
+					keeps(el, paint, declared.parts ? "parts" : "");
+					for (const child of el.children) child.toggleAttribute("data-lf-view", !child.hasAttribute("data-lf-gen") && child.matches(declared.members));
+					continue;
+				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
 			}
 		}
@@ -1993,9 +2090,14 @@ function domValue(el, record) {
 	if (record.kind === "position") return el.closest(record.within)?.id ?? null;
 	return elementReading(el);
 }
-function rememberAuthoredParents(root = document, parent = root.parentElement) {
-	if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root)) authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
-	for (const element of root.querySelectorAll("*")) if (!authoredParents.has(element)) authoredParents.set(element, initialParent(element));
+function rememberAuthoredParents(root = document, parent = root.parentElement, original = (node) => node) {
+	const remember = (element) => {
+		const live = original(element);
+		if (authoredParents.has(live)) return;
+		authoredParents.set(live, element.parentElement ? original(element.parentElement) : parent ?? live.parentElement);
+	};
+	if (root.nodeType === Node.ELEMENT_NODE) remember(root);
+	for (const element of root.querySelectorAll("*")) remember(element);
 }
 function initialState(widget, spec) {
 	const record = spec.record;
@@ -2028,7 +2130,6 @@ function initialState(widget, spec) {
 	};
 }
 function stageAuthoredStates(root = document, existing = authoredStates()) {
-	root = initialSource(root);
 	const captured = /* @__PURE__ */ new Map();
 	const byTag = /* @__PURE__ */ new Map();
 	for (const { tag, verb, spec } of stateSpecs()) {
@@ -2065,12 +2166,7 @@ const candidates = (root) => {
 	if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) found.unshift(root);
 	return found;
 };
-const parentOf = (element) => {
-	if (authoredParents.has(element)) return authoredParents.get(element);
-	if (element.parentElement) return element.parentElement;
-	const live = initialOrigin(element);
-	return authoredParents.has(live) ? authoredParents.get(live) : initialParent(live);
-};
+const parentOf = (element) => authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 const declaredAncestors = (element) => {
 	const ancestors = [];
 	for (let parent = parentOf(element); parent; parent = parentOf(parent)) if (parent.id && isElementName(parent.localName) && runtime.registry[parent.localName]) ancestors.push({
@@ -2089,10 +2185,9 @@ function stageWidgetDescriptors(root = document, documentContext = {
 }) {
 	const captured = /* @__PURE__ */ new Map();
 	const bindings = [];
-	for (const element of candidates(initialSource(root))) {
+	for (const element of candidates(root)) {
 		if (!element.id) continue;
-		const live = initialOrigin(element);
-		const existing = byElement.get(live);
+		const existing = byElement.get(element);
 		if (existing && existing.document.kind === documentContext.kind && (documentContext.kind === "thread" || existing.document.revision === documentContext.revision)) {
 			captured.set(element.id, existing);
 			continue;
@@ -2109,7 +2204,7 @@ function stageWidgetDescriptors(root = document, documentContext = {
 			quoted: quotedBy(element)
 		};
 		bindings.push({
-			element: live,
+			element,
 			descriptor
 		});
 		captured.set(element.id, descriptor);
@@ -2611,19 +2706,10 @@ function registeredTags(scope, registry) {
 	return [.../* @__PURE__ */ new Set([...scope.localName ? [scope.localName] : [], ...[...scope.querySelectorAll("*")].map((element) => element.localName)])].filter((tag) => isElementName(tag) && Object.hasOwn(registry, tag));
 }
 function widgetImports(scope, registry) {
-	const initializers = [];
 	const modules = [];
 	const tags = registeredTags(scope, registry);
-	for (const tag of tags) {
-		const entry = registry[tag];
-		if (entry?.["x-initial"]) initializers.push({
-			tag,
-			path: entry["x-initial"]
-		});
-		if (entry?.["x-upgrade"]) modules.push(tag);
-	}
+	for (const tag of tags) if (registry[tag]?.["x-upgrade"]) modules.push(tag);
 	return {
-		initializers,
 		modules,
 		shadow: tags.some((tag) => registry[tag]["x-shadow"] || Object.values(registry[tag]["x-state"] ?? {}).some((state) => state.creates && registry[state.creates.child]["x-shadow"]))
 	};
@@ -2633,27 +2719,26 @@ function widgetImports(scope, registry) {
 //#region runtime/widget-loader.js
 const rememberedPassageRoots = /* @__PURE__ */ new WeakSet();
 const within = (scope, selector) => [...scope.matches?.(selector) ? [scope] : [], ...scope.querySelectorAll(selector)];
-function rememberPassageParts(scope = document, source = ["page", null]) {
-	scope = initialSource(scope);
+function rememberPassageParts(scope = document, source = ["page", null], original = (node) => node) {
 	for (const tag of tagsDeclaring((entry) => entry["x-upgrade"] && !entry["x-verbatim"])) for (const root of within(scope, tag)) {
-		const live = initialOrigin(root);
+		const live = original(root);
 		if (rememberedPassageRoots.has(live)) continue;
 		rememberedPassageRoots.add(live);
-		fencePassageParts(live, [...root.children].map(initialOrigin));
+		fencePassageParts(live, [...root.children].map(original));
 	}
 	for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-		const live = initialOrigin(root);
+		const live = original(root);
 		if (rememberedPassageRoots.has(live)) continue;
 		rememberedPassageRoots.add(live);
-		identifyPreserving(root, [...source, ownerIndex]);
+		identifyPreserving(root, [...source, ownerIndex], original);
 	}
 }
 const preservingOwners = (scope) => within(scope, "*").filter((root) => registry$1[root.localName]?.["x-verbatim"]);
-function identifyPreserving(root, owner) {
-	verbatimOwnerIdentity.set(initialOrigin(root), owner);
+function identifyPreserving(root, owner, original = (node) => node) {
+	verbatimOwnerIdentity.set(original(root), owner);
 	let boundaryIndex = 0;
 	const visit = (parent) => {
-		for (const child of parent.children) if (registry$1[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(initialOrigin(child), {
+		for (const child of parent.children) if (registry$1[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(original(child), {
 			owner,
 			index: boundaryIndex++
 		});
@@ -2662,7 +2747,7 @@ function identifyPreserving(root, owner) {
 	visit(root);
 }
 function reindexPassageOwners(scope = document, source = ["page", null]) {
-	for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries()) identifyPreserving(root, [...source, ownerIndex]);
+	for (const [ownerIndex, root] of preservingOwners(scope).entries()) identifyPreserving(root, [...source, ownerIndex]);
 }
 const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`) : runtimeResource(`/widgets/${tag}.js`);
@@ -2671,10 +2756,6 @@ async function loadWidgetDependencies(scope) {
 }
 async function importWidgetModules(scope) {
 	const required = widgetImports(scope, registry$1);
-	await Promise.all(required.initializers.map(({ tag, path }) => {
-		if (document.documentElement.lfInitial.has(tag)) return;
-		return offlineInteractive ? import(runtimeModule(path)) : import(runtimeResource(path));
-	}));
 	await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 async function preloadWidgets(scope) {
@@ -2689,18 +2770,6 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		rememberPassageParts(scope);
-		rememberAuthoredParents(scope);
-		const descriptors = stageWidgetDescriptors(scope);
-		const authored = stageAuthoredStates(scope, /* @__PURE__ */ new Map());
-		const prior = readApplication().document;
-		applicationState.captureDocument({
-			...prior,
-			registry: { ...registry$1 },
-			authored: new Map([...prior.authored, ...authored]),
-			descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
-		});
-		commitWidgetDescriptors(descriptors);
 		watchExternalLinks();
 		watchCodeBlocks();
 		watchHeadingLinks();
@@ -2729,12 +2798,35 @@ async function settle(presentation, scope, arrived, presented) {
 	await presented();
 	reachScrollers(scope);
 }
-async function upgradeWidgets({ buildReactionBar }) {
+async function prepareDocument(captured) {
 	const response = await fetch(registryUrl());
 	if (!admitResponse(response)) return false;
 	if (!response.ok) throw new Error(`leaf: registry failed to load (${response.status})`);
 	adoptRegistry(await response.json());
 	if (!sameLayer(registry$1.$layer.generation)) return false;
+	const scope = captured.source;
+	const original = (node) => captured.pairs.get(node);
+	rememberPassageParts(scope, ["page", null], original);
+	rememberAuthoredParents(scope, null, original);
+	const descriptors = stageWidgetDescriptors(scope);
+	const authored = stageAuthoredStates(scope, /* @__PURE__ */ new Map());
+	const prior = readApplication().document;
+	applicationState.captureDocument({
+		...prior,
+		registry: { ...registry$1 },
+		authored: new Map([...prior.authored, ...authored]),
+		descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
+	});
+	commitWidgetDescriptors({
+		...descriptors,
+		bindings: descriptors.bindings.map(({ element, descriptor }) => ({
+			element: original(element),
+			descriptor
+		}))
+	});
+	return true;
+}
+async function upgradeWidgets({ buildReactionBar }) {
 	revealLayer();
 	buildReactionBar();
 	await installDocument(document.body);
@@ -2744,11 +2836,10 @@ async function upgradeWidgets({ buildReactionBar }) {
 //#endregion
 //#region runtime/storage.js
 const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored, tabStore: initialTabStore } = document.documentElement.lfStorage;
-const tabStore = initialTabStore;
-const views$1 = (holder) => holder.ownerDocument.documentElement.lfViews;
-const openingView = (holder, members, fallback) => views$1(holder).opening(holder, members, fallback);
-const keepView = (holder, member) => views$1(holder).keep(holder, member);
+const { stored, tabStore } = document.documentElement.lfStorage;
+const viewMembers = document.documentElement.lfViews.members;
+const openingView = document.documentElement.lfViews.opening;
+const keepView = document.documentElement.lfViews.keep;
 const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 const userStore = document.documentElement.lfStorage.userStore;
 const userChoice = (key, values) => Object.freeze({
@@ -4019,6 +4110,7 @@ function prepareAuthoredMessage(message, thread) {
 	if (!authoredMessages.has(key)) {
 		const template = document.createElement("template");
 		template.innerHTML = message.markup ?? "";
+		markDeclared(template.content);
 		rememberAuthoredParents(template.content);
 		const descriptors = stageWidgetDescriptors(template.content, {
 			kind: "thread",
@@ -8147,7 +8239,6 @@ const latestVersionLabel = ({ failed = false, activeLabel = null } = {}) => fail
 //#region runtime/version.js
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 function authoredAttributes(root) {
-	root = document.documentElement.lfInitial.authoredShell(root);
 	const attributes = /* @__PURE__ */ new Map();
 	for (const { name, value } of root.attributes) {
 		if (name.startsWith("data-lf-")) continue;
@@ -8159,29 +8250,52 @@ function authoredAttributes(root) {
 	return attributes;
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
+const authoredMarkup = (root) => {
+	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
+	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	return root;
+};
 const pairSources = (source, live, pairs) => {
-	live = initialOrigin(source) === source ? live : initialOrigin(source);
 	pairs.set(source, live);
 	const held = source.localName === "template" ? source.content : source;
-	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"));
+	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.("[data-lf-prepaint]"));
 	for (const [at, child] of [...held.childNodes].entries()) {
-		const original = initialOrigin(child);
-		const peer = original === child ? children[at] : original;
+		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
 	}
 	return pairs;
 };
 let initialDocument = (() => {
 	const main = pageDocument();
-	const source = main ? unmarkedCopy(main) : null;
+	const inert = document.implementation.createHTMLDocument("");
+	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	for (const input of source?.querySelectorAll("input") ?? []) {
+		if (![
+			"file",
+			"checkbox",
+			"radio"
+		].includes(input.type) && input.value !== input.defaultValue) input.value = input.defaultValue;
+		input.checked = input.defaultChecked;
+	}
+	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
+	const pairs = main ? pairSources(source, main, /* @__PURE__ */ new WeakMap()) : /* @__PURE__ */ new WeakMap();
+	for (const disclosure of source?.querySelectorAll("details") ?? []) {
+		const open = document.documentElement.lfStorage.initialDisclosureOpen(pairs.get(disclosure));
+		if (open !== void 0) disclosure.toggleAttribute("open", open);
+	}
 	return {
 		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
-		pairs: main ? pairSources(source, main, /* @__PURE__ */ new WeakMap()) : /* @__PURE__ */ new WeakMap()
+		pairs
 	};
 })();
+function takeInitialDocument() {
+	const captured = initialDocument;
+	initialDocument = null;
+	return captured;
+}
 const stamped = (version) => runtime.versions.find((candidate) => candidate.version === version);
 const currentVersionToken = () => runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 const draftRevisions = () => {
@@ -8673,7 +8787,7 @@ async function authoredDocument(url) {
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
 	const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-	return restoreInitialSource(doc);
+	return authoredMarkup(doc);
 }
 const revisionDocuments = /* @__PURE__ */ new Map();
 function revisionDocument(revision) {
@@ -8683,10 +8797,9 @@ function revisionDocument(revision) {
 	}));
 	return revisionDocuments.get(revision.revision);
 }
-function createVersionController({ compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation = () => null, restoreRetainedCurrentLocation = () => false, captureObligationCurrentLocation = () => null, restoreObligationCurrentLocation = () => {}, versions }) {
+function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation = () => null, restoreRetainedCurrentLocation = () => false, captureObligationCurrentLocation = () => null, restoreObligationCurrentLocation = () => {}, versions }) {
 	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
-	initialDocument = null;
 	versionSource = () => ({
 		source: authoredSource,
 		pairs: sourcePairs
@@ -8802,8 +8915,9 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 		return copy;
 	};
 	const reachesMembers = (before, after, arrivingRoot) => {
-		if (registry$1[before.localName]?.["x-patch"] !== "members") return false;
-		const members = !authoredBody(sourcePairs.get(before));
+		const entry = registry$1[before.localName];
+		if (entry?.["x-patch"] !== "members") return false;
+		const members = !authoredBody(sourcePairs.get(before)) && (entry["x-content"] === "members" || entry["x-views"]);
 		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
 	};
 	function patchRules(doc) {
@@ -8936,7 +9050,7 @@ function createVersionController({ compositionInput, openThread, refreshThread, 
 			},
 			land: () => landContinuity(async () => {
 				releaseHolds();
-				settleMarginContentLayout();
+				settleDocumentLayout();
 				syncLayout();
 				if (currentIntent()) {
 					restoreView(view, currentIntent);
@@ -9639,4 +9753,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, ensureSyntaxLanguage, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quietWord, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, synNodes, syntax, tabStore, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, tokenLines, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };

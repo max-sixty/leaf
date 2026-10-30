@@ -1,3 +1,4 @@
+import { render as motionTemplate } from "./motion-view.js";
 /* One transport for page-authored illustrations and compared video recordings.
  * A synchronous renderFrame(time) paints illustrations from milliseconds, while
  * descendant videos play on their native media clocks. The furthest video time
@@ -13,7 +14,6 @@
  */
 import {
   LeafElement,
-  initialRender,
   render,
   commands,
   whileConnected,
@@ -75,10 +75,20 @@ customElements.define(
       paintKeys();
     }
 
-    setup() {
-      this.#ui = initialRender(this);
-      this.#time = Number(this.#ui.time.value);
-      this.#rate = Number(this.#ui.speed.value);
+    firstUpdated() {
+      const root = this.renderRoot;
+      this.#ui = {
+        controls: root.querySelector(".lf-motion-controls"),
+        play: root.querySelector("button"),
+        time: root.querySelector("input"),
+        speed: root.querySelector("select"),
+      };
+      // Restore tab-local inspection when the transport controls are mounted.
+      const saved = JSON.parse(
+        tabStore.get(`motion:${this.id}`) || '{"time":0,"rate":1}',
+      );
+      this.#time = Math.min(this.duration, saved.time);
+      this.#rate = saved.rate;
       commands(this, "In a motion study", [
         {
           id: "motion.play",
@@ -116,7 +126,8 @@ customElements.define(
         const input = onUserInput((event) => {
           if (
             event.type === "blur" ||
-            (this.contains(event.target) && !this.#ui.controls.contains(event.target))
+            (event.composedPath().includes(this) &&
+              !event.composedPath().includes(this.#ui.controls))
           )
             this.#pause();
         });
@@ -143,7 +154,7 @@ customElements.define(
     }
 
     render() {
-      return this.#ui.render({
+      return motionTemplate(this, {
         time: this.#time,
         rate: this.#rate,
         label: this.#playLabel(),
@@ -243,7 +254,7 @@ customElements.define(
       if (!this.#ui) return;
       // The media clock changes local inspection, not the page's state. Commit
       // the shared template without claiming semantic presentation every frame.
-      render(this.render(), this, this.renderOptions);
+      render(this.render(), this.renderRoot, this.renderOptions);
     }
 
     #paint() {

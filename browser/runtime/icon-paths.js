@@ -1,7 +1,6 @@
 /* The layer's icons: one table of 16px strokes, the actions that show them, and a
-   plain DOM drawing of one. It imports nothing, so a package's first-paint producer,
-   compiled into a script of its own, draws the same symbols as the runtime; icons.js
-   adds the Lit templates the runtime's renderers use. */
+   plain DOM drawing of one. It imports nothing, so delivery templates and browser
+   renderers share the same symbols; icons.js adds their Lit templates. */
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -150,7 +149,7 @@ const SYMBOLIC = new Set(["symbol", "mark"]);
 // The name a control of `role` says. A symbol or mark shows its action's symbol and
 // says its name unless `label` says more. Whether a press is a word or a symbol stays
 // the author's call: a page's own "Done" is a word as Leaf's to-do's is.
-function actionFace(role, label, action) {
+export function actionName(role, label, action) {
   if (!SYMBOLIC.has(role)) {
     if (action !== undefined)
       throw new TypeError(`A ${role} says its label and shows no action's symbol`);
@@ -180,12 +179,11 @@ const drawAction = (node, role, action) =>
   showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
 
 /**
- * The role constructors (`prepaint.js`, `ACTION_FACES`) with each symbol and mark
+ * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
  * drawn from its action: `offerAction(role, className, label, {title, action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
- * from these (widget-elements.js), and an initial producer wraps the tools it
- * receives.
- * @param {Pick<LeafInitial, "offerAction" | "offerActionElement">} base
+ * from these (widget-elements.js).
+ * @param {{offerAction: (...args: any[]) => HTMLButtonElement; offerActionElement: <T extends Element>(node: T, ...args: any[]) => T}} base
  */
 export function actionOffers(base) {
   const titled = (title) => (title === undefined ? undefined : { title });
@@ -198,7 +196,7 @@ export function actionOffers(base) {
       const node = base.offerAction(
         role,
         className,
-        actionFace(role, label, action),
+        actionName(role, label, action),
         titled(title),
       );
       if (SYMBOLIC.has(role)) drawAction(node, role, action);
@@ -214,7 +212,7 @@ export function actionOffers(base) {
         node,
         role,
         className,
-        actionFace(role, label, action),
+        actionName(role, label, action),
         titled(title),
       );
       if (SYMBOLIC.has(role)) drawAction(node, role, action);

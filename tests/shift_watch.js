@@ -778,8 +778,21 @@
   };
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
+    // The HTML parser creates declarative roots without calling attachShadow.
+    // Discover them in the same traversal that records their rendered ancestors.
+    const discover = (node) => {
+      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
+        roots.add(node.shadowRoot);
+        watchTree(node.shadowRoot);
+      }
+    };
+    nodes.forEach(discover);
     for (const root of roots)
-      if (root.host.isConnected) nodes.push(...root.querySelectorAll("*"));
+      if (root.host.isConnected) {
+        const children = [...root.querySelectorAll("*")];
+        children.forEach(discover);
+        nodes.push(...children);
+      }
     const words = nodes.flatMap((node) =>
       [...node.childNodes].filter(
         (child) =>

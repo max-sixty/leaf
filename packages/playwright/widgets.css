@@ -24,13 +24,7 @@ lf-trace {
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
-/* Before its module connects, reserve the waiting line without generating copy.
- * The live template owns the actual waiting message. */
-lf-trace:not(:defined)::before {
-  content: "";
-  display: block;
-  block-size: 1lh;
-}
+
 .lf-trace-view {
   display: contents;
 }
@@ -1000,23 +994,6 @@ lf-trace-compare .lf-trace-heading {
 lf-trace-compare > *,
 lf-trace-compare lf-trace {
   margin-block: 0;
-}
-
-/* Prepaint chooses the same recording as the upgraded workspace. Without an
- * interactive runtime, every labeled recording remains available in page flow. */
-@scope (html[data-lf-interactive] lf-trace-compare) {
-  :scope:is(lf-trace-compare):not(:defined) {
-    &::before {
-      content: "";
-      display: block;
-      /* Match the upgraded chooser's bottom border as well as its control and padding. */
-      block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1) + 1px);
-      margin-block-end: var(--sp-2);
-    }
-    & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) {
-      display: none;
-    }
-  }
 }
 
 .lf-trace-image-scale {

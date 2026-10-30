@@ -92,8 +92,8 @@
         An early attempt at dynamic widgets that needs work. Try these saved Luna
         outputs; this example does not generate live.
       </p>
-      <lf-tabs id="widget-tasks">
-        <lf-tab id="task-tabs" label="Storage plans"
+      <lf-tabs id="widget-tasks" class="layout-flow">
+        <lf-tab id="task-tabs" label="Storage plans" class="layout-flow"
           ><blockquote class="request" id="request-tabs">
             Help me choose between two storage plans. Local storage works offline and
             includes 10 GB at no monthly cost. Cloud storage syncs across devices and
@@ -565,7 +565,7 @@ Help me choose between two storage plans. Local storage works offline and includ
             >
           </lf-tabs></lf-tab
         >
-        <lf-tab id="task-decision" label="Release rollout"
+        <lf-tab id="task-decision" label="Release rollout" class="layout-flow"
           ><blockquote class="request" id="request-decision">
             Help me decide how to roll out a software update. We could release to 5% of
             users today, release to everyone today, or postpone for more review. A small
@@ -1154,7 +1154,7 @@ Help me decide how to roll out a software update. We could release to 5% of user
           </lf-tabs></lf-tab
         ></lf-tabs
       >
-      <section class="experiment-notes" id="experiment-notes">
+      <section class="experiment-notes layout-flow" id="experiment-notes">
         <h2>What this experiment tells us</h2>
         <p>
           A component catalog can reduce the amount a model writes. Direct markup leaves

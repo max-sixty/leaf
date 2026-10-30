@@ -1,17 +1,18 @@
+import {
+  offerElement,
+  fragmentTarget,
+  generatedElement,
+  keeps,
+  tabStore,
+} from "/runtime/widget-api.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
- * retained template keeps its identity when the behavior module adopts it.
+ * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
  * behavior module holds/reveals authoritative history through HeldReading and supplies
  * the live clock, thread action and current-document target reading. */
-import { html, nothing, ref, render, repeat } from "/vendor/lit.js";
+import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
-
-// Before modules load only the light document's ids can be read. The behavior module
-// supplies fragmentTarget, which also finds shadow ids and refuses settled content.
-const lightTarget = (fragment, doc) =>
-  doc.readyState !== "loading" &&
-  doc.getElementById(decodeURIComponent(fragment.slice(1)));
 
 function refreshTarget(link, row, write, names) {
   const fragment = `#${encodeURIComponent(row.widget)}`;
@@ -24,10 +25,7 @@ function refreshTarget(link, row, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
-export function initialActivity(
-  host,
-  { offerElement, generatedElement, tabStore, keeps },
-) {
+export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
   const reading = saved
@@ -73,7 +71,7 @@ export function initialActivity(
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget),
+          node && refreshTarget(node, row, keeps, capabilities.names ?? fragmentTarget),
       )}
       >${row.label}</a
     >`;
@@ -128,13 +126,5 @@ export function initialActivity(
     `;
   };
   host.replaceChildren();
-  // A missing destination may still be below this host while parsing. Refresh at
-  // interactive, before module requests can delay DOMContentLoaded.
-  if (host.ownerDocument.readyState === "loading")
-    host.ownerDocument.addEventListener(
-      "readystatechange",
-      () => render(template(), host, { host }),
-      { once: true },
-    );
   return Object.assign(drawing, { render: template });
 }

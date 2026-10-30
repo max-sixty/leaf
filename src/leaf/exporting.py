@@ -42,7 +42,6 @@ from leaf.revision_artifact import (
 from leaf.revision_delivery import (
     Delivery,
     compose_document,
-    initial_script_paths,
     json_script,
     rebase_css,
     runtime_settings,
@@ -208,8 +207,7 @@ def _module_urls(
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
-    The computed imports an exported page makes are widget modules and their declared
-    initial producers, asked for only
+    The computed imports an exported page makes are widget modules, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
     `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
     markup its messages carry, since the embedded reading never activates another
@@ -218,7 +216,6 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
-    registry = artifact.registry
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -233,27 +230,14 @@ def _module_urls(
             if artifact.resources[path].mime == "application/javascript"
         ),
         *widgets.values(),
-        *(
-            initial
-            for tag in tags
-            if (initial := registry.get(tag, {}).get("x-initial"))
-        ),
     ]
-    # Only the actual document runs parser-time producers. Frozen message widgets
-    # arrive later, after the ordinary module Lit has initialized its shared global.
-    early_lit = bool(initial_script_paths(artifact.html.decode("utf-8"), registry))
     urls = {}
     while pending:
         path = pending.pop()
         if path in urls:
             continue
-        implementation = (
-            "/vendor/lit-shared.js" if early_lit and path == "/vendor/lit.js" else path
-        )
-        resource = artifact.resources[implementation]
-        imports = list(
-            captured_imports(resource.data, implementation, artifact.resources)
-        )
+        resource = artifact.resources[path]
+        imports = list(captured_imports(resource.data, path, artifact.resources))
         pending.extend(target for _, _, target in imports)
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
         urls[path] = _data_url(Resource(source, resource.mime))

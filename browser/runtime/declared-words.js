@@ -103,16 +103,115 @@ export function quietWord(el, word) {
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
-// Parser paint and later arrivals share one treatment and its per-link ownership.
-// Prepaint seats the mark before authored prose first paints; this watch carries the
-// same owner through revisions, generated content and declared shadow stages.
+const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
+const externalLinkState = new WeakMap();
+let externalDescriptionSequence = 0;
+const externalDescriptions = new WeakMap();
+export const opensElsewhere = (href) =>
+  document.documentElement.lfLinks.opensElsewhere(href);
 export const isExternalPageLink = (link) =>
-  document.documentElement.lfInitial.externalLinks.matches(link);
+  link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+export function externalMark() {
+  return Object.assign(document.createElement("span"), {
+    className: "lf-ui lf-external-mark",
+    ariaHidden: "true",
+  });
+}
+function externalDescription(link) {
+  const root = link.getRootNode();
+  let description = externalDescriptions.get(root);
+  if (!description) {
+    description = generatedElement(document.createElement("span"), { says: false });
+    description.id = `lf-external-description-${++externalDescriptionSequence}`;
+    description.hidden = true;
+    description.dataset.lfRuntime = "";
+    description.textContent = "opens in a new tab";
+    externalDescriptions.set(root, description);
+  }
+  const holder = root instanceof Document ? root.body : root;
+  if (description.parentNode !== holder) move(holder, description);
+  return description.id;
+}
+// The text field draws the same mark after a link it shows (composing/text-field.js).
+const linkAttributes = (link) =>
+  Object.fromEntries(
+    EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
+  );
+const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+function withToken(value, token, insensitive = false) {
+  const values = tokens(value);
+  const wanted = insensitive ? token.toLowerCase() : token;
+  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
+    values.push(token);
+  return values.join(" ");
+}
+function withoutToken(value, token, insensitive = false) {
+  if (value === null) return null;
+  const unwanted = insensitive ? token.toLowerCase() : token;
+  return tokens(value)
+    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
+    .join(" ");
+}
+function writeLinkAttributes(link, values) {
+  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
+}
+function rememberExternalLinkChanges(link, state) {
+  if (!state.painted) return;
+  const current = linkAttributes(link);
+  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+    if (current[name] === state.painted[name]) continue;
+    let value = current[name];
+    if (name === "rel" && state.addedNoopener)
+      value = withoutToken(value, "noopener", true);
+    if (name === "aria-describedby") value = withoutToken(value, state.markId);
+    state.baseline[name] = value;
+  }
+}
+function clearExternalLink(link, state) {
+  rememberExternalLinkChanges(link, state);
+  writeLinkAttributes(link, state.baseline);
+  link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
+  externalLinkState.delete(link);
+}
+function leaveExternalLink(link) {
+  const state = externalLinkState.get(link);
+  if (state) clearExternalLink(link, state);
+}
+function renderExternalLink(link) {
+  // SVG links share this selector but not the HTML anchor API, and they have no
+  // dependable inline box in which an HTML text mark could stand.
+  if (!(link instanceof HTMLAnchorElement)) return;
+  document.documentElement.lfLinks.markExternalLink(link);
+  if (!isExternalPageLink(link)) {
+    leaveExternalLink(link);
+    return;
+  }
+  let state = externalLinkState.get(link);
+  if (!state) {
+    state = {
+      baseline: linkAttributes(link),
+      painted: null,
+      markId: null,
+      addedNoopener: false,
+    };
+    externalLinkState.set(link, state);
+  } else rememberExternalLinkChanges(link, state);
+  state.markId = externalDescription(link);
+  state.addedNoopener = !tokens(state.baseline.rel).some(
+    (value) => value.toLowerCase() === "noopener",
+  );
+  writeLinkAttributes(link, {
+    target: "_blank",
+    rel: withToken(state.baseline.rel, "noopener", true),
+    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+  });
+  state.painted = linkAttributes(link);
+}
+
 export function watchExternalLinks() {
-  const links = document.documentElement.lfInitial.externalLinks;
-  watchArrivals("a", ["href", ...links.attributes], {
-    arrive: links.arrive,
-    leave: links.leave,
+  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+    arrive: renderExternalLink,
+    leave: leaveExternalLink,
   });
 }
 
@@ -197,6 +296,15 @@ export function markDeclared(root) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag)) {
         const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
+        if (key === "x-views") {
+          keeps(el, paint, declared.parts ? "parts" : "");
+          for (const child of el.children)
+            child.toggleAttribute(
+              "data-lf-view",
+              !child.hasAttribute("data-lf-gen") && child.matches(declared.members),
+            );
+          continue;
+        }
         keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
       }
     }

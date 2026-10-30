@@ -7,7 +7,7 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module type-checks the runtime, builds the framework's
  * third-party packages, and writes and checks every other committed Node-built output
- * beside them: the initial renderers (`build/initial.mjs`), the third-party
+ * beside them: the third-party
  * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
@@ -22,12 +22,10 @@
  * The framework (`runtime/framework.js` and the modules behind it) is written as
  * JavaScript the type check reads, so a page serves its source as it does every other
  * runtime module. Its third-party packages are minified builds from the lock and the
- * adaptations below. Delivery inlines Lit when a page declares an initial producer,
- * mapping `vendor/lit.js` to that instance's facade; otherwise it loads as a normal
- * module (`build/lit.mjs`). Both outputs share the same namespace source, and a page
- * loads one implementation. Signals are the framework's own: the kernel compiles
- * them in with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether each output's
- * imports resolve on every page and writes the notices for the packages that reached
+ * adaptations below. Runtime and package modules load one ordinary Lit module
+ * (`build/lit.mjs`). Signals are the framework's own: the kernel compiles them in
+ * with it (`runtime-bundle.mjs`). `shipped.mjs` decides whether each output's imports
+ * resolve on every page and writes notices for the packages that reached
  * them, as it does for every vendored bundle.
  */
 import { readFileSync } from "node:fs";
@@ -39,15 +37,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
-import { initialOutputs } from "../initial.mjs";
-import {
-  initialLitPath,
-  sharedLitPath,
-  litFacade,
-  litGlobal,
-  litNamespace,
-  litPath,
-} from "../lit.mjs";
+import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
 import { kernelOutputs } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
@@ -117,8 +107,7 @@ async function litTypes() {
  */
 async function litModule() {
   const contents = await litNamespace();
-  const move =
-    "const leafMove = (parent, node, before) => document.documentElement.lfInitial.move(parent, node, before);\n";
+  const move = 'import { move as leafMove } from "/runtime/dom-move.js";\n';
   return [
     {
       name: "leaf-lit",
@@ -348,32 +337,10 @@ export async function buildOutputs() {
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
   }
-  const initialLit = await build({
-    absWorkingDir: root,
-    stdin: {
-      contents: `import * as lit from "leaf:lit"; ${litGlobal} = lit;`,
-      resolveDir: root,
-      sourcefile: "leaf-initial-lit.js",
-    },
-    outfile: `${assets}/${initialLitPath}`,
-    plugins: await litModule(),
-    platform: "browser",
-    format: "iife",
-    target: "es2022",
-    bundle: true,
-    minify: true,
-    legalComments: "eof",
-    metafile: true,
-    write: false,
-    logLevel: "silent",
-  });
-  const [initialLitFile] = initialLit.outputFiles;
-  checkModule(initialLitFile.text, initialLitPath);
-  outputs.set(`${assets}/${initialLitPath}`, Buffer.from(initialLitFile.contents));
   const moduleLit = await build({
     absWorkingDir: root,
     stdin: {
-      contents: `import "/runtime/dom-move.js"; import * as lit from "leaf:lit"; ${litGlobal} = lit; export * from "leaf:lit";`,
+      contents: `import "/runtime/dom-move.js"; export * from "leaf:lit";`,
       resolveDir: root,
       sourcefile: "leaf-module-lit.js",
     },
@@ -386,23 +353,23 @@ export async function buildOutputs() {
     bundle: true,
     minify: true,
     legalComments: "eof",
+    metafile: true,
     write: false,
     logLevel: "silent",
   });
   const [moduleLitFile] = moduleLit.outputFiles;
   checkModule(moduleLitFile.text, litPath);
   outputs.set(`${assets}/${litPath}`, Buffer.from(moduleLitFile.contents));
-  outputs.set(`${assets}/${sharedLitPath}`, Buffer.from(await litFacade()));
-  // Each served bundle's notices, named after it; both builds of Lit hold one Lit.
+  // Each served bundle's notices, named after it.
   for (const [name, metafile] of [
     ["signals-core", result.metafile],
-    ["lit", initialLit.metafile],
+    ["lit", moduleLit.metafile],
   ])
     outputs.set(
       `${assets}/vendor/${name}.LICENSES.txt`,
       Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
     );
-  for (const producer of [initialOutputs, styleOutputs, vendorOutputs])
+  for (const producer of [styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   for (const [name, bytes] of await kernelOf(outputs))
     outputs.set(`${kernelDirectory}/${name}`, bytes);

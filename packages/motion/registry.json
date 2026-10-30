@@ -11,7 +11,7 @@
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-motion-initial.js",
+    "x-shadow": true,
     "x-example": "<lf-motion id=\"travel\" duration=\"750\" aria-label=\"Travel study\"><figure><svg viewBox=\"0 0 300 60\" role=\"img\" aria-label=\"A dot at the starting position\"><circle cx=\"20\" cy=\"30\" r=\"10\"/></svg><figcaption>An illustrative frame; a page module supplies its drawing function.</figcaption></figure></lf-motion>",
     "x-instructions": "Put videos or authored illustrations in the body and give `duration` in milliseconds. For an illustration, assign `element.renderFrame = time => { ... }`. Assignment draws the current frame at once, and every seek and playback frame calls it synchronously. Read or set `currentTime` to inspect an exact instant; setting it pauses and clamps to the duration. The widget starts paused."
   }

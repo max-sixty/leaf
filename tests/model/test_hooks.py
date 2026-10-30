@@ -116,9 +116,14 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
     assert presence_model.presence(claimed, events)["turn_closed"] == closed
-    # And what the agent said it was doing is untouched by the observation of it.
-    [task] = page_state(claimed)["browser"]["todos"]
-    assert task["running"]["text"] == "reading the reconnect traces"
+    # And what the agent said it was doing is untouched by the observation of it:
+    # the page reads the turn ended, still in the agent's last words.
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["dropped"], activity["detail"]) == (
+        "stalled",
+        True,
+        "reading the reconnect traces",
+    )
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.

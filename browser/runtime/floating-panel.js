@@ -753,9 +753,13 @@ export function createFloatingPanel({
   // Only the authored runs carry response identity. Their renderer refs register
   // and retire those exact nodes with the shared exposure owner, wherever status
   // stands: the field's native placeholder slot, the menu, or the folded leaf's peek.
+  // Every other run is Leaf's, and says so in its face (`data-voice`).
   const statusParts = (parts) =>
     parts.map((part) => {
-      if (!part.source) return part.text;
+      if (!part.source)
+        return part.voice === "agent"
+          ? part.text
+          : html`<span data-voice="leaf">${part.text}</span>`;
       let stop = null;
       return html`<span
         class="lf-fp-status-feedback"
@@ -3687,7 +3691,16 @@ export function createFloatingPanel({
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span
-            ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
+            ><span class="lf-fp-value"
+              >${
+                row.self
+                  ? "This page"
+                  : row.parts.map(
+                      (part) =>
+                        html`<span data-voice=${part.voice}>${part.text}</span>`,
+                    )
+              }</span
+            >`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a

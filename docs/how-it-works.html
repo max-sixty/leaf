@@ -1706,7 +1706,7 @@ flowchart TD
                 <time>1s</time> <small>observation</small> <strong>Got it</strong> The
                 hook puts the comment into the agent’s turn, and Claude Code's
                 transcript then confirms it reached the agent. Until the agent names its
-                work, the page reads <em>Got your comment</em>.
+                work, the panel shows its leaf in the working tone and no words.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small> <strong>On it</strong> The
@@ -1835,11 +1835,12 @@ flowchart TD
                   <td>Gone quiet</td>
                   <td>
                     The agent's start on the update is 15 minutes old, or the turn that
-                    wrote it ended more than two minutes ago, and the agent has not
-                    started the update again since. A Got it update reads the same once
-                    nothing shows its turn still running (no status, start, or step for
-                    15 minutes), or once the agent is in a later turn. On Codex App
-                    Server, so does a Replying update whose stream disconnects.
+                    wrote it has ended with no background work Claude Code reports still
+                    running, and the agent has not started the update again since. A Got
+                    it update reads the same once nothing shows its turn still running
+                    (no status, start, or step for 15 minutes), or once the agent is in
+                    a later turn. On Codex App Server, so does a Replying update whose
+                    stream disconnects.
                   </td>
                 </tr>
                 <tr id="stages-interrupted">
@@ -1979,14 +1980,15 @@ flowchart TD
             <p id="panel-line-grammar">
               A middle dot joins separate facts, as in
               <em>In Draw mode · Thread 2 of 5</em>, and a dash attaches a detail to the
-              fact before it. Every line is in the agent's voice, with no name in front
-              of it: <em>Got your comment</em>, <em>Your turn</em>. Words the user is
-              writing hide the line, while screen readers still hear notices and changes
-              of status. A press the line offers, <em>Reply</em> or the selected words,
-              reads in full ink with the key that makes it, and everything else reads
-              dimmer. The leaf and the tab's icon keep the status's colour throughout,
-              and the leaf's menu holds the status's full sentence. A folded panel shows
-              notices beside the leaf.
+              fact before it. Only words the agent wrote, such as the line it gave its
+              work, read in its voice; what Leaf says itself, such as
+              <em>Stopped 3m ago</em>, is set in italic. Words the user is writing hide
+              the line, while screen readers still hear notices and changes of status. A
+              press the line offers, <em>Reply</em> or the selected words, reads in full
+              ink with the key that makes it, and everything else reads dimmer. The leaf
+              and the tab's icon keep the status's colour throughout, and the leaf's
+              menu holds the status's full sentence. A folded panel shows notices beside
+              the leaf.
             </p>
           </section>
           <section id="updates-silence">
@@ -2020,9 +2022,9 @@ flowchart TD
               </li>
               <li id="updates-fact-status">
                 <strong>The start.</strong> A start stops counting as active once it is
-                15 minutes old, or two minutes after the turn that wrote it ends, if
-                that occurs sooner. This delay lets an immediately resumed agent renew
-                its start before Leaf reports that the work stopped.
+                15 minutes old, or once the turn that wrote it is seen to end, unless
+                Claude Code reports the session still busy with background work, such as
+                subagents it started.
               </li>
             </ul>
             <figure id="updates-decision" class="diagram-figure">
@@ -2050,10 +2052,10 @@ flowchart TD
               reports a step in an active turn, or when that turn has received input
               requiring an answer. The freshness rules above determine when a start or
               turn stops counting as active. Input is stalled if it remains queued for
-              two minutes, or if the turn that received it ends without answering. After
-              about a minute, the status also shows the working reading's age, for
-              example
-              <em>5m ago · running the browser suite</em>.
+              two minutes, or if the turn that received it ends without answering. The
+              status doesn't date the agent's line: its hooks remind it to restate a
+              line that has stood two minutes, and the menu's full status says when the
+              line was written.
             </p>
             <table id="updates-readings">
               <thead>
@@ -2064,19 +2066,21 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Got your comment</td>
+                  <td>The leaf alone, in the working tone</td>
                   <td>
-                    The user's comment, or their answer to an obligation, was delivered
-                    into the agent's running turn, and the agent has not yet said what
-                    it is doing.
+                    The agent is working, or the user's update was delivered into its
+                    running turn, and the agent has not yet said what it is doing. The
+                    update's own label says <em>Got it</em>.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
-                  <td>Thinking, Using a tool, Need your approval in the terminal</td>
+                  <td>Approval needed in the terminal</td>
                   <td>
-                    The harness reports the session's current activity. A wait for the
-                    user, for input, or for approval is a dialog in the harness's own
-                    window, so the status says to answer it in the terminal.
+                    A wait for the user, for input, or for approval is a dialog in the
+                    harness's own window, so the status says to answer it in the
+                    terminal, ahead of the agent's line. A step the harness reports,
+                    such as <em>Thinking</em> or <em>Using a tool</em>, shows in the
+                    menu's full status.
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
@@ -2089,9 +2093,9 @@ flowchart TD
                 <tr id="updates-reading-ended">
                   <td>Stopped 3m ago</td>
                   <td>
-                    The turn that wrote a start ended more than two minutes ago without
-                    a new start. The integration is still available for updates.
-                    Pointing at the status shows the start's line.
+                    The turn that wrote a start has ended without a new start. The
+                    integration is still available for updates. Pointing at the status
+                    shows the start's line.
                   </td>
                 </tr>
                 <tr id="updates-reading-quiet">

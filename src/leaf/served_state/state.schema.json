@@ -420,7 +420,6 @@
           "properties": {
             "active": { "type": "integer" },
             "handling": { "type": "integer" },
-            "handling_comments": { "type": "integer" },
             "queued": { "type": "integer" },
             "picked_up": { "type": "integer" },
             "pending": { "type": "integer" },
@@ -430,7 +429,6 @@
           "required": [
             "active",
             "handling",
-            "handling_comments",
             "queued",
             "picked_up",
             "pending",

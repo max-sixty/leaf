@@ -33,20 +33,26 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Leaf's interface speaks in the agent's voice: the user is talking with the agent, and
-the page is where that conversation happens. Every status, notice and label reads as
-something the agent would say to the user in conversation (“Got it”, “Your turn”,
-“running the browser suite”, “Lost the connection — reconnecting”), with no name in
-front of it and never as a narrator describing the agent from outside (“Claude is
-working”, “Waiting for Claude”), which puts a third party between them. A line Leaf
-composes from what it observes, such as an agent that stopped or a server it can't
-reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
-words the agent can't be saying, such as an instruction about the agent (“Not
-answering — nudge the terminal”), Leaf's own state (“Lost the connection —
-reconnecting”), an update the agent doesn't have yet (“Queued for Claude”, which
-names the agent because the agent isn't the one speaking) or an error, are set apart
-in italic, as a script sets a stage direction
-apart from the lines (`pageStatus`, `voice`).
+The user is talking with the agent, and the page is where that conversation happens,
+so the words Leaf shows in the agent's voice are only words the agent wrote: its
+status line (“running the browser suite”) and its messages. Everything Leaf composes
+from what it observes is Leaf's own and is set apart in italic, as a script sets a
+stage direction apart from the lines (`pageStatus`, `voice`): a turn that stopped
+(“Stopped 3m ago”), a step the harness reports (“Using a tool”), a dialog waiting in
+the agent's window (“Approval needed in the terminal”), an instruction about the agent
+(“Not answering — nudge the terminal”), Leaf's own state (“Lost the connection —
+reconnecting”), an update the agent doesn't have yet (“Queued for Claude”) or an
+error. Where the agent hasn't said what it is doing, Leaf doesn't guess its words: a
+working page shows its leaf in the working tone and no words until the agent writes a
+line. Rejected, on 28 October 2026: Leaf's guesses at the agent's words (“Got your
+comment”, “Working on it”) set in the agent's voice, which put Leaf's words in its
+mouth.
+
+Labels on Leaf's controls and on the user's updates (“Got it”, “Your turn”, “On me”)
+are the interface's words, in its ordinary face. Neither they nor Leaf's italic words
+narrate the agent from outside (“Claude is working”, “Waiting for Claude”), which
+puts a third party between the user and the agent; Leaf names the agent only where
+the agent isn't the one acting, as in “Queued for Claude”.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On me**, **my change**, and commands such as

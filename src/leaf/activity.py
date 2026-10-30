@@ -18,7 +18,6 @@ from .obligations import response_address
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
-TURN_RENEWAL_GRACE = timedelta(minutes=2)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.
 WORK_KINDS = frozenset(
@@ -75,13 +74,11 @@ def _quiet(ts: str | None, now: datetime, grace: timedelta) -> bool:
     return bool(written and now - written >= grace)
 
 
-def _dropped(ts: str | None, ended: datetime | None, now: datetime) -> bool:
-    """Whether a claim written before its turn ended has gone unrenewed past the
-    renewal grace after that ending."""
+def _dropped(ts: str | None, ended: datetime | None) -> bool:
+    """Whether a claim was written before the turn whose ending was seen: that turn
+    no longer stands behind it."""
     written = _moment(ts)
-    return bool(
-        written and ended and written <= ended and now - ended >= TURN_RENEWAL_GRACE
-    )
+    return bool(written and ended and written <= ended)
 
 
 def canonical_stream_reply(
@@ -394,8 +391,8 @@ def claimant_turn(
     not the stamps say a turn is open. Its `busy` never says a turn runs, since
     the harness keeps it across turn endings while background work runs; after a
     turn the stamps closed, it says the session works on in the background
-    (`Turn.background`), for as long as the record keeps it. It says nothing of
-    which turn left that work, so it keeps no start from being dropped. `awaiting` says the claimant's observer
+    (`Turn.background`), for as long as the record keeps it, which keeps the
+    session's last start standing (`_start_age`). `awaiting` says the claimant's observer
     reports a wait on the user right now, which holds the turn open for as long as
     that observer lives."""
     opened = _moment(present.get("turn_opened"))
@@ -487,12 +484,19 @@ def _start_age(
     start: dict, present: dict, now: datetime, turn: Turn
 ) -> tuple[bool, bool]:
     """How quiet a start is, and whether dropped: a start the claimant's ended turn
-    wrote, unrenewed past the renewal grace, or any start unheard for the working
-    grace."""
+    wrote, from the moment that ending is seen, or any start unheard for the working
+    grace.
+
+    Whether the agent works is the harness's to say, and what it works on the
+    agent's: so a start stands while its turn runs, and past the turn's end only
+    while the harness says the session still works in the background
+    (`Turn.background`), as a coordinator's workers do. Without that word the page
+    stops reading as working once the turn is seen to end, rather than holding the
+    agent's last line under a grace in case a later turn takes it up."""
     same_session = bool(
         start.get("session") and start["session"] == present.get("claim_session")
     )
-    dropped = same_session and _dropped(start["ts"], turn.ended, now)
+    dropped = same_session and not turn.background and _dropped(start["ts"], turn.ended)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
 
@@ -611,9 +615,9 @@ def canonical_activity(
             "detail": BACKGROUND_DETAIL,
             "ts": turn.ended.isoformat(),
         }
-    status_dropped = _dropped(status.get("ts"), turn.ended, now)
+    status_dropped = _dropped(status.get("ts"), turn.ended)
     declared_quiet = _quiet(declared, now, WORKING_GRACE) or _dropped(
-        declared, turn.ended, now
+        declared, turn.ended
     )
     unheld = present["session_alive"] is False or (
         present["session_alive"] is None and not present["listening"] and declared_quiet
@@ -664,7 +668,6 @@ def canonical_activity(
     lapses = [
         (_moment(status.get("ts")), WORKING_GRACE),
         (_moment(declared), WORKING_GRACE),
-        (turn.ended, TURN_RENEWAL_GRACE),
         (turn.until, timedelta()),
         *(
             (_moment(item["ts"]), PICKUP_GRACE)
@@ -760,8 +763,9 @@ def canonical_activity(
         kind, detail, ts = "working", start["text"], start["ts"]
         detail_source = {"event_id": start["id"], "item": start["item"]}
     elif observed is not None:
-        kind, detail, dropped = "working", observed.get("detail", ""), False
-        ts = observed["ts"]
+        # A step the harness observed is Leaf's account, not the agent's line, so it
+        # stands only as `observed` and the line stays empty for the agent to write.
+        kind, dropped, ts = "working", False, observed["ts"]
     elif handling:
         # Opening an exact delivery into the claimant's running turn proves generic
         # page work even before the agent starts an item. It does not bind that
@@ -806,11 +810,6 @@ def canonical_activity(
         "counts": {
             "active": len(active_updates),
             "handling": len(handling),
-            # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered obligation, the only widget actions that owe an answer.
-            "handling_comments": sum(
-                item["subject"]["kind"] == "thread" for item in handling
-            ),
             "queued": len(queued),
             "picked_up": len(opened) - len(handling),
             "pending": len(pending),

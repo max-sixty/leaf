@@ -19,13 +19,14 @@
 }
 @layer lf-layouts {
   /* Each page Layout owns its page's geometry, the body's included; a page with no
-   * Layout keeps the browser's. The body drops its margin and, on a live page other than
-   * a block sample, fills the window's height. Body rules key on the root's
-   * `data-lf-layout` (revision_delivery.py), since the body is styled before the parser
-   * reaches `main`. The column and sidebar page are documents: they set the text measure
-   * (`--lf-measure`, read by base.css) and allocate each block's declared room
-   * (`data-lf-space`), whose rules name the document Layouts in one list (Breakouts,
-   * below). A workspace does neither: its grid sizes its regions.
+   * Layout keeps the browser's margin. A Layout's body drops its margin and, as every
+   * live body but a block sample's does (base.css), fills the window's height. Body
+   * rules key on the root's `data-lf-layout` (revision_delivery.py), since the body is
+   * styled before the parser reaches `main`. The column and sidebar page are
+   * documents: they set the text measure (`--lf-measure`, read by base.css) and
+   * allocate each block's declared room (`data-lf-space`), whose rules name the
+   * document Layouts in one list (Breakouts, below). A workspace does neither: its grid
+   * sizes its regions.
    */
   html:is(
       [data-lf-layout~="column"],
@@ -35,6 +36,8 @@
     body {
     margin: 0;
   }
+  /* Firefox lacks the `stretch` base.css fills the body with; with no margin, 100% is
+   * the same height. */
   @media screen {
     html[data-lf-live]:is(
         [data-lf-layout~="column"],

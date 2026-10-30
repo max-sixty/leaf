@@ -792,9 +792,10 @@ html:not([data-lf-live]) {
 
 /* The body's position and box are important against the page's own rules: Leaf's
  * document-anchored paint takes the initial containing block as its origin, so it may
- * not become a containing block, and the foot's room pads it, which a Layout's minimum
- * fills the window with only at border-box (layouts.css). It is the shell, the inline-size
- * container a narrow column and a widget's `100cqi` ask (`lf-shell`, page-layout.js).
+ * not become a containing block, and the foot's room pads it, which the live body's
+ * minimum (below) fills the window with only at border-box. It is the shell, the
+ * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
+ * page-layout.js).
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it, since the live root clips what overflows sideways
@@ -823,8 +824,8 @@ body {
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
- * scrollport. Its definite height lets a page Layout's body minimum (layouts.css) fill a
- * short viewport while a longer body still overflows it. Document layouts keep a
+ * scrollport. Its definite height lets the body's minimum fill a short viewport while a
+ * longer body still overflows it. Document layouts keep a
  * scrollbar to prevent a later height change from recentering the page; a workspace
  * scrolls its own regions and needs a root scrollbar only when it flows. A served
  * page's bootstrap marks it live before its graph has loaded (runtime/bootstrap.js);
@@ -851,6 +852,17 @@ body {
      * A page of parts makes it the open part's end instead (layouts.css). */
     body {
       padding-bottom: var(--lf-foot-room);
+    }
+    /* Every live body but a block sample's (below) fills the window less its own
+     * margins, with or without a Layout. The body is a size container (`lf-shell`),
+     * and containment keeps its background off the canvas, so a short body the page
+     * coloured would otherwise end above a band of the root's colour; a page that
+     * paints the root and the body apart sees its body reach the window's foot.
+     * Firefox lacks `stretch` in the block axis, so there only a Layout's body, which
+     * has no margin, fills the window (layouts.css), and a page with no Layout keeps
+     * the band. */
+    &:not([data-lf-sample-block]) body {
+      min-height: stretch;
     }
     body::before {
       content: "";

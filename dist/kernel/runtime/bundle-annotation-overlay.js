@@ -1771,7 +1771,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		card.focusThread(showPreview(entry, button));
 	}
 	const landOnEntry = layerLanding((button) => handBack(button, ...button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
-	function closePreview(land = letGo) {
+	function closePreview(land = () => letGo()) {
 		const button = card.selection()?.control;
 		const at = focused();
 		const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
@@ -1793,27 +1793,23 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const entry = card.selection()?.control?.lfEntry;
 		return Boolean(entry && expandedOptionsKey === entry.key && expandedOptionsKey !== forcedInlineOptionsKey() && optionsRung());
 	};
-	const stepsOut = (from = focused()) => {
+	const besideTarget = () => {
 		const target = targetFor(card.selection()?.entry);
-		return preview.contains(from) && !unfoldedUnder() && target?.isConnected && target.checkVisibility() ? target : null;
+		return currentLocationIn(preview) && target?.isConnected && target.checkVisibility() ? target : void 0;
 	};
 	function keyboardRung({ atFocus = true } = {}) {
 		const active = focused();
 		const host = closestAcross(active, "[data-lf-margin-for]");
 		const nowhere = !active || active === document.body;
 		if (!previewOpen() || atFocus && !nowhere && !renderedUnder(active, preview) && !(card.selection()?.control && host?.contains(card.selection()?.control))) return null;
-		if (stepsOut()) return {
-			root: preview,
-			title: "back to element",
-			out: () => focusDestination(stepsOut(), "return")
-		};
 		return {
 			root: preview,
 			title: "dismiss thread",
 			out: () => {
 				const currentLocation = unfoldedUnder();
 				const button = card.selection()?.control;
-				closeLayer(() => closePreview(), currentLocation ? () => landOnEntry(button) : letGo);
+				const target = besideTarget();
+				closeLayer(() => closePreview(), currentLocation ? () => landOnEntry(button) : () => letGo(target));
 			}
 		};
 	}

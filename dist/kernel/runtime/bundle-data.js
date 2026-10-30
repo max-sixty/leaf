@@ -356,6 +356,7 @@ function landingPlace(from = null) {
 		const own = blocks.length ? blocks : [blockAt(from)].filter(Boolean);
 		const shown = blocksOnScreen(readingRegionFor(from), own).next().value?.[0];
 		if (shown) return shown;
+		if (!own.length && seenRect(from, /* @__PURE__ */ new Map())) return from;
 	}
 	return pageReading({ bodies: true });
 }

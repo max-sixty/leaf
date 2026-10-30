@@ -802,8 +802,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     history = preview.locator(".lf-thread-transcript")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
-    page.keyboard.press("Escape")  # onto the passage, the card beside it
-    page.keyboard.press("Escape")  # letting go of the passage takes the card
+    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
     expect(preview).to_be_visible()

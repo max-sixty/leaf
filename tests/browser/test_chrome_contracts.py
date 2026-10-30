@@ -1472,6 +1472,64 @@ def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
     assert draft == sent
 
 
+# A rule under a line, entities, a backslash's break, spaces leading a paragraph and a
+# quoted line, and task items, each followed by a word.
+SPELLED = (
+    "alpha &amp; bravo &copy; charlie\ndelta\\\necho\n---\n   foxtrot\n"
+    "> golf\n>    hotel\n\n- [ ] india\n- [x] juliet\n- kilo"
+)
+# The words a root shows, the source the editor leaves unseen aside, a box's state as
+# its word.
+SHOWN_WORDS = """root => {
+  const words = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let node; (node = walker.nextNode()); ) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (node.type === 'checkbox') words.push(node.checked ? '[done]' : '[open]');
+      continue;
+    }
+    if (!node.parentElement.closest('.lf-md-unseen')) words.push(node.data);
+  }
+  return words.join(' ').split(/\\s+/).filter(Boolean).join(' ');
+}"""
+
+
+def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
+    """A draft shows the characters its message shows, where the message shows them.
+    The preview left as source a rule, which the message draws as a line no taller than
+    its stroke, an entity, which it shows as the character named, a break's backslash
+    and the spaces leading a paragraph or a quoted line, which it drops, and a task
+    item's brackets, which it draws as a disabled checkbox."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, SPELLED, {"section": "p0"})
+    page = open_page(browser, url, init_script=KEEP_ROOTS)
+    view = open_panel_thread(page, root)
+    words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"]
+    words += ["india", "juliet", "kilo"]
+    message = view.locator(".lf-msg-text").first
+    sent = message.evaluate(WORDS_AND_RULES, words)
+    sent_words = message.evaluate(SHOWN_WORDS)
+    box = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    # The caret stays after the last word, away from every construct's source.
+    write(box, SPELLED)
+    rendered(page)
+    content = "window.__lfRoots.get(box).querySelector('.cm-content')"
+    draft = box.evaluate(
+        f"(box, words) => ({WORDS_AND_RULES})({content}, words)", words
+    )
+    draft_words = box.evaluate(f"box => ({SHOWN_WORDS})({content})")
+    assert draft_words == sent_words
+    step = {
+        name: [round(read[b]["y"] - read[a]["y"]) for a, b in pairwise(read)]
+        for name, read in (("sent", sent), ("draft", draft))
+    }
+    assert step["draft"] == pytest.approx(step["sent"], abs=1), step
+    for read in (sent, draft):
+        for place in read.values():
+            del place["y"]
+    assert draft == sent
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
     "lines",

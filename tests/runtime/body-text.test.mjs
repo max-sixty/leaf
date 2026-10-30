@@ -233,11 +233,25 @@ test("editor tokens retain native constructs and exact source syntax after parse
     assert.equal(link.contentFrom, automatic.indexOf(expected));
     assert.equal(link.contentTo, automatic.indexOf(expected) + expected.length);
   }
-  const escaped = placedMarkdownTokens(source).flatMap(({ escapes = [] }) => escapes);
+  // Each span the message shows otherwise, and what it shows there.
+  const spelling = "**a &amp; b** \\* &#123; c\\\nd";
   assert.deepEqual(
-    escaped.map((at) => source.slice(at, at + 2)),
-    ["\\*"],
+    placedMarkdownTokens(spelling)
+      .flatMap(({ spelled = [] }) => spelled)
+      .map(([from, to, shown]) => [spelling.slice(from, to), shown]),
+    [
+      ["&amp;", "&"],
+      ["\\*", "*"],
+      ["&#123;", "{"],
+      ["\\", ""],
+    ],
   );
+  // A task item's box stands on its brackets.
+  const task = "- [x] done";
+  const box = placedMarkdownTokens(task).find(
+    ({ token }) => token.type === "html_inline",
+  );
+  assert.equal(task.slice(box.from, box.to), "[x]");
 });
 
 test("block markers retain native source spans inside containers and fences", async () => {

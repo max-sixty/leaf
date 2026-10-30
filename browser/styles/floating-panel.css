@@ -1393,7 +1393,9 @@
   .lf-fp-compare[aria-pressed="true"] {
     color: var(--accent);
   }
-  .lf-floating-panel hr {
+  /* The panel's own rules, not one a message holds, which reads as it does in any
+     thread (reading.css), so its draft can draw it as it will be sent. */
+  .lf-floating-panel hr:not(.lf-msg-body *) {
     border: 0;
     height: 1px;
     background: var(--lf-fp-faint);

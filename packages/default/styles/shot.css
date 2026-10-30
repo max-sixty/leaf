@@ -112,7 +112,7 @@ lf-shot {
      region's gap (base.css). */
   --lf-wears-ring: 1;
   outline: var(--focus-ring);
-  outline-offset: var(--focus-region-gap);
+  --lf-ring-at: var(--focus-region-gap);
 }
 .lf-shot-pixel-key {
   border-block-start: 1px solid var(--rule);

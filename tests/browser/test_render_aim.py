@@ -3702,6 +3702,31 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     assert pending.evaluate(inner) == "-2px"
 
 
+def test_the_aim_round_a_field_stands_on_its_edge_where_its_ring_does(browser, serve):
+    """A field's ring replaces its border, so it stands on the field's edge, and the aim
+    over the field stands there too. It stood a control's gap outside, because the
+    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
+    states nothing stands."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Field",
+                '<h1 id="h">Field</h1><p><label for="name">Name</label> '
+                '<input id="name" class="field" type="text" value="Ada"></p>',
+            )
+        ),
+    )
+    field = page.locator("#name")
+    field.hover(position={"x": 8, "y": 6})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "name")
+    gap = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(gap) == "0px"
+    assert field.evaluate("node => getComputedStyle(node).outlineOffset") == "0px"
+
+
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
     browser, serve, subtests
 ):

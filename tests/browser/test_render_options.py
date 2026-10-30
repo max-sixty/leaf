@@ -19,6 +19,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
     INLINE_CASE_PAGE,
+    LOCATION_RING,
     NESTED_OBLIGATION_PAGE,
     OBLIGATION_PAGE,
     OBLIGATION_SHAPES_PAGE,
@@ -1326,7 +1327,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
-    The obligation retains its semantic location marker, but its exterior outline would
+    The obligation retains its semantic location marker, but its location ring would
     look like a second group border and vanish as state changes. The active row carries
     keyboard location instead; the group's permanent frame does not change."""
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
@@ -1337,7 +1338,8 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     expect(page.locator("#storage-decision[data-lf-obligation]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
-    assert page.locator("#storage-decision").evaluate(drawn) == 0
+    rendered(page)
+    assert page.locator("#storage-decision").evaluate(LOCATION_RING) == ["none"]
     group = page.locator("#storage-options")
     assert group.evaluate(
         "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"

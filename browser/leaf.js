@@ -680,6 +680,7 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
+      targetPaint.locationLayer,
       targetPaint.targetTraceLayer,
       targetPaint.aimLayer,
       liveEl,

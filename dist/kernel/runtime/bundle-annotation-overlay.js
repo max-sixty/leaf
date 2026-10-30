@@ -6,9 +6,9 @@ import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
-import { retainUserIntent } from "./bundle-copy-control.js";
+import { SVG_NS, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, retainUserIntent, standOver } from "./bundle-copy-control.js";
 import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
-import { SVG_NS, boxMotion, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
+import { boxMotion } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js

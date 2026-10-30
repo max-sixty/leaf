@@ -6,13 +6,13 @@ import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatc
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, quoteFrom, rangeOf, says, segmentBlock, showsWords } from "./runtime/bundle-passages.js";
-import { copyControl, landedBox, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
+import { aimLayer, copyControl, landedBox, landingRoom, locationLayer, mountTargetPaint, paintLocation, paintSet, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView, targetTraceLayer, target_paint_exports } from "./runtime/bundle-copy-control.js";
 import { mediaViewer, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./runtime/media.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, annotationItems, beginRead, clearContributionControls, composerOpen, composerQuote, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, declareThreadKeys, disclosed, entryControls, fabBar, fabInput, fabOptionsTrigger, inPageOrder, leavesBox, mountApplication, obligationEnding, obligationWord, ownedObligationControl, paintBarReactions, partOver, pendingAbout, pendingAnchor, pendingDrawing, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, registerContribution, sendReaction, spokenSubject, textField, threadInput, visibleContributionEntryLabel, watchDisclosures } from "./runtime/bundle-page-layout.js";
 import { visibleTargetParts } from "./runtime/bundle-visible-target-parts.js";
 import { pageImage, pageRenderer } from "./runtime/bundle-page-image.js";
 import { pageIdentity, shownScheme } from "./runtime/bundle-page-identity.js";
-import { aimLayer, boxMotion, mountTargetPaint, paintSet, targetTraceLayer, target_paint_exports } from "./runtime/bundle-box-motion.js";
+import { boxMotion } from "./runtime/bundle-box-motion.js";
 import "/vendor/webawesome-chrome.js";
 
 //#region runtime/composing/drawing-geometry.js
@@ -8006,6 +8006,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		const wearing = new Set(here ? [here, ...shownParts(here)] : []);
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
 		for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.obligation, "1");
+		paintLocation(here);
 	}
 	function arrivalFocus(record, review = false) {
 		const item = obligationNode(record);
@@ -8142,6 +8143,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		stopContextScopes = null;
 		presenter.disconnect();
 		for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.obligation}]`)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.obligation);
+		paintLocation(null);
 	}
 	return {
 		mount,
@@ -10770,7 +10772,7 @@ async function boot() {
 			chromeSheet,
 			marksSheet
 		];
-		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
+		chromeForeground.append(locationLayer, targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
 		chromeRoot.append(legendRoot, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
 		document.body.append(chromeRoot);
 		version.mount();

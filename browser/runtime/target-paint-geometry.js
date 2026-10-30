@@ -19,6 +19,7 @@ import {
 } from "./css-anchors.js";
 import {
   headerCuts,
+  layoutWindow,
   nearObserver,
   nearWindow,
   paintClips,
@@ -287,13 +288,13 @@ const token = (name) =>
   Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 
 // Where a mark's band stands outside its target, which the target decides (base.css,
-// "Where it stands"): the `outline-offset` its face states, where its own focus ring
-// stands too. A target that states none stands at a control's ring's gap or at a
-// region's. A field states its edge, 0, which reads as none here, so a mark round a
-// field stands at a control's gap.
+// "Where it stands"): its `--lf-ring-at`, read as the outline every box stands at it
+// (surfaces.css), where its own focus ring stands too. A target that states none
+// stands at a control's ring's gap or at a region's.
 function markGap(surface) {
-  const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
-  if (stated) return stated;
+  const style = getComputedStyle(surface);
+  if (style.getPropertyValue("--lf-ring-at"))
+    return Number.parseFloat(style.outlineOffset);
   return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 
@@ -312,17 +313,42 @@ function cutsAt({ rect, levels }, side) {
 // shows the target's edge but not `room` beyond it, the mark stands just inside the
 // edge instead, as a control packed into a list insets its own ring (base.css).
 // Outside, the clip cut away its sides and left stubs across the neighbours. An edge
-// the clip already cuts asks for no room.
-function cramped({ rect, levels }, room) {
+// the clip already cuts asks for no room. The window clips the same way where no
+// scroll of the page brings the room into view (`pageExtent`), as at the foot of a
+// question filling a full-height workspace.
+function cramped({ rect, levels, plane }, room) {
   const short = (band, low, high) =>
     (rect[low] >= band[low] && rect[low] - room < band[low]) ||
     (rect[high] <= band[high] && rect[high] + room > band[high]);
-  return levels.some(
-    ({ holder, band, axes }) =>
-      holder &&
-      ((axes.x && short(band, "left", "right")) ||
-        (axes.y && short(band, "top", "bottom"))),
+  const page = pageExtent(plane);
+  return (
+    short(page, "left", "right") ||
+    short(page, "top", "bottom") ||
+    levels.some(
+      ({ holder, band, axes }) =>
+        holder &&
+        ((axes.x && short(band, "left", "right")) ||
+          (axes.y && short(band, "top", "bottom"))),
+    )
   );
+}
+
+// What a scroll of the page can bring into the window, in client coordinates: the
+// root's scrollable extent on an axis it scrolls, and the window itself on one it
+// clips, or for paint the window holds still (`plane`).
+function pageExtent(plane) {
+  const shown = layoutWindow();
+  const root = document.scrollingElement;
+  if (plane === "window" || !root) return shown;
+  const style = getComputedStyle(root);
+  const fixed = (overflow) => overflow === "hidden" || overflow === "clip";
+  const [x, y] = [!fixed(style.overflowX), !fixed(style.overflowY)];
+  return {
+    left: x ? -root.scrollLeft : shown.left,
+    top: y ? -root.scrollTop : shown.top,
+    right: x ? root.scrollWidth - root.scrollLeft : shown.right,
+    bottom: y ? root.scrollHeight - root.scrollTop : shown.bottom,
+  };
 }
 
 // A set of paint boxes, each over a target and standing in the frames that cut it

@@ -78,6 +78,7 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
+import { locationStandsDown } from "./target-paint.js";
 import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
@@ -364,7 +365,7 @@ onCurrentLocation((node, cause) => {
     // a control inside it. Native focus reveal knows only the control's box.
     for (let box = node; box instanceof Element; box = renderedParent(box)) {
       if (!box.matches("[data-lf-obligation]")) continue;
-      if (getComputedStyle(box).outlineStyle === "none") continue;
+      if (locationStandsDown(box)) continue;
       if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
       break;
     }

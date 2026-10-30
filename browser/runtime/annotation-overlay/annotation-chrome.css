@@ -346,7 +346,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;

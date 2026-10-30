@@ -41,7 +41,7 @@ leaf-composition-field {
   --lf-compose-pad-inline-start: 10px;
   /* A field: the ring a surface draws round it for the words being typed stands on
      its edge (base.css, "Where it stands"). */
-  outline-offset: 0;
+  --lf-ring-at: 0;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -514,7 +514,7 @@ button.lf-media-open {
   > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
 .lf-response-control[data-lf-focus-visible] {
   outline: var(--focus-ring);
-  outline-offset: 0;
+  --lf-ring-at: 0;
   border-color: transparent;
   --lf-wears-ring: 1;
 }

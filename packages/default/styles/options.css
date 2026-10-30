@@ -498,7 +498,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * clip cuts them. */
     & > lf-option,
     & .lf-btn {
-      outline-offset: var(--focus-ring-inset);
+      --lf-ring-at: var(--focus-ring-inset);
     }
     /* The hairline: every child paints its own ground, so the group's shows only in the
      * gap between cells, one line wherever two meet, in a column or a row, with no
@@ -689,7 +689,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     --lf-wears-ring: 1;
   }
   .lf-another {
-    outline-offset: var(--focus-ring-inset);
+    --lf-ring-at: var(--focus-ring-inset);
     --lf-option-add-seat-inset: var(--sp-1);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
@@ -905,7 +905,7 @@ lf-options[settled] > .lf-settled {
   cursor: pointer;
   border: 1px solid transparent;
   border-radius: var(--r);
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* The row's gap parts its disclosure arrow from its words. */
 lf-options[settled] > .lf-settled::before {

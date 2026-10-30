@@ -1,10 +1,11 @@
-/* Transient Aim and target-trace paint in Leaf's chrome layer.
+/* Aim, target-trace and location paint in Leaf's chrome layer.
  *
  * Aim draws synchronously for the gesture that arms it. A trace retains its current
- * target and drawn geometry. Each box stands in a paint stand that the browser moves
- * with every scroll around its target (target-paint-geometry.js), so a scroll places
- * it again without writing, while layout and resize rebuild its shape. Persistent
- * annotations have their own optional painter. */
+ * target and drawn geometry, and the location ring the decision it stands round. Each
+ * box stands in a paint stand that the browser moves with every scroll around its
+ * target (target-paint-geometry.js), so a scroll places it again without writing, while
+ * layout and resize rebuild its shape. Persistent annotations have their own optional
+ * painter. */
 
 import { cancelRender, nextRender } from "./rendering.js";
 import { el } from "./widget-elements.js";
@@ -24,11 +25,14 @@ import {
 
 const targetTraceBox = el("div", "lf-ui lf-target-trace");
 const aimBox = el("div", "lf-ui lf-aim");
+const locationBox = el("div", "lf-ui lf-location");
 const traceStand = paintStand(targetTraceBox);
 const aimStand = paintStand(aimBox);
+const locationStand = paintStand(locationBox);
 // What leaf.js mounts in the chrome: each box in the stand that carries it.
 export const targetTraceLayer = traceStand.root;
 export const aimLayer = aimStand.root;
+export const locationLayer = locationStand.root;
 
 const aimShape = document.createElementNS(SVG_NS, "svg");
 aimShape.classList.add("lf-aim-shape");
@@ -48,6 +52,8 @@ let traceShapeKey = "";
 let placementFrame = 0;
 let geometryFrame = 0;
 let geometryDirty = false;
+let locationElement = null;
+let locationFrame = 0;
 
 export function clearAim() {
   aimPlaced = aimStood = null;
@@ -190,6 +196,7 @@ export function paintTrace(element, surface = element) {
 }
 
 export function shifted() {
+  relocate();
   if (placementFrame || geometryFrame || !traceElement) return;
   placementFrame = nextRender(() => {
     placementFrame = 0;
@@ -198,6 +205,7 @@ export function shifted() {
 }
 
 export function geometryChanged() {
+  relocate();
   geometryDirty = true;
   if (placementFrame) cancelRender(placementFrame);
   placementFrame = 0;
@@ -207,6 +215,50 @@ export function geometryChanged() {
     if (!geometryDirty) return;
     geometryDirty = false;
     if (traceElement) drawTrace(traceElement, traceSurface, true);
+  });
+}
+
+// The location ring round `element`, the decision the user stands in, or none
+// (obligations/view.js, `markHere`). It is drawn over the decision as every other mark
+// on it is, so it stands where the decision says (`standOver`), inside it where a clip
+// leaves no room outside, and above the decision's contents, which covered a ring drawn
+// inside it as an outline. A control inside the decision that carries the location
+// itself stands it down (`locationStandsDown`).
+export function paintLocation(element) {
+  locationElement = element && !locationStandsDown(element) ? element : null;
+  drawLocation();
+}
+
+// Whether a control inside the decision `element` carries the location, which it says
+// on the decision with `--lf-obligation-ring: none`.
+export const locationStandsDown = (element) =>
+  getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";
+
+function drawLocation() {
+  const element = locationElement;
+  const placed = element?.isConnected && placement(element, false, inChrome(element));
+  if (!placed?.shown) {
+    vacate(locationStand);
+    locationBox.style.display = "none";
+    locationBox.removeAttribute("data-for");
+    delete locationStand.root.dataset.lfPaintPlane;
+    return;
+  }
+  keeps(locationBox, "data-for", element.id || null);
+  keeps(
+    locationStand.root,
+    "data-lf-paint-plane",
+    inChrome(element) ? "chrome" : "page",
+  );
+  standOver(locationStand, placed, getComputedStyle(element).borderRadius);
+}
+
+// Layout and scrolls move the decision as they move a trace's target.
+function relocate() {
+  if (locationFrame || !locationElement) return;
+  locationFrame = nextRender(() => {
+    locationFrame = 0;
+    drawLocation();
   });
 }
 

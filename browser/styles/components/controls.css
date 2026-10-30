@@ -67,7 +67,7 @@
   font-family: var(--sans);
   font-size: var(--t-6);
   line-height: var(--chip-lh);
-  outline-offset: 0;
+  --lf-ring-at: 0;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
    A surface places and reveals them without restating their ink, border or fill.
@@ -650,7 +650,7 @@ summary,
   box-sizing: border-box;
   cursor: pointer;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 .choice > input {
   flex: none;
@@ -904,7 +904,7 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--r);
   background: var(--card);
   color: var(--ink);
-  outline-offset: 0;
+  --lf-ring-at: 0;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -946,7 +946,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
-  outline-offset: 0;
+  --lf-ring-at: 0;
   &[data-lf-focus-visible] {
     border-color: transparent;
   }
@@ -1018,7 +1018,7 @@ wa-copy-button.lf-icon-action {
   font: inherit;
   text-align: start;
   text-decoration: none;
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* It declines the shadow every generated press takes under the pointer (surfaces.css),
    which, inset, would leave the stripe's room unwashed. */

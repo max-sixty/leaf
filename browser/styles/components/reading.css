@@ -188,7 +188,7 @@
  * margin, which overflows any scroller holding the table flush, as an x-bound box
  * does. */
 :where(:root, .lf-thread-transcript) :is(th, td) {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge

@@ -13,7 +13,7 @@ lf-draft {
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
   /* The frame wears its editor's ring, inside its edge (base.css, "Where it stands"). */
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 @media screen {
   lf-draft {

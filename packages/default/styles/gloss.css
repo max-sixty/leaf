@@ -7,7 +7,7 @@ lf-gloss {
   display: inline;
   /* The phrase wears its mark's ring, inside its edge, as every mark on it stands
      (base.css, "Where it stands"). */
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over. */

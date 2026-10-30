@@ -56,6 +56,7 @@ def stills_catalogue(tmp_path, monkeypatch):
         page.evaluate = lambda script, properties: {
             "faces": [[page.url, *[""] * (len(properties) - 1)]],
             "elements": {"html": 0},
+            "texts": [],
         }
         yield page
 

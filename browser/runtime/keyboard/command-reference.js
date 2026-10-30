@@ -769,8 +769,8 @@ function commandReferenceItemTemplate(item) {
 function commandReferenceTemplate() {
   const items = commandReferenceItems();
   return html`
-    <div class="lf-command-reference-head">
-      <div class="lf-command-reference-title">Command reference</div>
+    <div class="lf-dialog-head lf-command-reference-head">
+      <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
     <label class="lf-command-reference-preference">

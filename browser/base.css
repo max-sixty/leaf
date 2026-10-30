@@ -397,7 +397,12 @@
      --t-working-label is the shared compact heading between its two smallest rungs. A size
      that has to fit something states its own number where it is set, as a code block
      does against the characters it takes across. Rem units retain these sizes at
-     the browser's default 16px while following a reader's chosen default font size. */
+     the browser's default 16px while following a reader's chosen default font size.
+     --t-7 is smaller than any prose size, for the words on a margin mark or the
+     panel's leaf: a count on its badge, a cluster's position, the second line of a
+     mark's label. No density restates it, because a count must stay legible on its
+     mark. */
+  --t-7: 0.625rem;
   --t-6: 0.71875rem;
   --t-working-label: 0.8125rem;
   --t-5: 0.875rem;
@@ -418,6 +423,9 @@
      panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
   --msg-size: max(var(--entry-floor), var(--t-5));
   --msg-font: var(--msg-size) / 1.5 var(--sans);
+  /* A message's author name, one rung larger than the time and status beside it, also
+     resolves at the root, for the same reason. */
+  --lf-msg-name-size: var(--t-working-label);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
      in the same faces (runtime/composing/text-field.js), inside a shadow root those
@@ -1920,9 +1928,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
-  font-size: 10px;
+  font-size: var(--t-7);
   line-height: 1.25;
-  font-weight: 450;
+  font-weight: 400;
 }
 /* What the entry's title says beyond the label, such as an agent's work on it. */
 .lf-margin-entry-more:empty {
@@ -1984,7 +1992,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border: 1px solid var(--paper);
   background: var(--ink);
   color: var(--paper);
-  font: 600 10px/14px var(--sans);
+  font: 600 var(--t-7)/14px var(--sans);
   text-align: center;
 }
 

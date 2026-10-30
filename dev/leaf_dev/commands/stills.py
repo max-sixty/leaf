@@ -48,6 +48,14 @@ in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
 differ, the element inherits the difference or reads it from a custom property.
 
+Across the run, the command also collects each arm's faces: the family, size, weight,
+style, tracking and case of every shown element that holds words of its own, in the
+states both arms completed. The run's `faces.txt` lists each face only one arm draws,
+with the elements that wear it and the other arm's nearest face (`face_changes`). A
+change that reuses Leaf's faces adds none, so a new face half a pixel or a hundred of
+weight from its nearest is usually a drift to fold into that face. A consolidation
+lists the faces it retired.
+
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
@@ -166,12 +174,14 @@ STYLED = [
     "box-sizing",
     "z-index",
 ]
-# Every element's `STYLED` values by its path, sharing each distinct set of values, and
-# the elements themselves by the same path on `window.stillsRead`, for `declarations`.
+# Every element's `STYLED` values by its path, sharing each distinct set of values, the
+# paths of the shown elements with words of their own, and the elements themselves by
+# path on `window.stillsRead`, for `declarations`.
 STYLES = """(properties) => {
   const skip = new Set(["head", "script", "style", "template", "link", "meta"]);
   const faces = new Map();
   const elements = {};
+  const texts = [];
   const read = (window.stillsRead = new Map());
   const walk = (parent, prefix) => {
     const seen = {};
@@ -187,13 +197,28 @@ STYLES = """(properties) => {
       if (!faces.has(face)) faces.set(face, faces.size);
       elements[key] = faces.get(face);
       read.set(key, element);
+      const words = [...element.childNodes].some(
+        (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
+      );
+      if (words && element.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+        texts.push(key);
       walk(element, `${key} > `);
       if (element.shadowRoot) walk(element.shadowRoot, `${key} >> `);
     }
   };
   walk(document, "");
-  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements };
+  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
+# The computed properties that make a face, the voice a run of words is set in, which
+# `face_changes` compares across a run.
+FACE = [
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "letter-spacing",
+    "text-transform",
+]
 
 
 def at_rest(page: Page) -> None:
@@ -789,6 +814,15 @@ def command_reference_search(page: Page) -> None:
     page.keyboard.press("?")
     page.keyboard.press("?")
     page.get_by_role("combobox", name="Search commands").fill("comment")
+
+
+def page_map(page: Page) -> None:
+    """The Page Map over a plan's threads, questions and controls: its title, its
+    groups' headings and its rows' ends."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+P")
+    expect(page.locator(".lf-page-map-dialog[open]")).to_be_visible()
 
 
 def retained_quote(page: Page) -> None:
@@ -2511,6 +2545,7 @@ STATES = (
         touch=True,
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
+    State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",
@@ -3075,12 +3110,13 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 @contextmanager
 def capture(
     browser, address: str, state: State, path: Path
-) -> Generator[tuple[dict | None, dict[str, list[str]], Page]]:
+) -> Generator[tuple[dict | None, dict[str, list[str]], list[str], Page]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them. Yield the state's region in the screenshot,
-    if it names one, its elements' styles (`STYLES`), and the tab, open until the
-    block ends so `declaration_changes` can read it."""
+    if it names one, its elements' styles and the paths of those showing words
+    (`STYLES`), and the tab, open until the block ends so `declaration_changes` can
+    read it."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -3109,7 +3145,7 @@ def capture(
             key: reading["faces"][face] for key, face in reading["elements"].items()
         }
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        yield region, styles, page
+        yield region, styles, reading["texts"], page
 
 
 def style_changes(
@@ -3150,6 +3186,65 @@ def style_changes(
             lines.extend(f"    {key}" for key in keys[:4])
     count = sum(map(len, groups.values())) + sum(map(len, alone.values()))
     return count, lines, list(firsts)
+
+
+def face_of(values: list[str]) -> tuple[str, ...]:
+    """The `FACE` values among an element's `STYLED` ones."""
+    return tuple(values[STYLED.index(name)] for name in FACE)
+
+
+def describe_face(face: tuple[str, ...]) -> str:
+    family, size, weight, style, tracking, case = face
+    words = [weight, size, family.split(",")[0].strip('"')]
+    words += [style] if style != "normal" else []
+    words += [f"tracked {tracking}"] if tracking != "normal" else []
+    words += [case] if case != "none" else []
+    return " ".join(words)
+
+
+def face_distance(a: tuple[str, ...], b: tuple[str, ...]) -> float:
+    """How far apart two faces read: a pixel of size, a hundred of weight and a
+    tenth of an em of tracking each count one, and a different family, style or case
+    puts them apart altogether."""
+    if (a[0], a[3], a[5]) != (b[0], b[3], b[5]):
+        return float("inf")
+
+    def pixels(value: str) -> float:
+        return float(value.removesuffix("px")) if value.endswith("px") else 0.0
+
+    tracks = [pixels(face[4]) / (pixels(face[1]) or 1) for face in (a, b)]
+    return (
+        abs(pixels(a[1]) - pixels(b[1]))
+        + abs(int(a[2]) - int(b[2])) / 100
+        + abs(tracks[0] - tracks[1]) * 10
+    )
+
+
+def face_changes(drawn: dict[str, dict[tuple[str, ...], list[str]]]) -> list[str]:
+    """The faces only one arm draws in `drawn` (each arm's faces, by the states and
+    elements that wear them), each with up to three of those and the other arm's
+    nearest face."""
+    lines = []
+    for arm, other in (("head", "base"), ("base", "head")):
+        alone = sorted(drawn[arm].keys() - drawn[other].keys(), key=describe_face)
+        if not alone:
+            continue
+        lines.append(f"faces only {arm} draws  x{len(alone)}")
+        for face in alone:
+            wearers = drawn[arm][face]
+            nearest = min(
+                drawn[other],
+                key=lambda candidate: face_distance(face, candidate),
+                default=None,
+            )
+            near = (
+                f"; {other}'s nearest {describe_face(nearest)}"
+                if nearest and face_distance(face, nearest) < float("inf")
+                else ""
+            )
+            lines.append(f"  {describe_face(face)}  x{len(wearers)}{near}")
+            lines.extend(f"      {wearer}" for wearer in wearers[:3])
+    return lines
 
 
 def declarations(page: Page) -> Callable[[str], list[str]]:
@@ -3336,6 +3431,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
+    drawn: dict[str, dict[tuple[str, ...], list[str]]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
         message = (
@@ -3374,6 +3470,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 folder.mkdir()
                 crop_regions = []
                 styles = {}
+                texts = {}
                 pages = {}
                 # Both arms stay open through the comparison, which reads their tabs.
                 with ExitStack() as held:
@@ -3393,8 +3490,12 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                                     scratch / f"{arm}-{state.name}",
                                 )
                             )
-                            region, styles[arm], pages[arm] = held.enter_context(
-                                capture(browser, address, state, folder / f"{arm}.png")
+                            region, styles[arm], texts[arm], pages[arm] = (
+                                held.enter_context(
+                                    capture(
+                                        browser, address, state, folder / f"{arm}.png"
+                                    )
+                                )
                             )
                             if region:
                                 crop_regions.append(region)
@@ -3402,6 +3503,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             failure(state, arm, error)
                     if state.name in failed:
                         continue
+                    for arm, keys in texts.items():
+                        for key in keys:
+                            drawn[arm].setdefault(face_of(styles[arm][key]), []).append(
+                                f"{state.name}: {key}"
+                            )
                     try:
                         difference = compare(state.name)
                         if difference["changed"]:
@@ -3434,4 +3540,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")
+    if lines := face_changes(drawn):
+        (out / "faces.txt").write_text("\n".join(lines) + "\n")
+        click.echo(
+            "faces one arm alone draws: "
+            + ", ".join(line.strip() for line in lines if line.startswith("faces"))
+            + f" -> {out / 'faces.txt'}"
+        )
     click.echo(f"files in {out}")

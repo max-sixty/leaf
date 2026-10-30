@@ -537,7 +537,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
     # at the header's end.
-    header = sheet.locator(".lf-page-map-head")
+    header = sheet.locator(".lf-dialog-head")
     close = header.get_by_role("button", name="Close Page Map", exact=True)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     header_box, close_box = header.bounding_box(), close.bounding_box()

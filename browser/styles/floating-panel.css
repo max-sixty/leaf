@@ -4,9 +4,12 @@
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
-   controls are set in the sans at 13px, with 12px for what qualifies them, and what
-   anyone wrote (questions, messages, a plan) in a thread's face, `--msg-font`; none of
-   it takes the page's prose face. Two inks, full and 72%, and
+   controls are set in the sans on the ladder's compact rung (`--t-working-label`, base.css),
+   with `--t-6` for what qualifies them, as every other list's ends and headings are,
+   and what anyone wrote (questions, messages, a plan) in a thread's face,
+   `--msg-font`; none of it takes the page's prose face. It once set its own 13px and
+   12px, which put its qualifiers half a pixel larger than the headings and statuses
+   it shares with the other lists. Two inks, full and 72%, and
    the accent for what is on the user, with the empty field's status a step dimmer
    at 62%. The dim inks are as dim as WCAG AA's 4.5:1 for text lets them be on the
    panel's ground in the light scheme, whose paper is the brighter: 62% reads 4.7:1
@@ -101,7 +104,7 @@
     right: 0;
     margin-inline: auto;
     width: var(--lf-fp-width);
-    font: 13px / 1.45 var(--sans);
+    font: var(--t-working-label) / 1.45 var(--sans);
     color: var(--ink);
   }
   /* The card wears the surface's colour over the ground's own fill, which it matches
@@ -283,7 +286,7 @@
     border: 0;
     background: none;
     padding: 5px 6px;
-    font: 14px / 22px var(--sans);
+    font: var(--t-5) / 22px var(--sans);
     color: var(--ink);
   }
   .lf-fp-search::placeholder {
@@ -303,7 +306,7 @@
     border-radius: var(--r);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
     color: var(--ink);
-    font-size: 11px;
+    font-size: var(--t-6);
     white-space: nowrap;
   }
   .lf-fp-mode-icon {
@@ -551,7 +554,7 @@
   .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
-    font: 500 14px / 22px var(--sans);
+    font: 500 var(--t-5) / 22px var(--sans);
     white-space: nowrap;
   }
   .lf-fp-field .lf-compose-error > span {
@@ -762,7 +765,7 @@
     border-radius: var(--r);
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
-    font-size: 12px;
+    font-size: var(--t-6);
     &[data-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
@@ -856,7 +859,7 @@
     border-radius: 999px;
     background: var(--pin-fill);
     color: var(--pin-ink);
-    font: 600 10.5px / 17px var(--sans);
+    font: 600 var(--t-7) / 17px var(--sans);
     text-align: center;
   }
   .lf-fp-news-dot {
@@ -1035,7 +1038,7 @@
   .lf-fp-filters button {
     flex-shrink: 0;
     color: var(--lf-fp-muted);
-    font-size: 12px;
+    font-size: var(--t-6);
     min-height: var(--lf-fp-tab);
   }
   .lf-fp-filters button:hover,
@@ -1168,7 +1171,7 @@
       0 0 0 1px var(--lf-fp-ring),
       var(--raise-1);
     color: var(--ink);
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   :where(.lf-floating-panel) .lf-fp-new-reply:hover {
     background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
@@ -1193,7 +1196,7 @@
   }
   .lf-fp-value {
     color: var(--lf-fp-muted);
-    font-size: 12px;
+    font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
@@ -1233,7 +1236,7 @@
   }
   .lf-fp-copy-item > .lf-fp-item {
     width: 100cqi;
-    font: 13px / 1.45 var(--sans);
+    font: var(--t-working-label) / 1.45 var(--sans);
   }
   .lf-fp-copy-icon {
     color: var(--lf-fp-muted);
@@ -1362,7 +1365,7 @@
   .lf-fp-showing {
     padding-inline: 8px;
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--t-6);
     pointer-events: none;
   }
   /* What the check found in the agent's latest save, over the versions. */
@@ -1375,7 +1378,7 @@
     max-height: 8lh;
     overflow-y: auto;
     color: var(--ink);
-    font: 12px / 1.45 var(--mono);
+    font: var(--t-6) / 1.45 var(--mono);
     white-space: pre-wrap;
   }
   /* The errors the user has met (floating-panel.js, `errorsList`): each says what
@@ -1398,11 +1401,11 @@
   }
   .lf-fp-error .lf-fp-note {
     margin-inline-start: 0;
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-fp-error .lf-fp-quiet {
     flex: none;
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-fp-note {
     margin-inline-start: 8px;
@@ -1410,7 +1413,7 @@
     font-weight: 400;
   }
   .lf-fp-compare {
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-fp-compare[aria-pressed="true"] {
     color: var(--accent);
@@ -1457,9 +1460,12 @@
     flex: 1 1 auto;
   }
   /* What each item is reads down one edge as words do, cut short where its share
-     ends, rather than against the title as a lead's number stands. */
+     ends, rather than against the title as a lead's number stands. Set a rung smaller
+     than the title, it shares the title's baseline. Centred in its own shorter line, as
+     a lead's mark is, it stood a pixel or two above it. */
   .lf-fp-on-noun {
     display: block;
+    align-self: baseline;
     justify-self: start;
   }
   .lf-fp-on-noun,
@@ -1525,7 +1531,7 @@
   }
   .lf-fp-on-title {
     font: inherit;
-    font-size: 12px;
+    font-size: var(--t-6);
     color: var(--lf-fp-muted);
   }
   .lf-fp-prompt {
@@ -1593,7 +1599,7 @@
   .lf-fp-choice-tag {
     padding-inline: 5px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: var(--t-6);
     color: var(--ok-ink);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
     white-space: nowrap;
@@ -1603,7 +1609,7 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
-    font-size: 12px;
+    font-size: var(--t-6);
     color: var(--lf-fp-muted);
   }
   .lf-fp-answer[aria-pressed="true"] {
@@ -1617,7 +1623,7 @@
   }
   .lf-fp-said {
     color: var(--lf-fp-muted);
-    font-size: 12px;
+    font-size: var(--t-6);
     margin-right: 4px;
   }
   /* The thread's transcript, drawn and spaced as a card's (thread/transcript.js), its
@@ -1657,7 +1663,7 @@
   }
   .lf-fp-plan-count {
     margin-left: auto;
-    font: 400 12px var(--sans);
+    font: 400 var(--t-6) var(--sans);
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -1675,7 +1681,7 @@
     column-gap: 6px;
     align-items: baseline;
     padding: 3px 0;
-    font-size: 13px;
+    font-size: var(--t-working-label);
   }
   .lf-fp-plan-step > .lf-fp-plan-line,
   .lf-fp-plan-step > .lf-fp-plan-steps {
@@ -1718,7 +1724,7 @@
   }
   .lf-fp-plan-time,
   .lf-fp-plan-line {
-    font-size: 12px;
+    font-size: var(--t-6);
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -1729,7 +1735,7 @@
   }
   .lf-fp-plan-tag {
     padding: 0 6px;
-    font-size: 12px;
+    font-size: var(--t-6);
     color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     border-radius: var(--r);
@@ -1740,7 +1746,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--t-6);
     color: var(--lf-fp-muted);
   }
   .lf-fp-plan-head[aria-expanded="true"] {
@@ -1849,11 +1855,11 @@
     padding: 6px 8px 8px;
     margin-bottom: 6px;
     color: var(--lf-fp-muted);
-    font-size: 12px;
+    font-size: var(--t-6);
   }
   .lf-fp-summary {
     color: var(--ink);
-    font-size: 13px;
+    font-size: var(--t-working-label);
     font-weight: 600;
   }
   .lf-fp-explain {
@@ -1906,7 +1912,7 @@
       0 0 0 1px var(--lf-fp-ring),
       var(--raise-1);
     color: var(--lf-fp-muted);
-    font-size: 12px;
+    font-size: var(--t-6);
     pointer-events: none;
     display: none;
     transition: opacity var(--lf-motion-disclosure);

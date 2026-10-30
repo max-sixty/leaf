@@ -205,6 +205,8 @@ def test_an_inline_patch_first_paints_at_the_height_it_draws_at(
             page.goto(serve(FIRST_PAINT_PAGE), wait_until="commit")
         displayed(page)
         assert boot, "the runtime was not held"
+        # First paint can precede later patches; measure their complete authored input.
+        page.wait_for_function("document.readyState !== 'loading'")
         first = page.evaluate(heights)
         boot.pop().continue_()
         wait_until_ready(page)

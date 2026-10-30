@@ -144,7 +144,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     rails = [
         page.locator(f"#{i} > dl.facts").bounding_box() for i in ("st-sd", "st-pi")
     ]
-    for rail, card in zip(rails, (sd, pi)):
+    for rail, card in zip(rails, (sd, pi), strict=True):
         assert rail["x"] > card["x"] + card["width"] / 2, "the facts rail docks right"
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 

@@ -787,9 +787,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     """
     session_model.cmd_waiting(page_dir)
     marker = page_dir / "status-lock-requested"
-    events = open(  # noqa: SIM115 - held across the child transition
-        page_dir / "events.jsonl", "a+b"
-    )
+    events = open(page_dir / "events.jsonl", "a+b")
     fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
 from leaf import service as service_model

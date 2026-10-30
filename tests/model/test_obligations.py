@@ -1243,7 +1243,7 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
     entry["x-awaits"]["records"]["input"] = "missing"
-    with pytest.raises(RegistryError, match="x-awaits.records"):
+    with pytest.raises(RegistryError, match=r"x-awaits\.records"):
         validate_registry(registry, "test")
     entry["x-awaits"]["records"]["input"] = "run"
     entry["x-awaits"]["records"]["label"] = "missing"

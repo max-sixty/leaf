@@ -27,7 +27,7 @@ export function boundFile(binding) {
       // request that got no answer rejects in the engine's words ("Failed to fetch",
       // "Load failed"), and a proxy's page names only a status.
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file.");
+        throw new Error("Leaf changed while accessing the file.", { cause: error });
       if (error.status === undefined)
         throw new Error("The page's server did not answer.", { cause: error });
       if (error.said === undefined)

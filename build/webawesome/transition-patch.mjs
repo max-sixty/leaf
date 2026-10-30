@@ -5,7 +5,7 @@
  * and rejects a changed seam when upgrading Web Awesome. */
 export function patchTransitions(source) {
   const watcher = "async handleOpenChange() {";
-  const animation = /      await animateWithClass\(this\.popup\.popup, "[a-z-]+"\);/g;
+  const animation = / {6}await animateWithClass\(this\.popup\.popup, "[a-z-]+"\);/g;
   if (
     source.split(watcher).length !== 2 ||
     [...source.matchAll(animation)].length !== 2

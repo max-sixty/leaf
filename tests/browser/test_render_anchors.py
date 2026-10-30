@@ -2914,11 +2914,13 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
           background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
+          region: parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue('--focus-region-gap')),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] == 0, look
+    assert look["offset"] == look["region"], look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"

@@ -1,3 +1,4 @@
+import type { ServedState } from "../../browser/types/contract.js";
 import { describe, expect, it } from "vitest";
 import { unpackTar } from "modern-tar";
 import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
@@ -197,8 +198,8 @@ describe("durable website page records", () => {
             headers: { "Leaf-Data-Version": version },
           }),
         ))!;
-        const reading = await response.json();
-        expect(reading.saved).toBe("choice");
+        const reading = await response.json<Pick<ServedState, "taken" | "data">>();
+        expect(reading).toMatchObject({ saved: "choice" });
         expect(reading.taken).toBeGreaterThan(1);
         expect(reading.data).toEqual(
           version === "v1"
@@ -209,12 +210,7 @@ describe("durable website page records", () => {
               },
         );
       }
-      const delivered = (await savedState.json()) as {
-        saved: string;
-        taken: number;
-        now: string;
-        activity: { status: string; since: string };
-      };
+      const delivered = await savedState.json<Pick<ServedState, "taken" | "now">>();
       expect(delivered).toMatchObject({
         saved: "choice",
         activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },

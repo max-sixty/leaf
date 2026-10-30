@@ -94,7 +94,7 @@ export function paintAim(element, surface = null) {
 export function labelAim(node) {
   if (!aimPlaced) return;
   const { rect, shown, levels } = aimPlaced;
-  const above = shown.top - node.offsetHeight - 2;
+  const above = shown.top - node.offsetHeight - aimStood.room;
   // The frames cut the label too, so the room above is what every band leaves.
   const room = Math.max(
     0,

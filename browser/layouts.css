@@ -843,8 +843,9 @@
           --lf-holds-height: 1;
         }
         /* A scrolling box clips at its padding edge, and a track body's blocks run its
-         * full width, so a full-width control's ring would be cut at both sides and the
-         * last one's at the foot. The body holds the ring's room as padding. It gives
+         * full width, so a full-width block's ring would be cut at both sides and the
+         * last one's at the foot. The body holds the widest ring's room, a region's
+         * (base.css), as padding. It gives
          * the block-axis room back as a negative margin, so its blocks start where they
          * would without it; the inline room stays inside the track, since a box set
          * past the track's sides stands past the column (render check `past-column`). */
@@ -852,9 +853,9 @@
           > aside[data-lf-beside]
           > [data-lf-track-body] {
           box-sizing: border-box;
-          padding: var(--focus-ring-room);
-          margin-block: calc(-1 * var(--focus-ring-room));
-          scroll-padding: var(--focus-ring-room);
+          padding: var(--focus-region-room);
+          margin-block: calc(-1 * var(--focus-region-room));
+          scroll-padding: var(--focus-region-room);
         }
       }
     }

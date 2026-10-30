@@ -1365,6 +1365,15 @@ export default [
   { linterOptions: { noInlineConfig: true } },
   js.configs.recommended,
   {
+    rules: {
+      "array-callback-return": ["error", { allowImplicit: true }],
+      "no-constructor-return": "error",
+      "no-new-wrappers": "error",
+      "no-unreachable-loop": "error",
+      "no-unsafe-negation": ["error", { enforceForOrderingRelations: true }],
+    },
+  },
+  {
     files: [
       "*.mjs",
       ".github/scripts/*.mjs",

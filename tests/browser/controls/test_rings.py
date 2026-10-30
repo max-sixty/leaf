@@ -175,7 +175,20 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     )
     scroll_settled(page, f"#{ident}")
     accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    edges = mark_edges(page, ident, accent)
+    # A page's tabs hang their panel's ring from the strip's rule and stand it a region's
+    # room out on its other three sides (tabs.css), clear of the text's first letter; a
+    # boxed set's panel is padded inside its frame, and its ring stays inside.
+    room = page.evaluate(
+        """() => ['--focus-region-gap', '--focus-ring-w'].reduce((sum, name) =>
+          sum + parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue(name)), 0)"""
+    )
+    outset = (
+        dict.fromkeys(("left", "right", "bottom"), room)
+        if reading == "page-tab"
+        else {}
+    )
+    edges = mark_edges(page, ident, accent, outset)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 

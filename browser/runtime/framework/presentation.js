@@ -220,7 +220,7 @@ export function createPresentationCoordinator({ reportFailure }) {
  * }} Claim
  */
 
-/** @param {<Result>(callback: () => Result) => () => Result} bindJob */
+/** @param {<Result>(callback: () => Result) => () => Result | undefined} bindJob */
 export function createPresentationSchedule(bindJob) {
   /** @type {(() => Promise<void>)[]} */
   let queued = [];
@@ -305,7 +305,7 @@ export function createPresentationSchedule(bindJob) {
 
   /** Queue a native renderer, separating its scheduling return from committed DOM.
    * @param {() => readonly PromiseLike<unknown>[]} after
-   * @param {() => void | PromiseLike<void>} run
+   * @param {() => unknown} run
    * @param {() => PromiseLike<unknown>} committed
    */
   function enqueue(after, run, committed) {
@@ -335,8 +335,8 @@ export function createPresentationSchedule(bindJob) {
    * @param {{
    *   attach: () => PresentationHandle;
    *   paint: (value: Value, current: () => boolean) => unknown;
-   *   failSoft?: (reason: unknown) => unknown;
-   *   after?: () => readonly PromiseLike<unknown>[];
+   *   failSoft?: ((reason: unknown) => unknown) | undefined;
+   *   after?: (() => readonly PromiseLike<unknown>[]) | undefined;
    * }} options
    * @returns {ScheduledPresenter<Value>}
    */

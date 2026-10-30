@@ -3170,10 +3170,7 @@ const tick = (version) => {
 let reportPresentationFailure = (reason) => console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({ reportFailure: (reason) => reportPresentationFailure(reason) });
 const schedule = createPresentationSchedule(bindQueuedWork);
-const applicationState = createSemanticApplication({ presentation: {
-	begin: () => presentation.begin(),
-	seal: (publication) => presentation.seal(publication)
-} });
+const applicationState = createSemanticApplication({ presentation });
 const readApplication = applicationState.read;
 const readPart = (derive) => applicationState.select(derive).read;
 const agent = readPart((root) => root.authoritative?.agent ?? null);
@@ -3196,8 +3193,8 @@ const queueWidgetUpdate = (widget, update, committed) => {
 		for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
 			if (seen.has(parent)) return [];
 			seen.add(parent);
-			const dom = widgetCommits.get(parent);
-			if (dom) pending.push(dom);
+			const dom2 = widgetCommits.get(parent);
+			if (dom2) pending.push(dom2);
 		}
 		return pending;
 	}, update, committed);
@@ -3239,17 +3236,17 @@ const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
 			forget();
 			const generation = following;
 			const stretch = (run) => {
-				let first = true;
+				let first2 = true;
 				let outcome;
 				const stop = x$1(() => {
-					if (!first) {
+					if (!first2) {
 						if (!owed && current()) d(() => {
 							const next = selected.value;
 							if (next !== null) claim(next);
 						});
 						return;
 					}
-					first = false;
+					first2 = false;
 					try {
 						outcome = { value: run() };
 					} catch (error) {

@@ -5997,12 +5997,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                     </button>` : nothing}
             </div>`)}
       </div>
-      ${versions.length ? nothing : html`<p class="lf-fp-empty" role="none">Showing ${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-rows-empty" role="none">Showing ${picker.token}</p>`}
     `;
 	}
 	function errorsList({ errors }) {
 		const live = new Set(errorsReading().map((error) => error.id));
-		if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
+		if (!errors.length) return html`<p class="lf-rows-empty" role="none">No errors.</p>`;
 		const movePast = (dismissed) => {
 			const presses = [...menu.querySelectorAll(".lf-fp-error button")];
 			const at = errors.findIndex((error) => error.id === dismissed);
@@ -6134,7 +6134,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function settledHeading(key, title, count) {
 		const open = unfolded.has(key);
-		return html`<h3 class="lf-label lf-fp-on-group lf-fp-settled-group">
+		return html`<h3 class="lf-rows-head">
       <button
         type="button"
         ${offeredAction("row", "lf-fp-face lf-fp-settled lf-disclosure-marker")}
@@ -6147,7 +6147,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}}
       >
         <span class="lf-fp-label lf-row-main">${title}</span
-        ><span class="lf-fp-count lf-row-end">${count}</span>
+        ><span class="lf-row-end">${count}</span>
       </button>
     </h3>`;
 	}
@@ -6177,13 +6177,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </button>`;
 		const rowsOf = (threads) => repeat(threads, (thread) => thread.key, row);
 		return html`<div class="lf-fp-list lf-rows">
-      ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-fp-empty">
+      ${listed.length ? rowsOf(listed) : inventoried() ? html`<p class="lf-rows-empty">
                 ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
               </p>` : nothing}
-      ${resolved.length ? html`<hr class="lf-fp-on-rule" />
-              ${settledHeading("resolved", "Resolved", resolved.length)}
-              ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
-      ${inventoried() ? nothing : html`<p class="lf-fp-empty">
+      ${resolved.length ? html`${settledHeading("resolved", "Resolved", resolved.length)}
+            ${unfolded.has("resolved") ? rowsOf(resolved) : nothing}` : nothing}
+      ${inventoried() ? nothing : html`<p class="lf-rows-empty">
               ${readThreads().phase === "offline" ? "Current threads are unavailable while the server is offline." : "Loading current threads…"}
             </p>`}
     </div>`;
@@ -6636,7 +6635,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
+        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
                 <div
                   class="lf-fp-asked lf-fp-outlet"
                   data-thread=${thread.key}
@@ -6707,7 +6706,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		let running = false;
 		for (const group of groups) {
 			const headed = group.headed !== false;
-			if (rows.length && (headed || !running)) rows.push({
+			if (rows.length && !headed && !running) rows.push({
 				key: `rule:${group.key}`,
 				rule: true
 			});
@@ -6723,9 +6722,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-label lf-fp-on-group">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
-                  ><span class="lf-fp-count"
+                  ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span
                   >
                 </h3>`)}
@@ -6775,7 +6774,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
-		return html`${items.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
+		return html`${items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
 			items: finished
@@ -6808,7 +6807,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		].filter((group) => group.items.length);
 		forgetOpened([...lists.agent, ...lists.done]);
-		return html`${opening.planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-fp-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
+		return html`${opening.planShown ? planCards() : nothing}${layoutOf() === "summary" ? workSummary(inHand, queued, lists.done) : html`${inHand.length || queued.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on ${agentName()}.</p>`}${groupedItems(groups, (item, group) => onItemCard(item, group.key === "done" ? "done" : "agent"))}`}`;
 	}
 	function workSummary(inHand, queued, done) {
 		const work = inHand.map(workOn);
@@ -6830,7 +6829,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function pagesView() {
 		const rows = leavesRows(runtime.state);
-		if (!rows.length) return html`<p class="lf-fp-empty">No pages are live.</p>`;
+		if (!rows.length) return html`<p class="lf-rows-empty">No pages are live.</p>`;
 		return html`<div class="lf-fp-list">
       ${repeat(rows, (row) => row.key, (row) => {
 			const face = html`<span
@@ -7634,7 +7633,7 @@ const place$1 = placeKeeper(dialogList, {
 	identity: (row) => row.dataset.lfMapKey,
 	active: () => dialog.open
 });
-const dialogEmpty = el("p", "lf-page-map-empty", "No matching actions, statuses, or locations");
+const dialogEmpty = el("p", "lf-rows-empty", "No matching actions, statuses, or locations.");
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
 dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
@@ -7749,11 +7748,11 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 	};
 	const sheetGroupTemplate = (group, query) => html`
     <section
-      class="lf-page-map-group"
+      class="lf-page-map-group lf-rows-group"
       data-lf-map-group=${group.key}
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
-      <h3>${group.entry.title}</h3>
+      <h3 class="lf-rows-head">${group.entry.title}</h3>
       <div class="lf-page-map-actions lf-rows">
         ${repeat(group.actions, ({ key }) => key, (action) => action.kind === "item" ? sheetItemTemplate(action) : sheetControlTemplate(action, group.actions))}
       </div>
@@ -7778,7 +7777,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		for (const group of groups) for (const offered of group.entry.offers) clearContributionControls(contributionSource(offered), "map", new Set(group.controls.filter((candidate) => candidate.offered === offered).map(({ record }) => record.key)));
 		trackedOffers = liveOffers;
 		const shown = groups.filter((group) => !query || group.search.includes(query)).length;
-		keepsText(dialogEmpty, query ? "No matching actions, statuses, or locations" : "No margin controls, status indicators, or locations yet");
+		keepsText(dialogEmpty, query ? "No matching actions, statuses, or locations." : "No margin controls, status indicators, or locations yet.");
 		keepsHidden(dialogEmpty, shown !== 0);
 	}
 	function renderPageMapDialog(nextEntries) {
@@ -9778,7 +9777,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <div role="rowgroup" ?hidden=${hidden}>
     <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
     </div>
   </div>
 `;
@@ -9882,9 +9881,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;

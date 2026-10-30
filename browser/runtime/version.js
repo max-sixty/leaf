@@ -1161,7 +1161,10 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
-/** @param {{
+/**
+ * @template RetainedLocation
+ * @template ObligationLocation
+ * @param {{
  *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: any,
  *   openThread: any,
@@ -1170,10 +1173,10 @@ function revisionDocument(revision) {
  *   hasPending: any,
  *   readAndApply: any,
  *   syncLayout: any,
- *   captureRetainedCurrentLocation?: () => unknown,
- *   restoreRetainedCurrentLocation?: (currentLocation: unknown) => boolean,
- *   captureObligationCurrentLocation?: () => unknown,
- *   restoreObligationCurrentLocation?: (currentLocation: unknown) => void,
+ *   captureRetainedCurrentLocation?: () => RetainedLocation,
+ *   restoreRetainedCurrentLocation?: (currentLocation: RetainedLocation) => boolean,
+ *   captureObligationCurrentLocation?: () => ObligationLocation,
+ *   restoreObligationCurrentLocation?: (currentLocation: ObligationLocation) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({

@@ -536,9 +536,9 @@
             var(--lf-track-beside)
         );
         box-sizing: border-box;
-        padding: var(--focus-ring-room);
-        margin-block: calc(-1 * var(--focus-ring-room));
-        scroll-padding: var(--focus-ring-room);
+        padding: var(--focus-region-room);
+        margin-block: calc(-1 * var(--focus-region-room));
+        scroll-padding: var(--focus-region-room);
       }
     }
   }

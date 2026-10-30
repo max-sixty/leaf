@@ -80,17 +80,29 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
     stands in for tightness — a figure around a table, a card around a pre — which
     no static read can measure, so a page-wide <div id> also passes for aim enough and the advice
     stays quiet. Undercounting is the right error for advice: a miss costs one
-    aim landing wide, noise costs the register its authority."""
-    found = []
+    aim landing wide, noise costs the register its authority.
+
+    Each reason is one finding listing its blocks in `values.elements` (tag and line,
+    and for a wide aim the enclosing id), so a page with no ids reads one line of
+    advice with one fix, not a line per block."""
+    found: dict[str, list[dict]] = {}
     for block in parser.authoring.bare_blocks:
         under = block["under"]
         if block["tag"] in ("section", "article"):
-            found.append(found_at("unpointable-section", block))
+            code, extra = "unpointable-section", {}
         elif under is None:
-            found.append(found_at("unpointable", block))
+            code, extra = "unpointable", {}
         elif block["tag"] in POINTABLE_TAGS and under[0] in SECTIONING_TAGS:
-            found.append(found_at("unpointable-wide", block, enclosing=under[1]))
-    return [finding.but(severity="advice") for finding in found]
+            code, extra = "unpointable-wide", {"enclosing": under[1]}
+        else:
+            continue
+        found.setdefault(code, []).append(
+            {"tag": block["tag"], "line": block["line"], **extra}
+        )
+    return [
+        Finding(code, values={"elements": elements}, severity="advice")
+        for code, elements in found.items()
+    ]
 
 
 def structure_errors(parser: SourceDocument) -> list[Finding]:

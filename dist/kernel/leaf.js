@@ -5920,7 +5920,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		press: closeThreadSearch,
 		disabled: false,
 		action: null
-	} : top && !search ? {
+	} : top && (!search || menuSearching()) ? {
 		label: "Close",
 		press: close,
 		disabled: false,

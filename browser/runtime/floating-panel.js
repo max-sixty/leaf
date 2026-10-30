@@ -1065,7 +1065,7 @@ export function createFloatingPanel({
           disabled: false,
           action: null,
         }
-      : top && !search
+      : top && (!search || menuSearching())
         ? { label: "Close", press: close, disabled: false, action: null }
         : (rows().find((entry) => entry.exit) ?? null);
   // A draft arriving in an empty field, or the last of it going, re-seats the row.

@@ -1,0 +1,147 @@
+"""Send's corner under a mouse: a composer's words run the whole line, and Send stands
+in the corner they leave free (response.css; text-field.js, `:state(corner-taken)`;
+input.js, `data-send-pointed` and `data-send-armed`)."""
+
+import pytest
+from playwright.sync_api import expect
+from render_harness import open_page, sending
+
+from browser.margin import LONG_THREAD_PAGE, LONG_THREAD_ROOT
+from leaf.render_checks import rendered
+
+# How long the pointer rests on Send before it takes a press (input.js, `SEND_DWELL`).
+SEND_DWELL = 150
+
+# The field's shadow root is closed, so the reading keeps each one as it is attached.
+KEEP_ROOTS = """(() => {
+  const attach = Element.prototype.attachShadow;
+  window.__lfRoots = new WeakMap();
+  Element.prototype.attachShadow = function (init) {
+    const root = attach.call(this, init);
+    if (this.localName === 'leaf-text') window.__lfRoots.set(this, root);
+    return root;
+  };
+})()"""
+
+# Send as the user meets it, beside the last row of the field's words: whether it shows,
+# whether a press at its middle reaches it, the size of its disc, and where that row
+# stands and ends.
+CORNER = """field => {
+  const send = field.querySelector(':scope > .lf-compose-submit');
+  const words = field.querySelector(':scope > leaf-text');
+  const box = send.getBoundingClientRect();
+  const middle = [box.left + box.width / 2, box.top + box.height / 2];
+  const lines = window.__lfRoots.get(words).querySelectorAll('.cm-line');
+  const text = document.createRange();
+  text.selectNodeContents(lines[lines.length - 1]);
+  const row = [...text.getClientRects()].filter(rect => rect.width).at(-1);
+  return {
+    taken: words.matches(':state(corner-taken)'),
+    shown: getComputedStyle(send).opacity === '1',
+    presses: send.contains(document.elementFromPoint(...middle)),
+    middle,
+    disc: parseFloat(getComputedStyle(send, '::before').blockSize),
+    line: parseFloat(getComputedStyle(words).lineHeight),
+    rowEnd: row?.right ?? 0,
+    rowMiddle: row ? (row.top + row.bottom) / 2 : 0,
+    sendStart: box.left,
+    value: words.value,
+  };
+}"""
+
+SENTENCE = (
+    "Name the runner in the step itself, since the manifest the supervisor reads is "
+    "written later and a reviewer reading this list cannot see it yet"
+)
+
+
+def _open_card_reply(page):
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).click()
+    return card.locator(".lf-thread-reply .lf-compose-field")
+
+
+def _open_panel_field(page):
+    page.locator(".lf-fp-field leaf-text").click()
+    return page.locator(".lf-fp-field .lf-compose-field")
+
+
+def _type_to_the_corner(page, field):
+    """Type the sentence a character at a time until the last row reaches Send."""
+    for character in SENTENCE * 3:
+        page.keyboard.type(character)
+        rendered(page)
+        if field.evaluate(CORNER)["taken"]:
+            return
+    raise AssertionError("three sentences never reached Send's corner")
+
+
+def _arrive(page, at):
+    page.mouse.move(at[0] - 120, at[1])
+    page.mouse.move(*at, steps=3)
+
+
+@pytest.mark.parametrize(
+    ("composer", "engine"),
+    [
+        ("card", "browser"),
+        ("card", "firefox_browser"),
+        ("panel", "browser"),
+    ],
+)
+def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
+    composer, engine, request, serve
+):
+    """The words run under Send's column, and Send stands in the corner until the row
+    beside it reaches it. Then a press there is the words': a quick press places the
+    caret, so a click on the last letters never sends. Pointing at the corner shows
+    Send over the words at once, in a square no taller than the row, and it takes a
+    press once the pointer has rested there; typing puts it away again. The firefox case
+    is the user's browser, which follows nearly every move with a leave."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]),
+        init_script=KEEP_ROOTS,
+    )
+    field = (_open_card_reply if composer == "card" else _open_panel_field)(page)
+    page.keyboard.type("Short")
+    rendered(page)
+    free = field.evaluate(CORNER)
+    assert free["shown"] and free["presses"], free
+
+    _type_to_the_corner(page, field)
+    taken = field.evaluate(CORNER)
+    assert taken["rowEnd"] > taken["sendStart"], "the words stop short of Send's column"
+    assert not taken["shown"] and not taken["presses"], taken
+
+    # A quick press: the pointer arrives and presses just short of the rest that arms
+    # Send, on a paused clock, however slowly the driver delivers the moves.
+    page.keyboard.press("ControlOrMeta+Home")
+    page.clock.install()
+    page.clock.pause_at(
+        page.evaluate("() => new Date(Date.now() + 1000).toISOString()")
+    )
+    _arrive(page, taken["middle"])
+    page.clock.run_for(SEND_DWELL - 1)
+    pointed = field.evaluate(CORNER)
+    assert pointed["shown"] and not pointed["presses"], pointed
+    page.mouse.down()
+    page.mouse.up()
+    page.keyboard.type("Z")
+    placed = field.evaluate(CORNER)
+    assert placed["value"].index("Z") >= len(placed["value"]) - 4, placed["value"]
+    assert not placed["shown"], "typing left Send over the words"
+
+    # A rest: Send shows on arrival, and takes a press once the pointer has stayed.
+    _arrive(page, taken["middle"])
+    page.clock.run_for(SEND_DWELL)
+    rested = field.evaluate(CORNER)
+    assert rested["shown"] and rested["presses"], rested
+    assert rested["disc"] <= rested["line"], rested
+    assert rested["middle"][1] == pytest.approx(rested["rowMiddle"], abs=1), rested
+    page.clock.resume()
+    with sending(page, "the draft"):
+        page.mouse.down()
+        page.mouse.up()
+    expect(field.locator(":scope > leaf-text")).to_have_js_property("value", "")

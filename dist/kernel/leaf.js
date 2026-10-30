@@ -169,6 +169,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
+const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
 		return this;
@@ -363,6 +364,25 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const word = sendWord();
 			return word.charAt(0).toUpperCase() + word.slice(1);
 		};
+		let dwell = 0;
+		const unpoint = () => {
+			clearTimeout(dwell);
+			dwell = 0;
+			ta.parentElement?.removeAttribute("data-send-pointed");
+			ta.parentElement?.removeAttribute("data-send-armed");
+		};
+		const point = (event) => {
+			if (event.pointerType === "touch") return;
+			const box = event.currentTarget;
+			const send = sendBtn?.getBoundingClientRect();
+			if (!(send && event.clientX >= send.left && event.clientX < send.right && event.clientY >= send.top && event.clientY < send.bottom)) return unpoint();
+			if (box.hasAttribute("data-send-pointed")) return;
+			box.setAttribute("data-send-pointed", "");
+			dwell = setTimeout(() => {
+				dwell = 0;
+				box.setAttribute("data-send-armed", "");
+			}, SEND_DWELL);
+		};
 		let sending = false;
 		let uploading = false;
 		const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
@@ -481,7 +501,17 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
             ${altLabel}
           </button>` : nothing;
 			return html`${sentMedia ? nothing : shelf}
-        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        <div
+          class="lf-compose-field"
+          ?data-words=${hasWords}
+          @pointermove=${point}
+          @pointerleave=${point}
+          @pointerdown=${(event) => {
+				if (!sendBtn?.contains(event.target)) unpoint();
+			}}
+        >
+          ${content}
+        </div>
         ${alternate}`;
 		};
 		field.updated = () => d(() => {
@@ -550,6 +580,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			}
 		};
 		ta.addEventListener("input", () => {
+			unpoint();
 			loadingFailure = "";
 			dictation?.edited();
 			if (loadingDictation) cancelDictation();

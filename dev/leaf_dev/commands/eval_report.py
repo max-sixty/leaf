@@ -1341,7 +1341,7 @@ def judge_preferences(
         return result
 
     for _, pair in records:
-        for provider, (condition, sample) in participants(pair).items():
+        for condition, sample in participants(pair).values():
             if condition == "html" and sample:
                 html_uses[sample["work"].resolve()].add(
                     json.dumps(pair["samples"], sort_keys=True)

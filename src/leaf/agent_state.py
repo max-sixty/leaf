@@ -402,6 +402,13 @@ def page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
+    # The newest revision a tab showed the user, recorded as they left it
+    # (`read_state.seen_revision`), which their page marks its changes since on their
+    # return. It lags while they are still on the page.
+    seen = served["seen"]
+    state["seen"] = (
+        {"revision": seen["revision"], "label": seen["label"]} if seen else None
+    )
     # Before a first revision there is no document, so no thread, obligation, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:

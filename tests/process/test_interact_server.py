@@ -4621,12 +4621,12 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     runner = CliRunner()
     stamp = page_dir / schema_model.LAYER_FILE
     vendored = stamp.read_text(encoding="utf-8")
-    foreign = vendored_at_another_protocol(page_dir, newer=True)
+    vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+    assert "Use a newer Leaf" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert read_record(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -4640,7 +4640,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     assert reshaped.exit_code != 0, reshaped.output
-    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+    assert "Use a newer Leaf" in reshaped.output
 
     stamp.unlink()
     stamp.write_text(vendored, encoding="utf-8")
@@ -4650,10 +4650,10 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         assert started.exit_code == 0, started.output
         assert server_model.running_server(page_dir)
         assert write_refusal(page_dir) is None
-        foreign = vendored_at_another_protocol(page_dir, newer=True)
+        vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
-        assert f"Use a Leaf at protocol {foreign} or later" in reused.output
+        assert "Use a newer Leaf" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output

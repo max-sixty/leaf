@@ -5808,28 +5808,39 @@ function combineSemanticNews(older, newer) {
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
 const MESSAGE_WORDS = 60;
 function semanticNewsNotice(news) {
-	if (!news.length) return "";
 	const byKind = (kind) => news.filter((item) => item.kind === kind);
 	const content = byKind("agent_content");
 	const failures = byKind("response_failure");
 	let obligations = byKind("user_obligation");
+	const agent = (text) => ({
+		text,
+		voice: "agent"
+	});
+	const leaf = (text) => ({
+		text,
+		voice: "leaf"
+	});
+	const plain = (text) => ({
+		text,
+		voice: null
+	});
 	const clauses = [];
 	if (content.length === 1) {
 		const { message } = content[0];
 		obligations = obligations.filter((item) => item.message !== message.id);
 		const words = excerptWords(message.text, MESSAGE_WORDS);
-		clauses.push(words ? message.edited ? `Edited: ${words}` : words : message.kind === "reply" ? "Replied" : "Commented");
+		clauses.push(words ? message.edited ? [plain("Edited: "), agent(words)] : [agent(words)] : [agent(message.kind === "reply" ? "Replied" : "Commented")]);
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
-		clauses.push(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`);
+		clauses.push([plain(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`)]);
 	}
 	const failed = failures.filter((item) => item.condition === "failed").length;
 	const interrupted = failures.filter((item) => item.condition === "interrupted").length;
-	if (failed) clauses.push(failed === 1 ? NOT_ANSWERED : `${failed} not answered`);
-	if (interrupted) clauses.push(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`);
-	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
-	return clauses.join(" · ");
+	if (failed) clauses.push([leaf(failed === 1 ? NOT_ANSWERED : `${failed} not answered`)]);
+	if (interrupted) clauses.push([leaf(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`)]);
+	if (obligations.length) clauses.push([plain(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`)]);
+	return clauses.flatMap((clause, index) => index ? [plain(" · "), ...clause] : clause);
 }
 
 //#endregion

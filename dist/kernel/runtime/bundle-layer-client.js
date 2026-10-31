@@ -1608,6 +1608,7 @@ const noticePresentation = Z(Object.freeze({
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
+const noticeText = (message) => typeof message === "string" ? message : message.map((part) => part.text).join("");
 const presentNotice = (message, visible) => {
 	noticePresentation.value = Object.freeze({
 		message,
@@ -1618,7 +1619,7 @@ function announce(msg) {
 	if (liveEl.firstChild) liveEl.replaceChildren();
 	setTimeout(() => {
 		if (liveEl.firstChild) liveEl.replaceChildren();
-		liveEl.append(msg);
+		liveEl.append(noticeText(msg));
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
@@ -1635,7 +1636,7 @@ function showNotice(msg, background = null) {
 function showBackground(entry) {
 	while (entry) {
 		const message = entry.format(entry.value);
-		if (message) {
+		if (noticeText(message)) {
 			showNotice(message, entry);
 			return true;
 		}
@@ -2008,4 +2009,4 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, noticeText, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

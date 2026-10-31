@@ -175,7 +175,7 @@ root's `--accent`, and the raise shadows, which follow its `--shade`; set
 surface's ground, ring, corners and shadow from these tokens, and places and sizes the
 surface itself, so restyle those through tokens rather than `background`, `border`, a
 position or a transform. The panel's ground is a second box carrying the `panel`
-part, so a property such as `opacity` or `filter` set on the part applies to both.
+part, so a property such as `opacity` or `backdrop-filter` set on the part applies to both.
 
 Any other property, such as `letter-spacing` or `display`, goes in the package's
 `chrome.css`. Leaf nests each of its style rules in the chrome's root, as if written

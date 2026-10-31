@@ -162,11 +162,19 @@
         padding: 0;
         border: 0;
       }
+      /* The legend, set smaller, stands on its choices' baseline: its line is a strut
+         in their size, so it is centred as their words are. Centred on a line of its
+         own, it stood half a pixel above them, a whole one in Firefox. */
       lf-sort-film .sort-inputs legend {
         float: left;
         padding: 0;
         color: var(--muted);
         font-size: var(--t-6);
+        line-height: 0;
+      }
+      lf-sort-film .sort-inputs legend::before {
+        content: "\200b" / "";
+        font: var(--font-ui);
       }
       lf-sort-film .sort-inputs label {
         display: inline-flex;

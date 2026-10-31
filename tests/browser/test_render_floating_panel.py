@@ -4799,6 +4799,19 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     expect(rows.first).not_to_have_attribute("href", re.compile("."))
     other = pages.locator("a.lf-fp-page", has_text="The other leaf")
     expect(other).to_have_attribute("target", "_blank")
+    # A page's title and what its agent is doing stand on one baseline, though the
+    # title is set larger (floating-panel.css, `.lf-fp-page`).
+    for row in (rows.first, other):
+        baselines = row.evaluate(
+            """row => [...row.querySelectorAll('.lf-fp-label, .lf-fp-value')].map(words => {
+              const mark = words.appendChild(document.createElement('span'));
+              mark.style.cssText = 'display: inline-block; block-size: 0';
+              const y = mark.getBoundingClientRect().top;
+              mark.remove();
+              return y;
+            })"""
+        )
+        assert len(baselines) == 2 and max(baselines) - min(baselines) < 0.1, baselines
     page.keyboard.press("Escape")
     expect(pages).to_have_count(0)
 

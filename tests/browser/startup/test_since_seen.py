@@ -1,10 +1,11 @@
-"""Changes in place: what a revision changed since the user last saw the page, marked
-when they come back to it and walked with `h`, and where the agent is at work while it
+"""Changes in place: what changed since the version the user last saw, marked when they
+come back to the page and walked with `h`, and where the agent is at work while it
 works (since-seen.js, change-walk.js, at-work.js).
 
 A revision is seen when it is on the page while the user is there: the tab visible and
-the window holding focus. Headless browsers report every tab visible and focused, so
-these tests set both through the platform's own readings (`visibility`, `attention`)."""
+the window holding focus, and the marks count from the newest version stamped at or
+before it. Headless browsers report every tab visible and focused, so these tests set
+both through the platform's own readings (`visibility`, `attention`)."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -16,6 +17,7 @@ from render_cases_navigation import _publish
 from render_harness import compare_with, open_page, wait_for_revision
 
 from leaf import event_log as events_model
+from leaf import publishing as publishing_model
 from leaf import revisioning as revisioning_model
 
 PAGE = leaf_page(
@@ -30,6 +32,7 @@ PAGE = leaf_page(
 )
 ALPHA = ("Alpha stays as it was.", "Alpha reads another way.")
 BETA = ("Beta reads one way.", "Beta reads another way.")
+GAMMA = ("Gamma stays as it was.", "Gamma reads another way.")
 DELTA = ("Delta reads one way.", "Delta reads another way.")
 
 
@@ -45,6 +48,11 @@ def revise(page_dir, *edits):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     return activated.revision
+
+
+def stamp(page_dir, note):
+    """Make the live revision the next public version, as `leaf page stamp` does."""
+    return publishing_model.cmd_stamp(page_dir, note)["version"]
 
 
 def visibility(page, state):
@@ -152,24 +160,38 @@ def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
     wait_for_revision(page, 3)
     expect(marked).to_have_count(0)
 
+    # The marks count from the version the user last saw, so the draft they watched
+    # land is marked with the one they missed.
     attention(page, True)
-    expect(marked).to_have_count(1)
-    assert marked_ids(page) == ["d"]
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('main .lf-ins-block')]"
+        ".map(b => b.id).join() === 'b,d'"
+    )
     # A glance at the terminal that brings nothing new keeps the marks.
     attention(page, False)
     wait_for_seen(d, [2, 3], "losing focus again named no revision the user saw")
     attention(page, True)
     page.wait_for_timeout(300)
-    assert marked_ids(page) == ["d"]
-    # A return that brings a revision they haven't seen marks only what came after the
-    # newest they had.
+    assert marked_ids(page) == ["b", "d"]
+    # Nor does a draft landing while they are away: no newer version has been seen.
     attention(page, False)
     (d / "index.html").write_text(revised(PAGE, BETA, DELTA, ALPHA))
     wait_for_revision(page, 4)
     attention(page, True)
     page.wait_for_function(
         "() => [...document.querySelectorAll('main .lf-ins-block')]"
-        ".map(b => b.id).join() === 'a'"
+        ".map(b => b.id).join() === 'a,b,d'"
+    )
+    # Once they have seen a newer version, the next return counts from it.
+    assert stamp(d, "Second plan") == 2
+    attention(page, False)
+    wait_for_seen(d, [2, 3, 4], "losing focus named no revision the user saw")
+    (d / "index.html").write_text(revised(PAGE, BETA, DELTA, ALPHA, GAMMA))
+    wait_for_revision(page, 5)
+    attention(page, True)
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('main .lf-ins-block')]"
+        ".map(b => b.id).join() === 'c'"
     )
 
 
@@ -198,19 +220,19 @@ def test_an_offer_follows_what_another_tab_says_it_saw(browser, serve):
     url = live_url(serve(PAGE))
     d = serve.page_dir
     append_command(d, {"kind": "seen", "author": "user", "revision": 1})
-    revise(d, BETA)
-    third = revise(d, DELTA)
+    _publish(d, 2, revised(PAGE, BETA), "Beta")
+    _publish(d, 3, revised(PAGE, BETA, DELTA), "Delta")
     page = open_page(browser, url)
     marked = page.locator("main .lf-ins-block")
     expect(marked).to_have_count(2)
-    # Another tab saw the second revision: only what came after it stays marked.
-    append_command(d, {"kind": "seen", "author": "user", "revision": third - 1})
+    # Another tab saw v2: only what came after it stays marked.
+    append_command(d, {"kind": "seen", "author": "user", "revision": 2})
     page.wait_for_function(
         "() => [...document.querySelectorAll('main .lf-ins-block')]"
         ".map(b => b.id).join() === 'd'"
     )
-    # And once it saw them all, nothing is.
-    append_command(d, {"kind": "seen", "author": "user", "revision": third})
+    # And once it saw v3, the page itself, nothing is.
+    append_command(d, {"kind": "seen", "author": "user", "revision": 3})
     expect(marked).to_have_count(0)
 
 

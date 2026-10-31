@@ -8311,24 +8311,11 @@ function takeInitialDocument() {
 	return captured;
 }
 const stamped = (version) => runtime.versions.find((candidate) => candidate.version === version);
-const revisionBase = ({ revision, version, url, activated_at }) => Object.freeze({
+const revisionBase = ({ revision, version, url }) => Object.freeze({
 	revision,
 	url,
-	name: version != null ? `v${version}` : wentLive(activated_at)
+	name: `v${version}`
 });
-const wentLive = (iso) => {
-	const at = new Date(iso);
-	const sameDay = at.toDateString() === (/* @__PURE__ */ new Date()).toDateString();
-	return at.toLocaleString(void 0, {
-		...sameDay ? {} : {
-			weekday: "short",
-			day: "numeric",
-			month: "short"
-		},
-		hour: "numeric",
-		minute: "2-digit"
-	});
-};
 const currentVersionToken = () => runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 const draftRevisions = () => {
 	const revisions = /* @__PURE__ */ new Set();

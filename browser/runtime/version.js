@@ -14,9 +14,9 @@
  * one per document, and other surfaces import their readers directly; the controller
  * keeps travel and activation, which do. Block marks show changes, and
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. A base is any earlier revision (`revisionBase`): a stamped version a row
- * offers, or the revision the user was last shown, which since-seen.js offers on
- * arrival (`offerComparison`) and which a reader's own choice outranks.
+ * request. A base is a stamped version (`revisionBase`): one a row offers, or the one
+ * the user last saw, which since-seen.js offers on arrival (`offerComparison`) and
+ * which a reader's own choice outranks.
  * `comparisonBase` names the current base and `stopComparison` ends it.
  * `comparisonChanges(owner)` selects changed descendants from the same comparison
  * reading. Its signal advances after the marked DOM and comparison selection have
@@ -302,26 +302,11 @@ export function takeInitialDocument() {
 // Version facts are selectors of the accepted application reading.
 const stamped = (version) =>
   runtime.versions.find((candidate) => candidate.version === version);
-// A comparison's base: the revision the page is compared with, its document's address,
-// and its name in what the comparison says, a stamp's `vN`, else the time it went live,
-// which is what a reader coming back to an unstamped page can place. It is built from a
-// stamped version's entry or from a revision descriptor such as the state's `seen`.
-/** @param {{revision: number, version: number | null, url: string, activated_at?: string}} entry */
-export const revisionBase = ({ revision, version, url, activated_at }) =>
-  Object.freeze({
-    revision,
-    url,
-    name: version != null ? `v${version}` : wentLive(activated_at),
-  });
-const wentLive = (iso) => {
-  const at = new Date(iso);
-  const sameDay = at.toDateString() === new Date().toDateString();
-  return at.toLocaleString(undefined, {
-    ...(sameDay ? {} : { weekday: "short", day: "numeric", month: "short" }),
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+// A comparison's base, built from a stamped version's entry: the revision the page is
+// compared with, its document's address, and its name in what the comparison says.
+/** @param {{revision: number, version: number, url: string}} entry */
+export const revisionBase = ({ revision, version, url }) =>
+  Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
 // what each one was and what it changed. It was a <select>, and the two things that
 // cost were both the control's rather than the styling's. A select takes its inner

@@ -5642,26 +5642,30 @@ function createSinceSeen({ markSeen }) {
 		const seen = runtime.seen;
 		return !shown || seen && seen.revision >= shown.revision ? seen : shown;
 	};
+	const versionAt = (seen) => seen ? runtime.versions.findLast((entry) => entry.revision <= seen.revision) ?? null : null;
 	function present() {
 		const current = runtime.currentRevision;
 		if (!takesPart() || current === null || !runtime.showsActive) return;
 		const seen = runtime.seen;
-		if (offered !== null && seen && seen.revision > Math.max(offered, posted) && comparisonBase()?.revision === offered) {
+		const caught = versionAt(seen);
+		if (offered !== null && seen && seen.revision > posted && caught && caught.revision > offered && comparisonBase()?.revision === offered) {
 			stopComparison();
-			offered = seen.revision < current ? seen.revision : null;
-			if (offered !== null) offerComparison(revisionBase(seen));
+			offered = caught.revision < current ? caught.revision : null;
+			if (offered !== null) offerComparison(revisionBase(caught));
 		}
 		if (!attended()) return;
-		const base = newestSeen();
 		if (arriving) {
 			arriving = false;
+			const since = versionAt(newestSeen());
 			const standing = comparisonBase();
-			const replaces = standing === null || standing.revision === offered && base !== null && base.revision > offered;
-			if (base && base.revision < current && replaces) {
+			if (since !== null && (standing === null || offered !== null && standing.revision === offered && since.revision > offered)) {
 				if (standing !== null) stopComparison();
-				const since = revisionBase(base);
-				offered = since.revision;
-				whenDocumentPresented().then(() => offerComparison(since));
+				offered = null;
+				if (since.revision < current) {
+					const base = revisionBase(since);
+					offered = base.revision;
+					whenDocumentPresented().then(() => offerComparison(base));
+				}
 			}
 		}
 		if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;

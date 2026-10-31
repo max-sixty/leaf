@@ -244,8 +244,8 @@ names it or the user acts in the thread after it; `read_state.py` owns which act
 count. The result is each thread's `unread`, in browser state and `page state`. A
 `seen` event does the same for the page: it names the newest live revision a tab showed
 the user while they were there (visible and focused), posted as they leave it, and the
-newest one named is the served state's `seen`, the revision the browser marks the
-page's changes since. A hosted copy serves no `seen`, since its reader is not the page's
+newest one named is the served state's `seen`; the browser marks the page's changes
+since the newest version stamped at or before it. A hosted copy serves no `seen`, since its reader is not the page's
 user. Read records hold across tabs
 and revisions and never enter agent delivery. A page has one user for its lifetime, so
 a `read` or `seen` names no account.

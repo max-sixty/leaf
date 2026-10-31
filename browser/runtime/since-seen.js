@@ -11,14 +11,20 @@
 
    When the user comes back, by a load, a return to a hidden tab once its first
    refreshed reading is in, or focus returning to the window, this owner marks what
-   changed since the newest revision they saw, through the version comparison
-   (version.js, `offerComparison`), whose block marks, Change margin entries and `h` walk
-   (change-walk.js) every comparison shares. That newest revision is the higher of two
-   readings: the server's `seen` (`read_state.seen_revision`), which every tab and
-   browser of the page's one user writes, and the one this tab saw itself. A revision
-   installed into a fresh document (a changed executable reloads the tab, version.js,
-   `reloadInto`) never animates, so it was not seen and is marked once the new document
-   is there: what the user did not watch land is marked, whichever way it landed.
+   changed since the version they last saw, through the version comparison (version.js,
+   `offerComparison`), whose block marks, Change margin entries and `h` walk
+   (change-walk.js) every comparison shares. That version is the newest stamped one at
+   or before the newest revision they saw, which is the higher of two readings: the
+   server's `seen` (`read_state.seen_revision`), which every tab and browser of the
+   page's one user writes, and the one this tab saw itself. The marks count from a
+   version rather than the revision itself so they move on at a point the leaf's row
+   names, once the user has seen a newer version, rather than at a departure they can't
+   see; the user chose this on 31 October over counting from the revision they left,
+   from the previous version, and from each change until they looked at it. So drafts
+   between versions add up in the marks, and a page with no version at or before what
+   the user saw marks nothing. A revision installed into a fresh document (a changed
+   executable reloads the tab, version.js, `reloadInto`) never animates, so it was not
+   seen and is marked once the new document is there.
 
    When the user leaves, the tab going hidden or closing or the window losing focus to
    another application, it posts a `seen` event naming the newest revision it saw, with
@@ -28,13 +34,11 @@
 
    The marks are annotations and have no stop of their own (change-walk.js). An offer
    stands, taking in each revision that lands while the user watches, until a return
-   brings a revision they haven't seen: then it starts again from the newest they had,
-   so only what came after is marked. A return that brings nothing new leaves it, so a
-   glance at the terminal keeps the marks and the walk's place. An offer also follows
-   the server's reading as it catches up, as when another tab's send lands after this
-   one's reading: it re-bases where the newer seen revision is still behind the page,
-   and stops where it reaches it. A comparison the reader chose in Versions outranks the
-   offer and is left alone.
+   finds a newer version seen: then it starts again from that version, or ends where
+   that version is the page. A return before then keeps the marks and the walk's place.
+   An offer also follows the server's reading as it catches up, as when another tab's
+   send lands after this one's reading. A comparison the reader chose in Versions
+   outranks the offer and is left alone.
 
    Whether the user saw a revision is a logged fact, not browser storage, for the reason
    a message's read is: the page has one user, who reads it in more than one browser and
@@ -87,6 +91,13 @@ export function createSinceSeen({ markSeen }) {
     const seen = runtime.seen;
     return !shown || (seen && seen.revision >= shown.revision) ? seen : shown;
   };
+  // The newest stamped version at or before a revision the user saw, which the marks
+  // count from.
+  /** @param {{revision: number} | null} seen */
+  const versionAt = (seen) =>
+    seen
+      ? (runtime.versions.findLast((entry) => entry.revision <= seen.revision) ?? null)
+      : null;
 
   function present() {
     const current = runtime.currentRevision;
@@ -94,31 +105,40 @@ export function createSinceSeen({ markSeen }) {
     // An offer follows the server's reading as it catches up: another tab's or a
     // departing document's send that landed after this tab's first reading. What this
     // tab saw itself and posted is no news to its own offer, which stands until a
-    // return brings something new.
+    // return finds a newer version seen.
     const seen = runtime.seen;
+    const caught = versionAt(seen);
     if (
       offered !== null &&
       seen &&
-      seen.revision > Math.max(offered, posted) &&
+      seen.revision > posted &&
+      caught &&
+      caught.revision > offered &&
       comparisonBase()?.revision === offered
     ) {
       stopComparison();
-      offered = seen.revision < current ? seen.revision : null;
-      if (offered !== null) offerComparison(revisionBase(seen));
+      offered = caught.revision < current ? caught.revision : null;
+      if (offered !== null) offerComparison(revisionBase(caught));
     }
     if (!attended()) return;
-    const base = newestSeen();
     if (arriving) {
       arriving = false;
+      const since = versionAt(newestSeen());
       const standing = comparisonBase();
-      const replaces =
-        standing === null ||
-        (standing.revision === offered && base !== null && base.revision > offered);
-      if (base && base.revision < current && replaces) {
+      const movesOn =
+        since !== null &&
+        (standing === null ||
+          (offered !== null &&
+            standing.revision === offered &&
+            since.revision > offered));
+      if (movesOn) {
         if (standing !== null) stopComparison();
-        const since = revisionBase(base);
-        offered = since.revision;
-        void whenDocumentPresented().then(() => offerComparison(since));
+        offered = null;
+        if (since.revision < current) {
+          const base = revisionBase(since);
+          offered = base.revision;
+          void whenDocumentPresented().then(() => offerComparison(base));
+        }
       }
     }
     if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;

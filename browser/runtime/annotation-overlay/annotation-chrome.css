@@ -577,6 +577,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
   }
+  /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
+     subgrid's items on its parent's tracks without subtracting the room an `auto`
+     scrollbar takes (2026-10-30), so on a platform whose scrollbars take room (Linux,
+     Windows, macOS with a mouse) the words would run under the bar and the
+     transcript could scroll sideways by the bar's width. Both subtract a
+     `scrollbar-gutter: stable` gutter, so the transcript holds one once its turns
+     overflow, when the bar takes that room anyway (thread-preview.js says until
+     when). Rejected:
+     holding the gutter always, which on such a platform would wrap a short thread's
+     words narrower than the draft they were sent from. */
+  .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
+    scrollbar-gutter: stable;
+  }
   /* The row holds paper in the actions' track that sticks on the heads' line, so
      words pass beneath the actions only where a message's head row paints over it
      (below). The transcript's mask makes it a stacking context, so paper on the

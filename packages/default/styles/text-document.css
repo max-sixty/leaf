@@ -55,7 +55,7 @@ lf-text-document .lf-text-document-listing {
   --diffs-fg: var(--code-ink);
   --diffs-fg-number: var(--code-muted);
 }
-lf-text-document [data-line-number-content]::before {
+lf-text-document [data-number]::before {
   content: attr(data-number);
 }
 /* The listing owns source scroll, including when Preview and Source have separate
@@ -139,7 +139,7 @@ lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible])::af
   z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
   --lf-wears-ring: 1;
@@ -159,7 +159,10 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
   margin: 0;
   padding: 0;
 }
+/* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
+   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
 lf-text-document div.lf-text-document-preview {
+  --lf-reading-face: 1;
   padding: var(--sp-4);
   overflow-wrap: anywhere;
 }

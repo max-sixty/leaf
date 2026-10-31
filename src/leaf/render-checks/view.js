@@ -9,7 +9,6 @@
 import {
   arrangedBoxes,
   heldPanes,
-  marginContent,
   overflowingRegions,
   rootOverflow,
 } from "./layout.js";
@@ -19,7 +18,6 @@ import { scrollbarClearance } from "./scrollbars.js";
 export function readViewChecks(open) {
   return {
     layout: {
-      margin: marginContent(),
       arrangement: arrangedBoxes(open, { shown: true }),
       panes: heldPanes(),
     },

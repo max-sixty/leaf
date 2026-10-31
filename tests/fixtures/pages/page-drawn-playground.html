@@ -403,7 +403,12 @@
         colour: "#0e0d0a",
         resting: [L(0, 0, 1, 0, 3), L(0, 1, 1, 0, 3), L(0, 3, 2, 0, 3)],
         raised: [L(0, 1, 2, 0, 5), L(0, 4, 6, 0, 5), L(0, 10, 12, 0, 4)],
-        overlay: [L(0, 2, 3, 0, 8), L(0, 7, 6, 0, 8), L(0, 15, 8, 0, 8), L(0, 26, 10, 0, 8)],
+        overlay: [
+          L(0, 2, 3, 0, 8),
+          L(0, 7, 6, 0, 8),
+          L(0, 15, 8, 0, 8),
+          L(0, 26, 10, 0, 8),
+        ],
       };
       const LEVELS = [
         ["resting", "Resting", "Stationary surfaces"],
@@ -480,7 +485,10 @@
               button.setAttribute("aria-pressed", "false");
               const c = card();
               const words = el("span");
-              words.append(el("span", "ws-level-name", name), el("span", "ws-level-role", role));
+              words.append(
+                el("span", "ws-level-name", name),
+                el("span", "ws-level-role", role),
+              );
               button.append(c, words);
               button.addEventListener("click", () => {
                 this.#level = key;
@@ -494,6 +502,7 @@
             stage.append(stageHead, levels);
 
             const inspector = el("div", "ws-inspector");
+            this.#parts.inspector = inspector;
             const head = el("div", "ws-inspector-head");
             const named = el("div");
             this.#parts.role = el("div", "ws-eyebrow");
@@ -526,7 +535,9 @@
               input.step = "1";
               const value = el("span", "ws-slider-value");
               label.append(el("span", "ws-slider-name", name), value, input);
-              input.addEventListener("input", () => this.#setLayer(key, Number(input.value)));
+              input.addEventListener("input", () =>
+                this.#setLayer(key, Number(input.value)),
+              );
               this.#parts.sliders.set(key, { label, input, value, min, max });
               sliders.append(label);
             }
@@ -537,7 +548,10 @@
             this.#parts.colour = el("input");
             this.#parts.colour.type = "color";
             this.#parts.colour.addEventListener("input", () =>
-              this.#scale.set({ ...this.#scale.get(), colour: this.#parts.colour.value }),
+              this.#scale.set({
+                ...this.#scale.get(),
+                colour: this.#parts.colour.value,
+              }),
             );
             swatch.append(this.#parts.hex, this.#parts.colour);
             colour.append(el("span", null, "Colour"), swatch);
@@ -550,7 +564,11 @@
 
           #declare() {
             this.#playground = this.closest("lf-playground");
-            this.#scale = this.#playground.registerContributor("scale", DEFAULT_SCALE);
+            this.#scale = this.#playground.registerContributor(
+              "scale",
+              DEFAULT_SCALE,
+              this.#parts.inspector,
+            );
             this.#playground.registerActions({
               submit: this.#parts.save,
               reset: this.#parts.reset,
@@ -632,7 +650,8 @@
                 part.label.style.setProperty("--fill", `${fill}%`);
               keepsText(part.value, String(v));
             }
-            if (this.#parts.colour.value !== s.colour) this.#parts.colour.value = s.colour;
+            if (this.#parts.colour.value !== s.colour)
+              this.#parts.colour.value = s.colour;
             keepsText(this.#parts.hex, s.colour);
           }
         },

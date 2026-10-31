@@ -64,7 +64,7 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
-    """The user writes on the same line and in the same voice as the options.
+    """The user writes on the same line and in the same font as the options.
 
     The trailing action stays out of an empty row, then submits on the shared margin entry
     corner rather than borrowing the selection mark's circle. It remains a full-sized
@@ -529,6 +529,17 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
       return {room, words: pen.measureText(field.getAttribute('placeholder')).width};
     }""")
     assert fit["words"] <= fit["room"], fit
+
+
+def test_a_closed_group_answers_only_from_its_options(browser, serve):
+    """`closed` leaves out the field for an unlisted answer, so a page that draws its
+    own choice ends at its own options; the listed options still answer."""
+    page = open_page(
+        browser, serve(OBLIGATION_PAGE.replace('id="jobs"', 'id="jobs" closed'))
+    )
+
+    expect(page.locator("#jobs > lf-option").first).to_be_visible()
+    expect(page.locator("#jobs > .lf-another")).to_have_count(0)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

@@ -1,10 +1,13 @@
 """Code blocks and document readers: line references and excerpts in a code block, and
 switching a document between its rendered and source readings as its source changes."""
 
+import json
+
 import pytest
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
+    ROOT,
     holding,
     leaf_page,
     open_page,
@@ -68,7 +71,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         "el => el.getBoundingClientRect().right"
     ) <= content.evaluate("el => el.getBoundingClientRect().left")
     assert (
-        document.locator("[data-line-number-content]").first.evaluate(
+        document.locator("[data-number]").first.evaluate(
             "el => getComputedStyle(el, '::before').content"
         )
         == '"1"'
@@ -80,6 +83,54 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     preview.press("End")
     expect(source).to_be_focused()
     expect(source).to_have_attribute("aria-selected", "true")
+
+
+def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
+    browser, serve
+):
+    """Widget output reaches both document readings at startup and on input."""
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    declaration = json.loads((companion / "registry.json").read_text())[
+        "lf-document-gallery"
+    ]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget document",
+                "<h1>Widget document</h1>"
+                '<lf-document-gallery id="producer"></lf-document-gallery>'
+                '<lf-text-document id="document" for="producer" '
+                'preview="markdown" label="Release note"></lf-text-document>',
+            ),
+            page_files={
+                "registry.json": json.dumps({"lf-document-gallery": declaration}),
+                "widgets/lf-document-gallery.js": (
+                    companion / "widgets/lf-document-gallery.js"
+                ).read_text(),
+            },
+        ),
+    )
+    document = page.locator("#document")
+    source = document.get_by_role("tab", name="Source", exact=True)
+    preview = document.get_by_role("tab", name="Preview", exact=True)
+    expect(document.get_by_role("heading", name="Release note 1")).to_be_visible()
+    source.click()
+    page.get_by_role("button", name="Update document", exact=True).click()
+    expect(source).to_have_attribute("aria-selected", "true")
+    expect(document.locator("code")).to_have_text(
+        "# Release note 2\n\nThe library opens on **Sunday**.\n"
+    )
+    source.press("Home")
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="Release note 2")).to_be_visible()
+    page.get_by_role("button", name="Update document", exact=True).click()
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="Release note 3")).to_be_visible()
+    preview.press("End")
+    expect(document.locator("code")).to_have_text(
+        "# Release note 3\n\nThe library opens on **Sunday**.\n"
+    )
 
 
 @pytest.mark.parametrize(

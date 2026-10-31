@@ -1,3 +1,12 @@
+## A patch review
+
+`lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
+the patch, select the `file-tree` package too; its author instructions describe the
+navigator and selected-file composition. A small flat patch can use the diff's listing
+alone.
+
+## Worktree snapshots
+
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
 Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
 Write each member’s evidence directly inside it. Leaf makes each member an expandable
@@ -66,7 +75,15 @@ The worktree path itself is supplied by `path` and shown above the body. Include
 path in the authored details too when the reader needs to comment on it.
 
 `lf-diff` remains the patch reader: supply the exact Git patch inline or through its
-existing source contract. An inline patch reserves the height it draws at, while a
-`source` patch arrives after first paint, so only the bound one takes a `data-height`. Describe binary changes in the authored body when
+existing source contract. Describe binary changes in the authored body when
 there is no textual patch to inspect. This widget displays snapshots supplied
 by the author; it does not discover directories or run Git in the browser.
+
+## Initial height
+
+An inline patch remains readable as authored source while its widget module loads;
+leave `data-height` off it. The drawing can change its height when the module loads.
+A `source` diff receives its patch through the page's data reading. Reserve its
+measured `data-height` when content below must hold still; `page check --render`
+reports the drawn height. This applies to textual patches and files manifests,
+including `view="file"` readers.

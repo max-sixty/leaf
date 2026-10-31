@@ -31,19 +31,19 @@ from .locations import (
 from .machine import package_store
 from .refusals import Refused
 from .schema import (
-    BROWSER_DIRS,
     ELEMENT_ID,
     HTML_NAME,
+    LAYER_FILE,
     PACKAGE_DIRS,
     PACKAGE_FILES,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SCRIPTS_DIR,
-    VENDORED_FILES,
     WIDGET_NAME,
     WIDGET_NAME_RULE,
 )
 from .state import EVENTS_FILE, flocked, fsync_parents, json_bytes
+from .themes import DEFAULT_THEME
 
 
 @contextlib.contextmanager
@@ -88,7 +88,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                 raise Refused(
                     f"package member {path.relative_to(package)} was created "
                     "while package init was running; nothing was replaced"
-                )
+                ) from None
             with os.fdopen(descriptor, "wb") as stream:
                 identity = os.fstat(stream.fileno())
                 stream.write(contents)
@@ -188,13 +188,10 @@ def initialized_page_owning(path: Path):
     resolved = path.resolve()
     at = path_location(resolved)
     for root in (resolved, *resolved.parents):
-        # The append-only event log is the successful-init marker. Disposable
-        # runtime state cannot identify the page whose owned paths this gate protects.
-        if not (
-            (root / EVENTS_FILE).is_file()
-            and all((root / name).is_file() for name in VENDORED_FILES)
-            and all((root / name).is_dir() for name in BROWSER_DIRS)
-        ):
+        # The append-only event log is the successful-init marker, beside the layer
+        # record init writes. Disposable runtime state cannot identify the page whose
+        # owned paths this gate protects.
+        if not ((root / EVENTS_FILE).is_file() and (root / LAYER_FILE).is_file()):
             continue
         if (
             at == path_location(root)
@@ -267,19 +264,22 @@ def validate_package_dir(package: Path) -> list:
         raise Refused(
             f"package path {target} is owned by initialized page {page}; "
             "packages must stay separate from page-owned paths, "
-            "then run `page init` to re-vendor the page"
+            "then run `page init` again"
         )
     refuse_package_overlap(paths, protected)
     return protected
 
 
 def package_layer_inputs(package: Path) -> list[Path]:
-    """The complete mandatory layer, with this package when it is not already in it."""
+    """The layer a new page selecting this package composes: the mandatory layer and
+    Leaf's default theme before this package when it is not already in it."""
     inputs = layer_inputs()
-    for root in inputs:
-        if paths_same(package, root):
-            return inputs
-    return [*inputs, package]
+    theme = named_package(DEFAULT_THEME)
+    if theme is not None and not any(paths_same(theme, root) for root in inputs):
+        inputs.append(theme)
+    if not any(paths_same(package, root) for root in inputs):
+        inputs.append(package)
+    return inputs
 
 
 def check_package(
@@ -388,9 +388,9 @@ def init_starter_widget(
         (package / name).mkdir(exist_ok=True)
     creates = [(module_path, files[f"widgets/{module_name}"])]
     if not (
-        (package / "widgets.css").exists() or (package / "widgets.css").is_symlink()
+        (package / "defaults.css").exists() or (package / "defaults.css").is_symlink()
     ):
-        creates.append((package / "widgets.css", b""))
+        creates.append((package / "defaults.css", b""))
     created = create_package_files(package, creates)
     try:
         replace_files([(registry_path, files["registry.json"], True)])
@@ -413,7 +413,7 @@ def cmd_package_init(package: Path, widget: str | None = None) -> dict:
 
         files = {
             "registry.json": b"{}\n",
-            "theme.css": b"",
+            "overrides.css": b"",
         }
         package.mkdir(parents=True, exist_ok=True)
         for name in PACKAGE_DIRS:

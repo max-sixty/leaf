@@ -78,8 +78,9 @@
    quote to satisfy a regular-expression limit; the stored quote is the passage the
    user selected.
 
-   Shadow trees: only open roots declared through `x-shadow` join the page reading.
-   `pageShadowRoots` (shadow.js) enumerates them. `textNodesUnder` crosses those roots,
+   Shadow trees: only open roots declared through `x-shadow` join the page reading;
+   any other root is opaque, and its host reads by its light children (`walk`).
+   `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
    and `closestAcross` cross back to the host.
 
@@ -106,7 +107,6 @@ import {
   SAID,
   declaredRoot,
   UI_MARKS,
-  hostIn,
   inUi,
   overIn,
   refuseShadowRoot,
@@ -117,7 +117,7 @@ import {
   under,
   upFrom,
 } from "./shadow.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedOrder, renderedParent, renderedUnder } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
@@ -134,7 +134,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // ---------- passages ----------
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
 // text speaks in them: the search for a quote, the capture of one, the landmark a version
-// change rides on, the version diff's block keys. One shape means one answer to what the
+// change rides on, the version comparison's block keys. One shape means one answer to what the
 // page says. The bugs this layer kept having were all a second answer disagreeing with the
 // first — what a selection rendered as versus what the document holds — and a second
 // answer is what there is now no room for.
@@ -143,11 +143,11 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // reason .lf-ui and data-lf-gen are two markers rather than one. Anchoring skips the
 // runtime's own words, inline scripts, and the stylesheet a rendered diagram carries
 // inside its <svg>: a quote holding text the search skips is a quote nothing can find
-// again. The version diff additionally skips content an upgrade generated, because the
-// base document parses unupgraded and would never match it. So generated text the page
-// authored — a widget's label, an attribute renderSaid rendered — is diff-invisible and
-// quotable, which is the pair a user expects: they can point at it, and it doesn't
-// read as a change nobody wrote.
+// again. The authored reading additionally skips content an upgrade generated, so it
+// reads a live block as the block's source does: a version comparison paints a source's
+// words onto the live block standing for it (version.js), and a module reads its own
+// authored words. So generated text the page authored — a widget's label, an attribute
+// renderSaid rendered — is quotable and outside the authored reading.
 //
 // A decided suggestion's retired slot goes with them. Its markup is still in the
 // document — the honoring version is what finally drops it — but the user has
@@ -296,9 +296,8 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
 // speaks through, so a pick mark inside a slot the user accepted away is gone with
-// the slot, its marker notwithstanding. The diff reads what the base version holds, and
-// the base parses unupgraded, so everything an upgrade generated goes, a declared label
-// included: the version being compared against has none.
+// the slot, its marker notwithstanding. The authored reading keeps what a source holds,
+// so everything an upgrade generated goes, a declared label included: no source has one.
 //
 // A text node's parent is an element, and every reading of these nodes says so: the
 // walk asks it of a shadow root's own text and of a slotted node's place, and
@@ -347,7 +346,8 @@ export const elementOver = (n) => {
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
   let bare = root.firstChild;
-  while (bare && bare.nodeType !== Node.TEXT_NODE) bare = bare.nextSibling;
+  while (bare && (bare.nodeType !== Node.TEXT_NODE || !bare.data.trim()))
+    bare = bare.nextSibling;
   if (!bare) return false;
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);
@@ -362,8 +362,8 @@ function refusesBareText(root) {
 }
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
-// holds is the layer's, which is the whole of what the anchor pass and the version diff
-// need. Inside a widget it is a different sentence, and the widget is where it changes.
+// holds is the layer's, which is the whole of what the anchor pass and the authored
+// reading need. Inside a widget it is a different sentence, and the widget is where it changes.
 //
 // A widget riding a message stands inside the floating panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
@@ -376,9 +376,9 @@ function refusesBareText(root) {
 // above the widget is somebody else's. Rooting the search at the element handed in says
 // almost the same thing and is wrong in one case that matters: a reading can start
 // *inside* generated chrome. A thread box's messages are `<p>`s the runtime built,
-// on the page, inside the group they belong to — and `diffBlocks` reads every block on the
-// page, so bounded at the block each of them stopped being generated and the version diff
-// painted the user's own comments as changes to the document.
+// on the page, inside the group they belong to — so bounded at the block, each of them
+// stopped being generated, and the authored reading took the user's own comments for
+// words the author wrote.
 const frameOf = (node) => {
   for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a))
     if (a.localName?.startsWith("lf-")) return a;
@@ -551,49 +551,49 @@ export const authored = (root) => {
 // walk passed keep the context they carried, and a node assigned from anywhere else (a
 // flattened fallback, a host above the root) is asked where it stands.
 // A visible <br> contributes a separator even though it has no text node of its own.
-function walk(root, onText, skip = null, onBreak = null) {
+function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   const frame = frameOf(root);
   const passed = new Map();
   const contextOver = (node) => {
     const over = elementOver(node);
     return passed.get(over) ?? contextAt(over, frame);
   };
-  const visit = (node, ctx) => {
-    if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
-      onBreak?.(ctx);
-      return;
+  const visitElement = (child, ctx) => {
+    if (skip?.(child)) return;
+    const inner = enter(ctx, child);
+    if (child.localName === "br") {
+      onBreak?.(inner);
+    } else if (child.localName === "slot") {
+      passed.set(child, inner);
+      onElement?.(child, inner, true);
+      for (const assigned of child.assignedNodes({ flatten: true }))
+        assigned.nodeType === Node.TEXT_NODE
+          ? onText(assigned, contextOver(assigned))
+          : visitElement(assigned, contextOver(assigned));
+      onElement?.(child, inner, false);
+    } else {
+      // Assigned elements enter their own declared root exactly as ordinary
+      // children do. An undeclared root remains opaque to the page reading.
+      const declared = declaredRoot(child);
+      if (declared && !refusesBareText(declared)) {
+        passed.set(child, inner);
+        visit(declared, crossed(inner), child);
+      } else visit(child, inner);
     }
+  };
+  const visit = (node, ctx, host = null) => {
+    const element = host ?? (node.nodeType === Node.ELEMENT_NODE ? node : null);
+    if (element) onElement?.(element, ctx, true);
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
+        if (node.nodeType !== Node.ELEMENT_NODE && !child.data.trim()) continue;
         // A shadow root's own text has no element over it, which elementOver refuses:
         // a root the walk crosses into was asked first, so this is a root handed in.
         if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
         onText(child, ctx);
-        continue;
-      }
-      if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
-      const inner = enter(ctx, child);
-      if (child.localName === "slot") {
-        passed.set(child, inner);
-        for (const assigned of child.assignedNodes({ flatten: true }))
-          assigned.nodeType === Node.TEXT_NODE
-            ? onText(assigned, contextOver(assigned))
-            : visit(assigned, enter(contextOver(assigned), assigned));
-      } else {
-        // Only a root the registry declares (x-shadow): the capture asks
-        // getComposedRanges for exactly the declared ones, and every climb
-        // crosses exactly those — so a walk that entered any open root read
-        // words the anchor side could never place, and a widget's undeclared
-        // root anchored quotes astray instead of staying opaque. The render gate
-        // names an undeclared root; this leaves its words alone, as it does a root
-        // refused for its bare text.
-        const declared = declaredRoot(child);
-        if (declared && !refusesBareText(declared)) {
-          passed.set(child, inner);
-          visit(declared, crossed(inner));
-        } else visit(child, inner);
-      }
+      } else if (child.nodeType === Node.ELEMENT_NODE) visitElement(child, ctx);
     }
+    if (element) onElement?.(element, ctx, false);
   };
   // A declared tree handed in as the root reads where its host stands, its tree-local
   // facts starting over as they do when the walk crosses into it; the document starts
@@ -612,23 +612,59 @@ function walk(root, onText, skip = null, onBreak = null) {
 // in their tree).
 // `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
 // the walk, for a reader that stands something else in their place (render-checks,
-// `shownVerbatim`).
-export function textNodesUnder(root, reading = "says", boundary = null) {
+// `shownVerbatim`). The lines format also carries computed block boundaries and
+// whitespace; ordinary passage readings never ask the browser for these styles.
+export function textNodesUnder(
+  root,
+  reading = "says",
+  boundary = null,
+  format = "prose",
+) {
   const keeps = READINGS[reading];
   const segments = [];
   let breakBefore = false;
+  let lineBefore = "";
+  const styles = new Map();
+  const style = (element) => {
+    if (!styles.has(element)) styles.set(element, getComputedStyle(element));
+    return styles.get(element);
+  };
   walk(
     root,
     (node, ctx) => {
       if (keeps(ctx)) {
-        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        segments.push({
+          ...segmentIn(node, ctx),
+          breakBefore,
+          ...(format === "lines" && {
+            lineBefore,
+            whiteSpace: style(renderedParent(node)).whiteSpaceCollapse,
+          }),
+        });
         breakBefore = false;
+        lineBefore = "";
       }
     },
     boundary && ((child) => boundary(child, segments.length)),
     (ctx) => {
-      if (keeps(ctx)) breakBefore = true;
+      if (keeps(ctx)) {
+        breakBefore = true;
+        lineBefore = "\n";
+      }
     },
+    format === "lines"
+      ? (element, ctx, entering) => {
+          if (!keeps(ctx)) return;
+          const display = style(element).display;
+          if (display === "table-cell") {
+            if (!entering && lineBefore !== "\n") lineBefore = "\t";
+          } else if (
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+          ) {
+            lineBefore = "\n";
+          }
+        }
+      : null,
   );
   return segments;
 }
@@ -680,7 +716,19 @@ export const pageDocument = (doc = document) => doc.querySelector("body > main")
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.
-export const layoutBox = () => document.documentElement.lfInitial.layoutBox();
+const isLayoutBox = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+export const layoutBox = () => {
+  const main = document.querySelector("body > main");
+  if (!main || isLayoutBox(main)) return main;
+  const parts = main.querySelector(':scope > [data-lf-views="parts"]');
+  const boxes = [
+    ...main.children,
+    ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
+  ];
+  return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
+};
+
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 
@@ -714,107 +762,23 @@ export const pageQueryAll = (selector) =>
     ...root.querySelectorAll(selector),
   ]);
 
-// The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
-// drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
-// BODY and its ends clamped to the host, so `sel.toString()` says the right words while
-// every node the capture would index says the wrong place. That is the one failure mode
-// worth naming twice — not a refusal, which the fence rule turns into a message to the
-// author, but a quote anchored somewhere the user never pointed.
-//
-// `getComposedRanges` is the only thing that answers truthfully, and it answers only for
-// the roots it is handed, which is why the declaration (x-shadow) and not a sweep decides
-// what is passed. A selection that starts in one tree and ends in another is left to the
-// light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote running
-// from the page's prose into a widget's shadow is exactly what the fences already refuse.
-export function pageRange(sel) {
-  const plain = sel.getRangeAt(0);
-  const shadowRoots = pageShadowRoots();
-  if (!shadowRoots.length) return plain;
-  const [composed] = sel.getComposedRanges({ shadowRoots });
-  const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
-  const range = document.createRange();
-  range.setStart(startContainer, startOffset);
-  range.setEnd(endContainer, endOffset);
-  return range;
-}
-
-// Native page selections share one endpoint writer, including their provenance.
-// Native selectionchange arrives asynchronously, so its endpoints say whether it is
-// still the programmatic write or a later user adjustment (including touch handles).
-let writtenSelection = null;
-let writtenBackward = false;
-// Each end is a boundary point, `[node, offset]`.
-export function selectEnds(anchor, focus) {
-  const selection = getSelection();
-  const from = document.createRange(),
-    to = document.createRange();
-  from.setStart(.../** @type {[Node, number]} */ (anchor));
-  to.setStart(.../** @type {[Node, number]} */ (focus));
-  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-  selection.setBaseAndExtent(
-    .../** @type {[Node, number]} */ (anchor),
-    .../** @type {[Node, number]} */ (focus),
-  );
-  writtenSelection = selectionEnds(selection);
-}
-const selectionEnds = (selection) => {
-  const range = selection.rangeCount ? pageRange(selection) : null;
-  return [
-    selection.anchorNode,
-    selection.anchorOffset,
-    selection.focusNode,
-    selection.focusOffset,
-    range?.startContainer,
-    range?.startOffset,
-    range?.endContainer,
-    range?.endOffset,
-  ];
+// A native Range compares one DOM tree. Its light-DOM endpoints can sit inside
+// slots, where retargeting every shadow word to its host also selects the host's
+// unrelated header. Compare boundary points in the rendered order instead, using
+// the same slot-aware ancestry as navigation and layout.
+const beforePoint = (node, container, offset) => {
+  if (node === container) return false;
+  if (container.nodeType === Node.TEXT_NODE || offset === 0)
+    return renderedOrder(node, container) < 0;
+  const next = container.childNodes[offset];
+  return next
+    ? renderedOrder(node, next) < 0
+    : renderedUnder(node, container) || renderedOrder(node, container) < 0;
 };
-export function programmaticSelection(selection) {
-  if (!writtenSelection) return false;
-  if (selectionEnds(selection).every((end, i) => end === writtenSelection[i]))
-    return true;
-  writtenSelection = null;
-  return false;
-}
-
-// Boundary points retain the working end even where the platform reports "none"
-// after setBaseAndExtent. A composed selection clamped in light DOM instead uses
-// the platform's direction for the range inside its declared shadow tree.
-export function selectionBackward(selection, range = pageRange(selection)) {
-  if (
-    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
-  )
-    return programmaticSelection(selection)
-      ? writtenBackward
-      : selection.direction === "backward";
-  const probe = document.createRange();
-  probe.setStart(selection.anchorNode, selection.anchorOffset);
-  return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
-}
-
-// Whether a range covers a node, asked so a shadow tree answers the same as the light
-// DOM it renders in place of. `intersectsNode` compares within one tree, so every node
-// inside an x-shadow widget says no to a range drawn out in the document — and a drag
-// from the paragraph above a diff to the one below it would come back holding the two
-// paragraphs joined, with the lines the user dragged straight over missing from the
-// quote and still sitting between them in the reading, so the search could never find
-// it. The tree renders where its host stands, so the host is what the question is really
-// about: climb to whichever ancestor shares the range's root, and ask there.
-function coveredBy(range, node) {
-  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
-  if (!n || !range.intersectsNode(n)) return false;
-  // A host represents its shadow words only while the range actually enters it.
-  // intersectsNode includes an endpoint at the host's edge, even when no shadow
-  // word is selected (for example, a triple-click ending at the next widget).
-  if (n !== node) {
-    if (range.endContainer === n && range.endOffset === 0) return false;
-    if (range.startContainer === n && range.startOffset === n.childNodes.length)
-      return false;
-  }
-  return true;
-}
+const coveredBy = (range, node) =>
+  !beforePoint(node, range.startContainer, range.startOffset) &&
+  (node === range.endContainer ||
+    beforePoint(node, range.endContainer, range.endOffset));
 
 // The page reading's segments a range covers, clipped to where it starts and ends.
 // Callers place a passage in that reading (`spanIn`), so the segments are the reading's
@@ -910,15 +874,51 @@ export const readingFrom = (segments) =>
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");
 
+// Copyable words use the same segments as prose, with the walk's computed line
+// boundaries and whitespace. They need no DOM-coordinate map; quote readings above
+// keep their own normalization unchanged.
+function linesFrom(segments) {
+  let text = "";
+  let separator = "";
+  for (const segment of segments) {
+    if (segment.lineBefore && text)
+      separator = segment.lineBefore === "\n" || separator === "\n" ? "\n" : "\t";
+    const { whiteSpace } = segment;
+    const collapses =
+      whiteSpace === "preserve" || whiteSpace === "break-spaces"
+        ? null
+        : whiteSpace === "preserve-breaks"
+          ? /[\t\r\f ]/
+          : /[\t\n\r\f ]/;
+    for (const character of segment.node.data.slice(segment.start, segment.end)) {
+      if (collapses?.test(character)) {
+        if (text && !text.endsWith("\n")) separator ||= " ";
+        continue;
+      }
+      if (whiteSpace === "preserve-breaks" && character === "\n" && separator === " ")
+        separator = "";
+      text += separator + character;
+      separator = "";
+    }
+  }
+  return text;
+}
+
 // What an element says, read the way this file reads the page everywhere else. A widget
 // wanting the words in one of its own slots asks for them here rather than through
 // `textContent`, because the two differ: the paint pass writes a hidden line into any text
 // block that carries a comment, including blocks inside a widget, and `textContent` returns
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
-export const says = (el) => quoteFrom(textNodesUnder(el));
+// The lines format takes block boundaries and preserved whitespace from computed
+// styles while the same composed walk determines which words belong to the page.
+/** @param {{format?: "prose" | "lines"}} [options] */
+export const says = (el, options = {}) => {
+  const segments = textNodesUnder(el, "says", null, options.format);
+  return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
+};
 // The other question, and a different answer: what the *author* wrote here, with
-// everything an upgrade generated left out. The version diff asks it because the base
-// version it compares against has no generated nodes at all; a widget asks it to name
+// everything an upgrade generated left out. A version comparison keys sources by it and
+// paints a source's words onto the live block that reads the same; a widget asks it to name
 // one of its own parts, where `says` would hand back the widget's own declared labels
 // along with the words — a picked row's mark is the page speaking, so it is in the
 // reading a user points at and out of the row's name.

@@ -1,4 +1,9 @@
 <!doctype html>
+<!--
+  UI: what a page can contain, and how layout, styling,
+  navigation and interaction behave. How it works explains the shared concepts
+  and mechanisms; Extending explains how to implement widgets, themes and packages.
+-->
 <html lang="en">
   <head>
     <title>Leaf UI</title>
@@ -98,21 +103,20 @@
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
         <p class="eyebrow">UI</p>
-        <h1>Pages and interface</h1>
+        <h1>UI</h1>
         <p class="lede" id="intro">
           Build a page around the work, choose its presentation, and keep its controls
           reachable by keyboard, pointer and touch.
         </p>
         <p id="ui-scope">
-          Start with the page's content and widgets, then choose a theme and Layout.
-          <a href="/extending/#responsibilities">Extending</a> explains the contracts
-          for reusable packages;
-          <a href="/how-it-works/#state">How it works</a> explains the record behind the
-          interface.
+          This guide covers page content, layout, styling, navigation and interaction.
+          <a href="/how-it-works/">How it works</a> explains the core concepts and
+          mechanisms behind the interface. <a href="/extending/">Extending</a> covers
+          implementing widgets, themes and packages.
         </p>
       </header>
-      <lf-tabs id="ui"
-        ><lf-tab id="pages" label="Pages"
+      <lf-tabs id="ui" class="layout-flow"
+        ><lf-tab id="pages" label="Pages" class="layout-flow"
           ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
@@ -124,7 +128,7 @@
             </nav>
           </details>
 
-          <section id="pages-parts">
+          <section id="pages-parts" class="layout-flow">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -135,15 +139,16 @@
             </p>
             <ol class="steps" id="sources">
               <li id="src-html">
-                <strong>Ordinary HTML.</strong> Leaf styles headings, paragraphs,
-                tables, code, and <code>details</code> without requiring CSS classes.
-                These elements provide most of a page's content.
+                <strong>Ordinary HTML.</strong> Leaf's reading theme, which a page takes
+                by default, styles headings, paragraphs, tables, code, and
+                <code>details</code> without requiring CSS classes. These elements
+                provide most of a page's content.
               </li>
               <li id="src-idioms">
-                <strong>Theme classes.</strong> Leaf supplies classes for common
+                <strong>Theme classes.</strong> The theme supplies classes for common
                 presentation patterns, including <code>.eyebrow</code>,
-                <code>.lede</code>, <code>.callout</code>,
-                <code>aside.sidenote</code> for a margin note, and
+                <code>.lede</code>, <code>.callout</code>, <code>aside.note</code> in a
+                <code>layout-note</code> row for a margin note, and
                 <code>ol.steps</code> for a numbered sequence like this list.
               </li>
               <li id="src-widgets">
@@ -178,12 +183,13 @@
             </p>
           </section>
 
-          <section id="widgets">
+          <section id="widgets" class="layout-flow">
             <h2>Widgets</h2>
             <p id="dogfood">
               These examples are interactive parts of this page. Their choices, card
-              moves, and comments share its event log, Undo, and On me. Each activity
-              feed shows the same page history, including actions in other examples.
+              moves, and comments share its event log and Undo; as samples, they ask
+              nothing, so On me stays empty. Each activity feed shows the same page
+              history, including actions in other examples.
             </p>
             <figure id="options-demo">
               <h3>Example page: a release review</h3>
@@ -283,8 +289,8 @@
               <a href="/examples/">examples gallery</a> opens complete pages using them.
             </p>
           </section> </lf-tab
-        ><lf-tab id="styles" label="Themes"
-          ><section id="styles-overrides">
+        ><lf-tab id="styles" label="Themes" class="layout-flow"
+          ><section id="styles-overrides" class="layout-flow">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               The user chooses the visual direction. A theme supplies shared colors,
@@ -312,12 +318,15 @@ flowchart TD
               <p id="styles-user-preference">
                 <code>leaf theme list</code> exposes the user's named themes and their
                 author instructions. <code>page init --theme NAME</code> selects one; a
-                new page otherwise uses the user's default. Re-initializing keeps the
-                captured choice unless explicitly changed. The author follows the user's
-                request first, then the task and the theme's instructions.
+                new page otherwise uses the user's default, or Leaf's reading theme. A
+                page with a design wholly its own takes none with
+                <code>--no-theme</code> and starts from the browser's defaults, while
+                Leaf's widgets, threads and panel keep their faces. Re-initializing
+                keeps the captured choice unless explicitly changed. The author follows
+                the user's request first, then the task and the theme's instructions.
               </p>
               <p id="styles-platform-preferences">
-                The default theme supports light and dark schemes. Authors preserve
+                The reading theme supports light and dark schemes. Authors preserve
                 supported platform preferences when composing a page; an explicit visual
                 comparison may need a fixed appearance, declared with
                 <code>color-scheme</code>. CSS precedence determines which rule wins,
@@ -347,12 +356,9 @@ flowchart TD
                     <td><code>lf-card { padding: 8px; }</code></td>
                   </tr>
                   <tr id="recipe-controls">
-                    <td>Controls Leaf or a widget builds</td>
+                    <td>Controls a widget builds</td>
                     <td>
-                      <code
-                        >&lt;style data-controls&gt;lf-board .lf-grip { color: teal;
-                        }&lt;/style&gt;</code
-                      >
+                      <code>lf-board .lf-grip { color: teal; }</code>
                     </td>
                   </tr>
                 </tbody>
@@ -363,13 +369,12 @@ flowchart TD
                 rule changes it too, such as <code>main { padding-top: 28px; }</code>.
               </p>
               <p id="styles-controls-leaf">
-                A bare <code>button</code> or <code>input</code> rule styles the page’s
-                own controls. To reach controls Leaf or a widget builds, a page marks
-                its stylesheet <code>data-controls</code>; a package puts those rules in
-                <code>controls.css</code>. Widget packages already style their own
-                controls through <code>widgets.css</code>. Leaf’s panel and thread cards
-                also inherit theme inputs such as <code>--accent</code> and
-                <code>--sans</code> from <code>:root</code>.
+                A bare <code>button</code> or <code>input</code> rule styles every one
+                in the document, the controls a widget builds included, so name the
+                widget to aim a rule at its controls. Leaf’s panel and thread cards keep
+                their own look against a rule as light as one class, and inherit theme
+                inputs such as <code>--accent</code> and <code>--sans</code> from
+                <code>:root</code>.
               </p>
             </details>
 
@@ -378,7 +383,7 @@ flowchart TD
               <a href="/extending/#styles-contract">the CSS contract in Extending</a>.
             </p>
           </section></lf-tab
-        ><lf-tab id="layout" label="Layout"
+        ><lf-tab id="layout" label="Layout" class="layout-flow"
           ><details class="topic-outline" id="layout-outline">
             <summary>In this topic</summary>
             <nav aria-label="Layout sections">
@@ -394,7 +399,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="layouts">
+          <section id="layouts" class="layout-flow">
             <h2>Layouts</h2>
             <p id="layouts-lede">
               Leaf supplies page layouts and a layout for blocks within a page. A
@@ -825,7 +830,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="column">
+          <section id="column" class="layout-flow">
             <h2>The reading column</h2>
             <p id="column-measure">
               On a <code>layout-column</code> page, headings, paragraphs, lists, and
@@ -916,24 +921,25 @@ flowchart TD
                 wide, or about 1010px on a touch screen.
               </li>
               <li id="margin-sidebar">
-                <strong>A sidebar</strong>, the page's first <code>aside.sidebar</code>,
-                on the left. It holds a table of contents, a legend or reference facts,
-                and stays in view at the window's top as the page scrolls. It needs
-                about 1130px.
+                <strong>A sidebar</strong>, an <code>aside</code> beside the body in
+                <code>layout-sidebar</code>. Its authored <code>layout-track</code>
+                holds contents, a legend or reference facts, and stays in view while the
+                body scrolls when both fit beside each other.
               </li>
               <li id="margin-sidenotes">
-                <strong>Sidenotes</strong>, each an <code>aside.sidenote</code>, on the
-                right, level with the block they annotate. They need about 1150px.
+                <strong>Sidenotes</strong>, each an <code>aside.note</code> paired with
+                its passage in a <code>layout-note</code> row, on the right when the row
+                has enough room.
               </li>
             </ul>
             <p id="margins-narrow">
-              The column shifts sideways to make room for a sidebar or sidenotes. In a
-              narrow window, those notes appear within the column at their original
-              positions in the HTML.
+              The browser places these compositions as soon as the HTML arrives. In a
+              narrow window, the sidebar stacks in source order and each note follows
+              its passage. Notes never shift the reading column.
             </p>
           </section>
 
-          <section id="sidebar-page">
+          <section id="sidebar-page" class="layout-flow">
             <h2>Sidebar pages</h2>
             <p id="sidebar-page-what">
               <code>layout-sidebar</code> on <code>main</code> places the header across
@@ -949,15 +955,15 @@ flowchart TD
               such as a board with many columns.
             </p>
             <p id="sidebar-page-panels">
-              A side column made by <code>layout-sidebar</code> is part of that layout's
-              content area. An <code>aside.sidebar</code> instead places a note in the
-              margin of a column page. A <code>section.panel</code> groups a region by
-              its compact heading and spacing, without a surrounding card.
+              For a reading page, give the body <code>layout-column</code>: prose keeps
+              its reading measure while wide exhibits use the remaining room. A
+              <code>section.panel</code> groups a region by its compact heading and
+              spacing, without a surrounding card.
             </p>
             <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
   &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;
   &lt;div&gt;…&lt;/div&gt;      &lt;!-- body: the work in progress --&gt;
-  &lt;aside&gt;…&lt;/aside&gt;  &lt;!-- side column: status, counts, contents --&gt;
+  &lt;aside&gt;&lt;div class="layout-track"&gt;…&lt;/div&gt;&lt;/aside&gt;
 &lt;/main&gt;</code></pre>
             <p id="sidebar-page-examples">
               Examples:
@@ -967,7 +973,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="workspace">
+          <section id="workspace" class="layout-flow">
             <h2>Workspace</h2>
             <p id="workspace-what">
               <code>layout-workspace</code> fits the page to the window above Leaf's
@@ -1263,7 +1269,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="tiles">
+          <section id="tiles" class="layout-flow">
             <h2>Tiles</h2>
             <p id="tiles-what">
               <code>layout-tiles</code> arranges an element's children in equal cells at
@@ -1276,7 +1282,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="page-tabs">
+          <section id="page-tabs" class="layout-flow">
             <h2>Tabs and parts</h2>
             <p id="page-tabs-what">
               An <code>lf-tabs</code> at the top of a page creates tabs like the ones on
@@ -1299,7 +1305,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="chrome">
+          <section id="chrome" class="layout-flow">
             <h2>Panel, rail and thread cards</h2>
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
@@ -1522,7 +1528,7 @@ flowchart TD
             </div>
           </section>
 
-          <section id="narrow">
+          <section id="narrow" class="layout-flow">
             <h2>Narrow windows</h2>
             <p id="narrow-what">
               In a narrow window, page regions stack vertically in HTML order. Margin
@@ -1586,7 +1592,7 @@ flowchart TD
               </figcaption>
             </figure>
           </section> </lf-tab
-        ><lf-tab id="navigation" label="Navigation"
+        ><lf-tab id="navigation" label="Navigation" class="layout-flow"
           ><details class="topic-outline" id="navigation-outline">
             <summary>In this topic</summary>
             <nav aria-label="Navigation sections">
@@ -1613,7 +1619,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="navigation-basics">
+          <section id="navigation-basics" class="layout-flow">
             <h2>Navigation</h2>
             <p id="navigation-lede">
               Leaf's shortcuts act where focus is. A thread, its passage and its margin
@@ -1706,7 +1712,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="navigation-destinations">
+          <section id="navigation-destinations" class="layout-flow">
             <h2>Named destinations and visible hints</h2>
             <details id="navigation-go-to">
               <summary>The complete Go-to map</summary>
@@ -1813,7 +1819,7 @@ flowchart TD
               </p>
             </details>
           </section>
-          <section id="navigation-reading">
+          <section id="navigation-reading" class="layout-flow">
             <h2>Reading and text search</h2>
             <details id="navigation-reading-cases">
               <summary>Scrolling keys follow the focused reading region</summary>
@@ -1840,7 +1846,7 @@ flowchart TD
               </p>
             </details>
           </section>
-          <section id="navigation-thread-origin">
+          <section id="navigation-thread-origin" class="layout-flow">
             <h2>Threads and work waiting on the user</h2>
             <p id="navigation-thread-rule">
               <kbd>t</kbd> / <kbd>Shift</kbd> + <kbd>t</kbd> walk open threads in page
@@ -1863,17 +1869,8 @@ flowchart TD
                       <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd> in a margin card
                     </td>
                     <td>
-                      Escape returns to the passage. While its card accompanies it, t
-                      advances from that thread.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd>
-                    </td>
-                    <td>
-                      The second Escape releases the passage and closes its card. The
-                      next t starts from the reading place and may reopen that thread.
+                      Escape closes the card and leaves the user beside its passage, so
+                      Tab goes on into it. The next t enters that thread again.
                     </td>
                   </tr>
                   <tr>
@@ -1959,7 +1956,7 @@ flowchart TD
             </details>
           </section>
 
-          <section id="navigation-resolution">
+          <section id="navigation-resolution" class="layout-flow">
             <h2>Resolving and replying</h2>
             <p id="navigation-resolve-rule">
               <kbd>r</kbd> resolves the focused open thread. A thread opened from
@@ -2021,7 +2018,7 @@ flowchart TD
             </details>
           </section>
 
-          <section id="navigation-other-contexts">
+          <section id="navigation-other-contexts" class="layout-flow">
             <h2>Panels and Escape</h2>
             <details id="navigation-escape-cases">
               <summary>Escape's next step depends on focus</summary>
@@ -2047,7 +2044,7 @@ flowchart TD
               </p>
             </details>
           </section>
-          <section id="navigation-history">
+          <section id="navigation-history" class="layout-flow">
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
               A successful navigation step to a destination that is not fully readable
@@ -2136,8 +2133,8 @@ flowchart TD
               </p>
             </details>
           </section>
-          <section id="phone">
-            <section id="phone-scope">
+          <section id="phone" class="layout-flow">
+            <section id="phone-scope" class="layout-flow">
               <h2>Phones and touch screens</h2>
               <p id="phone-scope-what">
                 Touch users can read, comment and operate widgets. Leaf’s page commands
@@ -2146,7 +2143,7 @@ flowchart TD
                 <a href="#narrow">Narrow windows</a> describes how page regions stack.
               </p>
             </section>
-            <section id="phone-panel">
+            <section id="phone-panel" class="layout-flow">
               <h2>The panel and its menu</h2>
               <p id="phone-panel-row">
                 The panel fits a narrow window with space at its edges. Its row holds
@@ -2162,7 +2159,7 @@ flowchart TD
                 selects it.
               </p>
             </section>
-            <section id="phone-comments">
+            <section id="phone-comments" class="layout-flow">
               <h2>Comments, threads and widgets</h2>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a
@@ -2180,7 +2177,7 @@ flowchart TD
                 dragging.
               </p>
             </section>
-            <section id="phone-gaps">
+            <section id="phone-gaps" class="layout-flow">
               <h2>Touch coverage and testing</h2>
               <ul id="phone-gaps-list">
                 <li id="phone-gap-element">

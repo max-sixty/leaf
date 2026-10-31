@@ -1,8 +1,5 @@
-/* The drawn diff's vertical anatomy, said once where both the shadow tree that draws
- * it and the document's first paint (theme.css, "First paint") read it: the first
- * paint reserves the drawn height from these and the counts the initial renderer
- * takes from the patch, before any shadow tree exists. Resolved at the widget root
- * and at the host, like the palette, so each reads its own aim floor.
+/* The drawn diff's vertical anatomy. Shared dimensions keep the file header and
+ * its overlaid presses aligned as the aim floor changes.
  *
  * The bar of presses on a file's name line: how tall it stands, and how far down the
  * name it starts. The pull in shadow.css is the same distance in the other direction:

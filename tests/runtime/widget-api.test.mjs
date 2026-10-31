@@ -21,10 +21,14 @@ const scripts = (dir) =>
     .filter((name) => name.endsWith(".js") && !name.split("/").includes("vendor"))
     .map((name) => join(dir, name));
 
-function surface() {
-  const program = parseModule(read(join(ROOT, "browser/runtime/widget-api.js")));
+// widget-api.js's exports, the portable ones it re-exports whole included.
+function surface(module = "widget-api.js") {
+  const program = parseModule(read(join(ROOT, "browser/runtime", module)));
   const exports = new Set();
   for (const node of program.body) {
+    if (node.type === "ExportAllDeclaration")
+      for (const name of surface(node.source.value.replace(/^\.\//, "")))
+        exports.add(name);
     if (node.type !== "ExportNamedDeclaration") continue;
     for (const spec of node.specifiers) exports.add(spec.exported.name);
     const declared = node.declaration;

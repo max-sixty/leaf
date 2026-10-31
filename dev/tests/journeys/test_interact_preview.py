@@ -38,14 +38,14 @@ from interact_support import (
     stamp,
     wait_for,
 )
-from leaf_dev.commands import preview
-from leaf_dev.commands.distribution import cache_root
-from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
+from leaf.registry.storage import layer_record
+from leaf_dev.commands import preview
+from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from ..model.test_interact_preview import _ScriptedChanges
 
@@ -113,11 +113,12 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert task.returncode == 0, f"{output}{errors}"
         url = next(line for line in output.splitlines() if line.startswith("http://"))
         record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
-        acquired = service.page_claim(page)["acquisition"]
+        claim_record = service.page_claim(page)
+        assert claim_record is not None
+        acquired = claim_record["acquisition"]
         before = state.session_record(sid)
-        delivery_runtime = Path(before["launcher"]).parent.parent
-        assert delivery_runtime.is_relative_to(cache_root())
-        assert (delivery_runtime / "leaf-distribution.json").is_file()
+        assert before is not None
+        assert Path(before["launcher"]) == ROOT / "bin/leaf"
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
         claim = json.loads(claim_path.read_text())
@@ -129,7 +130,8 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         # Allow the real watchdog's orphan window to pass without any HTTP
         # request renewing page files; aged ownership must keep its listener.
         time.sleep(2)
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
         if retirement != "stop":
             shutil.copytree(
                 page, sibling, ignore=shutil.ignore_patterns("service.json")
@@ -146,10 +148,13 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             timeout=STATED_TIMEOUT,
         )
         assert ended.returncode == 0, ended.stderr
-        assert state.session_record(sid)["generation"] == before["generation"]
+        turn_record = state.session_record(sid)
+        assert turn_record is not None
+        assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
         assert leases.lock_is_held(preview.preview_lease(page))
-        assert server.running_server(page)["url"] == url
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == url
 
         source.write_text(
             source.read_text().replace("Original candidate", "Revised candidate")
@@ -181,7 +186,9 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             sid,
             "--message",
         ]
-        assert service.page_claim(page)["acquisition"] == acquired
+        claim_record_2 = service.page_claim(page)
+        assert claim_record_2 is not None
+        assert claim_record_2["acquisition"] == acquired
         if retirement == "archive":
             archived = transcript.parent.parent / "archived_sessions"
             archived.mkdir()
@@ -378,7 +385,9 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         def resource(revision):
             # Beneath the runtime the preview's server runs, which its document names.
             document = at("/")[1].decode()
-            runtime = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)[1]
+            match = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)
+            assert match is not None
+            runtime = match[1]
             return (
                 f"/revisions/{revision_path(page, revision).stem}/{runtime}"
                 "/page/widgets/lf-reading.js"
@@ -405,6 +414,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         widget.write_bytes(revised)
         yield {str(widget)}
         second = latest_revision(page)
+        assert second is not None and first is not None
         assert second > first
         assert at("/")[0] == 200
         assert at(resource(second)) == (200, revised)
@@ -422,7 +432,9 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
 
         delivered.write_bytes(revised)
         yield {str(widget)}
-        assert latest_revision(page) > second
+        current = latest_revision(page)
+        assert current is not None and second is not None
+        assert current > second
         assert "Another source edit" in delivered.read_text()
 
         # Removing a dependency is not published while the widget still imports it.
@@ -437,7 +449,9 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         assert (page / "page/value.js").is_file()
         widget.write_bytes(revised)
         yield {str(widget)}
-        assert latest_revision(page) > last
+        current = latest_revision(page)
+        assert current is not None and last is not None
+        assert current > last
         assert not (page / "page/value.js").exists()
         assert at(old_resource) == (200, original)
 
@@ -453,7 +467,9 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         group.write_text("export const value = 'Single';")
         widget.write_text("export { value } from '../components.js';")
         yield {str(widget), str(group)}
-        assert latest_revision(page) > grouped
+        current = latest_revision(page)
+        assert current is not None and grouped is not None
+        assert current > grouped
         assert (page / "page/components.js").is_file()
 
     monkeypatch.setattr(
@@ -551,7 +567,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["./" + os.path.relpath(package, ROOT)])
@@ -560,7 +576,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
 
     def changes(_watched):
         def layer():
-            return json.loads((page / "registry.json").read_text())["$layer"]
+            return layer_record(page)
 
         before = layer()
         theme.write_bytes(theme.read_bytes())
@@ -622,7 +638,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
     package = tmp_path / "elsewhere/package"
     package.mkdir(parents=True)
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --package-proof: 1; }")
     selection = "./" + os.path.relpath(package, ROOT)
     page = tmp_path / "preview"
@@ -639,8 +655,9 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             yield {str(manifest), str(source)}
             pytest.fail("Committed package did not rebuild the watch subscription")
         else:
-            installed = json.loads((page / "registry.json").read_text())["$layer"]
-            assert installed["packages"] == [selection]
+            installed = layer_record(page)
+            assert installed is not None
+            assert installed["packages"] == ["./packages/package"]
             assert (page / "index.html").read_text() == original
             assert str(theme) in watched.paths
             assert any(
@@ -648,9 +665,11 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             )
             theme.write_text(":root { --package-proof: 2; }")
             yield {str(theme)}
-            after = json.loads((page / "registry.json").read_text())["$layer"]
-            assert after["generation"] != installed["generation"]
-            assert "--package-proof: 2" in (page / "theme.css").read_text()
+            # The page's copy of the package takes the edit.
+            assert (
+                "--package-proof: 2"
+                in (page / "packages" / "package" / "overrides.css").read_text()
+            )
 
     monkeypatch.setattr(
         preview,
@@ -742,7 +761,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     package = tmp_path / "package"
     package.mkdir()
     (package / "registry.json").write_text("{}")
-    theme = package / "theme.css"
+    theme = package / "overrides.css"
     theme.write_text(":root { --proof: 1; }")
     (tmp_path / "layer.json").write_text(
         json.dumps(["default", "./" + os.path.relpath(package, ROOT)])
@@ -828,7 +847,9 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     ):
         status, body = fetch_hanging_up(endpoint, json.dumps(entry).encode())
         assert status == 200, body
-    payload = consume_pending_input(session_harness().session)
+    harness = session_harness()
+    assert harness is not None
+    payload = consume_pending_input(harness.session)
     comment = next(
         event for event in payload["batches"][0]["events"] if event["kind"] == "comment"
     )
@@ -873,7 +894,9 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert read_data(page, load_registry(page)) == data
     assert latest_revision(page) == first
     assert any(event.get("text") == "Preserved reply" for event in read_events(page))
-    delivered = consume_pending_input(session_harness().session)
+    harness_2 = session_harness()
+    assert harness_2 is not None
+    delivered = consume_pending_input(harness_2.session)
     assert any(
         event["id"] == pending
         for batch in delivered["batches"]
@@ -897,7 +920,9 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert all(event["id"] != "fictional" for event in read_events(page))
     assert service.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
-    assert latest_revision(page) > first
+    current = latest_revision(page)
+    assert current is not None and first is not None
+    assert current > first
     assert revision_path(page, first).is_file()
     assert load_registry(page)["$layer"]["generation"] != layer
     assert media.read_bytes() == media_bytes
@@ -930,6 +955,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     theme.write_text(":root { --proof: 3; }")
     task, resumed, _ = start(5)
     assert (page / "index.html").read_text() == agent_source
+    assert agent_revision is not None
     assert revision_path(page, agent_revision).is_file()
     agent_revision = latest_revision(page)
     stop(task)
@@ -998,7 +1024,8 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
             preview.run_preview(source, page, ROOT / "bin/leaf", ROOT, True)
         assert service.page_claim(page) == held["claim"]
         assert (page / "events.jsonl").read_bytes() == held["log"]
-        assert server.running_server(page)["url"] == held["url"]
+        assert (current := server.running_server(page)) is not None
+        assert current["url"] == held["url"]
         assert fetch(held["url"], token=None)[0] == 200
     finally:
         successor.stop()

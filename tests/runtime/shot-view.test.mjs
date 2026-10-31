@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { initialRender } from "/runtime/initial-render.js";
-import "../../packages/default/initial/lf-shot.js";
+import { render } from "/vendor/lit.js";
+import { ShotView } from "../../packages/default/widgets/shot-view.js";
 
 // Web Awesome reparents frames into its slots; those frames must still receive the
 // same drawing's captions, image sources, links and evidence through each view.
-test("Screenshot drawing retains controls, frames and images across adoption and comparison slots", () => {
+test("Screenshot drawing retains controls, frames and images across updates and comparison slots", () => {
   const host = document.createElement("lf-shot");
   host.setAttribute("alt", "Changed controls");
   document.body.append(host);
-  const drawing = initialRender(host);
+  const drawing = new ShotView(host);
+  render(drawing.render(), host);
   const frames = [...drawing.frames];
   const viewports = [...drawing.viewports];
   const images = [...host.querySelectorAll(".lf-shotframe img")];
@@ -42,7 +43,7 @@ test("Screenshot drawing retains controls, frames and images across adoption and
   drawing.chooseView = (view) => clicked.push(view);
   const paint = (state = shown) => {
     Object.assign(drawing, state);
-    drawing.paint();
+    render(drawing.render(), host);
   };
   const beforeLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="before"]');
   const afterLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="after"]');
@@ -50,7 +51,6 @@ test("Screenshot drawing retains controls, frames and images across adoption and
     const slider = controls[0];
     slider.focus();
     paint();
-    assert.equal(initialRender(host), drawing);
     assert.equal(document.activeElement, slider);
     slider.click();
     assert.deepEqual(clicked, ["flip"]);

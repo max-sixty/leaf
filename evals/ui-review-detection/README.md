@@ -1,8 +1,10 @@
 # Internal UI review diagnostics
 
-These retained `leaf-dev` evals reconstruct two failures missed during the Leaf
-recording-viewer work: unclear point-event time anchors and application-image
-movement during stepping. Each defective candidate has a corrected control.
+These retained `leaf-dev` evals reconstruct failures missed during Leaf UI work:
+two from the recording viewer (unclear point-event time anchors, application-image
+movement during stepping) and three from a thread's per-message Copy (a later
+message's controls mid-card, covered by its head row, or left lit after a press).
+Each defective candidate has a corrected control.
 
 We generally do not keep model evals of maintainer development work. Diagnosing
 recurring CI issues has become such a drag on productivity that we are retaining
@@ -52,11 +54,12 @@ uv run leaf-dev eval-ui-review \
 `--repeat 2` runs independent conversations. Every run needs a fresh `--output`
 directory; the default is under `.tmp/eval-ui-review/`. Models use the host's
 signed-in subscriptions. No dollar-cost estimate is reported.
-Grading also uses the host's Codex login, with the standard Sol judge.
+Grading also uses the host's Codex login, with the Codex judge pinned in
+`JUDGE_MODELS` (`dev/leaf_dev/arms.py`).
 
 Recognition supplies the same labelled screenshot sequence to both arms. The
 browser arm additionally has one host-owned operation for snapshots, clicks,
-keyboard input and scrolling. No-tools exposes no native tool definitions.
+pointer hovers, keyboard input and scrolling. No-tools exposes no native tool definitions.
 Discovery supplies only the arrival screenshot, so the browser model must discover
 transitions. A transition-only defect is unobservable in no-tools discovery and
 must not be scored as a miss.
@@ -83,10 +86,13 @@ miss against the complete-source condition.
 
 ## Retained cases and calibration
 
-| Case                 | Target                                                                                       | Corrected control                                                                      |
-| -------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `recording-times`    | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous.   | Restores point dots and stems while retaining label widths, stacking and dense timing. |
-| `recording-stepping` | Variable checkpoint metadata moves the application image during intermediate-frame stepping. | Places the image before variable metadata so its origin stays fixed.                   |
+| Case                     | Target                                                                                                                | Corrected control                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `recording-times`        | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous.                            | Restores point dots and stems while retaining label widths, stacking and dense timing. |
+| `recording-stepping`     | Variable checkpoint metadata moves the application image during intermediate-frame stepping.                          | Places the image before variable metadata so its origin stays fixed.                   |
+| `message-copy-placement` | A later message's Edit and Copy stand one track short of the card's edge, mid-card.                                   | They stand at the card's edge, in the thread actions' column.                          |
+| `later-message-controls` | A head row's card-coloured cell paints over a later message's controls, so hovering it shows none.                    | The controls stand above the cell.                                                     |
+| `controls-after-a-press` | Controls follow any focus inside a message, so after a press they stay lit when the pointer moves to another message. | Controls follow the pointer and keyboard focus only.                                   |
 
 Manual calibration on 2026-10-10 found that Sol missed the timing target in three
 screenshot-only reviews; Opus and Fable detected it in their screenshot-only
@@ -95,6 +101,19 @@ screenshots. These are narrow fresh
 review observations, mostly one conversation per comparative cell, not a general
 model ranking or a replay of the long authoring sessions. The ambiguous grouped
 navigation probe was exploratory and is not retained here.
+
+The thread pairs were calibrated on 2026-10-28 with Opus and Sol, recognition
+no-tools three times and browser discovery twice per candidate. With the frames
+supplied, both models detected the covered controls (3/3 each); Opus detected the
+controls left lit after a press (3/3) while Sol reported a different grouping problem
+(0/3); neither flagged the mid-card Copy (one Opus partial in 3 each), describing the
+inset as minor under this suite's "consequential usability" prompt, where an open
+"what looks wrong" prompt had flagged the same placement in 45 of 50 fresh looks.
+Driving the browser from arrival, both found the covered controls (2/2 each) and
+neither found the lit controls (0/2 each): every reviewer pressed Copy and then
+clicked another control, which moves focus, and none rested the pointer on another
+message as a reader does. No control was flagged in either mode (0/30, 0/20). Those
+browser runs used Node Playwright's Chromium 1248 beside the Python captures' 1243.
 
 The calibration browser providers omitted computed accessibility and nested scroll
 targets. The current provider corrects those evidence gaps; their effect on model

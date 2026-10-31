@@ -19,7 +19,7 @@ import ssl
 import tarfile
 import time
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
@@ -36,11 +36,10 @@ from starlette.requests import Request
 
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
-from leaf.layer import running_leaf
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing, serving_runtime
+from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -54,7 +53,7 @@ CHUNK_BYTES = 1024 * 1024
 
 
 @contextmanager
-def _request(path: str, payload: dict | bytes | None = None) -> Iterator[HTTPResponse]:
+def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPResponse]:
     url = os.environ["LEAF_PAGE_STORE_URL"].rstrip("/") + path
     binary = path.startswith("/blobs/")
     request = urllib.request.Request(
@@ -125,9 +124,13 @@ def restore(site_root: Path) -> None:
             first = archive.next()
             if first is None or first.name != "records.json":
                 raise ValueError("page restore snapshot has no records")
-            records = json.load(archive.extractfile(first))
+            record_file = archive.extractfile(first)
+            assert record_file is not None
+            records = json.load(record_file)
             while member := archive.next():
-                blobs.add(member.name, archive.extractfile(member).read())
+                blob_file = archive.extractfile(member)
+                assert blob_file is not None
+                blobs.add(member.name, blob_file.read())
         if any(
             digest not in blobs.offsets
             for record in records.values()
@@ -221,6 +224,7 @@ def _responses(
     from leaf_website import WebsitePageEndpoint, page_routes
 
     revision = latest_revision(page.page_dir)
+    assert revision is not None
     source = read_revision(page.page_dir, revision)
     snapshot = capture_page_snapshot(
         page.page_dir,
@@ -231,11 +235,13 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
+    registry = snapshot.context.registry
+    assert registry is not None
     paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     for source_name, reading in snapshot.context.data["sources"].items():
         value = reading.get("value")
-        spec = deferred_records(value, reading["contract"], snapshot.context.registry)
+        spec = deferred_records(value, reading["contract"], registry)
         if spec is not None:
             paths.update(
                 "api/deferred?"
@@ -255,9 +261,11 @@ def _responses(
             continue
         name = snapshot.revision_names[item]
         paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: beside the runtime it
-        # runs, under that runtime's identity (`http.PageEndpoint._named_root`).
-        served = f"revisions/{name.removesuffix('.html')}/{serving_runtime().identity}"
+        # Where the container serves the revision's resources: under the identity of
+        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
+        served = (
+            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
+        )
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
@@ -298,9 +306,7 @@ def _responses(
         )
         endpoint = WebsitePageEndpoint(
             request,
-            SimpleNamespace(
-                server_id=f"website-{manifest['release']}", leaf=running_leaf()
-            ),
+            SimpleNamespace(server_id=f"website-{manifest['release']}"),
             routes=routes,
             pages=manifest["pages"],
             release=manifest["release"],

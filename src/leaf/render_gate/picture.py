@@ -25,6 +25,8 @@ comment, since a file in the page directory would count as activity on the page.
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.leases import page_locked
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import PageNotReady, rendered, wait_until_ready
 from leaf.revision_artifact import read_revision
 
@@ -91,12 +93,11 @@ def cmd_picture(page_dir: Path, message: str) -> dict:
     out = page_files("pictures", page_dir) / f"{message}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     revision = comment["revision"]
-    with preview_server(
-        page_dir,
-        read_revision(page_dir, revision).document,
-        revision,
-        through_seq=comment["seq"],
-    ) as url:
+    with page_locked(page_dir):
+        snapshot = capture_page_snapshot(
+            page_dir, read_revision(page_dir, revision).document, revision, url="/"
+        ).through(comment["seq"])
+    with preview_server(page_dir, snapshot) as url:
         try:
             refused, _ = run_in_browser(
                 lambda browser: _picture(browser, url, comment, out)

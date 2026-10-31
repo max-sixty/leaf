@@ -1,8 +1,12 @@
+import { ShotView } from "./shot-view.js";
 /* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
  * outlines, scale, crop and scrolling. A containing package supplies only capture
  * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
- * its box. Fit keeps both frames in the allocated box. Actual size pans their
- * images together inside those same windows, keeping both labels and views visible.
+ * its box. Fit keeps both frames in the allocated box and never enlarges a capture
+ * past 100%, because stretching a capture blurs it. A capture narrower than the box
+ * sits at its own size; how large to capture is the author's call. Actual size pans
+ * their images together inside those same windows, keeping both labels and views
+ * visible.
  * Both frames always share one source scale. The retained header belongs to the
  * allocated viewport, outside the image canvas. Controls stay in place when views
  * or scale change. Source labels are passive, and images never change modes.
@@ -35,8 +39,8 @@
  * scrolling them never opens the viewer. Image options holds scale and the pixel key.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
-import "/vendor/lf-shot-initial.js";
 import {
+  setScroll,
   afterPresentation,
   announce,
   once,
@@ -48,13 +52,11 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  initialRender,
+  render,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
-  commands,
   keeps,
-  paintKeys,
   plainPress,
   scopedMediaUrl,
   widgetController,
@@ -63,6 +65,7 @@ import {
   sizeObserver,
   registerReadingRegion,
   compoundReadingRegionId,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let comparing = Promise.resolve();
@@ -98,7 +101,7 @@ customElements.define(
 
     inspect(metadata) {
       if (!this.#capture) {
-        initialRender(this).metadata = metadata;
+        (this.#drawing ??= new ShotView(this)).metadata = metadata;
         return;
       }
       if (JSON.stringify(metadata) === JSON.stringify(this.#capture.metadata)) return;
@@ -118,7 +121,10 @@ customElements.define(
         this.append(box);
         return true;
       });
-      const drawing = (this.#drawing = initialRender(this));
+      const drawing = (this.#drawing ??= new ShotView(this));
+      render(drawing.render(), drawing.root ?? this, { host: this });
+      drawing.fit();
+      render(drawing.render(), this, { host: this });
       Object.assign(drawing, {
         chooseView: (view) => this.#chooseView(view),
         chooseScale: (scale) => {
@@ -158,7 +164,7 @@ customElements.define(
               peer.scrollLeft !== viewport.scrollLeft ||
               peer.scrollTop !== viewport.scrollTop
             )
-              peer.scrollTo({
+              setScroll(peer, {
                 left: viewport.scrollLeft,
                 top: viewport.scrollTop,
                 behavior: "instant",
@@ -352,19 +358,23 @@ customElements.define(
           if (dragged || handleOf(event) || !plainPress(event)) return;
           comparison.position = comparison.position > 50 ? 0 : 100;
         });
-        commands(comparison, "On a screenshot divider", [
-          {
-            id: "screenshot.adjust",
-            keys: ["ArrowLeft", "ArrowRight"],
-            repeat: true,
-            title: "adjust the comparison",
-          },
-          {
-            id: "screenshot.edge",
-            keys: ["Home", "End"],
-            title: "show before or after",
-          },
-        ]);
+        comparison.lfCommands = {
+          title: "On a screenshot divider",
+          rows: [
+            {
+              id: "screenshot.adjust",
+              keys: ["ArrowLeft", "ArrowRight"],
+              repeat: true,
+              title: "adjust the comparison",
+            },
+            {
+              id: "screenshot.edge",
+              keys: ["Home", "End"],
+              title: "show before or after",
+            },
+          ],
+        };
+        commandsChanged(comparison);
         this.#drawing.canvas.append(comparison);
         this.#comparison = comparison;
         void comparison.updateComplete.then(() => this.#paintHandle());
@@ -393,9 +403,9 @@ customElements.define(
 
     #paint() {
       if (!this.#drawing) return;
-      this.#drawing.paint();
+      render(this.#drawing.render(), this, { host: this });
       this.#paintHandle();
-      paintKeys();
+      commandsChanged(this);
     }
 
     async #markDifference(capture) {

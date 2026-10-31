@@ -19,6 +19,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    press_visible,
     resized,
     scroll_settled,
     select,
@@ -36,6 +37,56 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Restore reading",
+                '<div id="reading" style="height:200px;overflow:auto">'
+                '<div style="height:1200px">Reading to restore</div></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      const host = document.querySelector('#reading');
+      const region = {id:'reading', host, body:host};
+      window.reading = {api, host, region, stop:api.registerReadingRegion(region)};
+    }""")
+    expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
+    page.evaluate("""() => {
+      const p = window.reading;
+      p.place = p.api.capturePlace(p.region);
+      p.host.scrollTop = p.host.scrollHeight;
+    }""")
+    expect(page.locator("#reading")).not_to_have_attribute("data-lf-more-below", "")
+    # A resize restoration happens after this frame's native scroll delivery.
+    # Read in its microtask checkpoint: waiting for a frame hides the stale cue.
+    restored = page.evaluate("""() => new Promise(resolve => {
+      const p = window.reading;
+      let started = false;
+      const observer = new ResizeObserver(() => {
+        if (!started) {
+          requestAnimationFrame(() => {started = true; p.host.style.height = '220px'});
+          return;
+        }
+        p.api.restorePlace(p.place, p.region);
+        queueMicrotask(() => {
+          observer.disconnect();
+          const result = {top:p.host.scrollTop,
+            more:p.host.hasAttribute('data-lf-more-below')};
+          p.stop();
+          resolve(result);
+        });
+      });
+      observer.observe(p.host);
+    })""")
+    assert restored == {"top": 0, "more": True}
 
 
 # Authored controls distinguish resuming Tab at the reading from restarting at the top.
@@ -355,6 +406,8 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     entries = page.evaluate("history.length")
     page.keyboard.press("t")
     expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
+    # Card focus precedes the passage's smooth scroll; observe its arrival first.
+    expect(page.locator("#first-reading span")).to_be_in_viewport()
     scroll_settled(page)
     expect(page.locator("#first-reading span")).to_be_visible()
     assert page.locator("#first-reading span").evaluate(
@@ -935,8 +988,11 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     page.evaluate("scrollBy(0,-160)")
     control = panel_control(page, ALIGN_ROW, at="navigate")
     expect(control).to_be_enabled()
-    control.tap()
-    _expect_aligned(page, "#align-ask")
+    press_visible(page, control, touch=True)
+    # Returning focus from the menu can align before the current-location paint
+    # supplies its scroll margin, just as activation from the command reference does.
+    # Both landings must clear the pinned band.
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

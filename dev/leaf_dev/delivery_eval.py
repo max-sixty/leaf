@@ -48,8 +48,19 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     return [
         "injected",
         *[f"replied-{comment['name']}" for comment in comments(case)],
+        *[f"reached-{c['name']}" for c in comments(case) if "during" in c],
         *(["task-correct"] if CASES[case]["inputs"].get("workload") else []),
     ]
+
+
+def operation_times(task: Path) -> dict[str, float]:
+    """When the workload fixture first logged each operation."""
+    log = task / "operations.jsonl"
+    rows = map(json.loads, log.read_text().splitlines()) if log.exists() else ()
+    times: dict[str, float] = {}
+    for row in rows:
+        times.setdefault(row["operation"], row["at"])
+    return times
 
 
 def capture_measurements(page: Path, injections: list[dict], until: datetime) -> dict:
@@ -83,6 +94,7 @@ def execute_scenario(
 ) -> dict:
     moves = comments(case)
     workload = DEFINITION["workload"] if CASES[case]["inputs"].get("workload") else None
+    observation = (workload or DEFINITION)["observation_seconds"]
     checks = dict.fromkeys(expected_checks(case), False)
     diagnostics, texts, injections = {}, {}, []
     state = work / "state"
@@ -101,7 +113,7 @@ def execute_scenario(
                     "--plugin-dir",
                     str(payload),
                     stderr=work / "stderr.txt",
-                    limit=300 + DEFINITION["observation_seconds"],
+                    limit=300 + observation,
                     timed_out=work / "timed-out",
                     dirs=[payload],
                     env={"XDG_STATE_HOME": str(state)},
@@ -135,17 +147,19 @@ def execute_scenario(
                             if not ready:
                                 continue
                             started = time.monotonic()
-                            cutoff = datetime.now(UTC) + timedelta(
-                                seconds=DEFINITION["observation_seconds"]
-                            )
+                            cutoff = datetime.now(UTC) + timedelta(seconds=observation)
                         elapsed = time.monotonic() - started
-                        if elapsed >= DEFINITION["observation_seconds"]:
+                        if elapsed >= observation:
                             break
                         if len(injections) == len(moves):
                             continue
                         move = moves[len(injections)]
                         ready = (
-                            elapsed >= move["after_seconds"]
+                            (
+                                move["during"][0] in operation_times(cwd / "suite_lab")
+                                if "during" in move
+                                else elapsed >= move["after_seconds"]
+                            )
                             if workload
                             else (
                                 live.running
@@ -219,10 +233,23 @@ def execute_scenario(
                     for e in read_events(page)
                     if datetime.fromisoformat(e["ts"]) <= cutoff
                 ]
-                for row in injections:
+                opened = {
+                    sample["input_id"]: sample["milestones"].get("opened")
+                    for sample in diagnostics["timings"]["samples"]
+                }
+                for row, move in zip(injections, moves, strict=False):
                     replies = successful_replies(events, row["input_id"])
                     texts[row["name"]] = "\n\n".join(reply["text"] for reply in replies)
                     checks[f"replied-{row['name']}"] = bool(replies)
+                    if "during" in move:
+                        # The agent took the comment before the operation it was
+                        # posted during had ended.
+                        ended = operation_times(work / "task").get(move["during"][1])
+                        at = opened[row["input_id"]]
+                        checks[f"reached-{row['name']}"] = at is not None and (
+                            ended is None
+                            or datetime.fromisoformat(at["at"]).timestamp() < ended
+                        )
                 for name in ("events.jsonl", "observations.jsonl"):
                     if (page / name).exists():
                         shutil.copy(page / name, work / name)

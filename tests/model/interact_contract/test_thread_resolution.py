@@ -26,6 +26,7 @@ from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.registry import storage as registry_storage
+from model.interact_contract import declare_vocabulary, vocabulary
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
@@ -411,7 +412,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
-    events = events_model.read_events(page_dir)
+    events: list[dict] = events_model.read_events(page_dir)
     for within in folds:
         assert event_folds_model.build_threads(events, within)["c1"]["resolved"][
             "detail"
@@ -428,7 +429,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["sug-a"],
         },
     )
-    events = events_model.read_events(page_dir)
+    events: list[dict] = events_model.read_events(page_dir)
     for within in folds:
         assert event_folds_model.build_threads(events, within)["c1"]["resolved"] is None
 
@@ -436,7 +437,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
 def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     server, page_dir
 ):
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     registry["lf-suggestion"]["x-state"]["label"] = {
         "detail": {
             "type": "object",
@@ -446,7 +447,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
         },
         "unit": "widget",
     }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    declare_vocabulary(page_dir, registry)
     snippet = '<lf-suggestion id="proposal" resolves="c1"><lf-new><p id="proposed">Ship after validation.</p></lf-new></lf-suggestion>'
     source = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + snippet)
     (page_dir / "index.html").write_text(source)
@@ -476,6 +477,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert labeled["meaning"]["depends"] == ["proposal"]
     # Literal text matching an id is not a dependency; ancestry remains live for
     # declared identities, tested in the named-dependency contrast below.
+    assert revision is not None
     assert not event_folds_model.action_retracted(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
     )
@@ -528,7 +530,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)
-    events = [{**COMMENT, "seq": 1}]
+    events: list[dict] = [{**COMMENT, "seq": 1}]
     accepted = event_contracts_model.admitted_event(
         stated,
         events,
@@ -672,7 +674,8 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
         }
 
     for history in itertools.product(steps, repeat=3):
-        events, revision, in_force = list(comments), 1, []
+        events: list[dict] = list(comments)
+        revision, in_force = 1, []
         for index, step in enumerate(history):
             if step[0] == "act":
                 event = {
@@ -697,6 +700,7 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                     "revision": revision,
                     "restated": [step[1]],
                 }
+            assert event is not None
             events.append(event)
         memberships = thread_memberships(events, {"c1": "c1", "c2": "c2"}, {}, within)
         for at in range(len(comments), len(events)):

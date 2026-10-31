@@ -196,6 +196,39 @@ def element_attrs(element) -> dict:
     }
 
 
+def delivered_elements(tree):
+    """Every element a parsed document delivers, in document order: its own, those
+    in each template's contents, and those in each declarative shadow root, which
+    delivery serializes. Delivery's rewrite (`revision_delivery.rebase_document`)
+    walks this, and so does every reader of the CSS it rewrites
+    (`delivered_sheets`), so they meet the same sheets."""
+    roots = [tree]
+    for root in roots:
+        for element in root.find_all(True):
+            if element.shadow_root is not None:
+                roots.append(element.shadow_root)
+            yield element
+
+
+def delivered_sheets(document: "SourceDocument"):
+    """Each stylesheet delivery rewrites in `document` (`delivered_elements`), as its
+    CSS, the name its author finds it by, and whether it is a style attribute's
+    declarations: each `<style>` element's text and each `style` attribute."""
+    index = source_index(document.html)
+    for element in delivered_elements(document.tree):
+        location = element.source_location
+        if location is None:
+            continue
+        line = location.start_tag.start_line
+        style = element.attrs.get("style")
+        if isinstance(style, str):
+            yield style, f"<{element.tag} style> (line {line})", True
+        if element.tag == "style" and location.end_tag is not None:
+            start = index(location.start_tag.end_line, location.start_tag.end_col)
+            end = index(location.end_tag.start_line, location.end_tag.start_col)
+            yield document.html[start:end], f"page <style> (line {line})", False
+
+
 @lru_cache(maxsize=4096)
 def _local_resource(value: str) -> tuple[str, str] | None:
     """Read an attribute candidate; arbitrary prose need not be a valid URL.
@@ -225,13 +258,13 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             yield from ((start, end) for start, end, _ in _srcset_urls(value))
         return
     if (
-        name in {"src", "poster"}
-        and normalized_tag not in {"script", "iframe"}
-        or name in {"href", "xlink:href"}
-        and (
-            normalized_tag in {"feimage", "image", "use"}
-            or normalized_tag == "link"
-            and "icon" in attrs.get("rel", [])
+        (name in {"src", "poster"} and normalized_tag not in {"script", "iframe"})
+        or (
+            name in {"href", "xlink:href"}
+            and (
+                normalized_tag in {"feimage", "image", "use"}
+                or (normalized_tag == "link" and "icon" in attrs.get("rel", []))
+            )
         )
         or (
             (reference := _local_resource(value)) is not None
@@ -311,13 +344,15 @@ class SourceDocument:
         # The record of each lf-* element, by where its start tag begins, for the
         # authoring walk: the parser hands out a new object per visit of an element.
         self._records = {}
-        self.tree = (
+        tree = (
             turbohtml.parse_fragment(
                 source, context="template", scripting=True, source_locations=True
             ).parent
             if fragment
             else turbohtml.parse(source, scripting=True, source_locations=True)
         )
+        assert isinstance(tree, turbohtml.Document)
+        self.tree: turbohtml.Document = tree
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._index(child, holder=None, in_svg=False)
@@ -608,6 +643,7 @@ class Authoring:
                 "head",
                 "body",
             }:
+                assert token.source is not None
                 start = document._source_index(token.line, token.col)
                 self.wrapper_tags.setdefault(
                     token.tag, (start, start + len(token.source))
@@ -728,11 +764,13 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
+        # Only the outermost: an element inside one already named moves with it.
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and tag != "script"
             and not (in_head and tag in HEAD_METADATA_TAGS)
+            and (parent_tag is None or parent_tag in DOCUMENT_WRAPPERS)
         ):
             self.outside_main.append({"tag": tag, "line": line, "text": False})
 
@@ -838,7 +876,7 @@ class Authoring:
                 if (
                     child.data.strip()
                     and "main" not in next_ancestors
-                    and element.tag not in {"script", "style", "title"}
+                    and element.tag in DOCUMENT_WRAPPERS
                 ):
                     self.outside_main.append(
                         {"tag": element.tag, "line": line, "text": True}
@@ -883,7 +921,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`x-views: "parts"`,
+    or on the child of each part of such a `main`'s parts (`x-views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -913,7 +951,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("x-views") == "parts"
+            if registry.get(holder.tag, {}).get("x-views", {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

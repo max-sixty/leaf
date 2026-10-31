@@ -118,6 +118,7 @@ class Pi:
             self.message()
             self.emit("agent_start")
             continued = self.emit("turn_end")
+            assert isinstance(continued, dict)
             [entry] = continued["entries"]
             delivery = json.loads(entry["content"].split("\n")[1])
             [batch] = delivery["batches"]
@@ -224,8 +225,14 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     ref = batch["events"][0]["answer"]["ref"]
     pi.emit("agent_settled", idle=True)
+
+    def turn_closed():
+        record = cleanup_model.session_record("pi-s1")
+        assert record is not None
+        return record["turn_closed"]
+
     wait_for(
-        lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
+        turn_closed,
         bool,
         failure="the Escape left the turn open",
     )
@@ -238,10 +245,12 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     *_, pickup = (
         e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
     )
+    turn_record = cleanup_model.session_record("pi-s1")
+    assert turn_record is not None
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",
         [comment["id"]],
-        cleanup_model.session_record("pi-s1")["turn"],
+        turn_record["turn"],
     )
 
 
@@ -266,6 +275,7 @@ def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):
         failure="the Pi watch never restarted the dead session server",
     )
     claim = service_model.page_claim(page_dir)
+    assert claim is not None
     assert (claim["harness"], claim["id"]) == ("pi", "pi-s1")
 
 
@@ -278,11 +288,13 @@ def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     monkeypatch.setenv("CLAUDE_PID", str(os.getppid()))
     harness = harness_model.session_harness()
+    assert harness is not None
     assert (type(harness), harness.session) == (harness_model.PiHarness, "inner-pi")
 
     monkeypatch.setenv("LEAF_PI_PID", str(os.getppid()))
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     harness = harness_model.session_harness()
+    assert harness is not None
     assert (type(harness), harness.session) == (
         harness_model.ClaudeCodeHarness,
         "outer-claude",

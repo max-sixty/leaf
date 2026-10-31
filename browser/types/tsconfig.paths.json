@@ -12,6 +12,7 @@
         "../../packages/code-review/vendor/*",
         "../../packages/deck/vendor/*",
         "../../packages/default/vendor/*",
+        "../../packages/detail/vendor/*",
         "../../packages/diagram/vendor/*",
         "../../packages/diff/vendor/*",
         "../../packages/file-editor/vendor/*",
@@ -20,6 +21,7 @@
         "../../packages/motion/vendor/*",
         "../../packages/playground/vendor/*",
         "../../packages/playwright/vendor/*",
+        "../../packages/reading/vendor/*",
         "../../packages/timeline/vendor/*",
         "../../packages/visual-review/vendor/*"
       ],
@@ -28,6 +30,7 @@
         "../../packages/code-review/widgets/*",
         "../../packages/deck/widgets/*",
         "../../packages/default/widgets/*",
+        "../../packages/detail/widgets/*",
         "../../packages/diagram/widgets/*",
         "../../packages/diff/widgets/*",
         "../../packages/file-editor/widgets/*",
@@ -36,6 +39,7 @@
         "../../packages/motion/widgets/*",
         "../../packages/playground/widgets/*",
         "../../packages/playwright/widgets/*",
+        "../../packages/reading/widgets/*",
         "../../packages/timeline/widgets/*",
         "../../packages/visual-review/widgets/*"
       ],

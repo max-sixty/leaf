@@ -46,508 +46,517 @@
     </style>
   </head>
   <body class="site-page">
-    <main class="layout-column">
-      <nav class="sitenav" aria-label="Site"></nav>
-
-      <header id="top">
-        <p class="eyebrow">using leaf</p>
-        <h1>Threads</h1>
-        <p class="lede" id="lede">
-          A comment attaches a conversation to a passage. Replies stay beside that
-          passage, so the discussion and the page can be read together. This page also
-          explains how Leaf keeps each thread on its passage as the page changes.
-        </p>
-      </header>
-
-      <aside class="sidebar" id="threads-route">
-        <lf-toc id="threads-contents"></lf-toc>
-      </aside>
-
-      <section id="comments">
-        <h2>Comments and replies</h2>
-        <p id="comment-route">
-          Select a passage, then use the comment control or press <kbd>c</kbd> to write
-          a comment. The thread keeps that passage as its anchor. Its marker opens the
-          conversation beside the passage, where the agent's reply and the reply box
-          appear.
-        </p>
-        <p id="panel-route">
-          The <strong>Threads</strong> tab of Leaf's On view, which the panel's On me
-          mark opens, lists the threads above the panel's row. Select a thread to read
-          its messages and reply in the panel's comment field. Its passage link returns
-          to the anchor on the page.
-        </p>
-      </section>
-
-      <section id="practice">
-        <h2>Try a thread</h2>
-        <p id="sample-introduction">
-          This fictional exchange shows an agent's reply after revising the importer
-          policy. Open the marker beside the sentence to read the exchange, or open
-          <strong>Threads</strong> in the sample's top row. Select the sentence to try a
-          comment. The sample has its own temporary log; no agent answers its practice
-          comments. Reset restores the fictional exchange.
-        </p>
-        <script id="queue-history" type="application/json">
-          [
-            {
-              "id": "queue-comment",
-              "kind": "comment",
-              "author": "user",
-              "anchor": { "section": "queue-policy" },
-              "text": "Can the importer discard the oldest job rather than rejecting new work?"
-            },
-            {
-              "kind": "reply",
-              "author": "agent",
-              "parent": "queue-comment",
-              "responds": "queue-comment",
-              "text": "Updated: the importer now drops the oldest queued job. The API still rejects new work when its queue is full."
-            },
-            {
-              "kind": "thread_title",
-              "author": "agent",
-              "agent": "Example agent",
-              "session": "fictional-importer-review",
-              "thread": "queue-comment",
-              "title": "Importer queue policy"
-            }
-          ]
-        </script>
-        <lf-sample id="queue-exchange" label="fictional importer review" window>
-          <template id="queue-page" data-sample data-sample-events="queue-history">
-            <h1>Importer queue policy</h1>
-            <p id="queue-policy">
-              When the queue is full, the importer discards the oldest queued job and
-              admits the new one.
-            </p>
-          </template>
-        </lf-sample>
-      </section>
-
-      <section id="anchors">
-        <h2>Anchors</h2>
-        <p id="anchors-lede">
-          A thread's anchor is the place on the page it is about. The first comment
-          records it in the event log, and that record never changes; a reply or a
-          revision can later move the thread to a new anchor. A comment can be anchored
-          in these ways:
-        </p>
-        <table id="anchor-kinds">
-          <thead>
-            <tr>
-              <th>Anchor</th>
-              <th>How the user makes it</th>
-              <th>What the log stores</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr id="anchor-passage">
-              <td>Passage</td>
-              <td>Select words, then press <kbd>c</kbd></td>
-              <td>
-                <code>section</code>, the id of the nearest element around the words;
-                <code>quote</code>, the words; and <code>prefix</code> and
-                <code>suffix</code>, up to 24 characters on each side
-              </td>
-            </tr>
-            <tr id="anchor-element">
-              <td>Element</td>
-              <td>
-                ⌥-click (Alt-click) an element, such as an image or a table, or press
-                <kbd>s</kbd> and choose one
-              </td>
-              <td><code>section</code> alone</td>
-            </tr>
-            <tr id="anchor-visual">
-              <td>Part of a picture</td>
-              <td>⌥-click a box that a diagram declares commentable</td>
-              <td><code>section</code> and <code>visual</code>, the part's name</td>
-            </tr>
-            <tr id="anchor-datum">
-              <td>Data value</td>
-              <td>Select words inside one value a widget drew from a data source</td>
-              <td>
-                <code>section</code> and <code>datum</code>, the value's key, and for a
-                value from an external source, that source's revision
-              </td>
-            </tr>
-            <tr id="anchor-drawing">
-              <td>Drawing</td>
-              <td>Draw on the page in Draw mode (<kbd>w</kbd>)</td>
-              <td>An element anchor, plus the strokes</td>
-            </tr>
-            <tr id="anchor-page">
-              <td>None</td>
-              <td>
-                Press <kbd>c</kbd> with nothing selected, or write in the Threads
-                panel's comment box
-              </td>
-              <td>No anchor: the thread is about the whole page</td>
-            </tr>
-          </tbody>
-        </table>
-        <p id="anchors-agent">
-          An agent opens threads with the same anchors, using
-          <code>leaf thread create</code> with <code>--quote</code>,
-          <code>--section</code>, <code>--part</code>, or none of them.
-        </p>
-      </section>
-
-      <section id="passages">
-        <h2>Finding a passage</h2>
-        <p id="passage-segments">
-          In the browser, a passage is an ordered list of segments, each
-          <code>{node, start, end}</code>: a text node and a range of characters in it.
-          A selection that crosses a bold word, a link, or two paragraphs is several
-          segments. Text nodes exist only while the page is loaded, so the log stores
-          the passage by its words instead, as the table above shows.
-        </p>
-        <p id="passage-resolution">
-          Each time the page is drawn, Leaf searches the anchor's section for the quote.
-          If exactly one occurrence has the stored prefix and suffix around it, that
-          occurrence is the passage. If none has them but the quote occurs only once,
-          that one is the passage. In every other case the anchor finds nothing. Leaf
-          never takes the first of two identical passages, because a comment made on the
-          second would then appear on words it was never made on.
-        </p>
-        <p id="passage-readings">
-          Leaf reads a page's text in two ways. <code>says</code> is the text the
-          rendered page shows, including words a widget draws and declares as part of
-          the page, such as a tab's label. <code>wrote</code> is only the text the
-          author put in the HTML. Anchors and quotes use <code>says</code>, because the
-          user selects what they see. Comparing two versions uses <code>wrote</code>, so
-          words a widget draws do not appear as edits.
-        </p>
-        <p id="passage-sides">
-          The browser makes an anchor from a selection. <code>leaf thread create</code>
-          makes one in Python, from the HTML file. Both apply the same rules: the same
-          whitespace characters collapse to one space, the same elements count as
-          separate blocks, the context is the same 24 characters, and the search is the
-          same.
-        </p>
-        <p id="passage-refusals">
-          The file holds the author's HTML, not the words a widget's script draws
-          between its parts, such as a board column's heading or a diagram drawn from
-          its source. A quote may not cross such words on either side.
-          <code>leaf thread create</code> refuses a quote that crosses them, that occurs
-          more than once in the section, or that sits in content the user's decision
-          removed, and says what to quote instead. An agent's anchor is therefore one
-          the user's page can find.
-        </p>
-      </section>
-
-      <section id="revisions">
-        <h2>Anchors across revisions</h2>
-        <p id="revisions-lede">
-          Before publishing a new revision, Leaf checks each open thread's quoted
-          passage against the revised content. The results are shown below.
-        </p>
-        <div class="panels" id="revision-outcomes">
-          <figure id="anchor-kept">
-            <svg class="drawing" viewBox="0 0 240 150" role="img">
-              <title>
-                A highlighted passage and its thread marker in the same place in both
-                revisions
-              </title>
-              <text x="58" y="14" text-anchor="middle">Revision 1</text>
-              <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
-              <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
-              <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
-              <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
-              <circle class="mark" cx="102" cy="72" r="3" />
-              <path class="arrow" d="M 113 82 H 124" />
-              <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
-              <text x="182" y="14" text-anchor="middle">Revision 2</text>
-              <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="142" y="62" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="70" width="70" height="4" rx="2" />
-              <rect class="line soft" x="142" y="78" width="46" height="4" rx="2" />
-              <rect class="line soft" x="142" y="100" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="108" width="60" height="4" rx="2" />
-              <rect class="highlight" x="160" y="68" width="40" height="8" rx="1" />
-              <circle class="mark" cx="226" cy="72" r="3" />
-            </svg>
-            <figcaption id="cap-anchor-kept">
-              <strong>Words still there</strong>The quote still identifies one passage,
-              so the thread stays on it.
-            </figcaption>
-          </figure>
-          <figure id="anchor-moved">
-            <svg class="drawing" viewBox="0 0 240 150" role="img">
-              <title>
-                The highlighted paragraph is rewritten in revision 2; the thread marker
-                stays beside the paragraph, now outlined as a whole
-              </title>
-              <text x="58" y="14" text-anchor="middle">Revision 1</text>
-              <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
-              <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
-              <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
-              <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
-              <circle class="mark" cx="102" cy="72" r="3" />
-              <path class="arrow" d="M 113 82 H 124" />
-              <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
-              <text x="182" y="14" text-anchor="middle">Revision 2</text>
-              <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="142" y="62" width="60" height="4" rx="2" />
-              <rect class="line soft" x="142" y="70" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="78" width="30" height="4" rx="2" />
-              <rect class="line soft" x="142" y="100" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="108" width="60" height="4" rx="2" />
-              <rect class="guide" x="138" y="58" width="82" height="28" rx="2" />
-              <circle class="mark" cx="226" cy="72" r="3" />
-            </svg>
-            <figcaption id="cap-anchor-moved">
-              <strong>Words changed</strong>The thread moves to the element its anchor
-              names. Its quote keeps the old words, tagged Changed.
-            </figcaption>
-          </figure>
-          <figure id="anchor-detached">
-            <svg class="drawing" viewBox="0 0 240 150" role="img">
-              <title>
-                The highlighted paragraph is removed in revision 2; the thread is listed
-                as no longer here
-              </title>
-              <text x="58" y="14" text-anchor="middle">Revision 1</text>
-              <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
-              <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
-              <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
-              <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
-              <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
-              <circle class="mark" cx="102" cy="72" r="3" />
-              <path class="arrow" d="M 113 82 H 124" />
-              <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
-              <text x="182" y="14" text-anchor="middle">Revision 2</text>
-              <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
-              <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
-              <rect class="line soft" x="142" y="62" width="74" height="4" rx="2" />
-              <rect class="line soft" x="142" y="70" width="60" height="4" rx="2" />
-              <circle class="ghost" cx="146" cy="118" r="3" />
-              <text x="154" y="121">No longer here</text>
-            </svg>
-            <figcaption id="cap-anchor-detached">
-              <strong>Element removed</strong>The agent moves the thread or detaches it
-              in a reply. A detached thread stays open in Threads.
-            </figcaption>
-          </figure>
+    <main class="layout-sidebar">
+      <aside id="threads-route">
+        <div class="layout-track">
+          <lf-toc id="threads-contents"></lf-toc>
         </div>
-        <p id="revisions-section">
-          When the quoted words change but their element survives, Leaf moves the thread
-          to the element its anchor names in <code>section</code> and records the move
-          in the log as a <code>reanchor</code> event, without adding a message.
-          Clicking the quote scrolls to the element. The same happens when a revision
-          repeats the words without context that tells the copies apart.
-        </p>
-        <p id="revisions-refused">
-          When the element is gone too, Leaf refuses the revision and names the thread.
-          The agent keeps the element, moves the thread with a reply that names a new
-          passage, or detaches it with a reply passing <code>--detach</code>, which says
-          the subject has left the page. Leaf refuses a revision that removes the
-          element an open element-anchored thread is on in the same way. Only the agent
-          chooses a new passage for a thread, in a reply that says why; Leaf's own move
-          goes only to the element the anchor already named.
-        </p>
-        <p id="revisions-detached">
-          A detached thread stays open in Threads, and its first comment keeps its
-          original anchor in the log. Its quote is greyed out and cannot be followed;
-          hovering it shows “This passage is no longer in the version shown”. Threads'
-          <strong>No longer here</strong> filter lists detached threads. A later reply
-          can move one to a replacement passage.
-        </p>
-        <p id="revisions-older">
-          Anchors are found in whichever version the user is viewing. Opening an older
-          version from the version menu shows threads on passages that version lacks as
-          “This passage can't be identified in the version shown”, also listed under
-          <strong>No longer here</strong>.
-        </p>
-      </section>
+      </aside>
+      <div class="layout-column">
+        <nav class="sitenav" aria-label="Site"></nav>
 
-      <section id="drawings">
-        <h2>Drawings</h2>
-        <p id="drawings-anchor">
-          In Draw mode, which <kbd>w</kbd> turns on and off, the user draws freehand on
-          the page and writes a comment beside the ink. The drawing is anchored on the
-          element under the start of its first stroke, or the nearest one. The comment
-          stores up to 32 strokes as positions within that element's box, the box's
-          size, the words the ink covers, and the window size and colour scheme it was
-          drawn in.
-        </p>
-        <p id="drawings-replay">
-          The page draws the ink at the element's current size, so it stays on the
-          element in a narrower window, though text that reflows inside the element can
-          move out from under it. The agent reads the covered words in the comment, and
-          <code>leaf page picture</code> renders that revision again in the same window
-          with the ink over it.
-        </p>
-      </section>
+        <header id="top">
+          <p class="eyebrow">using leaf</p>
+          <h1>Threads</h1>
+          <p class="lede" id="lede">
+            A comment attaches a conversation to a passage. Replies stay beside that
+            passage, so the discussion and the page can be read together. This page also
+            explains how Leaf keeps each thread on its passage as the page changes.
+          </p>
+        </header>
 
-      <section id="message-widgets">
-        <h2>Widgets in messages</h2>
-        <p id="message-widgets-markup">
-          An agent's reply can carry a small widget, typically a question with options
-          (<code>--markup</code> on <code>leaf thread reply</code>). Leaf validates the
-          markup when it is posted and stores it in the log with the reply, so the
-          thread shows the same widget in every version of the page. A later
-          <code>leaf page init</code> refuses a vocabulary that could no longer render
-          it.
-        </p>
-        <p id="message-widgets-state">
-          A widget on the page takes its state from the version being viewed: that
-          version's markup plus the actions taken up to it, minus any a stamped version
-          marked <code>restated</code>. A widget in a message belongs to no version. Its
-          state is its markup plus every action taken on it, whichever version is open,
-          and no revision can retract one. Choosing the answer to its question hands the
-          thread back to the agent.
-        </p>
-      </section>
+        <section id="comments" class="layout-flow">
+          <h2>Comments and replies</h2>
+          <p id="comment-route">
+            Select a passage, then use the comment control or press <kbd>c</kbd> to
+            write a comment. The thread keeps that passage as its anchor. Its marker
+            opens the conversation beside the passage, where the agent's reply and the
+            reply box appear.
+          </p>
+          <p id="panel-route">
+            The <strong>Threads</strong> tab of Leaf's On view, which the panel's On me
+            mark opens, lists the threads above the panel's row. Select a thread to read
+            its messages and reply in the panel's comment field. Its passage link
+            returns to the anchor on the page.
+          </p>
+        </section>
 
-      <section id="titles">
-        <h2>Titles</h2>
-        <p id="titles-agent">
-          A title names a thread in Threads, in a few words of plain text. The agent
-          sets one with <code>--title</code> on the command that first handles the
-          thread, and can rename it later with <code>leaf thread edit --title</code>.
-        </p>
-        <p id="titles-model">
-          The agent's reply can take minutes, so when the user opens an untitled thread,
-          Leaf also asks the harness's model for a title at once, in a separate request:
-          a <code>claude -p</code> request to Haiku in Claude Code, and an App Server
-          request in Codex; in Pi, the agent names the thread. The request holds only
-          the thread's passage and first message, nothing from the agent's session, and
-          runs in parallel with the agent's work. Leaf uses the first title it receives.
-          While the agent is working on an untitled thread, the panel shows animated
-          dots in place of the title; a thread nobody named shows its opening words.
-        </p>
-      </section>
+        <section id="practice" class="layout-flow">
+          <h2>Try a thread</h2>
+          <p id="sample-introduction">
+            This fictional exchange shows an agent's reply after revising the importer
+            policy. Open the marker beside the sentence to read the exchange, or open
+            <strong>Threads</strong> in the sample's top row. Select the sentence to try
+            a comment. The sample has its own temporary log; no agent answers its
+            practice comments. Reset restores the fictional exchange.
+          </p>
+          <script id="queue-history" type="application/json">
+            [
+              {
+                "id": "queue-comment",
+                "kind": "comment",
+                "author": "user",
+                "anchor": { "section": "queue-policy" },
+                "text": "Can the importer discard the oldest job rather than rejecting new work?"
+              },
+              {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "queue-comment",
+                "responds": "queue-comment",
+                "text": "Updated: the importer now drops the oldest queued job. The API still rejects new work when its queue is full."
+              },
+              {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Example agent",
+                "session": "fictional-importer-review",
+                "thread": "queue-comment",
+                "title": "Importer queue policy"
+              }
+            ]
+          </script>
+          <lf-sample id="queue-exchange" label="fictional importer review" window>
+            <template id="queue-page" data-sample data-sample-events="queue-history">
+              <h1>Importer queue policy</h1>
+              <p id="queue-policy">
+                When the queue is full, the importer discards the oldest queued job and
+                admits the new one.
+              </p>
+            </template>
+          </lf-sample>
+        </section>
 
-      <section id="thread-readings">
-        <h2>Thread readings</h2>
-        <p id="thread-readings-lede">
-          A thread appears in several places at once: its card in Threads, its entry in
-          the margin, its row in the Page Map, its row in On me, and its line in an
-          activity feed. Each place says the same thing about it, so a thread never goes
-          by two names or shows two statuses.
-        </p>
-        <table id="thread-readings-table">
-          <thead>
-            <tr>
-              <th>What it says</th>
-              <th>Where it shows</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr id="reading-name">
-              <td>
-                Its name: the title, else the words of its opening message, else Drawing
-              </td>
-              <td>Threads, On me, the margin, the Page Map, an activity feed</td>
-            </tr>
-            <tr id="reading-word">
-              <td>
-                Its status: Your turn, On it, To-do open, Waiting, or how far the agent
-                has got with the latest update
-              </td>
-              <td>
-                Threads and the floating panel, as the card's status; the margin and the
-                Page Map, beside its name
-              </td>
-            </tr>
-            <tr id="reading-workflow">
-              <td>
-                How far the agent has got with an update: Saved, Up next, Replying, Not
-                answered
-              </td>
-              <td>the message itself; the margin and Page Map entries</td>
-            </tr>
-            <tr id="reading-unread">
-              <td>How many of the agent's messages the user has not read</td>
-              <td>Threads, the margin, the Page Map</td>
-            </tr>
-            <tr id="reading-draft">
-              <td>An unsent reply or rewrite</td>
-              <td>its box, wherever the thread is open</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+        <section id="anchors" class="layout-flow">
+          <h2>Anchors</h2>
+          <p id="anchors-lede">
+            A thread's anchor is the place on the page it is about. The first comment
+            records it in the event log, and that record never changes; a reply or a
+            revision can later move the thread to a new anchor. A comment can be
+            anchored in these ways:
+          </p>
+          <table id="anchor-kinds">
+            <thead>
+              <tr>
+                <th>Anchor</th>
+                <th>How the user makes it</th>
+                <th>What the log stores</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="anchor-passage">
+                <td>Passage</td>
+                <td>Select words, then press <kbd>c</kbd></td>
+                <td>
+                  <code>section</code>, the id of the nearest element around the words;
+                  <code>quote</code>, the words; and <code>prefix</code> and
+                  <code>suffix</code>, up to 24 characters on each side
+                </td>
+              </tr>
+              <tr id="anchor-element">
+                <td>Element</td>
+                <td>
+                  ⌥-click (Alt-click) an element, such as an image or a table, or press
+                  <kbd>s</kbd> and choose one
+                </td>
+                <td><code>section</code> alone</td>
+              </tr>
+              <tr id="anchor-visual">
+                <td>Part of a picture</td>
+                <td>⌥-click a box that a diagram declares commentable</td>
+                <td><code>section</code> and <code>visual</code>, the part's name</td>
+              </tr>
+              <tr id="anchor-datum">
+                <td>Data value</td>
+                <td>Select words inside one value a widget drew from a data source</td>
+                <td>
+                  <code>section</code> and <code>datum</code>, the value's key, and for
+                  a value from an external source, that source's revision
+                </td>
+              </tr>
+              <tr id="anchor-drawing">
+                <td>Drawing</td>
+                <td>Draw on the page in Draw mode (<kbd>w</kbd>)</td>
+                <td>An element anchor, plus the strokes</td>
+              </tr>
+              <tr id="anchor-page">
+                <td>None</td>
+                <td>
+                  Press <kbd>c</kbd> with nothing selected, or write in the Threads
+                  panel's comment box
+                </td>
+                <td>No anchor: the thread is about the whole page</td>
+              </tr>
+            </tbody>
+          </table>
+          <p id="anchors-agent">
+            An agent opens threads with the same anchors, using
+            <code>leaf thread create</code> with <code>--quote</code>,
+            <code>--section</code>, <code>--part</code>, or none of them.
+          </p>
+        </section>
 
-      <section id="summaries">
-        <h2>Summaries</h2>
-        <p id="summaries-fold">
-          <code>leaf thread summarize</code> folds a run of consecutive messages in one
-          thread under a disclosure labelled “Earlier discussion” or a label the agent
-          chooses, with a summary of their decisions, reasoning, and open questions. The
-          original messages stay in the log and unfold from the disclosure. A summary
-          answers nothing and closes nothing.
-        </p>
-        <p id="summaries-hint">
-          Once a thread is long, Leaf suggests a range to the agent with the user's next
-          message, leaving the newest exchange outside it; the agent decides whether to
-          summarize. Editing a message inside a written summary's range removes the
-          summary, so an outdated summary cannot hide the correction. Progress messages
-          an agent posts while working fold on their own behind “Show N progress
-          messages” when its next ordinary reply arrives.
-        </p>
-      </section>
+        <section id="passages" class="layout-flow">
+          <h2>Finding a passage</h2>
+          <p id="passage-segments">
+            In the browser, a passage is an ordered list of segments, each
+            <code>{node, start, end}</code>: a text node and a range of characters in
+            it. A selection that crosses a bold word, a link, or two paragraphs is
+            several segments. Text nodes exist only while the page is loaded, so the log
+            stores the passage by its words instead, as the table above shows.
+          </p>
+          <p id="passage-resolution">
+            Each time the page is drawn, Leaf searches the anchor's section for the
+            quote. If exactly one occurrence has the stored prefix and suffix around it,
+            that occurrence is the passage. If none has them but the quote occurs only
+            once, that one is the passage. In every other case the anchor finds nothing.
+            Leaf never takes the first of two identical passages, because a comment made
+            on the second would then appear on words it was never made on.
+          </p>
+          <p id="passage-readings">
+            Leaf reads a page's text in two ways. <code>says</code> is the text the
+            rendered page shows, including words a widget draws and declares as part of
+            the page, such as a tab's label. <code>wrote</code> is only the text the
+            author put in the HTML. Anchors and quotes use <code>says</code>, because
+            the user selects what they see. Comparing two versions uses
+            <code>wrote</code>, so words a widget draws do not appear as edits.
+          </p>
+          <p id="passage-sides">
+            The browser makes an anchor from a selection.
+            <code>leaf thread create</code>
+            makes one in Python, from the HTML file. Both apply the same rules: the same
+            whitespace characters collapse to one space, the same elements count as
+            separate blocks, the context is the same 24 characters, and the search is
+            the same.
+          </p>
+          <p id="passage-refusals">
+            The file holds the author's HTML, not the words a widget's script draws
+            between its parts, such as a board column's heading or a diagram drawn from
+            its source. A quote may not cross such words on either side.
+            <code>leaf thread create</code> refuses a quote that crosses them, that
+            occurs more than once in the section, or that sits in content the user's
+            decision removed, and says what to quote instead. An agent's anchor is
+            therefore one the user's page can find.
+          </p>
+        </section>
 
-      <section id="ending">
-        <h2>How a thread ends</h2>
-        <p id="resolving-user">
-          The user usually closes a thread with <strong>Resolve thread</strong> once
-          they have read the answer. Its marker and ink leave the page, and it moves
-          from Threads' <strong>Open</strong> list to <strong>Resolved</strong>.
-          <strong>Reopen</strong> brings it back, as does <kbd>z</kbd> when resolving
-          was the user's latest action.
-        </p>
-        <p id="resolving-agent">
-          The agent resolves a thread only when the user asks, or when no review could
-          change the outcome; the thread then reads “Resolved by” and the agent's name.
-          A new message from either side reopens a resolved thread. A reaction, a
-          progress message or a failure notice does not.
-        </p>
-        <p id="withdrawing">
-          A reaction is the only message the user can take back. Its mark's undo
-          control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
-          the log gains an <code>undo</code> naming it, and the mark and any thread it
-          started leave the page. This works only while the thread is open and nothing,
-          not even another reaction, has answered it. A message with words cannot be
-          withdrawn.
-        </p>
-        <p id="unsent-words">
-          Words typed but not sent are kept after their box closes. If a new version
-          removes the content they were about, Resume writing (<kbd>g</kbd>
-          <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
-          already there.
-        </p>
-      </section>
+        <section id="revisions" class="layout-flow">
+          <h2>Anchors across revisions</h2>
+          <p id="revisions-lede">
+            Before publishing a new revision, Leaf checks each open thread's quoted
+            passage against the revised content. The results are shown below.
+          </p>
+          <div class="panels" id="revision-outcomes">
+            <figure id="anchor-kept">
+              <svg class="drawing" viewBox="0 0 240 150" role="img">
+                <title>
+                  A highlighted passage and its thread marker in the same place in both
+                  revisions
+                </title>
+                <text x="58" y="14" text-anchor="middle">Revision 1</text>
+                <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
+                <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
+                <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
+                <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
+                <circle class="mark" cx="102" cy="72" r="3" />
+                <path class="arrow" d="M 113 82 H 124" />
+                <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
+                <text x="182" y="14" text-anchor="middle">Revision 2</text>
+                <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="142" y="62" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="70" width="70" height="4" rx="2" />
+                <rect class="line soft" x="142" y="78" width="46" height="4" rx="2" />
+                <rect class="line soft" x="142" y="100" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="108" width="60" height="4" rx="2" />
+                <rect class="highlight" x="160" y="68" width="40" height="8" rx="1" />
+                <circle class="mark" cx="226" cy="72" r="3" />
+              </svg>
+              <figcaption id="cap-anchor-kept">
+                <strong>Words still there</strong>The quote still identifies one
+                passage, so the thread stays on it.
+              </figcaption>
+            </figure>
+            <figure id="anchor-moved">
+              <svg class="drawing" viewBox="0 0 240 150" role="img">
+                <title>
+                  The highlighted paragraph is rewritten in revision 2; the thread
+                  marker stays beside the paragraph, now outlined as a whole
+                </title>
+                <text x="58" y="14" text-anchor="middle">Revision 1</text>
+                <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
+                <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
+                <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
+                <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
+                <circle class="mark" cx="102" cy="72" r="3" />
+                <path class="arrow" d="M 113 82 H 124" />
+                <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
+                <text x="182" y="14" text-anchor="middle">Revision 2</text>
+                <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="142" y="62" width="60" height="4" rx="2" />
+                <rect class="line soft" x="142" y="70" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="78" width="30" height="4" rx="2" />
+                <rect class="line soft" x="142" y="100" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="108" width="60" height="4" rx="2" />
+                <rect class="guide" x="138" y="58" width="82" height="28" rx="2" />
+                <circle class="mark" cx="226" cy="72" r="3" />
+              </svg>
+              <figcaption id="cap-anchor-moved">
+                <strong>Words changed</strong>The thread moves to the element its anchor
+                names. Its quote keeps the old words, tagged Changed.
+              </figcaption>
+            </figure>
+            <figure id="anchor-detached">
+              <svg class="drawing" viewBox="0 0 240 150" role="img">
+                <title>
+                  The highlighted paragraph is removed in revision 2; the thread is
+                  listed as no longer here
+                </title>
+                <text x="58" y="14" text-anchor="middle">Revision 1</text>
+                <rect class="frame" x="8" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="18" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="18" y="62" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="70" width="70" height="4" rx="2" />
+                <rect class="line soft" x="18" y="78" width="46" height="4" rx="2" />
+                <rect class="line soft" x="18" y="100" width="74" height="4" rx="2" />
+                <rect class="line soft" x="18" y="108" width="60" height="4" rx="2" />
+                <rect class="highlight" x="36" y="68" width="40" height="8" rx="1" />
+                <circle class="mark" cx="102" cy="72" r="3" />
+                <path class="arrow" d="M 113 82 H 124" />
+                <path class="tip" d="M 128 82 L 123 79 L 123 85 Z" />
+                <text x="182" y="14" text-anchor="middle">Revision 2</text>
+                <rect class="frame" x="132" y="22" width="100" height="120" rx="4" />
+                <rect class="line soft" x="142" y="34" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="42" width="56" height="4" rx="2" />
+                <rect class="line soft" x="142" y="62" width="74" height="4" rx="2" />
+                <rect class="line soft" x="142" y="70" width="60" height="4" rx="2" />
+                <circle class="ghost" cx="146" cy="118" r="3" />
+                <text x="154" y="121">No longer here</text>
+              </svg>
+              <figcaption id="cap-anchor-detached">
+                <strong>Element removed</strong>The agent moves the thread or detaches
+                it in a reply. A detached thread stays open in Threads.
+              </figcaption>
+            </figure>
+          </div>
+          <p id="revisions-section">
+            When the quoted words change but their element survives, Leaf moves the
+            thread to the element its anchor names in <code>section</code> and records
+            the move in the log as a <code>reanchor</code> event, without adding a
+            message. Clicking the quote scrolls to the element. The same happens when a
+            revision repeats the words without context that tells the copies apart.
+          </p>
+          <p id="revisions-refused">
+            When the element is gone too, Leaf refuses the revision and names the
+            thread. The agent keeps the element, moves the thread with a reply that
+            names a new passage, or detaches it with a reply passing
+            <code>--detach</code>, which says the subject has left the page. Leaf
+            refuses a revision that removes the element an open element-anchored thread
+            is on in the same way. Only the agent chooses a new passage for a thread, in
+            a reply that says why; Leaf's own move goes only to the element the anchor
+            already named.
+          </p>
+          <p id="revisions-detached">
+            A detached thread stays open in Threads, and its first comment keeps its
+            original anchor in the log. Its quote is greyed out and cannot be followed;
+            hovering it shows “This passage is no longer in the version shown”. Threads'
+            <strong>No longer here</strong> filter lists detached threads. A later reply
+            can move one to a replacement passage.
+          </p>
+          <p id="revisions-older">
+            Anchors are found in whichever version the user is viewing. Opening an older
+            version from the version menu shows threads on passages that version lacks
+            as “This passage can't be identified in the version shown”, also listed
+            under
+            <strong>No longer here</strong>.
+          </p>
+        </section>
 
-      <footer class="site-footer" id="colophon">
-        <p id="links">
-          <a href="/how-it-works/#workflow">How it works: the workflow</a> ·
-          <a href="/event-log/">The event log</a> ·
-          <a href="/examples/">Examples</a>
-        </p>
-        <p id="license">Leaf is open source, under the MIT license.</p>
-      </footer>
+        <section id="drawings" class="layout-flow">
+          <h2>Drawings</h2>
+          <p id="drawings-anchor">
+            In Draw mode, which <kbd>w</kbd> turns on and off, the user draws freehand
+            on the page and writes a comment beside the ink. The drawing is anchored on
+            the element under the start of its first stroke, or the nearest one. The
+            comment stores up to 32 strokes as positions within that element's box, the
+            box's size, the words the ink covers, and the window size and colour scheme
+            it was drawn in.
+          </p>
+          <p id="drawings-replay">
+            The page draws the ink at the element's current size, so it stays on the
+            element in a narrower window, though text that reflows inside the element
+            can move out from under it. The agent reads the covered words in the
+            comment, and
+            <code>leaf page picture</code> renders that revision again in the same
+            window with the ink over it.
+          </p>
+        </section>
+
+        <section id="message-widgets" class="layout-flow">
+          <h2>Widgets in messages</h2>
+          <p id="message-widgets-markup">
+            An agent's reply can carry a small widget, typically a question with options
+            (<code>--markup</code> on <code>leaf thread reply</code>). Leaf validates
+            the markup when it is posted and stores it in the log with the reply, so the
+            thread shows the same widget in every version of the page. A later
+            <code>leaf page init</code> refuses a vocabulary that could no longer render
+            it.
+          </p>
+          <p id="message-widgets-state">
+            A widget on the page takes its state from the version being viewed: that
+            version's markup plus the actions taken up to it, minus any a stamped
+            version marked <code>restated</code>. A widget in a message belongs to no
+            version. Its state is its markup plus every action taken on it, whichever
+            version is open, and no revision can retract one. Choosing the answer to its
+            question hands the thread back to the agent.
+          </p>
+        </section>
+
+        <section id="titles" class="layout-flow">
+          <h2>Titles</h2>
+          <p id="titles-agent">
+            A title names a thread in Threads, in a few words of plain text. The agent
+            sets one with <code>--title</code> on the command that first handles the
+            thread, and can rename it later with <code>leaf thread edit --title</code>.
+          </p>
+          <p id="titles-model">
+            The agent's reply can take minutes, so when the user opens an untitled
+            thread, Leaf also asks the harness's model for a title at once, in a
+            separate request: a <code>claude -p</code> request to Haiku in Claude Code,
+            and an App Server request in Codex; in Pi, the agent names the thread. The
+            request holds only the thread's passage and first message, nothing from the
+            agent's session, and runs in parallel with the agent's work. Leaf uses the
+            first title it receives. While the agent is working on an untitled thread,
+            the panel shows animated dots in place of the title; a thread nobody named
+            shows its opening words.
+          </p>
+        </section>
+
+        <section id="thread-readings" class="layout-flow">
+          <h2>Thread readings</h2>
+          <p id="thread-readings-lede">
+            A thread appears in several places at once: its card in Threads, its entry
+            in the margin, its row in the Page Map, its row in On me, and its line in an
+            activity feed. Each place says the same thing about it, so a thread never
+            goes by two names or shows two statuses.
+          </p>
+          <table id="thread-readings-table">
+            <thead>
+              <tr>
+                <th>What it says</th>
+                <th>Where it shows</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="reading-name">
+                <td>
+                  Its name: the title, else the words of its opening message, else
+                  Drawing
+                </td>
+                <td>Threads, On me, the margin, the Page Map, an activity feed</td>
+              </tr>
+              <tr id="reading-word">
+                <td>
+                  Its status: Your turn, On it, Still to do, Waiting, or how far the
+                  agent has got with the latest update
+                </td>
+                <td>
+                  Threads and the floating panel, as the card's status; the margin and
+                  the Page Map, beside its name
+                </td>
+              </tr>
+              <tr id="reading-workflow">
+                <td>
+                  How far the agent has got with an update: Queued for Claude, Up next,
+                  Replying, Not answered
+                </td>
+                <td>the message itself; the margin and Page Map entries</td>
+              </tr>
+              <tr id="reading-unread">
+                <td>How many of the agent's messages the user has not read</td>
+                <td>Threads, the margin, the Page Map</td>
+              </tr>
+              <tr id="reading-draft">
+                <td>An unsent reply or rewrite</td>
+                <td>its box, wherever the thread is open</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="summaries" class="layout-flow">
+          <h2>Summaries</h2>
+          <p id="summaries-fold">
+            <code>leaf thread summarize</code> folds a run of consecutive messages in
+            one thread under a disclosure labelled “Earlier discussion” or a label the
+            agent chooses, with a summary of their decisions, reasoning, and open
+            questions. The original messages stay in the log and unfold from the
+            disclosure. A summary answers nothing and closes nothing.
+          </p>
+          <p id="summaries-hint">
+            Once a thread is long, Leaf suggests a range to the agent with the user's
+            next message, leaving the newest exchange outside it; the agent decides
+            whether to summarize. Editing a message inside a written summary's range
+            removes the summary, so an outdated summary cannot hide the correction.
+            Progress messages an agent posts while working fold on their own behind
+            “Show N progress messages” when its next ordinary reply arrives.
+          </p>
+        </section>
+
+        <section id="ending" class="layout-flow">
+          <h2>How a thread ends</h2>
+          <p id="resolving-user">
+            The user usually closes a thread with <strong>Resolve thread</strong> once
+            they have read the answer. Its marker and ink leave the page, and it moves
+            from Threads' <strong>Open</strong> list to <strong>Resolved</strong>.
+            <strong>Reopen</strong> brings it back, as does <kbd>z</kbd> when resolving
+            was the user's latest action.
+          </p>
+          <p id="resolving-agent">
+            The agent resolves a thread only when the user asks, or when no review could
+            change the outcome; the thread then reads “Resolved by” and the agent's
+            name. A new message from either side reopens a resolved thread. A reaction,
+            a progress message or a failure notice does not.
+          </p>
+          <p id="withdrawing">
+            A reaction is the only message the user can take back. Its mark's undo
+            control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
+            the log gains an <code>undo</code> naming it, and the mark and any thread it
+            started leave the page. This works only while the thread is open and
+            nothing, not even another reaction, has answered it. A message with words
+            cannot be withdrawn.
+          </p>
+          <p id="unsent-words">
+            Words typed but not sent are kept after their box closes. If a new version
+            removes the content they were about, Resume writing (<kbd>g</kbd>
+            <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
+            already there.
+          </p>
+        </section>
+
+        <footer class="site-footer" id="colophon">
+          <p id="links">
+            <a href="/how-it-works/#workflow">How it works: the workflow</a> ·
+            <a href="/event-log/">The event log</a> ·
+            <a href="/examples/">Examples</a>
+          </p>
+          <p id="license">Leaf is open source, under the MIT license.</p>
+        </footer>
+      </div>
     </main>
   </body>
 </html>

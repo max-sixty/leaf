@@ -50,7 +50,7 @@
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
-  /* Upstream's corner scale is Leaf's (theme.css, `--r`); one home for both. */
+  /* Upstream's corner scale is Leaf's (base.css, `--r`); one home for both. */
   --wa-border-radius-s: var(--r-s);
   --wa-border-radius-m: var(--r);
   --wa-border-radius-l: var(--r-l);
@@ -88,7 +88,7 @@ wa-input {
 
 /* The band appears with the focus. A running transition is reported as the value the
    property is leaving, so a ring that fades in is a ring no reading sees at the moment
-   it is drawn — theme.css states the same for the layer's own rules, and these two are
+   it is drawn — base.css states the same for the layer's own rules, and these two are
    the vendored controls that animate their outline. Naming the properties that stay
    leaves the vendor's own durations and easing to it. */
 wa-input::part(base),
@@ -100,10 +100,7 @@ wa-select::part(combobox) {
    owner projects the browser's focus-visible reading onto the destination and its
    composed ancestry, so a field can ring its frame without ringing a retargeting
    shadow host or a label press's intermediate node. */
-wa-copy-button::part(lf-focus-visible) {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
-}
+wa-copy-button::part(lf-focus-visible),
 wa-comparison::part(lf-focus-visible) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
@@ -124,11 +121,10 @@ wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--focus-ring);
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
-   the option the user is on is inset: outside its box, three of its sides were cut
-   by the listbox's edge. The ring is the layer's focus floor (surfaces.css), which
-   outranks this layer and places the ring at the gap this sets. */
+   the option the user is on, the layer's focus floor (surfaces.css), is inset: outside
+   its box, three of its sides were cut by the listbox's edge. */
 wa-option {
-  --focus-ring-gap: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 
 /* A single slider focuses its rail and paints the thumb; a range slider focuses

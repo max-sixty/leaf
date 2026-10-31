@@ -37,6 +37,8 @@ import { createQueueActions, queueItemKey } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
+import { createSinceSeen } from "./since-seen.js";
+import { createAtWork } from "./at-work.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
@@ -200,6 +202,14 @@ export function mountApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
+  // The revision a visible tab showed, through the same door as the user leaves, so
+  // the send outlives the document. Nothing draws it ahead of the answer.
+  createSinceSeen({
+    markSeen: (revision) =>
+      deliverBookkeeping({ kind: "seen", revision }, receiveState, {
+        keepalive: true,
+      }),
+  });
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
@@ -255,6 +265,7 @@ export function mountApplication(dependencies) {
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
+  createAtWork(annotations);
   // Print hides contributed controls and cannot supply their visibility reading.
   // Refuse the annotation pass whole until the document returns to screen media.
   const onPaper = matchMedia("print");
@@ -286,6 +297,7 @@ export function mountApplication(dependencies) {
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
+  let marginPresentation = null;
   const mountAnnotations = () => {
     const presentation = applicationPresenter({
       region: "annotations",
@@ -293,6 +305,7 @@ export function mountApplication(dependencies) {
       reading: () => annotationInputs(),
       paint: renderAnnotations,
     });
+    marginPresentation = presentation;
     void presentation.present();
     // A paint on paper read no ages, so the return to screen paints through the
     // presenter, which follows them again.
@@ -353,12 +366,16 @@ export function mountApplication(dependencies) {
         part: "reply",
         focus: false,
         travel: false,
+        scroll: false,
         intent,
       }),
     returnToPage: threadDestinations.returnToPage,
     // The thread a margin entry stands for, which a user on it goes on with when the
     // thread leaves the margin.
     threadAt: (node) => overlay?.entryThread(node) ?? null,
+    // The margin's own commit, which reply continuity waits for; before the margin
+    // mounts there is nothing to wait for.
+    marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
   const accountPending = (receipts) => {

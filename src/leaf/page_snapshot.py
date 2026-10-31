@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import time
+from collections.abc import Generator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -17,11 +19,9 @@ from .files import (
     revision_path,
     version_descriptors,
 )
-from .findings import Rejected
-from .layer import incompatible_revision
 from .passages import SourceReading
 from .presence import neighbor_reading, presence_fingerprint, presence_with_activity
-from .registry.storage import read_page_registry
+from .registry.storage import read_page_registry, served_layer
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -31,6 +31,7 @@ from .revision_artifact import (
     read_artifact,
     read_revision,
 )
+from .runtime_selection import executing
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
@@ -65,6 +66,7 @@ class PageSnapshot:
         return replace(self, context=self.context.through(sequence))
 
     def active_revision(self) -> int:
+        assert self.context.active is not None
         return self.context.active["revision"]
 
     def artifact(self, revision: int) -> RevisionArtifact:
@@ -74,6 +76,7 @@ class PageSnapshot:
         return self.context.revision(revision)
 
     def active_registry(self) -> dict:
+        assert self.context.registry is not None
         return self.context.registry
 
     def data_source(self, source: str, registry: dict) -> dict | None:
@@ -87,6 +90,7 @@ class PageSnapshot:
 
     def served_document(self) -> tuple[RevisionArtifact, int, int | None]:
         active = self.context.active
+        assert active is not None
         return self.artifacts[active["revision"]], active["revision"], active["version"]
 
     def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
@@ -99,7 +103,9 @@ class PageSnapshot:
         return list(self.others)
 
     @contextmanager
-    def state_read(self, *, with_token: bool = False):
+    def state_read(
+        self, *, with_token: bool = False
+    ) -> Generator[tuple[PageRead, str | None, str | None]]:
         yield self.context, self.reading, self.source_error
 
     def state_reading(self, reading: str, state: dict) -> str:
@@ -123,11 +129,6 @@ def capture_page_snapshot(
 
     A host publishing from an existing transition lends its held transaction;
     other callers take the page's append lease for the complete capture.
-
-    Every reader of a snapshot runs this Leaf's runtime against the selected
-    revision's capture, so the capture refuses a revision this Leaf cannot serve
-    (`layer.incompatible_revision`), as that revision's address does on a page
-    server.
     """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
@@ -139,7 +140,7 @@ def capture_page_snapshot(
         events = tuple(copy.deepcopy(page.events))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
-        artifacts = {
+        artifacts: dict[int, RevisionArtifact] = {
             revision: read_artifact(page_dir, revision) for revision in revisions
         }
         selected = artifact or artifacts.get(revision)
@@ -156,12 +157,12 @@ def capture_page_snapshot(
                 declaration_sources=page_registry.declaration_sources,
                 widget_sources=page_registry.widget_sources,
             )
-        if refusal := incompatible_revision(revision, selected.registry):
-            raise Rejected([refusal])
         # The server delivering the snapshot supplies its runtime and this Leaf's
         # probes beside it (`runtime_selection`), so the probes call the runtime
         # they were written against, whichever Leaf captured the revision.
         artifacts[revision] = selected
+        artifacts = {number: executing(value) for number, value in artifacts.items()}
+        selected = artifacts[revision]
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         # External data remains current even in a historical document. Its media
@@ -178,19 +179,28 @@ def capture_page_snapshot(
         data_resources = {
             url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
         }
-        layer = copy.deepcopy(registry["$layer"])
+        layer = served_layer(registry["$layer"], page_dir)
         # Stored revisions take their held readings; a candidate the snapshot
         # captured is the checked document under its capture's vocabulary.
-        readings = {
+        stored_readings = {
             revision: read_revision(page_dir, revision) for revision in revisions
         }
-        shown = readings.get(revision)
+        shown = stored_readings.get(revision)
+        readings: dict[int, SourceReading] = dict(stored_readings)
         if shown is None or shown.digest != selected.digest:
             readings[revision] = SourceReading(document, selected.registry)
         # Read inside the transaction, so a snapshot serves what it froze even if
         # the page directory later moves or goes away.
         for reading in readings.values():
             _ = (reading.document, reading.registry)
+        # So does the layer each one is served under, which names the page's own
+        # package copies (`vendoring`).
+        layers = {
+            _layer_key(metadata): served_layer(metadata, page_dir)
+            for metadata in (
+                reading.registry["$layer"] for reading in readings.values()
+            )
+        }
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }
@@ -234,6 +244,7 @@ def capture_page_snapshot(
             revision=readings.__getitem__,
             registry=registry,
             stored_layer=lambda: layer,
+            serve_layer=lambda metadata: layers[_layer_key(metadata)],
             stored_data=lambda: data,
             bound_files=dict,
             versions=versions,
@@ -248,3 +259,7 @@ def capture_page_snapshot(
         others=others,
         reading=reading,
     )
+
+
+def _layer_key(metadata: dict) -> str:
+    return json.dumps(metadata, sort_keys=True)

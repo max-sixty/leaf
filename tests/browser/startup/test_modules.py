@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
-from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_navigation import JOURNEY_V1, SENTENCE
@@ -39,19 +38,15 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
+from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
-    """The chrome and initial state read do not wait behind widget startup.
-
-    That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, the page comment card accepts
-    a send and paints its pending thread while holding delivery until the layer identity
-    arrives. Anchored capture waits for widget upgrade to establish the visible document.
-    The explicit gate
-    proves each assertion runs on the intended side of the fetch rather than racing a timer.
+    """The first state read runs ahead of widget startup but is applied only after
+    authored capture. Authored content remains readable while the registry waits.
+    Once prepared, general and anchored comments both reach the page.
     """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
@@ -76,14 +71,11 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 Two classic models.</pre></lf-code>
 <h2 id="notes">""",
     )
-    page = open_page(
-        browser,
-        serve(html, anchored=[("intro", SENTENCE)]),
-        init_script=gate_registry,
-        wait_until="domcontentloaded",
-        # The held registry is this test's subject, so the upgrade stamp never lands and
-        # waiting for it would hang out a whole timeout.
-        upgraded=False,
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(gate_registry)
+    # This interval precedes chrome construction as well as widget preparation.
+    page.goto(
+        serve(html, anchored=[("intro", SENTENCE)]), wait_until="domcontentloaded"
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
     page.wait_for_function("() => window.lfInitialStateReceived === true")
@@ -92,27 +84,19 @@ Two classic models.</pre></lf-code>
     )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("body > main")).to_be_visible()
-    assert (
-        page.evaluate("() => getComputedStyle(document.body, '::after').content")
-        == "none"
-    )
-    expect(page.locator(PANEL)).to_be_visible()
-    expect(page.locator(".lf-fp-on-user")).to_be_enabled()
+    expect(page.locator(PANEL)).to_be_hidden()
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
+    page.evaluate("window.lfReleaseRegistry()")
+    wait_until_ready(page)
+    expect(page.locator("body > main")).to_be_visible()
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     open_threads(page)
-    expect(rows).to_have_count(0)
-    write(page_comment(page), "General comment during startup")
+    expect(rows).to_have_count(1)
+    write(page_comment(page), "General comment after startup")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-live")).to_have_text("Message added")
-    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-
-    # The visible document has not upgraded yet, so anchored capture is not ready.
-    expect(page.locator(".lf-composer")).to_be_hidden()
-
-    page.evaluate("window.lfReleaseRegistry()")
     open_threads(page)
     expect(rows).to_have_count(2)
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(2)
@@ -609,7 +593,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
     """Importing capabilities does not start a half-constructed browser application."""
     url = serve(SUGGESTION_PAGE)
-    boot = serving_runtime().resources({})["/leaf.js"].data.decode()
+    boot = serving_runtime().resources({}, {})["/leaf.js"].data.decode()
     context = browser.new_context()
     context.route(
         "**/leaf.js",

@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { bundleRuntime, kernelOutputs } from "./runtime-bundle.mjs";
+import { kernelOutputs } from "./runtime-bundle.mjs";
 
 /** The runtime a Leaf serves with the kernel: the source minus what it replaces. */
 async function vendor(layer, kernel, output) {
@@ -31,6 +31,7 @@ test("the kernel preserves native packages and shared state", async () => {
     "runtime/state.js": "export const state = { clicks: 0, annotations: false };",
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
+    "runtime/portable-api.js": 'export { state } from "./state.js";',
     "runtime/check-api.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
     "runtime/media.js":
@@ -59,19 +60,25 @@ test("the kernel preserves native packages and shared state", async () => {
     const record = await vendor(layer, kernel, output);
     await writeFile(join(output, "package.json"), '{"type":"module"}');
 
-    const leaf = await import(pathToFileURL(join(output, "leaf.js")));
-    const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")));
-    const checks = await import(pathToFileURL(join(output, "runtime/check-api.js")));
+    const leaf = await import(pathToFileURL(join(output, "leaf.js")).href);
+    const api = await import(pathToFileURL(join(output, "runtime/widget-api.js")).href);
+    const checks = await import(
+      pathToFileURL(join(output, "runtime/check-api.js")).href
+    );
+    const portable = await import(
+      pathToFileURL(join(output, "runtime/portable-api.js")).href
+    );
     const overlayChecks = await import(
-      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js"))
+      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js")).href
     );
     assert.equal(leaf.state.annotations, false);
     assert.equal(checks.state, leaf.state);
+    assert.equal(portable.state, leaf.state);
     assert.equal(overlayChecks.state, leaf.state);
     const annotations = await leaf.annotations();
     assert.equal(leaf.state.annotations, true);
     const bridge = await import(
-      pathToFileURL(join(output, "runtime/vendor-bridge.js"))
+      pathToFileURL(join(output, "runtime/vendor-bridge.js")).href
     );
     assert.equal(api.state, leaf.state);
     assert.equal(bridge.state, leaf.state);
@@ -79,7 +86,8 @@ test("the kernel preserves native packages and shared state", async () => {
     api.state.clicks += 1;
     assert.equal(annotations.state.clicks, 1);
 
-    // The kernel is runtime modules and chunks named after their modules; it
+    // The kernel is runtime modules and chunks named after their modules, but for
+    // the one holding what the portable helpers reach, the shared state here; it
     // absorbs the framework and its signals and leaves widgets, upstream vendor
     // modules, and the classic scripts nothing imports native.
     assert.deepEqual([...kernel.keys()].sort(), [
@@ -87,10 +95,11 @@ test("the kernel preserves native packages and shared state", async () => {
       "leaf.js",
       "runtime/annotation-overlay/check-api.js",
       "runtime/bundle-annotation-overlay.js",
-      "runtime/bundle-state.js",
+      "runtime/bundle-portable.js",
       "runtime/check-api.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
     ]);
@@ -104,6 +113,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "runtime/framework/render.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/portable-api.js",
       "runtime/state.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
@@ -125,50 +135,8 @@ test("the kernel preserves native packages and shared state", async () => {
     const historical = join(temporary, "historical");
     await vendor(layer, await kernelOutputs(layer), historical);
     await writeFile(join(historical, "package.json"), '{"type":"module"}');
-    const prior = await import(pathToFileURL(join(historical, "leaf.js")));
+    const prior = await import(pathToFileURL(join(historical, "leaf.js")).href);
     assert.equal(prior.state.annotations, false);
-  } finally {
-    await rm(temporary, { recursive: true });
-  }
-});
-
-test("a compiled module that awaits at its top level fails the build", async () => {
-  const temporary = await mkdtemp(join(tmpdir(), "leaf-top-level-await-"));
-  const layer = join(temporary, "input");
-  const write = async (path, source) => {
-    await mkdir(dirname(join(layer, path)), { recursive: true });
-    await writeFile(join(layer, path), source);
-  };
-  try {
-    await write("leaf.js", "async function boot() { await 0; }\nboot();");
-    for (const entry of ["layer-client", "media", "widget-api", "check-api"])
-      await write(`runtime/${entry}.js`, "export const ready = true;");
-    await write("vendor/lit.js", "export const html = () => '';");
-    await write("widgets/custom.js", 'import "/runtime/widget-api.js";');
-    // Awaiting inside a function is fine; the kernel builds.
-    await kernelOutputs(layer);
-
-    await write("runtime/media.js", "for await (const part of []) void part;");
-    await assert.rejects(
-      kernelOutputs(layer),
-      /runtime\/media\.js awaits at its top level/,
-    );
-    // An older comparison arm's modules may await at their top level, and its kernel
-    // still builds (dev/leaf_dev/commands/distribution.py).
-    await kernelOutputs(layer, { refuseAwaits: false });
-    await write("runtime/media.js", "export const ready = true;");
-
-    // The website's rebundle compiles widgets too.
-    await write("widgets/custom.js", 'await import("/runtime/widget-api.js");');
-    await assert.rejects(
-      bundleRuntime(
-        layer,
-        ["leaf.js", "widgets/custom.js"],
-        join(temporary, "out"),
-        "/l",
-      ),
-      /widgets\/custom\.js awaits at its top level/,
-    );
   } finally {
     await rm(temporary, { recursive: true });
   }

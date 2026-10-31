@@ -7,7 +7,7 @@
    and a press held on it reads the word. The control under the pointer wears
    `data-lf-held-word` for as long as the press is held, and its surface paints the word
    for that state as it does while the keyboard stands on the control (shadow.css for a
-   reaction, theme.css for a margin entry's label, the diff package's shadow.css for a
+   reaction, base.css for a margin entry's label, the diff package's shadow.css for a
    file's path, only while the row cuts it short; a row showing its whole path paints
    nothing and keeps the gesture). Sliding onto a neighbouring control of the same parent
    reads that one instead, and the release presses the control it ends on, or none when
@@ -16,7 +16,7 @@
 
    The release presses by dispatching the control's click, counted as the pointer's
    (surfaces read the count to tell a pointer from the keyboard), and the release claims
-   the browser's own click after it (`claimReleaseClick`, pointer.js): a finger held
+   the browser's own click after it (`claimReleaseClick`, focus.js): a finger held
    long enough to read may get none, so the release, not the click, is the commit, and
    the press may have put something else under the finger, such as the thread a margin
    entry opens. The release first focuses the control
@@ -35,7 +35,8 @@
    context menu, and Option/Alt aims at the item. Such a press is left to the platform
    and the control's own click handling. A modifier arriving before the release ends the
    hold without this gesture's press and leaves the press to the browser's own click. */
-import { claimReleaseClick, plainPress } from "./pointer.js";
+import { claimReleaseClick } from "./focus.js";
+import { plainPress } from "./pointer.js";
 
 export const HOLDS_WORD = "lf-holds-word";
 

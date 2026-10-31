@@ -138,7 +138,11 @@ def test_diagnostics_arrival_reveals_captured_location_and_rejects_replacement(
     )
     panel_control(page, "inspection").click()
     dialog = page.get_by_role("dialog", name="About this page", exact=True)
-    show = dialog.get_by_role("button", name="Show on page", exact=True)
+    show = (
+        dialog.get_by_role("listitem")
+        .filter(has_text="<div id=arrangement>:")
+        .get_by_role("button", name="Show on page", exact=True)
+    )
     expect(show).to_have_count(1)
     # Disclosure state is browser-owned and may change independently of a revision.
     page.locator("#fold").evaluate("el => el.open = false")
@@ -175,7 +179,9 @@ def test_diagnostics_arrival_inside_sample_stays_in_child_document(browser, serv
     before = page.evaluate("scrollY")
     panel_control(child, "inspection").click()
     dialog = child.get_by_role("dialog", name="About this page", exact=True)
-    dialog.get_by_role("button", name="Show on page", exact=True).click()
+    dialog.get_by_role("listitem").filter(has_text="<div id=arrangement>:").get_by_role(
+        "button", name="Show on page", exact=True
+    ).click()
     expect(dialog).not_to_be_visible()
     expect(child.locator("#arrangement")).to_be_focused()
     assert page.evaluate("scrollY") == before
@@ -191,7 +197,11 @@ def test_diagnostics_does_not_navigate_a_new_revision(browser, serve):
     page = open_page(browser, live_url(serve(source, packages=())))
     panel_control(page, "inspection").click()
     dialog = page.get_by_role("dialog", name="About this page", exact=True)
-    show = dialog.get_by_role("button", name="Show on page", exact=True)
+    show = (
+        dialog.get_by_role("listitem")
+        .filter(has_text="<div id=arrangement>:")
+        .get_by_role("button", name="Show on page", exact=True)
+    )
     expect(show).to_have_count(1)
     stamp_page(serve.page_dir, source.replace("Before", "After"), "Revised heading")
     wait_for_revision(page, 2)

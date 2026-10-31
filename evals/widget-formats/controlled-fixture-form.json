@@ -1,0 +1,58 @@
+{
+  "type": "section",
+  "props": { "id": "incident" },
+  "children": [
+    { "type": "h1", "props": {}, "children": ["Incident intake"] },
+    {
+      "type": "form",
+      "props": {},
+      "children": [
+        {
+          "type": "label",
+          "props": {},
+          "children": [
+            "Title",
+            {
+              "type": "input",
+              "props": { "type": "text", "name": "title", "required": true },
+              "children": []
+            }
+          ]
+        },
+        {
+          "type": "label",
+          "props": {},
+          "children": [
+            "Severity",
+            {
+              "type": "select",
+              "props": { "name": "severity" },
+              "children": [
+                { "type": "option", "props": { "value": "Low" }, "children": ["Low"] },
+                {
+                  "type": "option",
+                  "props": { "value": "Medium" },
+                  "children": ["Medium"]
+                },
+                { "type": "option", "props": { "value": "High" }, "children": ["High"] }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "label",
+          "props": {},
+          "children": [
+            "Customer impact",
+            { "type": "textarea", "props": { "name": "impact" }, "children": [] }
+          ]
+        },
+        {
+          "type": "button",
+          "props": { "type": "submit" },
+          "children": ["Submit for local review"]
+        }
+      ]
+    }
+  ]
+}

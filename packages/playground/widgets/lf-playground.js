@@ -1,8 +1,9 @@
+import { createPlayground } from "./playground-view.js";
 /* lf-playground: one declarative control loop with one durable decision.
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
- * DOM. The synchronous initial producer owns their DOM and typed control values;
- * this module adopts that drawing and owns the live mechanics: working state,
+ * DOM. The retained view owns their DOM and typed control values;
+ * this module owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  * The instruction opens from its actions in a popover over the page, so reading it
@@ -13,11 +14,14 @@
  * at its floor, a resize or a short window left it no room (2026-10-25).
  *
  * The playground owns the complete working configuration. Contributors declare a
- * named default and get an immutable slice handle; set replaces that slice. Required
- * views subscribe to the aggregate and paint inside this LeafElement's render, so
- * local edits and canonical restoration share its failure and presentation boundary.
- * Consumers retain native editors and keep no second configuration model. The initial
- * producer draws once; this module adopts its nodes and values without rebuilding.
+ * named default and its editor root, and get an immutable slice handle; set replaces
+ * that slice. After editing, pressing another control follows the browser's native
+ * focus behavior; the rest of the preview keeps the focus state a candidate may
+ * demonstrate. Required views subscribe to the aggregate and paint inside this
+ * LeafElement's render, so local edits and canonical restoration share its failure
+ * and presentation boundary.
+ * Consumers retain native editors and keep no second configuration model. The view
+ * retains their nodes and values across working configuration changes.
  * Values awaiting a contributor declaration stay pending until it joins. They are
  * restoration input, never another working model. Simple previews read reflected
  * --playground-NAME properties and data-playground-NAME attributes on the host and
@@ -49,20 +53,19 @@
  * restate when the press withdraws the choice. */
 import {
   afterPresentation,
-  commands,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
   failSoft,
   focusDestination,
+  holdFocus,
   layoutChanged,
-  initialRender,
+  onCurrentLocation,
+  onPress,
   isNativeLayer,
   keeps,
-  keepsText,
   LeafElement,
-  nothing,
-  paintKeys,
+  render,
   registerReadingRegion,
   reachedForWords,
   says,
@@ -71,7 +74,9 @@ import {
   wear,
   whileConnected,
   focused,
+  under,
   worksInside,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -134,22 +139,18 @@ customElements.define(
       return value.instruction;
     }
 
-    #initial = null;
-    #controls = [];
+    #view = null;
     #controlByName = new Map();
     #views = new Set();
-    #presetSettings = new Map();
-    #presetButtons = new Map();
+    #contributorEditors = new Set();
     /** @type {Readonly<Record<string, unknown>>} */
     #defaults = Object.freeze({});
     #values = Object.freeze({});
     #pendingValues = {};
     #instructionProvider = null;
-    #output = null;
     #preview = null;
     #submit = null;
     #reset = null;
-    #choosing = false;
     #projected = undefined;
     #drawnThrough = -Infinity;
     #ready = false;
@@ -167,7 +168,7 @@ customElements.define(
       // applied in place or a message, has no settled point of its own to wait for, so
       // only the page's first presentation is checked.
       if (
-        this.#initial.pageActions &&
+        this.#view.pageActions &&
         this.#interactive &&
         !document.body.hasAttribute("data-lf-presented")
       )
@@ -183,6 +184,7 @@ customElements.define(
         });
       whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
+        stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
         // The narrow layout places shared controls above the stage. Their actual
         // height is also the landing inset for its content and any sticky toolbar.
         const controls = this.#regions.find((region) => region.name === "controls");
@@ -202,13 +204,13 @@ customElements.define(
         // Height alone changes as a phone's toolbars come and go, which keeps it.
         let width = innerWidth;
         const putAway = () => {
-          const instruction = this.#initial.instruction;
+          const instruction = this.#view.instruction;
           if (innerWidth !== width && instruction && isNativeLayer(instruction))
             closeNativeLayer(instruction);
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
-        this.#paintAvailability();
+        this.#draw();
         return () => {
           observer.disconnect();
           for (const stop of stops) stop();
@@ -220,19 +222,22 @@ customElements.define(
       return this.#values;
     }
 
-    registerContributor(name, defaultSnapshot) {
+    registerContributor(name, defaultSnapshot, editor) {
       if (!this.#ready) throw new Error("playground is not ready");
       if (!NAME.test(name ?? "")) throw new Error(`invalid contributor name ${name}`);
       if (this.#controlByName.has(name))
         throw new Error(`contributor ${name} collides with a control`);
       if (Object.hasOwn(this.#defaults, name))
         throw new Error(`repeats contributor ${name}`);
+      if (!under(editor, this))
+        throw new Error(`contributor ${name} needs an editor in its playground`);
       const initial = jsonSnapshot(defaultSnapshot, `contributor ${name}`);
       const restored = Object.hasOwn(this.#pendingValues, name)
         ? jsonSnapshot(this.#pendingValues[name], `contributor ${name}`)
         : initial;
       this.#defaults = Object.freeze({ ...this.#defaults, [name]: initial });
       this.#values = Object.freeze({ ...this.#values, [name]: restored });
+      this.#contributorEditors.add(editor);
       delete this.#pendingValues[name];
       this.#draw();
       return Object.freeze({
@@ -261,7 +266,7 @@ customElements.define(
     // this module labels the submission).
     registerActions({ submit, reset }) {
       if (!this.#ready) throw new Error("playground is not ready");
-      if (!this.#initial.pageActions)
+      if (!this.#view.pageActions)
         throw new Error('playground draws its own actions; set actions="page"');
       if (this.#submit) throw new Error("playground already has its actions");
       for (const [name, button] of [
@@ -275,16 +280,19 @@ customElements.define(
         submit.hidden = reset.hidden = true;
         return;
       }
-      this.#initial.labelSubmit(submit);
+      this.#view.give({ submit, reset });
       this.#submit = submit;
       this.#reset = reset;
-      this.#paintAvailability();
+      this.#commands();
+      this.#draw();
     }
 
     #build() {
-      this.#initial = initialRender(this);
-      const initial = this.#initial;
-      this.#controls = initial.controls;
+      const restore = holdFocus(this);
+      this.#view = createPlayground(this);
+      render(this.#view.render(), this.#view.root ?? this, { host: this });
+      restore?.();
+      const initial = this.#view;
       this.#controlByName = initial.controlByName;
       this.#defaults = initial.defaults;
       this.#values = initial.values;
@@ -293,19 +301,15 @@ customElements.define(
           ([name]) => !Object.hasOwn(this.#defaults, name),
         ),
       );
-      this.#output = initial.output;
       this.#preview = initial.preview;
       this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
-      this.#presetButtons = initial.presetButtons;
       this.#regions = initial.regions.map((region) => ({
         ...region,
         id: compoundReadingRegionId(this, region.name),
       }));
-      this.#presetSettings = initial.presetSettings;
-      this.#initial.renderValues(this.#values);
-      const reflection = this.#reflection();
+      const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
       if (this.#interactive) {
         this.addEventListener("click", (event) => {
@@ -319,94 +323,65 @@ customElements.define(
           focusDestination(radio, "press");
           radio.click();
         });
-        for (const control of this.#controls)
+        for (const control of initial.controls)
           control.addEventListener("input", (event) => {
-            const input = initial.inputs.get(control.getAttribute("name"));
-            if (
-              !(Array.isArray(input)
-                ? input.includes(event.target)
-                : input === event.target)
-            )
-              return;
+            if (!initial.isInput(control, event.target)) return;
             this.#set(
               control.getAttribute("name"),
-              this.#parse(control, String(this.#initial.readInput(control))),
+              initial.parse(control, String(initial.readInput(control))),
             );
           });
-        for (const [preset, button] of this.#presetButtons)
+        for (const [preset, button] of initial.presetButtons)
           button.addEventListener("click", () => {
             this.#values = this.#normalize({
               ...this.#values,
-              ...this.#presetSettings.get(preset),
+              ...initial.presetSettings.get(preset),
             });
             this.#draw();
           });
-        if (initial.reveal) this.#wireInstruction(initial);
+        const { reveal, instruction } = initial;
+        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // while its block is away and came back a frame or more after the popover
+        // opened, after a Tab had passed it by. A page that draws its own actions
+        // shows the instruction where it was written, with no popover to copy from.
+        if (instruction) {
+          const copy = copyControl("lf-quiet-action lf-playground-copy", {
+            label: "Copy instruction",
+            success: "Instruction copied",
+            error: "Unable to copy instruction",
+          });
+          copy.addEventListener(
+            "click",
+            () => {
+              copy.value = this.#instruction();
+            },
+            { capture: true },
+          );
+          initial.copy = copy;
+          instruction.addEventListener("toggle", (event) => {
+            keeps(reveal, "aria-expanded", event.newState === "open");
+            commandsChanged(this);
+          });
+        }
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
           const pressed = target.closest(ONE_PRESS);
           if (
             pressed?.closest("lf-playground") === this &&
-            !this.#preview.contains(pressed) &&
-            this.#standsInPreview()
+            !this.#preview.contains(pressed)
           ) {
+            const currentLocation = this.#previewLocation();
+            if (!currentLocation) return;
             const selection = getSelection();
             if (selection && !this.#preview.contains(selection.focusNode))
               selection.removeAllRanges();
             const range = target.closest('input[type="range"]');
-            if (range) {
-              // Native range focus and track operation share a browser default.
-              // Return focus after that default takes it, so dragging remains native
-              // while the preview keeps showing its focused state. An opaque sample
-              // restores its current location through its private port.
-              let currentLocation = focused(document);
-              while (currentLocation?.contentDocument)
-                currentLocation = currentLocation.contentDocument.activeElement;
-              range.addEventListener(
-                "focus",
-                () => {
-                  const sample = currentLocation?.closest?.("lf-sample");
-                  focusDestination(currentLocation, "return");
-                  if (sample && currentLocation?.localName === "iframe")
-                    void sample.restoreCurrentLocation()?.catch(() => {});
-                },
-                { once: true },
-              );
-            } else event.preventDefault();
+            if (!range) event.preventDefault();
           }
         });
         this.#commands();
       }
-      this.#paintPresets();
-    }
-
-    // The instruction the playground's own bar reveals in a popover.
-    #wireInstruction({ reveal, instruction }) {
-      // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
-      // while its block is away and came back a frame or more after the popover
-      // opened, after a Tab had passed it by.
-      const copy = copyControl("lf-quiet-action lf-playground-copy", {
-        label: "Copy instruction",
-        success: "Instruction copied",
-        error: "Unable to copy instruction",
-      });
-      copy.addEventListener(
-        "click",
-        () => {
-          copy.value = this.#instruction();
-        },
-        { capture: true },
-      );
-      instruction.firstElementChild.append(copy);
-      instruction.addEventListener("toggle", (event) => {
-        keeps(reveal, "aria-expanded", event.newState === "open");
-        paintKeys();
-      });
-    }
-
-    #parse(control, raw) {
-      return this.#initial.parse(control, raw);
     }
 
     #normalize(candidate) {
@@ -422,14 +397,66 @@ customElements.define(
             const control = this.#controlByName.get(name);
             const value = candidate[name];
             if (!control) return [name, jsonSnapshot(value, `contributor ${name}`)];
-            return [name, this.#initial.typed(control, value)];
+            return [name, this.#view.typed(control, value)];
           }),
         ),
       );
     }
 
-    #paintPresets() {
-      this.#initial.paintPresets(this.#values);
+    // Native range focus and dragging share a default: cancelling it cancels the
+    // drag. Return at departure, early enough that Firefox never lends focus to
+    // the range, and keep the return through WebKit's later native focus steps.
+    // The canonical press owns this closure until its compatibility events finish.
+    #holdRangePreview(start, connected) {
+      if (start.button !== 0) return;
+      const target = /** @type {Element} */ (start.composedPath()[0]);
+      const range = target.closest('input[type="range"]');
+      const pressed = target.closest(ONE_PRESS);
+      if (
+        !range ||
+        pressed?.closest("lf-playground") !== this ||
+        this.#preview.contains(pressed)
+      )
+        return;
+      const currentLocation = this.#previewLocation();
+      if (!currentLocation) return;
+      const hold = new AbortController();
+      const signal = AbortSignal.any([connected, hold.signal]);
+      const close = () => hold.abort();
+      const restore = (at) => {
+        if (signal.aborted) return;
+        if (at && at !== document.body && at !== range && at !== currentLocation) {
+          close();
+          return;
+        }
+        focusDestination(currentLocation, "return");
+        const sample = currentLocation.closest("lf-sample");
+        if (sample && currentLocation.localName === "iframe")
+          void sample.restoreCurrentLocation()?.catch(() => {});
+      };
+      const stop = onCurrentLocation((at, cause) => {
+        if (cause === "step") close();
+        else if (at !== currentLocation) restore(at);
+      });
+      signal.addEventListener("abort", stop, { once: true });
+      if (currentLocation.localName === "iframe") {
+        // The parent window activates before the range receives element focus.
+        window.addEventListener("focus", () => restore(null), { signal });
+      } else {
+        currentLocation.addEventListener(
+          "blur",
+          (event) => restore(event.relatedTarget),
+          {
+            once: true,
+            signal,
+          },
+        );
+      }
+      return (_end, completed) => {
+        if (completed) restore(focused());
+        else close();
+        return close;
+      };
     }
 
     // Whether the user is in the preview, where a candidate can draw on the element
@@ -439,45 +466,55 @@ customElements.define(
     // Readable labels allow the browser's selection gesture. Text, colour and select
     // controls take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
-    // A control written in the preview is not a candidate: standing on one is standing
-    // on a control.
-    #standsInPreview() {
+    // Contributors declare which DOM edits their values. The rest of the preview
+    // can demonstrate any focused element, including an input, so its element type
+    // cannot tell an editor from a candidate whose focus is being compared.
+    #previewLocation() {
       let at = focused(document);
-      if (!this.#preview.contains(at) || at.closest("lf-playground-control"))
-        return false;
-      // A sample's frame holds focus for its child page, which may stand on nothing.
-      while (at?.contentDocument) at = at.contentDocument.activeElement;
-      if (at?.localName === "iframe")
-        return Boolean(at.closest("lf-sample")?.focusedContent);
-      return Boolean(at) && at !== at.ownerDocument.body;
+      if (
+        !under(at, this.#preview) ||
+        at.closest("lf-playground-control") ||
+        [...this.#contributorEditors].some((editor) => under(at, editor))
+      )
+        return null;
+      while (at?.localName === "iframe") {
+        // The sample owns its opaque child's location; do not inspect its document.
+        const sample = at.closest("lf-sample");
+        if (sample) return sample.focusedContent ? at : null;
+        at = at.contentDocument?.activeElement;
+      }
+      return at && at !== at.ownerDocument.body ? at : null;
     }
 
+    // A page that draws its own actions has commands once it hands over their controls.
     #commands() {
-      commands(this, "In a playground", [
-        {
-          id: "playground.choose",
-          contextKeys: ["1"],
-          bindingBadge: null,
-          // A getter, since a page's own submission arrives after upgrade.
-          control: () => this.#submit,
-          decision: true,
-          title: () => this.#submitWords(),
-          when: () =>
-            !this.#choosing &&
-            (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
-          run: () => this.#choose(),
-        },
-        {
-          id: "playground.reset",
-          keys: ["Alt+0"],
-          control: () => this.#reset,
-          title: "reset controls",
-          run: () => {
-            this.#restore(this.#defaults);
-            this.#draw();
+      if (!this.#submit) return;
+      this.lfCommands = {
+        title: "In a playground",
+        rows: [
+          {
+            id: "playground.choose",
+            contextKeys: ["1"],
+            bindingBadge: null,
+            control: this.#submit,
+            decision: true,
+            title: () => this.#submit.textContent,
+            when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
+            run: () => this.#choose(),
           },
-        },
-      ]);
+          {
+            id: "playground.reset",
+            keys: ["Alt+0"],
+            control: this.#reset,
+            title: "reset controls",
+            run: () => {
+              this.#restore(this.#defaults);
+              this.#draw();
+            },
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
     #set(name, value) {
@@ -488,15 +525,6 @@ customElements.define(
     #draw() {
       this.requestUpdate();
       this.performUpdate();
-    }
-
-    #setInput(control, value) {
-      this.#initial.setInput(control, value);
-    }
-
-    // The same reflection dresses the host and each live sample below its preview.
-    #reflection() {
-      return this.#initial.reflection(this.#values);
     }
 
     #restore(candidate) {
@@ -513,78 +541,46 @@ customElements.define(
     }
 
     #paint() {
-      for (const [name, control] of this.#controlByName)
-        this.#setInput(control, this.#values[name]);
-      const reflection = this.#reflection();
+      const reflection = this.#view.reflection(this.#values);
       wear(this, reflection);
-      this.#renderOutput();
-      this.#paintPresets();
       // Keep not-yet-declared tab values without another copy of known working slices.
       tabStore.set(
-        this.#storeKey(),
+        `lf-playground:${this.id}`,
         JSON.stringify({ ...this.#pendingValues, ...this.#values }),
       );
       for (const paint of this.#views) paint(this.#values);
       layoutChanged(this);
-      paintKeys();
+      commandsChanged(this);
     }
 
-    #storeKey() {
-      return `lf-playground:${this.id}`;
-    }
-
-    #renderOutput() {
-      if (!this.#instructionProvider) {
-        this.#initial.renderValues(this.#values);
-        return;
-      }
+    #providedInstruction() {
+      if (!this.#instructionProvider) return null;
       const instruction = this.#instructionProvider(this.values);
       if (!instruction.trim())
         throw new Error("instruction provider must return non-empty text");
-      this.#output.renderInstruction(instruction.trim());
+      return instruction.trim();
     }
 
     #instruction() {
-      return says(this.#output)
-        .replace(/\s+/g, " ")
-        .replace(/\s+([,.;:!?])(?=\s|$)/g, "$1")
-        .trim();
+      const provided = this.#providedInstruction();
+      if (provided !== null) return provided;
+      return says(this.#view.output, { format: "lines" }).trim();
     }
 
-    async #choose() {
-      if (this.#choosing) return;
+    #choose() {
       const chosen = this.#chosen();
       const undo = chosen ? this.#undo() : null;
       if (chosen ? !undo : !this.#available()) return;
-      this.#choosing = true;
-      this.#paintAvailability();
-      this.#submit.setAttribute("aria-busy", "true");
-      try {
-        await this.controller.dispatch(
-          chosen
-            ? { kind: "undo", target: undo.attempt ?? undo.id }
-            : {
-                kind: "action",
-                verb: "choose",
-                detail: { values: this.values, instruction: this.#instruction() },
-                says: "Playground settings",
-              },
-        )?.delivery;
-      } finally {
-        this.#choosing = false;
-        this.#submit.removeAttribute("aria-busy");
-        this.#paintAvailability();
-      }
-    }
-
-    #paintAvailability() {
-      if (!this.#submit) return;
-      keepsText(this.#submit.firstElementChild, this.#submitWords());
-      paintKeys();
-    }
-
-    #submitWords() {
-      return this.#chosen() ? "Undo choice" : this.#initial.submitLabel;
+      this.controller.dispatch(
+        chosen
+          ? { kind: "undo", target: undo.attempt ?? undo.id }
+          : {
+              kind: "action",
+              verb: "choose",
+              detail: { values: this.values, instruction: this.#instruction() },
+              says: "Playground settings",
+            },
+      );
     }
 
     #chosen() {
@@ -622,9 +618,13 @@ customElements.define(
       }
       if (Number.isInteger(choice?.seq))
         this.#drawnThrough = Math.max(this.#drawnThrough, choice.seq);
+      const template = this.#view.render({
+        values: this.#values,
+        instruction: this.#providedInstruction(),
+        chosen: () => this.#chosen(),
+      });
       this.#paint();
-      this.#paintAvailability();
-      return nothing;
+      return template;
     }
   },
 );

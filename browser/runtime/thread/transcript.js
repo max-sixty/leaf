@@ -21,7 +21,11 @@
      and a face whose run the work leaves stays where it stood, still.
    - The transcript is flat: a fold's checkpoint stands before the messages it covers,
      which stay the transcript's own children where they were said and are hidden in
-     place while the fold is closed. A summary arriving, opening, closing or being
+     place while the fold is closed. They are hidden until found, so the browser's
+     find-in-page reaches their words and opens the fold, as Leaf's travel does; a
+     folded message keeps an empty box, so a reader asking whether a message shows asks
+     `showsContents` (geometry.js) rather than `checkVisibility`. Rejected: plain
+     `hidden`, which find-in-page skips. A summary arriving, opening, closing or being
      retracted moves no message, so a frame in one keeps its document and a selection
      in one stays. The checkpoint groups its messages for assistive technology by
      `aria-owns`, and draws the frame around the open fold from its own head to its
@@ -43,12 +47,19 @@
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
+import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress, workingPlace } from "./summary-ranges.js";
-import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
+import {
+  growthAfterIsSeen,
+  growthIsSeen,
+  seenRect,
+  showsContents,
+} from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
+import { voiced } from "../voice.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
@@ -73,7 +84,7 @@ function workingView(working, controls = nothing) {
                   ? html`<time datetime=${working.timestamp}>${working.age}</time>`
                   : nothing
               }
-              ${working.condition}</span
+              ${working.condition ? voiced(working.condition) : nothing}</span
             >`
           : nothing
       }
@@ -135,16 +146,16 @@ export class Transcript {
     this.#home = home;
     this.node = document.createElement("div");
     this.node.className = "lf-thread-transcript";
-    // A route revealing a message a fold holds opens the fold (widget-elements.js,
-    // `reveal`).
-    this.node.addEventListener("lf-reveal", (event) => {
-      /** @type {HTMLElement | undefined} */
-      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
-      const id = message?.dataset.lfSummary;
-      if (!id || this.#expandedSummaries.has(id)) return;
-      this.#expandedSummaries.add(id);
-      this.#repaint();
-    });
+  }
+
+  // Whatever reveals a message a closed fold holds, the browser's find-in-page or
+  // Leaf's travel (widget-elements.js, `reveal`), opens the fold: each fires
+  // `beforematch` at the message before showing it.
+  #unfold(node) {
+    const id = node.dataset.lfSummary;
+    if (!id || this.#expandedSummaries.has(id)) return;
+    this.#expandedSummaries.add(id);
+    this.#repaint();
   }
 
   // Each message's view, in the thread's order: what its rewrites walk.
@@ -174,9 +185,9 @@ export class Transcript {
 
   // The last node the transcript shows. The messages a closed fold covers, progress
   // behind its run's face among them, stand in the transcript hidden, so the last
-  // message alone may have no box.
+  // message alone may show nothing.
   get foot() {
-    return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
+    return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
   }
 
   // Whether the progress behind the working message stood open when last drawn, opened by
@@ -264,7 +275,7 @@ export class Transcript {
         motionPlays() &&
         !this.#folding.has(key) &&
         node.parentNode === this.node &&
-        node.checkVisibility()
+        showsContents(node)
       ) {
         const names = MESSAGE_NAMES.map((name) => [name, node.getAttribute(name)]);
         for (const [name] of names) node.removeAttribute(name);
@@ -348,11 +359,14 @@ export class Transcript {
     }
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
-      if (!view)
+      if (!view) {
         this.#messages.set(
           message.key,
           (view = new MessageView(this.#messageCommands)),
         );
+        const { node } = view;
+        node.addEventListener("beforematch", () => this.#unfold(node));
+      }
       view.present(message, {
         arrived,
         dated: dated.has(message.key),
@@ -366,11 +380,11 @@ export class Transcript {
         message.provisional && message === model.messages.at(-1) ? "" : null,
       );
     }
-    // Each message where it was said, hidden while a closed fold covers it.
+    // Each message where it was said, hidden until found while a closed fold covers it.
     const placed = (key, summary = null, folded = false) => {
       const node = this.#messages.get(key).node;
       keeps(node, "data-lf-summary", summary);
-      keepsHidden(node, folded);
+      keepsHidden(node, folded && "until-found");
       return node;
     };
     // The open fold's last message, which its checkpoint's frame reaches down to.
@@ -574,9 +588,12 @@ export class Transcript {
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-disclosure-marker lf-summary-expand ${
-        progress ? "lf-progress-expand" : ""
-      }"
+      ${offeredAction(
+        "inline",
+        `lf-thread-disclosure lf-disclosure-marker lf-summary-expand${
+          progress ? " lf-progress-expand" : ""
+        }`,
+      )}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges

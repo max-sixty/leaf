@@ -10,8 +10,9 @@ server removes its own row, since a server can die without a last word; the read
 that finds a readable row's server lease unheld deletes it
 (`presence.other_leaves`).
 
-A per-page producer subscribes to this page's application writes and checks live harness,
-process and waiter facts every presence-cache interval. Changed inputs or the fold's next
+A per-page producer checks this page's inputs and live harness, process and waiter
+facts every presence-cache interval, or at the fold's next transition. Retained
+servers spend no native subscriptions on maintenance. Changed inputs or a due
 transition trigger a local transaction and fold; quiet looks never reread the
 log or document. Only changed row content is replaced. Neighbor consumers read
 this small output and server liveness, without folding any neighboring page.
@@ -26,10 +27,10 @@ server revival path.
 
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 
-from .file_changes import page_changes
 from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts, nudge_interrupted
 from .served_state.reading import page_reading
@@ -121,7 +122,9 @@ ROW = Record(
 )
 
 
-def read_row(page_dir: Path, service: dict, *, record=None) -> dict | None:
+def read_row(
+    page_dir: Path, service: Mapping[str, object], *, record=None
+) -> dict | None:
     """The row this live service's own incarnation published for the page, from
     `record` where the caller has already read it."""
     if record is None:
@@ -151,13 +154,12 @@ class RowPublisher:
         """Publish for this server process's lifetime, withdrawing failed output."""
         try:
             while True:
-                changes, mark = page_changes(self.page_dir)
                 self.refresh()
                 delay = PRESENCE_CACHE_S
                 if self.transition is not None:
                     delay = min(delay, max(0.0, self.transition - time.time()))
-                changes.wait(mark, delay)
-        except Exception as error:  # noqa: BLE001 - a producer must not die under a live lease
+                time.sleep(delay)
+        except Exception as error:
             print(
                 f"leaf server: {self.page_dir}: row publication failed: {error}",
                 file=sys.stderr,
@@ -183,6 +185,7 @@ class RowPublisher:
             return
         # Only an idle harness record with no watcher can mean an interrupted turn
         # left input nothing carries; `nudge_interrupted` decides from there.
+        assert live is not None
         if (live["live_turn"] or {}).get("state") == "idle" and not live["listening"]:
             nudge_interrupted(self.page_dir)
         row, self.reading, self.live = self.service.activity_row()

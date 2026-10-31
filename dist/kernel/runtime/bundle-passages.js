@@ -1,6 +1,6 @@
-import { renderedParent, shadowHost, under, upFrom } from "./bundle-dom-move.js";
-import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, reportPageError } from "./bundle-layer-client.js";
-import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, hostIn, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-geometry.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, under, upFrom } from "./bundle-portable.js";
+import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-layer-stack.js";
+import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/text-alignment.js
@@ -129,7 +129,7 @@ const elementOver = (n) => {
 };
 function refusesBareText(root) {
 	let bare = root.firstChild;
-	while (bare && bare.nodeType !== Node.TEXT_NODE) bare = bare.nextSibling;
+	while (bare && (bare.nodeType !== Node.TEXT_NODE || !bare.data.trim())) bare = bare.nextSibling;
 	if (!bare) return false;
 	refuseShadowRoot(root);
 	const refusal = bareTextRefusal(bare);
@@ -240,56 +240,78 @@ const authored = (root) => {
 	const frame = frameOf(root);
 	return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
 };
-function walk(root, onText, skip = null, onBreak = null) {
+function walk(root, onText, skip = null, onBreak = null, onElement = null) {
 	const frame = frameOf(root);
 	const passed = /* @__PURE__ */ new Map();
 	const contextOver = (node) => {
 		const over = elementOver(node);
 		return passed.get(over) ?? contextAt(over, frame);
 	};
-	const visit = (node, ctx) => {
-		if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
-			onBreak?.(ctx);
-			return;
-		}
-		for (let child = node.firstChild; child; child = child.nextSibling) {
-			if (child.nodeType === Node.TEXT_NODE) {
-				if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
-				onText(child, ctx);
-				continue;
-			}
-			if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
-			const inner = enter(ctx, child);
-			if (child.localName === "slot") {
+	const visitElement = (child, ctx) => {
+		if (skip?.(child)) return;
+		const inner = enter(ctx, child);
+		if (child.localName === "br") onBreak?.(inner);
+		else if (child.localName === "slot") {
+			passed.set(child, inner);
+			onElement?.(child, inner, true);
+			for (const assigned of child.assignedNodes({ flatten: true })) assigned.nodeType === Node.TEXT_NODE ? onText(assigned, contextOver(assigned)) : visitElement(assigned, contextOver(assigned));
+			onElement?.(child, inner, false);
+		} else {
+			const declared = declaredRoot(child);
+			if (declared && !refusesBareText(declared)) {
 				passed.set(child, inner);
-				for (const assigned of child.assignedNodes({ flatten: true })) assigned.nodeType === Node.TEXT_NODE ? onText(assigned, contextOver(assigned)) : visit(assigned, enter(contextOver(assigned), assigned));
-			} else {
-				const declared = declaredRoot(child);
-				if (declared && !refusesBareText(declared)) {
-					passed.set(child, inner);
-					visit(declared, crossed(inner));
-				} else visit(child, inner);
-			}
+				visit(declared, crossed(inner), child);
+			} else visit(child, inner);
 		}
+	};
+	const visit = (node, ctx, host = null) => {
+		const element = host ?? (node.nodeType === Node.ELEMENT_NODE ? node : null);
+		if (element) onElement?.(element, ctx, true);
+		for (let child = node.firstChild; child; child = child.nextSibling) if (child.nodeType === Node.TEXT_NODE) {
+			if (node.nodeType !== Node.ELEMENT_NODE && !child.data.trim()) continue;
+			if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
+			onText(child, ctx);
+		} else if (child.nodeType === Node.ELEMENT_NODE) visitElement(child, ctx);
+		if (element) onElement?.(element, ctx, false);
 	};
 	const host = shadowHost(root);
 	visit(root, root.nodeType === Node.ELEMENT_NODE ? contextAt(root, frame) : host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
-function textNodesUnder(root, reading = "says", boundary = null) {
+function textNodesUnder(root, reading = "says", boundary = null, format = "prose") {
 	const keeps = READINGS[reading];
 	const segments = [];
 	let breakBefore = false;
+	let lineBefore = "";
+	const styles = /* @__PURE__ */ new Map();
+	const style = (element) => {
+		if (!styles.has(element)) styles.set(element, getComputedStyle(element));
+		return styles.get(element);
+	};
 	walk(root, (node, ctx) => {
 		if (keeps(ctx)) {
 			segments.push({
 				...segmentIn(node, ctx),
-				breakBefore
+				breakBefore,
+				...format === "lines" && {
+					lineBefore,
+					whiteSpace: style(renderedParent(node)).whiteSpaceCollapse
+				}
 			});
 			breakBefore = false;
+			lineBefore = "";
 		}
 	}, boundary && ((child) => boundary(child, segments.length)), (ctx) => {
-		if (keeps(ctx)) breakBefore = true;
-	});
+		if (keeps(ctx)) {
+			breakBefore = true;
+			lineBefore = "\n";
+		}
+	}, format === "lines" ? (element, ctx, entering) => {
+		if (!keeps(ctx)) return;
+		const display = style(element).display;
+		if (display === "table-cell") {
+			if (!entering && lineBefore !== "\n") lineBefore = "	";
+		} else if (/^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)) lineBefore = "\n";
+	} : null);
 	return segments;
 }
 function closestAcross(node, selector) {
@@ -311,7 +333,13 @@ const elementById = (id, root = document) => {
 	return null;
 };
 const pageDocument = (doc = document) => doc.querySelector("body > main");
-const layoutBox = () => document.documentElement.lfInitial.layoutBox();
+const isLayoutBox = (box) => getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
+const layoutBox = () => {
+	const main = document.querySelector("body > main");
+	if (!main || isLayoutBox(main)) return main;
+	const parts = main.querySelector(":scope > [data-lf-views=\"parts\"]");
+	return [...main.children, ...[...parts?.children ?? []].flatMap((part) => [...part.children])].find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
+};
 const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
 const elementFromPointAcross = (x, y) => {
 	let el = document.elementFromPoint(x, y);
@@ -323,63 +351,13 @@ const elementFromPointAcross = (x, y) => {
 	return el;
 };
 const pageQueryAll = (selector) => [document, ...pageShadowRoots()].flatMap((root) => [...root.querySelectorAll(selector)]);
-function pageRange(sel) {
-	const plain = sel.getRangeAt(0);
-	const shadowRoots = pageShadowRoots();
-	if (!shadowRoots.length) return plain;
-	const [composed] = sel.getComposedRanges({ shadowRoots });
-	const { startContainer, startOffset, endContainer, endOffset } = composed;
-	if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
-	const range = document.createRange();
-	range.setStart(startContainer, startOffset);
-	range.setEnd(endContainer, endOffset);
-	return range;
-}
-let writtenSelection = null;
-let writtenBackward = false;
-function selectEnds(anchor, focus) {
-	const selection = getSelection();
-	const from = document.createRange(), to = document.createRange();
-	from.setStart(...anchor);
-	to.setStart(...focus);
-	writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-	selection.setBaseAndExtent(...anchor, ...focus);
-	writtenSelection = selectionEnds(selection);
-}
-const selectionEnds = (selection) => {
-	const range = selection.rangeCount ? pageRange(selection) : null;
-	return [
-		selection.anchorNode,
-		selection.anchorOffset,
-		selection.focusNode,
-		selection.focusOffset,
-		range?.startContainer,
-		range?.startOffset,
-		range?.endContainer,
-		range?.endOffset
-	];
+const beforePoint = (node, container, offset) => {
+	if (node === container) return false;
+	if (container.nodeType === Node.TEXT_NODE || offset === 0) return renderedOrder(node, container) < 0;
+	const next = container.childNodes[offset];
+	return next ? renderedOrder(node, next) < 0 : renderedUnder(node, container) || renderedOrder(node, container) < 0;
 };
-function programmaticSelection(selection) {
-	if (!writtenSelection) return false;
-	if (selectionEnds(selection).every((end, i) => end === writtenSelection[i])) return true;
-	writtenSelection = null;
-	return false;
-}
-function selectionBackward(selection, range = pageRange(selection)) {
-	if (selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()) return programmaticSelection(selection) ? writtenBackward : selection.direction === "backward";
-	const probe = document.createRange();
-	probe.setStart(selection.anchorNode, selection.anchorOffset);
-	return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
-}
-function coveredBy(range, node) {
-	const n = hostIn(node, range.commonAncestorContainer.getRootNode());
-	if (!n || !range.intersectsNode(n)) return false;
-	if (n !== node) {
-		if (range.endContainer === n && range.endOffset === 0) return false;
-		if (range.startContainer === n && range.startOffset === n.childNodes.length) return false;
-	}
-	return true;
-}
+const coveredBy = (range, node) => !beforePoint(node, range.startContainer, range.startOffset) && (node === range.endContainer || beforePoint(node, range.endContainer, range.endOffset));
 function segmentsIn(range) {
 	const segments = [];
 	for (const segment of pageText().segments) {
@@ -463,7 +441,29 @@ function readSegments(segments, mapCharacters) {
 const quoteFrom = (segments) => readSegments(segments, false);
 const readingFrom = (segments) => readSegments(segments, true);
 const cut = (text, from, to) => [...text].slice(from, to).join("");
-const says = (el) => quoteFrom(textNodesUnder(el));
+function linesFrom(segments) {
+	let text = "";
+	let separator = "";
+	for (const segment of segments) {
+		if (segment.lineBefore && text) separator = segment.lineBefore === "\n" || separator === "\n" ? "\n" : "	";
+		const { whiteSpace } = segment;
+		const collapses = whiteSpace === "preserve" || whiteSpace === "break-spaces" ? null : whiteSpace === "preserve-breaks" ? /[\t\r\f ]/ : /[\t\n\r\f ]/;
+		for (const character of segment.node.data.slice(segment.start, segment.end)) {
+			if (collapses?.test(character)) {
+				if (text && !text.endsWith("\n")) separator ||= " ";
+				continue;
+			}
+			if (whiteSpace === "preserve-breaks" && character === "\n" && separator === " ") separator = "";
+			text += separator + character;
+			separator = "";
+		}
+	}
+	return text;
+}
+const says = (el, options = {}) => {
+	const segments = textNodesUnder(el, "says", null, options.format);
+	return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
+};
 const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 function rangeOf(segments) {
 	const range = document.createRange();
@@ -790,4 +790,4 @@ function pageParts(sel) {
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageRange, pageReadingVersion, pageText, pageWords, pointAt, programmaticSelection, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, selectEnds, selectionBackward, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

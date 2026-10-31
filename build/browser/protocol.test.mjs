@@ -1,11 +1,11 @@
-/** `protocolBreaks` refuses a schema change a page vendored at the same protocol, or a
+/** `protocolBreaks` refuses a schema change a page's log at the same protocol, or a
  * Leaf at the same record format, would break on, and passes one every side takes in
  * stride (`protocol.mjs`). */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { protocolBreaks } from "./protocol.mjs";
 
-// One event kind the browser sends, the x-state verb, and one record.
+// One event kind and one record.
 const baseline = {
   protocol: 4,
   events: {
@@ -23,11 +23,9 @@ const baseline = {
           required: ["kind", "id"],
           additionalProperties: false,
         },
-        browser: { required: ["kind"] },
       },
     },
   },
-  verb: { type: "object", properties: { verb: { enum: ["set", "add"] } } },
   records: {
     claim: {
       since: 3,
@@ -49,7 +47,6 @@ const none = [];
 const refused = (...lines) => lines;
 
 const note = (schemas) => schemas.events.kinds.note.record.properties;
-const browser = (schemas) => schemas.events.kinds.note.browser;
 
 test("an event record, which a page sends and every Leaf reads, may change neither way", () => {
   assert.deepEqual(
@@ -86,53 +83,15 @@ test("an event record, which a page sends and every Leaf reads, may change neith
   );
   assert.deepEqual(
     changed((s) => (s.events.kinds.other = s.events.kinds.note)),
-    refused("event other: an older Leaf or page reads a kind it doesn't know"),
+    refused(
+      "event other: an older Leaf skips a kind it doesn't know: declare it skippable if no reading that Leaf computes needs it, or bump",
+    ),
   );
-});
-
-test("what the browser sends may loosen but not tighten", () => {
   assert.deepEqual(
-    changed((s) => (browser(s).required = [])),
+    changed(
+      (s) => (s.events.kinds.other = { ...s.events.kinds.note, skippable: true }),
+    ),
     none,
-  );
-  assert.deepEqual(
-    changed((s) => (browser(s).properties = { tone: { const: "plain" } })),
-    refused('event note.tone: values "none" → ["plain"]'),
-  );
-  // A field the contract newly names narrows its record's, whatever else it names.
-  const named = structuredClone(baseline);
-  browser(named).properties = { slug: { maxLength: 30 } };
-  assert.deepEqual(
-    changed((s) => (browser(s).properties.tone = { const: "plain" }), named),
-    refused('event note.tone: values "none" → ["plain"]'),
-  );
-  assert.deepEqual(
-    changed((s) => delete browser(s).properties.slug, named),
-    none,
-  );
-  // A field new to the record was never sent, so the contract may bound it at once.
-  assert.deepEqual(
-    changed((s) => {
-      note(s).extra = { type: "string" };
-      browser(s).properties = { extra: { maxLength: 9 } };
-    }),
-    none,
-  );
-  assert.deepEqual(
-    changed((s) => (browser(s).additionalProperties = false)),
-    refused("event note.*: a closed object refuses fields it took"),
-  );
-});
-
-test("an x-state verb, which a vendored registry declares, may loosen but not tighten", () => {
-  const verb = (s) => s.verb.properties.verb;
-  assert.deepEqual(
-    changed((s) => (verb(s).enum = ["set", "add", "remove"])),
-    none,
-  );
-  assert.deepEqual(
-    changed((s) => (verb(s).enum = ["set"])),
-    refused('x-state verb.verb: values ["set","add"] → ["set"]'),
   );
 });
 

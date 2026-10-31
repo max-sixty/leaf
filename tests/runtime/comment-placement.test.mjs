@@ -14,16 +14,19 @@ import {
 } from "/runtime/annotation-overlay/comment-placement.js";
 import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
-// The card's widths as theme.css declares them, which the placement reads off the root.
+// The card's widths as base.css declares them, which the placement reads off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
 document.documentElement.style.setProperty("--thread-card", "592px");
 
-// A window boundary, keyed by its edges as commentBoundary keys one.
-const windowBoundary = (left, top, width, height) =>
-  Object.assign(new DOMRect(left, top, width, height), {
+// A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
+// beside any columns, so its room across them is itself.
+const windowBoundary = (left, top, width, height) => {
+  const boundary = Object.assign(new DOMRect(left, top, width, height), {
     inRegion: null,
     key: [left, top, left + width, top + height],
   });
+  return Object.assign(boundary, { across: () => boundary });
+};
 const boundary = windowBoundary(8, 50, 1284, 797);
 // A paragraph `width` wide from x = `left`, from y = `top` to `bottom`.
 const block = (left, width, top, bottom) => new DOMRect(left, top, width, bottom - top);
@@ -41,7 +44,7 @@ const windowPlatform = (dimensions) => ({
   }),
   getOffsetParent: () => window,
   getDimensions: dimensions,
-  getClippingRect: () => boundary,
+  getClippingRect: ({ rootBoundary }) => rootBoundary,
   convertOffsetParentRelativeRectToViewportRelativeRect: ({ rect }) => rect,
   isElement: () => false,
   getDocumentElement: () => document.documentElement,
@@ -495,4 +498,42 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   // Shorter again, it comes back down to the top it held.
   height = 150;
   assert.equal(await place(true), 692);
+});
+
+test("chrome beside a card's columns leaves it the window's height", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 700 }));
+  // A row like the floating panel's stands under the columns left of 600, so a card
+  // reaching over them has 45px less room than the window's foot.
+  const whole = windowBoundary(8, 50, 1284, 842);
+  const rowed = Object.assign(windowBoundary(8, 50, 1284, 797), {
+    across: ({ left }) => (left < 600 ? rowed : whole),
+  });
+  const placed = async (clear) => {
+    const card = commentPlacement();
+    card.choose({ clear, boundary: rowed, scroller: scroller(1000), coarse: false });
+    let offered = null;
+    const { reference, placement, middleware } = card.options(ui, {
+      clear,
+      row: clear.top,
+      boundary: rowed,
+      fit: ({ room }) => (offered = room),
+      rises: true,
+    });
+    const { x, y } = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware, platform, strategy: "fixed" },
+    );
+    return { x, foot: y + 700, room: offered };
+  };
+  // Beside words that end at 600, the card stands in the margin, past the row.
+  const margin = await placed(block(100, 500, 300, 330));
+  assert.equal(margin.x, 608);
+  assert.equal(margin.room, whole);
+  assert.equal(margin.foot, whole.bottom);
+  // Beside words that end at 500, it reaches over the row's columns and stops above it.
+  const over = await placed(block(100, 400, 300, 330));
+  assert.equal(over.room, rowed);
+  assert.equal(over.foot, rowed.bottom);
 });

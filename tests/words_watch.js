@@ -19,9 +19,10 @@
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
 // elsewhere, choosing another target, or an edit in another tab of the page that
 // reaches this one as storage news. A close watcher's close, such as Android's back
-// gesture makes, puts words away only where the page's storage still holds them: back
-// may close an editor but never throw its words away (keyboard/close-requests.js),
-// whether a gesture or a script asked for the close. What only moves the user around the words does
+// gesture makes, puts words away only where the page's storage still holds them, as Leaf's
+// draft store does for kept words and for saved ones until the log accepts them: back may close an editor but
+// never throw its words away (keyboard/close-requests.js), whether a gesture or a
+// script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
 // a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
@@ -54,8 +55,9 @@
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
   // Named document properties, such as a form named "host", are not ancestry.
-  // Only a shadow root crosses to its host after its ordinary parents run out.
+  // Follow slots where the field is rendered, then cross a shadow root to its host.
   const parent = (node) =>
+    node.assignedSlot ??
     node.parentNode ??
     (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? node.host : null);
   // A closed dialog has put its words away, though its pixels may still be fading out

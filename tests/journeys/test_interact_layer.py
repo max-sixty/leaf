@@ -7,7 +7,6 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -19,25 +18,26 @@ from interact_support import (
     ROOT,
     STATED_TIMEOUT,
     add_test_widget,
-    append_carried_log_record,
     check,
     fetch,
     install_payload,
     page_packages,
     publish,
     vendored_at_another_protocol,
-    vendored_before_a_key_rename,
-    words,
 )
-from leaf_dev.page_fixtures import package_selection_args
-from model.test_interact_layer import PLAIN_PAGE, _replying_after
 
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
-from leaf.state import kernel_registry
+from leaf.registry.storage import (
+    layer_record,
+    layer_widgets,
+    load_registry,
+    selected,
+)
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -100,17 +100,21 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
         check=False,
     )
     assert init_result.returncode == 0, init_result.stderr
-    installed_registry = json.loads((page / "registry.json").read_text())
+    vocabulary = subprocess.run(
+        [launcher, "page", "vocabulary", page],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert vocabulary.returncode == 0, vocabulary.stderr
+    installed_registry = json.loads(vocabulary.stdout)
     assert "lf-test-plan" in installed_registry
-    assert installed_registry["$layer"]["packages"] == list(selected)
-    copied = installed / "src" / "leaf" / "layer.py"
-    assert installed_registry["$layer"]["producer"] == {
-        "commit": commit,
-        "dirty": False,
-        "installed": datetime.fromtimestamp(copied.stat().st_mtime)
-        .astimezone()
-        .isoformat(timespec="seconds"),
-    }
+    # The page holds its copy of the project package, so it reads the same anywhere.
+    assert installed_registry["$layer"]["packages"] == [
+        "./packages/work",
+        *selected[1:],
+    ]
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
@@ -154,35 +158,6 @@ def test_the_launcher_installs_quietly_with_an_empty_cache(tmp_path):
     assert (
         "Build and run interactive pages a session shares with its user." in cold.stdout
     )
-
-
-@pytest.mark.parametrize("damage", ["modified", "missing", "stale", "metadata"])
-def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
-    runner = CliRunner()
-    page = tmp_path / "page"
-    assert runner.invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
-    original = interact_files.read_json(page / "registry.json")["$layer"]
-    theme = (page / "theme.css").read_bytes()
-    if damage == "modified":
-        (page / "theme.css").write_bytes(theme + b"\n/* edited installed bytes */\n")
-    elif damage == "missing":
-        (page / "theme.css").unlink()
-    elif damage == "stale":
-        (page / "runtime" / "obsolete.js").write_text("export {};\n")
-    else:
-        registry = interact_files.read_json(page / "registry.json")
-        del registry["$layer"]["generation"]
-        (page / "registry.json").write_text(json.dumps(registry))
-    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
-    assert planned.exit_code == 0, planned.output
-    assert json.loads(planned.output)["changed"]
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    repaired = interact_files.read_json(page / "registry.json")["$layer"]
-    assert repaired["generation"] != original["generation"]
-    assert repaired["fingerprint"] == original["fingerprint"]
-    assert (page / "theme.css").read_bytes() == theme
-    assert not (page / "runtime" / "obsolete.js").exists()
 
 
 def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
@@ -232,7 +207,11 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                 else None
             )
-            if called in owners and named not in owners[called][1]:
+            if (
+                isinstance(node, ast.Call)
+                and called in owners
+                and named not in owners[called][1]
+            ):
                 owner = owners[called][0]
                 bypassed.append(f"{named}:{node.lineno} {called} — {owner} owns it")
         for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
@@ -352,9 +331,11 @@ def test_a_wait_takes_the_suites_deadline():
     def defaults(arguments):
         positional = arguments.posonlyargs + arguments.args
         yield from zip(
-            positional[len(positional) - len(arguments.defaults) :], arguments.defaults
+            positional[len(positional) - len(arguments.defaults) :],
+            arguments.defaults,
+            strict=True,
         )
-        yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
+        yield from zip(arguments.kwonlyargs, arguments.kw_defaults, strict=True)
 
     fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
@@ -454,19 +435,21 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
         (config / "leaf", "xdg"),
     ):
         (package / "widgets").mkdir(parents=True)
-        (package / "theme.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
+        (package / "overrides.css").write_text(f":root {{ --{marker}-package: 1; }}\n")
         (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    baseline_registry = json.loads((baseline / "registry.json").read_text())
-    registry = json.loads((page / "registry.json").read_text())
-    assert (
-        registry["$layer"]["fingerprint"] == baseline_registry["$layer"]["fingerprint"]
-    )
-    assert registry["$layer"]["packages"] == []
-    assert not (page / "widgets" / "user.js").exists()
-    selected = runner.invoke(
+
+    def composed(page):
+        layer_2 = layer_record(page)
+        assert layer_2 is not None
+        return selected(layer_2, page)
+
+    assert composed(page) == composed(baseline)
+    assert load_registry(page)["$layer"]["packages"] == []
+    assert "user.js" not in composed(page).directory_files["widgets"]
+    chosen = runner.invoke(
         cli_model.cli,
         [
             "page",
@@ -478,30 +461,26 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
             str(page),
         ],
     )
-    assert selected.exit_code == 0, selected.output
-    theme = (page / "theme.css").read_text()
+    assert chosen.exit_code == 0, chosen.output
+    theme = composed(page).top_files["theme.css"].decode()
     # Selected packages follow the kernel in order, and the Layouts close the theme.
     assert (
         theme.index("--user-package")
         < theme.index("--project-package")
         < theme.index("@layer lf-layouts")
     )
-    assert (page / "widgets" / "user.js").is_file()
-    assert (page / "widgets" / "project.js").is_file()
-    assert not (page / "widgets" / "xdg.js").exists()
+    widgets = composed(page).directory_files["widgets"]
+    assert "user.js" in widgets and "project.js" in widgets
+    assert "xdg.js" not in widgets
     repeated = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert repeated.exit_code == 0, repeated.output
-    registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == ["~/.config/leaf", "./.leaf"]
-    assert (page / "theme.css").read_text() == theme
+    registry = load_registry(page)
+    # The record names the page's copies of the packages selected by path.
+    assert registry["$layer"]["packages"] == ["./packages/leaf", "./packages/.leaf"]
+    assert composed(page).top_files["theme.css"].decode() == theme
     cleared = runner.invoke(cli_model.cli, ["page", "init", "--no-packages", str(page)])
     assert cleared.exit_code == 0, cleared.output
-    assert (
-        json.loads((page / "registry.json").read_text())["$layer"]["fingerprint"]
-        == baseline_registry["$layer"]["fingerprint"]
-    )
-    assert not (page / "widgets" / "user.js").exists()
-    assert not (page / "widgets" / "project.js").exists()
+    assert composed(page) == composed(baseline)
 
 
 def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
@@ -545,93 +524,6 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         assert f"idiom {selector!r}" in result.output
 
 
-def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
-    """A page an earlier Leaf vendored at this protocol stays readable, its older
-    kernel vocabulary included, and `page init` brings that vocabulary up to date."""
-    publish(page_dir)
-    revision = interact_files.latest_revision(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "revision": revision,
-            "text": "Which one?",
-            "anchor": {"section": "plan"},
-        },
-    )
-    # The agent's side of that thread as the earlier Leaf wrote it.
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "r1",
-            "parent": "c1",
-            "author": "claude",
-            "agent": "Claude",
-            "revision": revision,
-            "text": "The first one.",
-            "anchor": {"section": "plan"},
-        },
-    )
-    registry = json.loads((page_dir / "registry.json").read_text())
-    kinds = registry["$events"]["kinds"]
-    dependent = kinds["reply"]["record"]["dependentSchemas"]
-    dependent["anchor"]["properties"]["author"]["const"] = "claude"
-    dependent["failure"]["properties"]["author"]["const"] = "claude"
-    kinds["edit"]["record"]["properties"]["author"]["const"] = "claude"
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    stale = check(page_dir)
-    assert stale.exit_code == 0, stale.output
-
-    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert revendored.exit_code == 0, revendored.output
-    kernel = kernel_registry()
-    vendored = json.loads((page_dir / "registry.json").read_text())
-    assert vendored["$events"]["kinds"] == kernel["$events"]["kinds"]
-    recovered = check(page_dir)
-    assert recovered.exit_code == 0, recovered.output
-    replied = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), "c1"])
-    assert replied.exit_code == 0, replied.output
-    assert "The first one." in replied.output
-
-
-@pytest.mark.parametrize(
-    ("sub", "name"),
-    [("widgets", "lf-returned.js"), ("vendor", "returned.js")],
-)
-def test_revendoring_removes_stale_broken_links_before_a_file_returns(
-    page_dir, sub, name
-):
-    stale = page_dir / sub / name
-    stale.symlink_to(page_dir.parent / "missing-target")
-
-    retired = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    assert retired.exit_code == 0, retired.output
-    assert not stale.is_symlink()
-
-    source = page_dir.parent / ".leaf" / sub / name
-    source.parent.mkdir(parents=True, exist_ok=True)
-    source.write_text("// returned\n")
-    returned = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*page_packages(), "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert returned.exit_code == 0, returned.output
-    assert stale.is_file() and not stale.is_symlink()
-    assert stale.read_text() == "// returned\n"
-    assert source.read_text() == "// returned\n"
-
-
 def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -641,37 +533,15 @@ def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypat
         cli_model.cli, ["page", "init", "--package", "./.leaf", "."]
     )
     assert initialized.exit_code == 0, initialized.output
-    page_theme = tmp_path / "theme.css"
-    page_registry = tmp_path / "registry.json"
-    before_theme = page_theme.read_bytes()
-    before_registry = page_registry.read_bytes()
-    before_widgets = {
-        path.name: path.read_bytes()
-        for path in (tmp_path / "widgets").iterdir()
-        if path.is_file()
-    }
+    record = layer_record(tmp_path)
 
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-after-init", upgrade=True)
     checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert checked.exit_code == 0, checked.output
-    assert page_theme.read_bytes() == before_theme
-    assert page_registry.read_bytes() == before_registry
-    assert {
-        path.name: path.read_bytes()
-        for path in (tmp_path / "widgets").iterdir()
-        if path.is_file()
-    } == before_widgets
+    assert layer_record(tmp_path) == record
     assert (package / "widgets" / "lf-after-init.js").is_file()
-
-    revendored = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", "."]
-    )
-
-    assert revendored.exit_code == 0, revendored.output
-    assert "lf-after-init" in json.loads(page_registry.read_text())
-    assert (tmp_path / "widgets" / "lf-after-init.js").is_file()
 
 
 @pytest.mark.parametrize("name", ["callout", "diagram", "default"])
@@ -689,13 +559,13 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
     assert created.exit_code == 0, created.output
     add_test_widget(source, "lf-installed", upgrade=True)
-    (source / "theme.css").write_text("lf-installed { color: teal; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: teal; }\n")
     first = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert first.exit_code == 0, first.output
     held = layer_model.named_package(name)
     assert held == Path(json.loads(first.output)["package"])
     first_registry = (held / "registry.json").read_bytes()
-    (source / "theme.css").write_text("lf-installed { color: purple; }\n")
+    (source / "overrides.css").write_text("lf-installed { color: purple; }\n")
     source_registry = source / "registry.json"
     updated = json.loads(source_registry.read_text())
     updated["lf-installed"]["description"] = "Replacement snapshot."
@@ -706,7 +576,9 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     def at_publication(staged, destination):
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
-            assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+            assert (
+                held / "overrides.css"
+            ).read_text() == "lf-installed { color: teal; }\n"
         replace(staged, destination)
         if Path(staged).name == "selection":
             observations.append(layer_model.named_package(name))
@@ -718,30 +590,35 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     current = layer_model.named_package(name)
     assert observations == [held, current] and held != current
     assert (held / "registry.json").read_bytes() == first_registry
-    assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+    assert (held / "overrides.css").read_text() == "lf-installed { color: teal; }\n"
+    assert current is not None
     assert (
         json.loads((current / "registry.json").read_text())["lf-installed"][
             "description"
         ]
         == "Replacement snapshot."
     )
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
     page = tmp_path / "page"
     vendored = runner.invoke(
         cli_model.cli, ["page", "init", "--package", name, str(page)]
     )
     assert vendored.exit_code == 0, vendored.output
-    assert (
-        json.loads((page / "registry.json").read_text())["lf-installed"]["description"]
-        == "Replacement snapshot."
-    )
-    assert "lf-installed { color: purple; }" in (page / "theme.css").read_text()
-    (source / "theme.css").write_text(".bad { color red; }\n")
+    assert load_registry(page)["lf-installed"]["description"] == "Replacement snapshot."
+    layer_3 = layer_record(page)
+    assert layer_3 is not None
+    theme = selected(layer_3, page).top_files["theme.css"].decode()
+    assert "lf-installed { color: purple; }" in theme
+    (source / "overrides.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert refused.exit_code != 0 and "syntax error" in refused.output
     assert layer_model.named_package(name) == current
-    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+    assert (
+        current / "overrides.css"
+    ).read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
@@ -766,7 +643,7 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
         "is three attempts before manual review.</lf-risk-note>"
     )
-    assert (package_root / "widgets.css").read_bytes() == b""
+    assert (package_root / "defaults.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
@@ -785,7 +662,10 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
         ],
     )
     assert initialized.exit_code == 0, initialized.output
-    assert (page / "widgets" / "lf-risk-note.js").read_text() == module
+    layer_4 = layer_record(page)
+    assert layer_4 is not None
+    widgets = selected(layer_4, page).directory_files["widgets"]
+    assert widgets["lf-risk-note.js"].decode() == module
     (page / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -926,7 +806,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
 
     package = tmp_path / ".leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "theme.css").is_file()
+    assert (package / "overrides.css").is_file()
     assert list((package / "instructions").iterdir()) == []
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
@@ -948,20 +828,28 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
         cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
-    # The package's rule reaches the page confined to the package's own widget.
-    assert "@scope (:is(lf-callout)) to (" in (page / "theme.css").read_text()
-    assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
+    layer_5 = layer_record(page)
+    assert layer_5 is not None
+    layer = selected(layer_5, page)
+    # The package's widget rule reaches the page among its defaults, unscoped.
+    theme = layer.top_files["theme.css"].decode()
+    assert "lf-callout {\n  display: block;" in theme
+    assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
+    assert load_registry(page)["lf-callout"] == entry
     assert (
         "Use them for short notices."
-        in (page / "instructions" / "author.md").read_text()
+        in layer.directory_files["instructions"]["author.md"].decode()
     )
-    assert (page / "widgets" / "lf-callout.js").is_file()
-    assert (page / "widgets" / "callout-format.js").read_text() == (
-        package / "widgets" / "callout-format.js"
-    ).read_text()
-    assert (page / "vendor" / "callout-schema.json").read_text() == (
-        package / "vendor" / "callout-schema.json"
-    ).read_text()
+    widgets = layer.directory_files["widgets"]
+    assert "lf-callout.js" in widgets
+    assert (
+        widgets["callout-format.js"]
+        == (package / "widgets" / "callout-format.js").read_bytes()
+    )
+    assert (
+        layer.directory_files["vendor"]["callout-schema.json"]
+        == (package / "vendor" / "callout-schema.json").read_bytes()
+    )
 
     (page / "index.html").write_text(
         PAGE.replace(
@@ -990,29 +878,62 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     )
     assert plain_result.exit_code == 0, plain_result.output
     assert packaged_result.exit_code == 0, packaged_result.output
-    plain_registry = json.loads((plain / "registry.json").read_text())
-    packaged_registry = json.loads((composed / "registry.json").read_text())
+    plain_registry = load_registry(plain)
+    packaged_registry = load_registry(composed)
     assert "lf-diagram" not in plain_registry
     assert "lf-activity" in plain_registry
     assert "lf-diagram" in packaged_registry
     assert plain_registry["$layer"]["packages"] == []
     assert packaged_registry["$layer"]["packages"] == ["diagram"]
-    assert not (plain / "widgets" / "lf-diagram.js").exists()
-    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    diagram = "widgets/lf-diagram.js"
+    layer_6 = layer_record(plain)
+    assert layer_6 is not None
+    assert diagram not in layer_widgets(layer_6, plain)
+    layer_7 = layer_record(composed)
+    assert layer_7 is not None
+    assert diagram in layer_widgets(layer_7, composed)
     revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
     assert revendor.exit_code == 0, revendor.output
-    assert json.loads((composed / "registry.json").read_text())["$layer"][
-        "packages"
-    ] == ["diagram"]
-    assert (composed / "widgets" / "lf-diagram.js").is_file()
+    assert load_registry(composed)["$layer"]["packages"] == ["diagram"]
+    layer_8 = layer_record(composed)
+    assert layer_8 is not None
+    assert diagram in layer_widgets(layer_8, composed)
     removed = runner.invoke(
         cli_model.cli, ["page", "init", "--no-packages", str(composed)]
     )
     assert removed.exit_code == 0, removed.output
-    removed_registry = json.loads((composed / "registry.json").read_text())
+    removed_registry = load_registry(composed)
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-diagram" not in removed_registry
-    assert not (composed / "widgets" / "lf-diagram.js").exists()
+    layer_9 = layer_record(composed)
+    assert layer_9 is not None
+    assert diagram not in layer_widgets(layer_9, composed)
+
+
+def _replying_after(page, server, edit):
+    """Reply to a user comment after `edit` changes what the page's layer records,
+    as a Leaf update leaves it, and return the command's result."""
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+    edit(page)
+    # A process of its own, as the agent's next command is, so it reads the page as
+    # edited rather than as this one remembers it (`page_memory`).
+    return subprocess.run(
+        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
 
 
 def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
@@ -1034,7 +955,9 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     )
     assert read.returncode == 0, read.stderr
     assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    before = interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
+    layer_10 = layer_record(claimed)
+    assert layer_10 is not None
+    before = layer_10["generation"]
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -1049,10 +972,9 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$layer"]["generation"]
-        == before
-    )
+    layer_11 = layer_record(claimed)
+    assert layer_11 is not None
+    assert layer_11["generation"] == before
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
@@ -1062,60 +984,6 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             check=False,
         )
         assert ran.returncode == 0, ran.stderr
-        assert "re-vendor" not in ran.stderr
+        assert "re-initialized" not in ran.stderr
+        assert "older page protocol" not in ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
-
-
-def test_thread_reply_names_a_published_page_vendored_before_a_key_was_renamed(
-    claimed, server
-):
-    """Admission refuses an old page on the same reading the servers do, after a
-    revision is published as well as before: here the layer and the revision it
-    captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
-    Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
-    assert replied.returncode != 0, replied.stdout
-    assert "x-noun" in replied.stderr
-    assert f"leaf page init {claimed}" in replied.stderr
-    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
-    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
-        ran = subprocess.run(
-            [*LEAF_COMMAND, *command],
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-            check=False,
-        )
-        assert ran.returncode == 0, ran.stderr
-    assert fetch(f"{server}/api/state")[0] == 200
-
-
-def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
-    at this protocol: the gate runs the page under its own runtime and probes, and
-    names the page's Leaf beside its own."""
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    # The identity an earlier Leaf recorded for the layer it vendored.
-    stamp = page / "registry.json"
-    vendored = interact_files.read_json(stamp)
-    vendored["$layer"]["producer"] = {
-        "commit": "a74b08365870",
-        "dirty": False,
-        "committed": "2026-09-26T09:32:21-07:00",
-    }
-    stamp.unlink()
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.stdout)
-    assert report["browser"]["ran"] == ["render check"]
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
-        result.stdout
-    )

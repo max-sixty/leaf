@@ -70,7 +70,9 @@
     return source ? localSource(source) : null;
   };
   const closed = (owner) =>
-    owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
+    owner.localName === "details"
+      ? !owner.open
+      : !owner.matches(":popover-open, dialog:modal");
   const checkpoint = (source, completedEdit = false) => {
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
@@ -232,7 +234,7 @@
     // at dispatch, before target callbacks, under the same source as listeners.
     const name = `on${event.type}`;
     for (const node of event.composedPath())
-      if (typeof node?.[name] === "function") node[name] = node[name];
+      if (typeof node?.[name] === "function") Reflect.set(node, name, node[name]);
   };
   for (const prototype of [
     HTMLElement.prototype,
@@ -267,19 +269,32 @@
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
-    // microtasks, and so do the closes the browser makes of the popovers open when a
-    // gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
+    // microtasks, and so do the closes the browser makes of native layers open when
+    // a gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
     // Escape. Retain those browser-owned closes until the gesture's dispatch completes,
     // without assigning unrelated native-await work to the input. A press's light
     // dismissal falls between its own events, outside every dispatch, so the closes a
     // pointerdown retains stand until its click has dispatched.
-    // A press inside a popover never light-dismisses it, so only those it lands outside
-    // are retained for a press.
+    // A press inside a layer never light-dismisses it. A dialog's backdrop retargets
+    // the press to the dialog, so its box and closedBy policy decide dismissal.
     const path = source.event.composedPath();
     const closes = new Set(
       GESTURES.has(source.event.type)
-        ? [...document.querySelectorAll(":popover-open")].filter(
-            (popover) => source.event.type === "keydown" || !path.includes(popover),
+        ? [...document.querySelectorAll(":popover-open, dialog:modal")].filter(
+            (layer) => {
+              if (!layer.matches("dialog:modal"))
+                return source.event.type === "keydown" || !path.includes(layer);
+              if (source.event.type === "keydown")
+                return source.event.key === "Escape" && layer.closedBy !== "none";
+              if (layer.closedBy !== "any") return false;
+              const rect = layer.getBoundingClientRect();
+              return (
+                source.event.clientX < rect.left ||
+                source.event.clientX > rect.right ||
+                source.event.clientY < rect.top ||
+                source.event.clientY > rect.bottom
+              );
+            },
           )
         : [],
     );

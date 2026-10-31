@@ -9,15 +9,31 @@ import pytest
 from leaf.runtime_selection import ServingRuntime
 
 
-def running(artifact, runtime: dict[str, str]):
-    """`artifact` as it runs under a runtime of these files (`runtime_selection`)."""
+def running(artifact, runtime: dict[str, str], layer=None, vocabulary=None):
+    """`artifact` as it runs under a runtime and a layer of these files
+    (`runtime_selection.executing`), read in `vocabulary`: the one these tests
+    capture under, which stands for the vocabulary a Leaf composes from the
+    revision's layer selection and its own declarations
+    (`registry.storage.revision_vocabulary`)."""
+    from leaf.revision_artifact import Resource
+
     served = ServingRuntime(
         MappingProxyType({path: data.encode() for path, data in runtime.items()}),
         None,
         frozenset(),
         MappingProxyType({}),
     )
-    return replace(artifact, resources=served.resources(artifact.resources))
+    layer = {
+        path: Resource(data.encode(), "application/javascript")
+        for path, data in (layer or {}).items()
+    }
+    vocabulary = vocabulary or {}
+    layer["/registry.json"] = Resource(
+        json.dumps(vocabulary).encode(), "application/json"
+    )
+    executed = replace(artifact, resources=served.resources(layer, artifact.resources))
+    vars(executed)["registry"] = vocabulary
+    return executed
 
 
 @pytest.mark.parametrize(
@@ -181,9 +197,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
     tmp_path, directory, name, specifier, module
 ):
     """Module URL spelling preserves logical filenames across delivery and export."""
-    import base64
-
-    from leaf.exporting import _module_urls
+    from leaf.exporting import AssetInliner, _module_urls
     from leaf.revision_artifact import Resource, capture_artifact
     from leaf.revision_delivery import DeliveryAddress, deliver_resource, rebase_module
     from leaf.structure import SourceDocument
@@ -204,27 +218,34 @@ def test_native_package_import_urls_survive_delivery_and_export(
         assert address(f"/{directory}/{specifier}") in rebased.decode()
     else:
         assert delivered.data == module.encode()
+    # A page's own modules are captured; a package's arrive with the layer.
     files = {widget: module, helper: f'export {{ once }} from "{public}";'}
-    for logical, source in files.items():
-        path = tmp_path / logical.lstrip("/")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(source)
+    if directory == "page":
+        for logical, source in files.items():
+            path = tmp_path / logical.lstrip("/")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source)
     document = SourceDocument("<main><lf-risk-note></lf-risk-note></main>")
+    vocabulary = {"lf-risk-note": {"x-upgrade": True}}
     artifact = capture_artifact(
         tmp_path,
         document,
-        {"lf-risk-note": {"x-upgrade": True}},
+        vocabulary,
         widget_sources={"lf-risk-note": widget.lstrip("/")},
     )
-    assert artifact.resources[helper].mime == "application/javascript"
+    assert (helper in artifact.resources) == (directory == "page")
     artifact = running(
         artifact,
         {"/leaf.js": "export {};", public: "export const once = () => true;"},
+        {} if directory == "page" else files,
+        vocabulary,
     )
-    embedded = _module_urls(artifact, [document])
+    assert artifact.resources[helper].mime == "application/javascript"
+    inliner = AssetInliner(artifact.resources.__getitem__)
+    embedded = _module_urls(artifact, [document], inliner)
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
-    source = base64.b64decode(embedded[widget].split(",", 1)[1]).decode()
+    source = inliner.embedded[embedded[widget]].data.decode()
     assert json.dumps(f"leaf:{helper}") in source
 
 
@@ -268,14 +289,13 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     """Entry URLs resolve to logical captured modules, including native URL syntax."""
     from urllib.parse import quote
 
-    from leaf.exporting import _module_urls, export_document
+    from model_folds import served_reading
+
+    from leaf.exporting import AssetInliner, _module_urls, export_document
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
     files = {
-        "theme.css": "",
-        "shadow.css": "",
-        "widget-theme.css": "",
         f"page/{name}": 'import "./helper.mjs"; export const entry = true;',
         "page/helper.mjs": "export const helper = true;",
     }
@@ -286,8 +306,9 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
     document = SourceDocument(
         f'<html><head><script type="module" src="./page/{quote(name, safe="")}"></script></head><body><main><h1>Authored entry</h1></main></body></html>'
     )
+    vocabulary = {"$layer": {"generation": "exported"}}
     artifact = running(
-        capture_artifact(tmp_path, document, {"$layer": {"generation": "exported"}}),
+        capture_artifact(tmp_path, document, vocabulary),
         {
             path: "export {};" if path.endswith(".js") else ""
             for path in [
@@ -295,106 +316,88 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
                 "/runtime/widget-api.js",
                 "/runtime/offline-delivery.js",
                 "/runtime/prepaint.js",
-                "/vendor/lit-initial.js",
                 "/runtime/annotation-overlay/annotation-theme.css",
                 "/runtime/annotation-overlay/annotation-chrome.css",
                 "/runtime/annotation-overlay/annotation-marks.css",
                 "/runtime/chrome.css",
                 "/runtime/marks.css",
+                "/theme.css",
+                "/shadow.css",
+                "/widget-theme.css",
             ]
         },
+        vocabulary=vocabulary,
     )
-    modules = _module_urls(artifact, [document])
+    inliner = AssetInliner(artifact.resources.__getitem__)
+    modules = _module_urls(artifact, [document], inliner)
     logical = "/page/" + name
     assert logical in modules
     exported = export_document(
         artifact,
         document,
-        {"events": []},
+        served_reading(document.html),
         {},
         1,
         1,
         {},
     )
-    package = json.loads(
-        SourceDocument(exported).tree.select_one("script[data-lf-export]").text
+    select_one_result = SourceDocument(exported).tree.select_one(
+        "script[data-lf-export]"
     )
+    assert select_one_result is not None
+    package = json.loads(select_one_result.text)
     composed = SourceDocument(package["document"])
-    import_map = json.loads(composed.tree.select_one('script[type="importmap"]').text)[
-        "imports"
-    ]
+    select_one_result_2 = composed.tree.select_one('script[type="importmap"]')
+    assert select_one_result_2 is not None
+    import_map = json.loads(select_one_result_2.text)["imports"]
     entry = next(
         script
         for script in composed.authoring.external_scripts
         if "data-lf-runtime" not in script["attrs"]
     )
-    assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]
+    assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"]
+    assert import_map[f"leaf:{logical}"] in package["resources"]
 
 
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_export_selects_one_lit_implementation_from_the_initial_document(
-    tmp_path, early_lit
-):
-    """A later message producer uses normal module Lit; an early one uses the facade."""
-    import base64
-
-    from leaf.exporting import _module_urls
+def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
+    """Widgets introduced by a later message use the page's one ordinary Lit module."""
+    from leaf.exporting import AssetInliner, _module_urls
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
-    # The serving Leaf supplies the runtime and its Lit; the page vendors the widget
-    # and the package's producer.
     runtime = {
         "/leaf.js": 'import { render } from "/vendor/lit.js";',
         "/vendor/lit.js": 'export const render = "module implementation";',
-        "/vendor/lit-shared.js": 'export const render = "shared facade";',
-        "/vendor/lit-initial.js": "window.classicLit = true;",
-        "/vendor/initial-dependencies.json": json.dumps(
-            {
-                "/vendor/producer.js": ["/vendor/lit-initial.js"],
-            }
-        ),
     }
-    files = {
-        "vendor/producer.js": "window.producer = true;",
-        "widgets/lf-early.js": 'import { render } from "/vendor/lit.js";',
-    }
-    for filename, source in files.items():
-        target = tmp_path / filename
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(source)
-    document = SourceDocument(
-        "<main><lf-early></lf-early></main>" if early_lit else "<main>Plain</main>"
-    )
+    layer = {"/widgets/lf-later.js": 'import { render } from "/vendor/lit.js";'}
+    document = SourceDocument("<main>Plain</main>")
+    vocabulary = {"lf-later": {"x-upgrade": True}}
     artifact = running(
-        capture_artifact(
-            tmp_path,
-            document,
-            {
-                "lf-early": {"x-initial": "/vendor/producer.js", "x-upgrade": True},
-            },
-        ),
-        runtime,
+        capture_artifact(tmp_path, document, vocabulary), runtime, layer, vocabulary
     )
+    inliner = AssetInliner(artifact.resources.__getitem__)
     modules = _module_urls(
-        artifact, [document, SourceDocument("<lf-early></lf-early>")]
+        artifact, [document, SourceDocument("<lf-later></lf-later>")], inliner
     )
-    implementation = base64.b64decode(
-        modules["/vendor/lit.js"].split(",", 1)[1]
-    ).decode()
-    assert (
-        implementation
-        == runtime["/vendor/lit-shared.js" if early_lit else "/vendor/lit.js"]
-    )
-    assert "/vendor/lit-shared.js" not in modules
-    assert "/vendor/lit-initial.js" not in modules
-    widget = base64.b64decode(modules["/widgets/lf-early.js"].split(",", 1)[1]).decode()
+    implementation = inliner.embedded[modules["/vendor/lit.js"]].data.decode()
+    assert implementation == runtime["/vendor/lit.js"]
+    widget = inliner.embedded[modules["/widgets/lf-later.js"]].data.decode()
     assert '"leaf:/vendor/lit.js"' in widget
+
+
+# A name the page serves under media/ (`schema.MEDIA_DIGEST`), so either prefix
+# captures it; the last reference spells its first letter as an escape.
+IMAGE = "abcdef0123456789.svg"
 
 
 @pytest.mark.parametrize("prefix", ["page", "media"])
 @pytest.mark.parametrize(
-    "reference", [" {prefix}/image.svg ", r"{prefix}\image.svg", "{prefix}/im%61ge.svg"]
+    "reference",
+    [
+        " {prefix}/abcdef0123456789.svg ",
+        r"{prefix}\abcdef0123456789.svg",
+        "{prefix}/%61bcdef0123456789.svg",
+    ],
 )
 def test_document_resources_capture_the_paths_delivery_rewrites(
     tmp_path, prefix, reference
@@ -405,18 +408,16 @@ def test_document_resources_capture_the_paths_delivery_rewrites(
 
     (tmp_path / "leaf.js").write_text("export {};")
     (tmp_path / prefix).mkdir()
-    (tmp_path / prefix / "image.svg").write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg"/>'
-    )
+    (tmp_path / prefix / IMAGE).write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     source = f'<img src="{reference.format(prefix=prefix)}">'
     document = SourceDocument(source)
     artifact = capture_artifact(tmp_path, document, {})
-    assert f"/{prefix}/image.svg" in artifact.resources
+    assert f"/{prefix}/{IMAGE}" in artifact.resources
     if prefix == "media":
-        assert document.authoring.media_refs == {"/media/image.svg"}
+        assert document.authoring.media_refs == {f"/media/{IMAGE}"}
     delivered = rebase_document(source, DeliveryAddress("/root", "/revision"))
     expected = (
-        "/root/media/image.svg" if prefix == "media" else "/revision/page/image.svg"
+        f"/root/media/{IMAGE}" if prefix == "media" else f"/revision/page/{IMAGE}"
     )
     assert expected in delivered
 
@@ -454,16 +455,18 @@ def test_actual_resource_attributes_reach_capture_admission(tmp_path, reference)
 def test_document_resource_collection_preserves_external_and_layer_resources(
     tmp_path, reference
 ):
+    """A document may name an external resource or one its layer serves, such as the
+    layer's icon; the revision captures neither, and the layer's arrives with it."""
     from leaf.revision_artifact import capture_artifact
+    from leaf.runtime_selection import executing
     from leaf.structure import SourceDocument
 
-    (tmp_path / "leaf.js").write_text("export {};")
-    (tmp_path / "icon.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    vocabulary = {"$layer": {"generation": "g", "packages": [], "theme": None}}
     artifact = capture_artifact(
-        tmp_path, SourceDocument(f'<img src="{reference}">'), {}
+        tmp_path, SourceDocument(f'<img src="{reference}">'), vocabulary
     )
-    assert "/page/image.svg" not in artifact.resources
-    assert "/icon.svg" in artifact.resources
+    assert not artifact.resources
+    assert "/icon.svg" in executing(artifact).resources
 
 
 @pytest.mark.parametrize(

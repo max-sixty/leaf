@@ -165,8 +165,11 @@ cases:
             review and not sent to the customer. Corrected current facts remain readable and reachable:
             34 affected workspaces, 09:10–09:42 UTC incident, completed queued exports, no files
             lost, no retry needed, root cause not yet confirmed and next update by 11:00 UTC.
-            Older proposed wording is not presented as the current approved reply. Judge usable
-            editing and recording outcomes, not a particular widget, editor engine or layout geometry."
+            Older proposed wording is not presented as the current approved reply.
+            On the before-decision page, complete the offered action that approves or records
+            the reply for internal review. Then change and save the wording where offered, without
+            approving it again; the changed wording must not be presented as approved.
+            Judge usable editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
       comment: &queue-comment
@@ -227,11 +230,12 @@ cases:
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
           rubric:
-            At every declared width, the page preserves the substantive information needed
-            for the user's task, makes its evidence readable and reachable, and provides the decisions
-            or navigation the request requires. The completed rollout's forty entries must remain
-            readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At desktop sizes, all six checks and their failing result stay
+            At every declared width, the error-rate chart and all forty rollout entries are
+            comfortably readable. The reader can follow the entries from oldest to newest,
+            with a usable reading area and a discoverable route through the complete log.
+            Judge whether scrolling preserves context and lets the reader
+            continue to related content and navigation without awkward switching or lost position.
+            At desktop sizes, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
             content remain reachable; a sticky box must not hold them below the window. At phone sizes,
             the regions stack without covering the log or hiding its entries.
@@ -261,13 +265,9 @@ cases:
             "At the declared window sizes, the substantive review evidence and navigation remain
             readable and reachable, and the final decision is clear. Inspect the implementation,
             acceptance tests and both documentation files through the offered directory and file
-            navigation. Use an ordinary mouse click and release on a file, then arrow keys and
-            Enter to reach and select another file, expanding directories as needed. Verify the
-            selected path and actual displayed change agree; programmatic focus or a held mouse
-            button does not establish this route. Scroll the longer test file, then select the
-            implementation and a documentation file: each selected file's heading and beginning
-            of its change should be visible immediately, without scrolling back through the
-            previous file or opening an unrelated disclosure. Inspect
+            navigation. Every file is reachable and selectable by pointer and keyboard through
+            discoverable controls. The selected path matches the displayed change, and switching
+            files makes the selected change's heading and beginning visible. Inspect
             whether the code uses the available reading area and whether navigation, code and
             review controls remain usable as content grows. Judge wasted space or clipped focus
             by its effect on reading, navigation and decisions, without requiring a particular
@@ -473,11 +473,11 @@ cases:
             rollout's live state as of 16:35 reads at a glance: eu-west back on 4.11 at
             0.33%, 4.12.1 with the 10 s timeout going to eu-west at 1% at 17:30, the other
             regions continuing on 4.12. Figures from 15:40 that are no longer current are
-            labelled with their time or replaced. The eu-west write-up reads in order as a
-            document: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
+            labelled with their time or replaced. The eu-west write-up makes the incident understandable to the team
+            reading it tomorrow: what happened, the cause (payments-sdk 7.2's 3 s connect timeout,
             confirmed by Dana at 15:52), the decision to roll eu-west back and ship 4.12.1,
-            and the follow-ups with the confirmed one marked done. The write-up is not
-            split into equal tiles or squeezed beside the status where it is hard to read.
+            and the follow-ups with the confirmed one marked done. The prose has enough width to read
+            comfortably at every declared viewport.
             The user's comment thread on the follow-up remains reachable with its answer."
   queue-hand-off:
     inputs:

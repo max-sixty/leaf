@@ -1,3 +1,5 @@
+import { render } from "/vendor/lit.js";
+import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
@@ -31,12 +33,10 @@
  * Targets stay live: a held row keeps its historical words and geometry, but its
  * fragment link follows only a destination in the current document. A departed
  * destination leaves historical text in the same node, without an active link.
- * Tab memory retains the drawn presentation through a fresh document. Its initial
- * producer draws it before first paint, then the ready authoritative reading is
- * compared through HeldReading. This never folds events or records a decision. */
+ * Tab memory retains the drawn presentation through a fresh document. The ready
+ * authoritative reading is compared through HeldReading. This never folds events or records a decision. */
 import {
   HeldReading,
-  initialRender,
   tabStore,
   addressableLabel,
   addressableWord,
@@ -49,7 +49,6 @@ import {
   markdownReady,
   markdownWords,
   LeafElement,
-  noChange,
   threadActions,
   readThreads,
   readHistory,
@@ -159,7 +158,7 @@ customElements.define(
   class extends LeafElement {
     #list = null;
     #empty = null;
-    #paint = null;
+    #template = null;
     #storageKey = null;
     #notice = null;
     #opened = false;
@@ -170,13 +169,14 @@ customElements.define(
     #ready = false;
 
     setup() {
-      const drawing = initialRender(this);
+      const drawing = createActivity(this);
+      render(drawing.render(), drawing.root ?? this, { host: this });
       this.#storageKey = drawing.storageKey;
       this.#list = drawing.list;
       this.#empty = drawing.empty;
       this.#notice = drawing.notice;
-      this.#paint = (reading) =>
-        drawing.paint(reading, {
+      this.#template = (reading) =>
+        drawing.render(reading, {
           printing: this.#printing,
           names: fragmentTarget,
           age: ago,
@@ -189,7 +189,6 @@ customElements.define(
       this.#opened = drawing.reading.open;
       this.#closedReading = drawing.restored ? drawing.reading.shown : null;
       this.#restored = drawing.restored ? drawing.reading.shown : null;
-      this.#paint(drawing.reading);
       this.#reading = new HeldReading(
         this,
         () => [this.#notice, this.#list, this.#empty],
@@ -217,18 +216,17 @@ customElements.define(
     render() {
       const history = readHistory();
       this.#ready = history.phase === "ready";
-      this.#render(history.events);
+      const view = this.#render(history.events);
       // A failed parser import can retry on the next reading, including a return.
       if (!markdownReady())
         loadMarkdown().then((loaded) => {
           if (loaded) this.requestUpdate();
         });
-      // The initial producer retains the template closure and its existing Lit root.
-      return noChange;
+      return view;
     }
 
     #render(history) {
-      if (!this.#ready && !this.#printing) return;
+      if (!this.#ready && !this.#printing) return this.#template(undefined);
       if (this.#restored !== null) {
         if (this.#ready) {
           this.#reading.hold(this.#restored);
@@ -270,8 +268,8 @@ customElements.define(
           : "Hide activity";
       if (this.#opened && !this.#printing) this.#closedReading = shown;
       const reading = { open: this.#opened, shown, label, news };
-      this.#paint(reading);
       if (!this.#printing) tabStore.set(this.#storageKey, JSON.stringify(reading));
+      return this.#template(reading);
     }
   },
 );

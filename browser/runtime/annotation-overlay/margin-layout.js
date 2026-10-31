@@ -65,8 +65,8 @@ import {
   shownExtent,
   shownParts,
   shownWindow,
-  skipped,
 } from "../geometry.js";
+import { skipped } from "../shown-box.js";
 import {
   renderedChildren,
   renderedParent,
@@ -89,11 +89,11 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { railStands } from "../content-layout.js";
+import { proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
-import { LAYOUT } from "../widget-elements.js";
+import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
@@ -166,7 +166,7 @@ let layer = null;
 // scroll, so its carrier follows its anchor's block axis alone and stands across the
 // page where the window holds it. A box follows only its default anchor through a
 // scroll, not a second anchor `anchor()` names, so the column cannot carry it across;
-// the document scrolls sideways only by script (`overflow-x: hidden`, theme.css), and
+// the document scrolls sideways only by script (`overflow-x: hidden`, base.css), and
 // the pass that scroll brings places it again.
 // A carrier holds one run of consecutive rows, so rows keep document order across
 // carriers; a second run on the same anchor takes a second carrier. Carriers are kept
@@ -341,7 +341,7 @@ export function marginSpot(target, point = null, passage = null) {
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
     ) || 0;
-  const left = main.getBoundingClientRect().right + hang;
+  const left = proseRect(main).right + hang;
   return { left, right: left + restingRail().row };
 }
 
@@ -600,10 +600,18 @@ function reach(anchor, box, main, reaches) {
     let edge = reaches.get(el);
     if (edge === undefined) {
       const b = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      // Named document tracks include free margins; a subgrid carrying those
+      // tracks is the page's flow, not a figure extending into its rail. The
+      // target's own box and ordinary framed ancestors still count in full.
+      const tracks =
+        style.gridTemplateColumns.includes("prose-start") ||
+        (style.gridTemplateColumns.startsWith("subgrid") &&
+          style.gridColumnStart === "full");
       edge = {
-        right: b.right,
+        right: tracks ? -Infinity : b.right,
         clip:
-          getComputedStyle(el).overflowX === "visible"
+          style.overflowX === "visible"
             ? null
             : b.left + el.clientLeft + el.clientWidth,
       };
@@ -1094,7 +1102,7 @@ export function layoutMarginRows() {
   laidOutScrollX = scrollX;
   const present = [];
   const main = marginColumn();
-  const columnRect = main.getBoundingClientRect();
+  const columnRect = proseRect(main);
   const columnHeight = main.scrollHeight;
   const shell = shellRight();
   const stands = railStands(main);
@@ -1112,9 +1120,9 @@ export function layoutMarginRows() {
       layer.root.parentElement.querySelector(
         '.lf-margin-cluster:not([data-lf-place="pin"]) .lf-margin-entry:not([hidden])',
       )?.offsetWidth || restingRail().entry);
-  // The notes hanging in the margin the rail stands in (theme.css, aside.sidenote): a
+  // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
   // marker level with one would be drawn over it.
-  const notes = [...main.querySelectorAll("aside.sidenote")]
+  const notes = [...main.querySelectorAll(".layout-note > aside")]
     .filter((note) => !skipped(note))
     .map((note) => note.getBoundingClientRect())
     .filter((note) => note.width && note.left >= columnRect.right - 1);

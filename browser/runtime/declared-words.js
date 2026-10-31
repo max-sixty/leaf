@@ -55,12 +55,13 @@ import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
+import { viewMembers } from "./storage.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
 // runtime's, or a declared mark, which delivery paints into the served document and
-// `markDeclared` into a message. The version diff reads the live DOM against a file
-// nothing has painted, and paint it did not look past is a change the author never made.
+// `markDeclared` into a message. A reading of the author's attributes on the live DOM
+// (`shallowSigs`) looks past it, since paint is no change the author made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
   Object.values(marks).some((mark) => mark.paint === name);
@@ -68,7 +69,7 @@ export const isPagePaint = (name) =>
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
+// .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped painting
 // must stop being said too, so a caller states the whole of what this element says
 // quietly and never appends to it. Content widgets once hand-copied this idiom
@@ -80,7 +81,7 @@ export const isPagePaint = (name) =>
 // has only the parts it builds — a suggestion's two slots, a code line. Two writers on
 // one element would each remove the other's word on every state application, which the
 // user would hear as the element re-reading itself.
-export function quietWord(el, word) {
+function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
@@ -103,16 +104,132 @@ export function quietWord(el, word) {
   move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
+// The quiet word a module declares on a part it builds, as `data-lf-quiet`, such as a
+// code line's "highlighted" or a suggestion slot's "proposed deletion": Leaf writes it
+// there while the part stands and declares it. Declared rather than written by the
+// module, because the word is only quiet where Leaf's theme clips it, so a widget that
+// also runs off Leaf (portable-api.js) must not write it there, and on a page without
+// Leaf nothing reads the declaration.
+export function watchQuietWords() {
+  const { quiet } = PAGE_PAINT_ATTRIBUTE;
+  watchArrivals(`[${quiet}]`, [quiet], {
+    arrive: (el) => quietWord(el, el.getAttribute(quiet)),
+    leave: (el) => quietWord(el, ""),
+  });
+}
+
 // Parser paint and later arrivals share one treatment and its per-link ownership.
 // Prepaint seats the mark before authored prose first paints; this watch carries the
 // same owner through revisions, generated content and declared shadow stages.
+const EXTERNAL_LINK_ATTRIBUTES = ["target", "rel", "aria-describedby"];
+const externalLinkState = new WeakMap();
+let externalDescriptionSequence = 0;
+const externalDescriptions = new WeakMap();
+export const opensElsewhere = (href) =>
+  document.documentElement.lfLinks.opensElsewhere(href);
 export const isExternalPageLink = (link) =>
-  document.documentElement.lfInitial.externalLinks.matches(link);
+  link instanceof HTMLAnchorElement && opensElsewhere(link.getAttribute("href"));
+export function externalMark() {
+  return Object.assign(document.createElement("span"), {
+    className: "lf-ui lf-external-mark",
+    ariaHidden: "true",
+  });
+}
+function externalDescription(link) {
+  const root = link.getRootNode();
+  let description = externalDescriptions.get(root);
+  if (!description) {
+    description = generatedElement(document.createElement("span"), { says: false });
+    description.id = `lf-external-description-${++externalDescriptionSequence}`;
+    description.hidden = true;
+    description.dataset.lfRuntime = "";
+    description.textContent = "opens in a new tab";
+    externalDescriptions.set(root, description);
+  }
+  const holder = root instanceof Document ? root.body : root;
+  if (description.parentNode !== holder) move(holder, description);
+  return description.id;
+}
+// The text field draws the same mark after a link it shows (composing/text-field.js).
+const linkAttributes = (link) =>
+  Object.fromEntries(
+    EXTERNAL_LINK_ATTRIBUTES.map((name) => [name, link.getAttribute(name)]),
+  );
+const tokens = (value) => value?.split(/\s+/).filter(Boolean) ?? [];
+function withToken(value, token, insensitive = false) {
+  const values = tokens(value);
+  const wanted = insensitive ? token.toLowerCase() : token;
+  if (!values.some((value) => (insensitive ? value.toLowerCase() : value) === wanted))
+    values.push(token);
+  return values.join(" ");
+}
+function withoutToken(value, token, insensitive = false) {
+  if (value === null) return null;
+  const unwanted = insensitive ? token.toLowerCase() : token;
+  return tokens(value)
+    .filter((value) => (insensitive ? value.toLowerCase() : value) !== unwanted)
+    .join(" ");
+}
+function writeLinkAttributes(link, values) {
+  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
+}
+function rememberExternalLinkChanges(link, state) {
+  if (!state.painted) return;
+  const current = linkAttributes(link);
+  for (const name of EXTERNAL_LINK_ATTRIBUTES) {
+    if (current[name] === state.painted[name]) continue;
+    let value = current[name];
+    if (name === "rel" && state.addedNoopener)
+      value = withoutToken(value, "noopener", true);
+    if (name === "aria-describedby") value = withoutToken(value, state.markId);
+    state.baseline[name] = value;
+  }
+}
+function clearExternalLink(link, state) {
+  rememberExternalLinkChanges(link, state);
+  writeLinkAttributes(link, state.baseline);
+  link.removeAttribute(PAGE_PAINT_ATTRIBUTE.external);
+  externalLinkState.delete(link);
+}
+function leaveExternalLink(link) {
+  const state = externalLinkState.get(link);
+  if (state) clearExternalLink(link, state);
+}
+function renderExternalLink(link) {
+  // SVG links share this selector but not the HTML anchor API, and they have no
+  // dependable inline box in which an HTML text mark could stand.
+  if (!(link instanceof HTMLAnchorElement)) return;
+  document.documentElement.lfLinks.markExternalLink(link);
+  if (!isExternalPageLink(link)) {
+    leaveExternalLink(link);
+    return;
+  }
+  let state = externalLinkState.get(link);
+  if (!state) {
+    state = {
+      baseline: linkAttributes(link),
+      painted: null,
+      markId: null,
+      addedNoopener: false,
+    };
+    externalLinkState.set(link, state);
+  } else rememberExternalLinkChanges(link, state);
+  state.markId = externalDescription(link);
+  state.addedNoopener = !tokens(state.baseline.rel).some(
+    (value) => value.toLowerCase() === "noopener",
+  );
+  writeLinkAttributes(link, {
+    target: "_blank",
+    rel: withToken(state.baseline.rel, "noopener", true),
+    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+  });
+  state.painted = linkAttributes(link);
+}
+
 export function watchExternalLinks() {
-  const links = document.documentElement.lfInitial.externalLinks;
-  watchArrivals("a", ["href", ...links.attributes], {
-    arrive: links.arrive,
-    leave: links.leave,
+  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+    arrive: renderExternalLink,
+    leave: leaveExternalLink,
   });
 }
 
@@ -138,9 +255,8 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room): `wide` uses the shared evidence cap, and
-// `available` uses all remaining room.
+// the widget declares its capacity (x-space) and the Layout assigns its grid tracks:
+// `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
@@ -197,6 +313,10 @@ export function markDeclared(root) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag)) {
         const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
+        if (key === "x-views") {
+          viewMembers(el);
+          continue;
+        }
         keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
       }
     }
@@ -206,23 +326,6 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el.localName))
           keeps(el, paint, el.getAttribute(authored));
-  }
-}
-
-// Write each widget's declared first-paint structure (`x-prepaint`) into a message's
-// markup while it is still inert, as delivery writes it into a page's document
-// (revision_delivery.py, `mark_declared`), so a widget a message holds lays out its
-// drawing's structure before its module draws there too. Its module takes it out.
-export function writePrepaint(root) {
-  for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
-    // Its own, or that of the widget it first paints as (`as`).
-    const declared = registry[tag]["x-prepaint"];
-    const markup = document.createElement("template");
-    markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
-    const written = /** @type {HTMLElement} */ (markup.content.firstElementChild);
-    written.toggleAttribute("data-lf-prepaint", true);
-    generatedElement(written, { says: false });
-    for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
   }
 }
 
@@ -244,9 +347,8 @@ export function writePrepaint(root) {
 //
 // The theme's pseudo rules stay as the no-script fallback; they stand down where this
 // pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
-// and not .lf-ui: the
-// diff parses the base version unupgraded and must not read it as text that version
-// lacked, and the user must be able to quote it.
+// and not .lf-ui: no source holds it, so the authored reading leaves it out, and the
+// user must be able to quote it.
 //
 // data-lf-said names the attribute here and stands bare on a label generatedElement
 // wrote, because the two are one claim — these words are the page's, whoever rendered

@@ -17,7 +17,7 @@ test("a thread card's output updates its commands without invalidating its prese
     reply: false,
     working: null,
     news: null,
-    settlement: { kind: "resolve", pending: false, label: "Resolve", word: "Resolve" },
+    settlement: { kind: "resolve", label: "Resolve", word: "Resolve" },
   };
   let paints = 0;
   const stopPaint = effect(() => {
@@ -25,20 +25,27 @@ test("a thread card's output updates its commands without invalidating its prese
     view.present(model);
   });
   document.body.append(view.node);
-  const command = commandDeclarationsWithin(view.node)
-    .flatMap(({ scope }) => scope.rows)
-    .find(({ id }) => id === "thread.resolve");
-  const availability = [];
-  const stopCommand = effect(() => availability.push(command.when()));
+  const button = view.node.querySelector("button");
+  button.focus();
   try {
     assert.equal(paints, 1);
-    view.present({ ...model, settlement: { ...model.settlement, pending: true } });
+    view.present({
+      ...model,
+      resolved: true,
+      settlement: { kind: "unresolve", label: "Reopen" },
+    });
     assert.equal(paints, 1);
-    assert.deepEqual(availability, [true, false]);
-    assert.equal(view.node.querySelector("button").getAttribute("aria-busy"), "true");
+    assert.equal(view.node.querySelector("button"), button);
+    assert.equal(document.activeElement, button);
+    assert.equal(button.getAttribute("aria-label"), "Reopen");
+    assert.deepEqual(
+      commandDeclarationsWithin(view.node).flatMap(({ scope }) =>
+        scope.rows.map(({ id }) => id),
+      ),
+      ["thread.reopen"],
+    );
   } finally {
     stopPaint();
-    stopCommand();
     view.dispose();
     view.node.remove();
   }

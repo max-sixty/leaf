@@ -40,7 +40,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,24 +174,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     for key, target, tab in [("m", "second", "Second"), ("Shift+m", "first", "First")]:
         before = page.evaluate("scrollY")
         start_trace()
-        if target == "second":
-            # A revealed view may finish presentation later than its new geometry.
-            # Record its first painted frame while that completion is held.
-            page.evaluate("""() => {
-              const held = new Promise(resolve => { window.releaseObligationTabLayout = resolve; });
-              document.querySelector('#views').addEventListener('lf-layout', event => {
-                event.detail.present(held);
-                window.obligationTabLayoutStarted = true;
-              }, {once: true});
-            }""")
-            try:
-                page.keyboard.press(key)
-                page.wait_for_function("window.obligationTabLayoutStarted === true")
-                one_frame(page)
-            finally:
-                page.evaluate("releaseObligationTabLayout()")
-        else:
-            page.keyboard.press(key)
+        page.keyboard.press(key)
         expect(page.locator(f"#ask-{target}")).to_be_focused()
         selected = page.locator("#views > .lf-tabstrip").get_by_role(
             "tab", name=tab, exact=True
@@ -395,12 +378,15 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
           const source = document.querySelector('#sug-refill');
-          source.addEventListener('lf-reveal', event => {
+          // Revealing the suggestion waits for its update, which the test holds.
+          source.hidden = 'until-found';
+          source.addEventListener('beforematch', () => {
             const {promise: ready, reject} = Promise.withResolvers();
             window.rejectObligationReveal = reject;
             ready.then(() => {}, () => { window.obligationRevealRejected = true; });
             widgetController(source).present(ready);
-            event.detail.present(ready);
+            Object.defineProperty(source, 'updateComplete', {value: ready, configurable: true});
+            queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;
           }, {once: true});
         }"""
@@ -431,8 +417,12 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
         """() => {
           const held = new Promise(resolve => { window.releaseObligationReveal = resolve; });
           held.then(() => { window.obligationRevealSettled = true; });
-          document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
-            event.detail.present(held);
+          const source = document.querySelector('#sug-refill');
+          // Revealing the suggestion waits for its update, which the test holds.
+          source.hidden = 'until-found';
+          source.addEventListener('beforematch', () => {
+            Object.defineProperty(source, 'updateComplete', {value: held, configurable: true});
+            queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;
           }, {once: true});
         }"""
@@ -577,15 +567,13 @@ def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
 def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
     """`m` from the page reaches an obligation in a reply to a thread about a passage
     through that thread's margin card, which draws the reply's widgets, so the press
-    opens the card on the way and leaves the panel shut. Escape steps back to the
-    passage, and again puts the card away."""
+    opens the card on the way and leaves the panel shut. Escape puts the card away,
+    leaving the user beside the passage."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("m")
     item = page.locator(f"{CARD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(CARD)).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -831,7 +819,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         ),
         comments=2,
     )
-    append_carried_log_record(
+    reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
@@ -864,7 +852,11 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Located in that obligation is located in the space, so the step measures from it.
+    # Travel put away the view covering the page obligations. Reopen the reply
+    # before locating its control; the next step still measures from that obligation.
+    panel_settled(page, open=False)
+    expect(page.locator("#reply-decision")).to_have_count(0)
+    open_panel_thread(page, reply["id"])
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()
@@ -1023,8 +1015,16 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     page.keyboard.press("c")
     expect(obligation_thread.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
+    expect(obligation_thread).to_be_focused()
+    expect(item).to_have_attribute("data-lf-obligation", "1")
+    # Leaving the card releases the target beside the ask; it does not focus the ask.
     page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    # A walk from beside a released target returns to it before advancing.
+    page.keyboard.press("m")
     expect(item).to_be_focused()
+    expect(obligation_thread).to_be_visible()
 
     # From an obligation with no thread, `t` goes to the next thread after it in the document,
     # which is the task's. Back from there is the obligation's own thread, where, in the card,

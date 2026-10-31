@@ -1184,18 +1184,8 @@ def test_render_reads_widget_chrome_where_it_stands(
         ("clipped-offer", (360, 1920))
     ], failures
     assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
-    # The planted button speaks through a hand-written data-lf-said with no data-lf-gen,
-    # so a comparison reads its words as the option's author's, and as changed.
-    changed = [f for f in failures if f.code == "read-as-changed"]
-    assert [(f.at, f.values["words"][:30]) for f in changed] == [
-        ("<lf-option id=c-lax>", "Lax, host-only Lax cookie Host")
-    ], failures
     words = sorted(
-        {
-            (f.code, f.at, f.values["words"])
-            for f in failures
-            if f not in pair + clipped + changed
-        }
+        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
     )
     assert words == [
         ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
@@ -1207,11 +1197,12 @@ def test_render_reads_widget_chrome_where_it_stands(
 CONTENTS_MAP_PAGE = leaf_page(
     "Contents map",
     """
-<aside class="sidebar" id="contents-sidebar"><lf-toc id="contents"></lf-toc></aside>
-<h1 id="t">Contents map</h1>
+<aside id="contents-sidebar"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
+<div class="layout-column"><h1 id="t">Contents map</h1>
 <h2 id="first">First</h2><p>The first section's words.</p>
-<h2 id="second">Second</h2><p>The second section's words.</p>
+<h2 id="second">Second</h2><p>The second section's words.</p></div>
 """,
+    layout="sidebar",
 )
 
 
@@ -1342,6 +1333,82 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     expect(collapsed.locator("p").first).to_be_hidden()
 
     assert render_checks_model.evaluate_probe(page, "coveredWords") == []
+
+
+def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
+    """Display type set solid overlaps its neighbour's line box with no letter near
+    another, and a faint numeral the page marks aria-hidden sits behind a label on
+    purpose; neither is words drawn on words. Two labels a few pixels apart still are,
+    and so is an opaque aria-hidden word over a label, words over capitals a stylesheet
+    raised from lowercase, and vertical lines laid along each other."""
+    url = serve(
+        leaf_page(
+            "close words",
+            '<h1>Close words</h1><div style="position:relative;height:400px">'
+            '<p id="kpi" style="font:700 44px/1 sans-serif;margin:0">'
+            '1,204<span style="display:block">requests</span></p>'
+            '<span aria-hidden="true" style="position:absolute;top:0;left:0;'
+            'font-size:120px;opacity:.08">7</span>'
+            '<p id="stacked" style="font:700 80px/.8 Arial;margin:48px 0 0">HIGH<br>TYPE</p>'
+            '<p id="warning" style="position:absolute;top:100px;left:400px;margin:0">'
+            "Cannot proceed</p>"
+            '<span aria-hidden="true" style="position:absolute;top:100px;left:400px;'
+            'background:white">Decoration</span>'
+            '<p id="lower" style="position:absolute;top:150px;left:400px;margin:0">'
+            "One label</p>"
+            '<p id="upper" style="position:absolute;top:154px;left:400px;margin:0">'
+            "Another label</p>"
+            '<p style="position:absolute;top:300px;left:0;margin:0;'
+            'font:80px/1 Arial;text-transform:uppercase">xxxxxx</p>'
+            '<p style="position:absolute;top:297px;left:0;margin:0;font:20px Arial">'
+            "Over the caps</p>"
+            '<p style="position:absolute;top:0;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">MMMMMM</p>'
+            '<p style="position:absolute;top:140px;left:700px;margin:0;'
+            'font:40px Arial;writing-mode:vertical-rl">WWWWWW</p>'
+            '<p style="position:absolute;top:20px;left:900px;margin:0;'
+            'font:80px/1 Arial;text-transform:lowercase">11111P</p>'
+            '<p style="position:absolute;top:91px;left:1104px;margin:0;'
+            'font:20px/1 Arial">Under the descender</p>'
+            '<svg width="120" height="200" style="position:absolute;top:220px;left:900px">'
+            '<text transform="translate(60 30) rotate(90)" font-size="40">lllll</text>'
+            '<text transform="translate(60 65) rotate(90)" font-size="40">iiiii</text>'
+            "</svg></div>",
+        )
+    )
+    page = open_page(browser, url)
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+
+    assert sorted(sorted([f["words"], f["covered"]]) for f in found) == [
+        ["11111P", "Under the descender"],
+        ["Another label", "One label"],
+        ["Cannot proceed", "Decoration"],
+        ["MMMMMM", "WWWWWW"],
+        ["Over the caps", "xxxxxx"],
+        ["iiiii", "lllll"],
+    ], found
+
+
+def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
+    """With the reader's preference for less motion, Leaf's stylesheets stop their own
+    motion and leave the page's: a spinner the page never stops keeps turning, and the
+    gate's reading names it, while one the page stops under the preference is quiet."""
+    url = serve(
+        leaf_page(
+            "motion",
+            "<style>@keyframes turn { to { rotate: 1turn } }"
+            ".spinner { width: 20px; height: 20px; animation: turn 1s linear infinite }"
+            "@media (prefers-reduced-motion: reduce) { #calm { animation: none } }"
+            "</style><h1>Motion</h1>"
+            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>',
+        )
+    )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    expect(page.locator("#busy")).to_have_css("animation-iteration-count", "infinite")
+    found = render_checks_model.evaluate_probe(page, "unreducedMotion")
+
+    assert [f["at"] for f in found] == ["<div id=busy>"], found
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):

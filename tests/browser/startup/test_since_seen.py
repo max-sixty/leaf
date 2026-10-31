@@ -126,6 +126,34 @@ def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
     expect(marked).to_have_count(0)
 
 
+SECTION = "<h2>Routes</h2>\n<p>The old rule.</p>\n<p>The old reason.</p>"
+REWRITTEN = (
+    "<h2>Who acts</h2>\n<p>The new rule.</p>\n<table>"
+    "<tr><th>Finding</th><td>Leaf</td></tr><tr><th>Behind</th><td>The agent</td></tr>"
+    "</table>\n<p>The new reason.</p>"
+)
+
+
+def test_a_section_rewritten_whole_is_one_change(browser, serve):
+    """Rewriting a section changes every block in it, and the reader sees one edit, as
+    a diff shows one hunk: each block keeps its tint, but the run has one margin entry
+    and one stop of the walk. A block the revision left alone separates two changes."""
+    url = live_url(serve(PAGE.replace('<p id="b">Beta reads one way.</p>', SECTION)))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    revise(d, (SECTION, REWRITTEN), DELTA)
+
+    visibility(page, "visible")
+    # The heading, two paragraphs and four cells, and the paragraph after the gap.
+    expect(page.locator("main .lf-ins-block")).to_have_count(8)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(2)
+    for expected in ("main h2", "#d", "main h2"):
+        page.keyboard.press("h")
+        expect(page.locator(expected)).to_be_focused()
+
+
 def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
     browser, serve
 ):

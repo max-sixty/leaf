@@ -1,4 +1,4 @@
-import { PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, actionTemplate, afterScript, backgroundFlash, bindQueuedWork, cancelRender, dataBody, flashDuration, foldBlock, frameFor, generatedElement, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
+import { PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, actionTemplate, afterScript, backgroundFlash, bindQueuedWork, byRenderedOrder, cancelRender, dataBody, flashDuration, foldBlock, frameFor, generatedElement, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
 import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, agentSays, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focused, foldWidgetStates, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, leafSays, live, loadShadowRules, marks, messageKey, move, moved, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, voiced, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
 import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
@@ -8440,6 +8440,7 @@ const diffBase = Z(null);
 const comparisonGeneration = Z(0);
 const diffPendingBase = Z(null);
 const diffMarked = /* @__PURE__ */ new Set();
+let diffChanges = [];
 const diffWordsOf = /* @__PURE__ */ new Map();
 const inlineOpen = /* @__PURE__ */ new Map();
 let diffRequest = 0;
@@ -8561,13 +8562,27 @@ function changedSince(base, current = currentSource()) {
 	const held = /* @__PURE__ */ new Map();
 	for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
 	const changed = /* @__PURE__ */ new Set();
+	const kept = /* @__PURE__ */ new Set();
 	for (const [block, key] of diffBlocks(current.root)) {
 		const left = held.get(key) ?? 0;
 		if (left > 0) held.set(key, left - 1);
-		else changed.add(standingFor(block, current));
+		(left > 0 ? kept : changed).add(standingFor(block, current));
 	}
 	changed.delete(null);
-	return changed;
+	kept.delete(null);
+	return {
+		changed,
+		kept
+	};
+}
+function changeRuns(marked, kept) {
+	const runs = [];
+	let run = null;
+	for (const node of byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n)) if (marked.has(node)) {
+		if (!run) runs.push(run = []);
+		run.push(node);
+	} else if (!run?.some((block) => under(node, block))) run = null;
+	return runs.map((each) => Object.freeze(each));
 }
 function servedElements() {
 	const { source, pairs } = versionSource() ?? {
@@ -8600,7 +8615,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 	};
 	const base = paintedSource(pageDocument(doc), baseWidgets);
 	const current = currentSource();
-	for (const block of changedSince(base, current)) mark(block);
+	const { changed, kept } = changedSince(base, current);
+	for (const block of changed) mark(block);
 	for (const [id, now] of readApplication().effective.widgets) {
 		const before = baseWidgets.get(id);
 		const widget = elementById(id);
@@ -8636,7 +8652,8 @@ function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
 			is: is ? comparisonWords(is, opaque) : null
 		});
 	}
-	return diffMarked.size;
+	diffChanges = changeRuns(diffMarked, kept);
+	return diffChanges.length;
 }
 const inlineId = (target) => `lf-version-inline-${target.id}`;
 const authoredReading = (target) => {
@@ -8721,30 +8738,36 @@ function openInlineComparison(target) {
 	});
 	paintInlineInsertions();
 	layoutChanged(target);
-	return before === null ? `${diffBase.value.name} had nothing here` : `showing an inline diff from ${diffBase.value.name}`;
 }
 function closeInlineComparison(target) {
 	const entry = inlineOpen.get(target);
 	inlineOpen.delete(target);
-	target.classList.remove("lf-version-inline");
+	target.classList.toggle("lf-version-inline", false);
 	for (const node of entry?.nodes ?? []) node.remove();
 	paintInlineInsertions();
 	layoutChanged(target);
-	return `inline diff from ${diffBase.value.name} hidden`;
 }
-const inlineComparison = (target) => {
+const inlineable = (target) => {
 	const words = diffOn.value ? diffWordsOf.get(target) : void 0;
-	return words && words.was !== words.is && words.is === comparisonWords(target) ? {
-		id: inlineId(target),
-		open: inlineOpen.has(target),
+	return Boolean(words && words.was !== words.is && words.is === comparisonWords(target));
+};
+const inlineComparison = (change) => {
+	const blocks = change.filter(inlineable);
+	return blocks.length ? {
+		id: blocks.map(inlineId).join(" "),
+		open: blocks.every((block) => inlineOpen.has(block)),
 		offer: `${diffBase.value.name} → ${currentVersionToken()}`
 	} : null;
 };
-function toggleInlineComparison(target) {
-	if (!inlineComparison(target)) return null;
-	const said = inlineOpen.has(target) ? closeInlineComparison(target) : openInlineComparison(target);
+function toggleInlineComparison(change) {
+	const blocks = change.filter(inlineable);
+	if (!blocks.length) return null;
+	const opening = !blocks.every((block) => inlineOpen.has(block));
+	for (const block of blocks) if (inlineOpen.has(block) !== opening) (opening ? openInlineComparison : closeInlineComparison)(block);
 	tick(comparisonGeneration);
-	return said;
+	const name = diffBase.value.name;
+	if (!opening) return `inline diff from ${name} hidden`;
+	return blocks.some((block) => diffWordsOf.get(block).was !== null) ? `showing an inline diff from ${name}` : `${name} had nothing here`;
 }
 const comparable = (revision) => runtime.currentRevision !== null && revision < runtime.currentRevision;
 function setDiff(on, base, pendingBase = null) {
@@ -8758,6 +8781,7 @@ function setDiff(on, base, pendingBase = null) {
 			diffWordsOf.clear();
 			for (const b of diffMarked) b.classList.remove("lf-ins-block");
 			diffMarked.clear();
+			diffChanges = [];
 		}
 		tick(comparisonGeneration);
 	});
@@ -8791,7 +8815,7 @@ async function showComparison(base, { offered = false } = {}) {
 	const n = applyDiff(doc, baseAuthored, base, reading);
 	if (offered && !n) return setDiff(false);
 	setDiff(true, base);
-	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
+	notice(n ? `${n} change${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }
 function offerComparison(base) {
 	if (selectedBase() !== null || !comparable(base.revision)) return;
@@ -8807,8 +8831,8 @@ const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 function comparisonChanges(owner = null) {
 	comparisonGeneration.value;
-	const changes = diffOn.value ? [...diffMarked] : [];
-	return owner ? changes.filter((block) => block !== owner && under(block, owner)) : changes;
+	const changes = diffOn.value ? diffChanges : [];
+	return owner ? changes.map((change) => change.filter((block) => block !== owner && under(block, owner))).filter((change) => change.length) : changes;
 }
 async function authoredDocument(url) {
 	const response = await fetch(url);
@@ -9087,7 +9111,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 				}
 				if (comparedFrom !== null) showComparison(comparedFrom);
 				const outgoingSource = paintedSource(outgoing, readApplication().effective.widgets);
-				for (const block of changedSince(outgoingSource)) backgroundFlash(block, flashDuration());
+				for (const block of changedSince(outgoingSource).changed) backgroundFlash(block, flashDuration());
 				notice(`Updated to ${target.label}`, { background: true });
 			})
 		};

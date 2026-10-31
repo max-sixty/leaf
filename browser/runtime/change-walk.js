@@ -1,15 +1,17 @@
 // @ts-check
-/* The change walk: `h` and Shift+`h` step through the blocks the version comparison
-   marks (version.js, `comparisonChanges`), in the page's order, coming round at either
-   end, whatever started the comparison: a Compare in Versions, or the page marking what
-   changed since the user was last shown it (since-seen.js). A diff reader's next and
-   previous hunk, which is what the letter stands for.
+/* The change walk: `h` and Shift+`h` step through the changes the version comparison
+   marks (version.js, `comparisonChanges`), each a run of changed blocks, in the page's
+   order, coming round at either end, whatever started the comparison: a Compare in
+   Versions, or the page marking what changed since the user was last shown it
+   (since-seen.js). A diff reader's next and previous hunk, which is what the letter
+   stands for.
 
    A step starts from the user's place by the rule every page walk shares
-   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the changed block
-   itself, brought whole into view where it is not, with the walk's position said as
-   every walk says it (walk-position.js). The change's margin entry opens what the
-   block said before (version.js, `toggleInlineComparison`).
+   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the block the change
+   starts with, brought into view where it is not, with the walk's position said as
+   every walk says it (walk-position.js). A place anywhere in a change is at that
+   change. The change's margin entry opens what its blocks said before (version.js,
+   `toggleInlineComparison`).
 
    The marks stand until the reader stops them, with Escape once nothing nearer is
    open or with Stop marking changes in the leaf's menu. That is not a stance
@@ -27,40 +29,43 @@ import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js
 import { focusDestination } from "./focus.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
-import { byRenderedOrder, renderedUnder } from "./shadow-tree.js";
+import { renderedUnder } from "./shadow-tree.js";
 import { announce } from "./notifications.js";
 import { repaint } from "./repaint.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
-const changes = () =>
-  /** @type {Element[]} */ (
-    byRenderedOrder(comparisonChanges(), (/** @type {Element} */ block) => block)
-  );
+/** @typedef {readonly Element[]} Change */
+// Where a change starts, which is where a step lands.
+const start = (/** @type {Change} */ change) => change[0];
 
 // The change the user's current location is in, if any.
-/** @param {Element[]} list */
+/** @param {readonly Change[]} list */
 const currentChange = (list, origin = currentLocationOrigin()) =>
   origin?.kind === "current-location"
-    ? (list.find((block) => renderedUnder(origin.node, block)) ?? null)
+    ? (list.find((change) =>
+        change.some((block) => renderedUnder(origin.node, block)),
+      ) ?? null)
     : null;
 
 const position = () => {
-  const list = changes();
+  const list = comparisonChanges();
   const base = comparisonBase();
   return listWalkPosition(list, currentChange(list), {
+    identity: start,
     qualifier: base ? `since ${base.name}` : "",
   });
 };
 
 /** @param {number} dir */
 function step(dir) {
-  const list = changes();
+  const list = comparisonChanges();
   const origin = walkOrigin();
   const current = currentChange(list, origin);
-  const next = current
+  const change = current
     ? cycledRow(list, current, dir)
-    : stepFrom(list, origin, dir, (/** @type {Element} */ block) => block);
-  if (!next) return;
+    : stepFrom(list, origin, dir, start);
+  if (!change) return;
+  const next = start(change);
   if (!alreadyShown(next))
     scrollIntoView(next, { behavior: scrollBehavior(), block: "start" });
   focusDestination(next, "move");

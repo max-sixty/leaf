@@ -3419,10 +3419,12 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			});
 		}
 		const base = comparisonBase();
-		comparisonChanges().forEach((target, index) => {
-			const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
-			const inline = inlineComparison(target);
-			const mapAccount = inline ? `${addressableWord(target)} changed` : account;
+		comparisonChanges().forEach((change, index) => {
+			const [target] = change;
+			const what = change.length > 1 ? `${addressableWord(target)} and ${change.length - 1} more` : addressableWord(target);
+			const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
+			const inline = inlineComparison(change);
+			const mapAccount = inline ? `${what} changed` : account;
 			add(groups, target, {
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
@@ -3432,9 +3434,9 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 					context: inline.offer,
 					mapContext: inline.offer
 				} : {},
-				discloses: () => inlineComparison(target),
+				discloses: () => inlineComparison(change),
 				activate: () => {
-					const said = toggleInlineComparison(target);
+					const said = toggleInlineComparison(change);
 					revealTarget(target, said ? `${account} · ${said}` : account, scrollToElement);
 				}
 			});

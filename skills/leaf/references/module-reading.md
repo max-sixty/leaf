@@ -256,9 +256,11 @@ published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed elements inside `owner` in the current
-version comparison, or every changed element with no owner, and an empty array with no
-comparison active. Reading it during a `LeafElement` render subscribes that render
+`comparisonChanges(owner)` returns the changes inside `owner` in the current version
+comparison, or every change with no owner, and an empty array with no comparison
+active. A change is a run of changed elements with no unchanged block between them,
+such as a rewritten section, and is returned as an array of those elements in page
+order, each one inside `owner`; its length counts changes as the reader does. Reading it during a `LeafElement` render subscribes that render
 to comparison changes.
 
 `revisionLabel(event.revision)` is the page's name for the version an event was

@@ -39,7 +39,9 @@
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `recommended: true` marks the answer the page advises, so a surface that
-     answers the obligation away from its widget, as On me does, can say so. `bindingBadge` independently requests an inline hint: an Element lends
+     answers the obligation away from its widget, as On me does, can say so, and
+     `commits: true` the press that commits the answer the user has composed, such as a
+     group's Done, which wears the commit face there as on its widget. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
    - `when` says whether the capability exists. An owned native button derives its
@@ -469,8 +471,9 @@ export function activeRows(rows, where = "a scope") {
 }
 
 // The controls one ordered command set contributes to an obligation. `decision: true` marks
-// its answering role; the command's title supplies its name, and its description and
-// `recommended` what a surface answering it elsewhere says beside the name. The obligation view reads these controls
+// its answering role; the command's title supplies its name, its description and
+// `recommended` what a surface answering it elsewhere says beside the name, and
+// `commits` the face it wears there. The obligation view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
@@ -517,6 +520,7 @@ export function decisionControls(commands, where = "an obligation") {
         label,
         description,
         recommended: Boolean(contribution.recommended ?? row.recommended),
+        commits: Boolean(contribution.commits ?? row.commits),
         bindingBadge,
         intrinsicBindings: active,
         command: Object.freeze({

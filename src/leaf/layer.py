@@ -549,8 +549,8 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     writes only a page at its own (`registry.kernel.kernel_protocol`).
 
     The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
-    the protocol covers only what a page keeps across Leaf versions in its event log
-    (`layer-registry.md`, "Page protocol"). A page
+    the protocol covers only what a page keeps across Leaf versions: its event log
+    and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
     at a higher number is refused as `newer-layer`, since its repair is a newer
     Leaf: this one does not take it down (`vendoring._plan_page`). For a page at an
     older number, the holding session's prompt and Stop hooks, and each of its

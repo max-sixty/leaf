@@ -231,11 +231,11 @@ const versionedHeadNode = (node) =>
 const authoredMarkup = (root) => {
   // Prepaint can already have painted the first document. Both source snapshots
   // exclude runtime-owned attributes; their live values stay with their writers.
+  for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`))
+    member.removeAttribute("hidden");
   for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
     for (const element of root.querySelectorAll(`[${name}]`))
       element.removeAttribute(name);
-  for (const member of root.querySelectorAll("[data-lf-view]"))
-    member.removeAttribute("hidden");
   for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
   return root;
 };

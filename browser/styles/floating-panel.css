@@ -688,16 +688,19 @@
     display: none;
   }
 
-  /* The row's end: one seat, as wide as the On me mark with its count's room, which the
-     way out fills while it stands (floating-panel.js, `quick`), so the two trade places
-     moving nothing. A count's room stands whether or not it has a number. */
+  /* The row's end: one seat, which the On me mark and a stance's way out take in turn
+     (floating-panel.js, `quick`). The mark keeps its count's room whether or not it has
+     a number, so a count arriving moves nothing beside it. The way out takes the leaf's
+     width, so its ✕ stands as close to the field as the leaf does at the row's start. */
   .lf-fp-quick {
     flex: none;
     display: flex;
+  }
+  .lf-fp-quick > .lf-fp-on-user {
     width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
   }
-  .lf-fp-quick > .lf-fp-chip {
-    flex: 1;
+  .lf-fp-quick > .lf-fp-exit {
+    width: var(--lf-fp-aim);
   }
   /* A view's Close at its controls' end (floating-panel.js, `closeAbove`) takes the
      face of the presses before it. */
@@ -724,11 +727,6 @@
   }
   .lf-fp-on-user {
     justify-content: flex-start;
-  }
-  /* The way out ends its seat, so it stands at the row's end rather than 11px inside
-     it. */
-  .lf-fp-exit {
-    justify-content: flex-end;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);

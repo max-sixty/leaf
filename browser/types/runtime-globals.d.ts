@@ -73,8 +73,12 @@ interface HTMLElement {
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfViews?: {
-    members(holder: Element): HTMLElement[];
-    opening(holder: Element, fallback?: HTMLElement | null): HTMLElement | null;
+    members(holder: Element, selector?: string): HTMLElement[];
+    opening(
+      holder: Element,
+      fallback?: HTMLElement | null,
+      selector?: string,
+    ): HTMLElement | null;
     keep(
       holder: Element,
       member: HTMLElement | null,
@@ -85,13 +89,14 @@ interface HTMLElement {
     opensElsewhere(href: string | null): boolean;
     markExternalLink(link: Element): void;
   };
-  /** Optional focus-preserving mover used by the shared Lit bundle. */
+  /** Native working state shared by prepaint and the runtime. */
   lfStorage?: {
     initialDisclosureOpen(node: Element): boolean | undefined;
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
-    keepDisclosures(root: Document | ShadowRoot): void;
+    keepDisclosure(node: HTMLDetailsElement): void;
+    finishEarlyContent(): void;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
   /** The floating panel's resting size. */

@@ -974,6 +974,37 @@ function claimed$1(url) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+const memberSelector = (holder) => registry$1[holder.localName]?.["x-views"]?.members;
+function viewMembers(holder) {
+	return document.documentElement.lfViews.members(holder, memberSelector(holder));
+}
+function openingView(holder, fallback = void 0) {
+	return document.documentElement.lfViews.opening(holder, fallback, memberSelector(holder));
+}
+function markViews(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return;
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
+}
+function keepView(holder, member, leaving = null) {
+	markViews(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
@@ -1016,39 +1047,6 @@ async function highlightBlocks(root) {
 		}
 	}
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-function viewMembers(holder) {
-	const declaration = registry$1[holder.localName]?.["x-views"];
-	if (!declaration) return [];
-	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-	for (const child of holder.children) {
-		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
-		child.toggleAttribute("data-lf-view", member);
-	}
-	return document.documentElement.lfViews.members(holder);
-}
-function openingView(holder, ...fallback) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.opening(holder, ...fallback);
-}
-function keepView(holder, member, leaving = null) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.keep(holder, member, leaving);
-}
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/declared-words.js
@@ -1171,11 +1169,16 @@ function renderExternalLink(link) {
 	});
 	state.painted = linkAttributes(link);
 }
-function watchExternalLinks() {
-	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-		arrive: renderExternalLink,
+function watchNativeContent() {
+	const { keepDisclosure, finishEarlyContent } = document.documentElement.lfStorage;
+	watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: (element) => {
+			if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+			else renderExternalLink(element);
+		},
 		leave: leaveExternalLink
 	});
+	finishEarlyContent();
 }
 function paintDeclaredWords(root) {
 	renderSaid(root);
@@ -1196,7 +1199,7 @@ function markDeclared(root) {
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
 				if (key === "x-views") {
-					viewMembers(el);
+					markViews(el);
 					continue;
 				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
@@ -2758,7 +2761,7 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		watchExternalLinks();
+		watchNativeContent();
 		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
@@ -8263,8 +8266,8 @@ function authoredAttributes(root) {
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
 const authoredMarkup = (root) => {
+	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
-	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
 	return root;
 };

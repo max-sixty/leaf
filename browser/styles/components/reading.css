@@ -600,7 +600,6 @@
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
-  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -681,8 +680,22 @@ leaf-text.lf-fab-input,
 .lf-msg-body li {
   margin: 2px 0;
 }
+/* A rule takes a line, its stroke through the middle, and a code block a code line
+   above and below its code, so each stands where its draft drew its source: the
+   rule's on its line, a fence's on the line above or below the code
+   (composing/text-field.js). The draft's caret then reveals that source in room it
+   already had, moving nothing. The room kept below for a scrollbar (above) is part of
+   the line below the code. Rejected: the reading face's rule, a 1px line, and 8px of
+   block padding, which the draft could draw only by shortening those lines while the
+   caret was away and growing them as it arrived. */
+.lf-msg-body hr {
+  border: none;
+  block-size: 1lh;
+  background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+}
 .lf-msg-body pre {
-  padding-block: var(--pre-pad-block);
+  padding-block: var(--code-line)
+    calc(var(--code-line) - var(--lf-text-scroll-clearance));
 }
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching

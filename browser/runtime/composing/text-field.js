@@ -32,13 +32,13 @@
  * width changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
- * the classes of the lines and of the quotes' boxes name, so the field draws nothing differently without one. A code
- * fence's line then stands for the block's padding while the caret is away from that
- * line. A list's inner gaps, a quote's inner blocks and a table
- * keep the source's lines. Rejected: rules the theme states for each element also stated
- * for parts the field exposes, which can set type but not the gaps, since CodeMirror
- * measures a line without its margins and a gap collapses two blocks'; and a style
- * attribute on each line, which CodeMirror writes again on every redraw.
+ * the classes of the lines and of the quotes' boxes name, so the field draws nothing
+ * differently without one. A list's inner gaps, a quote's inner blocks, a rule, a code
+ * fence's lines and a table keep the source's lines. Rejected: rules the theme states
+ * for each element also stated for parts the field exposes, which can set type but not
+ * the gaps, since CodeMirror measures a line without its margins and a gap collapses
+ * two blocks'; and a style attribute on each line, which CodeMirror writes again on
+ * every redraw.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -216,10 +216,10 @@ sheet.replaceSync(`
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
      each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a code fence's line does, is there unseen and
-     unspoken. Its glyphs go unfilled while its colour stays the words', because the
-     caret can stand at the end of unseen text, as just past a new item's marker, and the
-     browser draws it in that text's colour. */
+     its room while the caret is away, as a rule's or a code fence's line does, is there
+     unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
+     because the caret can stand at the end of unseen text, as just past a new item's
+     marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
@@ -258,17 +258,17 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
   /* A picture fits the field as media fits its container on the page, centred on its
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
-  /* A rule's line, while the caret is away, is the sent hr: its stroke, as tall as the
-     stroke, its source unseen on it. */
-  .lf-md-rule { line-height: 0; border-block-start: 1px solid var(--rule); }
+  /* A rule's line is the sent hr, a line tall with its stroke through the middle
+     (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
+     reaching it moves nothing (browser/AGENTS.md, "Stability"). */
+  .lf-md-rule {
+    background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
   /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
      press on any drawn source does; Chromium's disabled box would take it and do
      nothing. */
@@ -278,12 +278,11 @@ sheet.replaceSync(`
     background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
     user-select: none;
     -webkit-user-select: none; }
-  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and the end of a fence its container or the draft ends, where no fence line
-     stands, takes that padding on the code's own line instead. A field that edits in place reads its display's padding over
-     this (\`readFaces\`). */
-  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .cm-line.lf-md-code-pad-end { padding-block-end: calc(var(--pre-pad-block) + 8px); }
+  /* A fence's line is a line of the code box, the sent pre's padding of one code line
+     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
+     draft ends, where no fence line stands, takes that padding on the code's own line
+     instead. */
+  .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 
 // The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as

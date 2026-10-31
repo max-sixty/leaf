@@ -2333,7 +2333,7 @@ export function createFloatingPanel({
                       role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"
                       aria-pressed=${String(
-                        selection.on && selection.base === entry.version,
+                        selection.on && selection.base === entry.revision,
                       )}
                       aria-label=${`Compare with ${entry.name}`}
                       @click=${() =>

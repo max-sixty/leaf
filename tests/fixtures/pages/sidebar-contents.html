@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Rotate the payments database credentials</title>
+    <meta
+      name="description"
+      content="A runbook whose contents stands in the sidebar's margin as a reading map."
+    />
+  </head>
+  <body>
+    <main class="layout-sidebar">
+      <aside id="rotation-route">
+        <div class="layout-track">
+          <lf-toc id="rotation-contents"></lf-toc>
+        </div>
+      </aside>
+      <div class="layout-column">
+        <hgroup id="rotation-title">
+          <p class="eyebrow">Payments · quarterly runbook</p>
+          <h1>Rotate the payments database credentials</h1>
+        </hgroup>
+        <p class="lede" id="rotation-lede">
+          Replace the primary and replica passwords without dropping a payment. Each
+          step names who runs it and what to check before the next one starts.
+        </p>
+
+        <section id="rotation-before">
+          <h2>Before the window</h2>
+          <p>
+            Book a thirty-minute window outside the payout batch, which starts at 02:00
+            UTC. Tell the on-call engineer for checkout, since a failed rotation shows
+            up first as declined card payments.
+          </p>
+          <h3 id="rotation-access">Confirm access</h3>
+          <p>
+            The operator needs write access to the secrets vault and a shell on the
+            bastion host. Check both a day ahead, while there is still time to request
+            either.
+          </p>
+          <h3 id="rotation-baseline">Record the baseline</h3>
+          <p>
+            Note the connection count and the p95 query latency on the primary. The
+            checks after each step compare against these two numbers.
+          </p>
+        </section>
+
+        <section id="rotation-create">
+          <h2>Create the new credentials</h2>
+          <p>
+            Generate the new password in the vault rather than on a laptop, so it never
+            leaves the vault in plain text. Add it to the database as a second valid
+            password for the application role; the old one keeps working until the last
+            step.
+          </p>
+          <p>
+            Run the role's login check against the primary and both replicas with the
+            new password. All three must accept it before any service is told to use it.
+          </p>
+        </section>
+
+        <section id="rotation-switch">
+          <h2>Switch the services</h2>
+          <p>
+            Update the vault entry the services read, then restart them one region at a
+            time, starting with the region that has the least traffic at this hour.
+          </p>
+          <h3 id="rotation-checkout">Checkout</h3>
+          <p>
+            Restart checkout's pods in batches of a quarter. Watch the declined payments
+            graph for two minutes after each batch; any rise above the baseline stops
+            the rotation.
+          </p>
+          <h3 id="rotation-ledger">Ledger</h3>
+          <p>
+            The ledger holds long transactions, so drain each instance before its
+            restart. A drained instance shows zero open transactions in its status page.
+          </p>
+        </section>
+
+        <section id="rotation-verify">
+          <h2>Verify</h2>
+          <p>
+            Every application connection should now authenticate with the new password.
+            The database's authentication log shows which password each login used;
+            filter it to the last fifteen minutes and confirm none used the old one.
+          </p>
+          <p>
+            Compare connection count and p95 latency with the baseline. Both should be
+            back within ten percent of it before you continue.
+          </p>
+        </section>
+
+        <section id="rotation-retire">
+          <h2>Retire the old password</h2>
+          <p>
+            Remove the old password from the application role, then from the vault's
+            history. Keep the change ticket open for a day in case a batch job that runs
+            only nightly still holds the old one.
+          </p>
+        </section>
+
+        <section id="rotation-rollback">
+          <h2>Roll back</h2>
+          <p>
+            Until the old password is removed, rolling back is a vault change and a
+            restart: point the vault entry at the old password and restart the services
+            in the same order. After it is removed, create a new pair instead of trying
+            to restore it.
+          </p>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

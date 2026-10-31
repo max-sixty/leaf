@@ -2433,8 +2433,9 @@ def test_working_prose_density_yields_to_component_spacing(browser, serve):
 def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     """A frame trims the margin at its edge through every first or last child: a bare
     section, a boxless one, and a padded grid section alike, with nothing declared on
-    them. A padded box away from any frame's edge keeps its heading's margin inside its
-    inset, and the reading says to declare that box's frame."""
+    them. A padded box away from any frame's edge, and from the column's own items, keeps
+    its heading's margin inside its inset, and the reading says to declare that box's
+    frame."""
     page = open_page(
         browser,
         serve(
@@ -2461,8 +2462,11 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
   </section>
 </div>
 <p>Between the frames.</p>
-<div id="padded" style="padding:12px;border:1px solid">
-  <h2 id="padded-heading">Padded, undeclared</h2>
+<div>
+  <p>Prose before the padded box.</p>
+  <div id="padded" style="padding:12px;border:1px solid">
+    <h2 id="padded-heading">Padded, undeclared</h2>
+  </div>
 </div>
 <p>After the padded box.</p>""",
             )
@@ -2498,6 +2502,52 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
         for f in render_checks_model.evaluate_probe(page, "trappedMargins")
         if f["id"] == "padded"
     ]
+
+
+def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, serve):
+    """A grid item keeps its first child's margin inside its box, so a section in the
+    reading column would begin a heading's gap above its heading, and the focus ring,
+    margin entry and landing Leaf places by that box would stand in the gap. The item
+    takes the heading's gap instead: its box starts at the heading, which stands as far
+    below the block above as the gap says. An eyebrow over the heading and a list's first
+    item follow the same edge; an item opening with prose keeps its child's margin."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Column items",
+                """<p>Before.</p>
+<section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
+<section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
+<section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
+<ul id="list-led"><li>One</li><li>Two</li></ul>
+<section id="prose-led"><p>Prose first.</p></section>""",
+            )
+        ),
+    )
+    items = page.evaluate(
+        """() => Object.fromEntries(
+          ['h2-led', 'h3-led', 'eyebrow-led', 'list-led', 'prose-led'].map(id => {
+            const item = document.getElementById(id);
+            const box = item.getBoundingClientRect();
+            const first = item.firstElementChild.getBoundingClientRect();
+            const above = item.previousElementSibling.getBoundingClientRect();
+            return [id, {band: first.top - box.top, gap: first.top - above.bottom}];
+          }))"""
+    )
+    tokens = page.evaluate(
+        """() => ['--h2-start', '--h3-start'].map(name => parseFloat(
+          getComputedStyle(document.querySelector('main')).getPropertyValue(name)))"""
+    )
+    page.close()
+
+    h2_start, h3_start = tokens
+    for led in ("h2-led", "h3-led", "eyebrow-led", "list-led"):
+        assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
+    assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
+    assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
+    assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
+    assert items["prose-led"]["band"] > 0, items
 
 
 def test_the_page_edge_is_no_frame(browser, serve):

@@ -63,18 +63,21 @@ representative desktop viewport.
 ### Stability
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
-  but must not move the controls next to the gesture that caused it. A scroll the
-  gesture makes may not carry the control it was made on either, except to bring it
-  whole into a scroller that showed only part of it, or where the gesture takes the
-  user somewhere and says so: a command as a walk or Go-to does (`travels`,
-  `runtime/keyboard/bindings.js`), or a press by the history entry it adds, as a link
-  or a root tab set's switch does. Without a gesture,
-  a box may grow or shrink into free room, but reading content and controls stay put. A
-  change the user asked for may reflow the content it replaces, with motion the eye can
-  follow. A reveal on hover, focus or a key never changes the size or position of its
-  ancestors or siblings, and typing may grow a field but never moves it. Check:
-  `tests/shift_watch.js`, run on every browser test outside a module marked
-  `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+  but a control the user pressed stays where it was while it still stands. When the
+  press removes it, the press's result takes its place, and that may be the next
+  item's same control, as when Resolve in the floating panel moves the user on to the
+  next thread (`floating-panel.js`). A change the user asked for may reflow the content
+  it replaces, with motion the eye can follow. A scroll a gesture makes may carry the
+  control it was made on only to bring it whole into a scroller that showed only part
+  of it, or where the gesture takes the user somewhere and says so: a command as a
+  walk or Go-to does (`travels`, `runtime/keyboard/bindings.js`), or a press by the
+  history entry it adds, as a link or a root tab set's switch does. Without a gesture,
+  as when news arrives or a widget finishes loading, a box may grow or shrink into free
+  room, but reading content and controls stay put. No hard-to-undo action arrives
+  under a pointer that hasn't moved. A reveal on hover, focus or a key never changes
+  the size or position of its ancestors or siblings, and typing may grow a field but
+  never moves it. Check: `tests/shift_watch.js`, run on every browser test outside a
+  module marked `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
 - **A box's controls stand on an edge the box holds as its content changes.** The
   same control may therefore stand at a thread card's head and at the floating panel's
   foot; each box's header says which edge it holds (`floating-panel.js`, **Opened**;

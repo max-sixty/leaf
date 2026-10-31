@@ -60,10 +60,11 @@ const ICONS = {
   start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
   unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
-  // The arc an editor's Undo draws, bending back to a corner head, as Material's and
-  // Lucide's undo do. Rejected: a left arrow whose tail turns down, which is Lucide's
-  // and VS Code's reply and reads as Reply beside a message.
-  undo: '<path d="M2.5 4.75v3.75h3.75M13.5 11a5.5 5.5 0 0 0-5.5-5.5 5.5 5.5 0 0 0-3.75 1.45L2.5 8.5"/>',
+  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick,
+  // 31 October 2026). Rejected: a left arrow whose tail turns down, which is Lucide's
+  // and VS Code's reply and reads as Reply beside a message; and the arc Material's
+  // undo draws.
+  undo: '<path d="M5.5 2.75 2.75 5.5l2.75 2.75M3 5.5h6.25a3.5 3.5 0 0 1 0 7H6.5"/>',
   up: '<path d="m4 9.75 4-4 4 4"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
@@ -90,11 +91,11 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // Each action a press can show as a symbol, and the symbol and name it shows wherever
 // Leaf offers it (browser/AGENTS.md, "Visual grammar"). A press names its action and
 // never an icon, so one action can't show two symbols. Two actions may share one
-// symbol, as Undo and Discard share the undo arc, and a press may say more than the
+// symbol, as Undo and Discard share the U-turn, and a press may say more than the
 // action's name, as "Retry source inspection" does. The icons above that no action
 // names mark a kind or a state, not a press.
 //
-// Discard throws an editor's unsaved words away, so it wears Undo's arc rather than
+// Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
 // draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
 // from its card's Close. A reaction's removal took undo over ✕ for the same reading

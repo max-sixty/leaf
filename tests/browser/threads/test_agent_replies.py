@@ -335,7 +335,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     stream_reply(serve.page_dir, root, "Looking at it now.")
 
     page = open_page(browser, url)
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Replying")
+    expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("Replying")
     thread = open_panel_thread(page, root)
     message = thread.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
     expect(message.locator(".lf-msg-text")).to_have_text("Looking at it now.")
@@ -417,7 +417,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
     stream_reply(serve.page_dir, root, "")
 
     page = open_page(browser, url)
-    expect(thread_row(page, root).locator(".lf-fp-value")).to_have_text("Replying")
+    expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("Replying")
     open_margin_card(page, "h-how")
     thread = page.locator(card_of(root))
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
@@ -801,7 +801,10 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
     reader with no tooltip knows more waits; the name doesn't repeat it."""
     url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    # An agent's opening message has no delivery receipt competing with the news.
+    root = panel_comment(
+        serve.page_dir, "Which job comes first?", {"section": "jobs"}, author="agent"
+    )
     page = open_page(browser, url)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
@@ -809,13 +812,15 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
+    thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()
     rendered(page)
+    # Dropping a later fact must not cut a first fact that already fit.
+    assert notice.locator(":scope > span > span").evaluate(
+        "fact => fact.scrollWidth <= fact.clientWidth"
+    )
     width = notice.bounding_box()["width"]
     expect(notice.locator(":scope > span")).not_to_have_attribute(
         "data-lf-more", re.compile(".*")
@@ -933,7 +938,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Couldn't answer")
+    ).to_have_text("Not answered")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -962,7 +967,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     page = open_page(browser, url)
     for root, reply, words, section in (
         (asked, question, "Waiting on me", "h-how"),
-        (promised, promise, "To-do open", "lede"),
+        (promised, promise, "Still to do", "lede"),
     ):
         open_margin_card(page, section)
         thread = page.locator(card_of(root))
@@ -1003,7 +1008,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     )
     page = open_page(browser, url)
     # The unread reply is the row's mark, with no turn owed by either participant.
-    status = thread_row(page, root).locator(".lf-fp-value")
+    status = thread_row(page, root).locator(".lf-row-end")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)
     receipt = page.locator(
@@ -1016,8 +1021,8 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     with sending(page, "the card move"):
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
-    expect(receipt).to_have_text("Saved")
-    status = thread_row(page, root).locator(".lf-fp-value")
+    expect(receipt).to_have_text(re.compile(r"^Queued for "))
+    status = thread_row(page, root).locator(".lf-row-end")
     expect(status).to_have_text("")
     card = open_panel_thread(page, root)
 
@@ -1098,7 +1103,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -1112,7 +1117,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
     # Threads names the action owed on the thread's row, whole.
-    status = thread_row(page, unanswered["id"]).locator(".lf-fp-value")
+    status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
     expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the row clips its failure status"
@@ -1136,23 +1141,25 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     page.unroute("**/api/event")
     expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
-    # The failed answer remains distinct from the muted clock without a chip face.
+    # The failed answer remains distinct from the muted clock without a chip face, in
+    # the colour of a warning and Leaf's italic.
     head = page.evaluate(
         """(id) => {
           const head = document.querySelector(
             `#cd-q .lf-msg[data-event="${id}"] .lf-msg-head`);
-          const failure = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          const failure = head.querySelector(".lf-msg-failure");
+          const words = getComputedStyle(failure.querySelector("[data-voice]"));
           return {
-            failure: failure.color,
-            border: failure.borderTopWidth,
-            weight: failure.fontWeight,
+            failure: words.color,
+            border: getComputedStyle(failure).borderTopWidth,
+            style: words.fontStyle,
             clock: getComputedStyle(head.querySelector("time")).color,
           };
         }""",
         receipt["id"],
     )
     assert head["failure"] != head["clock"]
-    assert head["border"] == "0px" and int(head["weight"]) >= 600
+    assert head["border"] == "0px" and head["style"] == "italic"
 
 
 def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(

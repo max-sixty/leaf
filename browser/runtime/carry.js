@@ -16,7 +16,7 @@
  * has moved. Continuity keeps no sideways place, so a region's sideways offset crosses
  * here like any other box's. A box in skipped content (a tab not chosen, a closed
  * disclosure) carries no offset at all: reading one would make the browser style and
- * lay out all of that content first (`skipped`, geometry.js), a pass per hidden panel
+ * lay out all of that content first (`skipped`, shown-box.js), a pass per hidden panel
  * on every revision.
  * Restoring this state creates no event and leaves draft values unsent.
  *
@@ -26,9 +26,10 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
+import { setScroll } from "./arrivals.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { readingRegions } from "./reading-regions.js";
 
 /** @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
@@ -130,11 +131,14 @@ export function restoreCarry(
   return () => {
     for (const [arrived, record] of positions) {
       if (!arrived.isConnected) continue;
-      if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-      if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+      if (record.scrollTop || record.scrollLeft)
+        setScroll(arrived, {
+          top: record.scrollTop || arrived.scrollTop,
+          left: record.scrollLeft || arrived.scrollLeft,
+        });
     }
     // Initial generated controls have boxes but stay hidden until upgrade
-    // (theme.css). Their focus joins the post-layout correction; authored fields
+    // (base.css). Their focus joins the post-layout correction; authored fields
     // already took focus above so typing can continue while presentation is held.
     restoreFocus(true);
   };

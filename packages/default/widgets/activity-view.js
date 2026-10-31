@@ -1,17 +1,19 @@
+import {
+  offerElement,
+  offerActionElement,
+  fragmentTarget,
+  generatedElement,
+  keeps,
+  tabStore,
+} from "/runtime/widget-api.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
- * returned paint closure keeps its template identities when the behavior module
- * adopts it. Retained rows are presentation snapshots, never semantic state; the
+ * retained template keeps its identity through live updates.
+ * Retained rows are presentation snapshots, never semantic state; the
  * behavior module holds/reveals authoritative history through HeldReading and supplies
  * the live clock, thread action and current-document target reading. */
-import { html, nothing, ref, render, repeat } from "/vendor/lit.js";
+import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
-
-// Before modules load only the light document's ids can be read. The behavior module
-// supplies fragmentTarget, which also finds shadow ids and refuses settled content.
-const lightTarget = (fragment, doc) =>
-  doc.readyState !== "loading" &&
-  doc.getElementById(decodeURIComponent(fragment.slice(1)));
 
 function refreshTarget(link, row, write, names) {
   const fragment = `#${encodeURIComponent(row.widget)}`;
@@ -24,10 +26,7 @@ function refreshTarget(link, row, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
-export function initialActivity(
-  host,
-  { offerElement, generatedElement, tabStore, keeps },
-) {
+export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
   const reading = saved
@@ -46,7 +45,7 @@ export function initialActivity(
   const notice = (node) => {
     if (!node) return;
     drawing.notice = node;
-    offerElement(node, "lf-activity-news lf-thread-notice");
+    offerActionElement(node, "inline", "lf-activity-news");
   };
   const target = (row) => {
     if (row.thread)
@@ -73,7 +72,7 @@ export function initialActivity(
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget),
+          node && refreshTarget(node, row, keeps, capabilities.names ?? fragmentTarget),
       )}
       >${row.label}</a
     >`;
@@ -92,51 +91,41 @@ export function initialActivity(
       </p>
       ${row.excerpt ? html`<p class="lf-activity-excerpt">${row.excerpt}</p>` : nothing}
     </li>`;
-  const paint = (next = shown, live = capabilities) => {
+  const template = (next = shown, live = capabilities) => {
     shown = next;
     capabilities = live;
     const rows = JSON.parse(shown.shown);
     const hidden = !shown.open && !capabilities.printing;
-    render(
-      html`
-        <button
-          ${ref(notice)}
-          type="button"
-          data-lf-carry="notice"
-          aria-expanded=${String(shown.open)}
-          ?data-lf-news=${shown.news}
-        >
-          ${shown.label}
-        </button>
-        <ol
-          class="lf-activity-list scroll"
-          ?hidden=${hidden}
-          ${ref((node) => {
-            if (node) drawing.list = generatedElement(node, { says: false });
-          })}
-        >
-          ${repeat(rows, (row) => row.id, rowTemplate)}
-        </ol>
-        <p
-          class="lf-activity-empty"
-          ?hidden=${hidden || rows.length > 0}
-          ${ref((node) => {
-            if (node) drawing.empty = generatedElement(node, { says: false });
-          })}
-        >
-          Nothing shown yet.
-        </p>
-      `,
-      host,
-    );
+    return html`
+      <button
+        ${ref(notice)}
+        type="button"
+        data-lf-carry="notice"
+        aria-expanded=${String(shown.open)}
+        ?data-lf-news=${shown.news}
+      >
+        ${shown.label}
+      </button>
+      <ol
+        class="lf-activity-list scroll"
+        ?hidden=${hidden}
+        ${ref((node) => {
+          if (node) drawing.list = generatedElement(node, { says: false });
+        })}
+      >
+        ${repeat(rows, (row) => row.id, rowTemplate)}
+      </ol>
+      <p
+        class="lf-activity-empty"
+        ?hidden=${hidden || rows.length > 0}
+        ${ref((node) => {
+          if (node) drawing.empty = generatedElement(node, { says: false });
+        })}
+      >
+        Nothing shown yet.
+      </p>
+    `;
   };
   host.replaceChildren();
-  paint();
-  // A missing destination may still be below this host while parsing. Refresh at
-  // interactive, before module requests can delay DOMContentLoaded.
-  if (host.ownerDocument.readyState === "loading")
-    host.ownerDocument.addEventListener("readystatechange", () => paint(), {
-      once: true,
-    });
-  return Object.assign(drawing, { paint });
+  return Object.assign(drawing, { render: template });
 }

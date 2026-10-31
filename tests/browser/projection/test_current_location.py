@@ -1,11 +1,10 @@
 """The current location (the ring, Escape, navigation, the obligation walk) and the presses,
 obligations, controls and drafts they keep across a revision."""
 
-import json
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, declare_on_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_KEYS_APPARATUS,
@@ -558,6 +557,41 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
 
 
+def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve):
+    """A choosing lf-options that is the decision itself, with no lf-ask round it,
+    gives its location ring up to the row as one inside an ask does. It kept it: a
+    Tab in drew the decision's ring at the region's gap and the row's inside the
+    frame, two accent lines a few pixels apart for one fact."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Bare choice",
+                """<h1 id="h">Bare choice</h1>
+<lf-options id="ship" choose>
+  <lf-option id="ship-monday"><strong>Ship Monday</strong></lf-option>
+  <lf-option id="ship-thursday"><strong>Ship Thursday</strong></lf-option>
+</lf-options>""",
+            )
+        ),
+    )
+    choice = page.locator("#ship")
+    page.keyboard.press("m")
+    expect(choice).to_have_attribute("data-lf-obligation", "1")
+    arrived = choice.evaluate(
+        "el => { const s = getComputedStyle(el); return [s.outlineStyle, s.outlineOffset,"
+        " getComputedStyle(document.documentElement).getPropertyValue('--focus-region-gap').trim()]; }"
+    )
+    assert arrived[0] == "solid" and arrived[1] == arrived[2], arrived
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
+    assert choice.evaluate(RING)[0] == "none", (
+        "the decision kept its ring round the row"
+    )
+    assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
+
+
 def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -734,11 +768,10 @@ def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
 
 
 def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
-    """A thread's view in the panel stands at what the thread is about, open or
-    resolved, as the side panel's cards did: the ask it is about wears the ring, and
-    its digits answer it from the view. Opening a resolved thread left focus nowhere,
-    and nothing about the view said the previous location, so the ask stayed plain and
-    2 chose nothing. A digit typed in the reply is still a word in the reply."""
+    """Open and resolved panel threads stand at their ask: its ring stays on and
+    digits answer it from the view. Opening either thread focuses its reply; Escape
+    leaves the reply for the view. A digit typed in the reply stays reply text.
+    """
     url = serve(STORE_ASK_PAGE)
     seed_thread_about_the_ask(serve.page_dir, "t-done", resolved=True)
     seed_thread_about_the_ask(serve.page_dir, "t-open")
@@ -746,12 +779,16 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     ask = page.locator("#store-ask")
 
     view = open_panel_thread(page, "t-done")
+    expect(page.locator(PANEL_REPLY)).to_be_focused()
+    expect(ask).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("Escape")
     expect(view).to_be_focused()
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
-
     page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
     view = open_panel_thread(page, "t-open")
     reply = page.locator(PANEL_REPLY)
     expect(reply).to_be_focused()
@@ -759,7 +796,9 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     page.keyboard.type("3")
     expect(reply).to_have_js_property("value", "3")
     expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
-    view.focus()
+    page.keyboard.press("Escape")
+    expect(view).to_be_focused()
+    rendered(page)
     page.keyboard.press("3")
     expect(page.locator("#store-db")).to_have_attribute("chosen", "")
 
@@ -909,10 +948,12 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     """Removing an open-request declaration removes that widget from every obligation
     surface without changing the runtime, panel, or keyboard walk."""
     url = serve(OBLIGATIONS_PAGE)
-    registry = json.loads((serve.page_dir / "registry.json").read_text())
-    del registry["lf-suggestion"]["x-awaits"]
-    del registry["lf-suggestion"]["properties"]["resolves"]
-    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+
+    def undeclare(registry):
+        del registry["lf-suggestion"]["x-awaits"]
+        del registry["lf-suggestion"]["properties"]["resolves"]
+
+    declare_on_page(serve.page_dir, undeclare)
     stamp_page(
         serve.page_dir,
         (serve.page_dir / "index.html").read_text(),

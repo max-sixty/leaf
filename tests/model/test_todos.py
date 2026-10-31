@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 
 import pytest
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 from interact_support import (
     FLOW_PAGE,
     PAGE,
@@ -33,7 +33,6 @@ from interact_support import (
     stamp,
     state_json,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -49,8 +48,10 @@ from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.event_contracts import append_admitted
 from leaf.findings import Rejected
+from leaf.registry import storage as registry_storage
 from leaf.served_state.page import full_state
 from leaf.state import EVENTS_FILE
+from leaf_dev.page_fixtures import package_selection_args
 
 
 def leaf(*args):
@@ -262,7 +263,7 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     """The plan nests steps by depth and shows a named item's own state, and a
     rewrite that leaves a to-do out leaves it owed on the agent's list."""
 
-    def plan(steps) -> CliRunner:
+    def plan(steps) -> Result:
         return CliRunner().invoke(
             cli_model.cli, ["task", "plan", str(page_dir)], input=json.dumps(steps)
         )
@@ -1903,7 +1904,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     )
 
     assert result.exit_code == 0, result.output
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.load_registry(page_dir)
     assert "x-work" not in registry["lf-card"]
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}

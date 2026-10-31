@@ -1,79 +1,46 @@
 # Page authoring
 
-## Develop the content
+## Develop the work
 
-Show the page's subject at work in a concrete case. For a recommendation, construct
-the proposed result in use, with the content it operates on and the outcome the
-change would produce. Research notes supply facts and constraints; develop this
-material before composing the explanation. Make reasonable illustrative choices to
-complete the case, labeling invented content and untested behavior as proposed.
+Choose the material from what the reader needs to understand or decide about the
+subject. The document you write presents that subject; being asked to draft or
+revise it does not make its wording the subject of the decision.
 
-For example, an operator needs to locate failed imports in the original file. A
-proposed report groups them by cause and keeps their original row numbers:
+For a recommendation that changes behavior, show the result as it is and as it
+would be, filled in with a representative case's content: its inputs, relevant state and result.
+A description of what the result should contain, or of how to test it, is a
+specification, not the result. For a proposed import report:
 
-```html
-<lf-sample id="import-report" label="Proposed report — fictional data">
-  <h3>Missing currency — 12 rows</h3>
-  <p>Three representative rows shown.</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Original row</th>
-        <th>Supplier</th>
-        <th>Amount</th>
-        <th>Currency</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <th scope="row">8</th>
-        <td>Northwind</td>
-        <td>29.00</td>
-        <td>Missing</td>
-      </tr>
-      <tr>
-        <th scope="row">19</th>
-        <td>Acme</td>
-        <td>15.50</td>
-        <td>Missing</td>
-      </tr>
-      <tr>
-        <th scope="row">27</th>
-        <td>Northwind</td>
-        <td>8.00</td>
-        <td>Missing</td>
-      </tr>
-    </tbody>
-  </table>
-</lf-sample>
-```
+<example>
+<bad reason="Specifies the report instead of showing it.">
 
-The reader can inspect the proposed grouping and locate its records. The missing
-currencies remain visible: grouping the failures does not establish the correction.
-Explain why this report would help and what remains untested beside the sample.
+Bad: "Group failed imports by cause, keeping their source rows."
 
-Choose the material by what is being judged. Draw relationships for a mechanism,
-use a shared scale when comparing quantities by size, show arrangements for a layout,
-and show behavior through the actual or proposed subject before and after an action.
-For an interface, depict its content, controls and arrangement, showing where the
-action happens and what changes. Make behavior operable when trying it reveals more
-than seeing those states together. A wording choice can show the actual candidate
-sentences; a reasoning question can present the
-argument directly. These are all ways to let the reader examine the work itself.
+</bad>
+<good reason="Shows a proposed report with illustrative content.">
 
-Compose the explanation around the result: the claim, reason, cost and limits
-the material cannot show. Select from the research for the current question
-and remove descriptions the example makes unnecessary. Let using the material
-determine the page's arrangement and sequence.
+Good: "Missing currency — 3 imports: rows 8, 19, 27."
 
-`authoring-evidence.md` owns captures, drawings, charts, recordings and code
-excerpts; `live-samples.md` owns operable Leaf examples.
-A demonstration on the page illustrates a proposal; it does not implement that change
-in the product being discussed.
+</good>
+</example>
 
-An author assigned to construct material builds it directly and returns candidate
-files to the parent. `SKILL.md`’s operating workflow belongs to the session talking
-with the user, which composes and publishes the page.
+The result can be an experience someone uses or a mechanism that determines an
+outcome. Develop enough of it to judge the benefit and cost you recommend. Make an
+interaction operable when trying it reveals more than seeing its states together.
+
+Use real material where available. Fill gaps needed to demonstrate a proposal with
+plausible fictional content, clearly labeled as illustrative. This lets the reader
+judge a design before it is implemented or tested; claims about real behavior
+still require evidence. Keep the distinction visible beside the demonstration.
+`authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
+operable Leaf examples.
+
+Use a drawing when its arrangement, connections or scale make the subject easier
+to understand.
+
+Compose the page from that material. Explain the conclusion, reasons, costs and
+limits beside the result they concern, and remove descriptions the result makes
+unnecessary. Let the reader's task determine how much of each finding to develop.
 
 ## Reading cost
 
@@ -111,21 +78,21 @@ for a metric.
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
 working region; `layout-workspace` lets the user work within one screen. A Layout is a
-class on `main`; a page can also use its own grid or flex arrangement. `page-layout.md`
-owns their geometry, bounds, tiles, and pages with tabs or parts.
+class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
+tiles, and pages with tabs or parts.
 
-A surface the reader works at or keeps open rather than reads down, such as settings
-tuned against their evidence or a rollout dashboard glanced at between other work,
-keeps its working state in the reader's window: each setting or status beside the
-evidence that judges it, and the decision or submission waiting on the reader. A
-tuning pass or a glance doesn't scroll. Keep the title and premise to a line or two,
-and give `main` `density-working` (`page-layout.md`, "A workspace"). A workspace
-fills the window from the title's left edge; a dashboard whose detail the reader may
-read on down uses `layout-sidebar` with its regions side by side. Let the working
-surface lead, with supporting reading below it or in later parts.
+A dashboard the reader glances at, or settings they tune against their evidence, keeps
+its working state in the first window, since a glance or a tuning pass doesn't scroll.
+Keep each relevant setting or status, its evidence and the reader's next action together
+in that window, and spend as little of it as the page allows on the title, the premise
+and supporting reading. By default that means a title and premise of a line or two,
+`density-working` on `main` (`page-layout.md`, "A workspace"), and the working surface
+first, with supporting reading below it or in later parts. A workspace fills the window
+from the title's left edge; a dashboard whose detail the reader may read on down is
+usually a `layout-sidebar` page with its regions side by side, so they share the window
+rather than stacking past it.
 
-Leaf reserves space for its panel at the bottom of the window. Comment markers appear
-in the margin or over their targets. Page CSS needs no extra spacing for either. The reader hides markers with
+Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
 
 ## Contents navigation
@@ -134,33 +101,66 @@ Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
 none.
 
-Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar` directly inside the box carrying `layout-column`, near the top:
+Write an empty `lf-toc` with a stable id in the authored sidebar track. A reading
+page composes the route and its document as siblings:
 
 ```html
-<aside class="sidebar" id="contents-sidebar">
-  <lf-toc id="contents"></lf-toc>
-</aside>
+<main class="layout-sidebar">
+  <aside id="contents-sidebar">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
+  </aside>
+  <article id="document" class="layout-column">…</article>
+</main>
 ```
 
-On a sidebar page, put the
-contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
-to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. Workspaces and root page tabs have their own navigation, and so does a
+The browser places that route before JavaScript runs and wraps it with the document
+when narrow. Keep contents and a short verdict or status in the track, and put detailed
+evidence and history in the body or behind a disclosure. See `page-layout.md`,
+"A sidebar page", for the shared composition and width contract.
+
+Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
 
-## Read the registry
+## Style the page
 
-Use Leaf's default styling for ordinary content, with semantic HTML from the registry's
-elements and class idioms. The vendored theme supplies colours, type, spacing,
-headings, tables, code and widgets. Page CSS spaces with its steps, `--sp-1` to
-`--sp-5`, which `density-working` tightens. Polish a page through clearer content and hierarchy
-within that treatment. Reserve page CSS for task-specific arrangement, visualization
-or a particular design the user requests. An added card surface should express a
-grouping or interaction the task needs; wrapping already styled elements just for
-polish adds visual weight without meaning. A box page CSS makes opaque, such as a
-sticky bar, uses `background: var(--lf-ground)` to match its containing surface.
-Cards and playground previews set this property for their contents.
+A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
+tables, code) in both colour schemes and adds the class idioms, such as `.callout`, so
+a page of ordinary content needs no CSS of its own: polish it through clearer content
+and hierarchy within that treatment. Where the task calls for a design of its own,
+such as an instrument, an arrangement, or a look the user asks for, write it in
+ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+mockup or a page the user brings, takes no theme instead (`leaf page init <page>
+--no-theme`), so it starts from the browser's defaults and none of the theme shows
+through its rules; Leaf's widgets, threads and panel keep their own faces either way.
+`leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
+themes"). Page CSS stands above every theme rule
+without `!important` or extra specificity, and an element rule of its own, such as
+`table`, `code` or `blockquote`, replaces only the properties it names, so set the rest
+too wherever the theme's would show through. Wrapping elements the theme already
+styles in a card adds visual weight without meaning; give a card a grouping or
+interaction to express.
+
+Restyle the whole page through the theme's tokens on `:root` rather than rules on
+`body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
+ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces
+`--serif` for prose, `--sans` for labels and controls and `--mono` for code
+(`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
+also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that
+scheme's values. `--col` sets the reading column's width, and the spacing steps
+`--sp-1` to `--sp-5` tighten under `density-working`.
+
+`body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
+and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
+the page's grid and header on or inside `main`, and its ground in `--paper`; a page that
+takes no theme paints its ground on `html` and names it in `--lf-ground`, since `body`
+is a container, which keeps its own background off the window below a short page. A
+reset that zeroes
+`body`'s padding, or an app shell whose own box scrolls, puts
+`padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
+such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
+surface; cards and playground previews set this property for their contents.
+`page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
+controls.
 
 When page CSS reveals controls while a container is hovered or focused, include
 `:has([data-lf-control-active])` in the condition if it contains a code block.
@@ -172,23 +172,25 @@ keeps a card's actions visible when the pointer or focus moves onto Copy.
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 
-First read the shared author instructions of the page's packages, which can steer
+## Read the registry
+
+Use the registry's elements and class idioms for what they record or do. First read
+the shared author instructions of the page's packages, which can steer
 which entries you pick:
 
 ```bash
 leaf page instructions <page> | jq -r '.author // empty'
 ```
 
-`<page>/registry.json` is the vocabulary `page init` vendored. Ordinary keys are
-element names or CSS selectors; `$` keys are facts shared across the layer. List the
-vocabulary by purpose, then read the entries you pick, and any `$` fact you rely on, in
-full:
+`leaf page vocabulary <page>` prints the vocabulary the page is written in. Ordinary
+keys are element names or CSS selectors; `$` keys are facts shared across the layer.
+List the vocabulary by purpose, then read the entries you pick, and any `$` fact you
+rely on, in full:
 
 ```bash
-registry="<page>/registry.json"
-jq 'with_entries(select(.key | startswith("$") | not))
-    | map_values(.description)' "$registry"
-jq '.["lf-options"], .[".eyebrow"], .["$series"]' "$registry"
+leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
+    | map_values(.description)'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".eyebrow"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
@@ -246,11 +248,11 @@ For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
-descendants. Use a bounded reading region for independently scrolling vertical content.
+descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
 
-The theme scrolls a `<pre>` or table wider than its container and fits an image or SVG
-to it, so none needs a width. A table's columns size to their content, so leave its
-cells' widths and wrapping to the theme too. Text that can't break, such as a bare
+Leaf scrolls a `<pre>` or table wider than its container and fits an image or SVG to
+it, whatever theme the page takes, so none needs a width. A table's columns size to
+their content, so leave its cells' widths and wrapping to Leaf too. Text that can't break, such as a bare
 identifier or a cell kept on one line, holds its column at its full length, and once
 the table scrolls sideways, prose in the other columns wraps a word per line. Put
 identifiers in `<code>`, which can break inside a cell, and keep the columns to what

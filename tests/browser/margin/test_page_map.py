@@ -23,6 +23,7 @@ from render_harness import (
     panel_control,
     panel_settled,
     panel_view,
+    press_visible,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -304,16 +305,12 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.keyboard.press(" ")
     expect(dialog).to_be_visible()
     assert page.evaluate("() => window.lfCanonicalActivations") == []
+    # Nor does a key on the status itself: it is no press.
     status.focus()
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference", exact=True)
-    reference.get_by_role("combobox", name="Search commands").fill("margin.press")
-    press = reference.locator(
-        '.lf-command-reference-command[data-lf-command="margin.press"]'
-    )
-    expect(press).to_have_attribute("data-lf-available", "false")
-    page.keyboard.press("Escape")
+    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(status).to_be_focused()
+    assert page.evaluate("() => window.lfCanonicalActivations") == []
 
     page.evaluate("() => window.lfCanonicalMarginEntry.behavior('action')")
     action = dialog.get_by_role(
@@ -322,7 +319,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     assert action.evaluate("node => node.tagName") == "BUTTON"
     expect(action).not_to_have_attribute("role", re.compile(".+"))
     expect(action).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
-    icon = action.locator(":scope > .lf-margin-kind")
+    icon = action.locator(":scope > .lf-row-lead > .lf-margin-kind")
     box = icon.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down()
@@ -543,10 +540,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
-    # Out of the thread onto what it is about, then letting go of that takes the card.
-    page.keyboard.press("Escape")
-    expect(page.locator("#map-11")).to_be_focused()
-    expect(preview).to_be_visible()
+    # Out of the thread, beside what it is about, in one press.
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
@@ -606,6 +600,9 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
             expect(search).to_be_focused()
         expect(groups).to_have_count(count)
         rendered(page)
+        assert search.get_attribute("aria-keyshortcuts") == (
+            "ArrowDown Enter" if count else None
+        )
         assert search_field.bounding_box() == before["search"]
         assert close.bounding_box() == before["close"]
         assert dialog.bounding_box()["y"] == top
@@ -1076,7 +1073,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         page.keyboard.press("g")
         page.keyboard.press("Shift+p")
     else:
-        panel_control(page, "map", at="navigate").tap()
+        press_visible(page, panel_control(page, "map", at="navigate"), touch=True)
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
     # A finger arrives on the first row, where a soft keyboard would cover the list.
@@ -1315,13 +1312,15 @@ def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
     """An automatic map measurement leaves an outline where its reader scrolled it."""
     source = leaf_page(
         "Crowded outline",
-        '<h1 id="title">Crowded outline</h1>'
-        '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>'
+        '<div class="layout-column"><h1 id="title">Crowded outline</h1>'
         + "".join(
             f'<section id="row-{index}"><h2>Section {index:02}</h2>'
             '<div style="height:120px"></div></section>'
             for index in range(40)
-        ),
+        )
+        + "</div>",
+        layout="sidebar",
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 700)

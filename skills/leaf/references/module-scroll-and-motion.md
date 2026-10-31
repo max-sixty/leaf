@@ -52,6 +52,12 @@ keeps the user's place in the box. Registering an id that another live region ho
 throws, so a widget whose parts scroll independently registers each with an id from
 `compoundReadingRegionId(owner, localName)`.
 
+Give `body` a scrolling overflow (`auto` or `scroll`) only on an axis where its
+content can outgrow it. A scrolling body bounds what stands in it, such as the card of
+a comment on its contents, so a body sized to show everything it holds, as a
+screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where it
+keeps a `scrollbar-gutter` across states.
+
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
 page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
 scrolls itself, and `"flow"` otherwise.
@@ -109,10 +115,16 @@ control's ring shows. `fitsWhole(target)` says whether the target and those marg
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
 
+To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
+available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
+readers before that position paints, including writes during resize delivery. Smooth
+scrolling reports its positions through the browser's scroll events.
+
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
-`shownWindow({within, gap})` is the window's visible rectangle clear of Leaf's fixed
-chrome, narrowed to `within` and inset by `gap`.
+`shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
+fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
+only chrome standing across those columns takes room.
 
 ### Sticky headers
 
@@ -234,18 +246,22 @@ newly arrived message.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's panel and announces it to screen
-readers, such as a view the widget switched to. A recorded gesture is acknowledged by
+`notice(message)` shows a moment's news in Leaf's panel, in the italic Leaf sets its
+own words in, and announces it to screen readers, such as a view the widget switched
+to. A recorded gesture is acknowledged by
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen.
+on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
+`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-`quietWord(element, word)` gives an element words screen readers say after its leading
-`<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an
-empty one to remove it. Leaf writes quiet words for elements it marks as rewritten,
-changed or reported, so write them only on parts the module builds.
+A `data-lf-quiet` attribute gives an element words screen readers say after its leading
+`<strong>` title but the screen doesn't show: Leaf writes them there while the attribute
+stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+quiet words for elements it marks as rewritten, changed or reported, so declare them only
+on parts the module builds or owns, such as a code line or a suggestion's slot. A page
+without Leaf, whose theme would leave them on screen, writes none.

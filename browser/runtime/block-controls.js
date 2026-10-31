@@ -35,7 +35,7 @@ import { focusDestination, onCurrentLocation } from "./focus.js";
 import { move } from "./dom-move.js";
 import { keepsHidden, layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
-import { skipped } from "./geometry.js";
+import { skipped } from "./shown-box.js";
 import { upFrom } from "./shadow-tree.js";
 
 const home = document.createElement("div");
@@ -117,7 +117,7 @@ export function standInChrome(control, block, levels) {
 /** The reading `aimControl` writes from: whether `block` renders near the window,
  * kept current while the control stands, and the block's anchor name. A control
  * whose block is away is `hidden`, which hides it whatever display its own rules give
- * it (theme.css). */
+ * it (base.css). */
 export function anchorControl(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));

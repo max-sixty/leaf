@@ -16,12 +16,10 @@ export function registeredTags(scope, registry) {
 }
 
 export function widgetImports(scope, registry) {
-  const initializers = [];
   const modules = [];
   const tags = registeredTags(scope, registry);
   for (const tag of tags) {
     const entry = registry[tag];
-    if (entry?.["x-initial"]) initializers.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules.push(tag);
   }
   const shadow = tags.some(
@@ -31,5 +29,5 @@ export function widgetImports(scope, registry) {
         (state) => state.creates && registry[state.creates.child]["x-shadow"],
       ),
   );
-  return { initializers, modules, shadow };
+  return { modules, shadow };
 }

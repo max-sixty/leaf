@@ -31,6 +31,7 @@ from interact_support import (
     fresh_process,
     live_versions,
     owed,
+    page_packages,
     page_state,
     publish,
     published,
@@ -39,8 +40,6 @@ from interact_support import (
     state_json,
     words,
 )
-from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -50,12 +49,12 @@ from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
+from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
@@ -63,6 +62,8 @@ from leaf.validation.admission import (
     revision_publication,
 )
 from leaf.validation.instances import reference_errors
+from leaf_dev.example_data import regression_sources
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -308,6 +309,16 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
+    # A sample's widget asks nothing, quoted or interactive, so it can't fill a
+    # question around the sample.
+    for mode in ("", " interactive"):
+        only_shown = (
+            '<lf-ask id="decision-shown"><h2>Choose</h2>'
+            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
+            "</lf-sample></lf-ask>"
+        )
+        codes = [error.code for error in fragment_errors(only_shown, registry)]
+        assert codes == ["empty-question"], mode
 
     # The obligation's title is what the shared name rule reads, so a heading in an
     # hgroup after its eyebrow, a subheading, or context before the heading all
@@ -368,16 +379,6 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         fragment_errors(settled_obligation, unretired),
         "empty-question",
         widgets=lacking({"settled": [False]}),
-    )
-    # A quoted obligation is a mention, and its widgets ask nothing by design.
-    assert (
-        fragment_errors(
-            '<lf-sample id="quoted-ask" label="an obligation">'
-            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
-            "</lf-sample>",
-            registry,
-        )
-        == []
     )
     assert (
         fragment_errors(
@@ -480,7 +481,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
-    reg = json.loads((page_dir / "registry.json").read_text())
+    reg = registry_storage.load_registry(page_dir)
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]
     assert (
@@ -620,6 +621,18 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     # `class` and `style` are the page's styling hooks on a widget as on any element.
     assert not errors('kind="toggle" value="false" class="route"')
     assert not errors('kind="toggle" value="false" style="grid-column: 2"')
+    # So are the attributes that describe any element and record nothing.
+    assert not errors(
+        'kind="toggle" value="false" title="Route" lang="en" dir="ltr"'
+        ' aria-describedby="route-note" data-group="routing" data-test_id="r.1"'
+    )
+    # Leaf's own data-lf- namespace and `hidden` still validate.
+    assert refused('kind="toggle" value="false" data-lf-said="x"') == [
+        ("attribute-schema", "additionalProperties", [])
+    ]
+    assert refused('kind="toggle" value="false" hidden') == [
+        ("attribute-schema", "additionalProperties", [])
+    ]
     assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
     assert refused('kind="range" value="twelve" max="24"') == [
         ("attribute-schema", "pattern", ["value"])
@@ -851,13 +864,19 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
 
 def test_reply_validates_widget_markup(page_dir):
     """The current layer checks replies; older layers do not constrain their markup."""
-    path = page_dir / "registry.json"
-    current = path.read_text()
-    earlier = json.loads(current)
-    del earlier["lf-diagram"]
-    path.write_text(json.dumps(earlier))
+
+    def init(*packages):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["page", "init", str(page_dir)]
+            + [arg for package in packages for arg in ("--package", package)],
+        )
+        assert result.exit_code == 0, result.output
+
+    # An earlier version under a layer without `diagram`'s lf-diagram.
+    init(*(package for package in page_packages() if package != "diagram"))
     publish(page_dir)
-    path.write_text(current)
+    init(*page_packages())
     publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -1309,6 +1328,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         ("Crawler", "worker-2"),
     ]
     session = service_model.page_claim(page_dir)
+    assert session is not None
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
 
@@ -1354,6 +1374,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
     start = todos_model.start_reading(update)
+    assert start is not None
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
@@ -1819,9 +1840,8 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
             "text": "The old layer can render this message.",
         },
     )
-    registry = files_model.read_json(page_dir / "registry.json")
-    del registry["$events"]["kinds"]["edit"]
-    cleanup_model.write_json(page_dir / "registry.json", registry)
+    (page_dir / "page").mkdir()
+    (page_dir / "page" / "registry.json").write_text("{")
     before = events_model.read_events(page_dir)
 
     result = CliRunner().invoke(
@@ -1863,7 +1883,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
     """An addressed reply validates current source, even when its text needs no widget."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    (page_dir / "registry.json").unlink()
+    (page_dir / schema_model.LAYER_FILE).unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -1883,20 +1903,19 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
         ],
     )
     assert result.exit_code != 0, result.output
-    assert "registry.json missing" in result.output
+    assert "has no layer.json" in result.output
     assert "run `leaf page init`" in result.output
     assert events_model.read_events(page_dir) == before
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     published(page_dir)
-    (page_dir / "registry.json").unlink()
+    (page_dir / schema_model.LAYER_FILE).unlink()
     before = events_model.read_events(page_dir)
     result = comment(page_dir, "--quote", "Ship dark", "--text", "Still posts")
     assert result.exit_code != 0
     assert (
-        "registry.json missing" in result.output
-        and "run `leaf page init`" in result.output
+        "has no layer.json" in result.output and "run `leaf page init`" in result.output
     )
     assert events_model.read_events(page_dir) == before
 
@@ -1924,9 +1943,11 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert sorted(packages) == sorted(
         entry.name
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
-        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
+        if entry.is_dir()
+        and entry != schema_model.DEFAULT_PACKAGE
+        and entry.name != DEFAULT_THEME
     )
-    resolved = layer_model.resolve_packages(tuple(packages))
+    resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
 

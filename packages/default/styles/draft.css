@@ -2,7 +2,7 @@
    the box's edge at its right, so the box is its prose at rest and its editor while
    editing, and neither grows nor narrows for its controls. The frame holds focus, and
    print retains saved prose. On screen it keeps the reading measure as its prose does
-   (theme.css), its outer width the measure. */
+   (base.css), its outer width the measure. */
 lf-draft {
   display: block;
   --lf-draft-inset: 14px;
@@ -12,6 +12,8 @@ lf-draft {
   margin: 12px 0;
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
+  /* The frame wears its editor's ring, inside its edge (base.css, "Where it stands"). */
+  outline-offset: var(--focus-ring-inset);
 }
 @media screen {
   lf-draft {
@@ -70,7 +72,6 @@ lf-draft > pre {
   }
   lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-room));
     --lf-wears-ring: 1;
   }
   lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
@@ -98,7 +99,7 @@ lf-draft > pre {
     align-self: center;
     padding-inline: 6px 2px;
     color: var(--danger-ink);
-    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+    font: var(--font-ui);
     white-space: nowrap;
   }
   .lf-draft-status:empty {

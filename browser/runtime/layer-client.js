@@ -1,7 +1,7 @@
 /* The delivery gate, the event and media doors, the page's JSON requests, and the
    page's error channel to the agent.
 
-   A document speaks the generation of the vendored layer it was served from, and runs
+   A document speaks the generation of the layer record it was served under, and runs
    the runtime of the Leaf that served it (`runtime_selection.py`), both of which its
    server names in the document (`DELIVERY`). `admitResponse` observes every response's
    session metadata and checks every successful payload against the document's layer,
@@ -35,12 +35,13 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "/runtime/framework.js";
+import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { holdingError } from "./errors.js";
+import { failureContext, failureOf } from "./widget-upgrade.js";
 
 const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
 
@@ -81,7 +82,7 @@ function reloadNow(message) {
 }
 
 // Each foreign answer gets its own reading of the source, because the source may move
-// while the page waits — this very page can be re-vendored during the hold — and an
+// while the page waits — this very page can be re-initialized during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
 // probe is in the air at a time, so a burst of refusals costs one. Waiting lasts as long
 // as the disagreement does, so it is a held error (errors.js) rather than a passing
@@ -143,6 +144,21 @@ export const completeData = (state, held) =>
 // reloads is already settled there. Each caller says what that means for its request.
 export class LayerRefused extends Error {}
 
+/** The structured HTTP failure produced by requestJson, including a file conflict. */
+export class RequestError extends Error {
+  /** @param {string} message
+   * @param {{status: number; body: string; cause?: unknown;
+   *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
+   *   said?: string | undefined}} details */
+  constructor(message, { status, body, cause, current, said }) {
+    super(message, { cause });
+    this.status = status;
+    this.body = body;
+    this.current = current;
+    this.said = said;
+  }
+}
+
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
@@ -153,10 +169,12 @@ export async function requestJson(url, init, what) {
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  const failed = (message, cause) =>
-    Object.assign(new Error(message, { cause }), {
+  const failed = (message, cause, details = {}) =>
+    new RequestError(message, {
       status: response.status,
       body: text,
+      cause,
+      ...details,
     });
   let answer = null;
   if (
@@ -172,7 +190,7 @@ export async function requestJson(url, init, what) {
   if (!response.ok) {
     /** @type {import("../types/contract.js").ServedRefusal | import("../types/contract.js").ServedStaleFile | null} */
     const refusal = answer;
-    throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+    throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, undefined, {
       current: refusal && "current" in refusal ? refusal.current : undefined,
       said: refusal?.error,
     });
@@ -183,7 +201,7 @@ export async function requestJson(url, init, what) {
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
   // Say what is about to happen before it happens. The user is looking at a page
-  // that re-vendoring has moved out from under, and a tab that reloads itself with
+  // that `page init` has moved out from under, and a tab that reloads itself with
   // nothing said is a page that appears to have lost their place for no reason.
   reloadDelivery("Leaf has been updated — reloading this page.");
   return false;
@@ -273,8 +291,13 @@ export const revealLayer = () => {
 // orders the user's own gestures through it, and the error report below, which
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller.
-export const postEvent = async (event, held = runtime.data) => {
+// for both. Whether a send waits on the one before it belongs to the caller, and so
+// whether it must outlive the document (`keepalive`), as a tab's last word does.
+export const postEvent = async (
+  event,
+  held = runtime.data,
+  { keepalive = false } = {},
+) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   if (!layerKnown) await layerReady;
@@ -289,6 +312,7 @@ export const postEvent = async (event, held = runtime.data) => {
         ...dataHeaders(held),
       }),
       body: JSON.stringify(event),
+      keepalive,
     });
     recordInteraction("event_response", {
       kind: event.kind,
@@ -351,7 +375,8 @@ export const uploadMedia = async (file) => {
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the user is looking and reports it here.
+// failSoft, which puts the message where the user is looking and dispatches the
+// `error` event that window.error reports here.
 const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
@@ -388,35 +413,25 @@ export function reportCarried(reason, context = "") {
   if (!reported) reportPageError(reason, context);
 }
 
-// This is the only exception formatter. Callers pass the original exception (or
-// its name/message/stack record across a realm boundary) and the operation's context.
-// A diagnostic with no exception remains a string; no synthetic Error invents a site.
-export function exceptionText(reason, context = "") {
-  const message = reason?.message;
-  const text =
-    message === undefined ? String(reason) : `${reason.name || "Error"}: ${message}`;
-  // Chrome includes the message in a stack; Firefox can supply frames alone.
-  const stack = reason?.stack;
-  let evidence = !stack ? text : stack.includes(text) ? stack : `${text}\n${stack}`;
-  if (reason instanceof AggregateError)
-    evidence += reason.errors.map((error) => `\n${exceptionText(error)}`).join("");
-  if (reason?.cause !== undefined)
-    evidence += `\nCaused by: ${exceptionText(reason.cause)}`;
-  if (!context) return evidence;
-  const summary =
-    reason instanceof Error ? describeFailure(reason) : (message ?? String(reason));
-  return `${context}: ${summary}${message === undefined ? "" : `\n${evidence}`}`;
-}
-
 window.addEventListener("error", (e) => {
+  // A widget's own failure, which it shows where it stands and dispatches
+  // (`reportFailure`, widget-upgrade.js), named for the widget it happened in.
+  const failure = failureOf(e);
+  if (failure) {
+    reportPageError(failure.reason, failureContext(failure.element));
+    return;
+  }
   // Chrome also puts ResizeObserver loop notices on window.error without an
   // exception. This one live page cannot tell an occasional scheduling notice
   // from a layout feedback loop, so it persists neither in the user's log. The
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
   reportPageError(
-    e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`,
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
   );
 });
 window.addEventListener("unhandledrejection", (e) => {

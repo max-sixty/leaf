@@ -140,12 +140,12 @@ function listen() {
   window.addEventListener("click", beginGesture, { capture: true, passive: true });
 }
 
-// How far a lift of the theme's (`--raise-N`, theme.css) paints past the box it raises,
+// How far a lift of the theme's (`--raise-N`, base.css) paints past the box it raises,
 // cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
 // the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
 // off `element`, where the theme registers them as lengths. Cut at the drop and one
 // blur, the shadow stopped in a step.
-export const liftReach = (element, level) => {
+const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
   const [drop, blur] = ["drop", "blur"].map((part) =>
     Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)),
@@ -205,8 +205,13 @@ const rings = (style) =>
 // chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
 // outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
 // for one drawn inside its edge as a border is. observer: reads the box again when any
-// part changes size. held(): the root's edges that hold it in its plane, as
-// `{x: "left" | "right", y: "top" | "bottom"}`, or null for a box fixed in the window.
+// part changes size. held(): the root's edges that hold it in its plane, or null
+// for a box fixed in the window.
+/** @param {{
+ * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
+ * observer: ResizeObserver,
+ * held?: () => {x: "left" | "right", y: "top" | "bottom"} | null,
+ * }} options */
 export function boxMotion({
   root,
   box,
@@ -236,6 +241,7 @@ export function boxMotion({
   room.append(ring, fill, ringLayer, ringFill);
   const shadowReach = () => liftReach(room, lift);
   // Each layer, how far past the outline it is cut, and what it paints besides.
+  /** @returns {[HTMLElement, number, string][]} */
   const surface = () => [
     [room, shadowReach(), `filter: drop-shadow(var(--raise-${lift})); `],
     [ring, outset, ""],

@@ -22,9 +22,9 @@ costs, and each title can be the whole option. The user should be able to compar
 options down the group without reading their prose, as through `small.tag` labels for
 the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
 “2 days” rather than “about two days of work”, so a card's labels fit on one line
-beside its pick mark. Where cards stand side by side, labels that wrap push that card's
-title below its neighbours'. Add words only for a consequence that no title or label
-shows.
+beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
+that card's title below its neighbours'. Add words only for a consequence that no title
+or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
@@ -39,10 +39,15 @@ mechanism in the same frame as the other options', a capture of today's interfac
 beside the change, with a fault marked where it goes wrong, a wording as it would
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
-own picture, so nothing pairs it with another option's; a picture of both answers at
-once, such as an `lf-shot` pair, belongs to the group. Vary only what the choice
-changes, and show today in the option that keeps it, or above the options where none
-does.
+own pictures, so nothing pairs them with another option's; a picture of both answers
+at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
+several captures, such as several surfaces or states, line each capture up with its
+counterparts in the other options and name each surface or state once, so the reader
+compares one at a time down the options. The default is a table of captures in every
+option with the same columns in the same order (`authoring-evidence.md`, "Source files
+and media"), which the theme draws with no page CSS. Vary only what
+the choice changes, and show today in the option that keeps it, or above the options
+where none does.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same
@@ -75,30 +80,34 @@ put on the user is work for them to do, such as trying a build, not a question.
 
 ## On the page
 
-Make each question on the document answerable where On me takes the user, without
-reading earlier content. Pressing `m` brings that question to the top of the window,
-leaving preceding prose out of view. So the question opens with a heading that asks
-its question, and holds its explanation, its evidence, the current state and the
-answering control, inside the answering widget or an enclosing `lf-ask`. Build that
-self-contained question around the material the user judges; backing detail goes after
-it.
+Make each question answerable where On me takes the user: pressing `m` brings its
+heading to the top of the window, leaving earlier content out of view. Inside the
+answering widget or an enclosing `lf-ask`, build the question around the material the
+user judges: a heading that asks it, why it arises, the current state and its evidence.
+Shared evidence and its limits come before the answering control; optional detail
+follows it.
 
-On a quick-answer page, open with the question and put its backing in a disclosure after
+On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
 a record or system page, put each question in the part of the page it decides: a
 question about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a question about the whole record comes last.
 
-Keep the question, its evidence and the options on screen together, so the user
-compares the options without scrolling between them and always sees which one they
-are reading. Where a table, chart or playground inside the question, or the pictures in
-its options, can't be read at the prose's width, give that block, or the `lf-options`,
-its own `data-width` (`page-layout.md`, "Bounds and widths"). Size an option's picture
+Where evidence or option pictures need more than the prose's width, set `data-width`
+on the `lf-ask` or, for a question without one, its answering widget. Nested blocks
+with their own prose limit, such as `lf-options`, also need `data-width`
+(`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
+
+Option cards read down the group, each as wide as the group. `across` on the
+`lf-options` sets them side by side, which suits a group where what the user compares,
+each option's picture or the evidence above the list, still reads at a card's share of
+the row, and the question then fits the window. Keep them reading down where that share
+would shrink the pictures below the size at which their difference reads.
 
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
@@ -155,9 +164,14 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 Other unanswered questions do not block it. When permission depends on an earlier
 choice, resolve that choice first, then ask for the resulting action.
 
+Approval of an editable proposal applies to the submitted values, while later edits
+remain a working copy. A playground records its complete values together on submission
+([playground authoring](../../../packages/playground/instructions/author.md)); a draft
+edit and an options pick are independent answers. Choose a composition that keeps the
+approved wording or settings distinct from subsequent edits.
+
 The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
 If the action or evidence changes enough to invalidate the permission, explain the
 change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). Distinguish approved wording from later edits to a draft. A new
-stamp neither requests nor renews permission, and recording it does not end the page
-or report that the permitted work has been done.
+"Honor user state"). A new stamp neither requests nor renews permission, and recording
+it does not end the page or report that the permitted work has been done.

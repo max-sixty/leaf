@@ -34,7 +34,7 @@ from render_harness import (
 
 from browser.margin import (
     COMMENT_ON_OBLIGATION,
-    leave_card_by_its_target,
+    leave_card,
 )
 from browser.threads import open_panel_thread
 from leaf import cli as cli_model
@@ -47,9 +47,9 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 RECEIPT_PHASES = {
-    "Saved": "sent",
-    "Haven't seen it yet": "waiting",
-    "Got it": "pickup",
+    "Queued for Claude": "sent",
+    "Still queued for Claude": "waiting",
+    "Delivered": "pickup",
 }
 
 
@@ -344,7 +344,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    leave_card_by_its_target(page)
+    leave_card(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
@@ -763,7 +763,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
 def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     """A thread with no title yet, held by a to-do its agent opened, reads as
     Threads states it on every surface that shows it: the margin entry's line, which
-    its name says too, and its Page Map row say To-do open as the card's status does,
+    its name says too, and its Page Map row say Still to do as the card's status does,
     and Threads, Page Map and the activity feed name the thread by the words its
     opening renders, not that opening's Markdown, until a title names it on all of
     them."""
@@ -810,8 +810,8 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     )
     told(page)
     marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("To-do open")
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, To-do open,"))
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("Still to do")
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, Still to do,"))
 
     page.locator("#feed .lf-activity-news").click()
     feed = page.locator("#feed .lf-activity-row", has_text="replied in")
@@ -820,7 +820,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     row = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
-    expect(row.locator(".lf-page-map-action-context")).to_have_text("To-do open")
+    expect(row.locator(".lf-page-map-action-context")).to_have_text("Still to do")
     expect(row.locator(".lf-page-map-action-label-word")).to_have_text(named)
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
@@ -829,7 +829,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     panel_settled(page, view="threads")
     listed = page.locator(f'.lf-fp-thread[data-key="{root["id"]}"]')
     expect(listed.locator(".lf-fp-label")).to_have_text(named)
-    expect(listed.locator(".lf-fp-value")).to_contain_text("To-do open")
+    expect(listed.locator(".lf-row-end")).to_contain_text("Still to do")
 
     # A title names it on every surface, the margin's included.
     append_carried_log_record(
@@ -964,7 +964,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 ):
     """A margin entry keeps the margin entry family visible without promising a press.
 
-    Saved, Haven't seen it yet, and Got it report a move already made. Their status
+    Queued for Claude, Still queued for Claude, and Delivered report a move already made. Their status
     margin entry therefore keeps the family silhouette and full ink, while leaving the
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
@@ -1086,7 +1086,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "borderStyle": "solid",
             "animation": "none",
             "ink": expected_ink,
-            "iconInk": pickup_ink if phase == "Got it" else expected_ink,
+            "iconInk": pickup_ink if phase == "Delivered" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -1117,8 +1117,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"
         assert hovered["wordBackground"] != "rgba(0, 0, 0, 0)"
-        # A rectangular trace uses the same outside stroke as target focus, in the
-        # trace's quiet ink. Read the painted bracket, not its transparent container.
+        # A rectangular trace uses the same outside stroke as target focus, on the
+        # region's perimeter, in the trace's quiet ink. Read the painted bracket, not its transparent container.
         trace = page.evaluate(
             """() => {
               const trace = document.querySelector('.lf-target-trace');
@@ -1127,20 +1127,22 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 boxWidth: box.outlineWidth,
                 boxColor: box.outlineColor,
                 gap: box.outlineOffset,
+                region: getComputedStyle(document.documentElement)
+                  .getPropertyValue('--focus-region-gap').trim(),
                 leader: getComputedStyle(
                   document.querySelector('.lf-margin-cluster'), '::before',
                 ).content,
               };
             }"""
         )
+        assert trace.pop("gap") == trace.pop("region"), trace
         assert trace == {
             "boxWidth": "2px",
             "boxColor": resolved_color("--target-trace-ink"),
-            "gap": "0px",
             "leader": "none",
         }
 
-    assert_status("Saved", "just now")
+    assert_status("Queued for Claude", "just now")
     result = Axe().run(
         page,
         options={
@@ -1192,15 +1194,17 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         monkeypatch.setattr(clock_owner, "now_iso", advanced_now)
     declare_idle(page_dir)
     told(page)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Haven't seen it yet,"))
-    assert_status("Haven't seen it yet", "3m ago")
+    expect(marker).to_have_attribute(
+        "aria-label", re.compile(r"^Still queued for Claude,")
+    )
+    assert_status("Still queued for Claude", "3m ago")
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_status("Got it", "just now")
+    assert_status("Delivered", "just now")
 
     # A surviving semantic action carries pickup itself. Removing that carrier
     # restores the status fallback with the same canonical receipt.
@@ -1220,7 +1224,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier = page.locator(".lf-workflow-primary-probe")
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(carrier).to_have_attribute("aria-description", "Got it")
+    expect(carrier).to_have_attribute("aria-description", "Delivered")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
     )
@@ -1234,12 +1238,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     # The row is the carrier drawn again, so pickup inks its glyph as it inks the
-    # carrier's: one rule set in theme.css paints both.
+    # carrier's: one rule set in base.css paints both.
     ink = "el => getComputedStyle(el).color"
     assert (
         mapped.locator(".lf-margin-kind").evaluate(ink)
         == carrier.locator(".lf-margin-entry-icon").evaluate(ink)
-        != mapped.locator(".lf-page-map-action-label").evaluate(ink)
+        != mapped.locator(".lf-page-map-action-label-word").evaluate(ink)
     )
     page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")

@@ -8,57 +8,73 @@
    a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
-   own sends against the served order. A workflow's word is `workflowLabel`, its last
+   own sends against the served order. A workflow's word is `workflowWord`, its last
    step's line `workflowStep`, and its face on a control `progressFace`, on every
-   surface; a thread's word is `threadAttention`'s label, which Threads states as its
-   status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
+   surface; a thread's word is `threadAttention`'s, which Threads states as its status
+   and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). Each
+   word is said by the agent or by Leaf (voice.js), and each word function takes
+   `agent`, what the page calls its agent (`semantic-state.agentName`), from its
+   application-facing caller, so this model stays free of application state. */
+import { agentSays, leafSays } from "../voice.js";
 
-// The user's side in plain words while their update is theirs (Saving…, Saved), then
-// the agent's, as it would say them (glossary.md, "Reader-facing words").
-const STAGE_LABELS = Object.freeze({
-  sending: "Saving…",
-  sent: "Saved",
-  queued: "Up next",
-  picked_up: "Got it",
-  working: "On it",
-  replying: "Replying",
-  answered: "Answered",
+// Each stage's word, said by whoever says it (glossary.md, "Reader-facing words";
+// voice.js). Leaf speaks in the agent's voice where what the agent would say is
+// reliable: it started the update (On it), its reply is streaming in (Replying), or it
+// answered. Everything else is what Leaf observed of the update's way to the agent,
+// through the harness or the clock, so Leaf says it in its own voice: the update
+// waiting for the agent whether or not the server has logged it yet, the harness
+// queuing or delivering it, and every condition. The user chose this on 30 October
+// 2026, over stage words in the agent's voice such as "Got it", which put Leaf's
+// inference in the agent's mouth, and the same day gave the agent the reply it is
+// streaming; on 27 October they chose Leaf's "Queued for Claude" over the agent's "Not
+// seen yet".
+const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
+const STAGES = Object.freeze({
+  sending: queuedFor,
+  sent: queuedFor,
+  queued: () => leafSays("Up next"),
+  picked_up: () => leafSays("Delivered"),
+  working: () => agentSays("On it"),
+  replying: () => agentSays("Replying"),
+  answered: () => agentSays("Answered"),
 });
 
-const CONDITION_LABELS = Object.freeze({
+const CONDITION_WORDS = Object.freeze({
   ended: "Stopped",
   interrupted: "Interrupted",
   stale: "Gone quiet",
   failed: "Failed",
 });
 
-const WAITING_FOR_DELIVERY = "Haven't seen it yet";
 // A failed response's word, on its workflow and on the failure reply that reports it.
-export const NOT_ANSWERED = "Couldn't answer";
+export const NOT_ANSWERED = leafSays("Not answered");
+// A thread settled, wherever its state is said.
+export const RESOLVED = leafSays("Resolved");
 
-export const workflowLabel = (workflow, { answered = false } = {}) => {
-  if (!workflow) return "";
-  if (workflow.condition)
-    return workflow.condition.kind === "stale" &&
-      workflow.condition.operation === "delivery"
-      ? WAITING_FOR_DELIVERY
-      : workflow.condition.kind === "failed" &&
-          workflow.condition.operation === "response"
+// A workflow's word, or null where it says none: an answer says nothing unless
+// `answered` asks for its word, as a title does. An update still waiting past the
+// pickup grace (`activity.PICKUP_GRACE`) says so.
+export const workflowWord = (workflow, agent, { answered = false } = {}) => {
+  if (!workflow) return null;
+  const { condition } = workflow;
+  if (condition)
+    return condition.kind === "stale" && condition.operation === "delivery"
+      ? leafSays(`Still queued for ${agent}`)
+      : condition.kind === "failed" && condition.operation === "response"
         ? NOT_ANSWERED
-        : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
-  if (workflow.stage === "answered" && !answered) return "";
-  return STAGE_LABELS[workflow.stage] ?? "";
+        : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
+  if (workflow.stage === "answered" && !answered) return null;
+  return STAGES[workflow.stage]?.(agent) ?? null;
 };
 
-export const workflowTitle = (workflow) => {
-  if (!workflow) return "";
-  const label = workflowLabel(workflow, { answered: true });
-  return [label, workflow.detail].filter(Boolean).join(" · ");
-};
+export const workflowTitle = (workflow, agent) =>
+  [workflowWord(workflow, agent, { answered: true })?.text, workflow?.detail]
+    .filter(Boolean)
+    .join(" · ");
 
 // The face a control paints for the agent's progress on a workflow: delivered, or at
 // work, which a reply still streaming is too. Its word stays the workflow's own
-// (`workflowLabel`), so a reply streaming reads Replying under the working face.
+// (`workflowWord`), so a reply streaming reads Replying under the working face.
 export const progressFace = (workflow) =>
   !workflow || workflow.condition
     ? null
@@ -73,8 +89,10 @@ export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
 // the newest it holds. Before it says one, and once the work stalls, the workflow's word.
-export const workflowStep = (workflow) =>
-  (progressFace(workflow) === "working" && workflow.detail) || workflowLabel(workflow);
+export const workflowStep = (workflow, agent) =>
+  progressFace(workflow) === "working" && workflow.detail
+    ? agentSays(workflow.detail)
+    : workflowWord(workflow, agent);
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&
@@ -103,65 +121,47 @@ export function strongestWorkflow(workflows) {
   return strongest;
 }
 
-// An open to-do's word, wherever it stands: Working while a start runs on it.
-export const todoLabel = (running) => (running ? "On it" : "To-do open");
+// An open to-do's word, wherever it stands, in the agent's voice since it opened the
+// to-do: On it while a start runs on it, else what it means for the user's request,
+// which the user chose over "To-do open" (2026-10-27).
+export const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 
-export function threadAttention(thread) {
+// A thread's state while it isn't resolved, and its `word`.
+export function threadAttention(thread, agent) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow
     ? (thread.workflows.find(
         (candidate) => candidate.id === thread.attention.workflow,
       ) ?? null)
     : null;
-  if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "obligation";
-    // The agent hands the turn over in its own voice; an update that never reached it
-    // asks the user to send it again.
-    const nextMove = answering
-      ? "Your turn"
-      : workflow?.subject.kind === "thread"
-        ? "Send it again"
-        : "Try it again";
-    // The updates in the thread the agent still owes an answer.
-    const owed = new Set(
-      (thread.obligations ?? [])
-        .filter((item) => item.source.kind === "update" && item.next_actor === "agent")
-        .map((item) => item.id),
-    );
-    const secondary = strongestWorkflow(
-      thread.workflows.filter(
-        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id,
-      ),
-    );
+  // The agent hands the turn over with a question, its own act; an update that never
+  // reached it is Leaf's to hand back, asking the user to send it again.
+  if (thread.attention?.kind === "needs_user")
     return Object.freeze({
       kind: "needs_user",
-      label: nextMove,
+      word:
+        thread.attention.reason === "obligation"
+          ? agentSays("Your turn")
+          : leafSays(
+              workflow?.subject.kind === "thread" ? "Send it again" : "Try it again",
+            ),
       workflow,
-      secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
-        .filter(Boolean)
-        .join(" · "),
     });
-  }
   // A to-do the agent opened on the thread holds it after the update it answered has
-  // settled; its title says what the agent still owes, and while a start runs on it,
-  // that start's line says what the agent is doing about it.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const [{ title, running }] = thread.todos;
+  // settled: the agent's own commitment, in its voice.
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo")
     return Object.freeze({
       kind: "waiting",
-      label: todoLabel(running),
+      word: todoWord(thread.todos[0].running),
       workflow: null,
-      secondary: running?.text ?? title,
     });
-  }
   if (thread.attention?.kind === "waiting")
     return Object.freeze({
       kind: "waiting",
-      label:
-        workflowLabel(workflow) ||
-        (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+      word:
+        workflowWord(workflow, agent) ??
+        leafSays(thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
       workflow,
-      secondary: "",
     });
   return null;
 }

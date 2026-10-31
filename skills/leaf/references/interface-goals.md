@@ -2,7 +2,8 @@
 
 These goals hold for everything on a page: a widget, a package's stylesheet and a
 page's own CSS, as for Leaf's own interface. They apply [SOUL.md](../SOUL.md),
-"Preserve the user's attention and work" and "Make the work concrete and playable".
+"Preserve the user's attention and work", "Make the work concrete and playable" and
+"Let the user work as directly as in a terminal".
 How a page meets them is its author's call. Leaf's exact specs, such as its contours,
 symbols, tokens and timings, are Leaf's own and bind only its runtime and bundled
 packages. Which of these goals Leaf should also check on other authors' pages is still

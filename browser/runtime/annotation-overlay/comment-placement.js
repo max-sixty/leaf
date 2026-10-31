@@ -27,8 +27,19 @@
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
-   Both stand in one boundary (`commentBoundary`): the part of the window the page shows,
-   within the reading region where that holds a card, else within the page shell.
+   Both stand in one boundary (`commentBoundary`): the part of the window the page
+   shows, within the region that scrolls the pointed row, else the target
+   (`scrollerFor`), where that holds a card, else within the page shell. That region's
+   edges cut the row as it scrolls, so they cut the surface too. A region in flow
+   scrolls nothing itself, so a surface on words in a pane the page scrolls stands in
+   the page, or in whatever box scrolls that pane; which boxes scroll is the
+   stylesheet's to say (reading-regions.js). Rejected: the innermost reading region
+   around the row, whether or not it scrolled, which stopped a card on words in a pane
+   the page scrolls at that pane's foot while the window had room. Also rejected: the
+   innermost box with rows to scroll, which stood a comment in a workspace pane whose
+   rows all show over the pane beside it; and the region that scrolls the target,
+   which stood a comment pointed at a row deep in a pane that is itself the target
+   over the pane beside it.
 
    The side is chosen once, for the thread's footprint rather than the box's, so the box
    stands where its card can: right of `clear` where that room holds the card's minimum
@@ -125,19 +136,18 @@ import {
   shownRect,
 } from "../geometry.js";
 import { clamp, union } from "../rect.js";
-import { moveScrollerBy, scrollLimit } from "../scrolling.js";
+import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 
-import {
-  containingReadingRegionFor,
-  effectiveScroller,
-  shownRegionBounds,
-} from "../reading-regions.js";
+import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
+/** @param {{target: Element | null, point?: Element | null,
+ * passage?: Partial<NonNullable<ReturnType<typeof import("../resolved-target.js").passageGeometry>>> | null,
+ * boundary?: ReturnType<typeof commentBoundary> | null}} options */
 export function commentAttachment({
   target,
   point = null,
@@ -159,8 +169,7 @@ export function commentAttachment({
       lastRow: extent.top,
       column: null,
       margin: null,
-      region: null,
-      scroller: effectiveScroller(element),
+      scroller: pageScroller,
     };
   }
   // If the target is not drawn, a seated editor or card must withhold until it
@@ -181,7 +190,6 @@ export function commentAttachment({
   const whole = shownExtent(target) ?? target.getBoundingClientRect();
   const extent = point ? pointBand(whole, point) : whole;
   const clear = point ? extent : (shown ?? whole);
-  const region = containingReadingRegionFor(element);
   return {
     element,
     contextNode: context,
@@ -192,8 +200,7 @@ export function commentAttachment({
     lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
     margin,
-    region,
-    scroller: effectiveScroller(region ?? element),
+    scroller: scrollerFor(element),
   };
 }
 
@@ -215,7 +222,8 @@ export const COMMENT_GAP = 8;
 export const LEAST_HEIGHT = 96;
 
 // The room both surfaces stand in: the part of the window the page shows, within the
-// reading region's shown bounds where those hold the card's minimum width and the least
+// shown bounds of the reading region whose body is `scroller`, the box that scrolls the
+// surfaces' row (`scrollerFor`), where those hold the card's minimum width and the least
 // height, else within the page shell, whose right edge stops short of the root
 // scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
@@ -224,16 +232,25 @@ export const LEAST_HEIGHT = 96;
 // surface. Its `key` is what holds the side (`choose`): the window's edges, or the
 // region's whole box size and the window's, since a scroll of the page moves and clips a
 // region's shown bounds without changing the room it has, and a resize changes it.
-export function commentBoundary({ region = null, right = Infinity } = {}) {
-  const shown = (within) => shownWindow({ within, gap: COMMENT_GAP });
-  const bounds = region && shownRegionBounds(region);
-  const inRegion = bounds && shown(bounds);
+// It spans every column the surface could stand in, so the side is chosen from it;
+// `across(columns)` is the same room for a surface standing in those columns, where
+// chrome beside them, such as the floating panel's row under the page column, takes
+// none of its height (`shownWindow`).
+/** @param {{scroller?: Element, right?: number}} [options] */
+export function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+  const room = (within) => {
+    const across = (columns) =>
+      shownWindow({ within, gap: COMMENT_GAP, across: columns });
+    return Object.assign(across(null), { across });
+  };
+  const bounds = scroller !== pageScroller && shownRect(scroller, new Map());
+  const inRegion = bounds && room(bounds);
   if (
     inRegion &&
     Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
     inRegion.height >= LEAST_HEIGHT
   ) {
-    const whole = region.body.getBoundingClientRect();
+    const whole = scroller.getBoundingClientRect();
     return Object.assign(inRegion, {
       inRegion: bounds,
       key: [
@@ -244,7 +261,7 @@ export function commentBoundary({ region = null, right = Infinity } = {}) {
       ],
     });
   }
-  const shell = shown({ right: Math.min(shellRight(), right) });
+  const shell = room({ right: Math.min(shellRight(), right) });
   return Object.assign(shell, {
     inRegion: null,
     key: [shell.left, shell.top, shell.right, shell.bottom],
@@ -358,9 +375,10 @@ export const cardMeasure = () => rootLength("--thread-card");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, stood, scale })` sizes the surface for the room its side
-   gives, in its positioning space; `stood` is the height a held surface caps no lower
-   than, or 0. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, room, stood, scale })` sizes the surface for the room its
+   side gives, in its positioning space; `room` is the client rectangle that room stands
+   in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
+   is the height a held surface caps no lower than, or 0. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -518,7 +536,6 @@ export function commentPlacement() {
             boundary.left,
             boundary.right - Math.min(minimumWidth, boundary.width),
           );
-      const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -558,6 +575,21 @@ export function commentPlacement() {
         },
       };
       const measure = (state) => state.middlewareData.scaled;
+      // The room across the columns the surface stands in where the boundary lets it
+      // stand, so chrome beside it takes none of its height (`commentBoundary`); the
+      // last one read is the room the answer stood in.
+      let shown = boundary;
+      const overflow = (state) => {
+        const { scale } = measure(state);
+        const width = state.rects.floating.width * scale.x;
+        const left = clamp(
+          box.left + (state.x - state.rects.reference.x) * scale.x,
+          boundary.left,
+          boundary.right - width,
+        );
+        shown = boundary.across({ left, right: left + width });
+        return { boundary: [], rootBoundary: shown, padding: 0 };
+      };
       const spot = held ?? initialHold;
       const heldEdge = spot && { [edge]: spot[edge] };
       // It also names the block edge it keeps still, which floating.js stands the
@@ -587,8 +619,8 @@ export function commentPlacement() {
           return { ...position, data: { ...data, spot } };
         },
       };
-      const size = ui.size({
-        ...overflow,
+      const size = ui.size((state) => ({
+        ...overflow(state),
         apply(state) {
           const { scale, line } = measure(state);
           // The height a held surface caps no lower than: the tallest it has stood
@@ -613,12 +645,13 @@ export function commentPlacement() {
               Math.min(minimumWidth, boundary.width) / scale.x,
               Math.min(state.availableWidth, lane / scale.x),
             ),
-            height: rises ? boundary.height / scale.y : state.availableHeight,
+            height: rises ? shown.height / scale.y : state.availableHeight,
+            room: shown,
             stood,
             scale,
           });
         },
-      });
+      }));
       // A fresh surface may slide into the complete clipping rectangle: size after
       // shift. A held edge grows toward the opposite boundary: size before shift,
       // reading that edge as its sizing direction without changing its attachment.
@@ -667,8 +700,8 @@ export function commentPlacement() {
         }),
         holding,
         heldEdge && sizing,
-        ui.shift({
-          ...overflow,
+        ui.shift((state) => ({
+          ...overflow(state),
           mainAxis: true,
           crossAxis: true,
           limiter: {
@@ -708,7 +741,7 @@ export function commentPlacement() {
               return limited;
             },
           },
-        }),
+        })),
         !heldEdge && sizing,
       ].filter(Boolean);
       return {
@@ -722,8 +755,8 @@ export function commentPlacement() {
           // Held in, it stands in the plane of the edge holding it, which floating.js
           // finds from that edge's client line: the boundary's, less its gap.
           return shift > 0
-            ? { edge: "top", at: boundary.top - COMMENT_GAP }
-            : { edge: "bottom", at: boundary.bottom + COMMENT_GAP };
+            ? { edge: "top", at: shown.top - COMMENT_GAP }
+            : { edge: "bottom", at: shown.bottom + COMMENT_GAP };
         },
       };
     },

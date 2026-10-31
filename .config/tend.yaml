@@ -32,11 +32,9 @@ setup:
       CLOUDFLARE_API_TOKEN: "${{ (github.workflow == 'tend-triage' || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
-  # The suite runs about 50 minutes, and a review that waited for it spent
-  # ~95% of its runner time polling: tend-review was ~31% of the repository's
-  # Actions minutes. Without the wait, a review acts on the checks already
-  # finished and ends; under yolo it still waits on a head the bot pushed,
-  # since it lands those.
+  triage:
+    max_parallel: 10
+  # Review acts on completed checks; tend-land owns later CI and landing.
   review:
     await_ci: false
   ci-failures:

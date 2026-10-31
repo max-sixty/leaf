@@ -25,7 +25,6 @@ from interact_support import (
     wait_for,
     woken,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -36,6 +35,17 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.registry.storage import layer_record
+from leaf_dev.page_fixtures import package_selection_args
+
+
+def _another_selection(page_dir):
+    """`page init` arguments selecting one more package than the page does, so the
+    re-vendor changes what the page runs under."""
+    extra = page_dir.parent / "extra"
+    extra.mkdir()
+    (extra / "overrides.css").write_text("/* another selection */\n")
+    return package_selection_args((*page_packages(), "./extra"))
 
 
 @pytest.mark.parametrize("changed", [False, True])
@@ -64,11 +74,13 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     # The record names the serving incarnation, which its responses carry as
     # `Leaf-Server`. Read the record rather than the server: a fetch the server
     # closes leaves the port in TIME_WAIT, and the restart would wait that out.
-    before = server_model.running_server(page_dir)["server_id"]
+    original = server_model.running_server(page_dir)
+    assert original is not None
+    before = original["server_id"]
     claim = service_model.page_claim(page_dir)
-    generation = files_model.read_json(page_dir / "registry.json")["$layer"][
-        "generation"
-    ]
+    layer = layer_record(page_dir)
+    assert layer is not None
+    generation = layer["generation"]
     session_model.cmd_waiting(page_dir)
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
@@ -84,25 +96,23 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         failure="the wait did not start watching the page",
     )
 
-    if changed:
-        theme = page_dir / "theme.css"
-        theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    selection = _another_selection(page_dir) if changed else []
     # Reusing the recorded URL can wait through native TCP cooldown before
     # preparation finishes, independently of the session's continued watch.
     revendored = subprocess.run(
-        [*LEAF_COMMAND, "page", "init", str(page_dir)],
+        [*LEAF_COMMAND, "page", "init", *selection, str(page_dir)],
         capture_output=True,
         text=True,
         timeout=hosting_model.PORT_WAIT_SECONDS + STATED_TIMEOUT,
         check=False,
     )
     assert revendored.returncode == 0, revendored.stderr
-    assert (
-        files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
-        != generation
-    ) == changed
+    layer_2 = layer_record(page_dir)
+    assert layer_2 is not None
+    assert (layer_2["generation"] != generation) == changed
     assert (incarnation() != before) == changed
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     # The restart claims nothing, so the turn the claim records is left as it was.
     assert service_model.page_claim(page_dir) == claim
     assert waiter.poll() is None, waited.read_text()
@@ -136,22 +146,21 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     publish(page_dir)
     started = start_server_command(page_dir, session_id="other")
     assert started.returncode == 0, started.stderr
-    generation = files_model.read_json(page_dir / "registry.json")["$layer"][
-        "generation"
-    ]
+    layer_3 = layer_record(page_dir)
+    assert layer_3 is not None
+    generation = layer_3["generation"]
     if service == "stopped":
         assert hosting_model.cmd_stop(page_dir) is True
     elif service == "orphaned":
         cleanup_model.end_session("other")
 
-    theme = page_dir / "theme.css"
-    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    revendored = (
-        files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
-        != generation
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", *_another_selection(page_dir), str(page_dir)]
     )
+
+    layer_4 = layer_record(page_dir)
+    assert layer_4 is not None
+    revendored = layer_4["generation"] != generation
     if service == "foreign":
         assert result.exit_code == 1
         assert "served for another session" in result.output
@@ -211,7 +220,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "theme.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [
@@ -222,11 +231,14 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         ],
     )
     assert revendored.exit_code == 0, revendored.output
-    assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
+    layer_5 = layer_record(page_dir)
+    assert layer_5 is not None
+    assert layer_5["packages"][-1] == "./packages/.leaf"
     # The old server went down with the restart, and this checkout's came up in its
     # place at the same URL, under the lifetime and claim it had.
     old_server.wait(timeout=STATED_TIMEOUT)
-    assert server_model.running_server(page_dir)["url"] == url
+    assert (current := server_model.running_server(page_dir)) is not None
+    assert current["url"] == url
     assert read_record(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
     restored = declared(page_dir)

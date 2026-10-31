@@ -494,8 +494,21 @@
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);
+    if (candidates.every((value) => anchorInset(value, axis)))
+      return candidates.length > 0;
+    if (!candidates.some((value) => value.trim() === "revert-layer")) return false;
+    // A rollback can expose a lower tier. Prove every declared alternative,
+    // including normal rules under an important rollback, before allowing it.
+    // With none left, an inset is auto: Typed OM preserves that keyword where
+    // CSSOM's resolved style hides it as a used pixel position.
+    const rules = declaredRules(node, property, false);
+    const values = [...rules.normal, ...rules.important, inline].filter(
+      (value) => value && value.trim() !== "revert-layer",
+    );
     return (
-      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+      values.length > 0 &&
+      values.every((value) => anchorInset(value, axis)) &&
+      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") !== "auto"
     );
   };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
@@ -541,7 +554,7 @@
         style.visibility === "visible" &&
         style.opacity !== "0" &&
         !["none", "normal"].includes(style.content) &&
-        (style.content !== '\"\"' || paintsBox(style))
+        (style.content !== '""' || paintsBox(style))
       );
     });
   // Whether anything that can change a node's reading has happened since the last
@@ -778,8 +791,21 @@
   };
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
+    // The HTML parser creates declarative roots without calling attachShadow.
+    // Discover them in the same traversal that records their rendered ancestors.
+    const discover = (node) => {
+      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
+        roots.add(node.shadowRoot);
+        watchTree(node.shadowRoot);
+      }
+    };
+    nodes.forEach(discover);
     for (const root of roots)
-      if (root.host.isConnected) nodes.push(...root.querySelectorAll("*"));
+      if (root.host.isConnected) {
+        const children = [...root.querySelectorAll("*")];
+        children.forEach(discover);
+        nodes.push(...children);
+      }
     const words = nodes.flatMap((node) =>
       [...node.childNodes].filter(
         (child) =>
@@ -860,6 +886,20 @@
         top: property.endsWith("Top") || property === "top" ? parseFloat(value) : 0,
       };
     return null;
+  };
+  // Cleanup may remove a zero-valued translate binding: `none` and `0px`
+  // are the same underlying endpoint, despite their different computed strings.
+  const sameTranslation = (property, before, after) => {
+    if (before === after) return true;
+    if (before === undefined || after === undefined) return false;
+    const first = animationTranslation(property, before);
+    const last = animationTranslation(property, after);
+    return (
+      first !== null &&
+      last !== null &&
+      first.left === last.left &&
+      first.top === last.top
+    );
   };
   const translationAxes = (target) => {
     const parent = elementAxes(up(target));
@@ -1064,7 +1104,11 @@
                 effect.target.style.translate === binding ||
                 returning) &&
               (!returning ||
-                origin?.[property] === animatedValue(effect.target, style, property)),
+                sameTranslation(
+                  property,
+                  origin?.[property],
+                  animatedValue(effect.target, style, property),
+                )),
           )
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
@@ -3081,6 +3125,40 @@
   };
   // The credit owners retain their accepted terms. A failing comparison keeps
   // these exact terms until paint admission; reporting never re-runs the solver.
+  // Keep the sampled endpoints even when no term was accepted: otherwise zero
+  // credit cannot distinguish a missing owner from a missing or ineligible sample.
+  // Size effects can reflow siblings, including after their target leaves that
+  // flow. Keep those candidates even when they are not the receiver's ancestors;
+  // filtering by successful propagation would hide the rejected proof we need.
+  const motionEvidence = (node, from, to, selected) => {
+    const ancestors = new Set([
+      ...ancestryAt(node, from),
+      ...ancestryAt(node, to),
+      node,
+    ]);
+    const candidates = new Set([
+      ...selected,
+      ...renderings.flatMap((rendering) => [...rendering.own]),
+    ]);
+    const endpoint = (sample) =>
+      sample ? { at: sample.at, values: sample.values } : null;
+    return [...candidates]
+      .filter(
+        (animation) =>
+          ancestors.has(animation.effect?.target) ||
+          effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
+      )
+      .map((animation) => {
+        const samples = animated.get(animation) ?? [];
+        return {
+          target: animation.effect.target,
+          selected: selected.includes(animation),
+          properties: effectProperties(animation),
+          before: endpoint(samples.findLast((sample) => sample.at <= from)),
+          after: endpoint(samples.findLast((sample) => sample.at <= to)),
+        };
+      });
+  };
   const motionComparison = (
     from,
     to,
@@ -3090,6 +3168,8 @@
     layoutAfter,
     scroll,
     motion,
+    node,
+    selected,
   ) => {
     const observed = { left: after.left - before.left, top: after.top - before.top };
     return {
@@ -3104,6 +3184,7 @@
       },
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
+      animations: motionEvidence(node, from, to, selected),
     };
   };
   const pendingMotion = [];
@@ -3212,6 +3293,8 @@
                 { left: nextLeft, top: nextTop },
                 scroll,
                 motion,
+                node,
+                animations,
               ),
             });
         }
@@ -3345,6 +3428,8 @@
               to,
               scroll,
               motion,
+              node,
+              typing.moving,
             ),
           ],
         },

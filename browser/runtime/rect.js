@@ -1,27 +1,34 @@
+// @ts-check
 /* The rectangle arithmetic placements share. It reads no document, so the pure placement
    folds (`margin-placement.js`, `comment-placement.js`, the hint seating in
    `keyboard/hints.js`) take it as readily as the passes that measure. */
 
+/** @typedef {{left: number, right: number, top: number, bottom: number}} Box */
+
 // Whether two boxes share any pixel.
+/** @param {Box} a @param {Box} b */
 export const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 // Whether two boxes share any column: they would collide if they stood level.
+/** @param {Pick<Box, "left" | "right">} a @param {Pick<Box, "left" | "right">} b */
 export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
 // The part of `a` inside `b`, cut only on the axes given. Where the edges cross the result
 // has no area (`hasArea`); callers that need an empty box as nothing ask that.
 const BOTH = { x: true, y: true };
-/** @param {{x?: boolean, y?: boolean}} [axes] */
+/** @param {Box} a @param {Box} b @param {{x?: boolean, y?: boolean}} [axes] */
 export const intersect = (a, b, axes = BOTH) => ({
   left: axes.x ? Math.max(a.left, b.left) : a.left,
   top: axes.y ? Math.max(a.top, b.top) : a.top,
   right: axes.x ? Math.min(a.right, b.right) : a.right,
   bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom,
 });
+/** @param {Box} box */
 export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
 
 // The box that covers every one of some boxes, or null for none.
+/** @param {readonly Box[]} boxes */
 export function union(boxes) {
   if (!boxes.length) return null;
   const left = Math.min(...boxes.map((box) => box.left));
@@ -32,10 +39,12 @@ export function union(boxes) {
 }
 
 // A value held between two bounds, the lower winning where they cross.
+/** @param {number} value @param {number} low @param {number} high */
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 // Native nearest scroll alignment on either axis. A destination spanning both edges
 // stays; an oversized one partly in view lands its far edge, retaining the visible end.
+/** @param {number} start @param {number} end @param {number} low @param {number} high */
 export function nearestScrollBy(start, end, low, high) {
   if (start < low && end > high) return 0;
   const oversized = end - start > high - low;
@@ -51,6 +60,7 @@ export function nearestScrollBy(start, end, low, high) {
 // clipping rather than clipping every box. The function names nothing outside itself:
 // the shift watch carries its source into the page under test (`shift_watch_source` in
 // tests/render_harness.py).
+/** @param {Pick<CSSStyleDeclaration, "contain" | "contentVisibility" | "overflowX" | "overflowY">} style */
 export const clippingAxes = (style) => {
   const clips = /^(hidden|clip|scroll|auto)$/;
   const both =

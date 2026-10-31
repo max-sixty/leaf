@@ -218,14 +218,31 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(queue).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = el.scrollHeight")
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
-    queue.evaluate(
-        """el => {
-          const more = document.createElement('div');
-          more.style.height = '200px';
-          el.append(more);
-          el.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}));
-        }"""
+    # Resizing existing content adds unread room without a scroll event. Its cue
+    # must accompany that layout, before a later animation frame can repair it.
+    grew = queue.evaluate(
+        """el => new Promise(resolve => {
+          const content = el.querySelector(':scope > div');
+          let growing = false;
+          const sizes = new ResizeObserver(() => {
+            if (!growing) {
+              requestAnimationFrame(() => {
+                growing = true;
+                content.style.height = '1300px';
+              });
+              return;
+            }
+            queueMicrotask(() => {
+              sizes.disconnect();
+              resolve({more: el.hasAttribute('data-lf-more-below'),
+                       remaining: el.scrollHeight - el.clientHeight - el.scrollTop});
+            });
+          });
+          sizes.observe(content);
+        })"""
     )
+    assert grew["remaining"] > 100, grew
+    assert grew["more"], grew
     expect(queue).to_have_attribute("data-lf-more-below", "")
 
     # A window too short to hold the regions hands the scroll to the page, and the
@@ -768,10 +785,12 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
 def test_workspace_end_room_stays_inside_the_last_reading_region(
     browser, serve, container
 ):
-    """The frame reaches the window's foot; its final control scrolls clear of chrome.
+    """The frame and its focus-ring clearance reach the window's foot; its final
+    control scrolls clear of chrome.
 
     Nested page and side views exercise the transfer: reserving clearance on the
-    outside view instead leaves a band below the actual reading pane.
+    outside view instead leaves a band below the actual reading pane. Keyboard travel
+    reveals the whole option above the panel, without needing a scroll to the end.
     """
     reading = '<p>Start</p><div style="height:1200px"></div><button id="reading-end">Finish review</button>'
     if container.endswith("footer"):
@@ -792,7 +811,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         scroller = "#reading"
     elif container == "views":
         content = (
-            '<lf-tabs id="outer"><lf-tab id="review" label="Review">'
+            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review" label="Review">'
             '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
             + reading
             + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'
@@ -800,6 +819,26 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         )
         scroller = "#reading"
     elif container == "pane":
+        reading = reading.replace(
+            '<button id="reading-end">',
+            """<lf-ask id="release-ask"><h2>What should the review record?</h2>
+              <p>Comment on the code before making your final call. A selection records
+                your review decision; it does not deploy code or mark tests as passed.</p>
+              <p>Ship with changes keeps the retry budget within the deadline.
+                Update the acceptance checks before beginning rollout.</p>
+              <lf-options id="release-options" choose closed>
+              <lf-option id="ship-written"><strong>Ship as written</strong>
+                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
+              <lf-option id="ship-changes"><strong>Ship with changes</strong>
+                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
+              <lf-option id="hold-release"><strong>Hold</strong>
+                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
+                or exception-contract concerns and gather test evidence before revisiting.</p></lf-option>
+            </lf-options></lf-ask><button id="reading-end">""",
+        )
+        reading = reading.replace(
+            "<p>Start</p>", '<p><a href="#release-ask">Record decision</a></p>'
+        )
         content = (
             '<lf-pane id="frame" label="Review"><div id="reading">'
             + reading
@@ -821,6 +860,22 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             )
         ),
     )
+    if container == "pane":
+        resized(page, 900, 500)
+        page.get_by_role("link", name="Record decision").click()
+        scroll_settled(page, scroller)
+        page.get_by_role("checkbox", name=re.compile("Ship with changes")).click()
+        page.keyboard.press("ArrowDown")
+        page.keyboard.press("Space")
+        expect(
+            page.get_by_role("checkbox", name=re.compile("selected: Hold"))
+        ).to_be_checked()
+        scroll_settled(page, scroller)
+        landing = page.evaluate("""() => ({
+            option: document.querySelector('#hold-release').getBoundingClientRect().bottom,
+            panel: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+        })""")
+        assert landing["option"] <= landing["panel"] + 1, landing
     for width, height in [(1440, 1000), (695, 988)]:
         resized(page, width, height)
         if width >= 720:
@@ -833,11 +888,22 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             const frame = document.querySelector(selector).getBoundingClientRect();
             const end = document.getElementById('reading-end').getBoundingClientRect();
             const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
-            return {frameBottom: frame.bottom, endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
+            const outer = document.getElementById('outer');
+            const style = getComputedStyle(outer ?? document.documentElement);
+            const outside = outer ? parseFloat(style.paddingBottom) : 0;
+            const ringRoom = parseFloat(style.getPropertyValue('--focus-region-gap'))
+              + parseFloat(style.getPropertyValue('--focus-ring-w'));
+            return {frameBottom: frame.bottom, outside, ringRoom,
+                    endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
         }""",
             frame,
         )
-        assert geometry["frameBottom"] == pytest.approx(height, abs=6), geometry
+        # A containing view may keep its ring outside the frame, but must pass
+        # the floating panel's much larger clearance into the reading region.
+        assert geometry["outside"] <= geometry["ringRoom"], geometry
+        assert geometry["frameBottom"] + geometry["outside"] == pytest.approx(
+            height, abs=1
+        ), geometry
         assert geometry["endBottom"] <= geometry["panelTop"] + 1, geometry
 
 
@@ -942,11 +1008,14 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
       const left = box.left + parseFloat(style.paddingLeft);
       const right = box.right - parseFloat(style.paddingRight);
       read.main = {{left, right, width: right - left}};
-      const track = document.querySelector('[data-lf-track-body]');
+      const track = document.querySelector('#lp-rail > .layout-track');
       const trackBox = track.getBoundingClientRect();
       const trackStyle = getComputedStyle(track);
       read.track = {{
         right: trackBox.right,
+        width: trackBox.width,
+        contentWidth: trackBox.width - parseFloat(trackStyle.paddingLeft)
+          - parseFloat(trackStyle.paddingRight),
         contentRight: trackBox.right - parseFloat(trackStyle.paddingRight),
       }};
       return read;
@@ -984,7 +1053,8 @@ def test_a_release_page_is_wide_and_keeps_the_log_on_its_newest_line(browser, se
     narrow = page.evaluate(boxes)
     assert narrow["lp-steps"]["top"] >= narrow["lp-log"]["bottom"]
     assert narrow["lp-checks"]["top"] >= narrow["lp-steps"]["bottom"]
-    assert narrow["lp-steps"]["width"] == narrow["lp-log"]["width"]
+    assert narrow["track"]["width"] == narrow["lp-log"]["width"]
+    assert narrow["lp-steps"]["width"] == narrow["track"]["contentWidth"]
 
     page.emulate_media(media="print")
     assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"
@@ -1014,6 +1084,31 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     page.wait_for_function(at_end)
     page.evaluate(rebuild, 90)
     page.wait_for_function(at_end)
+
+    # The bound follows its end during resize delivery. Its continuation cue reads
+    # that final position in the same paint, even if reach observed the old one first.
+    resized_end = page.locator("#feed").evaluate(
+        """el => new Promise(resolve => {
+          let shrinking = false;
+          const sizes = new ResizeObserver(() => {
+            if (!shrinking) {
+              requestAnimationFrame(() => {
+                shrinking = true;
+                el.style.maxHeight = '200px';
+              });
+              return;
+            }
+            queueMicrotask(() => {
+              sizes.disconnect();
+              resolve({more: el.hasAttribute('data-lf-more-below'),
+                       remaining: el.scrollHeight - el.clientHeight - el.scrollTop});
+            });
+          });
+          sizes.observe(el);
+        })"""
+    )
+    assert resized_end["remaining"] <= 2, resized_end
+    assert not resized_end["more"], resized_end
 
     page.locator("#feed").evaluate("feed => feed.scrollTop = 200")
     page.wait_for_function("() => document.getElementById('feed').scrollTop === 200")

@@ -24,7 +24,6 @@ from interact_support import (
     yaml_block,
     yaml_document,
 )
-from leaf_dev.page_fixtures import package_selection_args
 
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -40,6 +39,8 @@ from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
+from leaf_dev.page_fixtures import package_selection_args
+from model.interact_contract import vocabulary
 
 
 @pytest.mark.parametrize(
@@ -78,7 +79,7 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
 def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     """The layer facts' schema holds names as the hand checks before it did: a
     trailing newline is no part of a token or contract name, and an optional
-    `records: null` a same-protocol Leaf vendored still reads as absent."""
+    `records: null` a package declares reads as absent."""
     kernel = shipped_core_registry()
 
     def facts(**changes):
@@ -97,6 +98,40 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
         lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
     assert refused.values["keyword"] == "pattern"
+
+
+def test_one_check_names_the_first_departure_in_each_layer_fact():
+    """Each layer fact holds its schema independently of the others, so one refusal
+    names a departure in each, and only the first within one."""
+    registry = shipped_core_registry()
+    named = {"description": "Build facts.", "schema": {}}
+    registry["$data"] = {"contracts": {"a\n": named, "b\n": named}}
+    registry["$reactions"] = {
+        **registry["$reactions"],
+        "tokens": {"keep\n": {"glyph": "+"}},
+    }
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["path"][0] for finding in refused.value.findings] == [
+        "$data",
+        "$reactions",
+    ]
+
+
+def test_one_check_names_each_missing_layer_fact():
+    """A missing fact is named for itself, not folded into another that is missing."""
+    registry = shipped_core_registry()
+    del registry["$languages"], registry["$tones"]
+
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_layer.check_layer_facts(registry, "kernel")
+
+    assert [finding.values["reason"] for finding in refused.value.findings] == [
+        "'$languages' is a required property",
+        "'$tones' is a required property",
+    ]
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
@@ -121,7 +156,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = json.loads((page_dir / "registry.json").read_text())[section]
+    merged = registry_storage.load_registry(page_dir)[section]
     shipped = shipped_core_registry()[section]
     assert merged == shipped
 
@@ -154,7 +189,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         ],
     )
     assert result.exit_code == 0, result.output
-    merged = json.loads((page_dir / "registry.json").read_text())["$events"]["handling"]
+    merged = registry_storage.load_registry(page_dir)["$events"]["handling"]
     shipped = cleanup_model.kernel_registry()["$events"]["handling"]
     assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
@@ -241,7 +276,9 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
         for index in range(start, len(tokens))
         if tokens[index].type == "table_close"
     )
-    opening = "\n".join(text.splitlines()[: tokens[start].map[0]])
+    source_lines = tokens[start].map
+    assert source_lines is not None
+    opening = "\n".join(text.splitlines()[: source_lines[0]])
     cells = [token.content for token in tokens[start:end] if token.type == "inline"]
     assert cells[:5] == ["Kind", "Author", "Door", "Fields", "Meaning"]
     shared = set.intersection(
@@ -747,7 +784,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     session_model.cmd_waiting(page_dir)
     capsys.readouterr()
     # A bare shell's wait, the printing kind, which claims nothing.
-    session = harness_model.session_harness().session
+    harness = harness_model.session_harness()
+    assert harness is not None
+    session = harness.session
     for name in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID"):
         monkeypatch.delenv(name)
     assert session_model.cmd_wait(page_dir) == 0
@@ -757,15 +796,17 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
 
     # The adapter's queue route: collect the batch, then offer its pointer.
     with service_model.PageTransaction(page_dir) as transaction:
-        path, _, _ = codex_model.append_batch(
+        append_batch_result = codex_model.append_batch(
             "codex-queue-task",
             page_dir,
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(
-        path, codex_model.read_record(path), transport="queue"
-    )
+        assert append_batch_result is not None
+        path, _, _ = append_batch_result
+    record_2 = codex_model.read_record(path)
+    assert isinstance(record_2, (codex_model.Collecting, codex_model.Offering))
+    queued = codex_model.offer_delivery(path, record_2, transport="queue")
     read = json.dumps(
         delivery_model.cmd_delivery_read(queued.payload["id"]), ensure_ascii=False
     )
@@ -784,7 +825,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     # and the next prompt hook hands the delivery over.
     assert service_model.claim_page(page_dir)
     cleanup_model.close_session_turn(session)
-    woke = session_model.watch_between_turns(harness_model.session_harness())
+    harness_2 = harness_model.session_harness()
+    assert harness_2 is not None
+    woke = session_model.watch_between_turns(harness_2)
     assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
@@ -906,7 +949,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code == 0, result.output
-    keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
+    keys = registry_storage.load_registry(page_dir)["$keys"]
     assert keys["x-space"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
 
@@ -933,11 +976,11 @@ def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
 @pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
 def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
     """A layer cannot change the event kinds, their ownership, or the protocol
-    numbering them, so a page's vendored copy is the kernel's of the Leaf that
-    vendored it."""
+    numbering them, so every page's vocabulary carries the kernel's of the Leaf
+    reading it."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = vocabulary(page_dir)
     if key == "kinds":
         registry["$events"][key]["signal"] = registry["$events"][key]["error"]
     elif key == "ownership":
@@ -959,10 +1002,10 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
 def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     """Python reads the running Leaf's kernel facts and the browser a copy generated
     from them, so a layer's change to one, even taking a member out, would reach
-    neither runtime; a page's older runtime still reads `$marks` from its vocabulary."""
+    neither runtime."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    shipped = json.loads((page_dir / "registry.json").read_text())[fact]
+    shipped = registry_storage.load_registry(page_dir)[fact]
     member = next(key for key in shipped if key != "description")
     (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
 

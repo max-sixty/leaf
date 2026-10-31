@@ -11,6 +11,12 @@ opened it. Each thread's `unread` lists your messages the user has not read
 ([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
 status.
 
+`seen` is the newest revision a tab showed the user before they left it (its
+`revision` and `label`), or `null` until they first leave the page. It is recorded as
+they leave, so it lags while they are still on the page. When they come back, their
+page marks each block that changed since `seen`, so a reply about revisions they
+missed while away needs no list of what changed.
+
 ## The user's view
 
 `user_views` in `leaf page state <page>` has one entry per browser page load over the
@@ -63,7 +69,7 @@ leaf task end <page> <todo> done --text "<where the result is>"
 ```
 
 `leaf task create` prints the to-do's `id`.
-Housekeeping such as re-vendoring, restarting the server, or merging needs
+Housekeeping such as changing packages, restarting the server, or merging needs
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
@@ -96,9 +102,8 @@ When input arrives:
 
 ## Page availability and handoff
 
-Before handing over, reconcile both lists ("The On lists"). Put questions that need
-an answer in a thread message with `--obligation`, so the user can open the thread
-from On me and reply there. Page availability does not ask the user for anything.
+Before handing over, reconcile both lists ("The On lists"). Page availability does
+not ask the user for anything.
 
 Leave the page available for optional feedback, putting down your current starts:
 
@@ -192,6 +197,13 @@ question by a route in the table below, grouped as `authoring-on-me.md` says, an
 it until the user decides or you withdraw it. A question written in prose, a heading,
 a status line or chat isn't on On me; only the routes in the table put it there.
 Information they may comment on but need not decide is not an obligation.
+
+In Claude Code, as each turn ends, an experimental check of Leaf's reads the
+conversation for decisions, answers or steps you left to the user that On me doesn't
+hold, adds each to On me as your to-do on the user, and tells you at your next step.
+That catches what slips; it doesn't register your questions for you, so keep asking
+by the routes below. Each to-do it adds is yours like any you write: end one that
+isn't the user's to decide with `leaf task end <page> <id> dropped`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each

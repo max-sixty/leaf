@@ -24,6 +24,7 @@ from render_harness import (
     open_page,
     panel_field,
     resized,
+    rgb_pixel,
     round_trip,
     sending,
     told,
@@ -373,7 +374,7 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     for frame in frames:
         pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
         colours = {
-            name: pixels.getpixel(tuple(round(coordinate) for coordinate in point))
+            name: rgb_pixel(pixels, tuple(round(coordinate) for coordinate in point))
             for name, point in points.items()
         }
         # Headless Firefox's capture without the classic bars now and then hands over a
@@ -496,8 +497,8 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
     image = Image.open(io.BytesIO(pixels)).convert("RGB")
     assert image.size == (720, 360)
-    assert image.getpixel((40, 80)) == (30, 80, 240)
-    assert image.getpixel((440, 280)) == (10, 150, 30)
+    assert rgb_pixel(image, (40, 80)) == (30, 80, 240)
+    assert rgb_pixel(image, (440, 280)) == (10, 150, 30)
     field = page.locator(".lf-fab-bar leaf-text")
     expect(field).to_be_focused()
     write(field, "Inspect this captured diagram.")
@@ -562,7 +563,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
     inside = paint.bounding_box()
     at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
-    assert image.getpixel(at) == (200, 40, 40)
+    assert rgb_pixel(image, at) == (200, 40, 40)
     assert not [text for text in warnings if "cross-origin iframe" in text]
     expect_panel_says(page, "An image near this area could not be drawn")
     consume_browser_errors(page, "localhost", "ERR_FAILED")

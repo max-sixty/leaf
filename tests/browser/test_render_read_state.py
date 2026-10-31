@@ -24,10 +24,6 @@ from journeys.test_render_read_state import (
     _thread_row,
     _to_upper_third,
 )
-from leaf_dev.browser import (
-    panel_tab,
-    threads_tab,
-)
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import overlapped_words
@@ -66,6 +62,10 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     rendered,
     wait_until_ready,
+)
+from leaf_dev.browser import (
+    panel_tab,
+    threads_tab,
 )
 
 

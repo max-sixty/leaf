@@ -82,7 +82,7 @@ def browser_undo_candidates(
             continue
         if undo_reading.error({"undoes": event["id"]}):
             continue
-        item = {"event": event}
+        item: dict = {"event": event}
         if event["id"] in picked_up:
             item["picked_up"] = True
         if event["kind"] == "action":

@@ -2,11 +2,11 @@
 
 import json
 import struct
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 import pytest
 import tinycss2
-from interact_support import PAGE
+from interact_support import PAGE, package_path, page_packages
 
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
@@ -18,6 +18,8 @@ from leaf.revision_artifact import (
     capture_artifact,
     capture_local_resource,
     read_artifact,
+    resource_dependencies,
+    rewrite_css,
 )
 from leaf.revision_delivery import (
     Delivery,
@@ -42,12 +44,21 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     marked = mark_declared(source, {"lf-editable": {"x-text-format": "markdown"}}, {})
     document = SourceDocument(marked)
     [host] = document.tree.find_all("lf-editable")
-    assert host.select_one("pre").text == "**Keep** `--dry-run`.\n\n- One\n- Two"
+    select_one_result = host.select_one("pre")
+    assert select_one_result is not None
+    assert select_one_result.text == "**Keep** `--dry-run`.\n\n- One\n- Two"
     body = host.select_one(".lf-markdown-body")
-    assert body.select_one("strong").text == "Keep"
-    assert body.select_one("code").text == "--dry-run"
+    assert body is not None
+    select_one_result_2 = body.select_one("strong")
+    assert select_one_result_2 is not None
+    assert select_one_result_2.text == "Keep"
+    select_one_result_3 = body.select_one("code")
+    assert select_one_result_3 is not None
+    assert select_one_result_3.text == "--dry-run"
     assert len(body.find_all("li")) == 2
-    assert body.attrs["data-lf-source-words"] == host.select_one("pre").text
+    select_one_result_4 = host.select_one("pre")
+    assert select_one_result_4 is not None
+    assert body.attrs["data-lf-source-words"] == select_one_result_4.text
     assert "data-lf-prepaint" in body.attrs
 
 
@@ -57,9 +68,11 @@ def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads
         source, {"lf-editable": {"x-text-format": "markdown"}}, {}
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert body is not None
     assert [link.attrs["href"] for link in body.find_all("a")] == [
         "https://example.com"
     ]
+    assert body is not None
     assert not body.find_all("img")
     assert body.text.strip() == "unsafe link unsafe image safe link"
 
@@ -124,112 +137,6 @@ def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
         )
     assert css == ""
     assert reads == Counter({path: 1 for path in resources})
-
-
-@pytest.mark.parametrize("early_lit", [False, True])
-def test_initial_producers_are_captured_once_and_called_after_each_complete_host(
-    early_lit,
-):
-    source = (
-        "<html><head><title>Initial</title></head><body><main>"
-        '<lf-early id="first"><p>First</p></lf-early>'
-        '<lf-early id="second"><p>Second</p></lf-early>'
-        + (
-            "<lf-lit></lf-lit>"
-            if early_lit
-            else "<template><lf-lit></lf-lit></template>"
-        )
-        + "<template><lf-unused></lf-unused></template>"
-        "</main></body></html>"
-    )
-    registry = {
-        "lf-early": {"x-initial": "/vendor/early.js"},
-        "lf-unused": {"x-initial": "/vendor/unused.js"},
-        "lf-lit": {"x-initial": "/vendor/lit-producer.js"},
-    }
-    resources = {
-        "/runtime/prepaint.js": Resource(
-            b'window.prepaint = "</script>";', "application/javascript"
-        ),
-        "/vendor/initial-dependencies.json": Resource(
-            b'{"/vendor/lit-producer.js":["/vendor/lit-initial.js"]}',
-            "application/json",
-        ),
-        "/vendor/lit-initial.js": Resource(
-            b"window.lit = true;", "application/javascript"
-        ),
-        "/vendor/lit-producer.js": Resource(
-            b"window.litProducer = true;", "application/javascript"
-        ),
-        "/vendor/early.js": Resource(
-            b'window.initial = "</script>";', "application/javascript"
-        ),
-        "/runtime/annotation-overlay/annotation-theme.css": Resource(b"", "text/css"),
-        "/runtime/chrome.css": Resource(b"", "text/css"),
-        "/runtime/marks.css": Resource(b"", "text/css"),
-        "/runtime/annotation-overlay/annotation-chrome.css": Resource(b"", "text/css"),
-        "/runtime/annotation-overlay/annotation-marks.css": Resource(b"", "text/css"),
-    }
-    delivered = compose_document(
-        source,
-        1,
-        None,
-        executable="sha256:fixture",
-        widgets={},
-        resources=resources,
-        registry=registry,
-        delivery=Delivery(
-            address=ADDRESS,
-            import_map={"imports": {"/vendor/": ADDRESS("/vendor/")}},
-            runtime="<script data-lf-runtime>window.boot = true;</script>",
-        ),
-    )
-    parsed = SourceDocument(delivered.removeprefix("\ufeff"))
-    scripts = parsed.tree.find_all("script")
-    calls = [script for script in scripts if "lfInitial.mount" in script.text]
-    assert len(calls) == 2 + early_lit
-    assert [script.previous_sibling.tag for script in calls[:2]] == [
-        "lf-early",
-        "lf-early",
-    ]
-    assert delivered.count("<lf-early data-lf-arriving") == 2
-    assert delivered.count('window.initial = "<\\/script>";') == 1
-    assert delivered.count('window.prepaint = "<\\/script>";') == 1
-    assert (
-        delivered.index("window.prepaint")
-        < delivered.index("window.initial")
-        < delivered.index("window.boot")
-    )
-    import_map = json.loads(parsed.tree.select_one('script[type="importmap"]').text)[
-        "imports"
-    ]
-    if early_lit:
-        assert (
-            delivered.index("window.prepaint")
-            < delivered.index("window.lit =")
-            < delivered.index("window.initial")
-        )
-        assert delivered.index("window.lit =") < delivered.index("window.litProducer")
-        assert import_map["/vendor/lit.js"] == ADDRESS("/vendor/lit-shared.js")
-        assert import_map[ADDRESS("/vendor/lit.js")] == ADDRESS("/vendor/lit-shared.js")
-    else:
-        assert "window.lit" not in delivered
-        assert "/vendor/lit.js" not in import_map
-    assert mark_declared(source, registry, resources) == source
-
-
-def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
-    with pytest.raises(ArtifactError) as refused:
-        capture_artifact(
-            tmp_path,
-            SourceDocument(PAGE),
-            {"lf-early": {"x-initial": "/page/early.js"}},
-        )
-    [finding] = refused.value.findings
-    assert (finding.code, finding.values["file"]) == (
-        "dependency-unreadable",
-        "/page/early.js",
-    )
 
 
 def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
@@ -298,14 +205,22 @@ const lazy = () => import('/page/later.js');
     assert parsed.authoring.links[0]["attrs"]["href"] == ROOT + "/page/style.css"
     assert f'import "{ROOT}/page/inline.js";' in delivered
     assert f'import("{ROOT}/page/later.js")' in delivered
-    assert parsed.tree.find("img").attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    find_result = parsed.tree.find("img")
+    assert find_result is not None
+    assert find_result.attrs["src"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert (
         parsed.tree.find_all("img")[1].attrs["srcset"]
         == f"{ROOT}/page/caf%C3%A9.svg 1x, {ROOT}/page/poster.png 2x"
     )
-    assert parsed.tree.find("video").attrs["poster"] == ROOT + "/page/poster.png"
-    assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
-    assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
+    find_result_2 = parsed.tree.find("video")
+    assert find_result_2 is not None
+    assert find_result_2.attrs["poster"] == ROOT + "/page/poster.png"
+    find_result_3 = parsed.tree.find("image")
+    assert find_result_3 is not None
+    assert find_result_3.attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
+    find_result_4 = parsed.tree.find("feImage")
+    assert find_result_4 is not None
+    assert find_result_4.attrs["href"] == ROOT + "/page/poster.png"
     assert f"{ROOT}/page/background.svg#leaf" in parsed.authoring.style_blocks[0]["css"]
     assert ROOT + "/page/inline.svg" in parsed.authoring.inline_styles[0]["style"]
     for unchanged in (
@@ -333,7 +248,9 @@ def test_stylesheet_rel_is_case_insensitive_in_delivery_and_export():
         source, embedded.address, inline_stylesheet=embedded.stylesheet
     )
     assert "<link" not in exported
-    assert SourceDocument(exported).tree.find("style").attrs["media"] == "screen"
+    find_result_5 = SourceDocument(exported).tree.find("style")
+    assert find_result_5 is not None
+    assert find_result_5.attrs["media"] == "screen"
     assert "main { color: green; }" in exported
 
 
@@ -375,12 +292,24 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     )
 
 
+def test_an_unavailable_url_drops_its_declaration_beside_one_the_browser_drops():
+    """A sheet the capture accepts may hold a declaration the browser ignores; omitting
+    an unavailable URL beside it keeps the rest of the rule instead of failing."""
+    rewritten = rewrite_css(
+        'main { broken; background: url("x.png"); color: red }', lambda url: None
+    )
+
+    assert "color: red" in rewritten
+    assert "x.png" not in rewritten
+
+
 def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
-    only capture finds is a file nobody serves, and one only export finds is a file
-    capture never kept. An `@import` nested in a block is none of them in either
-    spelling, because a browser ignores it."""
+    only capture finds is a file capture refuses to be missing though nothing loads
+    it, and one only delivery or export finds is a file nobody checked. An `@import`
+    nested in a block is none of them in either spelling, because a browser ignores
+    it."""
     sheet = """@import "./base.css";
 @supports (display: grid) { @import "./ignored.css"; @import url(./ignored.css); }
 main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
@@ -398,9 +327,10 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
-    assert {
-        path for path in artifact.resources if path.startswith("/page/")
-    } == expected | {"/page/style.css"}
+    assert (
+        set(resource_dependencies("/page/style.css", captured.data, captured.mime))
+        == expected
+    )
 
     delivered = deliver_resource(captured, "/page/style.css", ADDRESS).data.decode()
     assert {path for path in expected if f'"{ROOT}{path}"' in delivered} == expected
@@ -421,8 +351,11 @@ def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
     bytes, and writes the ones that changed."""
     sheet = page_dir / "page" / "style.css"
     sheet.parent.mkdir(exist_ok=True)
+    (page_dir / "page" / "base.css").write_text("main { margin: 0; }")
     source = PAGE.replace(
-        "</head>", '<link rel="stylesheet" href="page/style.css"></head>'
+        "</head>",
+        '<link rel="stylesheet" href="page/base.css">'
+        '<link rel="stylesheet" href="page/style.css"></head>',
     )
 
     def activate(text, css):
@@ -430,6 +363,7 @@ def test_a_revision_shares_the_files_it_captured_unchanged(page_dir):
         (page_dir / "index.html").write_text(source.replace("Ship dark.", text))
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
+        assert activated.revision is not None
         bundle = revision_path(page_dir, activated.revision).with_suffix("")
         manifest = json.loads((bundle / "manifest.json").read_bytes())
         return {
@@ -493,6 +427,7 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     capture: the Leaf delivering it supplies the provider with its runtime."""
     provider = "/vendor/floating-ui.esm.js"
     module = f'export const position = () => import("{provider}");'
+    (page_dir / "page").mkdir()
     (page_dir / "page" / "position.js").write_text(module)
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -502,6 +437,7 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
+    assert activated.revision is not None
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
     assert provider in json.loads(artifact.manifest)["public_modules"]
@@ -515,16 +451,30 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     ).data.decode() == module.replace(provider, ROOT + provider)
 
 
-def test_a_vendored_replacement_of_a_public_provider_is_captured_and_served(page_dir):
+def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     """A package may replace a public vendor module, and the page then runs its own:
-    the revision captures the vendored file, which wins over the runtime's."""
+    the layer's file wins over the runtime's, and the revision captures neither."""
+    from click.testing import CliRunner
+
+    from leaf import cli as cli_model
+
     provider = "/vendor/floating-ui.esm.js"
     own = b"export const computePosition = () => 'the package\\'s own';"
-    (page_dir / provider[1:]).write_bytes(own)
+    package = page_dir.parent / "positioning"
+    (package / "vendor").mkdir(parents=True)
+    (package / provider[1:]).write_bytes(own)
+    selection = (*page_packages(), package_path(package))
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", str(page_dir)]
+        + [arg for name in selection for arg in ("--package", name)],
+    )
+    assert initialized.exit_code == 0, initialized.output
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
+    assert activated.revision is not None
     artifact = read_artifact(page_dir, activated.revision)
-    assert artifact.resources[provider].data == own
+    assert provider not in artifact.resources
     assert executing(artifact).resources[provider].data == own
 
 
@@ -613,17 +563,21 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
     )
     artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
+    find_result_6 = delivered.tree.find("image")
+    assert find_result_6 is not None
+    image = delivered.tree.find("img")
+    assert image is not None
+    srcset = image.attrs["srcset"]
+    assert isinstance(srcset, str)
     entries = [
         delivered.authoring.external_scripts[0]["attrs"]["src"],
         delivered.authoring.links[0]["attrs"]["href"],
-        delivered.tree.find("image").attrs["href"],
-        *(
-            candidate.split()[0]
-            for candidate in delivered.tree.find("img").attrs["srcset"].split(",")
-        ),
+        find_result_6.attrs["href"],
+        *(candidate.split()[0] for candidate in srcset.split(",")),
     ]
     for address in ("/p/user/", "/p/user/versions/v1.html", ROOT + ".html"):
         for entry in entries:
+            assert isinstance(entry, str)
             request = urlsplit(urljoin("https://leaf.example" + address, entry)).path
             assert request.startswith(ROOT + "/")
             logical = request.removeprefix(ROOT)
@@ -660,6 +614,45 @@ def test_inert_json_cannot_end_or_reshape_its_script_element():
     assert json.loads(serialized)["said"] == hostile
 
 
+@pytest.mark.parametrize(
+    "script, deferred",
+    [
+        ('<script src="/page/a.js"></script>', True),
+        ('<script async src="/page/a.js"></script>', True),
+        ('<script defer src="/page/a.js"></script>', True),
+        ('<script type="module" async src="/page/a.js"></script>', False),
+        ('<script type="module" src="/page/a.js"></script>', False),
+    ],
+)
+def test_delivery_holds_every_script_until_the_runtime_has_read_the_page(
+    script, deferred
+):
+    """The runtime's module runs once the document has parsed, and every deferred
+    script after it, so delivery defers a classic script and drops `async`: none can
+    change the page before the runtime reads it, or throw before it listens. A module
+    is deferred already."""
+    source = f"<html><head></head><body><main>{script}</main></body></html>"
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [attrs] = [s["attrs"] for s in delivered.authoring.external_scripts]
+    assert "async" not in attrs
+    assert ("defer" in attrs) is deferred
+
+
+def test_an_inline_classic_script_runs_deferred_from_its_own_text():
+    """An inline classic script moves to a deferred `data:` file holding its text,
+    padded to its line and named index.html, so its errors name where it stands."""
+    source = (
+        "<html><head></head><body><main>\n<p>a</p>\n"
+        "<script>var x = 1 % 2; // & </script></main></body></html>"
+    )
+    delivered = SourceDocument(rebase_document(source, ADDRESS))
+    [script] = delivered.authoring.external_scripts
+    assert "defer" in script["attrs"]
+    prefix, text = script["attrs"]["src"].split(",", 1)
+    assert prefix == "data:text/javascript;charset=utf-8"
+    assert unquote(text) == "\n\nvar x = 1 % 2; // & \n//# sourceURL=index.html"
+
+
 @pytest.mark.parametrize("explicit_html", [True, False])
 def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     """A host's marks land on the document's own wrapper tags, whether or not the
@@ -676,7 +669,6 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={},
         registry={},
         delivery=Delivery(
@@ -690,8 +682,12 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
 
     assert delivered.startswith("﻿<!doctype html>")
     served = SourceDocument(delivered.removeprefix("﻿"))
-    assert "data-lf-contained" in served.tree.find("html").attrs
-    assert "inert" in served.tree.find("body").attrs
+    find_result_7 = served.tree.find("html")
+    assert find_result_7 is not None
+    assert "data-lf-contained" in find_result_7.attrs
+    find_result_8 = served.tree.find("body")
+    assert find_result_8 is not None
+    assert "inert" in find_result_8.attrs
     assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
@@ -739,20 +735,21 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         1,
         None,
         executable="sha256:fixture",
-        widgets={},
         resources={"/media/a.png": png(1200, 750), "/media/b.png": png(1100, 800)},
         registry=registry,
         delivery=Delivery(address=ADDRESS),
     )
 
     served = SourceDocument(delivered.removeprefix("﻿"))
+    main = served.tree.find("main")
+    assert main is not None
     marks = {
         (element.tag, element.attrs.get("id")): {
             name: value
             for name, value in element.attrs.items()
             if name.startswith("data-lf-")
         }
-        for element in served.tree.find("main").find_all(True)
+        for element in main.find_all(True)
     }
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
@@ -801,11 +798,16 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         {},
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert body is not None
     checks = body.find_all("input")
     assert len(checks) == 2 and all("disabled" in check.attrs for check in checks)
     assert "checked" in checks[0].attrs and "checked" not in checks[1].attrs
-    assert body.select_one("a").attrs["href"] == "https://example.com"
-    assert body.select_one("strong").text == "bold"
+    select_one_result_6 = body.select_one("a")
+    assert select_one_result_6 is not None
+    assert select_one_result_6.attrs["href"] == "https://example.com"
+    select_one_result_7 = body.select_one("strong")
+    assert select_one_result_7 is not None
+    assert select_one_result_7.text == "bold"
     assert not body.find_all("div")
 
 
@@ -818,12 +820,25 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     }
     delivered = mark_declared(source, registry, {})
     soup = SourceDocument(delivered).tree
-    assert soup.find(id="source").attrs["data-lf-content"] == "data"
-    assert soup.find(id="source").attrs["data-lf-awaits"] == ""
-    assert "data-lf-awaits" not in soup.find(id="literal").attrs
-    assert not "data-lf-verbatim" in soup.find(id="source").attrs
-    assert soup.find(id="literal").attrs["data-lf-content"] == "data"
-    assert "data-lf-verbatim" in soup.find(id="literal").attrs
+    find_result_9 = soup.find(id="source")
+    assert find_result_9 is not None
+    assert soup is not None
+    assert find_result_9.attrs["data-lf-content"] == "data"
+    find_result_10 = soup.find(id="source")
+    assert find_result_10 is not None
+    assert find_result_10.attrs["data-lf-awaits"] == ""
+    find_result_11 = soup.find(id="literal")
+    assert find_result_11 is not None
+    assert "data-lf-awaits" not in find_result_11.attrs
+    find_result_12 = soup.find(id="source")
+    assert find_result_12 is not None
+    assert "data-lf-verbatim" not in find_result_12.attrs
+    find_result_13 = soup.find(id="literal")
+    assert find_result_13 is not None
+    assert find_result_13.attrs["data-lf-content"] == "data"
+    find_result_14 = soup.find(id="literal")
+    assert find_result_14 is not None
+    assert "data-lf-verbatim" in find_result_14.attrs
 
 
 def test_an_authored_override_holds_only_where_it_means_something():
@@ -840,11 +855,21 @@ def test_an_authored_override_holds_only_where_it_means_something():
     )
     delivered = mark_declared(source, {"lf-chart": {"x-height": 400}}, {})
     soup = SourceDocument(delivered).tree
-    assert soup.find(id="chart").attrs["data-lf-height"] == "240"
-    assert soup.find(id="table").attrs["data-lf-space"] == "wide"
-    assert "data-lf-height" not in soup.find(id="table").attrs
-    assert soup.find(id="feed").attrs["data-lf-bound"] == "end"
+    find_result_15 = soup.find(id="chart")
+    assert find_result_15 is not None
+    assert soup is not None
+    assert find_result_15.attrs["data-lf-height"] == "240"
+    find_result_16 = soup.find(id="table")
+    assert find_result_16 is not None
+    assert find_result_16.attrs["data-lf-space"] == "wide"
+    find_result_17 = soup.find(id="table")
+    assert find_result_17 is not None
+    assert "data-lf-height" not in find_result_17.attrs
+    find_result_18 = soup.find(id="feed")
+    assert find_result_18 is not None
+    assert find_result_18.attrs["data-lf-bound"] == "end"
     for page in (soup.find("main"), soup.find("body")):
+        assert page is not None
         assert not {"data-lf-space", "data-lf-bound"} & set(page.attrs), page.attrs
 
 
@@ -852,5 +877,22 @@ def test_exhibit_paint_follows_the_occurrence_condition():
     registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
     source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
     tree = SourceDocument(mark_declared(source, registry, {})).tree
-    assert "data-lf-exhibit" in tree.find(id="quote").attrs
-    assert "data-lf-exhibit" not in tree.find(id="working").attrs
+    find_result_19 = tree.find(id="quote")
+    assert find_result_19 is not None
+    assert "data-lf-exhibit" in find_result_19.attrs
+    find_result_20 = tree.find(id="working")
+    assert find_result_20 is not None
+    assert "data-lf-exhibit" not in find_result_20.attrs
+
+
+def test_stylesheet_cors_mark_preserves_an_unquoted_trailing_slash():
+    import turbohtml
+
+    from leaf.revision_delivery import rebase_document
+
+    delivered = rebase_document(
+        '<link rel=stylesheet href="/theme.css" title=a/>', lambda path: path
+    )
+    link = turbohtml.parse(delivered).find("link")
+    assert link is not None
+    assert link.attr("title") == "a/"

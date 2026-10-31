@@ -24,17 +24,17 @@ tag in its values:
 
 - `example`: each of the package's tags appears in some worked example, since a tag no
   example shows is one no other check reads.
-- `keeps-first-box`: a widget paints its final box before it upgrades, so upgrade adds
-  behavior and moves nothing (`../../../browser/AGENTS.md`, "The page holds still under the user's aim"). Its reading is
-  `changedBoxes` in `render-checks/widgets.js`, against the box each authored widget had
-  at first paint, which the pre-upgrade proof keeps (`scheme.start_with_pre_upgrade_proof`).
+- `keeps-first-box`: a widget's presented box matches the box its package CSS holds
+  before upgrade. Its reading is `changedBoxes` in `render-checks/widgets.js`, against
+  the authored boxes captured while the runtime entry is held. Content-derived
+  drawings may change size; the bundled suite records those explicitly.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside it,
   where a widget in ordinary flow grows with what it holds (`../../../browser/AGENTS.md`,
   "The page holds still under the user's aim"). A box that needs a scroll of its own says so with
   `--lf-holds-height: 1`, as a bounded block does. Its reading is `heldScrollers` in
   `render-checks/widgets.js`, which names a box that scrolls vertically now, or that
   asks to and overflows once a tall block is added to it. It writes the page, so it is
-  taken after `changedBoxes`, last on the page.
+  taken last on the page.
 - `shows-context-keys`: a command that declares context keys, the aliases a widget
   offers for pressing a control from elsewhere, also declares a `bindingBadge`, so the
   page shows the key it adds (`../../../skills/leaf/references/module-input.md`, "Commands and
@@ -52,14 +52,18 @@ from uuid import uuid4
 from leaf.data import write_data
 from leaf.data_contracts import declared_data_bindings, output_findings, resource_urls
 from leaf.findings import Finding, element_at
-from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
+from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.contract import element_declarations, read_registry_declarations
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
+    SERVED_TIMEOUT_MS,
+    close_render_page,
     evaluate_probe,
     install_driver,
+    observe_output_documents,
     output_values,
     wait_for_probe,
     wait_until_ready,
@@ -73,10 +77,8 @@ from leaf.vendoring import start_throwaway_page
 from .preview import preview_server
 from .scheme import (
     answer_reports,
-    arm_interception,
     collect_page_errors,
     served,
-    start_with_pre_upgrade_proof,
 )
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
@@ -180,22 +182,37 @@ def _blank_image(suffix: str) -> bytes:
 def _readings(
     browser, url: str, tags: list[str]
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
-    """Each widget on the served page whose box changed from first paint to presented,
-    each command in `tags`' widgets whose context keys the page never shows, and each
-    box in `tags`' widgets that holds its own height and scrolls inside it, plus
-    every output published while exercising the examples."""
+    """Changed startup boxes, unshown keys, held scrollers and published outputs."""
     from playwright.sync_api import Error as PlaywrightError
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
-    arm_interception(page)
+    page.set_default_timeout(SERVED_TIMEOUT_MS)
     install_driver(page)
     errors = []
     collect_page_errors(page, errors)
     # Runtime reports already reach the console; an example's preview writes no log.
     answer_reports(page, lambda text: None)
     try:
-        if faults := start_with_pre_upgrade_proof(page, url):
-            raise UnreadablePage("; ".join(map(str, faults)))
+        observe_output_documents(page)
+        held = []
+
+        def hold_entry(route):
+            if held:
+                route.fallback()
+            else:
+                held.append(route)
+
+        # Keep this route installed until the page closes. Disabling interception
+        # while released modules are fetching can strand their requests.
+        page.route("**/leaf.js", hold_entry)
+        with page.expect_request("**/leaf.js"):
+            page.goto(url, wait_until="commit")
+        page.wait_for_function("document.readyState !== 'loading'")
+        page.wait_for_function(
+            "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
+        )
+        page.evaluate("window.__leafRenderDriver.captureFirstBoxes()")
+        held[0].fallback()
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
         if errors:
@@ -207,22 +224,15 @@ def _readings(
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
         raise UnreadablePage(str(error).strip()) from error
     finally:
-        page.close()
+        close_render_page(page)
 
 
-def _page_findings(
-    browser,
-    composition: LayerComposition,
-    pages: list[tuple[str, SourceDocument, dict]],
-    tags: list[str],
-) -> list[Finding]:
-    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
-    of examples, served
-    from a page vendored with the package's layer and thrown away after."""
-    findings = []
+def served_examples(package: Path, pages):
+    """Serve each page of examples in turn, from a page selecting `package` and
+    thrown away after, yielding its Layout, URL and artifact while it is served."""
     with tempfile.TemporaryDirectory(prefix="leaf-widgets-") as temporary:
         page_dir = Path(temporary)
-        start_throwaway_page(page_dir, composition)
+        start_throwaway_page(page_dir, package)
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for layout, document, data in pages:
@@ -272,47 +282,63 @@ def _page_findings(
                 )
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
-            with preview_server(page_dir, document, 1, artifact=artifact) as url:
-                changed, unshown, held, outputs = _readings(browser, url, tags)
-            findings += output_findings(
-                outputs,
-                artifact.registry,
-                artifact.implementations,
-                artifact.declaration_sources,
+            snapshot = capture_page_snapshot(
+                page_dir, document, 1, url="/", artifact=artifact
             )
-            findings += [
-                _finding(
-                    "keeps-first-box",
-                    box["tag"],
-                    box["id"],
-                    layout=layout,
-                    first=box["first"],
-                    now=box["now"],
-                )
-                for box in changed
-                if box["tag"] in tags
-            ]
-            findings += [
-                _finding(
-                    "shows-context-keys",
-                    command["tag"],
-                    command["id"],
-                    layout=layout,
-                    command=command["command"],
-                )
-                for command in unshown
-            ]
-            findings += [
-                _finding(
-                    "grows-with-content",
-                    box["tag"],
-                    box["id"],
-                    layout=layout,
-                    box=box["at"],
-                    height=box["height"],
-                )
-                for box in held
-            ]
+            with preview_server(page_dir, snapshot) as url:
+                yield layout, url, artifact
+
+
+def _page_findings(
+    browser,
+    package: Path,
+    pages: list[tuple[str, SourceDocument, dict]],
+    tags: list[str],
+) -> list[Finding]:
+    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
+    of examples (`served_examples`)."""
+    findings = []
+    for layout, url, artifact in served_examples(package, pages):
+        changed, unshown, held, outputs = _readings(browser, url, tags)
+        findings += output_findings(
+            outputs,
+            artifact.registry,
+            artifact.implementations,
+            artifact.declaration_sources,
+        )
+        findings += [
+            _finding(
+                "keeps-first-box",
+                box["tag"],
+                box["id"],
+                layout=layout,
+                first=box["first"],
+                now=box["now"],
+            )
+            for box in changed
+            if box["tag"] in tags
+        ]
+        findings += [
+            _finding(
+                "shows-context-keys",
+                command["tag"],
+                command["id"],
+                layout=layout,
+                command=command["command"],
+            )
+            for command in unshown
+        ]
+        findings += [
+            _finding(
+                "grows-with-content",
+                box["tag"],
+                box["id"],
+                layout=layout,
+                box=box["at"],
+                height=box["height"],
+            )
+            for box in held
+        ]
     return findings
 
 
@@ -323,7 +349,8 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     nothing to read."""
     package = package.resolve()
     tags = own_tags(package)
-    composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
+    roots = checked_layer_inputs(package_layer_inputs(package))
+    composition = compose_layer(roots)
     pages = [
         (layout, SourceDocument(html), data)
         for layout, html, data in example_pages(composition.registry, tags)
@@ -331,5 +358,5 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     shown = {record["tag"] for _, page, _ in pages for record in page.lf_elements}
     findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
-        findings += _page_findings(browser, composition, pages, tags)
+        findings += _page_findings(browser, package, pages, tags)
     return findings

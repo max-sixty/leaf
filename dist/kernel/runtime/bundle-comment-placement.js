@@ -1,7 +1,7 @@
-import { TAB_STOP, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, move, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, under, upFrom } from "./bundle-dom-move.js";
-import { LAYOUT, coarsePointer, hoveringPointer } from "./bundle-layer-client.js";
-import { clamp, clippingAxes, overlaps, overlapsAcross, renderedChildren, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, skipped, union } from "./bundle-geometry.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
+import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -326,7 +326,7 @@ function marginSpot(target, point = null, passage = null) {
 	const main = marginColumn();
 	if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
 	const hang = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--rail-hang")) || 0;
-	const left = main.getBoundingClientRect().right + hang;
+	const left = proseRect(main).right + hang;
 	return {
 		left,
 		right: left + restingRail().row
@@ -497,9 +497,10 @@ function reach(anchor, box, main, reaches) {
 		let edge = reaches.get(el);
 		if (edge === void 0) {
 			const b = el.getBoundingClientRect();
+			const style = getComputedStyle(el);
 			edge = {
-				right: b.right,
-				clip: getComputedStyle(el).overflowX === "visible" ? null : b.left + el.clientLeft + el.clientWidth
+				right: style.gridTemplateColumns.includes("prose-start") || style.gridTemplateColumns.startsWith("subgrid") && style.gridColumnStart === "full" ? -Infinity : b.right,
+				clip: style.overflowX === "visible" ? null : b.left + el.clientLeft + el.clientWidth
 			};
 			reaches.set(el, edge);
 		}
@@ -800,7 +801,7 @@ function layoutMarginRows() {
 	laidOutScrollX = scrollX;
 	const present = [];
 	const main = marginColumn();
-	const columnRect = main.getBoundingClientRect();
+	const columnRect = proseRect(main);
 	const columnHeight = main.scrollHeight;
 	const shell = shellRight();
 	const stands = railStands(main);
@@ -810,7 +811,7 @@ function layoutMarginRows() {
 	const railInner = columnRect.right + hang;
 	let railEntry;
 	const railEntrySize = () => railEntry ??= layer.root.parentElement.querySelector(".lf-margin-cluster:not([data-lf-place=\"pin\"]) .lf-margin-entry:not([hidden])")?.offsetWidth || restingRail().entry;
-	const notes = [...main.querySelectorAll("aside.sidenote")].filter((note) => !skipped(note)).map((note) => note.getBoundingClientRect()).filter((note) => note.width && note.left >= columnRect.right - 1);
+	const notes = [...main.querySelectorAll(".layout-note > aside")].filter((note) => !skipped(note)).map((note) => note.getBoundingClientRect()).filter((note) => note.width && note.left >= columnRect.right - 1);
 	const bands = /* @__PURE__ */ new Map();
 	const reaches = /* @__PURE__ */ new Map();
 	const reads = [];
@@ -1498,8 +1499,7 @@ function commentAttachment({ target, point = null, passage = null, boundary = nu
 			lastRow: extent.top,
 			column: null,
 			margin: null,
-			region: null,
-			scroller: effectiveScroller(element)
+			scroller: pageScroller
 		};
 	}
 	if (!visibleTargetParts(target).length) return null;
@@ -1511,20 +1511,17 @@ function commentAttachment({ target, point = null, passage = null, boundary = nu
 	const shown = union(shownParts(target).map((part) => shownRect(part, clips)).filter(Boolean));
 	const whole = shownExtent(target) ?? target.getBoundingClientRect();
 	const extent = point ? pointBand(whole, point) : whole;
-	const clear = point ? extent : shown ?? whole;
-	const region = containingReadingRegionFor(element);
 	return {
 		element,
 		contextNode: context,
 		geometry,
-		clear,
+		clear: point ? extent : shown ?? whole,
 		extent,
 		row: (passage?.attachment ?? extent).top,
 		lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
 		column: passage?.attachment?.left ?? null,
 		margin,
-		region,
-		scroller: effectiveScroller(region ?? element)
+		scroller: scrollerFor(element)
 	};
 }
 function commentReference(place, reference) {
@@ -1537,15 +1534,19 @@ function commentReference(place, reference) {
 }
 const COMMENT_GAP = 8;
 const LEAST_HEIGHT = 96;
-function commentBoundary({ region = null, right = Infinity } = {}) {
-	const shown = (within) => shownWindow({
-		within,
-		gap: 8
-	});
-	const bounds = region && shownRegionBounds(region);
-	const inRegion = bounds && shown(bounds);
+function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+	const room = (within) => {
+		const across = (columns) => shownWindow({
+			within,
+			gap: 8,
+			across: columns
+		});
+		return Object.assign(across(null), { across });
+	};
+	const bounds = scroller !== pageScroller && shownRect(scroller, /* @__PURE__ */ new Map());
+	const inRegion = bounds && room(bounds);
 	if (inRegion && Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) && inRegion.height >= 96) {
-		const whole = region.body.getBoundingClientRect();
+		const whole = scroller.getBoundingClientRect();
 		return Object.assign(inRegion, {
 			inRegion: bounds,
 			key: [
@@ -1556,7 +1557,7 @@ function commentBoundary({ region = null, right = Infinity } = {}) {
 			]
 		});
 	}
-	const shell = shown({ right: Math.min(shellRight(), right) });
+	const shell = room({ right: Math.min(shellRight(), right) });
 	return Object.assign(shell, {
 		inRegion: null,
 		key: [
@@ -1693,11 +1694,6 @@ function commentPlacement() {
 			const past = (scale) => side === "right" && margin && margin.right > clear.right + .5 && boundary.right - margin.right - 8 >= cardMeasure() * scale.x ? margin.right : null;
 			const box = new DOMRect(clear.left, clear.top, (past({ x: 1 }) ?? clear.right) - clear.left, clear.height);
 			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(minimumWidth, boundary.width));
-			const overflow = {
-				boundary: [],
-				rootBoundary: boundary,
-				padding: 0
-			};
 			let heldIn = false;
 			const attachment = ui.limitShift(() => ({
 				mainAxis: !across,
@@ -1723,6 +1719,21 @@ function commentPlacement() {
 				}
 			};
 			const measure = (state) => state.middlewareData.scaled;
+			let shown = boundary;
+			const overflow = (state) => {
+				const { scale } = measure(state);
+				const width = state.rects.floating.width * scale.x;
+				const left = clamp(box.left + (state.x - state.rects.reference.x) * scale.x, boundary.left, boundary.right - width);
+				shown = boundary.across({
+					left,
+					right: left + width
+				});
+				return {
+					boundary: [],
+					rootBoundary: shown,
+					padding: 0
+				};
+			};
 			const spot = held ?? initialHold;
 			const heldEdge = spot && { [edge]: spot[edge] };
 			const holding = (heldEdge || carriedInline !== null) && {
@@ -1751,8 +1762,8 @@ function commentPlacement() {
 					};
 				}
 			};
-			const size = ui.size({
-				...overflow,
+			const size = ui.size((state) => ({
+				...overflow(state),
 				apply(state) {
 					const { scale, line } = measure(state);
 					const stood = held ? Math.max(held.foot - held.top, tallest && Math.abs(tallest.line - line) < .5 ? tallest.height : 0) / scale.y : 0;
@@ -1760,12 +1771,13 @@ function commentPlacement() {
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: rises ? boundary.height / scale.y : state.availableHeight,
+						height: rises ? shown.height / scale.y : state.availableHeight,
+						room: shown,
 						stood,
 						scale
 					});
 				}
-			});
+			}));
 			const sizing = heldEdge ? {
 				...size,
 				fn(state) {
@@ -1791,8 +1803,8 @@ function commentPlacement() {
 				}),
 				holding,
 				heldEdge && sizing,
-				ui.shift({
-					...overflow,
+				ui.shift((state) => ({
+					...overflow(state),
 					mainAxis: true,
 					crossAxis: true,
 					limiter: {
@@ -1817,7 +1829,7 @@ function commentPlacement() {
 							return limited;
 						}
 					}
-				}),
+				})),
 				!heldEdge && sizing
 			].filter(Boolean);
 			return {
@@ -1830,10 +1842,10 @@ function commentPlacement() {
 					if (!heldIn || Math.abs(shift) < .5) return "page";
 					return shift > 0 ? {
 						edge: "top",
-						at: boundary.top - 8
+						at: shown.top - 8
 					} : {
 						edge: "bottom",
-						at: boundary.bottom + 8
+						at: shown.bottom + 8
 					};
 				}
 			};

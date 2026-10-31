@@ -67,11 +67,11 @@
 #              Leaf's chrome, such as `lf-composer`. `part`, when present, describes
 #              the control, region or picture the user clicked. Fix it in this page's
 #              source. If the behavior belongs to a package's widget, or the user asks
-#              for a wider fix, change the package as the Leaf skill's
-#              `references/packages.md` says, re-vendor, and note the re-vendor on the
-#              stamp. A fix to Leaf itself is the user's to raise; offer to file it
-#              (SKILL.md, "Improve Leaf through use"). Your reply names the stamped
-#              version that carries the fix.
+#              for a wider fix, change the package and take the change into the page
+#              as the Leaf skill's `references/packages.md` says, and note the package
+#              change on the stamp. A fix to Leaf itself is the user's to raise; offer
+#              to file it (SKILL.md, "Improve Leaf through use"). Your reply names the
+#              stamped version that carries the fix.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name its subject with `--title "<a few
@@ -480,10 +480,10 @@ design comment:
         such as `lf-composer`. `part`, when present, describes the control, region
         or picture the user clicked. Fix it in this page's source. If the behavior
         belongs to a package's widget, or the user asks for a wider fix, change
-        the package as the Leaf skill's `references/packages.md` says, re-vendor,
-        and note the re-vendor on the stamp. A fix to Leaf itself is the user's
-        to raise; offer to file it (SKILL.md, "Improve Leaf through use"). Your
-        reply names the stamped version that carries the fix.
+        the package and take the change into the page as the Leaf skill's `references/packages.md`
+        says, and note the package change on the stamp. A fix to Leaf itself is
+        the user's to raise; offer to file it (SKILL.md, "Improve Leaf through use").
+        Your reply names the stamped version that carries the fix.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -791,9 +791,11 @@ pick on the page:
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
-        do it, write the answer into the markup, and stamp a version. An option
-        the user added needs no writing in; the page keeps it where the user put
-        it.
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
+        added needs no writing in; the page keeps it where the user put it.
 
 option the user added:
   event:
@@ -868,9 +870,11 @@ pick a thread's open question is about:
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
-        do it, write the answer into the markup, and stamp a version. An option
-        the user added needs no writing in; the page keeps it where the user put
-        it.
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
+        added needs no writing in; the page keeps it where the user put it.
 
 decided suggestion:
   event:
@@ -897,9 +901,11 @@ decided suggestion:
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
-        do it, write the answer into the markup, and stamp a version. An option
-        the user added needs no writing in; the page keeps it where the user put
-        it.
+        do it and write the answer into the markup. Once the work is done, make
+        the question a record of the decision (`references/authoring-revisions.md`,
+        "Keep the current page current"), such as a choice group marked `settled`
+        with what came of it beside it, and stamp a version. An option the user
+        added needs no writing in; the page keeps it where the user put it.
 
 pick inside a thread:
   event:

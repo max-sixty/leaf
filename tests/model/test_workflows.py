@@ -42,8 +42,10 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
+from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
+from leaf.thread_context import ThreadStructure
 
 
 @pytest.mark.parametrize(
@@ -451,7 +453,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = json.loads((page_dir / "registry.json").read_text())
+    registry = registry_storage.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {
@@ -461,6 +463,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "text": "Lay the feeder work out on a board.",
         },
     )
+    assert registry is not None
     append_carried_log_record(
         page_dir,
         {
@@ -621,7 +624,12 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    frozen = projection_model.FrozenThreadReading(
+        ThreadStructure(set(), {}, {}), {}, {}, {"board": "root"}, empty
+    )
     todos = [
         {
             "id": "t1",
@@ -708,7 +716,12 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    empty = projection_model.StateProjection(
+        {}, {}, {}, {}, {}, frozenset(), frozenset()
+    )
+    frozen = projection_model.FrozenThreadReading(
+        ThreadStructure(set(), {}, {}), {}, {}, {}, empty
+    )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
         served = work_served_model.served_workflows(workflows, frozen, records)
@@ -777,7 +790,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
     present = {
         "status": {"state": "idle", "ts": now.isoformat()},
         "claim_session": "session-1",
-        "claim_turn": "turn-1",
+        "turn": "turn-1",
         "cursor": 0,
         "turn_closed": None,
         "listening": True,
@@ -822,10 +835,13 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
     assert session_model.cmd_wait(claimed) == 0
     delivered(capsys)
     old = service_model.page_claim(claimed)
+    assert old is not None
     cleanup_model.close_session_turn(old["id"])
     cleanup_model.prompt_turn("s1")
     assert service_model.claim_page(claimed)
-    assert service_model.page_claim(claimed)["turn"] != old["turn"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    assert claim_record["turn"] != old["turn"]
 
     [workflow] = page_state(claimed)["workflows"]
     assert workflow["stage"] == "picked_up"
@@ -890,9 +906,10 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     page_dir = claimed
     session_model.cmd_waiting(page_dir)
     session = service_model.page_claim(page_dir)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, session["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1

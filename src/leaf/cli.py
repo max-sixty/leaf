@@ -58,7 +58,7 @@ def resolve_dir(dir_arg: str, *, renew: bool = True) -> Path:
     from leaf.harness import session_harness
     from leaf.vendoring import renew_layer
 
-    if unready := renew_layer(page_dir, session_harness()):
+    if unready := renew_layer(page_dir, session_harness(), command=True):
         note(unready)
     return page_dir
 
@@ -85,7 +85,7 @@ class _Page(click.ParamType):
 def page_argument(*, renew: bool, required: bool = True):
     """Declare a command's PAGE, passed as `page_dir`, the page it names. Every
     command says whether naming the page renews its layer: a write may, while a read
-    or a service stop must not re-vendor the page it acts on."""
+    or a service stop must not renew the page it acts on."""
     return click.argument(
         "page_dir", metavar="PAGE", type=_Page(renew=renew), required=required
     )
@@ -218,6 +218,9 @@ class LeafGroup(click.Group):
     ):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
+        from leaf.session_runtime import hand_off_command
+
+        hand_off_command(sys.argv[1:] if args is None else list(args))
         invocation = extra.setdefault("obj", {})
         try:
             self._run_standalone(args, prog_name, complete_var, **extra)
@@ -279,13 +282,14 @@ def cli() -> None:
 @click.option("--if-claimed", is_flag=True, expose_value=False)
 @click.option("--watch", is_flag=True)
 @click.option("--pages", is_flag=True)
-def hook(harness: str, watch: bool, pages: bool) -> None:
+@click.option("--fork", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
     """Answer a native harness hook from its JSON payload on stdin."""
-    if watch and pages:
-        raise click.UsageError("--watch and --pages are mutually exclusive")
+    if watch + pages + fork > 1:
+        raise click.UsageError("--watch, --pages and --fork are mutually exclusive")
     from leaf.hooks import main
 
-    main(harness, watch=watch, pages=pages)
+    main(harness, watch=watch, pages=pages, fork=fork)
 
 
 @cli.command(hidden=True)
@@ -338,7 +342,7 @@ def page() -> None:
     """Create, check, stamp, and read pages."""
 
 
-@page.command(short_help="Create or re-vendor a page directory.")
+@page.command(short_help="Create a page directory or change its packages.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "--package",
@@ -351,20 +355,18 @@ def page() -> None:
 @click.option(
     "--no-packages",
     is_flag=True,
-    help="remove all explicit packages and the selected personal theme",
+    help="remove all explicit packages, keeping the theme",
 )
-@click.option(
-    "--theme", metavar="NAME", help="select a personal theme from `leaf theme list`"
-)
+@click.option("--theme", metavar="NAME", help="select a theme from `leaf theme list`")
 @click.option(
     "--no-theme",
     is_flag=True,
-    help="clear the personal theme while keeping content packages",
+    help="take no theme, so the page starts from the browser's defaults",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="report whether re-vendoring would change an initialized page",
+    help="report whether initialization would change an initialized page",
 )
 def init(
     dir: str,
@@ -374,13 +376,15 @@ def init(
     no_theme: bool,
     dry_run: bool,
 ) -> dict:
-    """Create or re-vendor a page directory.
+    """Create a page directory, recording the packages and theme it selects.
 
-    Creates PAGE/revisions/, then vendors the widget layer.
-    The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and validates the current vocabulary and markup.
-    A changed layer restarts its server at the same URL; identical initialization
-    leaves it running. --dry-run reports the planned change without writing it.
+    The author writes PAGE/index.html; every Leaf that serves or checks the page
+    composes its layer from the selection. A new page takes the default theme
+    (`leaf theme list`). Re-running preserves the page's explicit packages unless
+    --package or --no-packages replaces them, and its theme unless --theme or
+    --no-theme replaces it, and validates the current vocabulary and markup. A changed selection restarts its server at the
+    same URL; identical initialization leaves it running. --dry-run reports the
+    planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -388,8 +392,6 @@ def init(
 
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
-    if theme is not None and no_packages:
-        raise click.UsageError("--theme and --no-packages cannot be used together")
     if theme is not None and no_theme:
         raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
@@ -400,17 +402,17 @@ def init(
     return cmd_init(
         page_path(dir),
         selections,
-        theme=False if no_packages or no_theme else theme,
+        theme=False if no_theme else theme,
         dry_run=dry_run,
     )
 
 
-@cli.group(short_help="Discover personal themes for page authoring.")
+@cli.group(short_help="Discover themes for page authoring.")
 def theme() -> None:
-    """Discover personal themes for page authoring."""
+    """Discover themes for page authoring."""
 
 
-@theme.command("list", short_help="List personal themes and their author instructions.")
+@theme.command("list", short_help="List themes and their author instructions.")
 def theme_list() -> dict:
     from leaf.themes import cmd_list
 
@@ -607,6 +609,18 @@ def instructions(
     return page_instructions(page_dir, entries=entries, contracts=contracts)
 
 
+@page.command(short_help="Print the vocabulary the page is written in as JSON.")
+@page_argument(renew=False)
+def vocabulary(page_dir: Path) -> dict:
+    """Print the vocabulary PAGE/index.html is checked against: the layer this Leaf
+    composes for the page's packages, with the page's own declarations over it.
+    Ordinary keys are element names or CSS selectors; `$` keys are facts shared
+    across the layer."""
+    from leaf.registry.storage import require_candidate
+
+    return require_candidate(page_dir).registry
+
+
 @page.command("list", short_help="List this machine's pages and who holds each.")
 def page_list() -> list:
     """Print each page on this machine as a JSON line: every serving page, and
@@ -700,7 +714,7 @@ def stamp(
     )
 
 
-@page.command(short_help="Export a stamped version to one HTML file.")
+@page.command(short_help="Export a stamped version or current draft to one HTML file.")
 @page_argument(renew=False)
 @click.option(
     "-o",
@@ -715,15 +729,24 @@ def stamp(
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(page_dir: Path, out: Path, version: int) -> dict:
-    """Export a stamped version to one HTML file that opens offline.
+@click.option(
+    "--draft",
+    is_flag=True,
+    help="export current source without stamping (cannot combine with --version)",
+)
+def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
+    """Export a stamped version or current draft to one HTML file that opens offline.
+
+    By default exports the latest stamped version, including its version number in
+    the result. --draft checks and captures current source without adding a stamp.
+    The result names the captured revision in either mode.
 
     The file runs the page's own runtime against its captured state, with no Leaf
     server or host behind it.
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(page_dir, out, version)
+    return cmd_export(page_dir, out, version, draft=draft)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
@@ -1181,7 +1204,7 @@ def run(page_dir: Path, host: str | None, lifetime: str) -> None:
 
 
 @server.command("_serve", hidden=True)
-# A re-vendor here would restart the server this process is becoming.
+# Renewing the layer here would restart the server this process is becoming.
 @page_argument(renew=False)
 @serve_flags("session", "persistent")
 @click.option("--revive", is_flag=True, hidden=True)

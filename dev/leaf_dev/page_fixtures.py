@@ -124,7 +124,9 @@ def layer_media(manifest: Path) -> Path | None:
 def example_media() -> Path:
     """The media the example catalog's pages share, content-addressed as
     `leaf page media` names them (examples/AGENTS.md, "Media")."""
-    return layer_media(DEFAULT_PACKAGES)
+    media = layer_media(DEFAULT_PACKAGES)
+    assert media is not None
+    return media
 
 
 def media_source(source: Path) -> Path:
@@ -248,7 +250,11 @@ def import_referenced_media(
     @functools.cache
     def selected_media() -> dict[str, Path]:
         """Index the selected asset tree only when a missing reference needs it."""
-        directory = assets if assets is not None else pinned_assets(lock.parent)
+        if assets is not None:
+            directory = assets
+        else:
+            assert lock is not None
+            directory = pinned_assets(lock.parent)
         return {
             media_name(candidate.read_bytes(), candidate.suffix): candidate
             for candidate in sorted(directory.rglob("*"))
@@ -264,7 +270,17 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
+    from leaf.registry.storage import layer_record, layer_vocabulary
+
+    # The arm preparing the page may speak another protocol, which this Leaf would
+    # refuse to serve; finding the media its documents name needs only a vocabulary.
+    # A base arm from before pages composed their layer at read time vendored it.
+    record = layer_record(page)
+    registry = (
+        layer_vocabulary(record, page)
+        if record
+        else json.loads((page / "registry.json").read_text(encoding="utf-8"))
+    )
     for document in documents:
         capture_artifact(
             page, SourceDocument(document), registry, read_resource=read_resource
@@ -329,7 +345,7 @@ def read_event_lines(path: Path) -> list[dict]:
 
 
 # Run by the page's own runtime, so its admission admits each event and writes the
-# receipt: another Leaf refuses a page vendored at a different protocol, and would
+# receipt: another Leaf refuses a page at a different protocol, and would
 # write the events in its own shape rather than the page's. Each event goes through
 # the door every writer uses, so the log holds what a real page's would: admission
 # refuses an event no writer could send and writes the fields it derives, such as an

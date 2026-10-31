@@ -37,9 +37,11 @@ launching checkout's `bin/leaf`.
 
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
-`.page/` companion edit is stamped into the live page at the same URL; a layer edit
-re-vendors through `page init`, which mints a new layer generation the browser follows
-into a fresh document. A refused update is printed and retried after the next edit.
+`.page/` companion edit is stamped into the live page at the same URL. A package or
+runtime edit restarts the server, which composes the layer afresh, and a changed
+selection goes through `page init`, which mints a new layer generation the browser
+follows into a fresh document. A refused update is printed and retried after the next
+edit.
 Fixture history, literal data seeds and earlier versions initialize a fresh slot.
 Live updates follow current markup, page-owned files, captured data files, media
 and the browser runtime. Restarting a user preview preserves its history and current
@@ -75,7 +77,7 @@ from leaf.file_changes import FileChanges
 from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
-from leaf.schema import BROWSER_DIRS, VENDORED_FILES
+from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
 from leaf_dev.commands.distribution import compiler_root, current_kernel
 from leaf_dev.example_data import (
@@ -312,7 +314,7 @@ def refused(reason) -> bool:
 class PreviewService:
     """The preview's server: a process-owned one on a retained address, or for
     `--user` the page's claimed durable service, which `page init` restarts itself
-    around a re-vendor. The two modes are told apart here and nowhere else.
+    around a layer change. The two modes are told apart here and nowhere else.
     """
 
     def __init__(self, page: Path, user: bool, prepared_claim: dict | None = None):
@@ -376,12 +378,22 @@ class PreviewService:
             self.revive_at = 0.0
 
     @contextlib.contextmanager
-    def replacing(self):
-        """Hold a process-owned server down across a re-vendor and bring it back,
-        admitted or not, unless the preview itself is ending. `page init` restarts
-        a `--user` service itself."""
+    def replacing(self, initializing: bool):
+        """Hold a process-owned server down across a layer change and bring it back,
+        admitted or not, unless the preview itself is ending. A `--user` service is
+        restarted by the `page init` the block runs when `initializing`, and here
+        otherwise, since a server composes its layer once, as it starts."""
         if self.user:
-            yield
+            if initializing:
+                yield
+                return
+            from leaf.harness import claim_harness
+            from leaf.hosting import restarting_server
+
+            with restarting_server(
+                self.page, claim_harness(self.claim) if self.claim else None
+            ):
+                yield
             return
         self._close_temporary()
         try:
@@ -435,7 +447,7 @@ class PreviewService:
         its service was stopped or its claim left this session.
 
         A `--user` service still enabled but down is not ended. That is a server
-        that died, or one `page init` re-vendored but could not start again (the
+        that died, or one `page init` restarted but could not start again (the
         recorded port was taken), and the watcher tries it again."""
         from leaf.server import read_service
         from leaf.service import claim_is_active, page_claim, same_claim
@@ -449,6 +461,40 @@ class PreviewService:
         return not same_claim(claim, self.claim) or (
             claim is not None and not claim_is_active(claim)
         )
+
+
+def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
+    """The package roots the source's selection names, where `page init` runs from
+    (`leaf`), whose edits reach the page as copies at its next init, with the theme
+    the page captured."""
+    from leaf.layer import layer_inputs
+    from leaf.registry.storage import layer_record
+    from leaf.themes import with_theme
+
+    layer = layer_record(page)
+    assert layer is not None
+    return layer_inputs(
+        with_theme(tuple(source_packages(source)), layer["theme"]), runtime
+    )
+
+
+def serving_identity(runtime: Path) -> str:
+    """What a page server of `runtime` serves: its serving code and runtime, and
+    every input of a layer it composes (`runtime_selection.LAYER_SOURCES`)."""
+    from leaf.layer import files_identity, payload_server_inputs
+    from leaf.runtime_selection import LAYER_SOURCES
+
+    paths = [*payload_server_inputs(runtime)]
+    for name in LAYER_SOURCES:
+        top = runtime / name
+        paths.extend([top] if top.is_file() else sorted(top.rglob("*")))
+    return files_identity(
+        {
+            path.relative_to(runtime).as_posix(): path.read_bytes()
+            for path in paths
+            if path.is_file()
+        }
+    )
 
 
 def refresh_preview(
@@ -502,9 +548,14 @@ def refresh_preview(
                 str(page),
             )
         )
-        if planned["changed"]:
-            with service.replacing():
-                leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+        # A page composes its layer from the Leaf serving it, so a runtime or
+        # package edit needs a server that read it as much as a new selection does.
+        serving = serving_identity(runtime)
+        if planned["changed"] or serving != state.get("serving"):
+            with service.replacing(planned["changed"]):
+                if planned["changed"]:
+                    leaf(launcher, runtime, "page", "init", *selection_args, str(page))
+            state["serving"] = serving
         if source_changed and previous_digest != incoming_digest:
             # Resolve the complete candidate before touching served authored files.
             # The selected payload's stamp owner installs and publishes it under
@@ -512,12 +563,11 @@ def refresh_preview(
             with tempfile.TemporaryDirectory(prefix="leaf-preview-candidate-") as raw:
                 candidate = Path(raw) / "page"
                 candidate.mkdir()
-                for name in VENDORED_FILES:
-                    if (page / name).is_file():
-                        shutil.copyfile(page / name, candidate / name)
-                for name in (*BROWSER_DIRS, "media"):
-                    if (page / name).is_dir():
-                        shutil.copytree(page / name, candidate / name)
+                shutil.copyfile(page / LAYER_FILE, candidate / LAYER_FILE)
+                if (page / PACKAGES_DIR).is_dir():
+                    shutil.copytree(page / PACKAGES_DIR, candidate / PACKAGES_DIR)
+                if (page / "media").is_dir():
+                    shutil.copytree(page / "media", candidate / "media")
                 # Media's ordinary CLI door needs an initialized, isolated log.
                 # The candidate holds no history or feedback from the served page.
                 (candidate / "events.jsonl").write_text("")
@@ -593,7 +643,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     scripts = runtime / "src"
     resolved_roots = {root.resolve() for root in roots}
     # The layer reading follows a link inside a package as well as one at its root,
-    # so a vendored file can resolve outside every package root.
+    # so a layer file can resolve outside every package root.
     package = [
         path
         for path in input_paths(roots)
@@ -695,12 +745,12 @@ def watch_changes(watched: Watched) -> PreviewChanges:
     Single files use shallow parent watches: an editor's atomic rename changes
     the inode, so a file watch on Linux otherwise loses later saves.
     """
-    from watchfiles import DefaultFilter
+    from watchfiles import Change, DefaultFilter
 
     default_filter = DefaultFilter()
     return PreviewChanges(
         watch_roots(watched),
-        lambda path: default_filter(None, str(path)),
+        lambda path: default_filter(Change.modified, str(path)),
         collect=True,
     )
 
@@ -767,10 +817,7 @@ def serve_preview(
     handshake=None,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.files import read_json
-    from leaf.layer import layer_inputs
     from leaf.server import PREVIEW
-    from leaf.themes import with_theme
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
@@ -795,6 +842,7 @@ def serve_preview(
     changes = None
     try:
         current_kernel(runtime)
+        state["serving"] = serving_identity(runtime)
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)
@@ -824,8 +872,7 @@ def serve_preview(
         )
         with service.starting() as url:
             pass
-        layer = read_json(page / "registry.json")["$layer"]
-        roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
+        roots = source_roots(source, page, runtime)
         watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
@@ -885,8 +932,7 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            layer = read_json(page / "registry.json")["$layer"]
-            roots = layer_inputs(with_theme(tuple(layer["packages"]), layer["theme"]))
+            roots = source_roots(source, page, runtime)
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:
@@ -895,7 +941,7 @@ def serve_preview(
                 refused(error)
                 continue
             if not changes.matches(watch_roots(rebuilt)):
-                # A refresh can change which packages the page vendors, and a
+                # A refresh can change which packages the page selects, and a
                 # subscription is fixed for its lifetime. Holding the old one
                 # wherever the roots stand still keeps the edits made during the
                 # refresh, which the rust watcher collected while this was busy.
@@ -903,7 +949,7 @@ def serve_preview(
                 changes = watch_changes(rebuilt)
             watched = rebuilt
             if service.user and not service.running:
-                # A server that died, or that a re-vendor could not start again,
+                # A server that died, or that `page init` could not start again,
                 # which said why. The next watcher poll is another try.
                 service.serve_again()
             if refreshed and service.running:
@@ -1029,7 +1075,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     "--runtime",
     type=click.Path(path_type=Path),
     default=ROOT,
-    help="Leaf checkout whose bin/leaf vendors the page.",
+    help="Leaf checkout whose bin/leaf initializes and serves the page.",
 )
 @click.option(
     "--slot",
@@ -1077,10 +1123,12 @@ def preview(
 
             for stop_signal in STOP_SIGNALS:
                 signal.signal(stop_signal, terminated)
+            assert source is not None
             source = source.resolve()
             runtime = runtime.resolve()
             page = preview_directory(source, slot, user)
             if handshake is not None:
+                assert prepared_claim is not None
                 with Handshake(handshake) as announcement:
                     run_preview(
                         source,

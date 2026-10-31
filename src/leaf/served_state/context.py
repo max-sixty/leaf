@@ -25,8 +25,8 @@ from ..files import (
 from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
-from ..registry.storage import layer_metadata, page_vocabulary
-from ..revision_artifact import read_revision
+from ..registry.storage import layer_metadata, page_vocabulary, served_layer
+from ..revision_artifact import RevisionReading, read_revision
 from ..state import now_iso
 
 
@@ -38,6 +38,8 @@ class PageRead:
     revision: Callable[[int], SourceReading]
     registry: dict | None
     stored_layer: Callable[[], dict]
+    # The layer a revision's `$layer` selects, as served (`storage.served_layer`).
+    serve_layer: Callable[[dict], dict]
     stored_data: Callable[[], dict]
     # Each file binding's stamp (`file_bindings.binding_stamps`); a capture binds none.
     bound_files: Callable[[], dict[str, str]]
@@ -68,12 +70,28 @@ class PageRead:
     def layer(self) -> dict:
         """The layer identity a page with no active revision is served under. Read
         on first use, so a reader that never serves the page, such as delivery, does
-        not need the page's vendored registry to be readable."""
+        not need the page's registry to be readable."""
         return self.stored_layer()
 
     @cached_property
     def data(self) -> dict:
         return self.stored_data()
+
+    def descriptor(self, revision: int) -> dict:
+        """One immutable revision's descriptor, as `active` describes the live one."""
+        if self.active is not None and revision == self.active["revision"]:
+            return self.active
+        reading = self.revision(revision)
+        # Only a check's candidate is read without being stored, and it is never one
+        # the user was shown.
+        assert isinstance(reading, RevisionReading)
+        return document_descriptor(
+            revision,
+            self.events,
+            url=f"/revisions/{reading.marker.name}",
+            executable=reading.manifest["executable"],
+            activated_at=reading.activated_at,
+        )
 
     def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the
@@ -130,12 +148,14 @@ def read_page(
         revisions=revisions,
         revision=lambda revision: read_revision(page_dir, revision),
         registry=registry,
-        stored_layer=lambda: (
+        serve_layer=lambda metadata: served_layer(metadata, page_dir),
+        stored_layer=lambda: served_layer(
             registry["$layer"]
             if active is not None and registry is not None
             else layer_metadata(page_dir)
             if layer_identity is None
-            else layer_identity
+            else layer_identity,
+            page_dir,
         ),
         stored_data=lambda: read_data(page_dir, registry),
         bound_files=lambda: binding_stamps(page_dir),

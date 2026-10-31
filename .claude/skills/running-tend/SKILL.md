@@ -74,6 +74,15 @@ verdict, its review captures each of them on the base and the head with
 reaches the surface, looks at the crops, and weighs what changed against every
 state that pays for it. Without captures it can read, the review withholds approval.
 
+## Explaining UI changes and questions
+
+Include screenshots when explaining a UI change or asking the maintainer to judge
+an interface. Put the visual evidence in the PR description or reply where the
+change or question is presented, so the reader can inspect the affected state
+before answering. Show before and after for a change, and the relevant alternatives
+for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
+change**, for capture and delivery.
+
 ## Reading a red suite
 
 When a change turns a test red, merged or still in a pull request, the change and
@@ -132,10 +141,8 @@ Two test-owned failures recur:
 A cause issue (`tend-ci-cause`) records the first `ci` run on main its tests
 failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
-request that broke it usually passed its own CI. Its session works until the
-cause has a merged fix, or a pull request it is still driving when GitHub's
-six-hour job limit ends it. Before fixing, check current main: the complete
-suite takes hours, and later changes may have removed the cause. A passing rerun
+request that broke it usually passed its own CI. Before fixing, check current main:
+the complete suite takes hours, and later changes may have removed the cause. A passing rerun
 alone does not clear a failure that comes and goes.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision

@@ -86,52 +86,57 @@
     </style>
   </head>
   <body class="site-page">
-    <main class="layout-column">
-      <nav class="sitenav" aria-label="Site"></nav>
-
-      <header id="top">
-        <p class="eyebrow">package reference</p>
-        <h1>Registry keys</h1>
-        <p class="lede" id="lede">
-          An element declaration begins as JSON Schema. Its <code>x-*</code> keys tell
-          Leaf how the element reads, renders, changes, and joins the collaboration
-          loop. Choose a key below to jump to its summary. Longer contracts open in
-          place.
-        </p>
-        <p>
-          This reference is generated from the registry's <code>$keys</code>, the same
-          entry an agent can query in a page's merged <code>registry.json</code>. Start
-          with the <a href="/extending/">extension guide</a>, or read the
-          <a
-            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
-            >complete package contract</a
-          >.
-        </p>
-      </header>
-
-      <aside class="sidebar" id="registry-route">
-        <lf-toc id="registry-contents"></lf-toc>
+    <main class="layout-sidebar">
+      <aside id="registry-route">
+        <div class="layout-track">
+          <lf-toc id="registry-contents"></lf-toc>
+        </div>
       </aside>
+      <div class="layout-column">
+        <nav class="sitenav" aria-label="Site"></nav>
 
-      <section id="keys">
-        <h2>Find a declaration</h2>
-        <p>
-          The index jumps to a summary. Longer entries keep their full contract one
-          click away.
-        </p>
-        <nav class="reference-index" aria-label="Registry keys"></nav>
-        <div class="reference-list"></div>
-      </section>
+        <header id="top">
+          <p class="eyebrow">package reference</p>
+          <h1>Registry keys</h1>
+          <p class="lede" id="lede">
+            An element declaration begins as JSON Schema. Its <code>x-*</code> keys tell
+            Leaf how the element reads, renders, changes, and joins the collaboration
+            loop. Choose a key below to jump to its summary. Longer contracts open in
+            place.
+          </p>
+          <p>
+            This reference is generated from the registry's <code>$keys</code>, the same
+            entry an agent can query in a page's merged <code>registry.json</code>.
+            Start with the <a href="/extending/">extension guide</a>, or read the
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
+              >complete package contract</a
+            >.
+          </p>
+        </header>
 
-      <footer class="site-footer" id="colophon">
-        <p id="links">
-          <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/how-it-works/">How it works</a> ·
-          <a href="/extending/">Extending</a> ·
-          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
-          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
-        </p>
-      </footer>
+        <section id="keys" class="layout-flow">
+          <h2>Find a declaration</h2>
+          <p>
+            The index jumps to a summary. Longer entries keep their full contract one
+            click away.
+          </p>
+          <nav class="reference-index" aria-label="Registry keys"></nav>
+          <div class="reference-list"></div>
+        </section>
+
+        <footer class="site-footer" id="colophon">
+          <p id="links">
+            <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+            <a href="/how-it-works/">How it works</a> ·
+            <a href="/extending/">Extending</a> ·
+            <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+            <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE"
+              >MIT license</a
+            >
+          </p>
+        </footer>
+      </div>
     </main>
   </body>
 </html>

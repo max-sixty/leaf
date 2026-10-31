@@ -16,15 +16,15 @@ import os
 import shutil
 import tempfile
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
 import click
-import leaf_website
 from PIL import Image
 from playwright.sync_api import Page
 
+import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import headless_shell, load, tab
@@ -43,7 +43,7 @@ REQUIRED_FONTS = {
 
 
 @contextmanager
-def serve_examples(site: Path) -> Iterator[str]:
+def serve_examples(site: Path) -> Generator[str]:
     """Host the capture scene through the production route adapter in isolation."""
     # As in the demo recorder, the host's open pages are not part of the scene.
     # Isolate their discovery before serving so `All leaves` cannot change the
@@ -122,8 +122,8 @@ def refresh_previews() -> None:
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
         site = staging / "site"
-        # `serve_examples` runs this checkout's website adapter, which serves only the
-        # pages this checkout's Leaf vendored.
+        # `serve_examples` runs this checkout's website adapter, which serves only
+        # pages at this checkout's page protocol.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
         with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
             errors = []

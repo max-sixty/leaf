@@ -36,16 +36,18 @@ def test_column_width_does_not_clear_a_sidenote(browser, serve):
         "Column beside sidenote",
         """
 <h1 id="title">Column beside sidenote</h1>
-<aside class="sidenote" id="note"><p>Supporting context in the margin, long enough to
-run several lines beside the prose and the callout that follow it.</p></aside>
+<div class="layout-note"><div>
 <p id="before">The first line of ordinary prose.</p>
 <aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
 <p id="after">The following line of ordinary prose.</p>
+</div><aside class="note" id="note"><p>Supporting context in the margin, long enough to
+run several lines beside the prose and the callout that follow it.</p></aside></div>
 """,
+    ).replace(
+        '<main class="layout-column">', '<main class="layout-column layout-notes">'
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    expect(page.locator("#note")).to_have_css("float", "right")
     at = page.evaluate(
         """() => ({
           column: document.getElementById('column').getBoundingClientRect().top,
@@ -106,7 +108,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
         """() => parseFloat(getComputedStyle(document.querySelector('main'))
              .getPropertyValue('--rail'))"""
     )
-    floor = 720 + 2 * 24 + 2 * rail
+    floor = 720 + 2 * rail
     places = set()
     for width in range(round(floor) + 30, round(floor) - 30, -6):
         resized(page, width, 900)
@@ -118,7 +120,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
               const row = document.querySelector('[data-lf-margin-for="lede"]');
               return {
                 place: row.dataset.lfPlace,
-                column: Math.round(parseFloat(style.width)),
+                column: Math.round(document.querySelector('#lede').getBoundingClientRect().width),
                 shell: document.body.clientWidth,
               };
             }"""
@@ -148,9 +150,6 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(source), context=context)
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile(r"rail")
-    )
     expect(page.locator(".lf-margin-entry")).to_have_count(0)
     prospective = page.evaluate("""async () => {
       const owner = await window.__lfOverlayApi();
@@ -222,8 +221,8 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         "A passage",
         '<p id="passage">A passage to discuss.</p>',
         head=(
-            "<style>main { width: min(var(--wide), var(--lf-room)); "
-            "max-width: var(--wide); }</style>"
+            "<style>main { box-sizing: border-box; width: 100%; "
+            "max-width: var(--wide); margin-inline: auto; }</style>"
             if wide
             else ""
         ),
@@ -335,20 +334,23 @@ def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail
     filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
     source = leaf_page(
         "a note beside its paragraph",
-        '<h1 id="t">Notes</h1><aside class="sidenote" id="note">A note beside the '
-        "paragraph it glosses, long enough to stand a few lines tall.</aside>"
-        f'<p id="beside">The paragraph the note glosses.</p>{filler}'
+        '<h1 id="t">Notes</h1><div class="layout-note">'
+        '<p id="beside">The paragraph the note glosses.</p>'
+        '<aside class="note" id="note">A note beside the '
+        "paragraph it glosses, long enough to stand a few lines tall.</aside></div>"
+        f"{filler}"
         '<p id="below">A paragraph well below the note.</p>',
+    ).replace(
+        '<main class="layout-column">', '<main class="layout-column layout-notes">'
     )
     page = open_page(
         browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
     )
     resized(page, 1600, 900)
     margins_laid_out(page)
-    assert (
-        page.evaluate("() => getComputedStyle(document.getElementById('note')).float")
-        == "right"
-    )
+    note = page.locator("#note").bounding_box()
+    prose = page.locator("#beside").bounding_box()
+    assert note["x"] >= prose["x"] + prose["width"]
     for target, place in (("beside", "pin"), ("below", "rail")):
         row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
         expect(row).to_have_attribute("data-lf-place", place)

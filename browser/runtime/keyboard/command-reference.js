@@ -26,9 +26,10 @@
    shows it in place of the title for the row ↑↓ selects, so the keyboard reaches it
    too. As a grey line under the title it made the catalog harder to scan for the few
    rows that have one, so that line shows only where there is no hover to raise the
-   tooltip. The meta line stacks every description's line, hidden, in the cell it
-   shows in, so it is as tall as the longest from opening and the results never move
-   under the walk.
+   tooltip. The meta line keeps one line, cutting a long description short, as the
+   selected row does, so the results never move under the walk; a screen reader hears
+   it whole. It once stacked every description, hidden, to stand as tall as the
+   longest, which left the resting count over a blank line or two.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -38,6 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
   closeNativeLayer,
@@ -66,7 +68,9 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import {
+  completeRowKeySteps,
   completeRowSteps,
+  stepText,
   keySequenceModel,
   keySequenceTemplate,
   neutralStates,
@@ -82,7 +86,7 @@ import {
   currentLocationIn,
   deepFocus,
 } from "../focus.js";
-import { closeControl, searchField } from "../widget-elements.js";
+import { closeControl, offeredAction, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
@@ -211,7 +215,6 @@ const EMPTY_CATALOG = Object.freeze({
   total: 0,
   entries: Object.freeze([]),
   sections: Object.freeze([]),
-  describedMeta: Object.freeze([]),
 });
 /** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
@@ -385,9 +388,13 @@ function captureCommandReferenceCatalog() {
         const alternatives = (route ? [route.binding] : rowInfo.declared).filter(
           bindingEnabled,
         );
-        const steps = alternatives.length
-          ? [...rowInfo.sequence, ...completeRowSteps(rowInfo.referenceRow, route)]
+        const keySteps = alternatives.length
+          ? [
+              ...rowInfo.sequence.map((step) => [step]),
+              ...completeRowKeySteps(rowInfo.referenceRow, route),
+            ]
           : [];
+        const steps = keySteps.map(stepText);
         const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
@@ -407,7 +414,7 @@ function captureCommandReferenceCatalog() {
           keyLabel: rowInfo.declared.length === 0 && word(rowInfo.row.label) == null,
           steps: Object.freeze(steps),
           keySequence: steps.length
-            ? keySequenceModel(steps, neutralStates(steps), spokenSteps)
+            ? keySequenceModel(steps, neutralStates(steps), spokenSteps, keySteps)
             : null,
           title,
           description,
@@ -448,11 +455,6 @@ function captureCommandReferenceCatalog() {
     total: entries.length,
     entries: Object.freeze(entries),
     sections: Object.freeze(sections),
-    describedMeta: Object.freeze(
-      entries
-        .filter((entry) => entry.actionable && entry.description)
-        .map(selectionMeta),
-    ),
   });
 }
 
@@ -663,7 +665,10 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     <div
       id=${entry.rowId}
       role="row"
-      class=${`lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`}
+      ${offeredAction(
+        "row",
+        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
+      )}
       data-lf-command=${entry.id}
       aria-selected=${entry.actionable ? String(selected) : nothing}
       ?hidden=${!shown}
@@ -687,7 +692,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <div role="rowgroup" ?hidden=${hidden}>
     <div role="row">
-      <div role="gridcell"><h3 class="lf-label" id=${id}>${title}</h3></div>
+      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
     </div>
   </div>
 `;
@@ -764,8 +769,8 @@ function commandReferenceItemTemplate(item) {
 function commandReferenceTemplate() {
   const items = commandReferenceItems();
   return html`
-    <div class="lf-command-reference-head">
-      <div class="lf-command-reference-title">Command reference</div>
+    <div class="lf-dialog-head lf-command-reference-head">
+      <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
     <label class="lf-command-reference-preference">
@@ -789,16 +794,11 @@ function commandReferenceTemplate() {
       >
     </label>
     ${commandReferenceSearch}
-    <div class="lf-command-reference-meta-box">
-      ${commandReferenceCatalog.describedMeta.map(
-        (text) => html`<span aria-hidden="true">${text}</span>`,
-      )}
-      <div
-        class="lf-command-reference-meta"
-        aria-live="polite"
-        .textContent=${commandReferenceView.metadata}
-      ></div>
-    </div>
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${commandReferenceView.metadata}
+    ></div>
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
@@ -807,9 +807,7 @@ function commandReferenceTemplate() {
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-command-reference-empty" role="gridcell">
-          No matching commands
-        </div>
+        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
       </div>
     </div>
   `;
@@ -903,7 +901,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
     search.value = "";
-    results.scrollTo({ top: 0, behavior: "instant" });
+    setScroll(results, { top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,

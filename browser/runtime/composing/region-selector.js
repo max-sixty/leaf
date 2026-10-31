@@ -32,6 +32,7 @@
  * remain the composition input's, including its protection against a draft changing
  * mid-upload.
  */
+import { describeFailure } from "../exception.js";
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { focusDestination, focused, handBack, closeLayer } from "../focus.js";
@@ -194,7 +195,7 @@ export function createRegionSelector({
       if (ended || ticket !== attempt) return;
       busy = false;
       keeps(overlay, "aria-busy", null);
-      const message = `Could not capture — ${error.message}`;
+      const message = `Could not capture — ${describeFailure(error)}`;
       keepsText(status, message);
       raiseError(message);
       paintKeys();

@@ -5,6 +5,7 @@ import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
+import { leafSays } from "../voice.js";
 
 export function ownedObligationControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
@@ -36,16 +37,19 @@ export function answerWords(item) {
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, an answer given
-   elsewhere, or its withdrawal. */
+   elsewhere, or its withdrawal. Leaf says what became of what the page asked of the
+   user (voice.js); the answer itself is the user's value, in the interface's face. */
 export function obligationEnding(item) {
   if (item.source.kind === "todo")
-    return item.status === "withdrawn"
-      ? "Dropped"
-      : item.answer?.value === "failed"
-        ? "Failed"
-        : "Done";
-  if (item.status === "withdrawn") return "Withdrawn";
-  if (item.status === "answered_elsewhere") return "Answered elsewhere";
+    return leafSays(
+      item.status === "withdrawn"
+        ? "Dropped"
+        : item.answer?.value === "failed"
+          ? "Failed"
+          : "Done",
+    );
+  if (item.status === "withdrawn") return leafSays("Withdrawn");
+  if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
   const words = answerWords(item);
-  return words ? `Answered: ${words}` : "Answered";
+  return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }

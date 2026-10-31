@@ -55,8 +55,9 @@
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
   // Named document properties, such as a form named "host", are not ancestry.
-  // Only a shadow root crosses to its host after its ordinary parents run out.
+  // Follow slots where the field is rendered, then cross a shadow root to its host.
   const parent = (node) =>
+    node.assignedSlot ??
     node.parentNode ??
     (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? node.host : null);
   // A closed dialog has put its words away, though its pixels may still be fading out

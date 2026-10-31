@@ -556,21 +556,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
 
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
-    """The panel's open list is the one part of the chrome that holds a thread of
-    its own, so a press meaning "say something about this" belongs to that box rather
-    than to the page the panel stands over. `threadBox` states the same rule from
-    the other side when it declines to seat a widget standing inside a thread, and the
-    obligations and the `m`/`M` walk include the ones an agent sent — without this the same
-    question answered one way on the page and another in the panel.
+    """Comment focuses the open panel thread's reply, live or resolved.
 
-    A resolved thread is the case that has to be asked separately, and the reason this
-    test exists at all: it is built by the same `threadNode` and wears the same class,
-    under the Resolved state, where it keeps a tab stop and a Reopen button. Reading
-    the class alone put the user in a thread whose reply box is not there, and the press
-    died on the null with the general box never reached. Whether there is a box is what
-    tells them apart — `currentLocationThread` asks for one rather than for the class — so
-    the resolved thread falls through to the general box, which is the honest answer for a
-    thread with no box of its own to offer."""
+    Resolved panel threads keep a reply box: sending there reopens the thread.
+    The shortcut must retain that recipient rather than start a page comment.
+    """
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     live = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
@@ -601,12 +591,14 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(view).to_be_focused()
     page.evaluate("() => document.activeElement?.blur()")
 
-    # A resolved thread has no box, so the press falls through to the general box, in
-    # the page comment card, rather than reaching for one that is not there. What matters is that the thread is not
-    # named, which is the phase above's answer and would be the wrong one here.
+    # A resolved panel thread still offers its own reply box.
     open_panel_thread(page, gone).focus()
     page.keyboard.press("c")
-    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
+    expect(panel_field(page)).to_be_focused()
+    expect(panel_field(page)).to_have_attribute("name", "reply")
+    expect(panel_field(page)).to_have_attribute(
+        "aria-label", "Reply to Settled already."
+    )
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):

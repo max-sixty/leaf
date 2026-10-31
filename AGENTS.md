@@ -63,29 +63,29 @@ reading takes longer than 100 ms, make that path faster.
 
 ## Pages across Leaf updates
 
-A page keeps the layer (registry, theme, widgets and package modules) that
-`leaf page init` vendored into it, and runs the runtime of the Leaf that serves,
-checks or exports it. A change crosses that gap in one of two ways.
+A page records its authored content, its log and the packages it selects. The Leaf
+that serves, checks or exports it supplies everything else: the runtime, and the
+layer (registry, theme, widgets and package modules) it composes from the page's
+selection. So what changes with Leaf ships together, and what crosses the gap
+between Leaf versions is only what a page keeps: its event log and the records kept
+outside it.
 
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page vendored at another number is refused until it is re-vendored, which the
-  session holding the page does itself on its first command or hook naming the
-  page. Bump it for any change an earlier page would break on: to the event
-  log, what a page sends, its vendored declarations, the public package API
-  (`widget-api.js` and what its readers return) or a record kept outside a page.
-  The served state isn't among them, since the Leaf serving a page also supplies
-  the runtime that reads it. It is Leaf's only version, so a
-  record kept outside a page, such as a browser draft, carries the protocol at
-  which its own shape last changed (`layer-registry.md`, "Page protocol", owns
-  the rules).
-  Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
-  only a bump may break an existing page.
-- **Drift** may break an older page without a bump while Leaf is in alpha, as
-  when a vendored package widget relies on runtime behavior an update changed. Leaf
-  doesn't detect drift by comparing a page's files with its own, since nearly
-  every update would then force a rebuild. Instead the Leaf panel's menu and
-  `page check` name the Leaf that vendored the page beside the one serving or checking it,
-  with dates, and the agent re-vendors a much older page that misbehaves.
+  page at another number is refused until the session holding it takes it to the
+  new number, which it does itself on its first command or hook naming the page.
+  Bump it only for a change a Leaf at the same number would misread in the log or
+  in a record kept outside a page. A change to the runtime, the served state, the
+  bundled widgets and their registry entries, the theme or the public package API
+  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
+  Leaf's only version, so a record kept outside a page, such as a browser draft,
+  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
+  commits. Once Leaf is released, only a bump may break an existing page.
+- **A page's own code**, its widgets and scripts, and an installed package's
+  modules call the public package API across Leaf versions. While Leaf is in alpha
+  an update may change that API without a bump, since a bump would not repair code
+  Leaf doesn't compose; `page check --render` and `package check --render` report a
+  module it breaks, and the agent fixes it as any other check failure.
 
 ## Fix the underlying issue
 
@@ -179,7 +179,8 @@ share goes in the protocol reference for that boundary, which says what each sid
 relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
 change that reverses one rewrites that record and says so in its commit. A
-workflow for one kind of task goes in `/developing-leaf`.
+maintainer's workflow for one kind of task goes in a project skill such as
+`/developing-leaf`, not in the shipped `/leaf` skill.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must

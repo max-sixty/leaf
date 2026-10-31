@@ -30,7 +30,7 @@ from render_harness import (
 )
 
 from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_lease, waiter_lease_path
+from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -155,7 +155,8 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
-    with take_lease(lease_path) as lease:
+    assert lease_path is not None
+    with take_wait_lease(lease_path) as lease:
         page = open_page(browser, url)
         runtime = page.evaluate_handle("""async () =>
           (await window.__lfCheckApi()).readApplication""")
@@ -168,7 +169,8 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
             if urlparse(route.request.url).path != "/api/state" or crossed:
                 route.continue_()
                 return
-            with take_lease(lease_path):
+            assert lease_path is not None
+            with take_wait_lease(lease_path):
                 response = route.fetch()
                 assert response.json()["listening"] is True
             crossed.append(response.json()["reading"])

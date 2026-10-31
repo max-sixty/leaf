@@ -93,11 +93,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 from urllib.parse import urljoin
 
 import click
@@ -121,6 +121,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.commands.verify_site import (
+    LocalWorker,
     agent_session,
     answered,
     await_presentation,
@@ -263,7 +264,9 @@ def title(events: list[dict], thread: str) -> str | None:
     return build_threads(events, {}).get(thread, {}).get("title")
 
 
-def pickup_at(events: list[dict], comment: str, phase: str) -> str | None:
+def pickup_at(
+    events: list[dict], comment: str, phase: Literal["queued", "opened", "failed"]
+) -> str | None:
     """When the harness first recorded `comment` picked up in `phase`: `queued` held
     by the harness, `opened` in its context (`leaf.delivery.pickup_receipts`)."""
     return next(
@@ -310,8 +313,8 @@ def recorded_steps(events: list[dict], comment: dict, published: dict | None) ->
             ("started", started),
             ("titled", titled),
             ("progress", progress),
-            ("published", published and published["activated_at"]),
-            ("replied", replied and replied["ts"]),
+            ("published", published["activated_at"] if published is not None else None),
+            ("replied", replied["ts"] if replied is not None else None),
         )
     }
 
@@ -355,7 +358,7 @@ def deployment_answer(events: list[dict], for_event: str) -> dict | None:
 
 def check_turn_answered(
     url: str, marker: str, turn: TurnReading, asks: int, revision: int
-) -> None:
+) -> tuple[dict, dict]:
     """Require the turn to have published a revision naming `marker` and answered,
     reading only what the server admitted. A missing publication includes the
     source-validation reading, distinguishing a rejected source from a valid source
@@ -364,8 +367,8 @@ def check_turn_answered(
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
-    check(
-        published is not None,
+    published = check(
+        published,
         f"{url} agent did not publish a revision naming ‘{marker}’{tried}; it "
         f"reached revision "
         f"{state['active']['revision']} from {revision} with the page "
@@ -377,10 +380,11 @@ def check_turn_answered(
         replies != [],
         f"{url} agent published but did not reply{tried}; the page read {reading}",
     )
-    check(
-        answer is not None,
+    answer = check(
+        answer,
         f"{url} agent returned an unexpected reply{tried}{said}",
     )
+    return published, answer
 
 
 def read_state(session: Session) -> dict:
@@ -430,7 +434,7 @@ def select_passage(page: Page, passage: str) -> None:
     be."""
     page.locator(passage).scroll_into_view_if_needed()
     point = uncovered_word(page, passage)
-    check(point is not None, f"no word of {passage} is uncovered to select")
+    point = check(point, f"no word of {passage} is uncovered to select")
     page.mouse.click(*point, click_count=3)
 
 
@@ -512,6 +516,7 @@ def send_written(
     # which Playwright can wait on forever once the page has consumed it.
     accepted = read_state(session)
     profile.observe(accepted)
+    assert posted.request.post_data_json is not None
     attempt = posted.request.post_data_json["attempt"]
     comment = next(
         (
@@ -521,7 +526,7 @@ def send_written(
         ),
         None,
     )
-    check(comment is not None, f"{url} did not return the comment ‘{text}’")
+    comment = check(comment, f"{url} did not return the comment ‘{text}’")
     profile.event_ids.append(comment["id"])
     if session.after_post is not None:
         session.after_post(comment)
@@ -645,7 +650,9 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
         deadline = time.monotonic() + VISIBLE_MESSAGE_PATIENCE
         while shown["message"] is None and time.monotonic() < deadline:
             end.pause(0.1)
-            shown = shown_reply(page, answer)
+            next_shown = shown_reply(page, answer)
+            assert next_shown is not None
+            shown = next_shown
     return shown
 
 
@@ -662,8 +669,7 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     marker = version[:8]
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
-    check_turn_answered(end.url, marker, turn, asks, revision)
-    published, answer = turn.published, turn.answer
+    published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
     answered_comment = next(
         event for event in turn.state["events"] if event["id"] == answer["parent"]
     )
@@ -699,7 +705,8 @@ def website_session(
     )
     if release is None:
         release = state.get("release")
-        check(isinstance(release, str), f"{state_url} returned no release")
+        if not isinstance(release, str):
+            raise RuntimeError(f"{state_url} returned no release")
     # The comment is posted under the layer its own container holds, not the edge's.
     headers = {"Leaf-Layer": state["layer"]["generation"], "Leaf-Release": release}
     after_post = (
@@ -847,7 +854,7 @@ def stop_left_running(state: Path) -> list[str]:
 @contextmanager
 def isolated(
     target: str, environment: Callable[[Isolation], dict[str, str]]
-) -> Iterator[Isolation]:
+) -> Generator[Isolation]:
     """A harness journey's isolation, with this process's environment replaced by
     `environment`'s while it lasts, so the page, claim and session records it reads
     in process are the ones the session writes, and every child inherits the
@@ -901,28 +908,36 @@ def isolated(
 @contextmanager
 def user_at(
     browser, place: Isolation, terminal: Terminal, started: float
-) -> Iterator[User]:
+) -> Generator[User]:
     """The user at the page `terminal`'s session serves, at the end `browser` gives
     them: in Chrome where there is one (`BrowserEnd`), else posting as the page's tab
     does (`HttpEnd`). Records the setup step, begun at `started`, and keeps the
     session's trace as evidence however the journey ends."""
     record_run_context(place.page, purpose="automated", run=place.evidence)
-    url = running_server(place.page)["url"]
+    server = running_server(place.page)
+    assert server is not None
+    url = server["url"]
     end = (
         HttpEnd(url, place.page, terminal.hear)
         if browser is None
         else BrowserEnd(local_session(browser, url)._replace(pause=terminal.hear))
     )
+
+    def commands() -> list[dict]:
+        claim = page_claim(place.page)
+        assert claim is not None
+        return [
+            command
+            for command in read_interactions(place.page, types=("leaf_command",))
+            if command["session"] == claim["id"]
+        ]
+
     user = User(
         end,
         checkout_version(),
         lambda: read_events(place.page),
         terminal,
-        lambda: [
-            command
-            for command in read_interactions(place.page, types=("leaf_command",))
-            if command["session"] == page_claim(place.page)["id"]
-        ],
+        commands,
     )
     try:
         user.passed("setup", started)
@@ -1148,6 +1163,7 @@ class User:
         """The ask every target answers, timed (`run_journey`), in the journey's
         `case`: in the working one, while the user's turn runs its command."""
         if self.case == "working":
+            assert self.terminal is not None
             self.terminal.work()
         self.release_reading = run_journey(self.end, self.version)
         self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
@@ -1179,6 +1195,7 @@ class User:
         """Whether the agent has answered step `name`'s comment, the user meanwhile
         opening any news its thread holds back where a page shows it."""
         self.end.wait(self.ids[name])
+        assert self.events is not None
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def passed(self, name: str, started: float, *details: str) -> None:
@@ -1188,7 +1205,7 @@ class User:
         one are not like those without, and say so (`sample`)."""
         approved = self.terminal.approved if self.terminal is not None else []
         seconds = time.monotonic() - started
-        step = {"step": name, "seconds": round(seconds, 1), "comments": self.sent}
+        step: dict = {"step": name, "seconds": round(seconds, 1), "comments": self.sent}
         if approved:
             step["approved"] = list(approved)
             approved.clear()
@@ -1205,6 +1222,7 @@ class User:
     def timing(self, name: str) -> str:
         """When step `name`'s comment was picked up and answered, after its
         admission (`recorded_steps`)."""
+        assert self.events is not None
         events = self.events()
         comment = next(e for e in events if e["id"] == self.ids[name])
         steps = recorded_steps(events, comment, None)
@@ -1226,16 +1244,21 @@ class User:
         down here, from the session's whole record: the call that replied ends after
         the reply does, and a record read while the session writes it can end in a
         partial line."""
-        events = self.events() if self.profiles or self.records else []
+        events = (
+            self.events()
+            if self.events is not None and (self.profiles or self.records)
+            else []
+        )
         comments = {}
         for name, profile in self.profiles.items():
             comment = next(e for e in events if e["id"] == self.ids[name])
             answer = deployment_answer(events, comment["id"])
-            check(answer is not None, f"`{name}` has no answer")
+            answer = check(answer, f"`{name}` has no answer")
             reading = self.end.reading(
                 profile, recorded_steps(events, comment, None), answer
             )
             if self.records is not None:
+                assert self.commands is not None
                 reading["reply"] = reply_breakdown(
                     self.records(),
                     self.commands(),
@@ -1248,6 +1271,8 @@ class User:
         if self.records is not None and "release" in self.ids:
             asked = next(e for e in events if e["id"] == self.ids["release"])
             answer = deployment_answer(events, asked["id"])
+            assert self.commands is not None
+            assert answer is not None
             reply = reply_breakdown(
                 self.records(),
                 self.commands(),
@@ -1317,12 +1342,12 @@ def target_session(
     *,
     sandbox: bool,
     preview: bool,
-) -> Iterator[tuple[User, dict, Callable[[], None]]]:
+) -> Generator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
     the journey's steps."""
     if target in HARNESS_TARGETS:
-        named = {"target": target, **HARNESS_TARGETS[target]}
+        named: dict = {"target": target, **HARNESS_TARGETS[target]}
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
@@ -1361,7 +1386,9 @@ def target_session(
         return
     with serving as hosted:
         origin, built = (
-            (hosted.origin, hosted.release) if target == "website-worker" else hosted
+            (hosted.origin, hosted.release)
+            if isinstance(hosted, LocalWorker)
+            else hosted
         )
         session, version = website_session(
             browser,

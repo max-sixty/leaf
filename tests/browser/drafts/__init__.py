@@ -16,21 +16,11 @@ from render_harness import (
 
 
 def choose_comment_target(page, selector):
-    """Choose one visible element through the user's target-hint route."""
+    """Choose the exact element through the user's target picker."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    code = page.evaluate(
-        """selector => {
-          const top = document.querySelector(selector).getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-picker-hint')]
-            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
-                          - Math.abs(b.getBoundingClientRect().top - top))[0]
-            .dataset.lfHintCode;
-        }""",
-        selector,
-    )
-    page.keyboard.type(code)
+    page.locator(selector).click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 

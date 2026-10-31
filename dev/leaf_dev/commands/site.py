@@ -9,8 +9,8 @@ private copy through Leaf's canonical Python server. The catalog previews and th
 product card come from the max-sixty/leaf-assets revision pinned in `leaf-assets.json`.
 
 The worked examples and developer package galleries become complete Leaf page directories
-under examples/<name>/. The same preparation path that serves a local fixture vendors
-each page's selected layer, stamps its authored versions, applies its companion event
+under examples/<name>/. The same preparation path that serves a local fixture records
+each page's selected packages, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. A second,
 derived tree contains the immutable live shell Cloudflare serves before the canonical
 server answers its API requests.
@@ -22,8 +22,8 @@ publishes beside each revision. The website's container image installs the same 
 so a revision a hosted session writes captures the layer the published revisions were
 built from and runs the same runtime. The suite and
 `refresh-previews` serve the site with this checkout's adapter, which refuses pages
-another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
-probes also import source modules a compiled kernel no longer has.
+at another page protocol, so they build with the checkout's own Leaf; the suite's
+browser probes also import source modules a compiled kernel no longer has.
 
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote through the website server's routing and refuses a site
@@ -54,22 +54,15 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 import click
-from leaf_website import (
-    SITE_MANIFEST,
-    SITE_ORIGIN,
-    initial_state,
-    published_page,
-    site_metadata,
-)
 
 from leaf.files import latest_revision, list_revisions
 from leaf.live_shell import write_live_shell
 from leaf.schema import (
     BROWSER_DIRS,
     DATA_DIR,
+    LAYER_TOP_FILES,
     PAGE_STATE_FILES,
     SESSION_ROUTE_DIRS,
-    VENDORED_FILES,
 )
 from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import LEAF_COMMAND, ROOT, docs
@@ -84,6 +77,13 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     source_packages,
+)
+from leaf_website import (
+    SITE_MANIFEST,
+    SITE_ORIGIN,
+    initial_state,
+    published_page,
+    site_metadata,
 )
 
 EXAMPLES = ROOT / "examples"
@@ -310,7 +310,9 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
     )
 
 
-def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
+def deduplicate_tree(
+    root: Path, *, mutable_names: frozenset[str] | set[str] = frozenset()
+) -> None:
     """Hard-link identical build outputs without changing their public paths.
 
     `mutable_names` names files, or directories whose files, a served page rewrites;
@@ -407,7 +409,7 @@ def publish_live_shells(
         "routes": {
             "layer": list(BROWSER_DIRS),
             "session": list(SESSION_ROUTE_DIRS),
-            "files": list(VENDORED_FILES),
+            "files": list(LAYER_TOP_FILES),
         },
         "pages": {},
     }

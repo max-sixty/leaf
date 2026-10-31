@@ -554,7 +554,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             return problem.code == "moved-without-input" and any(
                 path
                 and path[-1].startswith(
-                    ("aside#lf-margin-preview", "lf-diff#patch", "p#continuity-tail")
+                    (
+                        "div.lf-box-ground.lf-margin-preview-ground",
+                        "lf-diff#patch",
+                        "p#continuity-tail",
+                    )
                 )
                 for path in [problem.values["node"], *problem.values["beside"]]
             )

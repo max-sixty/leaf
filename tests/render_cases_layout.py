@@ -11,12 +11,14 @@ from weakref import WeakKeyDictionary
 import tinycss2
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_harness import (
     LONG_PAGE,
     leaf_page,
     panel_settled,
+    rgb_pixel,
 )
 
 from leaf import render_checks as render_checks_model
@@ -224,7 +226,7 @@ def moved_at(cdp, node):
     cdp.send("DOM.getDocument", {"depth": 1})
     described = cdp.send("DOM.describeNode", {"backendNodeId": node})["node"]
     pairs = described.get("attributes", [])
-    attributes = dict(zip(pairs[::2], pairs[1::2]))
+    attributes = dict(zip(pairs[::2], pairs[1::2], strict=True))
     name = described.get("localName") or described.get("nodeName")
     if attributes.get("id"):
         return f"{name}#{attributes['id']}"
@@ -411,8 +413,8 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     """<lf-ask id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
-    <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
-    <p>An option carrying a note written inside it.</p>
+    <div class="layout-note"><p>An option carrying a note written inside it.</p>
+    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
 </lf-options></lf-ask>
@@ -424,14 +426,13 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 # elements in the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
-    """<aside class="sidenote" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside>
-<lf-suggestion id="sug-level">
+    """<div class="layout-note"><lf-suggestion id="sug-level">
   <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
   <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion>
+</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
+moved twice inside it.</aside></div>
 </main>""",
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
@@ -808,12 +809,12 @@ def displaced(before, boxes, news=False):
         if news and was[4] != now[4]:
             held = was[0] == now[0] or was[0] + was[2] == now[0] + now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
-        return any(a != b for a, b in zip(was[:4], now[:4]))
+        return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4])]} (left, top, width, height)"
-        for name, was, now in zip(before["names"], before["boxes"], boxes)
+        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]
 
@@ -1033,10 +1034,10 @@ def glyph_action_face(control):
     """What a user sees of a glyph action, as one reading both its tests share.
 
     Send and Add option are the same face: a bare glyph in the action's own ink over a
-    28px disc that stays clear at rest and takes the action's tint under the pointer.
+    disc that stays clear at rest and takes the action's tint under the pointer.
     The press paints nothing of its own in either state, so `press` is the claim that
-    the disc is the whole of the paint and `discWidth` is why it does not grow with the
-    hit box around it.
+    the disc is the whole of the paint. `discWidth` measures that face separately from
+    the hit box around it.
     """
     return control.evaluate(
         """el => {
@@ -1053,8 +1054,12 @@ def glyph_action_face(control):
     )
 
 
-def mark_edges(page, ident, ink):
+def mark_edges(page, ident, ink, outset=None):
     """How wide the mark is painted on each side of an element, in device pixels.
+
+    `outset` names, in CSS px, how far out from the element's edge the mark's outer
+    edge stands on each side it doesn't start at the edge, as a region's ring does at
+    its room (base.css); each scan then starts there and counts in.
 
     Geometry can't answer this and neither can the computed style: the mark is an
     outline, so every rect is identical whether the stroke survived or something
@@ -1092,19 +1097,19 @@ def mark_edges(page, ident, ink):
     was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
     window below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
-    from PIL import Image  # a dev dependency already, for the demo recorder
-
+    outset = outset or {}
+    pad = MARK_PAD + max(outset.values(), default=0)
     box = page.locator(f"#{ident}").bounding_box()
-    clip = {"x": math.floor(box["x"] - MARK_PAD), "y": math.floor(box["y"] - MARK_PAD)}
-    clip["width"] = math.ceil(box["x"] + box["width"] + MARK_PAD) - clip["x"]
-    clip["height"] = math.ceil(box["y"] + box["height"] + MARK_PAD) - clip["y"]
+    clip = {"x": math.floor(box["x"] - pad), "y": math.floor(box["y"] - pad)}
+    clip["width"] = math.ceil(box["x"] + box["width"] + pad) - clip["x"]
+    clip["height"] = math.ceil(box["y"] + box["height"] + pad) - clip["y"]
     fits = page.evaluate(
         """([x, y, w, h]) => x >= 0 && y >= 0
              && x + w <= innerWidth && y + h <= innerHeight""",
         [clip["x"], clip["y"], clip["width"], clip["height"]],
     )
     assert fits, (
-        f"#{ident} is not wholly on screen with the {MARK_PAD}px around it this squares "
+        f"#{ident} is not wholly on screen with the {pad}px around it this squares "
         f"off, and a screenshot clip is the viewport's: scroll it in and size the "
         f"viewport to it first, or the scans measure a truncated image"
     )
@@ -1123,10 +1128,21 @@ def mark_edges(page, ident, ink):
     # whatever that side's rounding added. Snapped in CSS space and then scaled, per the
     # docstring — and a trailing side counts in from the far end of a clip whose width is
     # a whole number, which flips the half, so the two directions round opposite ways.
-    lead = {"top": box["y"] - clip["y"], "left": box["x"] - clip["x"]}
+    lead = {
+        "top": box["y"] - clip["y"] - outset.get("top", 0),
+        "left": box["x"] - clip["x"] - outset.get("left", 0),
+    }
     trail = {
-        "bottom": clip["y"] + clip["height"] - box["y"] - box["height"],
-        "right": clip["x"] + clip["width"] - box["x"] - box["width"],
+        "bottom": clip["y"]
+        + clip["height"]
+        - box["y"]
+        - box["height"]
+        - outset.get("bottom", 0),
+        "right": clip["x"]
+        + clip["width"]
+        - box["x"]
+        - box["width"]
+        - outset.get("right", 0),
     }
     edge = {s: round(math.floor(g + 0.5) * scale) for s, g in lead.items()}
     edge |= {s: round(math.ceil(g - 0.5) * scale) for s, g in trail.items()}
@@ -1134,7 +1150,8 @@ def mark_edges(page, ident, ink):
     def stroke(scan, at):
         """Mark-coloured pixels contiguous with the element's edge, and no others."""
         inked = [
-            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink)) for pixel in scan
+            all(abs(a - b) <= MARK_NEAR for a, b in zip(pixel, ink, strict=True))
+            for pixel in scan
         ]
         start = next((i for i in range(at - 1, at + 2) if inked[i]), None)
         if start is None:
@@ -1147,8 +1164,10 @@ def mark_edges(page, ident, ink):
     def quarters(size):
         return (size // 4, size // 2, 3 * size // 4)
 
-    columns = [[image.getpixel((x, y)) for y in range(height)] for x in quarters(width)]
-    rows = [[image.getpixel((x, y)) for x in range(width)] for y in quarters(height)]
+    columns = [
+        [rgb_pixel(image, (x, y)) for y in range(height)] for x in quarters(width)
+    ]
+    rows = [[rgb_pixel(image, (x, y)) for x in range(width)] for y in quarters(height)]
     return {
         "top": {stroke(c, edge["top"]) for c in columns},
         "bottom": {stroke(c[::-1], edge["bottom"]) for c in columns},
@@ -1592,7 +1611,13 @@ def rings_drawn(page):
     as `ring_rules` reads it) and what is wrong with it.
 
     A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out."""
+    pointer's feedback contour rather than a ring, so it is left out.
+
+    It reads once the runtime has rendered what the input so far asked for. The probe
+    and the browser's matched styles are two reads, and a carrier the runtime replaces
+    between them, such as the projected focus mark after a focus move, has no styles
+    left to read."""
+    rendered(page)
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []
@@ -1602,6 +1627,7 @@ def rings_drawn(page):
         geometry=True,
     )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:
@@ -1609,6 +1635,71 @@ def rings_drawn(page):
         seen["rule"] = rule
         drawn.append(seen)
     return drawn
+
+
+# The share of a run's samples the ring's colour must cover. A run hit testing found
+# clear but painted over, or never painted, reads near nought.
+RUN_DRAWN = 0.9
+# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
+# a short run's end sample is one.
+RUN_MISSED = 3
+# How far a sample's channels may stray from the ring's, summed: a band on a fractional
+# edge blends a little of the ground into its middle pixel, and ground or text that
+# covers it differs by far more.
+RUN_INK = 90
+
+
+def _read_ring_pixels(page, answers):
+    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
+    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
+    hits. Confirm candidate covers at their sampled pixel too: an outline is not a
+    hit surface, so hit testing alone can mistake a box beneath it for a cover.
+    Drop the samples, ink and rectangle from each answer.
+
+    The screenshot is taken a round trip after the reading, so a caller reads a page at
+    rest (`rendered`); one still repainting can read a ring where it no longer is."""
+    sampled = [seen for seen in answers if seen["runs"] or seen["coverPoints"]]
+    if sampled:
+        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        points.extend(c["point"] for seen in sampled for c in seen["coverPoints"])
+        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
+        left = math.floor(min(x for x, _ in points))
+        top = math.floor(min(y for _, y in points))
+        clip = {
+            "x": left,
+            "y": top,
+            "width": math.floor(max(x for x, _ in points)) + 1 - left,
+            "height": math.floor(max(y for _, y in points)) + 1 - top,
+        }
+        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        scale = image.width / clip["width"]
+    for seen in answers:
+        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+
+        def painted_at(point, ink=ink):
+            x, y = point
+            pixel = rgb_pixel(
+                image,
+                (
+                    min(int((x - left) * scale), image.width - 1),
+                    min(int((y - top) * scale), image.height - 1),
+                ),
+            )
+            return sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < RUN_INK
+
+        visible = {
+            c["index"] for c in seen.pop("coverPoints") if painted_at(c["point"])
+        }
+        seen["covers"] = [c for i, c in enumerate(seen["covers"]) if i not in visible]
+        for run in runs:
+            painted = [painted_at(point) for point in run["points"]]
+            share = sum(painted) / len(painted)
+            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
+                seen["covers"].append(
+                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
+                    f"{len(painted)} samples where nothing in front takes hits: paint "
+                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
+                )
 
 
 def current_location_ring(page):

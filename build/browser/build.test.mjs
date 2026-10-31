@@ -8,7 +8,12 @@ import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
+import {
+  buildOutputs,
+  checkOutputs,
+  checkRuntimeModules,
+  compilerPaths,
+} from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -18,7 +23,13 @@ const read = (name) => outputs.get(`${vendor}/${name}`).toString();
 const exportsOf = (code) =>
   parse(code, { ecmaVersion: "latest", sourceType: "module" })
     .body.filter((node) => node.type === "ExportNamedDeclaration")
-    .flatMap((node) => node.specifiers.map((specifier) => specifier.exported.name))
+    .flatMap((node) =>
+      node.specifiers.map((specifier) =>
+        specifier.exported.type === "Identifier"
+          ? specifier.exported.name
+          : specifier.exported.value,
+      ),
+    )
     .sort();
 
 test("compiler paths discover package modules and type the framework's bundles", async (context) => {
@@ -30,7 +41,10 @@ test("compiler paths discover package modules and type the framework's bundles",
     await writeFile(destination, text);
   };
   const config = JSON.parse(
-    await readFile(new URL("../../browser/types/tsconfig.json", import.meta.url)),
+    await readFile(
+      new URL("../../browser/types/tsconfig.json", import.meta.url),
+      "utf8",
+    ),
   );
   config.compilerOptions.types = [];
   config.compilerOptions.noUncheckedSideEffectImports = true;
@@ -41,13 +55,13 @@ test("compiler paths discover package modules and type the framework's bundles",
     "export declare const count: (value: number) => number;\n",
   );
   await put("browser/vendor/signals-core.js", "export const count = 1;\n");
-  await put("packages/playground/vendor/lf-playground-initial.js", "void 0;\n");
+  await put("packages/playground/vendor/playground-support.js", "void 0;\n");
   await put("packages/playwright/widgets/lf-trace.js", "export const trace = 1;\n");
   await put(
     "browser/types/imports.ts",
     `
 import { count } from "/vendor/signals-core.js";
-import "/vendor/lf-playground-initial.js";
+import "/vendor/playground-support.js";
 import { trace } from "/widgets/lf-trace.js";
 import { future } from "/vendor/lf-future.js";
 import { widget } from "/widgets/lf-future.js";
@@ -75,7 +89,7 @@ count("wrong");
   assert.match(missing.stdout, /Cannot find module '\/widgets\/lf-future.js'/);
   assert.doesNotMatch(
     missing.stdout,
-    /Cannot find module '\/(?:vendor\/lf-playground-initial|widgets\/lf-trace)/,
+    /Cannot find module '\/(?:vendor\/playground-support|widgets\/lf-trace)/,
   );
 
   await put("packages/future/vendor/lf-future.js", "export const future = 2;\n");
@@ -83,6 +97,35 @@ count("wrong");
   await put("browser/types/tsconfig.paths.json", await compilerPaths(scratch));
   const discovered = check();
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
+});
+
+test("framework modules require their checking pragma", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-pragma-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const runtime = path.join(scratch, "browser/runtime");
+  await mkdir(path.join(runtime, "framework"), { recursive: true });
+  const file = path.join(runtime, "framework/unimported.js");
+  await writeFile(file, "export const value = 1;\n");
+  await assert.rejects(checkRuntimeModules(scratch), {
+    message:
+      "Start each framework module with `// @ts-check`, so the strict program checks it:\nbrowser/runtime/framework/unimported.js",
+  });
+  await writeFile(file, "// @ts-check\nexport const value = 1;\n");
+  await checkRuntimeModules(scratch);
+});
+
+test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-source-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const runtime = path.join(scratch, "browser/runtime/nested");
+  await mkdir(runtime, { recursive: true });
+  await writeFile(path.join(runtime, "types.d.ts"), "export type Value = number;\n");
+  await checkRuntimeModules(scratch);
+  await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
+  await assert.rejects(checkRuntimeModules(scratch), {
+    message:
+      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\nbrowser/runtime/nested/unimported.ts",
+  });
 });
 
 test("locked source reproduces the complete committed output", async () => {
@@ -139,9 +182,11 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await assert.rejects(
     checkOutputs(outputs, scratch),
     (error) =>
+      error instanceof Error &&
       error.message.includes(
         "pnpm install --frozen-lockfile && pnpm run build:browser",
-      ) && error.message.endsWith("\ndist/kernel/leaf.js"),
+      ) &&
+      error.message.endsWith("\ndist/kernel/leaf.js"),
   );
 });
 
@@ -188,6 +233,7 @@ test("the bundle gate reads the parsed module, not its text", () => {
     assert.throws(
       () => checkModule(`const a = 1;\n${source}`, "x.js"),
       (error) =>
+        error instanceof Error &&
         error.message.startsWith("x.js:2: ") &&
         error.message.includes(reason) &&
         error.message.endsWith("which an export cannot load"),

@@ -56,6 +56,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.registry.storage import layer_record
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.readings import DevtoolsIssues
 
@@ -521,9 +522,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
             "the held read was not the one taken on the first revision"
         )
-        generation = json.loads((serve.page_dir / "registry.json").read_text())[
-            "$layer"
-        ]["generation"]
+        layer = layer_record(serve.page_dir)
+        assert layer is not None
+        generation = layer["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
         release_the_held_read()
         told(page)
@@ -673,7 +674,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     seat.get_by_role("button", name="1 new reply").click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
     expect(inline_link).to_have_attribute("target", "_blank")
-    expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
+    expect(inline_link).to_have_attribute("data-lf-external", "")
     # The record stands in the hub's track, which stays in view beside the goal, so
     # the reply waits behind its news as the pause did.
     page.locator("#atlas-record .lf-activity-news").click()

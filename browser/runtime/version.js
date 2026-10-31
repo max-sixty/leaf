@@ -14,17 +14,19 @@
  * one per document, and other surfaces import their readers directly; the controller
  * keeps travel and activation, which do. Block marks show changes, and
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. `comparisonBase` names the current base. `comparisonChanges(owner)` selects
- * changed descendants from the same comparison reading. Its signal advances after
- * the marked DOM and comparison selection have changed together; a pending picker
- * choice stays separate from that committed reading.
+ * request. A base is any earlier revision (`revisionBase`): a stamped version a row
+ * offers, or the revision the user was last shown, which since-seen.js offers on
+ * arrival (`offerComparison`) and which a reader's own choice outranks.
+ * `comparisonBase` names the current base and `stopComparison` ends it.
+ * `comparisonChanges(owner)` selects changed descendants from the same comparison
+ * reading. Its signal advances after the marked DOM and comparison selection have
+ * changed together; a pending picker choice stays separate from that committed reading.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
  * fresh document. Prose, styles, and media can change without reloading. Served identity
- * is captured before upgrade, including per-widget authored digests: upgraded DOM cannot
- * supply those baselines. The patch retains unchanged widgets and recaptures replaced
- * widgets against the arriving source. A widget declaring `x-patch: members` is
+ * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
  * patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
@@ -71,11 +73,7 @@ import {
 } from "./rendering.js";
 import { frameFor } from "./arrivals.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
-import {
-  documentWidgetDigests,
-  servedExecutable,
-  servedWidgets,
-} from "./document-identity.js";
+import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
 import {
@@ -114,11 +112,12 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
-  prepareDeclaredMarkdown,
+  loadDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
 import {
@@ -143,16 +142,13 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE, tabStore } from "./storage.js";
-import {
-  authoredBody,
-  initialOrigin,
-  restoreInitialSource,
-  unmarkedCopy,
-} from "./initial-render.js";
+import { PAGE_SCOPE } from "./storage.js";
+import { tabStore } from "./tab-store.js";
+import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
-import { el, layoutChanged, reveal } from "./widget-elements.js";
-import { settleMarginContentLayout } from "./content-layout.js";
+import { el, reveal } from "./widget-elements.js";
+import { layoutChanged } from "./widget-upgrade.js";
+import { settleDocumentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
@@ -199,13 +195,12 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. Most arrive after this module, but the server's prepaint
-// bootstrap deliberately runs before the module graph and has already written the live
-// shell and provisional user layout. Authored markup cannot use the `data-lf-` or
+// bootstrap deliberately runs before the module graph and has already written sample
+// presentation facts. Authored markup cannot use the `data-lf-` or
 // `lf-` namespaces, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
-  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -230,53 +225,103 @@ const versionedHeadNode = (node) =>
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
     node.localName === "link");
-// This document as its author wrote it, kept inert beside the page it became. A patch
-// applies the difference between two revisions, so it needs the revision the page is
-// standing on as source — not the page, which by then carries a tokenizer's spans, a
-// user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The early coordinator keeps the source of each initially rendered host
-// before its package moves or replaces anything. unmarkedCopy uses those sources
-// and removes delivery's placeholders and invocation scripts. Each copied source
-// node retains its route to the original live node, so pairing still works when a
-// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
-// and are excluded from the separate head baseline above. A later arriving source
-// that has not been initially rendered pairs by the ordinary parallel walk.
+// Keep one inert authored baseline before Leaf mounts or upgrades anything. Live
+// revisions compare against it and pair retained source nodes with their live peers.
+// Delivery's Markdown preview is presentation, so neither baseline includes it.
+const authoredMarkup = (root) => {
+  // Prepaint can already have painted the first document. Both source snapshots
+  // exclude runtime-owned attributes; their live values stay with their writers.
+  for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
+    for (const element of root.querySelectorAll(`[${name}]`))
+      element.removeAttribute(name);
+  for (const member of root.querySelectorAll("[data-lf-view]"))
+    member.removeAttribute("hidden");
+  for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+  return root;
+};
 const pairSources = (source, live, pairs) => {
-  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
+    (child) => !child.matches?.("[data-lf-prepaint]"),
   );
   for (const [at, child] of [...held.childNodes].entries()) {
-    const original = initialOrigin(child);
-    const peer = original === child ? children[at] : original;
+    const peer = children[at];
     if (peer) pairSources(child, peer, pairs);
   }
   return pairs;
 };
-// The served baseline is read here, before any widget upgrades, and the version
-// controller takes it whole, replacing each part with every revision. Nothing else
-// keeps it: its source routes each copied node back to the live node it came from
-// (its pairs, and prepaint.js's `origins`), so a reference kept past the first revision
-// would hold every node the page was served with after that revision removed it.
+// Only the version controller keeps this baseline; replacing a revision releases
+// its source and the source/live node pairs together.
 let initialDocument = (() => {
   const main = pageDocument();
-  const source = main ? unmarkedCopy(main) : null;
+  const inert = document.implementation.createHTMLDocument("");
+  const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+  // Cloning transfers native dirty properties too. Read the initial condition from
+  // the defaults, leaving markup and its exact text intact (reparsing drops a leading
+  // newline in pre/textarea). Native setters apply each control's sanitization.
+  for (const input of source?.querySelectorAll("input") ?? []) {
+    if (
+      !["file", "checkbox", "radio"].includes(input.type) &&
+      input.value !== input.defaultValue
+    )
+      input.value = input.defaultValue;
+    input.checked = input.defaultChecked;
+  }
+  for (const textarea of source?.querySelectorAll("textarea") ?? [])
+    textarea.value = textarea.defaultValue;
+  const pairs = main ? pairSources(source, main, new WeakMap()) : new WeakMap();
+  // Native disclosures can already have been used while modules were loading.
+  // Their parse-time owner supplies the authored default for the source baseline;
+  // the live node keeps the user's choice, as it does for every later revision.
+  for (const disclosure of source?.querySelectorAll("details") ?? []) {
+    const open = document.documentElement.lfStorage.initialDisclosureOpen(
+      pairs.get(disclosure),
+    );
+    if (open !== undefined) disclosure.toggleAttribute("open", open);
+  }
   return {
     authoredBodyAttributes: authoredAttributes(document.body),
     authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
     authoredHtmlAttributes: authoredAttributes(document.documentElement),
     source,
-    pairs: main ? pairSources(source, main, new WeakMap()) : new WeakMap(),
+    pairs,
   };
 })();
+
+// Boot lends this same captured source and its original node pairs to typed
+// capture, then transfers ownership to the version controller.
+export function takeInitialDocument() {
+  const captured = initialDocument;
+  initialDocument = null;
+  return captured;
+}
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.
 const stamped = (version) =>
   runtime.versions.find((candidate) => candidate.version === version);
+// A comparison's base: the revision the page is compared with, its document's address,
+// and its name in what the comparison says, a stamp's `vN`, else the time it went live,
+// which is what a reader coming back to an unstamped page can place. It is built from a
+// stamped version's entry or from a revision descriptor such as the state's `seen`.
+/** @param {{revision: number, version: number | null, url: string, activated_at?: string}} entry */
+export const revisionBase = ({ revision, version, url, activated_at }) =>
+  Object.freeze({
+    revision,
+    url,
+    name: version != null ? `v${version}` : wentLive(activated_at),
+  });
+const wentLive = (iso) => {
+  const at = new Date(iso);
+  const sameDay = at.toDateString() === new Date().toDateString();
+  return at.toLocaleString(undefined, {
+    ...(sameDay ? {} : { weekday: "short", day: "numeric", month: "short" }),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
 // The version picker: a press that says which version this is, and a menu that says
 // what each one was and what it changed. It was a <select>, and the two things that
 // cost were both the control's rather than the styling's. A select takes its inner
@@ -336,7 +381,7 @@ function menuRows(state, notes) {
     note: notes[entry.version] ?? null,
     current: entry.version === runtime.currentStamp,
     active: false,
-    comparable: comparable(entry.version),
+    comparable: comparable(entry.revision),
   }));
   for (const revision of draftRevisions()) {
     const active = revision === state.active.revision;
@@ -379,16 +424,16 @@ function pickerModel(state) {
       news: behind,
       keyTitle: offered
         ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}`
+          ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}`
           : diffOn.value
-            ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}`
+            ? `${currentLabel}: showing what changed since ${diffBase.value.name} — pick a version, or press Compare again to stop${newer}`
             : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
         : currentLabel,
       ariaLabel: offered
         ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}`
+          ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}`
           : diffOn.value
-            ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}`
+            ? `${currentLabel}: comparing with ${diffBase.value.name}; open versions${newer}`
             : `${currentLabel}: open versions${newer}`
         : currentLabel,
     }),
@@ -411,11 +456,14 @@ function pickerModel(state) {
         ? Object.freeze([])
         : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+      // The base's revision, which each row of the menu names it by.
+      base:
+        (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
+        null,
       currentRevision: runtime.currentRevision,
       on: diffOn.value,
       pendingBase: diffPendingBase.value,
-      baseRevision: stamped(diffBase.value)?.revision ?? null,
+      baseRevision: diffBase.value?.revision ?? null,
     }),
   });
 }
@@ -469,6 +517,11 @@ registerPageControl({
 // picker's menu, where the note saying what changed in words sits beside the
 // press that marks it on the page.
 //
+// Both sides are sources: the base version's and this version's, each painted with
+// the widget state it shows (`paintedSource`). What a module wrote into the page is in
+// neither, so it can't read as a change, marked or not. A changed block then marks the
+// live node its source node stands for (`standingFor`).
+//
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
@@ -478,9 +531,12 @@ const diffBlockSel = () =>
     "aside",
     ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
-    // below avoids counting nested blocks twice and keeps base and live readings
-    // symmetric: a draft's authored <pre> and rendered body key the same words.
-    ...tagsDeclaring((e) => e["x-verbatim"]),
+    // below avoids counting nested blocks twice. One set among the words around it
+    // (x-inline), such as a gloss, is part of its paragraph's words instead, or that
+    // rule would skip the paragraph and miss a change to the words around it. A
+    // suggestion's slots stay blocks: the decision retiring one makes the suggestion
+    // opaque, and its paragraph's words would run across it.
+    ...tagsDeclaring((e) => !e["x-inline"] && e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
@@ -503,23 +559,25 @@ const diffOpaqueSel = () =>
 // comes from the immutable picker model and is read back by nothing. The comparison
 // owns the marked identities; the CSS marks are only their rendering.
 const diffOn = signal(false);
-const diffBase = signal(null);
+/** @typedef {ReturnType<typeof revisionBase>} ComparisonBase */
+const diffBase = signal(/** @type {ComparisonBase | null} */ (null));
 // Advanced after the marked DOM changes, so tracked readers see its new contents.
 const comparisonGeneration = signal(0);
-const diffPendingBase = signal(null);
+const diffPendingBase = signal(/** @type {ComparisonBase | null} */ (null));
 const diffMarked = new Set();
-// What each marked block said in the base version, and which of those readings the
-// user has open. The marks say a block changed; these say what it changed from, at
-// the block, so learning it costs no travel to the other version and back.
+// What each marked block said in the base version and says in this version's source,
+// and which of those readings the user has open. The marks say a block changed; these
+// say what it changed from, at the block, so learning it costs no travel to the other
+// version and back.
 //
 // Identity across versions is the id — the fact threads and reading position already
 // ride, and the same lookup the state half of applyDiff resolves its units by. A block
 // with no id names nothing in the base document, so the comparison holds nothing for it
 // and its Change reading stays the plain travel it always was. An opaque widget holds
-// nothing either, and for the reason the pass keys those by identity rather than by
-// words: the live one is upgraded and the base one is not, so their texts were never
-// each other's to compare.
-const diffBefore = new Map(); // marked element -> the base version's words, or null
+// nothing either: what the user reads there is its module's rendering, not the source
+// words the two versions hold.
+/** @type {Map<Element, {was: string | null, is: string | null}>} */
+const diffWordsOf = new Map();
 const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
@@ -527,46 +585,44 @@ const inlineOpen = new Map(); // marked element -> its generated nodes and highl
 // walk asks per row: it is one fetch per press, and the presses come faster than the network.
 let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
-// Use the same boundary for comparison keys, stored before words and inline ranges.
+// Use the same boundary for comparison keys, stored words and inline ranges.
 // The child has its own identity and binding key in diffBlocks below.
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
   textNodesUnder(root, "wrote", (child) => child.matches(opaque));
+const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
-// A renderer may format authored words while keeping their source on the formatted
-// island. Compare that source with the unupgraded base document, then use the live
-// DOM for what a user can quote and see in an inline comparison.
+// Formatting may render authored words while keeping their source on the formatted
+// island. The keys compare that source; an inline comparison reads the formatted words,
+// which are what the user sees.
 function diffWords(block, opaque) {
-  const words = (root) => quoteFrom(comparisonTextNodes(root, opaque));
+  const words = (root) => comparisonWords(root, opaque);
   if (!block.querySelector("[data-lf-source-words]")) return words(block);
   const source = block.cloneNode(true);
   for (const island of source.querySelectorAll("[data-lf-source-words]"))
     island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
   return words(source);
 }
-// A block's key is its *authored* text (`wrote`), which is why that reading exists: it
-// drops even the labels anchoring reads as the page's own words, because the base
-// version is parsed unupgraded and holds none of them.
+// The blocks of a painted source (`paintedSource`), each keyed by its authored text
+// (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
 function diffBlocks(root) {
   const pairs = [];
   const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
-  const authoredHere = authored(root);
   // A data body is one source value. Its formatted paragraphs are its reading,
   // not independent source units; comparing the source also detects changed emphasis.
   for (const body of root.querySelectorAll(".lf-markdown-body")) {
     const owner = body.parentElement;
-    if (inChrome(owner) || owner.closest(opaque)) continue;
+    if (owner.closest(opaque)) continue;
     pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
   }
   for (const b of root.querySelectorAll(blocks)) {
-    if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
+    if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = diffWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
-    // changed. Symmetric for free — the base parses unupgraded, where the same
-    // attribute would have painted the same words through the pseudo-element.
+    // changed. Both sources hold the attribute, so the key reads it on both sides.
     for (const [attr, edge] of Object.entries(
       registry[b.localName]?.["x-says"] ?? {},
     )) {
@@ -575,14 +631,14 @@ function diffBlocks(root) {
     }
     if (key) pairs.push([b, key]);
   }
-  // Opaque widgets key by identity, not body: an upgrade rewrote the live body,
-  // so text can't compare — but a widget the base didn't have still marks.
+  // Opaque widgets key by identity, not body, since the user reads their module's
+  // rendering rather than those words — but a widget the base didn't have still marks.
   for (const w of root.querySelectorAll(opaque)) {
-    // parentElement, not w itself: an svg a widget rendered stays its widget's.
-    if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
+    // parentElement, not w itself: an svg inside a widget stays its widget's.
+    if (w.parentElement?.closest(opaque)) continue;
     const entry = registry[w.localName] ?? {};
-    // A data binding is authored semantics even though the generated children
-    // of an upgraded widget are opaque to comparison.
+    // A data binding is authored semantics even though the body it fills is
+    // opaque to comparison.
     const bindingAttrs = new Set();
     for (const input of Object.values(entry["x-data"] ?? {})) {
       if (input.source) bindingAttrs.add(input.source);
@@ -629,7 +685,7 @@ function inOrder(before, after) {
     else j++;
   return kept;
 }
-// The before surface holds the same accepted body projection as its version would
+// A painted source holds the same accepted body projection as its version would
 // show: the event's exact source, never a collapsed comparison value.
 function paintBodies(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
@@ -645,9 +701,9 @@ function paintBodies(doc, widgets) {
     }
 }
 // A child an action in force created (`creates`) stood on the page that version
-// showed, so the base holds it too, as passages.py adds it to the file's reading: at
-// its owner's end, marked `data-lf-added`, its words formatted as its entry says.
-// Without it, an option the user added before the base reads as changed since.
+// showed, so its painted source holds it too, as passages.py adds it to the file's
+// reading: at its owner's end, marked `data-lf-added`, its words formatted as its entry
+// says. Without it, an option the user added before the base reads as changed since.
 function placeCreated(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
     for (const [verb, spec] of specs) {
@@ -668,50 +724,63 @@ function placeCreated(doc, widgets) {
       }
     }
 }
-// The content half: the blocks under `live` whose words `doc`, a base version's
-// unupgraded document, doesn't hold, each with the words the comparison read in it.
-// Multiset membership rather than an alignment: an unchanged block that merely moved
-// stays unmarked; a changed or new one has no twin.
-/** @param {Document} doc @param {Element} [live] */
-function blocksWithoutTwin(doc, live = document.body) {
-  const base = new Map();
-  for (const [, key] of diffBlocks(doc)) base.set(key, (base.get(key) ?? 0) + 1);
-  const without = [];
-  for (const [b, key] of diffBlocks(live)) {
-    const left = base.get(key) ?? 0;
-    if (left > 0) base.set(key, left - 1);
-    else without.push([b, key]);
-  }
-  return without;
+// A version's source as that version shows with `widgets`' state: a copy in a document
+// of its own, its Markdown formatted, its body records painted and the children its
+// actions created placed. `sourceOf` maps each copied element to the source element it
+// copies, read before formatting replaces a Markdown body's <pre>; what the painting
+// made has none. Formatting is synchronous: the renderer is loaded wherever a source
+// declares Markdown, for the live page at its upgrade and for a base before this.
+function paintedSource(source, widgets) {
+  const doc = document.implementation.createHTMLDocument("");
+  const root = doc.importNode(source, true);
+  const sources = [source, ...source.querySelectorAll("*")];
+  const sourceOf = new Map(
+    [root, ...root.querySelectorAll("*")].map((copy, at) => [copy, sources[at]]),
+  );
+  doc.body.replaceChildren(root);
+  formatDeclaredMarkdown(doc);
+  paintBodies(doc, widgets);
+  placeCreated(doc, widgets);
+  return { doc, root, sourceOf };
 }
 // This version's source and the live node each of its nodes stands for, as the
 // controller holds them.
 /** @type {() => {source: Element | null, pairs: WeakMap<Node, Node>} | null} */
 let versionSource = () => null;
-// The version being read compared with its own source, which should mark nothing: the
-// state half has the same fold on both sides, so only words the live page shows and
-// its source doesn't, such as a widget's that it wrote without `generatedElement`,
-// can mark a block. The render gate reads it (`render-checks/words.js`,
-// `wordsReadAsChanged`). It reads the controller's source of this version rather than
-// fetching it, because a candidate `page check` serves has no stamped address yet.
-// Formatting is synchronous here: a source holding Markdown formatted the live page
-// with the same loaded renderer.
-export function selfComparison() {
-  const source = versionSource()?.source;
-  return source ? blocksNewSince(source) : [];
+// This version's source painted with the state the page shows now.
+const currentSource = () =>
+  paintedSource(versionSource().source, readApplication().effective.widgets);
+// The live node a block of this version's painted source stands for: the one its source
+// element is paired with, or else the page's element of its id, as for a child the
+// painting created or an element a script replaced with a copy. Where a module took
+// that node off the page, as a widget that redraws its words does, the nearest ancestor
+// still on it stands for the block.
+function standingFor(block, current) {
+  const { pairs } = versionSource();
+  for (let at = block; at && at !== current.root; at = at.parentElement) {
+    const paired = current.sourceOf.has(at) && pairs.get(current.sourceOf.get(at));
+    if (paired?.isConnected) return paired;
+    const named = at.id && elementById(at.id, pageDocument());
+    if (named?.isConnected) return named;
+  }
+  return null;
 }
-// The live page's blocks a version's source has no twin for, read as the comparison
-// reads them, with the current widget state painted on both sides. A revision landing
-// asks it of the source it replaced, to tint the blocks the revision changed.
-function blocksNewSince(source) {
-  const doc = document.implementation.createHTMLDocument("");
-  doc.body.replaceChildren(doc.importNode(source, true));
-  formatDeclaredMarkdown(doc);
-  const { widgets } = readApplication().effective;
-  paintBodies(doc, widgets);
-  placeCreated(doc, widgets);
-  // The source is the page's `main`, so the live side is too.
-  return blocksWithoutTwin(doc, pageDocument());
+// The content half: the live nodes standing for the blocks of `current` whose words
+// `base` doesn't hold, both painted sources. Multiset membership rather than an
+// alignment: an unchanged block that merely moved stays unmarked; a changed or new one
+// has no twin. A revision landing asks it of the source it replaced, to tint the blocks
+// the revision changed.
+function changedSince(base, current = currentSource()) {
+  const held = new Map();
+  for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
+  const changed = new Set();
+  for (const [block, key] of diffBlocks(current.root)) {
+    const left = held.get(key) ?? 0;
+    if (left > 0) held.set(key, left - 1);
+    else changed.add(standingFor(block, current));
+  }
+  changed.delete(null);
+  return changed;
 }
 // The live elements this version's source wrote: whether the page or Leaf put an
 // element there is this, not whether a module marked the words it fills it with.
@@ -725,8 +794,8 @@ export function servedElements() {
   }
   return served;
 }
-function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-  const baseView = baseReading.views[String(stamped(baseVersion).revision)];
+function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
+  const baseView = baseReading.views[String(baseRevision.revision)];
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
   // projection the server read for it. A report in force at the base painted there
@@ -748,22 +817,19 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  paintBodies(doc, baseWidgets);
-  placeCreated(doc, baseWidgets);
-  for (const [b] of blocksWithoutTwin(doc)) {
-    b.classList.add("lf-ins-block");
-    diffMarked.add(b);
-  }
-  // The state half: block keys catch words, and a pure state change — a card
-  // in a different column, a pick on a different option — has no text of its
-  // own. Compare declared state instead: the base fold above against the
-  // publisher's current one. Body records are words and the block keys above own
-  // them.
   const mark = (target) => {
     if (diffMarked.has(target)) return;
     target.classList.add("lf-ins-block");
     diffMarked.add(target);
   };
+  const base = paintedSource(pageDocument(doc), baseWidgets);
+  const current = currentSource();
+  for (const block of changedSince(base, current)) mark(block);
+  // The state half: block keys catch words, and a pure state change — a card
+  // in a different column, a pick on a different option — has no text of its
+  // own. Compare declared state instead: the base fold above against the
+  // publisher's current one. Body records are words and the block keys above own
+  // them.
   for (const [id, now] of readApplication().effective.widgets) {
     const before = baseWidgets.get(id);
     const widget = elementById(id);
@@ -812,23 +878,25 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   // One pass over everything marked, after both halves, because the two halves mark
   // for different reasons and a block reached by either is a block a user can ask
   // about. The words are taken here rather than at the press: this is the one moment
-  // the base document is in hand, and holding it open for a press that may never come
-  // would keep a whole second document alive for the life of the comparison.
+  // the two sources are in hand, and holding them open for a press that may never come
+  // would keep two more documents alive for the life of the comparison.
   const opaque = diffOpaqueSel();
   for (const block of diffMarked) {
     if (!block.matches(ADDRESSABLE) || block.closest(opaque)) continue;
-    const baseBlock = doc.getElementById(block.id);
-    diffBefore.set(
-      block,
-      baseBlock ? quoteFrom(comparisonTextNodes(baseBlock, opaque)) : null,
-    );
+    const [was, is] = [base, current].map(({ doc }) => doc.getElementById(block.id));
+    diffWordsOf.set(block, {
+      was: was ? comparisonWords(was, opaque) : null,
+      is: is ? comparisonWords(is, opaque) : null,
+    });
   }
   return diffMarked.size;
 }
 // ---------- one marked block's inline comparison ----------
-// `wrote` is the authority for the two texts. This companion reading keeps the same
-// normalized text with a boundary back into the authored text nodes, so a run the
-// alignment calls inserted can be painted in place. Generated labels and deletions wear
+// `wrote` is the authority for the two texts, read from the two sources; the live block
+// offers a comparison only while it reads the same as its source (`inlineComparison`).
+// This companion reading keeps the same normalized text with a boundary back into the
+// live block's authored text nodes, so a run the alignment calls inserted can be painted
+// in place. Generated labels and deletions wear
 // `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
 // current document rather than the temporary historical words on screen.
 const inlineId = (target) => `lf-version-inline-${target.id}`;
@@ -884,22 +952,22 @@ function paintInlineInsertions() {
 }
 
 function openInlineComparison(target) {
-  const before = diffBefore.get(target);
+  const before = diffWordsOf.get(target).was;
   const reading = authoredReading(target);
   const current = currentVersionToken();
   const label = el(
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
     before === null
-      ? `New since v${diffBase.value}`
-      : `v${diffBase.value} → ${current}`,
+      ? `New since ${diffBase.value.name}`
+      : `${diffBase.value.name} → ${current}`,
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
     before === null
-      ? `New since version ${diffBase.value}`
-      : `Inline comparison from version ${diffBase.value} to ${current}`,
+      ? `New since ${diffBase.value.name}`
+      : `Inline comparison from ${diffBase.value.name} to ${current}`,
   );
 
   const nodes = [label];
@@ -939,8 +1007,8 @@ function openInlineComparison(target) {
   paintInlineInsertions();
   layoutChanged(target);
   return before === null
-    ? `v${diffBase.value} had nothing here`
-    : `showing an inline diff from v${diffBase.value}`;
+    ? `${diffBase.value.name} had nothing here`
+    : `showing an inline diff from ${diffBase.value.name}`;
 }
 
 function closeInlineComparison(target) {
@@ -950,25 +1018,26 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase.value} hidden`;
+  return `inline diff from ${diffBase.value.name} hidden`;
 }
 
 // What a text-changing marked block holds for the margin's disclosure reading. A pure
 // state change remains marked but offers no empty prose comparison. The one controlled
 // id is a quiet label at the start of the block. It names the versions for assistive
 // reading while the margin and Page Map carry that provenance visually, outside the
-// passage whose words are being compared.
-export const inlineComparison = (target) =>
-  diffOn.value &&
-  diffBefore.has(target) &&
-  (diffBefore.get(target) === null ||
-    diffBefore.get(target) !== quoteFrom(comparisonTextNodes(target)))
+// passage whose words are being compared. The comparison paints the source's words onto
+// the live block's, so a block whose live words aren't its source's, such as one a
+// module writes into, stays marked whole and offers none.
+export const inlineComparison = (target) => {
+  const words = diffOn.value ? diffWordsOf.get(target) : undefined;
+  return words && words.was !== words.is && words.is === comparisonWords(target)
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
-        offer: `v${diffBase.value} → ${currentVersionToken()}`,
+        offer: `${diffBase.value.name} → ${currentVersionToken()}`,
       }
     : null;
+};
 
 // The press, and the sentence to say about it — composed here, where the versions are
 // named. The comparison signal also tracks its current rendering: the same pass
@@ -982,16 +1051,10 @@ export function toggleInlineComparison(target) {
   return said;
 }
 
-// Whether a stamped version can be compared with the revision being read: any stamp
-// on an earlier revision, which is which rows the menu builds a press onto.
-const comparable = (version) => {
-  const base = stamped(version);
-  return (
-    runtime.currentRevision !== null &&
-    base !== undefined &&
-    base.revision < runtime.currentRevision
-  );
-};
+// Whether a revision can be compared with the one being read: any earlier one, which
+// is which stamped rows the menu builds a press onto.
+const comparable = (revision) =>
+  runtime.currentRevision !== null && revision < runtime.currentRevision;
 // Whether the comparison is active and what against, or which base a stopped one is
 // waiting on — the only thing that decides it, the marks and the paint being renderings
 // rather than a second copy.
@@ -1005,7 +1068,7 @@ function setDiff(on, base, pendingBase = null) {
       // Inline diffs leave with the block marks. Historical words or insertion paint
       // under a block nothing marks any more would leave half of the comparison behind.
       for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
-      diffBefore.clear();
+      diffWordsOf.clear();
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.clear();
     }
@@ -1021,7 +1084,7 @@ function setDiff(on, base, pendingBase = null) {
 // after the single await: the walk asks for a comparison per row, and a marking pass
 // that could interleave with the next row's would leave two bases' marks in place
 // under a picker naming one of them.
-async function showComparison(base) {
+async function showComparison(base, { offered = false } = {}) {
   // Selection is immediate even though its result needs two documents. Clear the prior
   // marks, move the menu's checked state to the requested base, and expose the wait as
   // busy. A fast walk then never leaves the last completed base highlighted under focus
@@ -1029,14 +1092,8 @@ async function showComparison(base) {
   // an unlit state it is about to leave.
   setDiff(false, null, base);
   const mine = ++diffRequest;
-  const baseVersion = stamped(base);
-  const baseRevision = baseVersion?.revision;
-  if (baseRevision == null) {
-    diffPendingBase.value = null;
-    raiseError(`Couldn't load v${base}`);
-    return;
-  }
-  const documentRequest = authoredDocument(baseVersion.url);
+  const baseRevision = base.revision;
+  const documentRequest = authoredDocument(base.url);
   let doc;
   let reading;
   let baseAuthored;
@@ -1051,34 +1108,51 @@ async function showComparison(base) {
       if (runtime.lastEventSeq === throughSeq) break;
     }
     if (mine !== diffRequest) return;
-    // Typed authored state reads the source before its Markdown is formatted.
+    // Typed authored state reads the source, which formatting leaves alone: it formats
+    // a copy (`paintedSource`), with the renderer loaded here.
     baseAuthored = stageAuthoredStates(doc, new Map());
-    await prepareDeclaredMarkdown(doc);
+    await loadDeclaredMarkdown(doc);
   } catch {
     if (mine === diffRequest) {
       diffPendingBase.value = null;
-      raiseError(`Couldn't load v${base}`);
+      raiseError(`Couldn't load ${base.name}`);
     }
     return;
   }
   if (mine !== diffRequest) return;
   const n = applyDiff(doc, baseAuthored, base, reading);
+  // A comparison nobody asked for that finds nothing says nothing and stands down, as
+  // after a revision that changed only the layer.
+  if (offered && !n) return setDiff(false);
   setDiff(true, base);
   notice(
     n
-      ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
-      : `No text changes since v${base}`,
+      ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}`
+      : `No text changes since ${base.name}`,
   );
 }
-// A press names one base, so pressing the current one again is the way off it: Compare is a
-// toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
-// walk itself — up to the version being read, which is comparable with nothing and so
-// stops rather than re-bases.
-const pressComparison = (base) =>
-  (diffOn.value && base === diffBase.value) || diffPendingBase.value === base
+// Mark what changed since `base` (`revisionBase`), unless a comparison already stands or
+// is on its way: the reader's own choice of base outranks one Leaf offers
+// (since-seen.js).
+export function offerComparison(base) {
+  if (selectedBase() !== null || !comparable(base.revision)) return;
+  void showComparison(base, { offered: true });
+}
+// A press names one stamped version, so pressing the current one again is the way off
+// it: Compare is a toggle where it is lit and a switch of base where it isn't. The
+// keyboard's way off is the walk itself — up to the version being read, which is
+// comparable with nothing and so stops rather than re-bases.
+const pressComparison = (version) => {
+  const entry = stamped(version);
+  if (!entry) return;
+  return selectedBase()?.revision === entry.revision
     ? setDiff(false)
-    : showComparison(base);
+    : showComparison(revisionBase(entry));
+};
 
+/** Stop marking: the way out of a comparison, whoever started it (change-walk.js). */
+export const stopComparison = () => setDiff(false);
+/** The base the page's marks compare with, or null where nothing is compared. */
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
@@ -1102,8 +1176,7 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  // First-paint delivery wrappers have no place in the authored revision.
-  return restoreInitialSource(doc);
+  return authoredMarkup(doc);
 }
 // Repeated comparisons of the same immutable revision share its document fetch.
 const revisionDocuments = new Map();
@@ -1119,7 +1192,11 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
-/** @param {{
+/**
+ * @template RetainedLocation
+ * @template ObligationLocation
+ * @param {{
+ *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: any,
  *   openThread: any,
  *   refreshThread: any,
@@ -1127,13 +1204,14 @@ function revisionDocument(revision) {
  *   hasPending: any,
  *   readAndApply: any,
  *   syncLayout: any,
- *   captureRetainedCurrentLocation?: () => unknown,
- *   restoreRetainedCurrentLocation?: (currentLocation: unknown) => boolean,
- *   captureObligationCurrentLocation?: () => unknown,
- *   restoreObligationCurrentLocation?: (currentLocation: unknown) => void,
+ *   captureRetainedCurrentLocation?: () => RetainedLocation,
+ *   restoreRetainedCurrentLocation?: (currentLocation: RetainedLocation) => boolean,
+ *   captureObligationCurrentLocation?: () => ObligationLocation,
+ *   restoreObligationCurrentLocation?: (currentLocation: ObligationLocation) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
+  initialDocument,
   compositionInput,
   openThread,
   refreshThread,
@@ -1156,11 +1234,8 @@ export function createVersionController({
   } = initialDocument;
   // Every revision pairs its own source here; a superseded source's pairs leave with it.
   const sourcePairs = initialDocument.pairs;
-  initialDocument = null;
   versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
-  // What this document's widgets were written as, and the source each live node stands
-  // for. Both are replaced by every revision this document takes on.
-  let authoredWidgets = servedWidgets;
+  // The delivery root removed when comparing this revision with the next.
   let authoredRoot = layerRoot(document);
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -1282,29 +1357,7 @@ export function createVersionController({
 
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 
-  // Every declared widget in one revision's authored page, named the way its capture
-  // named it: by id where the author gave one, and otherwise by tag and place among the
-  // others of that tag. An unnamed widget is as much the user's as a named one, and
-  // without a key of its own it could never answer that its markup was unchanged, so
-  // every revision rebuilt it — taking with it whatever the user had open in it.
-  function widgetKeys(source) {
-    const keys = new Map();
-    const counts = new Map();
-    for (const element of elementsWithin(source)) {
-      if (!upgraded(element)) continue;
-      if (element.id) keys.set(element, element.id);
-      else {
-        const seen = counts.get(element.localName) ?? 0;
-        counts.set(element.localName, seen + 1);
-        keys.set(element, `${element.localName}#${seen}`);
-      }
-    }
-    return keys;
-  }
-
-  // Every element under a root in document order, a template's content included: the
-  // capture walks the parsed tree the same way, and a widget written inside a template
-  // counts among the others of its tag on both sides or on neither.
+  // Every element under a root in document order, including inert template contents.
   function* elementsWithin(root) {
     const inner = root.localName === "template" ? root.content : root;
     for (const child of inner.children) {
@@ -1316,37 +1369,46 @@ export function createVersionController({
   // Two source elements spelled the same way once the address each revision was
   // delivered at is read out of them. Delivery writes the revision's own root into every
   // page and media reference, so the same `<img>` differs between two revisions that
-  // never touched it; a widget's capture digested the markup before that, and this is
-  // the same reading for an element no capture digested.
-  const RESOURCE_ATTRIBUTES = ["src", "href", "srcset", "poster", "data", "style"];
-  const unrooted = (value, root) =>
-    root && value.includes(root) ? value.split(root).join("/") : value;
+  // never touched it. Any attribute may name media; comparison removes only the
+  // exact delivery root rather than keeping a second list of resource attributes.
+  // Script and style bodies use that same rule without reclassifying their content.
+  const deferredScript = "data:text/javascript;charset=utf-8,";
+  const unrooted = (value, root) => {
+    if (value.startsWith(deferredScript)) {
+      // revision_delivery defers inline classics as URL-encoded source, padded to
+      // their document line. That diagnostic padding is not the script's identity.
+      value =
+        deferredScript + value.slice(deferredScript.length).replace(/^(?:%0A)+/, "");
+      if (root) value = value.split(encodeURIComponent(root)).join("%2F");
+    }
+    return root && value.includes(root) ? value.split(root).join("/") : value;
+  };
   // One attribute, read the same way: an address that differs only by the revision it
   // was delivered under is the same address, and the page keeps the one it has, which
   // is still served because revisions are immutable.
-  const sameValue = (name, held, value, arrivingRoot) =>
-    RESOURCE_ATTRIBUTES.includes(name)
-      ? unrooted(held, authoredRoot) === unrooted(value, arrivingRoot)
-      : held === value;
+  const sameValue = (held, value, arrivingRoot) =>
+    unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
   function sameAuthoredMarkup(before, after, arrivingRoot) {
+    if (before.isEqualNode(after)) return true;
     const strip = (element, root) => {
       const copy = element.cloneNode(true);
       if (!root) return copy;
-      for (const node of [copy, ...elementsWithin(copy)])
-        for (const name of RESOURCE_ATTRIBUTES) {
-          const value = node.getAttribute(name);
-          if (value?.includes(root)) node.setAttribute(name, unrooted(value, root));
-        }
+      for (const node of [copy, ...elementsWithin(copy)]) {
+        if (node.matches("style, script"))
+          node.textContent = unrooted(node.textContent, root);
+        for (const attribute of node.attributes)
+          attribute.value = unrooted(attribute.value, root);
+      }
       return copy;
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // A widget declaring `x-patch: members` builds its controls beside its members and
-  // reads nothing of them but their attributes. So what it built stands for its own
-  // attributes and each member's tag and attributes, in order, and while two revisions
-  // agree on that much, the rest of the difference is inside members the author owns.
-  // One that moved them all into an authored body reads none of them, so there its own
-  // attributes stand for everything it built.
+  // An x-patch container retains authored markup while the inputs its renderer
+  // consumes stay the same. A structured member list, or a declared x-views list,
+  // consumes its direct members' identities and attributes. A markup container
+  // without views consumes only its own attributes: the patch owns its evidence,
+  // including native attributes. A generated authored body likewise separates that
+  // evidence from the renderer's inputs.
   const shell = (element, members) => {
     const copy = element.cloneNode(false);
     if (members)
@@ -1354,8 +1416,11 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) => {
-    if (registry[before.localName]?.["x-patch"] !== "members") return false;
-    const members = !authoredBody(sourcePairs.get(before));
+    const entry = registry[before.localName];
+    if (entry?.["x-patch"] !== "members") return false;
+    const members =
+      !authoredBody(sourcePairs.get(before)) &&
+      (entry["x-content"] === "members" || entry["x-views"]);
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1365,25 +1430,17 @@ export function createVersionController({
 
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
-  // id or a matching digest alone.
+  // id or matching markup alone.
   function patchRules(doc) {
-    const source = pageDocument(doc);
-    const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
-    const heldKeys = widgetKeys(authoredSource);
-    const arrivingKeys = widgetKeys(source);
     return {
       pairs: sourcePairs,
       contains: under,
       declared: upgraded,
       body: authoredBody,
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
-      unchanged: (before, after) => {
-        const digest = authoredWidgets[heldKeys.get(before)];
-        return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
-      },
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
-      sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
+      sameValue: (held, value) => sameValue(held, value, arrivingRoot),
     };
   }
 
@@ -1457,7 +1514,6 @@ export function createVersionController({
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
     const source = pageDocument(doc);
-    const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
     revisionDocuments.delete(target.revision);
@@ -1474,7 +1530,7 @@ export function createVersionController({
     // to a controller. The nodes read here are the nodes that end up in the page, and the
     // roots among them are what the install dresses.
     const arrived = [];
-    const descriptorStages = [];
+    const arrivedDescriptors = new Map();
     const prior = readApplication().document;
     // The arriving revision's source is the complete page baseline. Capture it before
     // insertion can connect a custom element and turn authored input into presentation.
@@ -1493,20 +1549,22 @@ export function createVersionController({
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);
-        // Stated rather than read, because the node is not in the document yet and
-        // the readings below ask where it stands: whether an exhibit quotes it, and
-        // which declared elements enclose it.
+        // Keep authored parentage for later passage readings. Widget identity was
+        // already captured from the complete incoming source, where every enclosing
+        // owner is present; copied arrivals bind that same reading before connection.
         rememberAuthoredParents(arriving, parent);
-        const descriptors = stageWidgetDescriptors(arriving, {
-          kind: "page",
-          revision: target.revision,
-        });
-        descriptorStages.push(descriptors);
+        const bindings = [];
+        for (const element of [arriving, ...arriving.querySelectorAll("[id]")]) {
+          const descriptor = sourceDescriptors.descriptors.get(element.id);
+          if (!descriptor) continue;
+          bindings.push({ element, descriptor });
+          arrivedDescriptors.set(element.id, descriptor);
+        }
         // Bind the actual arrival before insertion can synchronously connect its
         // custom element. The publisher still holds the outgoing document until the
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
-        commitWidgetDescriptors(descriptors);
+        commitWidgetDescriptors({ bindings });
         formatDeclaredMarkdown(arriving);
         arrived.push(arriving);
       }
@@ -1563,7 +1621,6 @@ export function createVersionController({
           .map((element) => element.id),
       };
     });
-    authoredWidgets = arrivingWidgets;
     authoredSource = source;
     authoredRoot = arrivingRoot;
     const nextAuthored = new Map(
@@ -1572,12 +1629,9 @@ export function createVersionController({
       ),
     );
     for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
-    const arrivedDescriptors = new Map();
-    for (const stage of descriptorStages)
-      for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
     // The incoming source owns page order. Retained controllers keep the descriptor
-    // identity captured with their live node; new or rewritten nodes use their arrival
-    // capture. Frozen thread documents follow the page in their current log order.
+    // identity captured with their live node; new or rewritten nodes use the incoming
+    // source's capture. Frozen thread documents follow the page in log order.
     const descriptors = new Map();
     for (const [id, incoming] of sourceDescriptors.descriptors)
       descriptors.set(
@@ -1612,7 +1666,7 @@ export function createVersionController({
           // A revision ends every hold, whether or not the reader's intent lets the
           // view be restored: its own handoff places the reader.
           releaseHolds();
-          settleMarginContentLayout();
+          settleDocumentLayout();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
@@ -1623,7 +1677,11 @@ export function createVersionController({
           if (comparedFrom !== null) showComparison(comparedFrom);
           // Each block the revision changed takes a newly arrived message's tint,
           // which paints and moves nothing.
-          for (const [block] of blocksNewSince(outgoing))
+          const outgoingSource = paintedSource(
+            outgoing,
+            readApplication().effective.widgets,
+          );
+          for (const block of changedSince(outgoingSource))
             backgroundFlash(block, flashDuration());
           notice(`Updated to ${target.label}`, { background: true });
         }),
@@ -1633,7 +1691,7 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer arrives here as a revision whose executable
+  // to try again. A new layer generation arrives here as a revision whose executable
   // changed, since the server answers this tab in its revision's layer (http.py,
   // `_named_layer`); only one this Leaf can no longer admit input against is refused
   // instead, and the refusal's probe of the document source reloads it at once
@@ -2405,8 +2463,7 @@ export function createVersionController({
           restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
-          if (handoff.comparison !== null && stamped(handoff.comparison))
-            showComparison(handoff.comparison);
+          if (handoff.comparison) showComparison(handoff.comparison);
           return;
         }
         // A URL aimed somewhere has already landed there (`aimArrival`).

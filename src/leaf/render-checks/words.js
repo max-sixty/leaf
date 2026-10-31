@@ -2,7 +2,6 @@ import { says } from "/runtime/widget-api.js";
 import {
   quoteFrom,
   textNodesUnder,
-  selfComparison,
   upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
@@ -109,6 +108,15 @@ export const shownVerbatim = (declarations) =>
 // for, and words nobody can see are not drawn over anything, so [hidden] is held out here
 // the way the size check holds it out. The coin comes down the same side every time on a
 // group that has been opened and closed, which is where the test pins it.
+// Words the page hides from assistive technology and draws at under half opacity.
+const decoration = (el) => {
+  if (!el.closest("[aria-hidden=true]")) return false;
+  let opacity = 1;
+  for (let at = el; at; at = at.parentElement)
+    opacity *= Number(getComputedStyle(at).opacity);
+  return opacity < 0.5;
+};
+
 export function coveredWords({
   holdFloating = true,
   holdHidden = true,
@@ -122,6 +130,9 @@ export function coveredWords({
       const b = runs[j];
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
+      // A faint numeral the page declares decorative, set behind a label, is drawn
+      // there on purpose and leaves the label legible; an opaque one still covers it.
+      if (decoration(a.el) || decoration(b.el)) continue;
       // SVG renderers can draw a stroked copy directly behind a filled label
       // to make its letters legible. They are one painted word, not two words
       // covering each other; keep comparing either copy with every other run.
@@ -233,6 +244,36 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     }
     return box;
   };
+  // The part of a run's rect its letters can reach. A text range's rect spans its font's
+  // ascent to descent, taller than any letter, so display type set solid overlaps the
+  // next line's rect with no letter near another. The font's own metrics place the
+  // baseline and the tallest ascender and deepest descender among the node's letters,
+  // measured in every case text-transform may draw. Only untransformed horizontal HTML
+  // text, whose rect is the font's own span, is trimmed; SVG, a transform or vertical
+  // writing can lay the text's length along the rect's height, and an untrimmed rect
+  // over-reports, the safe side.
+  const metrics = document.createElement("canvas").getContext("2d");
+  const ink = (el, data, drawn) => {
+    if (el.closest("svg")) return drawn;
+    const style = getComputedStyle(el);
+    if (!style.writingMode.startsWith("horizontal")) return drawn;
+    for (let at = el; at; at = at.parentElement) {
+      const { transform, rotate, scale } = getComputedStyle(at);
+      if (transform !== "none" || rotate !== "none" || scale !== "none") return drawn;
+    }
+    const text = data.replace(/\s+/g, " ").trim();
+    metrics.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const m = metrics.measureText(`${text}${text.toUpperCase()}${text.toLowerCase()}`);
+    const span = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    // A fallback font's span differs from the first family's; keep that rect whole.
+    if (!(span > 0) || Math.abs(drawn.height / span - 1) > 0.2) return drawn;
+    const baseline = drawn.top + m.fontBoundingBoxAscent;
+    const top = Math.max(drawn.top, baseline - m.actualBoundingBoxAscent);
+    const bottom = Math.min(drawn.bottom, baseline + m.actualBoundingBoxDescent);
+    return bottom > top
+      ? new DOMRect(drawn.left, top, drawn.width, bottom - top)
+      : drawn;
+  };
   const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   // A text walk visits text nodes.
   for (
@@ -254,7 +295,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     range.selectNodeContents(node);
     const label = el.closest("text");
     for (const drawn of range.getClientRects()) {
-      const box = painted(el, drawn);
+      const box = painted(el, ink(el, node.data, drawn));
       if (box && box.width > 1 && box.height > 1)
         runs.push({ el, label, box, text: node.data.trim().slice(0, 40) });
     }
@@ -375,18 +416,6 @@ export function silentWords(declarations) {
   return found;
 }
 
-// The version being read, compared with itself, marks nothing: a block it marks
-// shows words its source doesn't hold, which a module wrote without marking them
-// (`selfComparison`, version.js). Every comparison a user asks for marks that block
-// too. The words are the ones the comparison read there, unmarked ones among them.
-export function wordsReadAsChanged() {
-  return selfComparison().map(([block, words]) => ({
-    code: "read-as-changed",
-    at: at(block),
-    words: words.length > 80 ? `${words.slice(0, 79)}…` : words,
-  }));
-}
-
 // The drawing idiom sets labels at 10–12px in viewBox units; its 9px step glyph is
 // one bold numeral. Both the live reading and the gate use this heuristic, and a
 // reading carries the threshold so its consumer can distinguish it from a failure.
@@ -439,7 +468,9 @@ function shrunkLabels(floor) {
   for (const text of openRoots(document).flatMap((r) => [
     ...r.querySelectorAll("svg text"),
   ])) {
-    if (chrome(text)) continue;
+    // A local-name selector also matches HTML templates mounted inside SVG.
+    // Only native SVG text has the geometry this reading measures.
+    if (!(text instanceof SVGTextElement) || chrome(text)) continue;
     let svg = text.ownerSVGElement;
     while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
     const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);

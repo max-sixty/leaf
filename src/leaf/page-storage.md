@@ -17,40 +17,32 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 
 - `revisions/rN-H.html` — the marker of one valid save, where N is the activation order
   and H the first 16 hex characters of the artifact manifest's digest. Its sibling
-  `revisions/rN-H/` holds everything needed to deliver that revision but the browser
-  runtime, which the serving Leaf supplies (`runtime_selection.py`), durable before
-  the marker appears. Identical artifacts reuse a revision, and a bundle hard-links the
-  resources whose bytes the previous revision captured, so no file is written in place
-  (`revision_artifact.py`).
+  `revisions/rN-H/` holds everything the page's author owns in that revision, durable
+  before the marker appears: the document, its own declarations and modules, its
+  media references, and the layer selection its manifest names. The serving Leaf
+  supplies the runtime and the layer (`runtime_selection.py`). Identical artifacts
+  reuse a revision, and a bundle hard-links the resources whose bytes the previous
+  revision captured, so no file is written in place (`revision_artifact.py`).
 
 - `/versions/v1.html…` — virtual addresses. Each `note` event maps a version to its
   immutable revision, which the server renders at the version's URL, so a pinned
   version never moves as later saves go live. A static-site build may write these
   responses out as disposable delivery output, never an authority.
 
-- `theme.css` — tokens, element styles, class idioms and element-widget CSS.
+- `layer.json` — the packages and theme the page selects, its generation and
+  its page protocol (`registry.storage.LAYER`, [layer-registry.md](layer-registry.md)).
+  Every Leaf that reads the page composes its registry, theme, instructions, widgets
+  and package modules from it; none of them is a file in the page.
 
-- `shadow.css` — the rules declared shadow trees also need; `theme.css` carries them
-  too, ahead of each package's own rules.
-
-- `registry.json` — the effective widget schemas and layer metadata
-  ([layer-registry.md](layer-registry.md)).
-
-- `instructions/` — package instructions by audience, which `page instructions`
-  composes (`layer.composed_instructions`; `../../skills/leaf/references/packages.md`,
-  "Package contract").
-
-- `icon.svg` — the tab icon, whose `lf-tone` element follows the page's status colour.
-
-- `runtime/` — the browser modules a selected package adds beside the runtime's own.
-
-- `widgets/` — one ES module per upgraded widget.
-
-- `vendor/` — the third-party assets packages bring, beside the runtime's own.
+- `packages/<name>/` — the page's copy of each package it selects by path, which
+  `layer.json` names as `./packages/<name>` (`vendoring`). A path names a directory
+  relative to where `page init` ran, so init copies the package's layer files here,
+  and every reader composes the copy. The next `page init --package` replaces it.
 
 - `page/` — the page's own browser-ready modules, styles, assets, `page/registry.json`
-  and `page/widgets/`. These are candidate inputs only: delivery reads the revision's
-  captured copies.
+  and `page/widgets/`. These are candidate inputs only: each revision captures every
+  file here but hidden ones (`revision_artifact.page_files`), and delivery reads the
+  revision's captured copies.
 
 - `media/` — content-addressed media shared across revisions (`media.py`). A name is
   always the one `media.media_name` mints for its bytes, and `page check` and the
@@ -101,7 +93,7 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 
 - `service.json` — the desired server address, enabled state, lifetime, runtime
   provenance and current serving incarnation (`server_id`), plus a `restart` mark while
-  `page init` holds a served page down to re-vendor it (`server.SERVICE`). `hosting.py`
+  `page init` holds a served page down to change its layer (`server.SERVICE`). `hosting.py`
   owns start, stop and revival, and [session-lifetime.md](session-lifetime.md#lifetime)
   the lifetime rule. The URL's access key is the machine's, not the page's
   (`server.host_key`).
@@ -137,8 +129,8 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 The live root serves the active revision, and revision and version addresses go through
 the same delivery, all naming the page root as canonical (`revision_delivery.py`). The
 revision manifest's `executable` digest decides whether an open tab patches its
-document or replaces it, and its `widgets` digests decide which widgets a patch keeps
-(`revision_artifact.py`).
+document or replaces it (`revision_artifact.py`). The browser compares the two
+authored DOM baselines to decide which widgets a patch keeps (`version.js`).
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction

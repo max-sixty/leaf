@@ -27,7 +27,9 @@
  * and its evidence can be represented before any listing metadata appears;
  * closed files retain that parse and defer only textual rendering. Native
  * operations and textual hunks are independent: metadata-only files have a commentable
- * row without an empty disclosure, and a file-type replacement keeps one file identity. */
+ * row without an empty disclosure, and a file-type replacement keeps one file identity.
+ * Author notes use the same source coordinate resolver as cross-widget navigation;
+ * their authored nodes move into the stage, never copied into generated data rows. */
 import {
   DISCLOSE,
   HOLDS_WORD,
@@ -46,8 +48,7 @@ import {
   render,
   relabel,
   inChrome,
-  iconTemplate,
-  commands,
+  nameAction,
   keeps,
   keepsText,
   langForPath,
@@ -59,7 +60,6 @@ import {
   offer,
   offerAction,
   LeafElement,
-  paintKeys,
   publishOutput,
   projectedDatum,
   threadSurface,
@@ -77,9 +77,11 @@ import {
   layoutPx,
   focused,
   currentLocationIn,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
+  diffLocationKey,
   findDiffFile,
   findDiffLine,
   readDiffCoordinate,
@@ -175,7 +177,11 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
 };
 
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
-const fileNode = (entry) => entry.node;
+// Only the header represents the file datum. The body contains independently
+// addressed lines and authored prose, whose comments must not inherit its identity.
+const fileNode = (entry) =>
+  entry.details?.firstElementChild ??
+  entry.node.querySelector(":scope > .lf-diff-metadata");
 const fileDatum = (entry) => ({
   file: true,
   path: entry.record.path,
@@ -299,18 +305,19 @@ const pathSizes = sizeObserver((entries) => {
       folders: parts
         .filter((part) => part.matches(".lf-diff-dir"))
         .map((part) => {
-          return [
+          return {
             part,
-            Number.parseFloat(getComputedStyle(part, "::before").width) >
+            hidden:
+              Number.parseFloat(getComputedStyle(part, "::before").width) >
               part.getBoundingClientRect().width,
-          ];
+          };
         }),
     };
   });
   for (const { path, cut, folders } of readings) {
     path.parentElement.toggleAttribute("data-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
-    for (const [part, hidden] of folders)
+    for (const { part, hidden } of folders)
       part.toggleAttribute("data-folder-hidden", hidden);
   }
 });
@@ -373,13 +380,17 @@ function summaryNode(record, open, verified = true) {
   summary.className = `lf-diff-head lf-disclosure-marker ${HOLDS_WORD}`;
   details.append(summary);
   paintSummary(details, record, verified);
-  commands(summary, "On a diff", [
-    {
-      id: "diff.toggle",
-      keys: () => DISCLOSE(summary),
-      title: () => `${details.open ? "hide" : "show"} this file`,
-    },
-  ]);
+  summary.lfCommands = {
+    title: "On a diff",
+    rows: [
+      {
+        id: "diff.toggle",
+        keys: () => DISCLOSE(summary),
+        title: () => `${details.open ? "hide" : "show"} this file`,
+      },
+    ],
+  };
+  commandsChanged(summary);
   paintFileDetails(details, verified ? record : {});
   return details;
 }
@@ -412,7 +423,7 @@ function commentButton(label, opened, className) {
     `lf-diff-comment ${className}`,
     `Comment on ${label}`,
     {
-      icon: "comment",
+      action: "comment",
     },
   );
   if (opened) button.addEventListener("click", opened);
@@ -444,7 +455,9 @@ function replaceFileRendering(entry, row) {
   const restore = holdFileFocus(entry);
   unwatchPathCut(entry.details);
   // Out of the replaced row first, which takes everything still in it.
-  const outlets = [...entry.node.querySelectorAll(".lf-diff-thread-outlet")];
+  const outlets = [
+    ...entry.node.querySelectorAll(".lf-diff-thread-outlet, lf-diff-note"),
+  ];
   for (const outlet of outlets)
     if (outlet.parentNode !== entry.node) move(entry.node, outlet, null);
   setChildren(entry.node, [entry.node.firstElementChild, row, ...outlets]);
@@ -487,6 +500,9 @@ function outletPlaces(content, rows, outlets) {
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, outlets) {
   const restore = holdFileFocus(entry);
+  // These authored members have an independent lifetime from the source rows.
+  const notes = [...entry.node.querySelectorAll("lf-diff-note")];
+  for (const note of notes) move(entry.node, note, null);
   const details = entry.details;
   const pre = details.querySelector("pre");
   const prior = new Map(entry.lines.map((line) => [diffDatumKey(line), line]));
@@ -536,7 +552,9 @@ function diffTools(host) {
   progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (widget-shadow.css).
-  const foldAll = offerAction("symbol", "lf-diff-fold-all");
+  const foldAll = offerAction("symbol", "lf-diff-fold-all", undefined, {
+    action: "expand-all",
+  });
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
@@ -827,7 +845,7 @@ function deferredError(details, error, retry) {
     : `That file's diff cannot be shown: ${message}`;
   let standIn = header;
   if (retry) {
-    standIn = offerAction("word", "", "Retry");
+    standIn = offerAction("symbol", "", undefined, { action: "retry" });
     standIn.addEventListener("click", () => {
       if (standIn.getAttribute("aria-disabled") === "true") return;
       standIn.setAttribute("aria-disabled", "true");
@@ -842,6 +860,11 @@ function deferredError(details, error, retry) {
 customElements.define(
   "lf-diff",
   class extends LeafElement {
+    // shadowStage owns the imperative diff; Lit owns no nodes in that stage.
+    createRenderRoot() {
+      return this;
+    }
+
     // The source the last render read, a bound value or an inline patch, and the one
     // whose rendering last started; a departure that cuts a rendering short forgets
     // it, so the return draws it again.
@@ -875,10 +898,10 @@ customElements.define(
 
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
-      commands(
-        this,
-        "In a diff review",
-        [
+      this.lfCommands = {
+        title: "In a diff review",
+        when: () => Boolean(this.fileEntries?.length),
+        rows: [
           // The walk leads the scope, so the command reference lists it first: moving
           // is what a user on a diff row does next, where "filter files" is
           // the press for someone who has not started reading yet.
@@ -963,8 +986,10 @@ customElements.define(
             },
           },
         ],
-        () => Boolean(this.fileEntries?.length),
-      );
+      };
+      commandsChanged(this);
+      this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
+      this.unplacedNotes = document.createElement("div");
       if (!this.hasAttribute("source")) {
         // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
         // can be a lone space — so only the closing newline is the <pre>'s layout.
@@ -1034,7 +1059,8 @@ customElements.define(
           this.publishFiles();
           this.diffTools = null;
           this.filesBody = null;
-          shadowStage(this, []);
+          this.placeNotes();
+          shadowStage(this, [this.unplacedNotes]);
           this.markFiles(source);
           this.classList.toggle("lf-rendered", false);
           return;
@@ -1147,7 +1173,11 @@ customElements.define(
           this.filesBody ??= diffBody([]);
           // A file the patch dropped goes with its outlets, which core's composer leaves first.
           for (const entry of prior.values())
-            if (!entries.includes(entry)) releaseOutlets(entry.node);
+            if (!entries.includes(entry)) {
+              for (const note of this.authorNotes)
+                if (entry.node.contains(note)) move(this.unplacedNotes, note, null);
+              releaseOutlets(entry.node);
+            }
           setChildren(this.filesBody, [
             ...(this.diffTools ? [this.diffTools.search] : []),
             ...entries.map(({ node }) => node),
@@ -1243,7 +1273,43 @@ customElements.define(
 
     stageFiles() {
       if (!this.filesBody) return;
-      shadowStage(this, [this.filesBody]);
+      this.placeNotes();
+      shadowStage(this, [this.filesBody, this.unplacedNotes]);
+    }
+
+    // Authored nodes survive source replacement and lazy loading. A closed file
+    // keeps its notes in its disclosure until its source rows exist. Missing
+    // coordinates remain readable at the file's foot (or the diff's foot when the
+    // file itself vanished), with the address that could not be placed.
+    placeNotes() {
+      const after = new Map();
+      for (const note of this.authorNotes) {
+        const coordinate = readDiffCoordinate(
+          diffLocationKey(
+            note.getAttribute("file"),
+            note.getAttribute("side"),
+            Number(note.getAttribute("at")),
+          ),
+        );
+        const entry = findDiffFile(this.fileEntries, coordinate);
+        const line = entry?.loaded && findDiffLine(entry.lines, coordinate);
+        const unmatched = !entry || (entry.loaded && !line);
+        keeps(
+          note,
+          "data-lf-unmatched",
+          unmatched
+            ? `${note.getAttribute("file")} · ${note.getAttribute("side")} ${note.getAttribute("at")} — line unavailable`
+            : null,
+        );
+        if (line) {
+          const row = line.node.parentNode;
+          const previous = after.get(row) ?? row;
+          move(row.parentNode, note, previous.nextSibling);
+          after.set(row, note);
+        } else {
+          move(entry?.details ?? this.unplacedNotes, note, null);
+        }
+      }
     }
 
     // Marks each drawn file row, and each line of a loaded file, as data drawn from
@@ -1293,7 +1359,7 @@ customElements.define(
       const line =
         !file && entry.lines.find((line) => diffDatumKey(line) === anchor.datum);
       if (file) {
-        if (placement.datumElement !== entry.node) return null;
+        if (placement.datumElement !== fileNode(entry)) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
@@ -1510,7 +1576,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => threadSurface(this).open(entry.node),
+        () => threadSurface(this).open(fileNode(entry)),
         "lf-diff-file-comment",
       );
       entry.node
@@ -1595,7 +1661,7 @@ customElements.define(
       keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
-      paintKeys();
+      commandsChanged(this);
     }
 
     // The files the filter shows: all opened while any is closed, and all closed once
@@ -1615,12 +1681,10 @@ customElements.define(
       // With nothing to open it keeps its room, so the count beside it stays put.
       button.toggleAttribute("inert", !folds.length);
       const open = folds.some((details) => !details.open);
-      const icon = open ? "unfold" : "fold";
-      render(iconTemplate(icon, "lf-action-icon"), button);
       // No number: the count beside it also counts files that have nothing to open.
-      const label = `${open ? "Expand" : "Collapse"} all files`;
-      keeps(button, "aria-label", label);
-      keeps(button, "title", label);
+      nameAction(button, open ? "expand-all" : "collapse-all", {
+        label: `${open ? "Expand" : "Collapse"} all files`,
+      });
     }
 
     shownFolds() {

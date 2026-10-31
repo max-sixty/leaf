@@ -50,6 +50,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             if spill
             else [],
             "scrollbars": [],
+            "contained": [],
             "clipped": [
                 {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
                 | {
@@ -100,6 +101,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column'
     )
     squeezed = render_gate_readings.squeezed_table_advice(readings)
     assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
@@ -129,7 +131,7 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     )
     assert str(finding) == (
         "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        " (at 540x720)"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column (at 540x720)'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
@@ -145,24 +147,6 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
-    # A wait that never ended carries what the console said, as findings of its own.
-    console = [
-        Finding("console-error", values={"text": "refused", "url": "http://page/"}),
-        Finding("console-warning", values={"text": "slow"}),
-    ]
-    stalled = Finding(
-        "never-reached",
-        values={
-            "arrival": "an authored main",
-            "requesting": ["/page.css"],
-            "console": [entry.json(text=False) for entry in console],
-        },
-        scheme="light",
-    )
-    assert str(stalled) == (
-        "[light] pre-upgrade proof failed: the document never reached an authored"
-        " main; still requesting /page.css — refused — http://page/\nwarning: slow"
-    )
 
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
@@ -231,14 +215,14 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     later = Finding("console-error", values={"text": "later"}, scheme="dark")
     failed = Finding("probe-failed", values={"error": "probe failed"}, scheme="light")
     first = Finding(
-        "unreserved-height",
+        "grows-with-content",
         "<lf-x id=a>",
-        {"first": 0, "drawn": 20, "reserved": None},
+        {"layout": "column", "box": "div", "height": 20},
         severity="advice",
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
-        reading = render_gate_model.RenderReading([*failures, *advice], [], [])
+        reading = render_gate_model.RenderReading([*failures, *advice], [])
         return reading, list(notices), complete
 
     def policy(*attempts):
@@ -323,7 +307,5 @@ def test_output_contract_failures_refuse_page_and_package_checks():
         "<lf-counter id=count> (package producer): output 'total' value is invalid "
         "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
     )
-    assert (
-        BrowserCheck(["render check"], render=RenderReading(found, [], [])).status == 1
-    )
+    assert BrowserCheck(["render check"], render=RenderReading(found, [])).status == 1
     assert WidgetQuality(1, findings=tuple(found)).status == 1

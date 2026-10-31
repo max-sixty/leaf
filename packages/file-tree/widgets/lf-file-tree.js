@@ -18,23 +18,20 @@
  */
 import {
   PRESS,
-  commands,
   commandScope,
   focused,
   focusDestination,
   keeps,
-  keepsHidden,
-  keepsText,
   navigateToDatum,
-  initialRender,
+  offer,
   LeafElement,
-  nothing,
+  render,
   onCurrentLocation,
-  paintKeys,
   plainPress,
   scrollIntoView,
   shadowStage,
   whileConnected,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 let library;
@@ -56,9 +53,15 @@ customElements.define(
     #delivered;
     #shown;
     #applied;
+    #emptyRoot;
+    #empty = "No files available.";
+
+    createRenderRoot() {
+      return this.#emptyRoot;
+    }
 
     setup() {
-      const empty = initialRender(this);
+      const empty = (this.#emptyRoot = offer("p", "lf-file-tree-empty"));
       const root = shadowStage(this, [empty]);
       const theme = root.firstChild;
       const label = this.getAttribute("aria-label") || "Files";
@@ -74,15 +77,13 @@ customElements.define(
       const expanded = new Set();
       const paintEmpty = () => {
         const noMatches = files.length > 0 && tree?.getVisibleCount() === 0;
-        keepsText(
-          empty,
-          noMatches
-            ? "No matching files."
-            : available
-              ? "No files."
-              : "No files available.",
-        );
-        keepsHidden(empty, files.length > 0 && !noMatches);
+        this.#empty = noMatches
+          ? "No matching files."
+          : available
+            ? "No files."
+            : "No files available.";
+        keeps(empty, "hidden", files.length > 0 && !noMatches ? "" : null);
+        render(this.#empty, empty, this.renderOptions);
       };
       const rememberExpansion = () => {
         if (!tree) return;
@@ -92,7 +93,7 @@ customElements.define(
           else expanded.delete(row.path);
         }
         paintEmpty();
-        paintKeys();
+        commandsChanged(this);
       };
       const mount = () => {
         if (!tree || mounted || !files.length) return;
@@ -152,7 +153,8 @@ customElements.define(
           when: focusedRow,
         },
       ]);
-      commands(this, fileActions);
+      this.lfCommands = fileActions;
+      commandsChanged(this);
       whileConnected(this, (signal) => {
         mount();
         // Trees scrolls its virtualized list and focuses with preventScroll. The
@@ -167,7 +169,8 @@ customElements.define(
           if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.
-            commands(row, fileActions);
+            row.lfCommands = fileActions;
+            commandsChanged(row);
             scrollIntoView(row, { block: "nearest" });
           }
         });
@@ -247,7 +250,7 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
-      return nothing;
+      return this.#empty;
     }
 
     // The tree loads and draws each list after the update that read it, and that

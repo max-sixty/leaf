@@ -14,6 +14,7 @@ import {
 } from "./rect.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
+import { elementBox } from "./shown-box.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -49,8 +50,9 @@ import { watchScrolls } from "./arrivals.js";
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` is asked first by a reading that can leave out a box the browser is not
-   drawing, since reading one in skipped content forces that content's style and layout.
+   `skipped` (shown-box.js) is asked first by a reading that can leave out a box the
+   browser is not drawing, since reading one in skipped content forces that content's
+   style and layout.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
    A `display: contents` element reports an origin-like zero rectangle that does not
@@ -79,7 +81,11 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // reading region's shown bounds, and `gap` holds what stands in the room that far inside
 // each of its edges. `viewport: "layout"` reads the room in the layout viewport instead,
 // the window the page scrolls through, for a caller asking whether a scroll has carried
-// something out of the page's room rather than whether the user can see it.
+// something out of the page's room rather than whether the user can see it. `across`
+// names the columns a box asking for its room stands in, where they are narrower than
+// the room: chrome beside those columns takes none of its height, as the floating
+// panel's row under the page column leaves a thread card in the margin the window's
+// whole height.
 //
 // The chrome's owner also hands over the elements it draws, and a change of their size
 // is announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
@@ -123,6 +129,7 @@ export function shownWindow({
   gap = 0,
   viewport = "visual",
   item = null,
+  across = null,
 } = {}) {
   const layout = layoutWindow();
   const { offsetLeft, offsetTop, width, height } =
@@ -135,7 +142,7 @@ export function shownWindow({
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
   for (const box of windowChromeBoxes(item)) {
-    if (!overlapsAcross(box, { left, right })) continue;
+    if (!overlapsAcross(box, across ?? { left, right })) continue;
     if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
     else bottom = Math.min(bottom, box.top);
   }
@@ -233,7 +240,7 @@ export function scrollsContent(box) {
 }
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
-// stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
+// stands over (base.css), so where the `--lf-top` computed at `el` exceeds the
 // scroller's own, headers stand over `el`, and their foot is that value below the
 // scroller's padding edge, where a sticky box is measured from. The root's own value is
 // the head room, which is left to `shownWindow`, so with no header over `el` nothing is
@@ -245,7 +252,7 @@ export function scrollsContent(box) {
 // holds, so the value is read past every box between `el` and `scroller` that scrolls,
 // at the parent of the outermost: inside a sideways scroller the value counts from that
 // scroller, and the headers over `scroller`'s band are those outside it. A header's
-// holder puts the stacked value on a box that does not scroll (theme.css, at `--lf-top`).
+// holder puts the stacked value on a box that does not scroll (base.css, at `--lf-top`).
 const slotHolder = (el, scroller) => {
   let at = el;
   for (let box = el; box && box !== scroller; box = upFrom(box))
@@ -262,7 +269,7 @@ const insetAt = (at, scroller, slot, padding) => {
 };
 const TOP = ["--lf-top", "paddingTop"];
 // Where a header sticking at the top of `scroller` stands, below its border edge: past
-// its padding, at the slot it starts (`--lf-top`, theme.css).
+// its padding, at the slot it starts (`--lf-top`, base.css).
 export function slotTop(scroller) {
   const style = getComputedStyle(scroller);
   return (
@@ -276,7 +283,7 @@ const edgeInset = (el, scroller, edge) =>
     ? 0
     : insetAt(slotHolder(el, scroller), scroller, ...edge);
 export const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
-// The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
+// The same reading at the foot, for a box sticking there (`--lf-bottom`, base.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
 const footerInset = (el, scroller) => edgeInset(el, scroller, FOOT);
 export function visibleBand(scroller, item = null) {
@@ -408,49 +415,14 @@ export function landingInsets(scroller) {
     left: inset("Left"),
   };
 }
-// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
-// box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
-// disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
-// question about any box inside — its computed style, its rect, its scroll offsets —
-// makes it style and lay out that whole subtree first to answer. On the corpus, whose
-// examples each stand in a hidden tab, those forced passes were most of a revision's
-// style time. So a reading that has nothing to say about a box on no screen — where it
-// stands, whether it scrolls, what room it takes — asks this first and leaves the box
-// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. A reading that marks what the user
-// will see once it is drawn (an anchor's outline) still asks, and pays.
-//
-// Answered without forcing anything: `checkVisibility` reads the tree the browser has,
-// and is false for a box that is not drawn for any reason. The nearest drawn ancestor
-// says which reason — a box skipping what it holds, or `display: none`/`contents` on
-// the way down, which are not skipped and cheap to ask about — and it is drawn, so its
-// own style is not skipped either. A disclosure skips through a pseudo-element of its
-// own, so it is asked by its state rather than by its style.
-export const skipped = (el) =>
-  document.documentElement.lfInitial.skipped(el, renderedParent);
-// The box an element shows as. An element that generates none of its own — a
-// display: contents wrapper — shows as what its contents paint, so its bounds are
-// theirs, and a range asks the platform for that union in one read. Its own rect is
-// (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
-// reads as a real place at the top of the page, so whatever measured it travelled there.
-//
-// No widget in the vocabulary displays as contents, but the wrong answer is the
-// platform's rather than any widget's: a page or a project layer styles any wrapper
-// this way in a line. So the answer is a fact about elements, kept here rather than in
-// one reader, and every reader asks this one function where an element is.
+// The box an element shows as (`elementBox`, shown-box.js), and for the document's
+// scroller the band of the window it shows.
 export function shownBox(el) {
   if (el === document.scrollingElement) {
     const { left, top, right, bottom } = shownBand(el);
     return new DOMRect(left, top, right - left, bottom - top);
   }
-  const r = el.getBoundingClientRect();
-  // A zero-sized box still belongs to its element. Only a boxless wrapper takes
-  // its bounds from contents, which a hidden-until-found panel deliberately skips.
-  if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
-    return r;
-  const contents = document.createRange();
-  contents.selectNodeContents(el);
-  return contents.getBoundingClientRect();
+  return elementBox(el);
 }
 // The same reading in elements rather than pixels, for the marks the runtime paints on
 // the page's own elements: an outline needs a box to hang on, so a mark aimed at a
@@ -525,12 +497,19 @@ export function seenRect(item, clips, box = shownBox(item)) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
+// Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
+// `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
+// of its own while the browser skips its contents, until find-in-page or `reveal`
+// (widget-elements.js) opens it, and `checkVisibility` answers only for that box, so
+// it alone would count a folded thread message or an unchosen tab's panel as shown.
+export const showsContents = (node, options) =>
+  node.getAttribute("hidden") !== "until-found" && node.checkVisibility(options);
 // Whether the page puts `node` before the user at all, before any question of where:
-// drawn and visible, not inert, inside the topmost modal, and not hidden with
-// `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
+// drawn with its contents and visible, not inert, inside the topmost modal, and not
+// hidden with `aria-hidden`. Exposure asks it of a message body and of a sample's frame.
 export function presented(node) {
   if (
-    !node.checkVisibility({ visibilityProperty: true }) ||
+    !showsContents(node, { visibilityProperty: true }) ||
     excludedByInert(node) ||
     !nativeModalAdmits(node)
   )
@@ -959,33 +938,35 @@ const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // A clip pass that reads past every occluder, for what stands above them all: a list in
 // the top layer still hangs from a trigger a panel view stands over.
 export const clipsPastSurfaces = () => clipsPast(occluders);
-// Whether an occluder hides a destination, an element or a Range, wherever travel lands
-// it: whether it stands over most of it, asked of what the page's clips leave of the
-// destination. Travel moves a destination along its scroller's block axis only, so a
-// surface standing the whole height of the room the page shows would cover every place
-// the landing can bring it to, and the question would be the inline one: more than half
-// its width. One
-// scrolled out of the window is asked it at its own box, which is where the landing will
-// bring it into view. A surface standing over part of that height, as a view open in the
-// floating panel stands over its foot, covers a destination only where it stands now,
-// so it is asked of both axes there: more than half the destination's area.
-function hides(surface, where) {
+// How much of a destination, an element or a Range, an occluder stands over, from 0 to
+// 1: of what the page's clips leave of it, or of the box travel will land it at
+// (`landed`, landing-scroll.js `landedBox`). Travel moves a destination along its
+// scroller's block axis only, so a surface standing the whole height of the room the
+// page shows would cover every place the landing can bring it to, and the share is the
+// inline one, of its width. One scrolled out of the window is asked it at its own box.
+// A surface standing over part of that height, as a view open in the floating panel
+// stands over its foot, covers a destination only where it stands, so the share is of
+// its area there. What holds the surface, as the chrome's dialog holds the panel, is
+// not covered by it. A destination is hidden where more than half of it is covered
+// (`hides`); travel, which promises the whole of it, asks of any part
+// (floating-panel.js, `clearFor`).
+export function coveredShare(surface, where, landed = null) {
   const holder = placeHolder(where);
-  if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
-  if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
-  const box = placeBox(where);
+  if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
+  if (under(holder, surface) || under(surface, holder)) return 0;
+  if (stackLevel(holder) >= stackLevel(surface)) return 0;
+  const box = landed ?? placeBox(where);
   const { left, top, right, bottom } =
-    clippedPlace(where, clipsPast([surface]), box) ?? box;
+    landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
   const over = restingBox(surface);
-  const across = Math.min(right, over.right) - Math.max(left, over.left);
+  const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
   const room = shownWindow({ viewport: "layout" });
   if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1)
-    return across > (right - left) / 2;
-  const down = Math.min(bottom, over.bottom) - Math.max(top, over.top);
-  return (
-    across > 0 && down > 0 && across * down > ((right - left) * (bottom - top)) / 2
-  );
+    return across / (right - left || 1);
+  const down = Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top));
+  return (across * down) / ((right - left) * (bottom - top) || 1);
 }
+const hides = (surface, where) => coveredShare(surface, where) > 0.5;
 // Whether any open occluder hides `where`, by the same measure. A seat a panel stands
 // over is no place to put the user, since the panels dominate what focus reaches.
 export const underOccluder = (where) =>
@@ -1010,7 +991,7 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
-// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (base.css,
 // at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
 // unless it stands in the top layer.
 export function stackLevel(node) {

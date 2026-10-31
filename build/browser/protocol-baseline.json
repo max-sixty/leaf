@@ -46,6 +46,10 @@
       "since": 13,
       "schema": {"description":"The session that receives a page's updates, in the state home's `claims/<page key>.json` (`claim_path`).","type":"object","properties":{"page":{"description":"The page directory.","type":"string"},"ts":{"description":"When the claim was published.","type":"string","format":"date-time"},"id":{"description":"The claimant session (`state.SESSION`).","type":"string"},"generation":{"description":"The generation of the session this claim names.","type":"string"},"acquisition":{"description":"This publication's own identity (`same_claim`).","type":"string"},"harness":{"description":"The claimant's `Harness.name`.","type":"string"},"agent":{"description":"The name the claimant shows.","type":"string"},"cwd":{"description":"The claimant's working directory.","type":"string"},"messaged_ending":{"description":"The turn ending after which input last messaged the session (`note_messaged`).","type":"string"}},"required":["page","ts","id","generation","acquisition","harness","agent","cwd"]}
     },
+    "clerk": {
+      "since": 36,
+      "schema": {"description":"The lines Leaf's clerk queued for a session's next step, in the state home's `sessions/<digest>.clerk` (`state.session_file`): one for each to-do it added On me (`clerk`).","type":"object","properties":{"lines":{"type":"array","items":{"type":"string"}}},"required":["lines"]}
+    },
     "codex-adapter": {
       "since": 13,
       "schema": {"description":"A Codex task's running delivery adapter, written into the lease it holds at the state home's `sessions/<digest>.adapter`. A session can select a replacement runtime while this lease remains held (`running_adapter`).","type":"object","properties":{"app_server":{"description":"The Codex App Server the adapter delivers through, or null for the task's queue.","type":["string","null"]},"launcher":{"description":"The launcher running the adapter.","type":"string"}},"required":["app_server"]}

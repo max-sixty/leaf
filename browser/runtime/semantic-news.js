@@ -176,17 +176,21 @@ const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
 // One clause per fact, joined by the middle dot the panel's line joins every fact with,
-// all in the agent's voice. A single new message speaks for itself, its opening words
-// ("I changed the route."), with whatever it asks of the user, since the question and
-// the message are one piece of news. What else is new on the user's list is counted by
-// the list's name.
+// as parts each in the voice of whoever says it (notifications.js, `notice`). A single
+// new message speaks for itself, its opening words in the agent's voice ("I changed the
+// route."), with whatever it asks of the user, since the question and the message are
+// one piece of news. What became of an answer is Leaf's reading, set apart in italic
+// (glossary.md, "Reader-facing words"). The counts, and what else is new on the user's
+// list by the list's name, are the interface's, in no one's voice.
 const MESSAGE_WORDS = 60;
 export function semanticNewsNotice(news) {
-  if (!news.length) return "";
   const byKind = (kind) => news.filter((item) => item.kind === kind);
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
   let obligations = byKind("user_obligation");
+  const agent = (text) => ({ text, voice: "agent" });
+  const leaf = (text) => ({ text, voice: "leaf" });
+  const plain = (text) => ({ text, voice: null });
   const clauses = [];
 
   if (content.length === 1) {
@@ -196,33 +200,38 @@ export function semanticNewsNotice(news) {
     clauses.push(
       words
         ? message.edited
-          ? `Edited: ${words}`
-          : words
-        : message.kind === "reply"
-          ? "Replied"
-          : "Commented",
+          ? [plain("Edited: "), agent(words)]
+          : [agent(words)]
+        : [agent(message.kind === "reply" ? "Replied" : "Commented")],
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");
     const threads = new Set(content.map((item) => item.thread)).size;
-    clauses.push(
-      replies.length === content.length
-        ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}`
-        : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`,
-    );
+    clauses.push([
+      plain(
+        replies.length === content.length
+          ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}`
+          : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`,
+      ),
+    ]);
   }
   const failed = failures.filter((item) => item.condition === "failed").length;
   const interrupted = failures.filter(
     (item) => item.condition === "interrupted",
   ).length;
-  if (failed) clauses.push(failed === 1 ? NOT_ANSWERED : `${failed} not answered`);
+  if (failed)
+    clauses.push([leaf(failed === 1 ? NOT_ANSWERED : `${failed} not answered`)]);
   if (interrupted)
-    clauses.push(
-      interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`,
-    );
+    clauses.push([
+      leaf(
+        interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`,
+      ),
+    ]);
   if (obligations.length)
-    clauses.push(
-      obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
-    );
-  return clauses.join(" · ");
+    clauses.push([
+      plain(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`),
+    ]);
+  return clauses.flatMap((clause, index) =>
+    index ? [plain(" · "), ...clause] : clause,
+  );
 }

@@ -348,7 +348,7 @@ svg.drawing .highlight {
 }
 svg.drawing .ghost {
   fill: none;
-  stroke: var(--muted-2);
+  stroke: var(--muted);
   stroke-dasharray: 3 3;
 }
 svg.drawing .guide {

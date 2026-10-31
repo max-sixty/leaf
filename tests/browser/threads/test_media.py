@@ -9,6 +9,7 @@ import pytest
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
+from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
@@ -397,6 +398,62 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
         sent["text"].splitlines() == "\n\n".join([image_markdown] * kept).splitlines()
     )
     expect(page.locator(".lf-composer")).to_be_hidden()
+
+
+@pytest.mark.parametrize(
+    ("placement", "picture"),
+    [
+        pytest.param(
+            "bottom",
+            lambda: (example_media() / "051bee487bfb5d13.png").read_bytes(),
+            id="below-its-passage",
+        ),
+        pytest.param(
+            "top",
+            lambda: solid_png(240, 8, (64, 64, 64)),
+            id="above-it-a-short-picture",
+        ),
+    ],
+)
+def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
+    browser, serve, placement, picture
+):
+    """Under a finger, the removal mark on a picture's top corner reaches the aim floor
+    around it. Below its passage the comment box hangs its pictures under the field,
+    with the marks facing it; above, a picture shorter than that reach lets it hang past
+    the picture's foot. Either way the reach once stood inside the field, so a tap at
+    the field's edge removed the picture."""
+    context = browser.new_context(
+        viewport={"width": 900, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    passage = page.locator("#p1")
+    if placement == "top":
+        # Too near the panel for the box to open below it.
+        passage = page.locator("#p20")
+        passage.evaluate("p => { p.scrollIntoView({block: 'end'}); scrollBy(0, 80) }")
+    passage.click(click_count=3)
+    # Under a finger the panel's field offers the selected words, and a press there
+    # opens the comment box on them.
+    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    field = page.locator(".lf-fab-input")
+    field.click()
+    paste_image(field, picture())
+    remove = page.get_by_role("button", name="Remove attached image 1", exact=True)
+    expect(remove).to_be_visible()
+    rendered(page)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(f"^{placement}")
+    )
+    box = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+    mark = remove.bounding_box()
+    x = mark["x"] + mark["width"] / 2
+    y = box["y"] + box["height"] - 3 if placement == "bottom" else box["y"] + 3
+    assert box["x"] < x < box["x"] + box["width"], (box, mark)
+    page.touchscreen.tap(x, y)
+    rendered(page)
+    expect(page.locator(".lf-fab-bar .lf-composer-media img")).to_have_count(1)
+    expect(field).to_be_focused()
 
 
 @pytest.mark.parametrize("touch", [False, True])

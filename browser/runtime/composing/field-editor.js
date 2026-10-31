@@ -24,19 +24,194 @@ const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
 // The draft as the renderer reads it, placed. A last line holding nothing past its
-// quotes' `>` is where the next words will be typed, so it is read holding a word, and
-// stands in whichever block those words will join, as a line of an open fence's code, or
-// of a quote or list item they continue lazily, and not in a list the line only trails;
-// a block that takes it ends past the draft. Nothing is placed in the word itself. Empty
-// until the renderer has loaded.
+// quotes' `>` and its items' markers is where the next words will be typed, so it is
+// read holding a word, and stands in whichever block those words will join, as a line
+// of an open fence's code, or of a quote or list item they continue lazily, and not in a
+// list the line only trails; a block that takes it ends past the draft. So a new nested
+// item is an item from its marker on, though the message reads an empty one as words of
+// the paragraph above it. Nothing is placed in the word itself. Empty until the renderer
+// has loaded.
 const read = (state) => {
   const source = state.doc.toString();
-  if (!/^[\s>]*$/.test(state.doc.line(state.doc.lines).text))
+  const last = state.doc.line(state.doc.lines).text;
+  if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last))
     return placedMarkdownTokens(source);
   return placedMarkdownTokens(`${source}x`).filter(
     ({ token, to }) => token.block || to <= source.length,
   );
 };
+
+// Columns of leading whitespace, a tab reaching the next multiple of four, as the
+// renderer counts them.
+const columns = (text) => {
+  let col = 0;
+  for (const ch of text) col = ch === "\t" ? col + 4 - (col % 4) : col + 1;
+  return col;
+};
+const ITEM = "list_item_open";
+const LIST = /^(bullet|ordered)_list_open$/;
+// A list item's reading takes in the blank lines after its blocks, but words typed on
+// one stand outside it: it ends with its last block, or its last item's marker line.
+const itemEnd = (placed, item) =>
+  Math.max(
+    ...placed
+      .filter(
+        ({ token, from, to }) =>
+          token.block && !LIST.test(token.type) && from >= item.from && to <= item.to,
+      )
+      .map((b) => (b.token.type === ITEM ? b.from + 1 : b.to)),
+  );
+
+/** Tab nests the list items the selection is in under the item above each, and
+ * Shift+Tab takes them out a level, as the message will read the draft (`read`), the
+ * reading Shift+Enter continues by (`continueBlocks`). A nested item's marker stands
+ * where the words of the item above start, so the message reads it as the next item
+ * of the list already nested there, in that list's marker, or as the first of a new
+ * one, numbered from 1. Taken out, it stands where its parent's marker stands, as the
+ * next item of the parent's list in that list's marker, and the items after it in its
+ * own list stay where they are, nested in it now. An item's later lines and the items
+ * nested in it move with it, and each line keeps its quotes' `>`. Selected items move
+ * together: one whose item above moves too moves as far as that one. Returns the
+ * changes to `source`, none for an item with nowhere to go (the first in its list, or
+ * one in no other item), or null where the selection is in no list item. Touch has
+ * no Tab: typing the spaces nests an item there, as it does anywhere. */
+export function nestItems(source, placed, from, to, deeper) {
+  const starts = [0];
+  for (let at = source.indexOf("\n"); at !== -1; at = source.indexOf("\n", at + 1))
+    starts.push(at + 1);
+  const lineStart = (pos) => starts.findLast((start) => start <= pos);
+  const lineEnd = (start) => {
+    const at = source.indexOf("\n", start);
+    return at === -1 ? source.length : at;
+  };
+  const items = placed.filter(({ token }) => token.type === ITEM);
+  const end = (item) => Math.min(source.length, itemEnd(placed, item));
+  const within = (c, at) => c.from <= at && at < c.to;
+  const first = lineStart(from);
+  const last = to > from && lineStart(to) === to ? lineStart(to - 1) : lineStart(to);
+  const holding = items.filter((i) => i.from <= first && first < end(i)).at(-1);
+  const chosen = items.filter(
+    (i) => i === holding || (i.from >= first && i.from <= last),
+  );
+  if (!chosen.length) return null;
+
+  const listOf = (i) =>
+    placed.findLast(
+      (c) =>
+        LIST.test(c.token.type) &&
+        c.token.level === i.token.level - 1 &&
+        within(c, i.from),
+    );
+  const siblings = (i) =>
+    items.filter((s) => s.token.level === i.token.level && within(listOf(i), s.from));
+  const above = (i) => siblings(i).findLast((s) => s.from < i.from);
+  const parent = (i) => {
+    const list = listOf(i);
+    return items.findLast(
+      (c) => c.token.level === list.token.level - 1 && within(c, list.from),
+    );
+  };
+  // The marker of the item after `c` in its list.
+  const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup}`;
+  // Where an item's line starts past the `>` of the quotes it stands in, the column
+  // its marker stands at past that, its marker, and the columns from the marker to
+  // its words, one for an item with none or more than four, as the renderer reads it.
+  const quotes = (i) =>
+    placed.filter(
+      (c) =>
+        c.token.type === "blockquote_open" &&
+        c.token.level < i.token.level &&
+        within(c, i.from),
+    );
+  const base = (i, start) =>
+    Math.max(
+      start,
+      ...quotes(i)
+        .flatMap((q) => q.markers)
+        .filter(([a]) => a >= start && a <= lineEnd(start))
+        .map(([, b]) => b),
+    );
+  const shape = (i) => {
+    const at = base(i, i.from);
+    const [a, b] = i.markers[0];
+    const mark = source.slice(a, b).trimEnd();
+    const rest = source.slice(a + mark.length, lineEnd(i.from));
+    const gap = rest.trim() ? columns(rest.match(/^[ \t]*/)[0]) : 1;
+    const lead = source.slice(at, a);
+    return {
+      at,
+      lead,
+      marker: a,
+      col: columns(lead),
+      mark,
+      words: columns(lead) + mark.length + (gap > 4 ? 1 : gap),
+    };
+  };
+
+  const changes = [];
+  const moved = [];
+  for (const item of chosen) {
+    if (moved.some(({ item: m }) => m.from < item.from && item.from < end(m))) continue;
+    const own = shape(item);
+    // An item whose marker follows another's on its line moves only with that one.
+    if (/\S/.test(own.lead)) continue;
+    let col;
+    let mark = own.mark;
+    if (deeper) {
+      const before = above(item);
+      if (!before) continue;
+      const along = moved.find((m) => m.item === before);
+      if (along) col = own.col + along.shift;
+      else {
+        col = shape(before).words;
+        const inside = placed.filter(
+          (c) =>
+            c.token.block &&
+            c.token.level === before.token.level + 1 &&
+            within(before, c.from),
+        );
+        const list = inside.at(-1);
+        if (list && LIST.test(list.token.type))
+          mark = next(
+            items.findLast(
+              (c) => c.token.level === list.token.level + 1 && within(list, c.from),
+            ),
+          );
+        else if (item.token.info) mark = `1${item.token.markup}`;
+      }
+    } else {
+      const outer = parent(item);
+      if (!outer) continue;
+      col = shape(outer).col;
+      mark = next(outer);
+    }
+    const shift = col - own.col;
+    // The words move as far as the marker, and as far again as the marker grows.
+    const by = shift + mark.length - own.mark.length;
+    changes.push(
+      mark === own.mark
+        ? { from: own.at, to: own.marker, insert: " ".repeat(col) }
+        : {
+            from: own.at,
+            to: own.marker + own.mark.length,
+            insert: " ".repeat(col) + mark,
+          },
+    );
+    for (const start of starts) {
+      if (start <= item.from || start >= end(item)) continue;
+      const at = base(item, start);
+      const lead = source.slice(at, lineEnd(start)).match(/^[ \t]*/)[0];
+      if (at + lead.length === lineEnd(start)) continue;
+      changes.push({
+        from: at,
+        to: at + lead.length,
+        insert: " ".repeat(Math.max(0, columns(lead) + by)),
+      });
+    }
+    moved.push({ item, shift });
+  }
+  return changes.filter(({ from, to, insert }) => source.slice(from, to) !== insert);
+}
 
 /** The renderer's token types the preview draws (`decorate`), each as close to the
  * message as the editor's lines allow; it reads no other, so the source of any other
@@ -777,19 +952,7 @@ function fieldEditor(
     const { from, to } = state.selection.main;
     const line = state.doc.lineAt(from);
     const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-    // An item's reading takes in the blank lines after its blocks, but words typed on
-    // one stand outside it: it ends with its last block, or its last item's marker line.
-    const blocks = placed.filter(
-      ({ token }) => token.block && !token.type.endsWith("list_open"),
-    );
-    const end = (c) =>
-      c.token.type === "list_item_open"
-        ? Math.max(
-            ...blocks
-              .filter((b) => b.from >= c.from && b.to <= c.to)
-              .map((b) => (b.token.type === "list_item_open" ? b.from + 1 : b.to)),
-          )
-        : c.to;
+    const end = (c) => (c.token.type === ITEM ? itemEnd(placed, c) : c.to);
     const holding = (c) => c.from <= line.from && line.from < end(c);
     const containers = all.filter(holding);
     if (!containers.length) return false;
@@ -859,6 +1022,25 @@ function fieldEditor(
     );
     return true;
   }
+
+  const nest = (deeper) => (view) => {
+    const { state } = view;
+    if (state.readOnly) return false;
+    const { from, to } = state.selection.main;
+    const placed = view.plugin(livePreview)?.placed ?? [];
+    const changes = nestItems(state.doc.toString(), placed, from, to, deeper);
+    if (!changes?.length) return Boolean(changes) && deeper;
+    view.dispatch(
+      state.update({
+        changes,
+        scrollIntoView: true,
+        userEvent: deeper ? "indent.more" : "indent.less",
+        // One press is one step of undo, never joined to the typing around it.
+        annotations: isolateHistory.of("full"),
+      }),
+    );
+    return true;
+  };
 
   const editable = new Compartment();
   const histories = new Compartment();
@@ -959,6 +1141,16 @@ function fieldEditor(
           { key: "Shift-Enter", run: () => field.oneLine() },
           { key: "Enter", run: (view) => field.returned() && insertNewline(view) },
           { key: "Shift-Enter", run: continueBlocks },
+          // Tab in a list item nests it (`nestItems`), and stays in the field where
+          // the item has nowhere to nest; Shift+Tab takes items out, and where none
+          // can go moves focus back, so a draft that is all list still lets focus
+          // out. Elsewhere both reach the page, which moves focus as from any field.
+          {
+            key: "Tab",
+            run: nest(true),
+            shift: nest(false),
+            stopPropagation: true,
+          },
           // Outside a list or quote, a plain new line, which asks to be seen as typing
           // does, so a field at its height limit scrolls to it.
           {

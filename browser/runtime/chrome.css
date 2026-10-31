@@ -419,7 +419,7 @@ html[data-lf-region-capture] main * {
   .lf-dot {
     width: var(--lf-mark-w);
     height: var(--lf-mark-w);
-    background: var(--muted-2);
+    background: var(--muted);
     flex: none;
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
@@ -458,16 +458,15 @@ html[data-lf-region-capture] main * {
   }
   .lf-anchor-status {
     margin-inline-start: 7px;
-    color: var(--muted-2);
-    font: var(--voice-small);
-    font-weight: 500;
+    color: var(--muted);
+    font: var(--voice-status);
   }
 
   .lf-quote {
     margin: 0 0 12px;
     padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2);
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-compact);
     cursor: pointer;
     overflow-wrap: anywhere;
@@ -478,7 +477,7 @@ html[data-lf-region-capture] main * {
 
   .lf-quote.detached {
     border-inline-start-color: var(--border-2);
-    color: var(--muted-2);
+    color: var(--muted);
     cursor: default;
   }
   .lf-quote-expand {
@@ -745,7 +744,7 @@ html[data-lf-region-capture] main * {
       max(10px, var(--lf-safe-bottom))
       max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
     font: var(--voice-ui);
-    color: var(--muted-2);
+    color: var(--muted);
     border-top: 1px solid var(--rule);
     max-height: 20dvh;
     overflow: auto;
@@ -775,7 +774,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-preference small {
     overflow: hidden;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -809,7 +808,7 @@ html[data-lf-region-capture] main * {
     min-height: 1lh;
     margin: 6px 0;
     overflow: hidden;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -889,7 +888,7 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-description {
     grid-area: desc;
     overflow: hidden;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -924,14 +923,11 @@ html[data-lf-region-capture] main * {
     max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
-    padding-block: 1px;
-    /* The badge's own line (surfaces.css) less the padding that lets it wrap. */
-    line-height: calc(var(--lf-key-badge-size) - 4px);
     white-space: normal;
   }
   .lf-command-reference-scope {
     flex: none;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
   }
   /* A row's command is its one control: the button stretches over the row, so a press
@@ -1064,7 +1060,7 @@ html[data-lf-region-capture] main * {
   .lf-inspection-body h3,
   .lf-copyable-head > span {
     font: var(--voice-small);
-    color: var(--muted-2);
+    color: var(--muted);
   }
   .lf-inspection-body h3 {
     margin-block: 10px 2px;
@@ -1108,7 +1104,7 @@ html[data-lf-region-capture] main * {
     gap: 12px 20px;
   }
   .lf-inspection-metrics dt {
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
   }
   .lf-inspection-metrics dd {
@@ -1234,7 +1230,7 @@ html[data-lf-region-capture] main * {
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-small);
     font-variant-numeric: tabular-nums;
     text-align: right;

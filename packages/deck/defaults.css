@@ -52,7 +52,7 @@ lf-deck[data-lf-deck-flying] {
   background: var(--ok);
 }
 .lf-deck-pip[data-state="agent"] {
-  background: var(--muted-2);
+  background: var(--muted);
 }
 .lf-deck-pip[data-state="open"] {
   background: var(--ink-2);

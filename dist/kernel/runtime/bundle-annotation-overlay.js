@@ -652,7 +652,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
 			keepsHidden(previewNav, threadItems.length < 2);
 			const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-			keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
+			keepsText(previewPosition, `${selectedIndex + 1} of ${threadItems.length}`);
 			previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
 			previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
 			const item = selected ? previewItemNode(selected) : null;

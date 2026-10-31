@@ -18,9 +18,8 @@ import { html, nothing, ref, render } from "/vendor/lit.js";
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 const belongsTo = (host, member) =>
   member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
-// A direct child is a shared control, which stands in the rail, or above the preview
-// with `controls="above"`; a control the preview's markup holds stands there, beside
-// the item it changes (x-within). Nested playgrounds and quotations
+// A control stands in the rail as a direct child, or where the preview's markup puts
+// it, beside the item it changes (x-within). Nested playgrounds and quotations
 // enclose their own content rather than supplying controls to this playground.
 const ownControls = (host, preview) => [
   ...own(host, "lf-playground-control"),
@@ -98,10 +97,7 @@ export function createPlayground(host) {
   );
   const interactive = !host.closest("[data-lf-exhibit]");
   const authored = [...host.childNodes];
-  const shared = controls.filter((control) => control.parentElement === host);
-  // With `controls="above"` the shared controls head the stage, as presets do when
-  // nothing else would stand in the rail.
-  const railed = host.getAttribute("controls") === "above" ? [] : shared;
+  const railed = controls.filter((control) => control.parentElement === host);
   const candidates = new Set();
   const bodies = new Map();
   for (const [name, choices] of choicesByName) {
@@ -217,7 +213,7 @@ export function createPlayground(host) {
   const presetBar = () =>
     !presets.length
       ? nothing
-      : shared.length
+      : railed.length
         ? html`<header
             class="lf-playground-presets"
             role="group"
@@ -241,9 +237,9 @@ export function createPlayground(host) {
       aria-label="Controls"
     >
       ${presetBar()}${
-        shared.length
+        railed.length
           ? html`<div class="lf-playground-controls" role="group" aria-label="Controls">
-              ${shared}
+              ${railed}
             </div>`
           : nothing
       }
@@ -289,7 +285,7 @@ export function createPlayground(host) {
         [
           "controls",
           ":scope > .lf-playground-controls-region, :scope > .lf-playground-rail > .lf-playground-controls-region",
-          shared.length ? ".lf-playground-controls" : ".lf-playground-presets",
+          railed.length ? ".lf-playground-controls" : ".lf-playground-presets",
         ],
         [
           "instruction",
@@ -525,7 +521,7 @@ export function createPlayground(host) {
             </div>`
           : nothing;
       return html`<div class="lf-playground-split">
-          ${!railed.length && (shared.length || presets.length) ? controlsPane() : nothing}
+          ${!railed.length && presets.length ? controlsPane() : nothing}
           <div
             class="lf-playground-preview-region"
             data-lf-reading-role="pane"

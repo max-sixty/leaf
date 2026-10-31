@@ -736,69 +736,11 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
-def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
-    browser, serve
-):
-    """Plain label choices run in a row that breaks between labels, and
-    `--playground-choice-columns` arranges them, and rich choices, in the author's
-    columns instead."""
-    choices = "".join(
-        f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
-        for value, label in (
-            ("page", "Page on-call (today)"),
-            ("ticket", "Open a ticket"),
-            ("mute", "Mute"),
-        )
-    )
-    source = leaf_page(
-        "Choice arrangements",
-        f"""<style>
-  .card {{ inline-size: 28rem; }}
-  #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
-  #stacked {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
-</style>
-<h1>Route the alert</h1>
-<lf-playground id="routes">
-  <lf-playground-preview>
-    <div class="card"><lf-playground-control name="row" label="Row"
-      kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div class="card" id="columned"><lf-playground-control name="columns"
-      label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div id="stacked"><lf-playground-control name="rich" label="Layout"
-      kind="choice" value="list">
-      <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
-      <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
-    </lf-playground-control></div>
-  </lf-playground-preview>
-  <lf-playground-output>Route the alert.</lf-playground-output>
-</lf-playground>""",
-    )
-    page = open_page(browser, serve(source))
-    read = """control => [...control.querySelectorAll('label.choice')].map(face => {
-      const words = document.createRange();
-      words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
-      const box = face.getBoundingClientRect();
-      return {left: Math.round(box.left), top: Math.round(box.top),
-              lines: words.getClientRects().length};
-    })"""
-    row = page.locator('lf-playground-control[name="row"]').evaluate(read)
-    assert {face["top"] for face in row} == {row[0]["top"]}
-    assert [face["lines"] for face in row] == [1, 1, 1]
-    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
-    assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
-    assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
-    # Rich choices take the author's columns over their own responsive grid.
-    rich = page.locator('lf-playground-control[name="rich"] lf-playground-choice')
-    boxes = [rich.nth(index).bounding_box() for index in range(2)]
-    assert boxes[0]["x"] == boxes[1]["x"]
-    assert boxes[0]["y"] < boxes[1]["y"]
-
-
-def test_shared_controls_above_the_stage_stand_in_a_band_of_columns(browser, serve):
-    """With `controls="above"` the preview keeps the playground's whole width and the
-    shared controls stand over it: each control's choices in one column with their
-    marks on its label's edge, and the controls side by side, each as wide as its
-    longest label, so no empty column opens between them however the labels compare."""
+def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser, serve):
+    """Plain label choices stand one per line with their marks on the label's edge, so
+    in a page's own row of controls each is as wide as its longest label and no empty
+    column opens beside one. `--playground-choice-columns` arranges them, and rich
+    choices, in the author's columns instead."""
 
     def group(name, labels):
         choices = "".join(
@@ -811,11 +753,28 @@ def test_shared_controls_above_the_stage_stand_in_a_band_of_columns(browser, ser
         )
 
     source = leaf_page(
-        "Controls above",
-        f"""<h1>Which thread view?</h1>
-<lf-playground id="views" controls="above" data-width="available">
-  {group("controls", ["Today: a row at the foot", "Top right; the foot's row goes"])}
-  {
+        "Choice arrangements",
+        f"""<style>
+  #row {{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, auto));
+    justify-content: start;
+    gap: 8px 24px;
+  }}
+  #columned {{ inline-size: 28rem; --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
+  #rich {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
+</style>
+<h1>Which thread view?</h1>
+<lf-playground id="views" data-width="available">
+  <lf-playground-preview>
+    <div id="row">
+      {
+            group(
+                "controls",
+                ["Today: a row at the foot", "Top right; the foot's row goes"],
+            )
+        }
+      {
             group(
                 "leaf",
                 [
@@ -824,7 +783,7 @@ def test_shared_controls_above_the_stage_stand_in_a_band_of_columns(browser, ser
                 ],
             )
         }
-  {
+      {
             group(
                 "back",
                 [
@@ -836,50 +795,66 @@ def test_shared_controls_above_the_stage_stand_in_a_band_of_columns(browser, ser
                 ],
             )
         }
-  <lf-playground-preview><p>Today's panel beside the candidate.</p></lf-playground-preview>
+    </div>
+    <div id="columned">{
+            group("columns", ["Page on-call (today)", "Open a ticket", "Mute"])
+        }</div>
+    <div id="rich"><lf-playground-control name="rich" label="Layout" kind="choice"
+      value="list">
+      <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
+      <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
+    </lf-playground-control></div>
+  </lf-playground-preview>
   <lf-playground-output>Build the thread view.</lf-playground-output>
 </lf-playground>""",
     )
     page = open_page(browser, serve(source))
     resized(page, 1700, 1000)
-    seen = page.locator("#views").evaluate(
-        """playground => {
-          const box = node => node.getBoundingClientRect();
-          const controls = playground.querySelectorAll(
-            '.lf-playground-controls > lf-playground-control');
-          return {
-            width: box(playground).width,
-            band: box(playground.querySelector('.lf-playground-controls-region')),
-            preview: box(playground.querySelector('.lf-playground-preview-region')),
-            controls: [...controls].map(control => {
-              const faces = [...control.querySelectorAll('label.choice')].map(box);
-              return {
-                left: box(control).left, right: box(control).right,
-                top: box(control).top,
-                faceLefts: [...new Set(faces.map(face => Math.round(face.left)))],
-                faceTops: faces.map(face => Math.round(face.top)),
-                facesRight: Math.max(...faces.map(face => face.right)),
-                labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
-                markLeft: box(control.querySelector('label.choice > input')).left,
-              };
-            }),
-          };
-        }"""
-    )
-    assert seen["preview"]["width"] == pytest.approx(seen["width"], abs=1)
-    assert seen["band"]["bottom"] <= seen["preview"]["top"]
-    controls = seen["controls"]
+    read = """control => {
+      const box = node => node.getBoundingClientRect();
+      const faces = [...control.querySelectorAll('label.choice')].map(face => {
+        const words = document.createRange();
+        words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
+        const edges = box(face);
+        return {left: Math.round(edges.left), top: Math.round(edges.top),
+                right: edges.right, lines: words.getClientRects().length};
+      });
+      return {
+        left: box(control).left, right: box(control).right, top: box(control).top,
+        faces,
+        labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
+        markLeft: box(control.querySelector('label.choice > input')).left,
+      };
+    }"""
+    controls = [
+        page.locator(f'lf-playground-control[name="{name}"]').evaluate(read)
+        for name in ("controls", "leaf", "back")
+    ]
     assert len({round(control["top"]) for control in controls}) == 1
     for control in controls:
-        assert len(control["faceLefts"]) == 1
-        assert control["faceTops"] == sorted(set(control["faceTops"]))
-        assert control["right"] - control["facesRight"] <= 1
+        faces = control["faces"]
+        assert len({face["left"] for face in faces}) == 1
+        assert [face["top"] for face in faces] == sorted(
+            {face["top"] for face in faces}
+        )
+        assert all(face["lines"] == 1 for face in faces)
+        assert control["right"] - max(face["right"] for face in faces) <= 1
         assert control["markLeft"] == pytest.approx(control["labelLeft"], abs=1)
     gaps = {
         round(after["left"] - before["right"])
         for before, after in itertools.pairwise(controls)
     }
-    assert len(gaps) == 1 and gaps.pop() > 0
+    assert gaps == {24}
+    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)[
+        "faces"
+    ]
+    assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
+    assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
+    # Rich choices take the author's columns over their own responsive grid.
+    rich = page.locator('lf-playground-control[name="rich"] lf-playground-choice')
+    boxes = [rich.nth(index).bounding_box() for index in range(2)]
+    assert boxes[0]["x"] == boxes[1]["x"]
+    assert boxes[0]["y"] < boxes[1]["y"]
 
 
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(

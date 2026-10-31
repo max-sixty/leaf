@@ -55,9 +55,7 @@ column, put `data-width="available"` on the enclosing `lf-ask`, or on the playgr
 when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
-`references/authoring-on-me.md` says. Where candidates side by side need the preview's
-whole width, set `controls="above"` on the playground, and its shared controls stand in
-a band above the preview instead of the rail.
+`references/authoring-on-me.md` says.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.
@@ -129,8 +127,8 @@ Name a preset for its outcome: `Status strip`, not `Preset 2`.
 In this comparison, `format` names which candidate to build. Each choice contains its
 preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid, and plain label choices run in a row that wraps
-between whole labels. When the comparison needs a particular arrangement of either, set
+Rich choices form a responsive grid, and plain label choices stand one per line. When
+the comparison needs a particular arrangement of either, such as short labels in a row, set
 `--playground-choice-columns` on the authored choice control or its parent to a grid's
 columns, such as `repeat(2, minmax(0, 1fr))`.
 

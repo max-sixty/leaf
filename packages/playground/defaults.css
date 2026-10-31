@@ -3,11 +3,10 @@
  * of it stand above the bar of actions that sends the instruction they write, in a rail
  * beside it. A control written inside the preview stands there, beside the item it
  * changes, and the rail then holds only what is left. With all controls inline, presets
- * precede the full-width preview and the bar follows, and so do the shared controls,
- * as a band, where the preview needs that width (`controls="above"`). Its regions are
- * up to three generated panes (data-lf-reading-role="pane", the kernel's base.css),
- * whose bodies scroll where a workspace Layout fills the window (layouts.css); here
- * the playground only places the panes and draws them.
+ * precede the full-width preview and the bar follows. Its regions are up to three generated panes
+ * (data-lf-reading-role="pane", the kernel's base.css), whose bodies scroll where a
+ * workspace Layout fills the window (layouts.css); here the playground only places the
+ * panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
@@ -126,14 +125,13 @@ lf-playground:has(> .lf-playground-split) {
 
     /* The outer scroller must include the stage's minimum and the whole action bar,
      * leaving its reserved panel room after both. Only scrolling bodies contribute
-     * no intrinsic size: presets, a band of controls above the stage and actions still
-     * set their tracks' minimum. */
+     * no intrinsic size: presets and actions still set their tracks' minimum. */
     lf-playground:has(> .lf-playground-split) {
       grid-template-rows: minmax(min-content, 1fr);
       scroll-padding-block-end: var(--lf-end-room);
     }
 
-    :is(.lf-playground-preview-body, .lf-playground-rail .lf-playground-controls) {
+    :is(.lf-playground-preview-body, .lf-playground-controls) {
       contain: size;
     }
 
@@ -155,7 +153,7 @@ lf-playground:has(> .lf-playground-split) {
       grid-auto-rows: max-content;
     }
 
-    /* A pane of presets, or of the band of controls above the stage, heads it. */
+    /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
       grid-template-rows: minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr);
       grid-auto-rows: max-content;
@@ -222,34 +220,6 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   min-width: 0;
 }
 
-/* Above the stage (`controls="above"`), the shared controls form a band. Each control
- * is a column with its choices one per line, as wide as its longest label, and the
- * columns stand side by side; one that doesn't fit moves whole to the next line, and
- * every label sits on one baseline. Rejected: choices in a row that wraps, as in the
- * rail. A row that wraps stays as wide as the room it was given, not its longest
- * line, so in a page's own band of three controls it left a 230px empty column, and
- * five choices broke into rows that started at different places (2026-10-31). A label
- * sits on its choices, closer than they stand to each other, and their marks stand on
- * its edge. The rules reach only the band's own controls and plain choices, leaving a
- * rich choice's candidates and anything nested in them as they are. */
-.lf-playground-split > .lf-playground-controls-region > .lf-playground-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-3) var(--sp-5);
-  > lf-playground-control {
-    row-gap: 0;
-  }
-  > lf-playground-control:not(.lf-playground-candidates) > .lf-playground-choices {
-    flex-flow: column;
-    align-items: start;
-    row-gap: 0;
-    > lf-playground-choice > .choice {
-      margin-inline-start: calc(-1 * var(--choice-pad));
-    }
-  }
-}
-
 lf-playground-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -297,19 +267,30 @@ lf-playground-control > input[type="range"] {
   color: var(--muted);
   font: var(--t-6)/1.3 var(--mono);
 }
-/* Label choices run in a row and wrap between whole labels, as a form's radios do, so
- * "over 800 ms (today)" never breaks inside while the row has room for it. Rejected:
- * equal grid cells, which split the room evenly and wrapped every label longer than
- * its share, "over 1% (today)" onto two lines in a 450px card with half its width
- * free; authors overrode the cells in page CSS to get the row back (2026-10-24 eval).
- * A label wider than the whole row still wraps, since a flex item shrinks to its
- * words' width only when it stands alone on its line. Columns the author sets replace
- * the row (below). A focused face draws its ring inside its own padding
- * (`.choice`, controls.css), so the gap only spaces one choice from the next. */
+/* Label choices stand one per line, so a choice control is as wide as its longest
+ * label wherever it stands: a page's own row of controls sized to their content
+ * leaves no empty room beside one, and no label breaks while its line has room.
+ * Rejected: a row that wraps between whole labels (2026-10-24 to 10-31). A row that
+ * wraps stays as wide as the room it was offered rather than its longest line, so in
+ * a page's row of three controls it left a 230px empty column, and it broke five
+ * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
+ * Rejected before it: equal grid cells, which wrapped every label longer than its
+ * share. Columns the author sets replace the list (below). A focused face draws its
+ * ring inside its own padding (`.choice`, controls.css), so lines of faces need no
+ * gap between them. */
 .lf-playground-choices {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--focus-ring-room);
+  flex-direction: column;
+  align-items: start;
+  gap: 0 var(--focus-ring-room);
+}
+/* A plain choice's label sits on its choices, closer than they stand to each other,
+ * and each face hangs out by its padding, so the marks stand on the label's edge. */
+lf-playground-control:not(.lf-playground-candidates):has(> .lf-playground-choices) {
+  row-gap: 0;
+  > .lf-playground-choices > lf-playground-choice > .choice {
+    margin-inline-start: calc(-1 * var(--choice-pad));
+  }
 }
 lf-playground-choice {
   display: contents;

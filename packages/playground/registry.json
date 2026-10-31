@@ -16,10 +16,6 @@
         "type": "string",
         "minLength": 1
       },
-      "controls": {
-        "type": "string",
-        "enum": ["above"]
-      },
       "actions": {
         "const": "page"
       },
@@ -85,7 +81,7 @@
   },
   "lf-playground-control": {
     "description": "One typed input in a playground.",
-    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its CSS custom property and in `lf-playground-value`, while its data attribute and submitted value stay plain numbers. A text control's custom property is a quoted CSS string. Only a choice control contains `lf-playground-choice` children. To select among visible candidates, put their markup in those children and this control in `lf-playground-preview`; the candidate is its own selector. A control that is a direct child of `lf-playground` stands in the rail, or above the preview where the playground sets `controls=\"above\"`; one inside `lf-playground-preview` stands where it is written.",
+    "x-instructions": "Use a stable `name` for the submitted field and a `label` for the control. Write its initial `value` as a string: a finite number for range, true or false for toggle, one child's value for choice, a six-digit hex color for color, or any text for text. A range needs `max`; `min` defaults to 0 and `step` to 1. A range's `unit` is appended to its value in its CSS custom property and in `lf-playground-value`, while its data attribute and submitted value stay plain numbers. A text control's custom property is a quoted CSS string. Only a choice control contains `lf-playground-choice` children. To select among visible candidates, put their markup in those children and this control in `lf-playground-preview`; the candidate is its own selector. A control that is a direct child of `lf-playground` stands in the rail; one inside `lf-playground-preview` stands where it is written.",
     "x-name": "label",
     "type": "object",
     "properties": {

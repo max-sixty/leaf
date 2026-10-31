@@ -34,9 +34,13 @@ export {
    A control is built so the browser does as much of it as it can. `offer` builds the
    corresponding native element, so activation, disabled state, focus, and
    accessibility stay the browser's. A page word that is also a control — a tab name, a
-   chosen option — has to stay selectable, which Chromium does not begin inside a form
-   control, so `selectableOffer` builds it as a span with the role, and its widget
-   supplies the complete keyboard pattern the native element would have.
+   chosen option — has to stay selectable, so `selectableOffer` builds it as a span with
+   the role. One with a button's role takes a button's Enter and Space from
+   role-button-press.js, on any page; for another role its widget supplies the keyboard
+   pattern the native element would have. A `<button>` would not do:
+   Chromium and Firefox begin a selection inside one styled `user-select: text`, but
+   WebKit, so Safari and every iOS browser, begins none inside a form control whatever
+   its style (notes/browser-support.md, "Selecting words inside a button in WebKit").
    Both constructors mark generated chrome consistently. The shared drag guard
    (`reachedForWords`) distinguishes a click from the mouseup ending an active text
    selection by comparing the selection's focus end with the release. It does not

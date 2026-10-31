@@ -1,9 +1,9 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, describeFailure, holdRendering, iconTemplate, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
-import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, fragmentId, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, watchLayerChanges, whenApplicationPresented, x } from "./runtime/bundle-layer-stack.js";
-import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, noticeText, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
+import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, fragmentId, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
+import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
-import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, stopComparison, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoLabel, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowLabel, workflowStep, workflowVoice } from "./runtime/bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, stopComparison, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowStep, workflowWord } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, showsContents, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
 import { LEAF_SURFACE, authoredScope, blockAt, closestAcross, contextAround, elementById, elementFromPointAcross, elementOver, excerptWords, findText, inChrome, leafSurface, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, quoteFrom, rangeOf, says, segmentBlock, showsWords } from "./runtime/bundle-passages.js";
 import { alreadyShown, copyControl, landedBox, landingRoom, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./runtime/bundle-copy-control.js";
@@ -3957,7 +3957,7 @@ function activityFacts({ activity }) {
 	const { counts } = activity;
 	return Object.freeze({
 		tone: TONE[activity.kind],
-		work: WORK_WORDS[activity.observed_kind ?? "working"] + (activity.awaiting ? " in the terminal" : ""),
+		work: saidBy(activity.observed_kind === "replying" ? "agent" : "leaf", WORK_WORDS[activity.observed_kind ?? "working"] + (activity.awaiting ? " in the terminal" : "")),
 		left: Boolean(activity.dropped),
 		silentSince: ago(activity.ts),
 		waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
@@ -3973,17 +3973,20 @@ const OFFLINE_LINE = "Lost the connection — reconnecting. Keep this page open 
 const KEY_REFUSED_LINE = "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
 const BROKEN_LINE = "Couldn't show the latest — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
-const textParts = (words) => (Array.isArray(words) ? words : [words]).filter(Boolean).map((part) => typeof part === "string" ? { text: part } : part);
-const textOf = (parts) => parts.map((part) => part.text).join("");
+const agentLine = (text, source) => Object.freeze({
+	...agentSays(text),
+	source
+});
+const textParts = (words) => (Array.isArray(words) ? words : [words]).filter(Boolean).map((part) => typeof part === "string" ? leafSays(part) : part);
 const appendWords = (parts, words, step = false) => {
-	const head = textOf(parts);
-	parts.push({ text: after(head, words, step).slice(head.length) });
+	const head = wordsText(parts);
+	parts.push(leafSays(after(head, words, step).slice(head.length)));
 };
 const appendParts = (parts, more) => {
-	const head = textOf(parts);
-	const joined = textOf(more);
+	const head = wordsText(parts);
+	const joined = wordsText(more);
 	const lead = after(head, joined).slice(head.length, -joined.length);
-	parts.push(...lead ? [{ text: lead }] : [], ...more);
+	parts.push(...lead ? [leafSays(lead)] : [], ...more);
 };
 function statusWords({ dated, detail, detailSource, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
@@ -4000,10 +4003,7 @@ function statusWords({ dated, detail, detailSource, invite, kind, overdue, saved
 		];
 	}
 	if (kind === "working") {
-		const sentence = detail ? [{
-			text: detail,
-			source: detailSource
-		}] : [];
+		const sentence = detail ? [agentLine(detail, detailSource)] : [];
 		if (waits) {
 			const said = [work, ...detail ? [" — ", ...sentence] : []];
 			return [
@@ -4031,18 +4031,12 @@ function statusWords({ dated, detail, detailSource, invite, kind, overdue, saved
 		dated,
 		[
 			dated,
-			...detail ? [": ", {
-				text: detail,
-				source: detailSource
-			}] : [],
+			...detail ? [": ", agentLine(detail, detailSource)] : [],
 			`. ${saved}`
 		],
 		[...detail ? [
 			"Last said: ",
-			{
-				text: detail,
-				source: detailSource
-			},
+			agentLine(detail, detailSource),
 			". "
 		] : [], saved]
 	];
@@ -4062,7 +4056,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "broken",
 		tone: "blocked",
 		summary: BROKEN_LINE,
-		voice: "leaf",
 		explanation: BROKEN_LINE,
 		adds: "",
 		asks: true
@@ -4071,7 +4064,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "refused",
 		tone: "blocked",
 		summary: "This tab lost access — open the link again",
-		voice: "leaf",
 		explanation: KEY_REFUSED_LINE,
 		adds: "Keep this tab open so changes made here go through.",
 		asks: true
@@ -4082,7 +4074,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 			kind: "faulted",
 			tone: "blocked",
 			summary: "Hit a problem — trying again",
-			voice: "leaf",
 			explanation: `Hit a problem: ${said}. Trying again.`,
 			adds: `${said}. Trying again.`
 		};
@@ -4091,7 +4082,6 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		kind: "unreachable",
 		tone: "blocked",
 		summary: "Lost the connection — reconnecting",
-		voice: "leaf",
 		explanation: OFFLINE_LINE,
 		adds: ""
 	};
@@ -4117,7 +4107,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	});
 	const summaryParts = textParts(summaryWords);
 	const explanationParts = textParts(explanationWords);
-	if (age) explanationParts.push({ text: ` (${age})` });
+	if (age) explanationParts.push(leafSays(` (${age})`));
 	const addsParts = textParts(beyond);
 	const append = (words, step = false) => {
 		appendWords(explanationParts, words, step);
@@ -4130,14 +4120,13 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	return {
 		kind,
 		tone: TONE[kind],
-		summary: textOf(summaryParts),
+		summary: wordsText(summaryParts),
 		summaryParts,
-		explanation: textOf(explanationParts),
+		explanation: wordsText(explanationParts),
 		explanationParts,
-		adds: textOf(addsParts),
+		adds: wordsText(addsParts),
 		addsParts,
 		asks: asked || waitsThere,
-		voice: summaryParts.some((part) => part.source) ? "agent" : "leaf",
 		actionableWork,
 		publication
 	};
@@ -4159,33 +4148,27 @@ function queueKinds(items) {
 		byWords.set(nouns, [...byWords.get(nouns) ?? [], item]);
 	}
 	return [...byWords].map(([nouns, all]) => {
-		const words = { text: `${all.length} ${nouns[all.length === 1 ? 0 : 1]}` };
-		if (nouns !== TODO) return [words];
-		const titles = all.flatMap((row, index) => [...index ? [{ text: " · " }] : [], {
-			text: row.obligation?.prompt.text ?? row.todo.title,
-			voice: "agent"
-		}]);
+		const count = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
+		if (nouns !== TODO) return [leafSays(count)];
+		const titles = all.flatMap((row, index) => [...index ? [leafSays(" · ")] : [], agentSays(row.obligation?.prompt.text ?? row.todo.title)]);
 		return [
-			{
-				...words,
-				text: `${words.text} (`
-			},
+			leafSays(`${count} (`),
 			...titles,
-			{ text: ")" }
+			leafSays(")")
 		];
 	});
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
 	const named = (items, whom) => items.length ? [
-		{ text: `Waiting on ${whom}: ` },
-		...queueKinds(items).flatMap((kind, index) => [...index ? [{ text: ", " }] : [], ...kind]),
-		{ text: "." }
+		leafSays(`Waiting on ${whom}: `),
+		...queueKinds(items).flatMap((kind, index) => [...index ? [leafSays(", ")] : [], ...kind]),
+		leafSays(".")
 	] : [];
 	const onMe = named(onUser, "me");
 	const onAgentParts = named(onAgent, agent);
 	return [
 		...onMe,
-		...onMe.length && onAgentParts.length ? [{ text: " " }] : [],
+		...onMe.length && onAgentParts.length ? [leafSays(" ")] : [],
 		...onAgentParts
 	];
 }
@@ -4196,7 +4179,7 @@ const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"unreachable"
 ]);
 function statusModel(status, queues, agent) {
-	const { kind, tone, summary, asks = false, voice = "agent", publication = null } = status;
+	const { kind, tone, summary, asks = false, publication = null } = status;
 	let { explanation, adds } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
@@ -4204,15 +4187,15 @@ function statusModel(status, queues, agent) {
 	if (counted.length) {
 		appendParts(explanationParts, counted);
 		appendParts(addsParts, counted);
-		explanation = textOf(explanationParts);
-		adds = textOf(addsParts);
+		explanation = wordsText(explanationParts);
+		adds = wordsText(addsParts);
 	}
 	let publicationModel = null;
 	if (publication) {
 		const [said, installs] = publicationWords(publication);
 		const examples = publication.kind === "example" ? "Other examples" : null;
 		appendWords(explanationParts, said + (examples ? `${examples} ` : "") + installs);
-		explanation = textOf(explanationParts);
+		explanation = wordsText(explanationParts);
 		publicationModel = Object.freeze({
 			copy: said,
 			examples,
@@ -4228,7 +4211,6 @@ function statusModel(status, queues, agent) {
 		explanationParts,
 		addsParts,
 		asks,
-		voice,
 		explanation,
 		adds,
 		publication: publicationModel
@@ -4237,23 +4219,16 @@ function statusModel(status, queues, agent) {
 function leafRow(entry) {
 	const { kind, counts, detail } = entry.activity;
 	const facts = activityFacts(entry);
-	const own = detail ? [{
-		text: detail,
-		voice: "agent"
-	}] : [];
-	const leaf = (text) => ({
-		text,
-		voice: "leaf"
-	});
-	const stated = (word) => [leaf(word), ...detail ? [leaf(" — "), ...own] : []];
+	const own = detail ? [agentSays(detail)] : [];
+	const stated = (said) => [said, ...detail ? [leafSays(" — "), ...own] : []];
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
-	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : own : kind === "listening" ? [leaf("Ready")] : kind === "stalled" ? stated(silence) : kind === "away" ? [leaf(counts.overdue ? silence : "Away")] : [leaf(kind === "unheld" ? "Not on this page right now" : "Done with this page")];
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : own : kind === "listening" ? [leafSays("Ready")] : kind === "stalled" ? stated(leafSays(silence)) : kind === "away" ? [leafSays(counts.overdue ? silence : "Away")] : [leafSays(kind === "unheld" ? "Not on this page right now" : "Done with this page")];
 	const waiting = facts.waiting.join(" · ");
-	const parts = waiting ? [...primary, leaf(primary.length ? ` · ${waiting}` : waiting)] : primary;
+	const parts = waiting ? [...primary, leafSays(primary.length ? ` · ${waiting}` : waiting)] : primary;
 	return {
 		tone: facts.tone,
-		line: parts.map((part) => part.text).join(""),
+		line: wordsText(parts),
 		parts: Object.freeze(parts)
 	};
 }
@@ -4265,7 +4240,6 @@ const LOADING = Object.freeze({
 	kind: "loading",
 	tone: "",
 	summary: "Loading comments and choices…",
-	voice: "leaf",
 	explanation: LOADING_LINE,
 	adds: LOADING_LINE
 });
@@ -5045,27 +5019,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const CONNECTING = {
 		tone: "",
 		summary: "Connecting…",
-		summaryParts: [{
-			text: "Connecting…",
-			source: null
-		}],
+		summaryParts: [leafSays("Connecting…")],
 		explanation: "Connecting…",
-		explanationParts: [{
-			text: "Connecting…",
-			source: null
-		}],
+		explanationParts: [leafSays("Connecting…")],
 		adds: "",
 		addsParts: [],
 		asks: false,
-		voice: "leaf",
 		publication: null
 	};
 	const status = () => statusReading() ?? CONNECTING;
-	const statusParts = (parts) => parts.map((part) => {
-		if (!part.source) return part.voice === "agent" ? part.text : html`<span data-voice="leaf">${part.text}</span>`;
+	const statusParts = (words) => [words].flat().map((part) => {
+		if (typeof part === "string" || !part.source) return voiced(part);
 		let stop = null;
 		return html`<span
         class="lf-fp-status-feedback"
+        data-voice=${part.voice}
         ${ref((node) => {
 			stop?.();
 			stop = node ? observeFeedback(node, {
@@ -5120,13 +5088,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let selectedWords = null;
 	const HIDDEN = "Annotations hidden";
-	const hiddenLead = () => annotationsHidden() ? `${HIDDEN} · ` : "";
+	const hiddenLead = () => annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : [];
 	function fieldReading(key, input) {
 		const [error] = sayable();
 		if (error) return {
 			says: "error",
-			words: error.message,
-			voice: "leaf"
+			words: leafSays(error.message)
 		};
 		const thread = key ? threadByKey(key) : null;
 		if (key && !thread) return {
@@ -5155,17 +5122,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const notice = passing();
 		if (notice.visible) return {
 			says: "notice",
-			words: (stance ? `${stance} · ` : "") + noticeText(notice.message),
-			parts: typeof notice.message !== "string" && notice.message.some((part) => part.voice === "leaf") ? [stance ? `${stance} · ` : "", noticeWords(notice.message)] : null
+			words: [...stance ? [`${stance} · `] : [], ...noticeWords(notice.message)]
 		};
 		if (stance) return {
 			says: "stance",
-			words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance
+			words: annotationsHidden() ? [`${stance} · `, leafSays(HIDDEN)] : stance
 		};
 		if (!key) return {
 			says: "status",
-			words: hiddenLead() + status().summary,
-			voice: status().voice
+			words: [...hiddenLead(), ...status().summaryParts]
 		};
 		return {
 			says: "turn",
@@ -5173,29 +5138,29 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			offers: true
 		};
 	}
-	const spoken = ({ label, voice }) => html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
-	const noticeWords = (message) => typeof message === "string" ? message : message.map((part) => part.voice === "leaf" ? html`<span data-voice="leaf">${part.text}</span>` : part.text);
 	function turnLead(key, input) {
 		if (fieldReading(key, input).says !== "turn") return "";
 		const thread = threadByKey(key);
 		const { walk } = statusContextReading();
 		const position = !walk?.shown ? "" : walk.kind === "thread" && walk.target === thread?.id ? `${walk.position} of ${walk.total}` : walk.text;
-		const attention = Boolean(position) && !currentLocationIn(host) ? null : thread.resolved ? {
-			label: "Resolved",
-			voice: "leaf"
-		} : threadAttention(thread, agentName());
-		if (!attention) return position;
-		return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
+		const word = Boolean(position) && !currentLocationIn(host) ? null : thread.resolved ? RESOLVED : threadAttention(thread, agentName())?.word;
+		if (!word) return position;
+		return voiced([word, ...position ? [` · ${position}`] : []]);
 	}
 	const whereTo = (thread) => !thread ? "Comment on the page" : thread.resolved ? "Reply to reopen" : "Reply in this thread";
 	function saying(key, input) {
-		const reading = fieldReading(key, input);
+		const { says, words, offers } = fieldReading(key, input);
 		if (input) {
-			keeps(input, "data-says", reading.says);
-			keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
-			keeps(input, "data-offers", reading.offers ? "" : null);
+			keeps(input, "data-says", says);
+			keeps(input, "data-voice", voiceOf(words));
+			keeps(input, "data-offers", offers ? "" : null);
 		}
-		return reading.words;
+		return wordsText(words);
+	}
+	function fieldHint(key, input) {
+		const { words } = fieldReading(key, input);
+		const parts = [words].flat();
+		return wordsText(words) && (!voiceOf(words) || parts.some((part) => typeof part !== "string" && part.source)) ? statusParts(words) : null;
 	}
 	let general = null;
 	function pageEditor() {
@@ -5212,12 +5177,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		};
 		const sync = wireInput(input, {
 			hint: () => saying(null, input),
-			hintParts: () => {
-				const reading = fieldReading(null, input);
-				if (reading.says === "notice") return reading.parts;
-				const parts = status().summaryParts;
-				return reading.says === "status" && parts?.some((part) => part.source) ? [hiddenLead(), ...statusParts(parts)] : null;
-			},
+			hintParts: () => fieldHint(null, input),
 			accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
 			sends: "send",
 			sendClass: "lf-fp-face lf-fp-send",
@@ -5266,7 +5226,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	const replyOptionsFor = (key) => {
 		if (!replyOptions.has(key)) replyOptions.set(key, {
 			hint: () => saying(key, replyInput()),
-			hintParts: () => fieldReading(key, replyInput()).parts ?? null,
+			hintParts: () => fieldHint(key, replyInput()),
 			hintLead: () => turnLead(key, replyInput()),
 			accessibleName: () => `Reply to ${threadTitle(key)}`,
 			sending: streamSend,
@@ -5336,14 +5296,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		return queues.phase === "ready" ? queues.on_user.length : 0;
 	};
 	const threadStatus = (thread) => {
-		const attention = thread.resolved ? null : threadAttention(thread, agentName());
-		const word = thread.resolved ? "Resolved" : attention?.label;
+		const word = thread.resolved ? RESOLVED : threadAttention(thread, agentName())?.word;
 		const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
 		const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-		return html`${word ? spoken({
-			label: word,
-			voice: attention?.voice
-		}) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+		return html`${word ? voiced(word) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
 	};
 	const rows = () => pageControls();
 	const VIEWS = Object.freeze({
@@ -5943,9 +5899,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const keyboard = all.find((entry) => entry.key === "keyboard");
 		const fold = all.find((entry) => entry.key === `command:${FOLD}`);
 		const groups = Object.keys(GROUPS).filter((group) => all.some((entry) => groupOf(entry) === group && listed(entry)));
-		const { tone, summary, summaryParts, adds, addsParts, publication } = status();
-		const said = adds && addsParts ? statusParts(addsParts) : adds;
-		const explains = publication ? html`${said}${adds ? " " : nothing}${publication.copy}${publication.examplesUrl ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
+		const { tone, summaryParts, adds, addsParts, publication } = status();
+		const said = adds ? statusParts(addsParts) : "";
+		const explains = publication ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${publication.examplesUrl ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
                   >${publication.examples}</a
                 > ` : nothing}<a
             class="lf-fp-face"
@@ -6009,7 +5965,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part("explain", explains)}
+        ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
 	}
@@ -6513,12 +6469,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
     </button>`;
 	const agentNoun = (item) => item.kind === "todo" ? "To-do" : capital(itemNoun(item));
 	const workOn = (item) => item.kind === "todo" ? {
-		word: todoLabel(item.todo.running),
-		line: item.todo.running?.text ?? "",
+		word: todoWord(item.todo.running),
+		line: item.todo.running ? agentSays(item.todo.running.text) : null,
 		since: item.todo.running?.ts ?? item.todo.ts
 	} : {
-		word: workflowLabel(item.workflow, agentName()),
-		voice: workflowVoice(item.workflow),
+		word: workflowWord(item.workflow, agentName()),
 		line: workflowStep(item.workflow, agentName()),
 		since: item.workflow?.ts ?? null
 	};
@@ -6608,12 +6563,15 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		let answers;
 		let discussHere = true;
 		if (list === "done" && !record) answers = card ? html`<span class="lf-fp-said"
-            >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+            >${voiced([itemOutcome(item), ...item.ended ? [` ${shortAgo(item.ended)}`] : []])}</span
           >` : nothing;
-		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
+		else if (list !== "you" && !answered) answers = html`<span class="lf-fp-said"
+        >${voiced(workOn(item).line ?? "")}</span
+      >`;
 		else if (answered) {
 			discussHere = false;
-			answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button
+			answers = html`<span class="lf-fp-said">${voiced(obligationEnding(record))}</span
+        >${gesture ? html`<button
                 type="button"
                 ${offeredAction("symbol", "", void 0, { action: "undo" })}
                 @click=${() => withdraw(gesture)}
@@ -6705,12 +6663,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (list === "agent") {
 			const work = workOn(item);
 			end = html`<span class="lf-fp-value"
-        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${work.since ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>` : nothing}</span
+        >${voiced(work.word ?? "")}${work.since ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>` : nothing}</span
       >`;
 		} else if (list === "done" && !record) end = html`<span class="lf-fp-value"
-        >${itemOutcome(item)}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
+        >${voiced(itemOutcome(item))}${item.ended ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>` : nothing}</span
       >`;
-		else if (answered && !opened) end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
+		else if (answered && !opened) end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
 		else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
 		const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
 		return html`<section
@@ -6861,14 +6819,25 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const held = inHand.length ? `Working on ${inHand.length}${longest && longest !== "now" ? `, the longest for ${longest}` : ""}` : "";
 		const waiting = queued.length ? `${queued.length} up next` : "";
 		const first = held && waiting ? `${held}; ${waiting}.` : held ? `${held}.` : waiting ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.` : "Nothing to do right now.";
-		const now = work.find((each) => each.line && each.line !== each.word)?.line;
+		const now = work.find((each) => each.line && each.line.text !== each.word?.text)?.line;
 		const progress = planProgress();
 		const [last] = done;
 		return html`<div class="lf-fp-work-summary">
-      <p>${first}${now ? ` Now: “${now}”.` : ""}</p>
-      ${progress ? html`<p>Plan: ${progress.done} of ${progress.total} steps.</p>` : nothing}${last ? html`<p>
-              Last done:
-              ${excerptWords(queueTitle(last), 60)}${last.ended ? `, ${ago(last.ended)}` : ""}.
+      <p>
+        ${voiced([leafSays(first), ...now ? [
+			leafSays(" Now: "),
+			now,
+			leafSays(".")
+		] : []])}
+      </p>
+      ${progress ? html`<p>
+              ${voiced(leafSays(`Plan: ${progress.done} of ${progress.total} steps.`))}
+            </p>` : nothing}${last ? html`<p>
+              ${voiced([
+			leafSays("Last done: "),
+			excerptWords(queueTitle(last), 60),
+			leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`)
+		])}
             </p>` : nothing}
     </div>`;
 	}
@@ -6883,7 +6852,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             ></span
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value"
-              >${row.self ? "This page" : row.parts.map((part) => html`<span data-voice=${part.voice}>${part.text}</span>`)}</span
+              >${row.self ? "This page" : voiced(row.parts)}</span
             >`;
 			return row.self ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>` : html`<a
                 ${offeredAction("row", "lf-fp-face lf-fp-page")}
@@ -7253,13 +7222,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const folded = host.dataset.rest === "mark";
 		const notice = passing();
 		const telling = notice.visible && folded;
-		const reading = status();
-		const parts = reading.explanationParts ?? [{ text: reading.explanation || reading.summary }];
+		const parts = status().explanationParts;
 		const asked = peekAsks();
 		if (!asked || !readingIsContinuous()) peekReading = null;
 		if (asked && !telling && pagePresented()) peekReading ??= parts;
 		return {
-			content: telling ? noticeWords(notice.message) : statusParts(peekReading ?? parts),
+			content: telling ? voiced(noticeWords(notice.message)) : statusParts(peekReading ?? parts),
 			shown: telling || asked
 		};
 	}
@@ -7622,8 +7590,8 @@ function marginMapGroups(entries, faceFor, searchTextByKey) {
 				icon: face.icon,
 				label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
 				visibleLabel,
+				visibleWords: item.words ?? visibleLabel,
 				context: item.mapContext,
-				contextVoice: item.contextVoice ?? null,
 				receipt: item.workflowReceipt,
 				awaitsUser: Boolean(item.userAttention)
 			};
@@ -7644,7 +7612,7 @@ function marginMapGroups(entries, faceFor, searchTextByKey) {
 		}))];
 		const search = [
 			entry.title,
-			...actions.flatMap(({ visibleLabel, context }) => [visibleLabel, context]),
+			...actions.flatMap(({ visibleLabel, context }) => [visibleLabel, wordsText(context ?? "")]),
 			searchTextByKey.get(entry.key)
 		].filter(Boolean).join(" ").toLocaleLowerCase();
 		return Object.freeze({
@@ -7712,18 +7680,16 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 	function pageMapDialogContains(candidate, node) {
 		return dialog.open && target === candidate && dialog.contains(node);
 	}
-	const sheetName = (item, visibleLabel) => {
+	const sheetName = (item, visibleWords) => {
 		const thread = item && inventory.sourceItem(item)?.thread;
-		return thread ? threadHeading(thread) : visibleLabel;
+		return thread ? threadHeading(thread) : visibleWords;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context, contextVoice }) => html`<span class="lf-row-lead"
+	const sheetFace = ({ icon, glyph, item, visibleLabel, visibleWords, context }) => html`<span class="lf-row-lead"
         >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
       ><span class="lf-page-map-action-label-word lf-row-main"
-        >${sheetName(item, visibleLabel)}</span
-      >${context ? html`<span
-              class="lf-page-map-action-context lf-row-end"
-              data-voice=${contextVoice ?? nothing}
-              >${context}</span
+        >${voiced(sheetName(item, visibleWords ?? visibleLabel))}</span
+      >${context ? html`<span class="lf-page-map-action-context lf-row-end"
+              >${voiced(context)}</span
             >` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
@@ -7753,7 +7719,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		});
 	}
 	const sheetHost = (action, actions) => contributionHost(contributionSource(action.offered), "map", action.record, {
-		accessibleLabel: [action.record.accessibleLabel, action.record.context].filter(Boolean).join(", "),
+		accessibleLabel: [action.record.accessibleLabel, wordsText(action.record.context ?? "")].filter(Boolean).join(", "),
 		relatedControlIds: relatedControlIds(action, actions)
 	});
 	const sheetItemTemplate = (action) => html`
@@ -7762,7 +7728,7 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
       ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
-      aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
+      aria-label=${[action.label, wordsText(action.context ?? "")].filter(Boolean).join(", ")}
       ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${() => activateItem(action.item, action.entry)}
     >

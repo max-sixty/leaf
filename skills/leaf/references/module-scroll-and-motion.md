@@ -240,8 +240,9 @@ newly arrived message.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's panel and announces it to screen
-readers, such as a view the widget switched to. A recorded gesture is acknowledged by
+`notice(message)` shows a moment's news in Leaf's panel, in the italic Leaf sets its
+own words in, and announces it to screen readers, such as a view the widget switched
+to. A recorded gesture is acknowledged by
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already

@@ -38,7 +38,9 @@ declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt. `leaf hook`
+session's pages (`cmd_pages`) to draw them beside the prompt, and at each turn's
+end asks the clerk what to fork the conversation with and hands back the fork's
+answer (`--fork`, `clerk.cmd_fork`). `leaf hook`
 (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -302,7 +304,9 @@ def cmd_pages(payload: dict) -> None:
         changes.close()
 
 
-def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
+def main(
+    harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
+) -> None:
     """Read one harness payload and dispatch it.
 
     The Click hook command is the caller.
@@ -340,11 +344,19 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
                 harness,
                 *(["--watch"] if watch else []),
                 *(["--pages"] if pages else []),
+                *(["--fork"] if fork else []),
             ],
             environment,
         )
     if pages:
         cmd_pages(payload)
+        return
+    if fork:
+        from .clerk import cmd_fork
+
+        answered = cmd_fork(payload.get("session_id") or "", payload)
+        if answered is not None:
+            print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
         from .leases import release_on_termination

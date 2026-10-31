@@ -549,7 +549,6 @@ customElements.define(
       mark.classList.toggle("lf-ui", pressable);
       keeps(mark, "role", pressable ? "checkbox" : "img");
       keeps(mark, "data-lf-offer", pressable ? "checkbox" : null);
-      keeps(mark, "data-lf-selectable-offer", pressable ? "" : null);
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion

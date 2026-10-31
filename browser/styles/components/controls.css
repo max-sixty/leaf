@@ -2,7 +2,7 @@
   display: block;
   margin-top: 2px;
   color: var(--muted);
-  font: var(--voice-status);
+  font: var(--font-status);
 }
 /* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
@@ -28,7 +28,7 @@
   cursor: pointer;
   padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
   color: var(--muted);
-  font: var(--voice-small);
+  font: var(--font-small);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -63,7 +63,7 @@
   white-space: nowrap;
   border: 1px solid transparent;
   border-radius: var(--chip-r);
-  font: var(--voice-chip);
+  font: var(--font-chip);
   outline-offset: 0;
 }
 /* Reaction controls own their resting, selected and interactive appearance together.
@@ -135,7 +135,7 @@
   background: var(--tip-bg);
   color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  font: var(--voice-tip);
+  font: var(--font-tip);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -373,7 +373,7 @@ svg[data-lf-icon] {
   inline-size: 32px;
   block-size: 32px;
   padding: 0;
-  font: var(--voice-emoji);
+  font: var(--font-emoji);
 }
 @media (hover: none) {
   .lf-msg {
@@ -390,9 +390,15 @@ svg[data-lf-icon] {
   color: var(--muted);
   white-space: nowrap;
 }
-/* Leaf's words about an update or the agent, such as Delivered, Gone quiet or Not
-   answered, stand apart from words the agent's own acts set, as a stage direction
-   does from the lines (`workflowVoice`, glossary.md "Reader-facing words"). */
+/* Each speaker has one face wherever a seat shows its words (voice.js, glossary.md
+   "Reader-facing words"): the agent's are regular and upright, as its messages are set,
+   and whatever Leaf says, such as Delivered, Not answered or a notice, stands apart from
+   them in that face's italic, as a stage direction does from the lines. The seat keeps
+   only its size and leading, which rank the words among its others. */
+span[data-voice] {
+  font-weight: 400;
+  font-style: normal;
+}
 span[data-voice="leaf"] {
   font-style: italic;
 }
@@ -647,7 +653,7 @@ summary,
   min-inline-size: var(--aim-floor);
   box-sizing: border-box;
   cursor: pointer;
-  font: var(--voice-ui);
+  font: var(--font-ui);
   outline-offset: var(--focus-ring-inset);
 }
 .choice > input {
@@ -1042,7 +1048,7 @@ wa-copy-button.lf-icon-action {
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
    end (`.lf-row-end`: a status, a time, a key, an arrow). The lead is muted and centred
-   on the name's first line, its numbers ending together; the end is muted, in the small voice
+   on the name's first line, its numbers ending together; the end is muted, in the small font
    as every qualifier in the chrome is, on the first line's baseline. Every row has the same padding, at least 30px
    tall, and reaches the aim floor under a finger. A row takes this layout by naming its
    main part, so a way back or a command in the reference keeps its own; one that offers
@@ -1101,7 +1107,7 @@ wa-copy-button.lf-icon-action {
   justify-self: end;
   margin-inline-start: 12px;
   color: var(--muted);
-  font: var(--voice-small);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1115,14 +1121,14 @@ wa-copy-button.lf-icon-action {
    its own. It is no row of the list's columns, since a count there would size the
    column the rows' ends share, and a list whose ends stand inside their names' column,
    as On me's lines do, would see every end step back. A heading that folds its group
-   is instead a row press wearing the voice, its arrow in the rows' lead; where a list
+   is instead a row press wearing the heading's font, its arrow in the rows' lead; where a list
    holds each group in a box of its own (`.lf-rows-group`), the room stands above the
    box; elsewhere a wearer keeps only where it stands. Lists drew their headings four
    ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
    short of the rows' ends, until they shared this one. */
 .lf-rows-head {
   margin: 0;
-  font: var(--voice-heading);
+  font: var(--font-heading);
   color: var(--muted);
 }
 .lf-rows-head:where(:not(:has(> .lf-row))) {

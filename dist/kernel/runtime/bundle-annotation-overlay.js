@@ -1,6 +1,6 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, layerLanding, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
-import { PRESS, closeControl, cycledRow, el, keys, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { closeControl, cycledRow, el, keys, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
 import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
@@ -1150,19 +1150,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return choice ? readingMarginEntries.get(readingKey(entry, choice)) ?? null : null;
 	}
 	const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
-	const readingControl = (className) => {
-		const control = offer("span", className);
-		keys(control, "On a margin entry", [{
-			id: "margin.press",
-			keys: PRESS,
-			title: "open / close",
-			run: () => control.click()
-		}], { when: () => {
-			const record = contributionEntryRecord(control);
-			return record.behavior === "disclosure" && !record.disabled;
-		} });
-		return control;
-	};
+	const readingControl = (className) => offer("span", className);
 	function syncReadingRelation(control, choice) {
 		if (choice?.kind === "comment") {
 			keeps(control, "aria-controls", preview.id);
@@ -1500,9 +1488,8 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
-			voice: face.voice ?? "agent",
-			context: line?.text ?? null,
-			contextVoice: line?.voice ?? null,
+			voice: face.voice ?? null,
+			context: line,
 			behavior,
 			rank: "reading",
 			state: readingState(choice),

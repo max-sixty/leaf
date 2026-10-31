@@ -467,7 +467,7 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-/* The path is evidence — a file's name in the file's own voice — and a shadow tree
+/* The path is evidence — a file's name in the file's own face — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path {
   font-family: var(--mono);

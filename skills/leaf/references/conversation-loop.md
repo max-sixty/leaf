@@ -198,6 +198,13 @@ it until the user decides or you withdraw it. A question written in prose, a hea
 a status line or chat isn't on On me; only the routes in the table put it there.
 Information they may comment on but need not decide is not an obligation.
 
+In Claude Code, as each turn ends, an experimental check of Leaf's reads the
+conversation for decisions, answers or steps you left to the user that On me doesn't
+hold, adds each to On me as your to-do on the user, and tells you at your next step.
+That catches what slips; it doesn't register your questions for you, so keep asking
+by the routes below. Each to-do it adds is yours like any you write: end one that
+isn't the user's to decide with `leaf task end <page> <id> dropped`.
+
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions

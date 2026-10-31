@@ -29,7 +29,7 @@ lf-event::before {
   align-items: center;
   gap: var(--sp-2);
   margin-block-end: var(--sp-2);
-  font: var(--t-working-label)/1.4 var(--sans);
+  font: var(--font-compact);
 }
 /* The position follows both buttons, so its changing width never moves them. */
 .lf-timeline-position {
@@ -41,12 +41,15 @@ lf-event::before {
   --lf-timeline-row: 22px;
   --lf-timeline-bar: 22px;
   --lf-timeline-ruler: 22px;
-  --lf-timeline-label-weight: 500;
   --lf-timeline-ground: var(--lf-ground, var(--paper));
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  font: var(--lf-timeline-label-weight) 12px/1 var(--sans);
+  /* The labels are the drawing's references (base.css, `--font-status`). Each stands in
+     a row of a stated height, so its line is as tall as its words, as a mark's count
+     is. */
+  font: var(--font-status);
+  line-height: 1;
   color: var(--ink);
   user-select: none;
   /* Marks and done spans are painted backgrounds, which paper otherwise drops. */

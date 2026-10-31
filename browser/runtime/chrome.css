@@ -1046,8 +1046,7 @@ html[data-lf-region-capture] main * {
     scroll-padding: var(--focus-ring-room);
   }
   /* Each section of the report is a region of the dialog, named in the label voice
-     (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title,
-     where the browser's h2 drew "Page details" at 17px bold over a 14px one. What
+     (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title. What
      names one value, a copyable text's or a list's (h3), is muted and small, as a
      metric's term is, so no value's name outranks its section's. A heading stands
      nearer what it names than what precedes it. A disclosure in a section is one of

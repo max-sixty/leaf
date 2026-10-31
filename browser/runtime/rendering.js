@@ -7,8 +7,7 @@
    Each field is true when that axis is settled. Hidden documents read true on
    both axes because they owe no visible paint until they become visible again.
    A reader outside the page waits on those facts after a gesture rather than
-   guessing a number of frames, and one inside it on `afterSettling`, as a sample's
-   child does to say which of its heights a gesture caused (sample-child.js).
+   guessing a number of frames, and one inside it on `afterSettling`.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and

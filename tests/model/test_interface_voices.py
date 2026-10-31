@@ -79,7 +79,7 @@ def test_every_rule_of_the_interface_speaks_in_a_declared_voice():
         for _, item in declarations(
             tinycss2.parse_stylesheet((ASSETS / "base.css").read_text())
         )
-        if item.type == "declaration" and item.name.startswith("--voice-")
+        if item.name.startswith("--voice-")
     }
     assert {"--voice-ui", "--voice-small", "--voice-message"} <= voices, (
         f"base.css declares the voices {sorted(voices)}: this reading has stopped "

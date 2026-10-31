@@ -12,8 +12,7 @@
    it shares with the other lists. Three inks: the ink, the interface's muted
    (`--muted-2`, base.css) for what qualifies a line, as every list's does, and the
    accent for what is on the user, with the empty field's status a step dimmer at 62%
-   (`--lf-fp-quiet`). The panel once mixed its qualifiers' ink too, at 72%, which no
-   theme reached. The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
+   (`--lf-fp-quiet`). The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
    panel's ground in the light scheme: 62% reads 4.7:1 there, where the 48% it first
    wore read 3.1:1. The user chose a dim status, so it stays the dimmest words in the
    panel. Every row is one line. */
@@ -27,7 +26,6 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
-    /* Words standing in an empty field, a step dimmer than the panel's qualifiers. */
     --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);

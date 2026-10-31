@@ -2509,9 +2509,9 @@ def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, ser
     reading column would begin a heading's gap above its heading, and the focus ring,
     margin entry and landing Leaf places by that box would stand in the gap. The item
     takes the heading's gap instead: its box starts at the heading, which stands as far
-    below the block above as the gap says. An eyebrow over the heading, and a list whose
-    first item opens with a heading, follow the same edge; an item opening with prose
-    keeps its child's margin."""
+    below the block above as the gap says. An eyebrow over the heading follows the same
+    edge. A callout opening with a heading keeps its own margin, and an item opening with
+    prose keeps its child's margin, so neither one's text moves."""
     page = open_page(
         browser,
         serve(
@@ -2521,34 +2521,39 @@ def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, ser
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
-<ol id="step-led"><li><h3>Step</h3><p>Body.</p></li></ol>
+<div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>""",
             )
         ),
     )
     items = page.evaluate(
         """() => Object.fromEntries(
-          ['h2-led', 'h3-led', 'eyebrow-led', 'step-led', 'prose-led'].map(id => {
+          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led'].map(id => {
             const item = document.getElementById(id);
             const box = item.getBoundingClientRect();
             const first = item.firstElementChild.getBoundingClientRect();
             const above = item.previousElementSibling.getBoundingClientRect();
-            return [id, {band: first.top - box.top, gap: first.top - above.bottom}];
+            return [id, {
+              band: first.top - box.top,
+              gap: first.top - above.bottom,
+              margin: parseFloat(getComputedStyle(item).marginBlockStart),
+            }];
           }))"""
     )
     tokens = page.evaluate(
-        """() => ['--h2-start', '--h3-start'].map(name => parseFloat(
-          getComputedStyle(document.querySelector('main')).getPropertyValue(name)))"""
+        """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
+          parseFloat(getComputedStyle(document.querySelector('main'))
+            .getPropertyValue(name)))"""
     )
     page.close()
 
-    h2_start, h3_start = tokens
-    for led in ("h2-led", "h3-led", "eyebrow-led", "step-led"):
+    h2_start, h3_start, callout_margin = tokens
+    for led in ("h2-led", "h3-led", "eyebrow-led"):
         assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
     assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
     assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
     assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
-    assert items["step-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
+    assert items["framed"]["margin"] == pytest.approx(callout_margin, abs=0.5), items
     assert items["prose-led"]["band"] > 0, items
 
 

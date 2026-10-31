@@ -805,7 +805,18 @@ html:not([data-lf-live]) {
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
  * stops at it. Direct frames and propagated edges share one rule per edge, so that
  * boundary holds even when the row draws its own frame. The frame reset remains
- * independent: a row still bounds its content when its children keep their margins. */
+ * independent: a row still bounds its content when its children keep their margins.
+ *
+ * A grid or flex box gives a margin nothing to collapse through: each of its items keeps
+ * its own children's margins inside its box, so an item opening with a heading would
+ * begin the heading's gap above the heading. Such a box says so, --lf-items-keep-margins:
+ * 1, and an item of it that opens with a heading takes the heading's gap as its own
+ * margin (reading.css). */
+@property --lf-items-keep-margins {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;

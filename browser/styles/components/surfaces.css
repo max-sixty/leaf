@@ -173,8 +173,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   background: var(--chip);
   color: var(--ink-2);
   font: var(--voice-code);
-  /* The line box the size token is built from: the badge less its border. */
-  line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -754,9 +752,8 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted-2);
-  font: var(--voice-small);
-  font-weight: 500;
+  color: var(--muted);
+  font: var(--voice-status);
 }
 .lf-summary-text {
   color: var(--ink-2);
@@ -1085,10 +1082,10 @@ button.lf-primary-news {
   box-sizing: border-box;
 }
 .lf-msg-head time {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure {

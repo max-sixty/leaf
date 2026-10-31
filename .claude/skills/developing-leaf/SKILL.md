@@ -83,12 +83,12 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste goes in the shipped instructions as a goal with its reason, so the
-authoring agent weighs it against its own page. A CSS rule, validator or Layout that
-fixes how many tiles share a row overrides every page that needs another number. A
-check may report what it sees, as the render check names where a tile row wraps, and
-leave the decision to the agent.
+the user relies on, such as a gesture being recorded or a pressed control staying where
+it was (`browser/AGENTS.md`, "Stability"). Taste goes in the shipped instructions as a
+goal with its reason, so the authoring agent weighs it against its own page. A CSS
+rule, validator or Layout that fixes how many tiles share a row overrides every page
+that needs another number. A check may report what it sees, as the render check names
+where a tile row wraps, and leave the decision to the agent.
 
 `page check` and its render checks enforce Leaf's page contracts: they report widget
 initialization failures and unintended clipping of content or controls.

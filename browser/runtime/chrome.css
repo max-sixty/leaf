@@ -1083,16 +1083,18 @@ html[data-lf-region-capture] main * {
     justify-content: space-between;
     gap: 8px;
   }
-  /* A copyable text is identifiers, links and reports, so a long one fills its line and
-     breaks where the box ends, keeping a name on the line of the value it names; it
-     wraps, so it never scrolls sideways and keeps no room under its last line for a
-     scrollbar's track, as a code block does (reading.css). */
+  /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
+     wraps rather than scrolling sideways, so it keeps no room under its last line for a
+     scrollbar's track, as a code block does (reading.css). A value too long for the
+     rest of its line, such as a fingerprint, moves whole to the next, and every line a
+     wrap continues stands indented under its name, so it reads as that name's value. */
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;
     border: 1px solid var(--border-2);
     white-space: pre-wrap;
-    word-break: break-all;
+    overflow-wrap: anywhere;
+    text-indent: 2ch hanging each-line;
     font: var(--font-code);
   }
   .lf-copyable-text pre::after {

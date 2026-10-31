@@ -216,15 +216,16 @@ help.
 
 | Request                                                                         | Register it                                                                                                                       | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a widget that records it (`authoring-on-me.md`); optional `lf-ask` frames its question and evidence                        | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
+| A decision or input recorded by a widget                                        | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                           | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                | The user's next message there or a settling reaction                                  |
 | Permission for a stated action                                                  | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                        | The user's pick and its row in On me                                                  |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Generally pass `--obligation` when a message hands the next move to the user,
-including an answer that informs a decision already on On me.
-Progress and information that need no response create no obligation. When a widget
-in the message's markup captures the same answer, its obligation is sufficient.
+including an answer that informs a decision already on On me. A message that asks a
+new question whose answers you can list asks with a widget in its markup instead
+(`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
+information that need no response create no obligation.
 
 Obligation ids are `message:<message>` for an explicit message request,
 `widget:<widget-id>` for a widget that asks,
@@ -264,16 +265,17 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers a conversational question elsewhere, use the answer and end
+When the user answers a question your message asked by another route than the one it
+offered, such as in chat, or in words where it offered a choice, use the answer and end
 its obligation with `leaf task end`, using the id from `page state`: `done` records
 where they answered; `dropped` withdraws a question that no longer applies. Neither
 outcome fabricates an answer in the page's history:
 
 ```bash
 leaf task end <page> message:<message> done --text "<where the answer is>"
-leaf task end <page> message:<message> dropped --text "<why>"
+leaf task end <page> widget:<widget-id> dropped --text "<why>"
 ```
 
-An obligation answered through a widget's controls ends through its state or an
-authored withdrawal (`authoring-revisions.md`). Explicit user to-dos also end with
+A page widget's obligation ends through its state or an authored withdrawal
+(`authoring-revisions.md`). Explicit user to-dos also end with
 `leaf task end` when the work is complete, failed or dropped.

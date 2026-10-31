@@ -717,10 +717,20 @@
   .lf-fp-on-user {
     justify-content: flex-start;
   }
-  /* The way out ends its seat, so it stands at the row's end rather than 11px inside
-     it. */
-  .lf-fp-exit {
-    justify-content: flex-end;
+  /* The way out ends its seat, so its symbol stands at the row's end rather than 11px
+     inside it, under the column of a view's presses above. Its face is the symbol's
+     own square, which its wash lights, and its reach fills the rest of the seat, so
+     the pointer left on the mark that opened a view stands on what closes it. */
+  .lf-fp-quick {
+    position: relative;
+  }
+  .lf-fp-quick > .lf-fp-exit {
+    flex: none;
+    position: static;
+    margin-inline-start: auto;
+  }
+  .lf-fp-quick > .lf-fp-exit::after {
+    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
   }
   .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);
@@ -973,13 +983,14 @@
     margin-inline: auto 12px;
   }
   /* What Threads holds while the user reads it stands over the rows it would have
-     moved, at the inset of the Resolved heading: its line grows the box upward from
-     the row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+     moved, starting where their marks do, as a list's heading does (controls.css,
+     `.lf-rows-head`) and a view's title does: its line grows the box upward from the
+     row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     display: flex;
     align-items: center;
     min-height: 32px;
-    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
+    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
   .lf-fp-joined {
@@ -1256,8 +1267,10 @@
   .lf-fp-thread:not([data-unread]) .lf-fp-news-mark {
     visibility: hidden;
   }
+  /* A thread on the user's turn says so in the turn's green, the ink its margin entry
+     and Page Map row paint that turn in (base.css). */
   .lf-fp-thread[data-yours] .lf-row-end {
-    color: var(--accent);
+    color: var(--turn-ink);
   }
   :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
     color: var(--muted);
@@ -1341,9 +1354,14 @@
   .lf-fp-version {
     align-items: center;
   }
-  /* The press has no value, key or chevron, so its words take the first column alone,
-     on one line; its number's digits share one width, so v1's note starts where v2's
-     does. The name reads over its note in weight and ink. */
+  /* The press has no value, key or chevron, so its words take the row's first columns
+     alone, on one line. The names share a column as wide as the widest, so every note
+     starts on one edge, the latest version's name saying so included; a name with no
+     note, a draft's, also takes the notes' column, so it never widens theirs. The name
+     reads over its note in weight and ink. */
+  .lf-fp-versions {
+    grid-template-columns: [lead] auto [name] auto [main] minmax(0, 1fr) [end] auto;
+  }
   .lf-fp-version > .lf-fp-item {
     grid-row: 1;
     align-items: center;
@@ -1352,10 +1370,25 @@
     display: none;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
-    display: block;
+    display: contents;
+  }
+  .lf-fp-version-name {
+    grid-column: name;
     white-space: nowrap;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-version-name:last-child {
+    grid-column: name / end;
+  }
+  .lf-fp-version :is(.lf-fp-version-name:last-child, .lf-fp-note) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-version .lf-fp-note {
+    grid-column: main;
+    white-space: nowrap;
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
     grid-area: 1 / end;
@@ -1596,13 +1629,20 @@
   .lf-fp-choice-name {
     font-weight: 600;
   }
+  /* The page's `recommended` tag, in the chip face it wears on the option (chip.css):
+     the ok tint under the ok ink, standing on the panel's ground where its choice is
+     chosen, as a chosen option's ok chip stands on the card's (options.css). */
   .lf-fp-choice-tag {
-    padding-inline: 5px;
-    border-radius: 4px;
-    font: var(--font-small);
+    display: inline-block;
+    padding: var(--chip-pad);
+    border-radius: var(--chip-r);
+    background: var(--ok-tint);
     color: var(--ok-ink);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+    font: var(--font-chip);
     white-space: nowrap;
+  }
+  .lf-fp-answer[aria-pressed="true"] .lf-fp-choice-tag {
+    background: var(--lf-fp-surface);
   }
   .lf-fp-choice-says {
     display: -webkit-box;

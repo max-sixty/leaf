@@ -453,7 +453,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
             break
         preview.get_by_role("button", name="Previous thread", exact=True).click()
     expect(card).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 3")
 
     # What every head on the actions' line shows stops short of them: the first
     # message's head ends at them and cuts what it can't fit, and a later message's head,

@@ -2126,7 +2126,7 @@ export function createFloatingPanel({
           disabled: entry.disabled,
           role: menuOpen.value ? "menuitem" : null,
           row: entry.key,
-          title: entry.value || null,
+          title: entry.title || entry.value || null,
         },
       ),
       copy,
@@ -2317,11 +2317,11 @@ export function createFloatingPanel({
           (entry) =>
             html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(
-                html`${entry.name}${
-                  entry.note
-                    ? html`<span class="lf-fp-note">${entry.note}</span>`
-                    : nothing
-                }`,
+                html`<span class="lf-fp-version-name">${entry.name}</span>${
+                    entry.note
+                      ? html`<span class="lf-fp-note">${entry.note}</span>`
+                      : nothing
+                  }`,
                 nothing,
                 () => showVersion(entry),
                 { title: entry.note, current: entry.current },
@@ -3330,17 +3330,30 @@ export function createFloatingPanel({
       // two lines at most, so the user can answer here without Show. Rejected: the
       // option's whole card, whose tags and picture let one choice fill a phone's
       // screen, and its name alone, which left the user picking blind on a phone.
+      // The press that commits what the user composed, such as a group's Done, wears
+      // the commit face its widget gives it, so it never reads as one more choice, and
+      // what it does is its tooltip, as in the command reference.
       answers = html`${choices.map((choice) => {
+        const press = () => {
+          choice.press();
+          paint();
+        };
+        if (choice.commits)
+          return html`<button
+            ${offeredAction("commit", "lf-fp-commit")}
+            title=${choice.description || nothing}
+            aria-pressed=${String(choice.chosen)}
+            @click=${press}
+          >
+            ${capital(choice.label)}
+          </button>`;
         const told = Boolean(choice.description || choice.recommended);
         return html`<button
           type="button"
           class="lf-fp-face lf-fp-answer"
           ?data-told=${told}
           aria-pressed=${String(choice.chosen)}
-          @click=${() => {
-            choice.press();
-            paint();
-          }}
+          @click=${press}
         >
           ${
             told

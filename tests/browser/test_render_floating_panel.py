@@ -1025,7 +1025,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     # the arrows as soon as it matches.
     search.get_by_role("searchbox").fill("Paragraph 1")
     count = page.locator(".lf-page-search-status")
-    expect(count).to_have_text("1/11")
+    expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     for width in (360, 390, 540, 1280):
@@ -1038,12 +1038,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
         assert abs(query["y"] + query["height"] - close["y"] - close["height"]) < 1
         assert search.get_by_role("searchbox").bounding_box()["width"] >= 60
     following.click()
-    expect(count).to_have_text("2/11")
+    expect(count).to_have_text("2 of 11")
     previous.click()
     previous.click()
-    expect(count).to_have_text("11/11")
+    expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
-    expect(count).to_have_text("1/1")
+    expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
     # the box; a control painted over the words keeps its own press. The press aims at
     # the words, since the mark moves to them a frame after the count changes.

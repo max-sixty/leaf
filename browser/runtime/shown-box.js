@@ -53,60 +53,13 @@ export const skipped = (element) => {
 // built on it, where an element is.
 export function elementBox(el) {
   const r = el.getBoundingClientRect();
-  if (skipped(el)) return r;
-  if (r.width || r.height) return blocksShown(el, r);
   // A zero-sized box still belongs to its element. Only a boxless wrapper takes
   // its bounds from contents, which a hidden-until-found panel deliberately skips.
-  if (getComputedStyle(el).display !== "contents") return r;
+  if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
+    return r;
   const contents = document.createRange();
   contents.selectNodeContents(el);
   return contents.getBoundingClientRect();
-}
-
-// A box that paints nothing of its own and holds only blocks shows, top to bottom, as
-// those blocks. A grid or flex item, or any box that is its own formatting context,
-// keeps its first child's top margin inside its box, so its top edge stands where the
-// reader sees nothing: a section in the reading column begins a heading's margin above
-// its heading. Its sides stay its own, and its children only trim it, so a positioned
-// or overflowing child leaves the box as the browser lays it out. A box holding text or
-// inline boxes is its lines; a box that paints (a background, border, shadow or
-// generated content) or clips is what the reader sees; and a shadow host shows its
-// shadow tree, which its children don't describe.
-const PAINTS = ["backgroundImage", "boxShadow"];
-function blocksShown(el, r) {
-  if (el.shadowRoot || !el.firstElementChild) return r;
-  for (const node of el.childNodes)
-    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) return r;
-  const style = getComputedStyle(el);
-  if (
-    PAINTS.some((property) => style[property] !== "none") ||
-    !/^(transparent|rgba\(.*, 0\))$/.test(style.backgroundColor) ||
-    ["Top", "Right", "Bottom", "Left"].some(
-      (side) =>
-        style[`border${side}Style`] !== "none" && style[`border${side}Width`] !== "0px",
-    ) ||
-    style.overflowX !== "visible" ||
-    style.overflowY !== "visible" ||
-    getComputedStyle(el, "::before").content !== "none" ||
-    getComputedStyle(el, "::after").content !== "none"
-  )
-    return r;
-  let top = Infinity;
-  let bottom = -Infinity;
-  for (const child of el.children) {
-    const display = getComputedStyle(child).display;
-    if (display === "none" || skipped(child)) continue;
-    if (display.startsWith("inline") || display.startsWith("ruby")) return r;
-    const b =
-      display === "contents" ? elementBox(child) : child.getBoundingClientRect();
-    if (!b.width && !b.height) continue;
-    top = Math.min(top, b.top);
-    bottom = Math.max(bottom, b.bottom);
-  }
-  top = Math.max(top, r.top);
-  bottom = Math.min(bottom, r.bottom);
-  if (!(bottom > top) || (top === r.top && bottom === r.bottom)) return r;
-  return new DOMRect(r.left, top, r.width, bottom - top);
 }
 
 // A number a widget can only read off a box the browser has laid out, such as the room

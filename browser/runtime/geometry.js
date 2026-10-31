@@ -456,7 +456,7 @@ export function shownParts(el) {
 // its corner, so a comment on one shape of a drawing stands on that shape rather than at
 // the drawing's edge. An element with no shown part has none.
 export const shownExtent = (el) =>
-  union(shownParts(el).map((part) => elementBox(part)));
+  union(shownParts(el).map((part) => part.getBoundingClientRect()));
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an

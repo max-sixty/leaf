@@ -226,7 +226,7 @@ function shownParts(el) {
 	if (r.width && r.height) return [el];
 	return [...el.children].filter((child) => !uiInside(child, el)).flatMap((child) => shownParts(child));
 }
-const shownExtent = (el) => union(shownParts(el).map((part) => elementBox(part)));
+const shownExtent = (el) => union(shownParts(el).map((part) => part.getBoundingClientRect()));
 function shownRect(item, clips) {
 	return clippedRect(shownBox(item), item, clips);
 }

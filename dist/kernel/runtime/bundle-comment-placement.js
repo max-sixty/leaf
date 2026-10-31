@@ -1,4 +1,4 @@
-import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, elementBox, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
+import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
 import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
@@ -704,7 +704,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		entry.visualLeft = on && entry.fold.open() ? rect.right - (entry.rect.right - entry.rect.left) : rect.left;
 		entry.rect = rect;
 		if (entry.fold) standFolded(entry.read.row, entry.fold, on);
-		const attached = elementBox(targetBox(entry.read.target));
+		const attached = targetBox(entry.read.target).getBoundingClientRect();
 		seats.set(entry.read.row, {
 			top: rect.top - attached.top,
 			right: attached.right - rect.right
@@ -941,7 +941,7 @@ function layoutMarginRows() {
 	for (const entry of placed) {
 		const seat = seats.get(entry.read.row);
 		if (entry.read.place !== "pin" || !seat || !entry.held) continue;
-		const heldBox = elementBox(targetBox(entry.read.target));
+		const heldBox = targetBox(entry.read.target).getBoundingClientRect();
 		const width = entry.rect.right - entry.rect.left;
 		const height = entry.rect.bottom - entry.rect.top;
 		entry.holding = {

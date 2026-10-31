@@ -16,21 +16,25 @@
    (`semantic-state.agentName`), from its application-facing caller, so this model
    stays free of application state. */
 
-// Each stage the agent has the update at, as it would say it (glossary.md,
-// "Reader-facing words"). Before then the agent can say nothing about it, so Leaf
-// speaks, in its own voice (`workflowVoice`): the update waits for the agent, whether
-// or not the server has logged it yet, since the message drawn in the thread already
-// shows the user's gesture and the page's status says when a send isn't getting
-// through. The user chose this over the agent's "Not seen yet" (2026-10-27).
+// Each stage's word, and who says it (glossary.md, "Reader-facing words"). The agent's
+// voice relays only what the agent did by its own command: it started the update (On
+// it) or answered it. Everything else is what Leaf observed of the update's way to the
+// agent, through the harness or the clock, so Leaf says it in its own voice, which
+// surfaces set apart in italic (`workflowVoice`): the update waiting for the agent
+// whether or not the server has logged it yet, the harness queuing or delivering it, a
+// reply the stream shows being written, and every condition. The user chose this on
+// 30 October 2026, over stage words in the agent's voice such as "Got it", which put
+// Leaf's inference in the agent's mouth; on 27 October they chose Leaf's "Queued for
+// Claude" over the agent's "Not seen yet".
 const queuedFor = (agent) => `Queued for ${agent}`;
-const STAGE_LABELS = Object.freeze({
-  sending: queuedFor,
-  sent: queuedFor,
-  queued: "Up next",
-  picked_up: "Got it",
-  working: "On it",
-  replying: "Replying",
-  answered: "Answered",
+const STAGES = Object.freeze({
+  sending: { label: queuedFor, voice: "leaf" },
+  sent: { label: queuedFor, voice: "leaf" },
+  queued: { label: "Up next", voice: "leaf" },
+  picked_up: { label: "Delivered", voice: "leaf" },
+  working: { label: "On it", voice: "agent" },
+  replying: { label: "Replying", voice: "leaf" },
+  answered: { label: "Answered", voice: "agent" },
 });
 
 const CONDITION_LABELS = Object.freeze({
@@ -43,7 +47,7 @@ const CONDITION_LABELS = Object.freeze({
 // An update still waiting past the pickup grace (`activity.PICKUP_GRACE`).
 const waitingForDelivery = (agent) => `Still queued for ${agent}`;
 // A failed response's word, on its workflow and on the failure reply that reports it.
-export const NOT_ANSWERED = "Couldn't answer";
+export const NOT_ANSWERED = "Not answered";
 
 export const workflowLabel = (workflow, agent, { answered = false } = {}) => {
   if (!workflow) return "";
@@ -56,14 +60,18 @@ export const workflowLabel = (workflow, agent, { answered = false } = {}) => {
         ? NOT_ANSWERED
         : (CONDITION_LABELS[workflow.condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return "";
-  const label = STAGE_LABELS[workflow.stage] ?? "";
+  const label = STAGES[workflow.stage]?.label ?? "";
   return typeof label === "function" ? label(agent) : label;
 };
 
-// Who says a workflow's word: Leaf while the agent doesn't have the update, which a
-// surface sets apart in italic (`data-voice`, glossary.md), else the agent.
+// Who says a workflow's word (`STAGES`): Leaf for every condition, which a surface sets
+// apart in italic (`data-voice`, glossary.md).
 export const workflowVoice = (workflow) =>
-  workflow && ["sending", "sent"].includes(workflow.stage) ? "leaf" : "agent";
+  !workflow
+    ? "agent"
+    : workflow.condition
+      ? "leaf"
+      : (STAGES[workflow.stage]?.voice ?? "agent");
 
 export const workflowTitle = (workflow, agent) => {
   if (!workflow) return "";
@@ -131,60 +139,38 @@ export function threadAttention(thread, agent) {
       ) ?? null)
     : null;
   if (thread.attention?.kind === "needs_user") {
+    // The agent hands the turn over with a question, its own act; an update that never
+    // reached it is Leaf's to hand back, asking the user to send it again.
     const answering = thread.attention.reason === "obligation";
-    // The agent hands the turn over in its own voice; an update that never reached it
-    // asks the user to send it again.
-    const nextMove = answering
-      ? "Your turn"
-      : workflow?.subject.kind === "thread"
-        ? "Send it again"
-        : "Try it again";
-    // The updates in the thread the agent still owes an answer.
-    const owed = new Set(
-      (thread.obligations ?? [])
-        .filter((item) => item.source.kind === "update" && item.next_actor === "agent")
-        .map((item) => item.id),
-    );
-    const secondary = strongestWorkflow(
-      thread.workflows.filter(
-        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id,
-      ),
-    );
     return Object.freeze({
       kind: "needs_user",
-      label: nextMove,
-      voice: "agent",
+      label: answering
+        ? "Your turn"
+        : workflow?.subject.kind === "thread"
+          ? "Send it again"
+          : "Try it again",
+      voice: answering ? "agent" : "leaf",
       workflow,
-      secondary: [
-        answering ? "" : workflowLabel(workflow, agent),
-        workflowLabel(secondary, agent),
-      ]
-        .filter(Boolean)
-        .join(" · "),
     });
   }
   // A to-do the agent opened on the thread holds it after the update it answered has
-  // settled; its title says what the agent still owes, and while a start runs on it,
-  // that start's line says what the agent is doing about it.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const [{ title, running }] = thread.todos;
+  // settled: the agent's own commitment, in its voice.
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo")
     return Object.freeze({
       kind: "waiting",
-      label: todoLabel(running),
+      label: todoLabel(thread.todos[0].running),
       voice: "agent",
       workflow: null,
-      secondary: running?.text ?? title,
     });
-  }
-  if (thread.attention?.kind === "waiting")
+  if (thread.attention?.kind === "waiting") {
+    const label = workflowLabel(workflow, agent);
     return Object.freeze({
       kind: "waiting",
       label:
-        workflowLabel(workflow, agent) ||
-        (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
-      voice: workflowVoice(workflow),
+        label || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+      voice: label ? workflowVoice(workflow) : "leaf",
       workflow,
-      secondary: "",
     });
+  }
   return null;
 }

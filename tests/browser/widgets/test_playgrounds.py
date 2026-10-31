@@ -5,7 +5,7 @@ import io
 import re
 
 import pytest
-from interact_support import refused_on
+from interact_support import refused_on, wait_for
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -102,7 +102,18 @@ def test_playground_contributor_needs_no_scalar_control(browser, serve):
     playground = page.locator("#query-config")
     field = page.get_by_role("textbox", name="Region filter")
 
+    # An edit no event ends, as the caret still in its field, is recorded once input
+    # pauses, so a reload keeps it.
     field.fill("us-east-1")
+    wait_for(
+        lambda: [
+            event["detail"]["values"]
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "tune"
+        ],
+        lambda tunes: tunes[-1:] == [{"filters": {"region": "us-east-1"}}],
+        failure="the paused edit was never recorded",
+    )
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_value("us-east-1")
@@ -488,6 +499,78 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
+def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
+    browser, serve
+):
+    """An edit the pause hadn't recorded when the page reloads records as the page
+    leaves, so the reload keeps it; one made before the page could record anything,
+    while its state loads, records once it can. Leaving records nothing else, though
+    a recorded value the controls can't hold draws as their default."""
+    url = serve(PLAYGROUND_PAGE)
+    page = open_page(browser, url)
+    title = page.locator('lf-playground-control[name="title"] input')
+
+    def titles():
+        return [
+            event["detail"]["values"]["title"]
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "tune"
+        ]
+
+    title.fill("Leaving note")
+    page.reload()
+    wait_until_ready(page)
+    expect(title).to_have_value("Leaving note")
+    assert titles()[-1:] == ["Leaving note"]
+
+    held = []
+    page.route("**/api/state", lambda route: held.append(route))
+    page.reload()
+    holding(page, held, 1, "the reloaded page's initial state")
+    title.fill("Loading note")
+    page.keyboard.press("Tab")
+    held[0].continue_()
+    page.unroute("**/api/state")
+    wait_until_ready(page)
+    wait_for(
+        titles,
+        lambda recorded: recorded[-1:] == ["Loading note"],
+        failure="the edit made while the state loaded was never recorded",
+    )
+
+    values = {**playground_values(page), "radius": 40}
+    response = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": events_model.read_events(serve.page_dir)[-1]["revision"],
+            "widget": "card-playground",
+            "action": "tune",
+            "detail": {"values": values},
+        },
+    )
+    assert response.ok
+    radius = page.get_by_role("slider", name="Corner radius")
+    expect(radius).to_have_value("12")
+    for _ in range(2):
+        page.reload()
+        wait_until_ready(page)
+        expect(radius).to_have_value("12")
+    # The old document's post on leaving arrives on its own schedule; a round trip from
+    # this one doesn't order it, so give it the time a leave post takes.
+    page.wait_for_timeout(1000)
+    assert [
+        event["detail"]["values"]["radius"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "tune"
+    ][-1] == 40
+
+
+def playground_values(page):
+    return page.locator("#card-playground").evaluate("root => ({...root.values})")
+
+
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     browser, serve
 ):
@@ -518,8 +601,14 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
     playground.get_by_label("Accent", exact=True).fill("#8B4A5F")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
+    page.keyboard.press("Tab")
+    round_trip(page)
 
-    assert len(events_model.read_events(serve.page_dir)) == before
+    # Each committed edit records the settings, asking nothing of the agent.
+    tunes = events_model.read_events(serve.page_dir)[before:]
+    assert {event["action"] for event in tunes} == {"tune"}
+    assert not any(event["attention"] for event in tunes)
+    assert tunes[-1]["detail"]["values"] == playground.evaluate("root => root.values")
     assert playground.evaluate("root => root.values") == {
         "accent": "#8b4a5f",
         "compact": True,
@@ -797,28 +886,35 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     })""")
     rendered(page)
     expect(field).to_have_value("unsent-region")
-    # An equal-valued choice from another tab is still a new gesture and replaces
-    # the working draft. Undoing it makes the first choice current again while
-    # leaving the later working edit in place; a reload draws the decided values.
-    response = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": choice["revision"],
-            "widget": "query-config",
-            "action": "choose",
-            "detail": choice["detail"],
-        },
-    )
-    assert response.ok
+    # Another tab's settings replace the working values here, and its choice of them
+    # is this tab's choice too. Undo steps the settings back one gesture, and a reload
+    # draws the settings the log holds.
+    for verb, detail in (
+        ("tune", {"values": choice["detail"]["values"]}),
+        ("choose", choice["detail"]),
+    ):
+        response = post_event(
+            page,
+            url.rsplit("/versions/", 1)[0] + "/api/event",
+            data={
+                "kind": "action",
+                "revision": choice["revision"],
+                "widget": "query-config",
+                "action": verb,
+                "detail": detail,
+            },
+        )
+        assert response.ok
     expect(field).to_have_value("chosen-region")
     expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
-    field.fill("later-draft")
-    page.keyboard.press("Escape")
-    undo(page)
-    expect(field).to_have_value("later-draft")
+    billing = playground.get_by_role("radio", name="Billing", exact=True)
+    billing.click()
     expect(playground.get_by_role("button", name="Use these settings")).to_be_enabled()
+    round_trip(page)
+    undo(page)
+    expect(billing).not_to_be_checked()
+    expect(field).to_have_value("chosen-region")
+    expect(playground.get_by_role("button", name="Undo choice")).to_be_enabled()
     page.reload()
     wait_until_ready(page)
     expect(field).to_have_value("chosen-region")
@@ -1703,10 +1799,10 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
           const nestedView = createPlayground(nested);
           render(nestedView.render(), nested, {host: nested});
           const initial = createPlayground(host);
-          render(initial.render({values: {...initial.values, tone: 'bold'}}), host, {host});
+          render(initial.render({values: {...initial.defaults, tone: 'bold'}}), host, {host});
           return {
             controls: initial.controls.map(control => control.getAttribute('name')),
-            values: initial.values,
+            defaults: initial.defaults,
             quotedInputs: quote.querySelectorAll('input').length,
             outerTone: initial.output.querySelector(':scope > lf-playground-value[for="tone"]')
               .textContent,
@@ -1718,7 +1814,7 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
     )
     assert drawing == {
         "controls": ["radius", "compact", "tone", "accent", "title"],
-        "values": {
+        "defaults": {
             "radius": 12,
             "compact": False,
             "tone": "quiet",
@@ -1886,7 +1982,11 @@ def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
     page.get_by_role("radio", name="Banner", exact=True).press("ArrowRight")
     expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_checked()
     expect(preview).to_have_value("Release complete")
-    assert len(events_model.read_events(serve.page_dir)) == before
+    round_trip(page)
+    assert [
+        (event["action"], event["detail"]["values"])
+        for event in events_model.read_events(serve.page_dir)[before:]
+    ] == [("tune", {"radius": 10, "format": "strip"})]
     page.reload()
     wait_until_ready(page)
     expect(page.get_by_role("radio", name="Status strip", exact=True)).to_be_checked()

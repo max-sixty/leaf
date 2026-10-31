@@ -2,7 +2,7 @@
  * imports, and initial presentation. */
 import {
   paintDeclaredWords,
-  watchExternalLinks,
+  watchNativeContent,
   watchQuietWords,
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
@@ -181,7 +181,7 @@ export async function importWidgets(scope) {
 async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation");
   try {
-    watchExternalLinks();
+    watchNativeContent();
     watchQuietWords();
     watchCodeBlocks();
     watchHeadingLinks();

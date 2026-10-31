@@ -496,8 +496,6 @@ async function boot() {
     landIn: landing.landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-    replyThreadAtCurrentLocation: () =>
-      app.threadDestinations.replyThreadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
     currentTarget,
     markAt: anchorPaint?.markAt,

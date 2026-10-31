@@ -29,6 +29,30 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+def test_a_comment_follows_a_target_that_escapes_an_intermediate_clip(browser, serve):
+    """An absolute target remains commentable when its containing block lies outside
+    an overflow clip that does not clip the target's native paint."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Escaping a clip",
+                '<h1>Evidence</h1><div style="position:relative;height:360px">'
+                '<div style="overflow:hidden;width:140px;height:80px">'
+                '<button id="target" style="position:absolute;left:240px;top:100px;'
+                'width:160px;height:60px">Escaped target</button></div></div>',
+            ),
+            events=[_comment_on("target")],
+        ),
+    )
+    margins_laid_out(page)
+    page.get_by_role("button", name="Escaped target", exact=True).click()
+    row = page.locator('[data-lf-margin-for="target"]')
+    expect(row).to_be_visible()
+    row.locator(".lf-margin-marker").click()
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_visible()
+
+
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page = open_page(
@@ -682,8 +706,8 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     }"""
     page.evaluate("""() => {
       const strip = document.querySelector('#views .lf-tabstrip');
-      const t = document.getElementById('under-strip').getBoundingClientRect();
-      window.scrollBy(0, t.top - strip.getBoundingClientRect().bottom + 10);
+      const t = document.querySelector('[data-lf-margin-for="under-strip"]').getBoundingClientRect();
+      window.scrollBy(0, t.top - strip.getBoundingClientRect().height + 10);
     }""")
     rendered(page)
     pin = page.evaluate(under, '[data-lf-margin-for="under-strip"]')

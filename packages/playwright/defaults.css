@@ -24,7 +24,7 @@ lf-trace {
   border-radius: var(--r);
   padding: var(--sp-3);
   background: var(--paper);
-  font: var(--t-5) / 1.45 var(--sans);
+  font: var(--voice-ui);
   overflow-wrap: anywhere;
 }
 
@@ -165,10 +165,6 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--r);
   font: var(--lf-trace-small-type) / 1 var(--sans);
   font-variant-numeric: tabular-nums;
-}
-.lf-trace-timeline[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 .lf-trace-lane-names {
   display: grid;
@@ -566,12 +562,10 @@ lf-trace[hidden="until-found"] {
   --lf-top: 0px;
   --lf-holds-height: 1;
 }
-.lf-trace-metadata[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-metadata > details > summary[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+/* The scroller and the rows it holds stand their rings inside their edges, which the
+   scroller clips (base.css, "Where it stands"). */
+:is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-readout {
   margin-block: var(--sp-1) var(--sp-2);
@@ -779,9 +773,8 @@ lf-trace-bookmark {
   block-size: var(--lf-trace-control-size);
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button[data-lf-focus-visible],
-.lf-trace-bookmark[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+.lf-trace-transport-button {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);
@@ -888,7 +881,7 @@ lf-trace-bookmark {
   z-index: 3;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 
 @container (max-width: 480px) {
@@ -954,7 +947,7 @@ lf-trace-compare {
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
   --lf-trace-chooser-padding: var(--sp-2);
-  font: var(--t-5) / 1.45 var(--sans);
+  font: var(--voice-ui);
 }
 .lf-trace-compare-controls {
   position: sticky;

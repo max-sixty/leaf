@@ -213,7 +213,8 @@ def threads_tab(page: Page | FrameLocator):
     """Stand On or Threads open and return the Threads tab at its foot. From the row the
     On me mark opens On, or Threads itself while nothing waits on the user but a reply
     they have not read; another view, stance or search is closed first by its exit.
-    `page` may be a live sample's frame."""
+    Leave an empty comment field by pressing the page first where writing hides the
+    mark. `page` may be a live sample's frame."""
     # A stance's exit becomes the mark in the repaint frame. Read the controls only
     # after the previous input has rendered, before choosing a pointer route.
     rendered(
@@ -224,7 +225,12 @@ def threads_tab(page: Page | FrameLocator):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
             exit_control.click()
-        page.locator(ON_ME_MARK).click()
+        mark = page.locator(ON_ME_MARK)
+        if not mark.is_visible():
+            # Writing hides the quick seat. Leave the field by pressing the page,
+            # as a pointer user does before reaching On me.
+            page.locator("html").click(position={"x": 0, "y": 0})
+        mark.click()
     return panel_tab(page, "Threads")
 
 

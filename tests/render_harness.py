@@ -71,6 +71,7 @@ from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -2498,6 +2499,13 @@ def live_leaf(tmp_path, monkeypatch):
         # even while no browser has visited this neighboring page.
         url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
+        # The address is announced before the row producer starts. All pages can
+        # discover this neighbour only after that producer publishes its first row.
+        wait_for(
+            lambda: presence_model.live_leaves({d.resolve()}),
+            lambda leaves: len(leaves) == 1,
+            failure=f"{name} never published its live neighbour row",
+        )
         return url.split("?")[0].rstrip("/"), d
 
     yield go

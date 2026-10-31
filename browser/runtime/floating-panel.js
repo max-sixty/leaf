@@ -755,9 +755,13 @@ export function createFloatingPanel({
   // Only the authored runs carry response identity. Their renderer refs register
   // and retire those exact nodes with the shared exposure owner, wherever status
   // stands: the field's native placeholder slot, the menu, or the folded leaf's peek.
+  // Every other run is Leaf's, and says so in its face (`data-voice`).
   const statusParts = (parts) =>
     parts.map((part) => {
-      if (!part.source) return part.text;
+      if (!part.source)
+        return part.voice === "agent"
+          ? part.text
+          : html`<span data-voice="leaf">${part.text}</span>`;
       let stop = null;
       return html`<span
         class="lf-fp-status-feedback"
@@ -3746,7 +3750,16 @@ export function createFloatingPanel({
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span
-            ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
+            ><span class="lf-fp-value"
+              >${
+                row.self
+                  ? "This page"
+                  : row.parts.map(
+                      (part) =>
+                        html`<span data-voice=${part.voice}>${part.text}</span>`,
+                    )
+              }</span
+            >`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
             : html`<a
@@ -4159,7 +4172,9 @@ export function createFloatingPanel({
     markRoom();
     keeps(host, "data-expanded", expanded ? "" : null);
     const reading = fieldReading(replying ? top.thread : null, input);
-    keeps(host, "data-offers", !search && reading.offers ? "" : null);
+    // Only the page field competes with the seated annotation composer. An open
+    // view already keeps that seat out, regardless of what its reply field says.
+    keeps(host, "data-offers", !top && !search && reading.offers ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
 

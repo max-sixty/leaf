@@ -370,9 +370,10 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `departed`, `arriving`, `arrived`, `input`, `current-location` (with `{focused}`),
-and `height` (with `{height, gesture}`). Use the latter to size a block frame, holding
-a growth the user did not request as described in `module-scroll-and-motion.md`.
+`loading`, `departed`, `arrived`, `input` (with the event's `{type}`), `current-location`
+(with `{focused}`), and `height` (with `{height}`). Use `height` to size a block frame,
+holding growth the user did not request as described in `module-scroll-and-motion.md`
+until a `click`, `keydown` or `input` notice says they acted in the child.
 `restoreCurrentLocation()` returns focus to the child's last focused control;
 `showThread(id, {surface, status, signal})` opens a child Thread with an AbortSignal
 for the owning gesture's lifetime. `surface: "panel"` selects the child's panel,

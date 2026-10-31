@@ -213,7 +213,7 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
     semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Edited: Words of original. · Couldn't answer",
+    "Edited: Words of original. · Not answered",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -422,7 +422,7 @@ test("deferred failure wording follows its current condition and a cleared failu
     semanticNewsNotice(
       currentSemanticNews(interrupted.news, latest, interrupted.observed),
     ),
-    "Couldn't answer",
+    "Not answered",
   );
   assert.deepEqual(
     currentSemanticNews(interrupted.news, reading(), interrupted.observed),

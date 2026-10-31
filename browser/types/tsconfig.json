@@ -23,12 +23,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": false
   },
-  "include": [
-    "*.d.ts",
-    "../../dev/browser-globals.d.ts",
-    "../../dev/leaf_dev/**/*.js",
-    "domain.test.js",
-    "../runtime/**/*.js",
-    "../runtime/**/*.ts"
-  ]
+  "include": ["*.d.ts", "domain.test.js", "../runtime/**/*.js"]
 }

@@ -20,10 +20,11 @@
  * - **The row**: the leaf, the comment field, and at its end one seat: the On me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
  *   not read; or, while a stance or a view with no controls stands, the ✕ that closes
- *   it, so the seat never stands empty. The ✕ takes a mark's width, beside the field;
+ *   it, so the seat never stands empty. The ✕ takes the leaf's width, beside the field;
  *   filling the room On me keeps for its count stood it 29px clear of the field, which
- *   the user questioned on 31 October. A view with controls ends them with its ✕
- *   instead (**Opened**).
+ *   the user questioned on 31 October. While a draft stands, the ✕ keeps the count's
+ *   room, so a stance coming or going moves none of the draft's words (`seatHeld`). A
+ *   view with controls ends them with its ✕ instead (**Opened**).
  *   The user chose the one seat on 25 October over a Threads mark beside On me and a seat kept
  *   empty for the ✕, which left a gap at the row's end; Threads became the On view's
  *   tab, since On me already lists a thread message that waits on the user. Rejected:
@@ -4162,8 +4163,10 @@ export function createFloatingPanel({
     const exit = fieldExit(search, top);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat. Keep the seat until the user's next posture change, so a
-    // refused send closing a view hands the draft's words no more room; the mark that
-    // takes the way out's place there is wider by its count's room.
+    // stance ending while a draft stands, as Done on a to-do or leaving Draw mode does,
+    // hands the draft's words no more room; while a draft stands, the mark and the way
+    // out are one width (floating-panel.css, `.lf-fp-quick`). A view closing is itself
+    // a posture change (`transition`), which lets the seat go.
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) {
       drafted = words;

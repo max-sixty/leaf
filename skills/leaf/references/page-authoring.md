@@ -248,9 +248,9 @@ logs and transcripts that aren't source code stay literal and uncoloured.
 
 Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
 from a doc or a pull request's description, in `lf-text-document preview="markdown"`
-bound to its exact text (`authoring-evidence.md`, "Source files and media"). Leaf
-renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is itself
-the subject, show it literally in `<pre><code>`.
+with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
+Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
+itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and

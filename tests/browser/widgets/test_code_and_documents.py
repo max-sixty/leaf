@@ -93,6 +93,33 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(source).to_have_attribute("aria-selected", "true")
 
 
+def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
+    browser, serve
+):
+    """A passage the page writes in the document's <pre> needs no data source: the
+    preview renders it, and the Source tab holds it character for character."""
+    text = "**Fixed** a crash when `--config` names <missing> files.\n"
+    url = serve(
+        leaf_page(
+            "Written passage",
+            '<h1>Written passage</h1><lf-text-document id="passage" '
+            'label="CHANGELOG.md" preview="markdown"><pre>\n'
+            + text.replace("<", "&lt;").replace(">", "&gt;")
+            + "</pre></lf-text-document>",
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#passage")
+    expect(document.locator("figcaption")).to_have_text("CHANGELOG.md")
+    expect(document.locator("strong")).to_have_text("Fixed")
+    expect(document.locator(".lf-text-document-preview code")).to_have_text("--config")
+    expect(document.locator(".lf-text-document-preview")).to_contain_text(
+        "names <missing> files."
+    )
+    document.get_by_role("tab", name="Source", exact=True).click()
+    assert document.locator("code[data-code]").text_content() == text
+
+
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
     browser, serve
 ):

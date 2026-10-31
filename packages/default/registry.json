@@ -140,8 +140,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "Text from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Bind `source` to the page's data source, or `for` to a widget publishing a `document` output and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
+    "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
+    "x-instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. The listing, or with a preview each tab, scrolls inside a box `--lf-bound` tall, 28rem by default, however long the text. To start it collapsed, put it inside `details`.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -171,7 +171,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "empty",
+    "x-content": "data",
     "x-data": {
       "document": {
         "contract": "text-document",
@@ -184,15 +184,15 @@
     "x-language": "language",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" label=\"SKILL.md\" preview=\"markdown\"></lf-text-document>",
-    "oneOf": [
-      {
-        "required": ["source"]
-      },
-      {
-        "required": ["for"]
+    "x-example": "<lf-text-document id=\"changelog-fix\" label=\"CHANGELOG.md\" preview=\"markdown\"><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
+    "if": {
+      "not": {
+        "anyOf": [{ "required": ["source"] }, { "required": ["for"] }]
       }
-    ],
+    },
+    "then": {
+      "required": ["label"]
+    },
     "x-refers": {
       "for": {}
     }

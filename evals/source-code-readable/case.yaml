@@ -132,6 +132,7 @@ variants:
   # needs the session's own context; base converted them to HTML by hand and
   # page-renders-markdown passed 0/3, then 3/3 once page-authoring.md asked for the
   # preview. A variant giving the rules as Read-tool output scored the same (0/3, 3/3).
+  # Once lf-text-document took its text in its <pre>, 3/3 wrote the rules there.
   markdown-excerpt:
     metadata:
       purpose:
@@ -187,12 +188,11 @@ variants:
       - type: llm-rubric
         metric: page-renders-markdown
         value: |
-          Each of the four versions is an lf-text-document with preview="markdown" bound
-          by `source` to a data source of its own, and the commands supply each source
-          with that version's exact Markdown through `leaf data set` (for example piping
-          the text through `jq -Rs .`). Fail if any version is HTML the author converted
-          from the Markdown, such as a blockquote holding strong and code elements, or
-          is shown as source.
+          Each of the four versions is an lf-text-document with preview="markdown"
+          holding that version's exact Markdown, either HTML-escaped in its `<pre>` or
+          through a data source of its own that the commands supply with `leaf data set`.
+          Fail if any version is HTML the author converted from the Markdown, such as a
+          blockquote holding strong and code elements, or is shown as source.
   # Guardrail for markdown-excerpt: where Markdown syntax is the subject, the reader
   # sees the characters typed. From the composer-markdown-exploration page.
   markdown-syntax:

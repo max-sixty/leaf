@@ -1508,6 +1508,26 @@ def test_check_rejects_widget_violations(page_dir):
     assert found(findings, "text-outside-pre", "<lf-diagram>")
 
 
+def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
+    """A data widget's text is its <pre>, which a widget bound to a source leaves out.
+    Written text names its origin with a label, as a bound document names its file."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            '<lf-text-document id="bound" source="notes"></lf-text-document>'
+            '<lf-text-document id="written" label="CHANGELOG.md" preview="markdown">'
+            "<pre>**Fixed** a crash.</pre></lf-text-document>"
+            '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
+            '<lf-code id="bare-code"></lf-code>',
+        )
+    )
+    _, findings = check_findings(page_dir)
+    assert [f.at for f in found(findings, "data-body")] == ["<lf-code>"]
+    assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
+    assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
+
+
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
     """A widget attribute that declares itself a language (x-language) is held to the
     layer's $languages list. A plain <pre><code class="language-…"> claims no

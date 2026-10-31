@@ -979,9 +979,16 @@
   /* The thread's facts after its name, the news it holds, stand before its presses,
      which keep the line's end, so news arriving moves no press and takes its room from
      the name. They stand further from the presses than those stand from each other, so
-     they read as facts about the thread rather than as presses. */
+     they read as facts about the thread rather than as presses. The name gives way
+     first; where it is gone and the line still lacks room, as on a phone beside Next
+     unread and Show on page, the news takes its short form ("1 new", "+1"; held-news.js,
+     `newsNotice`) rather than push Close past the panel's edge. */
+  .lf-fp-head > .lf-fp-title {
+    flex-shrink: 1000;
+  }
   .lf-fp-facts {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: baseline;
     gap: 6px;
@@ -1006,6 +1013,8 @@
      The room a pointer aims at reaches above and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
+    flex: 0 1 auto;
+    min-width: 0;
     align-self: auto;
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);

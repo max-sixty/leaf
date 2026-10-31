@@ -5576,8 +5576,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const press = event.target instanceof Element ? event.target.closest("button") : null;
 		const route = trail.value.at(-1);
 		if (!press || !route?.thread) return;
-		if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
-		if (press.closest(".lf-fp-news-outlet")) arriveAt(route.thread);
+		const view = openView();
+		if (holdThread(view?.getBoundingClientRect().height ?? null)) paint();
+		if (press.closest(".lf-fp-news-outlet") && view) landing = {
+			key: threadByKey(route.thread)?.key ?? route.thread,
+			end: false,
+			shown: new Set([...view.querySelectorAll(".lf-msg[data-message]")].map((message) => message.dataset.message))
+		};
 	}, { capture: true });
 	const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 	const holding = (view) => Math.max(0, ...[...view.children].map((child) => contentTop(child, view) + child.getBoundingClientRect().height));
@@ -7061,7 +7066,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (intent && landing === intent && thread.key === intent.key) {
 				landing = null;
 				if (intent.end) scrollToEnd(view);
-				else showReturnTurn(outlet.querySelector(".lf-thread-transcript"), thread);
+				else if (intent.shown) {
+					const shown = [...outlet.querySelectorAll(".lf-msg[data-message]")].find((message) => !intent.shown.has(message.dataset.message));
+					if (shown) scrollIntoView(shown, {
+						block: "nearest",
+						within: view
+					});
+				} else showReturnTurn(outlet.querySelector(".lf-thread-transcript"), thread);
 				decideUnreadSeat();
 			}
 			fitAnswer(answer, thread, view, outlet, before);

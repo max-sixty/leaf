@@ -903,6 +903,49 @@ HELD_READING = """() => {
 }"""
 
 
+def test_on_a_phone_held_news_gives_way_before_close(browser, serve):
+    """On a narrow phone a thread's head line holds its way back, Show on page, Resolve
+    and Close beside its name. The name gives way first, and held news arriving there
+    takes its short form rather than push Close past the panel's edge."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Which jobs should start first once the export and the reconciler have landed?",
+        {"section": "p0"},
+        author="agent",
+    )
+    context = browser.new_context(
+        viewport={"width": 300, "height": 700}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    open_threads(page)
+    page.locator(".lf-fp-thread", has_text="Which jobs should start first").click()
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    expect(page.locator(".lf-fp-head .lf-fp-on-page")).to_be_visible()
+    write(field(page), "I think the export")
+    for text in ("The export first.", "Then the reconciler."):
+        agent_said(serve.page_dir, root, text)
+    told(page)
+    notice = page.locator(".lf-fp-head .lf-thread-news")
+    expect(notice).to_be_visible()
+    settled(page)
+    head = page.locator(".lf-fp-head")
+    assert head.evaluate("h => h.scrollWidth <= h.clientWidth"), head.evaluate(
+        "h => [h.scrollWidth, h.clientWidth]"
+    )
+    card = page.locator(".lf-fp-card").bounding_box()
+    close = page.locator(".lf-fp-head .lf-fp-close").bounding_box()
+    assert close["x"] + close["width"] <= card["x"] + card["width"], (close, card)
+    # The notice reads whole or says its short form; it is never cut mid-word.
+    assert notice.evaluate(
+        """node => {
+            const words = node.firstElementChild, fact = words.firstElementChild;
+            return words.dataset.lfShort ?? (fact.scrollWidth <= fact.clientWidth + 1);
+        }"""
+    ) in ("2 new", "+2", True)
+
+
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     """News arriving while the user writes in an open thread waits behind a notice on
     the view's head line, before its presses. It reads whole, and no press and nothing

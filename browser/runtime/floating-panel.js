@@ -876,7 +876,8 @@ export function createFloatingPanel({
   let postureMoved = true;
   // The thread the reader lands in once its reading is drawn: on opening,
   // at the turn the user comes back for (`showReturnTurn`); after the user's turn,
-  // past it, at its end (`end`).
+  // past it, at its end (`end`); after a press on its held news, at the first message
+  // the news showed, where it showed one (`shown`, the messages drawn before it).
   let landing = null;
 
   // ---------- one native editor per destination ----------
@@ -1705,9 +1706,10 @@ export function createFloatingPanel({
   // The view's head line stands on the edge its growth carries, so a press on any of
   // its controls holds the view's height as it comes, and what the press opens goes on
   // inside the view, brought into sight as the press takes the user there: Next unread
-  // to a reply a summary held, and the held news's notice to what it held, landing as an
-  // opening does at the turn the user comes back for (`arriveAt`). The presses beside it
-  // stay under the pointer, Resolve for the next thread among them (`resolveLanding`).
+  // to a reply a summary held, and the held news's notice to the first message it
+  // showed (`landing`); news that changed messages in place shows in place. The
+  // presses beside it stay under the pointer, Resolve for the next thread among them
+  // (`resolveLanding`).
   // A press on the name holds nothing, as words in the view don't. Rejected: the news
   // growing the view, which carried Resolve and Close up from beside the notice.
   head.addEventListener(
@@ -1717,8 +1719,18 @@ export function createFloatingPanel({
         event.target instanceof Element ? event.target.closest("button") : null;
       const route = trail.value.at(-1);
       if (!press || !route?.thread) return;
-      if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
-      if (press.closest(".lf-fp-news-outlet")) arriveAt(route.thread);
+      const view = openView();
+      if (holdThread(view?.getBoundingClientRect().height ?? null)) paint();
+      if (press.closest(".lf-fp-news-outlet") && view)
+        landing = {
+          key: threadByKey(route.thread)?.key ?? route.thread,
+          end: false,
+          shown: new Set(
+            [...view.querySelectorAll(".lf-msg[data-message]")].map(
+              (message) => /** @type {HTMLElement} */ (message).dataset.message,
+            ),
+          ),
+        };
     },
     { capture: true },
   );
@@ -4112,7 +4124,13 @@ export function createFloatingPanel({
       if (intent && landing === intent && thread.key === intent.key) {
         landing = null;
         if (intent.end) scrollToEnd(view);
-        else showReturnTurn(outlet.querySelector(".lf-thread-transcript"), thread);
+        else if (intent.shown) {
+          const shown = [...outlet.querySelectorAll(".lf-msg[data-message]")].find(
+            (message) =>
+              !intent.shown.has(/** @type {HTMLElement} */ (message).dataset.message),
+          );
+          if (shown) scrollIntoView(shown, { block: "nearest", within: view });
+        } else showReturnTurn(outlet.querySelector(".lf-thread-transcript"), thread);
         decideUnreadSeat();
       }
       fitAnswer(answer, thread, view, outlet, before);

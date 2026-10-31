@@ -601,10 +601,11 @@ export function createThreadPreview({
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words, as does the edge of a block its row has crossed (`cut`). An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing. Each
-        // edge's cut is its own property, which the card's clip and its growth out of
-        // the comment box both read (annotation-chrome.css).
+        // cuts the words, as does the edge of a block its row has crossed (`cut`). An
+        // edge further out than the card paints cuts nothing, and stands at that reach,
+        // so a scroll that moves it there writes nothing. Each edge's cut is its own
+        // property, which the card's clip and its growth out of the comment box both
+        // read (annotation-chrome.css).
         const region = boundary.cut;
         const cuts = region
           ? [

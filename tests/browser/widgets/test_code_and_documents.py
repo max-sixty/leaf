@@ -31,11 +31,12 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve
 ):
-    """Preview and source are two readings of one feed, reachable by press and key."""
+    """Preview and source are two readings of one feed, reachable by press and key.
+    The preview reads a wrapped line as one, as a Markdown file means it."""
     text = (
         "# A rendered document\r\n\r"
         "Read [the details](https://example.com/details).\n\n"
-        "- First item\n- Second item\n\n"
+        "- First item, wrapped\n  as an editor wraps it\n- Second item\n\n"
         "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
     )
     url = serve(
@@ -56,7 +57,9 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(document.get_by_role("link", name="the details")).to_have_attribute(
         "href", "https://example.com/details"
     )
-    expect(document.get_by_role("listitem")).to_have_text(["First item", "Second item"])
+    expect(document.get_by_role("listitem")).to_have_text(
+        ["First item, wrapped as an editor wraps it", "Second item"]
+    )
     expect(document.get_by_role("cell")).to_have_text(["Outcome", "Ready"])
 
     source.click()

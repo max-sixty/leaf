@@ -4,7 +4,9 @@
  * viewport, keeping the page still when switching and its scroll place independent.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The source and Markdown renderers
+ * copying the source never includes line numbers. The Markdown preview reads its text
+ * as a file, where a newline inside a paragraph is a space, so a source wrapped to its
+ * editor's width reflows to the preview's. The source and Markdown renderers
  * reconcile unchanged text across source updates. HTML lives in a separate frame
  * so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
@@ -155,7 +157,7 @@ customElements.define(
         let loaded = this.frameLoaded;
         if (preview === "markdown") {
           const template = document.createElement("template");
-          template.innerHTML = renderMarkdown(source);
+          template.innerHTML = renderMarkdown(source, false);
           setRenderedChildren(this.preview, template.content.childNodes);
         } else if (
           preview === "html" &&

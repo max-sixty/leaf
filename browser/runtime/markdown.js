@@ -10,13 +10,17 @@ const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const escapedSource = (text) => escapeHtml(text);
+/** @type {(text: string, breaks?: boolean) => string} */
 let render = escapedSource;
 /** @type {(text: string, breaks?: boolean) => string} */
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
 
-export const renderMarkdown = (text) => render(text);
+// A newline inside a paragraph is a line break where someone typed it, as in a
+// message or a draft. With `breaks` false it is a space, as in a Markdown file, whose
+// lines are wrapped to its editor's width rather than the reader's.
+export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 export function renderedWords(html, imageAlt = false) {
@@ -35,7 +39,7 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-export const markdownWords = (text) => renderedWords(render(text));
+export const markdownWords = (text) => renderedWords(renderMarkdown(text));
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
 export function inlineMarkdownFragment(text, breaks = true) {
@@ -612,13 +616,12 @@ function makeMarkdown(module, breaks) {
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
-    let singleLine;
+    let joined;
     let positioned;
-    render = (text) => markdown.render(text);
-    renderInline = (text, breaks) =>
-      (breaks ? markdown : (singleLine ??= makeMarkdown(module, false))).renderInline(
-        text,
-      );
+    const dialect = (breaks) =>
+      breaks ? markdown : (joined ??= makeMarkdown(module, false));
+    render = (text, breaks) => dialect(breaks).render(text);
+    renderInline = (text, breaks) => dialect(breaks).renderInline(text);
     tokenize = (text) => {
       if (!positioned) {
         positioned = makeMarkdown(module, true);

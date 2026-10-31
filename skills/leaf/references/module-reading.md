@@ -78,10 +78,12 @@ block Markdown while the recorded body stays the source. Adopt the rendered
 source.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
-string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. Until
-the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves once
-it has, and `markdownReady()` says whether it has, so a widget showing changing prose
-repaints then.
+string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
+read a newline inside a paragraph as a line break, as typed text means it;
+`renderMarkdown(text, false)` reads a file's Markdown, where that newline is a space.
+Until the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves
+once it has, and `markdownReady()` says whether it has, so a widget showing changing
+prose repaints then.
 
 ### Code
 

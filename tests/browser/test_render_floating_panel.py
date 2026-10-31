@@ -26,6 +26,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
@@ -611,7 +612,8 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     )
     news = view.locator(".lf-fp-new-reply")
     expect(news).to_be_visible()
-    news.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
     expect(news).to_be_focused()
     page.keyboard.press("Enter")
     expect(news).to_have_count(0)
@@ -755,7 +757,7 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     expect(page.locator(".lf-fp-send")).to_be_visible()
     # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
+        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
@@ -1029,7 +1031,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     # the arrows as soon as it matches.
     search.get_by_role("searchbox").fill("Paragraph 1")
     count = page.locator(".lf-page-search-status")
-    expect(count).to_have_text("1/11")
+    expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     for width in (360, 390, 540, 1280):
@@ -1042,12 +1044,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
         assert abs(query["y"] + query["height"] - close["y"] - close["height"]) < 1
         assert search.get_by_role("searchbox").bounding_box()["width"] >= 60
     following.click()
-    expect(count).to_have_text("2/11")
+    expect(count).to_have_text("2 of 11")
     previous.click()
     previous.click()
-    expect(count).to_have_text("11/11")
+    expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
-    expect(count).to_have_text("1/1")
+    expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
     # the box; a control painted over the words keeps its own press. The press aims at
     # the words, since the mark moves to them a frame after the count changes.
@@ -2492,7 +2494,9 @@ def test_floating_status_records_feedback_only_when_its_words_show(
         with page.expect_response(lambda response: batch_has(response, "keydown")):
             page.keyboard.press("Backspace")
         expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment"))
-        expect(field(page).locator(".lf-key-badge")).to_contain_text("⏎")
+        expect(
+            field(page).locator(".lf-compose-placeholder > .lf-key-badge")
+        ).to_have_text("⏎")
         assert visible() == []
     with page.expect_response(lambda response: batch_has(response, "reply_visible")):
         if hidden_by == "draft":
@@ -2697,9 +2701,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
     # differently from one moment to the next.
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     ink = """node => getComputedStyle(node).color"""
 
     def sheen(running):
@@ -2767,9 +2769,7 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     peek = page.locator(".lf-fp-peek")
 
     def alpha():
@@ -3704,11 +3704,13 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view).to_be_visible()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
-    # Each version says the note its stamp gave it after its name, whole on hover.
+    # Each version says the note its stamp gave it after its name, whole on hover, and a
+    # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
-        "title", "two"
-    )
+    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    first = view.locator(".lf-fp-version .lf-fp-item").first
+    expect(first).to_have_accessible_name("v2 (latest version) two")
+    expect(first).to_have_accessible_description("")
     # The list is one stop for Tab, which the arrows walk from the first version through
     # each version and its Compare to the way back at its foot.
     stops = view.locator("button:not(:disabled)")
@@ -4062,10 +4064,11 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_mo
 
 
 def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
-    """The menu's head says the agent's state in its one line, in the state's ink, and
-    under that only what the status's disclosure adds to the line: while the agent
-    works, the disclosure's sentence restates the line, so what waits on the user is all
-    it adds. The line names the state itself, so no word for it stands above."""
+    """The menu's head says the agent's state in its one line, and under that only what
+    the status's disclosure adds to the line: while the agent works, the disclosure's
+    sentence restates the line, so what waits on the user is all it adds. The line
+    names the state itself, so no word for it stands above, and a line that only
+    reports, as work under way does, reads in ink, as the row's status does."""
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -4079,7 +4082,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--accent)';
+          ink.style.color = 'var(--ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();
@@ -5338,12 +5341,16 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                 words.setStartAfter(mark);
                 words.setEnd(line, line.childNodes.length);
                 const rows = [...words.getClientRects()];
-                const style = getComputedStyle(line);
+                // The marker is the item's box's, the nearest list item holding the line.
+                let item = line;
+                while (item && getComputedStyle(item).display !== 'list-item')
+                  item = item.parentElement?.closest('.cm-content *') ?? null;
+                const style = item && getComputedStyle(item);
                 return {
                   words: rows[0].left - content.left,
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
-                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  marker: style && style.listStyleType !== 'none' ? style.listStyleType : null,
                   source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
@@ -5365,6 +5372,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]
@@ -5513,3 +5521,65 @@ def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve, touch)
     page.keyboard.press("c")
     expect(page.locator(".lf-fp-response leaf-text")).to_be_focused()
     assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)
+
+
+def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
+    browser, serve
+):
+    """An answer painted while its widget prepares is still arriving when another
+    publication supersedes that paint; accepting it must offer its overflowing words."""
+    url = serve(
+        LONG_PAGE,
+        page_files={
+            "registry.json": json.dumps(PAGE_DECLARATION),
+            "widgets/lf-local.js": PAGE_WIDGET,
+        },
+    )
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    page.evaluate("""async () => {
+      const presentation = await window.__lfCheckApi();
+      window.readLeafPresentation = presentation.readApplicationPresentation;
+      const pending = new Promise(resolve => { window.releaseAnswer = resolve; });
+      window.__heldLocalPresentations = new Map([['thread-local', pending]]);
+    }""")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": root,
+            "text": "The mounts come first.",
+            "markup": "<p>" + "The mounts come first. " * 300 + "</p>"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function("""() => {
+      const pending = readLeafPresentation().pending;
+      return document.querySelector('.lf-floating-panel #thread-local') &&
+        pending.includes('thread') && pending.includes('widget:thread-local:preparation');
+    }""")
+    # The answer is already drawn: its geometry must not wait on widget preparation.
+    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    # The feed waits for presentation before reading again, but a local gesture
+    # publishes immediately while this answer's widget is still preparing.
+    page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      api.threadActions.create({attempt: crypto.randomUUID(), text: 'Another question.'});
+    }""")
+    page.evaluate("releaseAnswer()")
+    told(page)
+    press = view.locator(".lf-fp-new-reply")
+    expect(press).to_have_text("New reply")
+    settled(page)
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    shown, box = view.locator(".lf-msg").last.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)

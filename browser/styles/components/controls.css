@@ -792,19 +792,19 @@ wa-copy-button.lf-icon-action {
 }
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`.lf-corner-mark`, below), as the floating panel's fold, an attachment's
-   removal and a drawing's Undo last stroke do, or stands in a toolbar on its border
-   (`.lf-mark-bar`, integration.css), as a code block's Copy and a draft's Edit, Save
-   and Discard do. Every mark wears this one face at one size: the face the user chose
-   on 22 October from the panel's fold, its icon in the dim ink and full ink under the
-   pointer, at the fold's 20px (`--mark-size`, base.css). On 25 October the user gave
-   it to the toolbars' marks as well, which had been 26px with a quiet wash under the
-   pointer, a second look for the same kind of press. A seat gives its marks only a
-   place and a ground: a corner mark a patch of its own, a toolbar's marks the
-   toolbar. The icon says the meaning (icons.js): `subtract` folds, `cross` removes.
-   The focus ring lies on the mark's edge, which on a corner is where its ground's
-   ring stands and in a toolbar is the toolbar's own edge, so it stays off the words
-   beside it either way. The reach is the aim floor on both axes (surfaces.css). Copy,
-   a vendor control, wears the face on the button part that takes its press. */
+   removal and a drawing's Undo last stroke do, or stands in a toolbar inside its
+   block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
+   draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
+   face the user chose on 22 October from the panel's fold, its icon in the dim ink and
+   full ink under the pointer, at the fold's 20px (`--mark-size`, base.css). On 25
+   October the user gave it to the toolbars' marks as well, which had been 26px with a
+   quiet wash under the pointer, a second look for the same kind of press. A seat gives
+   its marks only a place and a ground: a corner mark a patch of its own, a toolbar's
+   marks the toolbar. The icon says the meaning (icons.js): `subtract` folds, `cross`
+   removes. The focus ring lies on the mark's edge, which on a corner is where its
+   ground's ring stands and in a toolbar is the toolbar's own edge, so it stays off the
+   words beside it either way. The reach is the aim floor on both axes (surfaces.css).
+   Copy, a vendor control, wears the face on the button part that takes its press. */
 :where(button).lf-mark-action,
 .lf-mark-action.lf-ui::part(button) {
   position: relative;

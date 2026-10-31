@@ -118,6 +118,8 @@ export function createThreadPreview({
   // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
+  // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+  preview.setAttribute("part", "card");
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => previewSession !== null;
@@ -796,6 +798,9 @@ export function createThreadPreview({
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+      // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
+      // actions line, which on a 311px phone already leaves the message heads no room;
+      // " of " made it 12px wider, which pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

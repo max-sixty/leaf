@@ -378,9 +378,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
         before = geometry()
         assert before["padding"] == "12px", before
-        # Copy's toolbar stands on the block's top border, near its right edge.
+        # Copy's toolbar stands just inside the block's top-right corner.
         frame, overlay = before["frame"], before["copy"]
-        assert overlay[1] + overlay[3] / 2 == pytest.approx(frame[1], abs=1), before
+        assert 0 <= overlay[1] - frame[1] <= 8, before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
             # Enter on the source copies it, though the control stands outside

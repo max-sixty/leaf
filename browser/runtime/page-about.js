@@ -48,7 +48,7 @@ if (SHARE_ROOT)
     key: "share",
     rank: PAGE_CONTROL_RANK.share,
     label: "link",
-    value: "Grants access to all Leaf pages on this machine.",
+    title: "Grants access to all Leaf pages on this machine.",
     copies: shareUrl,
     group: "page",
   });

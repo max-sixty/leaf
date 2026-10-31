@@ -667,6 +667,7 @@ function decisionControls(commands, where = "an obligation") {
 				label,
 				description,
 				recommended: Boolean(contribution.recommended ?? row.recommended),
+				commits: Boolean(contribution.commits ?? row.commits),
 				bindingBadge,
 				intrinsicBindings: active,
 				command: Object.freeze({

@@ -642,7 +642,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     selector, inside a condition too, and reach nothing outside the chrome, even by a
     selector naming the page around it. A page's
     own rule naming a part sets the tokens there and nothing else, which the guard
-    rolls back as it does any light page rule (styles/chrome-guard.css)."""
+    rolls back as it does any light page rule (styles/chrome-guard.css). A face set on a
+    part reaches the words there, since each part resolves the voices again (base.css)."""
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
@@ -659,7 +660,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
                     "t",
                     "<h1>t</h1><p>Words.</p>",
                     head='<style>[part~="panel"] { font-family: fantasy;'
-                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }</style>",
+                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --sans: monospace; }</style>',
                 ),
                 packages=(package,),
             )
@@ -673,6 +675,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             color: cs(panel).color,
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
+            voice: cs(document.querySelector('[part~="composer"]'))
+                .getPropertyValue('--voice-message').trim().split(' ').at(-1),
             prose: cs(document.querySelector('main p')).color,
             body: cs(document.body).borderTopWidth,
         };
@@ -682,6 +686,7 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
         "color": "rgb(1, 2, 3)",
         "corner": "0px",
         "composer": "3px",
+        "voice": "monospace",
         "prose": faces["prose"],
         "body": "0px",
     }, faces

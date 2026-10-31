@@ -161,9 +161,9 @@ with the page. To restyle one of them alone, name it by its part:
 
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
-cards their own ground and corners. The chrome sets its controls in `--sans` and what
-people wrote in `--msg-font`, which resolves on `:root`, so a part that changes the face
-sets both.
+cards their own ground and corners. Each part resolves the chrome's voices again
+(`--voice-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+reaches every word the surface shows.
 
 Any other property, such as `letter-spacing` or `display`, goes in the package's
 `chrome.css`. Leaf wraps each of its style rules in the chrome's scope, with more weight
@@ -178,7 +178,6 @@ refused, since Leaf already scopes it.
 [part~="panel"],
 [part~="card"] {
   --sans: var(--mono);
-  --msg-font: var(--msg-size) / 1.5 var(--mono);
   --r-l: 0;
 }
 [part~="panel"] {

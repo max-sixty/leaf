@@ -499,6 +499,44 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
+def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
+    browser, serve
+):
+    """An edit the pause hadn't recorded when the page reloads records as the page
+    leaves, so the reload keeps it; one made before the page could record anything,
+    while its state loads, records once it can."""
+    page = open_page(browser, serve(PLAYGROUND_PAGE))
+    title = page.locator('lf-playground-control[name="title"] input')
+
+    def titles():
+        return [
+            event["detail"]["values"]["title"]
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "tune"
+        ]
+
+    title.fill("Leaving note")
+    page.reload()
+    wait_until_ready(page)
+    expect(title).to_have_value("Leaving note")
+    assert titles()[-1:] == ["Leaving note"]
+
+    held = []
+    page.route("**/api/state", lambda route: held.append(route))
+    page.reload()
+    holding(page, held, 1, "the reloaded page's initial state")
+    title.fill("Loading note")
+    page.keyboard.press("Tab")
+    held[0].continue_()
+    page.unroute("**/api/state")
+    wait_until_ready(page)
+    wait_for(
+        titles,
+        lambda recorded: recorded[-1:] == ["Loading note"],
+        failure="the edit made while the state loaded was never recorded",
+    )
+
+
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     browser, serve
 ):

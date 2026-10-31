@@ -203,7 +203,9 @@ The page keeps the working values before the user submits them, as the playgroun
 shows, the configuration the user was looking at is the `tune` in force at the
 comment's `seq` in `leaf page events <page>`: the newest one before it that no earlier
 `undo` withdrew and no earlier version restated, or the authored defaults without one.
-`leaf page state` holds the current one.
+A value the controls of the comment's `revision` can't hold, such as a radius past a
+lowered `max`, showed as that control's authored value. `leaf page state` holds the
+current one.
 
 ## Stateful previews
 

@@ -40,6 +40,9 @@ import { createPlayground } from "./playground-view.js";
  * ready to adjust and resubmit; Reset records the authored defaults. Rejected: tab-local
  * storage, which lost the settings with the tab and kept them from the agent, who
  * answered comments on the preview without knowing what it showed (2026-10-30).
+ * Each tune records the whole configuration, so a preset or Reset is one gesture Undo
+ * takes back whole; when two tabs' records cross in flight, the later one sets every
+ * field. Rejected: a tune per field, which would split those gestures (2026-10-31).
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
@@ -182,6 +185,13 @@ customElements.define(
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
+        // Leaving the page records what the pause hasn't yet.
+        document.addEventListener(
+          "visibilitychange",
+          () => document.visibilityState === "hidden" && this.#commit(),
+          { signal },
+        );
+        window.addEventListener("pagehide", () => this.#commit(), { signal });
         this.#draw();
         // An edit left unrecorded across a disconnection records once input pauses.
         if (this.#unsent.size) this.#recordLater();
@@ -608,6 +618,14 @@ customElements.define(
       });
       this.#paint();
       return template;
+    }
+
+    // Edits made before the page could record them, such as while its state loads,
+    // record once it can.
+    updated(changed) {
+      super.updated(changed);
+      if (this.#unsent.size && this.reading.actions.tune?.available)
+        this.#recordLater();
     }
   },
 );

@@ -1,7 +1,8 @@
 # Control legibility
 
 What does each item in a view do, to someone who has only seen it? Leaf's controls
-show a symbol wherever a standard one exists (`browser/AGENTS.md`, "Visual grammar"),
+show a symbol wherever a standard one exists (`browser/AGENTS.md`, "Controls are few
+and quiet"),
 so a reader must tell from the symbol alone what pressing it does. This eval shows a
 model a view with every control numbered, asks what each one does, and has a judge
 compare each reading with what the control does. A control read as another action is

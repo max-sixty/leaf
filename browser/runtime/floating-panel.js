@@ -25,8 +25,8 @@
  *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
- *   goes, which a path this rare may do (browser/AGENTS.md, "Stability is owed to the
- *   common path"). Rejected: holding the seat for the draft until the next posture
+ *   goes, which a path this rare may do (browser/AGENTS.md, "The page holds still
+ *   under the user's aim"). Rejected: holding the seat for the draft until the next posture
  *   change. That kept On me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. A view with
  *   controls ends them with its ✕ instead (**Opened**).
@@ -154,7 +154,8 @@
  *
  * A view's controls stand at its foot, the leaf's menu holds what it showed while it
  * stands, and a control the user pressed in a thread stays where it was
- * (browser/AGENTS.md, "Stability"). Resolving a thread opened from Threads moves the
+ * (browser/AGENTS.md, "The page holds still under the user's aim"). Resolving a thread
+ * opened from Threads moves the
  * user on to the next one (`resolveLanding`), whose Resolve then stands under the
  * pointer. That Resolve is the press's own result and takes the next press at once, as
  * the user chose on 31 October. Rejected: holding a control that arrives under the
@@ -1611,7 +1612,7 @@ export function createFloatingPanel({
   // foot until a press on it, or the user scrolling there, shows it; the user's turn
   // stays wholly in sight above the press, its head included (`fitAnswer`). The user
   // chose this growth (2026-10-14), the one case where news may carry what a view shows
-  // without a gesture (`browser/AGENTS.md`, "Stability"), reversing the view
+  // without a gesture (`browser/AGENTS.md`, "The page holds still under the user's aim"), reversing the view
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
@@ -2958,7 +2959,7 @@ export function createFloatingPanel({
 
   // ---------- choosing an arrangement ----------
   // A view's choice among its arrangements, at its foot: a symbol, as Leaf's controls
-  // are (browser/AGENTS.md, "Visual grammar"), over the platform's own select, which
+  // are (browser/AGENTS.md, "Controls are few and quiet"), over the platform's own select, which
   // a key, a pointer and a finger each open on its list of words, the chosen one
   // checked. The select stands unseen over the symbol, so it is what each of them
   // presses; its name and choice are the tooltip. The choice is kept for every page,

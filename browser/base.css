@@ -1675,16 +1675,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Opening a reaction in force leaves its familiar face in place and reveals the
-   separately named removal action beside it. Its existing contour takes the shared
-   disclosure accent (above), stated beside it so the two meet on their selectors; the
-   mark does not gain a second ring or pretend the reaction itself changed. */
-.lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px;
-  border-color: var(--border-2);
-  color: var(--lf-entry-ink, var(--ink));
-  box-shadow: var(--lf-entry-lift);
-}
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
    thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and

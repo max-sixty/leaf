@@ -1349,14 +1349,9 @@
   .lf-fp-version {
     align-items: center;
   }
-  /* The press has no value, key or chevron, so its words take the row's first columns
-     alone, on one line. The names share a column as wide as the widest, so every note
-     starts on one edge, the latest version's name saying so included; a name with no
-     note, a draft's, also takes the notes' column, so it never widens theirs. The name
-     reads over its note in weight and ink. */
-  .lf-fp-versions {
-    grid-template-columns: [lead] auto [name] auto [main] minmax(0, 1fr) [end] auto;
-  }
+  /* The press has no value, key or chevron, so its words take the first column alone,
+     on one line; its number's digits share one width, so v1's note starts where v2's
+     does. The name reads over its note in weight and ink. */
   .lf-fp-version > .lf-fp-item {
     grid-row: 1;
     align-items: center;
@@ -1365,28 +1360,10 @@
     display: none;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
-    grid-column: name / end;
-    display: grid;
-    grid-template-columns: subgrid;
-    align-items: center;
-  }
-  .lf-fp-version-name {
-    grid-column: name;
+    display: block;
     white-space: nowrap;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
-  }
-  .lf-fp-version-name:last-child {
-    grid-column: name / end;
-  }
-  .lf-fp-version :is(.lf-fp-version-name:last-child, .lf-fp-note) {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .lf-fp-version .lf-fp-note {
-    grid-column: main;
-    white-space: nowrap;
   }
   .lf-fp-version > :is(.lf-fp-compare, .lf-fp-showing) {
     grid-area: 1 / end;
@@ -1917,18 +1894,13 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
-     tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] .lf-fp-summary {
-    color: var(--accent);
+  /* The line reads as the row's status does: in its tone's ink where it asks the user
+     to act (`--lf-fp-asks`, above), in the danger's where it reports a server the page
+     can't reach, so it agrees with the leaf, and in ink where it only reports. */
+  .lf-floating-panel[data-asks] .lf-fp-summary {
+    color: var(--lf-fp-asks);
   }
-  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
-    color: var(--ok-ink);
-  }
-  .lf-fp-state[data-tone="away"] .lf-fp-summary {
-    color: var(--warn-ink);
-  }
-  .lf-fp-state[data-tone="blocked"] .lf-fp-summary {
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks]) .lf-fp-summary {
     color: var(--danger-ink);
   }
 

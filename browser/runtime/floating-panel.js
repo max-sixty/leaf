@@ -2191,11 +2191,12 @@ export function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
-    // The state is said once: its one line, in its tone's ink, and under that only what
-    // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
-    // pointer, key and finger alike. Each line names the state itself ("Codex away"),
-    // so no word for the tone stands over it.
-    const { tone, summaryParts, adds, addsParts, publication } = status();
+    // The state is said once: its one line, and under that only what the status adds to
+    // the line (`statusModel`, `adds`), since the menu is reached by pointer, key and
+    // finger alike. Each line names the state itself ("Codex away"), so no word for the
+    // tone stands over it, and the line takes the ink the row's status does, its tone's
+    // only where it asks the user to act (floating-panel.css, `.lf-fp-summary`).
+    const { summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction follows, with its links.
     const said = adds ? statusParts(addsParts) : "";
     const explains = publication
@@ -2267,12 +2268,7 @@ export function createFloatingPanel({
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
     seats = held?.seats ?? offered;
-    return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+    return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
@@ -2317,11 +2313,11 @@ export function createFloatingPanel({
           (entry) =>
             html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(
-                html`<span class="lf-fp-version-name">${entry.name}</span>${
-                    entry.note
-                      ? html`<span class="lf-fp-note">${entry.note}</span>`
-                      : nothing
-                  }`,
+                html`${entry.name}${
+                  entry.note
+                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    : nothing
+                }`,
                 nothing,
                 () => showVersion(entry),
                 { title: entry.note, current: entry.current },
@@ -3327,9 +3323,12 @@ export function createFloatingPanel({
     } else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
-      // two lines at most, so the user can answer here without Show. Rejected: the
-      // option's whole card, whose tags and picture let one choice fill a phone's
-      // screen, and its name alone, which left the user picking blind on a phone.
+      // two lines at most, so the user can answer here without Show, and whole on
+      // hover, as a version's note is. The words carry the tooltip rather than the
+      // press, whose name already holds them: a title there is read again as its
+      // description. Rejected: the option's whole card, whose tags and picture let one
+      // choice fill a phone's screen, and its name alone, which left the user picking
+      // blind on a phone.
       // The press that commits what the user composed, such as a group's Done, wears
       // the commit face its widget gives it, so it never reads as one more choice, and
       // what it does is its tooltip, as in the command reference.
@@ -3363,7 +3362,7 @@ export function createFloatingPanel({
                       : nothing
                   }${
                     choice.description
-                      ? html`<span class="lf-fp-choice-says"
+                      ? html`<span class="lf-fp-choice-says" title=${choice.description}
                           >${choice.description}</span
                         >`
                       : nothing

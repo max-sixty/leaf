@@ -63,16 +63,19 @@
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
- * moved, so the eye follows it. Typing sets the box's measure at once, though, as it
- * sets a textarea's sized to its words: where a key widens or narrows the box, as
- * each key past its least width does in a comment box, every part stands at its new
- * inline edges in the frame the key lands, and only what a line the key adds or
- * removes moves still travels. The user asked for this on 30 October: each key
- * restarted a tween that never settled, its edge trailing the caret, and the field's
- * cut hid most of the glyph just typed for its first frames. News, such as an answer
- * arriving, moves nothing the reader reads (browser/AGENTS.md, "Stability"): each part
- * it moved shows where it now stands, revealed by the frame it stands in or growing
- * from its own old box, while the box's outline and ring still follow.
+ * moved, so the eye follows it. A key changes the box in the frame it lands, though,
+ * as it changes a textarea sized to its words, since what a key adds is what the user
+ * reads next: a tween cut off the glyph just typed for its first frames as the box
+ * widened, and the word and caret a new line took for about 100 ms, and a tween each
+ * key restarted never settled. Only a line a key takes away travels, both edges on
+ * the one tween, as anything leaving the page folds (motion.js), so words the box
+ * carries down with its top edge stay where the eye can follow them, and nothing the
+ * user reads waits on it. The user asked on 30 October for typing to grow the box as
+ * a textarea's grows, and chose on 31 October to keep a removed line's travel. News,
+ * such as an answer arriving, moves nothing the reader reads (browser/AGENTS.md,
+ * "Stability"): each part it moved shows where it now stands, revealed by the frame it
+ * stands in or growing from its own old box, while the box's outline and ring still
+ * follow.
  *
  * A change arriving during the tween starts each part from where it is drawn then;
  * news arriving while the user's change still carries parts shows them where they now
@@ -511,24 +514,13 @@ export function boxMotion({
       streams = new Map();
       return;
     }
-    // The first reading, and any while motion does not play, is taken as it stands.
-    let was = motionPlays() && rests ? drawn(progress, carried) : null;
     const gesture = theirs();
-    // Typing sets the box's measure: every part stands at its new inline edges, so a key
-    // that changed only the measure moves nothing.
-    if (was && gesture === "typing") {
-      const typed = was;
-      for (const [element, at] of typed) {
-        const to = next.get(element);
-        if (to) typed.set(element, { ...at, left: to.left, right: to.right });
-      }
-      if (
-        [...next].every(
-          ([element, to]) => typed.has(element) && same(typed.get(element), to),
-        )
-      )
-        was = null;
-    }
+    // The first reading, and any while motion does not play, is taken as it stands, as
+    // is one a key makes, but for a line it takes away.
+    let was = motionPlays() && rests ? drawn(progress, carried) : null;
+    const drawnBox = was?.get(box);
+    const closes = drawnBox && height(next.get(box)) < height(drawnBox) - 0.5;
+    if (gesture === "typing" && !closes) was = null;
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(

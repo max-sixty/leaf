@@ -522,11 +522,11 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_visible()
     editor = preview.get_by_role("textbox", name="Reply", exact=True)
     editor.click()
-    write(editor, "A first line.")
+    write(editor, "A first line.\n")
     rendered(page)
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("A second line grows the card.")
+    # The line given up shrinks the card over the tween.
+    page.keyboard.press("Backspace")
     page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
     close = preview.locator(".lf-margin-preview-close").bounding_box()
     page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
@@ -536,10 +536,10 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
-    """While the card grows with its reply field, the field's focus ring is drawn
-    whole where the field stood, from the motion's first frame. The field's own paper
-    already stood at its grown size, over the ring's lower edge, until the ring had
-    nearly reached its rest."""
+    """A line typed into a card's reply grows the field in the frame the key lands
+    (box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
+    in that frame. While the growth travelled, the field's own paper stood at its grown
+    size over the ring's lower edge until the ring had nearly reached its rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -552,14 +552,20 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     rendered(page)
     page.wait_for_function(CARD_AT_REST)
     field = preview.locator(".lf-thread-reply .lf-compose-field")
-    stood = field.bounding_box()
+    before = field.bounding_box()
     ring = field.evaluate(
         "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
-    page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
-    assert field.bounding_box()["height"] > stood["height"] + 10, "the field never grew"
+    page.wait_for_function(
+        "height => document.querySelector('.lf-margin-preview .lf-thread-reply"
+        " .lf-compose-field').getBoundingClientRect().height > height",
+        arg=before["height"] + 10,
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    assert not page.evaluate("() => __lfHeld.some(m => m.playState !== 'idle')")
+    stood = field.bounding_box()
     pixels = Image.open(
         BytesIO(
             page.screenshot(

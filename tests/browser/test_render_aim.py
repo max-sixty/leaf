@@ -771,12 +771,14 @@ def from_the_edges(drawn):
     return [drawn["words"] - drawn["top"], drawn["foot"] - drawn["send"]]
 
 
-def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, serve):
-    """The comment box moves as the floating panel's field does (box-motion.js): a
-    line it gains at the window's foot shifts it up, and its words ride its top edge
-    up while Send rides its foot, as a line removed carries the words back down with
-    that edge. It used to change size in one frame, and a line taking it past the
-    window's foot jumped it up whole, its words with it."""
+def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
+    browser, serve
+):
+    """A line the comment box gains at the window's foot shifts it up in the frame the
+    key lands, its words and Send with its edges, as a textarea's would; a line
+    removed carries the words back down with the top edge over the floating boxes'
+    tween while Send rides the foot (box-motion.js, "Whose change it is"). The new line
+    used to travel too, hiding the word being typed until the edge reached it."""
     page = open_page(
         browser,
         serve(
@@ -816,53 +818,58 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
         page.keyboard.type(f"Line {lines}")
         lines += 1
         rendered(page)
-    for key in ("Shift+Enter", "Backspace"):
-        # The last line's motion ends where the box stands.
+    hold = "() => { window.__lfAnimate = Element.prototype.animate;" + HOLD_MOTION + "}"
+    release = (
+        "() => { Element.prototype.animate = window.__lfAnimate;"
+        " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
+        ".forEach(motion => motion.finish()); }"
+    )
+    held_ground = """() => __lfHeld.some(motion =>
+      motion.effect?.target?.matches?.('.lf-fab-ground'))"""
+    stood = page.evaluate(SIDE_COMMENT_DRAWN)
+    page.evaluate(hold)
+    page.keyboard.press("Shift+Enter")
+    # The line shifts the box up inside the window, which its placement does before
+    # the frame paints; the box's reading follows in that frame.
+    page.wait_for_function(
+        "top => document.querySelector('.lf-fab-bar')"
+        ".getBoundingClientRect().top < top - 0.5",
+        arg=stood["top"],
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    grown = page.evaluate(SIDE_COMMENT_DRAWN)
+    laid = page.locator(".lf-fab-bar .lf-compose-field").bounding_box()
+    assert not page.evaluate(held_ground)
+    assert [grown["top"], grown["foot"]] == pytest.approx(
+        [laid["y"], laid["y"] + laid["height"]], abs=1
+    ), (laid, grown)
+    assert grown["top"] < stood["top"] - 0.5, (stood, grown)
+    assert from_the_edges(grown) == pytest.approx(from_the_edges(stood), abs=1), grown
+    page.evaluate(release)
+    rendered(page)
+    stood = page.evaluate(SIDE_COMMENT_DRAWN)
+    page.evaluate(hold)
+    page.keyboard.press("Backspace")
+    page.wait_for_function(held_ground)
+    for at in (0, 60, 150):
+        # A motion a later reading cancelled stays cancelled.
         page.evaluate(
-            """() => Promise.all(document.querySelector('.lf-fab-ground')
-              .getAnimations().map(motion => motion.finished.catch(() => {})))"""
+            "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
+            ".forEach(motion => { motion.currentTime = at; })",
+            at,
         )
-        stood = page.evaluate(SIDE_COMMENT_DRAWN)
-        page.evaluate(
-            "() => { window.__lfAnimate = Element.prototype.animate;"
-            + HOLD_MOTION
-            + "}"
+        drawn = page.evaluate(SIDE_COMMENT_DRAWN)
+        if at == 0:
+            assert drawn == pytest.approx(stood, abs=1), (stood, drawn)
+        assert from_the_edges(drawn) == pytest.approx(from_the_edges(stood), abs=1), (
+            at,
+            drawn,
         )
-        page.keyboard.press(key)
-        page.wait_for_function(
-            """() => __lfHeld.some(motion =>
-              motion.effect?.target?.matches?.('.lf-fab-ground'))"""
-        )
-        # The line shifts the box up inside the window, which its placement does a
-        # moment after the box grew.
-        if key == "Shift+Enter":
-            page.wait_for_function(
-                "top => document.querySelector('.lf-fab-bar')"
-                ".getBoundingClientRect().top < top - 0.5",
-                arg=stood["top"],
-            )
-        for at in (0, 60, 150):
-            # A motion a later reading cancelled stays cancelled.
-            page.evaluate(
-                "at => __lfHeld.filter(motion => motion.playState !== 'idle')"
-                ".forEach(motion => { motion.currentTime = at; })",
-                at,
-            )
-            drawn = page.evaluate(SIDE_COMMENT_DRAWN)
-            if at == 0:
-                assert drawn == pytest.approx(stood, abs=1), (key, stood, drawn)
-            assert from_the_edges(drawn) == pytest.approx(
-                from_the_edges(stood), abs=1
-            ), (key, at, drawn)
-        page.evaluate(
-            "() => { Element.prototype.animate = window.__lfAnimate;"
-            " __lfHeld.splice(0).filter(motion => motion.playState !== 'idle')"
-            ".forEach(motion => motion.finish()); }"
-        )
-        rendered(page)
-        rest = page.evaluate(SIDE_COMMENT_DRAWN)
-        assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1), key
-        assert rest["top"] != pytest.approx(stood["top"], abs=1), (key, stood, rest)
+    page.evaluate(release)
+    rendered(page)
+    rest = page.evaluate(SIDE_COMMENT_DRAWN)
+    assert from_the_edges(rest) == pytest.approx(from_the_edges(stood), abs=1)
+    assert rest["top"] > stood["top"] + 0.5, (stood, rest)
 
 
 def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):

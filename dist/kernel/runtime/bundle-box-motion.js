@@ -893,20 +893,11 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			streams = /* @__PURE__ */ new Map();
 			return;
 		}
-		let was = motionPlays() && rests ? drawn(progress, carried) : null;
 		const gesture = theirs();
-		if (was && gesture === "typing") {
-			const typed = was;
-			for (const [element, at] of typed) {
-				const to = next.get(element);
-				if (to) typed.set(element, {
-					...at,
-					left: to.left,
-					right: to.right
-				});
-			}
-			if ([...next].every(([element, to]) => typed.has(element) && same(typed.get(element), to))) was = null;
-		}
+		let was = motionPlays() && rests ? drawn(progress, carried) : null;
+		const drawnBox = was?.get(box);
+		const closes = drawnBox && height(next.get(box)) < height(drawnBox) - .5;
+		if (gesture === "typing" && !closes) was = null;
 		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
 		const before = rests;
 		const streamed = /* @__PURE__ */ new Map();

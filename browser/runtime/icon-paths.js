@@ -89,7 +89,7 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 }
 
 // Each action a press can show as a symbol, and the symbol and name it shows wherever
-// Leaf offers it (browser/AGENTS.md, "Visual grammar"). A press names its action and
+// Leaf offers it (browser/AGENTS.md, "Controls are few and quiet"). A press names its action and
 // never an icon, so one action can't show two symbols. Two actions may share one
 // symbol, as Undo and Discard share the U-turn, and a press may say more than the
 // action's name, as "Retry source inspection" does. The icons above that no action

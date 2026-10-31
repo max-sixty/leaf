@@ -41,7 +41,7 @@
    a command on each page for a mishap of one keyboard gesture (the user's decision).
 
    The editor stands where the message stood and as it read (browser/AGENTS.md,
-   "Editing in place"): a comment box over the message's body, every line of its words
+   "Typed words survive"): a comment box over the message's body, every line of its words
    where it stood and broken where it broke, its pictures under them as the message
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
    frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard

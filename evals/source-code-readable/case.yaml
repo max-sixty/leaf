@@ -124,3 +124,107 @@ variants:
           for that file or supplies the exact removed and added text. A short explanation
           accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
           edit, or adds an approval request not in the task.
+
+  # Markdown excerpt reconstruction: session dad43231-b8ff-4849-9702-a6a9cb360a93,
+  # page principles-survey, whose "Two rules before and after" section showed each
+  # rule's Markdown in <pre><code>. The user asked why it wasn't rendered Markdown.
+  # At 945fce2f8 every arm rendered the rules (reads-rendered 3/3), so showing source
+  # needs the session's own context; base converted them to HTML by hand and
+  # page-renders-markdown passed 0/3, then 3/3 once page-authoring.md asked for the
+  # preview. A variant giving the rules as Read-tool output scored the same (0/3, 3/3).
+  markdown-excerpt:
+    metadata:
+      purpose:
+        Prose quoted from a Markdown file reads rendered, through the page's Markdown
+        rendering rather than a hand conversion, with its exact words kept.
+    vars:
+      prompt: |
+        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
+        base directory before writing.
+
+        You are writing a Leaf page that surveys Leaf's interface principles. Write its
+        section "Two rules before and after": the two rules in `browser/AGENTS.md` that
+        had been patched most, as each read before this branch rewrote the section and
+        as it reads now, side by side, so the user can judge whether the rewrite kept
+        what each rule needs. Give each version's word count.
+
+        "Controls stay where the user aims", before (178 words):
+
+        ```markdown
+        **The page holds still under the user's aim.** A state change may repaint any box, but must not move the controls next to the gesture that caused it. A scroll the gesture makes may not carry the control it was made on either, except to bring it whole into a scroller that showed only part of it, or where the gesture takes the user somewhere and says so: a command as a walk or Go-to does (`travels`, `runtime/keyboard/bindings.js`), or a press by the history entry it adds, as a link or a root tab set's switch does. Without a gesture, a box may grow or shrink into free room, but reading content and controls stay put. A change the user asked for may reflow the content it replaces, with motion the eye can follow. A reveal on hover, focus or a key never changes the size or position of its ancestors or siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`, run on every browser test outside a module marked `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
+        ```
+
+        Now (126 words):
+
+        ```markdown
+        **Controls stay where the user aims.** A state change may repaint any box, but must not move the controls next to the gesture that caused it, and a scroll the gesture makes carries that control only to bring it whole into a scroller that showed part of it, or where the gesture says it takes the user somewhere. Without a gesture, a box may grow or shrink into free room, but reading content and controls stay put; a change the user asked for may reflow what it replaces, with motion the eye can follow. A reveal on hover, focus or a key never moves its ancestors or siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it credits.
+        ```
+
+        "News never moves what the reader is reading", before (98 words):
+
+        ```markdown
+        **News never moves what the reader is reading.** News from the server grows above the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits behind a fixed-size control until the reader goes to it, and an editor in use stays still. Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a hidden tab. The user chose one exception: the answer they wait for in the floating panel's thread grows that view upward while its controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in `tests/shift_watch.js`).
+        ```
+
+        Now (72 words):
+
+        ```markdown
+        **News never moves what the reader is reading.** News from the server grows above the screen, where scroll anchoring absorbs it, or below it; anywhere else it waits behind a fixed-size control until the reader goes to it, and an editor in use stays still. An exception the user chose stays with its owner, as `fitAnswer` in `floating-panel.js` does. Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and `threadsListing` in `floating-panel.js` for the rows of Threads.
+        ```
+
+        The page directory is unavailable here. Reply with the section HTML and any
+        page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: reads-rendered
+        value: |
+          Each of the four rule versions appears formatted, its bold opening sentence in
+          bold and its backticked names as inline code, with every word of the given
+          Markdown kept. Fail if any version is visible only as Markdown source, with
+          `**` or backtick characters shown as text, as in a pre, pre/code, lf-code, an
+          lf-text-document without preview="markdown", or an lf-diff. Fail if a version
+          is shortened, paraphrased or reworded.
+      - type: llm-rubric
+        metric: page-renders-markdown
+        value: |
+          Each of the four versions is an lf-text-document with preview="markdown" bound
+          by `source` to a data source of its own, and the commands supply each source
+          with that version's exact Markdown through `leaf data set` (for example piping
+          the text through `jq -Rs .`). Fail if any version is HTML the author converted
+          from the Markdown, such as a blockquote holding strong and code elements, or
+          is shown as source.
+  # Guardrail for markdown-excerpt: where Markdown syntax is the subject, the reader
+  # sees the characters typed. From the composer-markdown-exploration page.
+  markdown-syntax:
+    metadata:
+      purpose: Markdown whose syntax is the subject stays visible as the characters typed.
+    vars:
+      prompt: |
+        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
+        base directory before writing.
+
+        You are writing a Leaf page about the Markdown in Leaf's message composer. A
+        user typed this reply, meaning a sign-off followed by a horizontal rule:
+
+        ```markdown
+        Thanks
+        ---
+        ```
+
+        It rendered as a heading reading "Thanks", because CommonMark reads a line of
+        dashes under a line of text as that text's heading underline (a setext
+        heading). A blank line between the two lines would have given the rule. Write
+        the section that explains this to the user.
+
+        The page directory is unavailable here. Reply with the section HTML and any
+        page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: syntax-stays-source
+        value: |
+          The reply the user typed appears as its literal characters, `Thanks` on one
+          line and `---` on the next, in a block the reader sees without choosing a tab,
+          such as pre/code or lf-code; the version with the blank line, if shown, is
+          literal too. Showing how either renders beside the source is fine. Fail if the
+          typed Markdown appears only rendered, or only inside an lf-text-document whose
+          preview tab opens first.

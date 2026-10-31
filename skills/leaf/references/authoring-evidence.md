@@ -58,8 +58,8 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Use `lf-text-document` to show a text file the user can comment on without copying it
-into your HTML.
+Use `lf-text-document` to show a text file, or a passage of one, that the user can
+comment on without copying it into your HTML.
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
 exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
@@ -72,7 +72,7 @@ discussed; `wt step diff`, when available, often covers a branch.
   id="skill-source"
   source="leaf-skill"
   label="SKILL.md"
-  language="markdown"
+  preview="markdown"
 ></lf-text-document>
 
 <lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>

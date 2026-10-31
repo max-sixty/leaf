@@ -184,7 +184,7 @@
     "x-language": "language",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>",
+    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" label=\"SKILL.md\" preview=\"markdown\"></lf-text-document>",
     "oneOf": [
       {
         "required": ["source"]

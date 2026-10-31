@@ -412,11 +412,23 @@ leaf-composition-field {
     calc(var(--lf-media-gap) + var(--focus-ring-w) - var(--lf-media-room));
   box-sizing: border-box;
 }
+/* A mark's reach, the aim floor around it, runs from the item's top corner into the
+   item. The item stands at least that tall and wide, with its picture in the corner
+   its removal rides, so beside a picture smaller than the reach it still ends at the
+   item's edge: clear of the field below the shelf, and with the shelf's gap, of the
+   next item's mark. */
 .lf-composer-media-item {
+  --lf-media-mark-reach: calc(
+    var(--mark-size) - var(--lf-media-mark-overhang) +
+      (var(--aim-floor) - var(--mark-size)) / 2
+  );
   position: relative;
   flex: none;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-block-size: var(--lf-media-mark-reach);
+  min-inline-size: var(--lf-media-mark-reach);
   box-sizing: border-box;
 }
 .lf-media-open {

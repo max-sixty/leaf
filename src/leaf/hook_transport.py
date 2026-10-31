@@ -99,9 +99,10 @@ says how long the line has stood. This was the user's choice (28 October 2026) o
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry each to-do Leaf's clerk added On me at
-the last turn's end, one line each (`clerk.queued`), and take them off the queue once
-printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
-ended.
+the last turn's end, and each reply a fork of the conversation posted, one line each
+(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop
+carries none: the clerk forks only after the turn has ended, and a fork's reply
+reaches the session with the settled message, which wakes no idle session.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -566,8 +567,9 @@ def carry_turn(
         if event == "PostToolBatch" and status_check_due(sid)
         else []
     )
-    # The to-dos Leaf's clerk added On me since the agent last heard
-    # (`clerk.queued`), which the next prompt or tool boundary carries.
+    # The to-dos Leaf's clerk added On me and the replies forks posted since the
+    # agent last heard (`clerk.queued`), which the next prompt or tool boundary
+    # carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     if event == "PostToolBatch" and not batches and not renewals and not told:
         return

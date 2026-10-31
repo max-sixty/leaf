@@ -6,9 +6,11 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-This note holds what Claude Code lets a hooks module fork, measured, and a design
-that is not built yet. The main thread is the session's own conversation, as against
-the forks and subagents made from it.
+The `forked-replies` branch builds it: `src/leaf/forks.py` holds the states a thread
+moves through, the hold and the reply, and `hooks/claude-code.ts` (`forkReply`) makes
+the fork. This note holds the research behind it: what Claude Code lets a hooks module
+fork, measured, and how well the fork judges what to answer. The main thread is the
+session's own conversation, as against the forks and subagents made from it.
 
 ## What a hooks module can fork
 
@@ -55,109 +57,75 @@ hears its answer at `turn.complete`, carrying its `agentId`.
 with the command's result in its next request. In that one run the main thread
 reported the row and treated its question as answered.
 
-## Design
-
-**A fork answers a thread's waiting messages.** Leaf answers a thread with one reply,
-which settles every message it holds; the newest message carries the thread's answer
-(`delivery.current_responses`). So when the user sends a message in a thread on a page
-a Claude Code session holds, the hooks module forks the conversation with
-`$.model.fork` for the thread's unanswered messages together, passing them and the
-thread as Leaf would deliver them. Code decides which threads a fork takes: those
-whose unanswered messages are all still undelivered, none handed into a turn or
-started by the main thread. A thread the main thread already owes stays with it. A
-message that arrives while a fork runs drops that fork's answer and starts a fork for
-the thread with both. Each fork starts from the main thread's latest request, and the
-thread's earlier messages, earlier forks' replies included, come from the page log, so
-a follow-up sees the exchange before it even where the main thread hasn't yet.
-
-**The fork decides.** Whether a message can be answered without tools is a judgment
-only the model can make, so every eligible thread goes to a fork, which answers
-`{"reply": …}` or `{"hand_over": …}`. It hands over requests for work, questions that
-need a look at files or command output, and anything whose answer depends on the work
-the main thread is doing now, and it promises no work. The fork can't see the tool
-call now running, so its prompt names it: the module sees each `tool.call` the main
-thread makes. Forks for different threads run side by side, rather than one at a time
-as the clerk's do (`forking` in `hooks/claude-code.ts`).
-
-**Leaf holds the messages while the fork decides.** The fork lane is the module's
-follower process while it holds a lease, as the watch holds the wait lease
-(`leases.take_wait_lease`); the pages follower, made to wake as a message is admitted
-instead of polling every 2 s, would hold it and print each thread to fork. While the
-lane is live, a message a fork may take isn't deliverable to the main thread until the
-fork replies or hands it over, or until a bound longer than a first fork's 13.9 s,
-counted from that fork's start, passes. The condition would go in
-`delivery.deliverable`, which the hook carry (`hook_transport.read_plans`), the watch
-and the nudges after it read, and the same check would go in the nudge at admission,
-`presence.nudge_unwatched`, which runs without it. The decision has to come at
-admission: the watch wakes the session the moment a message arrives
-(`session.watch_between_turns`), so a hold taken once the follower has seen the
-message comes too late. The hooks, the watch and the server each read `deliverable` in
-their own processes, so a hand-over is recorded where the watch's reading stamps it,
-beside the page or among its inputs, and the watch wakes on it at once rather than at
-its next revival check. A fork that fails (`api-error`,
-`empty-reply`, `aborted`, or `nothing-to-fork` after `/clear`) hands over at once, and
-a hand-over nudges a session no watch follows, since the nudge at admission held back.
-A session without the module, and every other harness, delivers as today. The page
-shows the messages Queued for Claude until the reply.
-
-**The reply is the agent's.** Leaf posts the fork's text with
-`thread.post_reply(page, {"responds": id}, text, settlement=Receipt(only_if_unclaimed=True), claimed_session=…)`,
-as `fail_answer` does, so it reads as the session's reply and settles the thread. It
-writes nothing once a turn has picked the message up or it no longer owes an answer,
-and it raises `ReceiptRefused` once another session claims the page, which the poster
-drops. `Receipt`'s docstring, "A harness's failure receipt", would then describe one of
-its two uses.
-
-**The main thread learns at its next step.** A message settled before delivery still
-reaches the main thread at its next prompt or tool boundary, with the reply in the
-thread's digest, and never wakes an idle session (`session.wake_inputs`). A line in
-the clerk's queue (`clerk.QUEUED`) says the reply came from a fork of the
-conversation, so the main thread neither repeats it nor reads it as words it doesn't
-remember. A tool-less fork's conversation is the main thread's context plus that one
-exchange, so the main thread needs no reference to it.
-
-The design reuses the clerk's two-step exchange (`leaf hook --fork`: Python writes the
-prompt, the module forks, Python reads the answer), the delivery's thread digest,
-`post_reply`, the delivery of settled input, and the clerk's queue. It adds the hold,
-the lane's lease, the hand-over record, a follower that wakes on admission, and the
-fork's prompt and answer schema.
-
-**Forks with tools come later.** A forked subagent (`$.agent.spawn`) could answer
-questions that need a look at files, with its writes denied at `tool.call`. That is
-where a fork kept for a whole thread pays off: it keeps its own reads and caches its
-own tail, where a tool-less fork pays the main thread's last request uncached on every
-message, and the line to the main thread would name its transcript.
-
 ## Costs and limits
 
-- From send to reply about 5–7 s for a 200–300-token answer at 200–275k context while
-  the main thread's cache entry lives: the fork's 4.5–6 s above, plus the two `leaf`
-  processes, 0.12–0.62 s each under load
-  ([Leaf's share](user-feedback-responsiveness.md#a-small-page-changes-reply)). After
-  an hour idle, or just after a resume, the first fork writes the whole context:
-  13.9 s and 227k tokens at 274k.
+- From send to reply, on recorded thread messages (below): under the shipped prompt
+  a median 12 s for a reply and 6 s for a hand-over; the first prompt's replies took
+  17 s. Most of it is output, a median 829 tokens, 77% of them thinking at the
+  session's xhigh effort. Short side answers of 200–300 tokens took 4.5–6 s (above).
+  Reading the context from cache or writing it cold changed the time little. The
+  follower's look and two `leaf` processes add 0.12–0.62 s each under load
+  ([Leaf's share](user-feedback-responsiveness.md#a-small-page-changes-reply)).
 - While the main thread's cache entry lives, each fork reads the context from it and
   pays the main thread's last request uncached, 14–19k tokens in the runs above.
 - A handed-over message reaches the main thread one fork decision later. An idle
   session wakes that much later; a busy one notices only if a tool boundary falls
-  inside that wait. A wedged fork loop holds each message for the whole bound.
+  inside that wait.
 - The fork answers from the main thread's last request, with the same model and
-  effort, and has no tools.
+  effort, and has no tools. A forked subagent (`$.agent.spawn`) could also answer
+  questions that need a look at files, with its writes denied at `tool.call`, and
+  would keep a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
 
-## Before it is on by default
+## How well the fork judges
 
-Replay recorded thread messages at their arrival through the fork's prompt, as the
-clerk's replays did (`~/.tmp/leaf.agent-channels/replay/`), and compare each with the
-main thread's later reply: answered and right, answered and wrong, or handed over. A
-wrong answer costs the most, since the user may act on it. A replay of a message that
-arrived mid-turn shows the fork the last request without the response being acted on,
-as `$.model.fork` does. Then time whole replies with `leaf-dev journey claude-code`,
-with and without `--case working`.
+Thread messages replayed at the moment each arrived: a copy of the session's transcript
+cut there, resumed under `claude -p` with every tool denied, given the prompt
+`forks.reply_prompt` builds from the page log cut at the message. Each case was
+labelled from what the session did next before any fork ran. The first set holds 25
+messages from 15 sessions (Oct 20–30), 15 idle and 10 mid-turn; the fresh set 15 from
+15 other sessions (mostly Oct 10–19), 9 idle and 6 mid-turn. By those labels only 8 of
+the 40 were answerable from the conversation alone, though the fork rightly answered
+several more whose answer the conversation already held, where the session looked
+anyway.
 
-Open: whether a fork that hands over a request for work posts a line saying the work
-will follow, which commits the main thread to it; and whether Escape aborts a fork the
-follower's loop makes, since `$.model.fork` resolves `aborted` when the turn whose hook
-forked is interrupted, and the follower starts from `turn.start`, `tool.call` and
-`turn.complete` hooks. Nobody has measured it.
+| Prompt and cases                      | Answered right | Answered wrong | Handed over right | Handed over, could have answered |
+| ------------------------------------- | -------------- | -------------- | ----------------- | -------------------------------- |
+| first wording, first set (25)         | 10             | 4              | 10                | 1                                |
+| shipped wording, first set (15 rerun) | 6              | 0              | 6                 | 3                                |
+| shipped wording, fresh set (15)       | 7              | 1              | 7                 | 0                                |
+
+No reply promised work. The first wording's four wrong answers:
+
+- Three worked an answer out instead of finding it: the rule "answer only when the
+  conversation holds everything the answer needs" let the fork count quoted code,
+  page text and its own earlier explanations as everything, and state inferences as
+  facts. One invented that CI finds Chrome through `CHROME_BIN`; one said a theme
+  reached the panel only partly where the session checked and found it reached both;
+  one swapped the pointer and touch figures for a card's controls.
+- One explained a decision the user had just made on the page's open ask. A reply
+  settles the thread and a settled message wakes no idle session, so the decision
+  would have gone unrecorded.
+
+The shipped wording hands over when the fork would have to work the answer out for a
+case the session never looked at, and when the user answers or decides something the
+session asked. It was written after those four and rerun on 15 of the first set, so
+that row is in-sample; it costs three hand-overs the session would have answered from
+its conversation. The fresh set is out of sample: one wrong answer in eight replies
+(95% interval about 0.3–53%), so the replays show the wording isn't unsafe without
+pinning its error rate down. That wrong answer repeated a survey's claim in the
+conversation ("notes aren't deleted when their design lands"), which the session then
+checked against git history and found mostly false; a clause handing over "when the
+user questions a claim the conversation makes" would have caught it and the earlier
+theme case, and is untested.
+
+Under the shipped wording a reply took a median 12 s on the fresh set (5–18 s) and a
+hand-over 6 s (4–10 s). Every replay wrote the context cold. The replays cost $126.
+
+The replay differs from a live fork: it resumes a transcript copy rather than resending
+the session's exact last request, without plugins, MCP servers or hooks, writes the
+whole context cold, rebuilds page data from today's page directory, and assumes xhigh
+effort. Each case ran once, and one agent labelled and scored them all. The scripts and
+per-case records are in `~/.tmp/leaf.forked-replies/replay/` on the machine that ran
+them.

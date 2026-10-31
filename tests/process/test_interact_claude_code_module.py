@@ -464,3 +464,48 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
         event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
     ]
     driven.quit()
+
+
+def test_a_held_thread_message_is_answered_by_a_fork_of_the_conversation(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """The pages follower holds the session's forks lane, so the user's message in a
+    new thread is held from the session, and the module forks the conversation with
+    Leaf's prompt for it as it arrives and hands the answer back: the reply goes in
+    as the agent's."""
+    answer = json.dumps({"reply": "Because 2 s is stale."})
+    driven = ClaudeCode(spawn, "cc-reply", {"forkReply": answer})
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
+    )
+    prompt = driven.forks.get(timeout=STATED_TIMEOUT)
+    assert prompt.startswith("<leaf-fork-reply>"), prompt
+    assert "Why 2 s?" in prompt
+    told = wait_for(
+        lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+        lambda line: line.startswith("Leaf: a fork took"),
+        failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
+    )
+    assert told == f"Leaf: a fork took thread {asked['id']}: reply", told
+    [reply] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply" and event["author"] == "agent"
+    ]
+    assert (reply["responds"], reply["text"], reply["session"]) == (
+        asked["id"],
+        "Because 2 s is stale.",
+        "cc-reply",
+    )
+    assert driven.diagnostics.empty()
+    driven.quit()

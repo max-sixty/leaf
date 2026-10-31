@@ -100,18 +100,19 @@ a token, which is the shape the legal page allows.
   and interrupt on an explicit stop on a terminal Codex and Pi; Claude Code and
   Codex app users see no change, and a question asked during a long tool still
   waits for its boundary.
-- **Answer from a fork of the session.** On Claude Code, Leaf's hooks module would
-  fork the user's own session for each thread message, so questions would get
-  answered in seconds, idle or during long tools, while the session still does every
-  edit ([fork replies](fork-replies.md)). Costs: a hold on delivery while a fork
-  decides, a cached read of the whole context per message, and answers as of the
-  main thread's last request.
+- **Answer from a fork of the session.** On Claude Code, Leaf's hooks module forks
+  the user's own session for each thread message the session hasn't picked up, so
+  questions get answered in seconds, idle or during long tools, while the session
+  still does every edit ([fork replies](fork-replies.md); the user chose it on
+  2026-10-31, built on the `forked-replies` branch). Costs: a hold on delivery while
+  a fork decides, a cached read of the whole context per message, and answers as of
+  the main thread's last request.
 - **Host the whole session in Leaf.** Leaf owns every turn and every control above,
   and with them the transcript, approvals, interruption, reconnects, permission
   modes, compaction and the chat surface, as `leaf.page` already does for Codex
   (`EmbeddedHarness`). It ends wake-up gaps only for sessions Leaf hosts, and turns
   Leaf from a page beside the user's agent into the place they work.
 
-Keep Leaf a companion: a fork would reach Claude Code users without Leaf driving
+Keep Leaf a companion: the fork reaches Claude Code users without Leaf driving
 the agent, and hosting the session is worth its cost only once a user wants Leaf to be
 where they work.

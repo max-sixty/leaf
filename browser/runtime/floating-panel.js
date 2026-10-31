@@ -152,11 +152,17 @@
  * mode-specific controls beside it. Content opens in a view; response choices
  * use a picker. Features contribute to those surfaces rather than adding strips.
  *
- * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
- * menu holds what it showed while it stands, and a control the user pressed in a
- * thread stays where it was. Every change of the box's layout takes effect in one step,
- * and what the user sees then travels from where it was drawn to where it stands, by
- * one model (box-motion.js): the surface behind the box, a separate layer, follows by a
+ * A view's controls stand at its foot, the leaf's menu holds what it showed while it
+ * stands, and a control the user pressed in a thread stays where it was
+ * (browser/AGENTS.md, "Stability"). Resolving a thread opened from Threads moves the
+ * user on to the next one (`resolveLanding`), whose Resolve then stands under the
+ * pointer. That Resolve is the press's own result and takes the next press at once, as
+ * the user chose on 31 October. Rejected: holding a control that arrives under the
+ * pointer inert until the pointer moves.
+ *
+ * Every change of the box's layout takes effect in one step, and what the user sees
+ * then travels from where it was drawn to where it stands, by one model
+ * (box-motion.js): the surface behind the box, a separate layer, follows by a
  * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
  * part that kept its size is carried by a transform; one that changed size grows from
  * where it stood, carrying its words by their start corner; one that is new is revealed

@@ -66,7 +66,7 @@ import {
   shownParts,
   shownWindow,
 } from "../geometry.js";
-import { skipped } from "../shown-box.js";
+import { elementBox, skipped } from "../shown-box.js";
 import {
   renderedChildren,
   renderedParent,
@@ -950,7 +950,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
         : rect.left;
     entry.rect = rect;
     if (entry.fold) standFolded(entry.read.row, entry.fold, on);
-    const attached = targetBox(entry.read.target).getBoundingClientRect();
+    const attached = elementBox(targetBox(entry.read.target));
     seats.set(entry.read.row, {
       top: rect.top - attached.top,
       right: attached.right - rect.right,
@@ -1297,7 +1297,7 @@ export function layoutMarginRows() {
   for (const entry of placed) {
     const seat = seats.get(entry.read.row);
     if (entry.read.place !== "pin" || !seat || !entry.held) continue;
-    const heldBox = targetBox(entry.read.target).getBoundingClientRect();
+    const heldBox = elementBox(targetBox(entry.read.target));
     const width = entry.rect.right - entry.rect.left;
     const height = entry.rect.bottom - entry.rect.top;
     entry.holding = {

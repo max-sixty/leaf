@@ -1283,10 +1283,39 @@ const skipped = (element) => {
 };
 function elementBox(el) {
 	const r = el.getBoundingClientRect();
-	if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents") return r;
+	if (skipped(el)) return r;
+	if (r.width || r.height) return blocksShown(el, r);
+	if (getComputedStyle(el).display !== "contents") return r;
 	const contents = document.createRange();
 	contents.selectNodeContents(el);
 	return contents.getBoundingClientRect();
+}
+const PAINTS = ["backgroundImage", "boxShadow"];
+function blocksShown(el, r) {
+	if (el.shadowRoot || !el.firstElementChild) return r;
+	for (const node of el.childNodes) if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) return r;
+	const style = getComputedStyle(el);
+	if (PAINTS.some((property) => style[property] !== "none") || !/^(transparent|rgba\(.*, 0\))$/.test(style.backgroundColor) || [
+		"Top",
+		"Right",
+		"Bottom",
+		"Left"
+	].some((side) => style[`border${side}Style`] !== "none" && style[`border${side}Width`] !== "0px") || style.overflowX !== "visible" || style.overflowY !== "visible" || getComputedStyle(el, "::before").content !== "none" || getComputedStyle(el, "::after").content !== "none") return r;
+	let top = Infinity;
+	let bottom = -Infinity;
+	for (const child of el.children) {
+		const display = getComputedStyle(child).display;
+		if (display === "none" || skipped(child)) continue;
+		if (display.startsWith("inline") || display.startsWith("ruby")) return r;
+		const b = display === "contents" ? elementBox(child) : child.getBoundingClientRect();
+		if (!b.width && !b.height) continue;
+		top = Math.min(top, b.top);
+		bottom = Math.max(bottom, b.bottom);
+	}
+	top = Math.max(top, r.top);
+	bottom = Math.min(bottom, r.bottom);
+	if (!(bottom > top) || top === r.top && bottom === r.bottom) return r;
+	return new DOMRect(r.left, top, r.width, bottom - top);
 }
 const measurements = /* @__PURE__ */ new WeakMap();
 const drawn = (el) => {

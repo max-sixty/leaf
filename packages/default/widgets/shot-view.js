@@ -309,6 +309,7 @@ export class ShotView {
     });
     keeps(host, "data-lf-shot-mode", this.view);
     keeps(host, "data-lf-shot-outlines", this.outlines);
+    keeps(host, "data-lf-shot-scale", this.actual ? "actual" : "fit");
     return html`
       <div ${offered("lf-shot-toolbar lf-ui", (node) => (this.toolbar = node))}>
         ${caption("before")}

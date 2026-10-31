@@ -1894,18 +1894,13 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
-     tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] .lf-fp-summary {
-    color: var(--accent);
+  /* The line reads as the row's status does: in its tone's ink where it asks the user
+     to act (`--lf-fp-asks`, above), in the danger's where it reports a server the page
+     can't reach, so it agrees with the leaf, and in ink where it only reports. */
+  .lf-floating-panel[data-asks] .lf-fp-summary {
+    color: var(--lf-fp-asks);
   }
-  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
-    color: var(--ok-ink);
-  }
-  .lf-fp-state[data-tone="away"] .lf-fp-summary {
-    color: var(--warn-ink);
-  }
-  .lf-fp-state[data-tone="blocked"] .lf-fp-summary {
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks]) .lf-fp-summary {
     color: var(--danger-ink);
   }
 

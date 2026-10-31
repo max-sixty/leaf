@@ -2191,11 +2191,12 @@ export function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
-    // The state is said once: its one line, in its tone's ink, and under that only what
-    // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
-    // pointer, key and finger alike. Each line names the state itself ("Codex away"),
-    // so no word for the tone stands over it.
-    const { tone, summaryParts, adds, addsParts, publication } = status();
+    // The state is said once: its one line, and under that only what the status adds to
+    // the line (`statusModel`, `adds`), since the menu is reached by pointer, key and
+    // finger alike. Each line names the state itself ("Codex away"), so no word for the
+    // tone stands over it, and the line takes the ink the row's status does, its tone's
+    // only where it asks the user to act (floating-panel.css, `.lf-fp-summary`).
+    const { summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction follows, with its links.
     const said = adds ? statusParts(addsParts) : "";
     const explains = publication
@@ -2267,12 +2268,7 @@ export function createFloatingPanel({
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
     seats = held?.seats ?? offered;
-    return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+    return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;

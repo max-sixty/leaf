@@ -4035,10 +4035,11 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_mo
 
 
 def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
-    """The menu's head says the agent's state in its one line, in the state's ink, and
-    under that only what the status's disclosure adds to the line: while the agent
-    works, the disclosure's sentence restates the line, so what waits on the user is all
-    it adds. The line names the state itself, so no word for it stands above."""
+    """The menu's head says the agent's state in its one line, and under that only what
+    the status's disclosure adds to the line: while the agent works, the disclosure's
+    sentence restates the line, so what waits on the user is all it adds. The line
+    names the state itself, so no word for it stands above, and a line that only
+    reports, as work under way does, reads in ink, as the row's status does."""
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -4052,7 +4053,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--accent)';
+          ink.style.color = 'var(--ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();

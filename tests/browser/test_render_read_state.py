@@ -248,7 +248,7 @@ def test_a_reopening_in_a_page_seat_waits_in_its_resolved_summary(
     height = _box_height(resolved)
     second = _agent_turn(serve.page_dir, root, "The roof cannot wait after all.")
     told(page)
-    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(summary).to_have_text("Resolved · 1 · 2 new")
     expect(thread).to_be_hidden()
     assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 
@@ -914,7 +914,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         serve.page_dir, {"parent": root}, "The route stays."
     )
     told(page)
-    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(summary).to_have_text("Resolved · 1 · 2 new")
     expect(resolved).not_to_have_attribute("open", "")
     assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 

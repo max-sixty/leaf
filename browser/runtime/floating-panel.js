@@ -280,7 +280,7 @@ import { excerptWords } from "./words.js";
 import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
-import { gesturedOn, newsNotice } from "./thread/held-news.js";
+import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
 import {
@@ -2567,10 +2567,11 @@ export function createFloatingPanel({
   // The notice while the list holds a row, else nothing.
   function joinedTemplate() {
     if (!showing({ view: "threads" })) return nothing;
-    const facts = joinedFacts(threadsListing().joined);
+    const { joined } = threadsListing();
+    const facts = joinedFacts(joined);
     if (!facts.length) return nothing;
     joinedNotice.set({
-      parts: facts.map((fact, index) => (index ? ` · ${fact}` : fact)),
+      text: newsCount(joined.length),
       label: facts.join(" · "),
       reopened: false,
       open: showJoined,

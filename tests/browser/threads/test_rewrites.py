@@ -602,7 +602,7 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     )
     round_trip(page)
     # Feed holds the other rewrite back while the user reads the message.
-    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 message edited")
+    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 new")
     expect(words).to_have_text("Fit the north bracket.")
     words.dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")

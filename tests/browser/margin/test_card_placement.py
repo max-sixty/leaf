@@ -263,7 +263,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
-    expect(notice).to_have_text("2 new replies")
+    expect(notice).to_have_text("2 new")
     rendered(page)
     assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -327,9 +327,9 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     head of the user's message leaves beside its name and time, and stands clear of
     it. On a desktop card, with Previous and Next for its target's two threads, the
     head keeps "Me" and its time whole. On a phone's card, whose three controls, the
-    notice and the head's Edit each take a finger's width, the notice says one count,
-    "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
-    does before its name. Drawn whole, the notice stood over the head."""
+    notice and the head's Edit each take a finger's width, the head keeps "Me" whole and
+    gives up its time, as any narrow head does before its name. The notice says one
+    count, "2 new", on either. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -358,10 +358,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
-    if phone:
-        expect(notice.locator(":scope > span")).to_have_attribute(
-            "data-lf-short", "2 new"
-        )
+    expect(notice).to_have_text("2 new")
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
     head = card.locator(".lf-msg-head").first

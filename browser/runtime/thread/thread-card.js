@@ -656,7 +656,7 @@ export class ThreadView {
   // included. A head lends that room to its words while its controls hide, and the
   // controls stand over whatever runs into it when they show (controls.css), so the
   // fit keeps it, and Edit covers no name or time beside news. Where the room is short
-  // of its first fact the notice says one count instead (held-news.js, `newsNotice`).
+  // of its count the notice is cut (held-news.js, `newsNotice`).
   // The room is the notice's width and the narrowest head's spare width together,
   // which the two tracks trade one for one, so drawing the notice at it changes nothing
   // it was read from. A notice at a finger's floor can still leave a head short, and
@@ -845,10 +845,10 @@ export class ThreadView {
     );
     notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      // While news stands, the notice keeps the width of the words it first showed, so
-      // later news never narrows or widens it under the pointer; longer news is cut.
+      // While news stands, the notice keeps the width of the count it first showed, so
+      // later news never narrows or widens it under the pointer.
       if (!notice.hasAttribute("data-room"))
-        notice.dataset.room = this.#model.news.label;
+        notice.dataset.room = this.#model.news.text;
       const shown = shownRect(header, new Map());
       if (shown)
         notice.style.setProperty(

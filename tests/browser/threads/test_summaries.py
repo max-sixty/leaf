@@ -837,7 +837,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "All three constraints now form one decision.",
     )
     told(page)
-    notice = card.locator(".lf-thread-news").filter(has_text="1 summary changed")
+    notice = card.get_by_role("button", name="1 summary changed", exact=True)
     expect(notice).to_be_visible()
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
@@ -865,8 +865,8 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     expect(checkpoint).to_be_visible()
-    card.locator(".lf-thread-news").filter(
-        has_text="1 message edited · 1 summary changed"
+    card.get_by_role(
+        "button", name="1 message edited · 1 summary changed", exact=True
     ).click()
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()

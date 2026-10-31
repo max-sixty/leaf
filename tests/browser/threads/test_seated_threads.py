@@ -318,7 +318,7 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     append_agent_reply(serve.page_dir, first, "The check now covers both paths.")
     told(page)
     rendered(page)
-    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(summary).to_have_text("Resolved · 1 · 2 new")
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 

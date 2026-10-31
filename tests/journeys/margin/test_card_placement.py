@@ -94,7 +94,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         "heading in both schemes.",
     )
     told(page)
-    expect(notice).to_contain_text("new reply")
+    expect(notice).to_contain_text("1 new")
     # It reads whole in the head row, before the card's actions.
     expect(
         preview.locator(".lf-margin-thread-controls .lf-thread-news")

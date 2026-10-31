@@ -1336,7 +1336,7 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(preview.locator(".lf-thread-news")).to_have_text("1 new")
     expect(preview).not_to_contain_text(
         "An agent answer arriving while the user types."
     )
@@ -1502,7 +1502,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     told(page)
     if accepted["side"] == "above":
         notice = preview.locator(".lf-thread-news")
-        expect(notice).to_have_text("1 new reply")
+        expect(notice).to_have_text("1 new")
         finish(accepted, "top", "foot", "editorTop", "editorFoot")
         begin()
         notice.click()
@@ -1689,7 +1689,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     )
     stream_reply(serve.page_dir, root, waiting)
     told(page)
-    expect(card.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(card.locator(".lf-thread-news")).to_have_text("1 new")
     expect(streamed).to_have_text("The answer has started.")
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)

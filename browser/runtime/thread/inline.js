@@ -28,7 +28,7 @@ import { holdFocus, focused, focusDestination, currentLocationIn } from "../focu
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
-import { HeldNews, seatNotice } from "./held-news.js";
+import { HeldNews, newsCount, seatNotice } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
@@ -59,21 +59,21 @@ class ResolvedThreads {
     }).observe(this.node, { attributeFilter: ["open"] });
   }
 
-  // The summary says what its threads hold back in one notice of one line: the one
-  // thread's news, or how many reopened or changed.
+  // The summary says what its threads hold back as one count, as every notice of held
+  // news does (held-news.js, `newsCount`), its title each fact.
   present(threads, nodes) {
     this.#threads = threads;
     const held = threads.flatMap(({ news }) => (news ? [news] : []));
-    const notice =
-      held.length > 1
-        ? `${held.length} ${held.every(({ reopened }) => reopened) ? "reopened" : "changed"}`
-        : (held[0]?.label ?? null);
+    const total = held.reduce((sum, news) => sum + news.total, 0);
+    const notice = total ? newsCount(total) : null;
     render(
       html`Resolved ·
       ${threads.length}${
         notice
           ? html` ·
-              <span data-lf-news>${notice}</span>`
+              <span data-lf-news title=${held.map(({ label }) => label).join(" · ")}
+                >${notice}</span
+              >`
           : ""
       }`,
       this.summary,

@@ -481,7 +481,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     for words in ("First words and more", "First words and more of them"):
         stream_reply(serve.page_dir, root, words)
         told(page)
-        expect(notice).to_have_text("1 new reply")
+        expect(notice).to_have_text("1 new")
         expect(drawn).to_have_text("First words")
 
     thread_model.post_reply(
@@ -494,14 +494,14 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
-    expect(notice).to_have_text("1 new reply")
+    expect(notice).to_have_text("1 new")
     expect(drawn).to_have_text("First words")
 
     # A later reading compares against the held drawing, which still stands for the
     # streaming reply the answer completed rather than an answer since reworded.
     append_user_reply(serve.page_dir, root, "Sent from my other tab")
     told(page)
-    expect(notice).to_have_text("1 new reply · 1 new message")
+    expect(notice).to_have_text("2 new")
     notice.click()
     expect(drawn).to_have_text("Recorded the release on the board.")
     expect(thread.locator(".lf-msg.user")).to_have_count(2)
@@ -794,12 +794,11 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     expect(words).to_contain_text("what each one needs before it can start")
 
 
-def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
-    """A seat's notice keeps the width of the news it first said, with room at its end
-    for a count. News that grows past it shows its first fact whole and drops the
-    later one, which the notice's name still says, rather than cutting the first fact
-    mid-word ("1 new re…"). The count says "+1" in the room the notice kept, so a
-    reader with no tooltip knows more waits; the name doesn't repeat it."""
+def test_held_news_says_one_count_of_all_it_holds(browser, serve):
+    """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
+    width it first stood at, and its name says each fact. It said the facts and, past
+    its room, dropped the later ones behind a "+1", so one piece of news read three
+    ways on three surfaces."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -815,80 +814,19 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_be_visible()
+    expect(notice).to_have_text("1 new")
     rendered(page)
-    # Dropping a later fact must not cut a first fact that already fit.
-    assert notice.locator(":scope > span > span").evaluate(
-        "fact => fact.scrollWidth <= fact.clientWidth"
-    )
     width = notice.bounding_box()["width"]
-    expect(notice.locator(":scope > span")).not_to_have_attribute(
-        "data-lf-more", re.compile(".*")
-    )
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
     notice = thread.get_by_role(
         "button", name="1 new reply · 1 new message", exact=True
     )
-    expect(notice).to_be_visible()
+    expect(notice).to_have_text("2 new")
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
-    words = notice.locator(":scope > span")
-    expect(words).to_have_attribute("data-lf-more", "+1")
-    # The count draws in the room the notice kept past the words it follows.
-    count = words.evaluate(
-        """words => {
-            const after = getComputedStyle(words, "::after");
-            const start = words.getBoundingClientRect().right;
-            return {content: after.content, end: start + parseFloat(after.width),
-                right: words.parentElement.getBoundingClientRect().right};
-        }"""
-    )
-    assert count["content"] == '"+1" / ""', count
-    assert count["end"] <= count["right"] + 0.5, count
-    facts = notice.locator(":scope > span > span")
-    assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
-    # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
-    assert facts.nth(1).evaluate(
-        """fact => {
-            const box = fact.getBoundingClientRect();
-            const hit = fact
-                .getRootNode()
-                .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-            return !fact.contains(hit);
-        }"""
-    )
-
-
-def test_held_news_shows_every_fact_its_notice_first_said(browser, serve):
-    """A seat's notice that first says two facts keeps both on its line. Its room
-    measures the news as one line and the facts measure it in pieces, a fraction of a
-    pixel wider, which dropped the last fact and left a gap where it fit."""
-    url = serve(SEATED_OBLIGATION_PAGE)
-    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    thread = page.locator("#jobs .lf-page-thread")
-    expect(thread).to_be_visible()
-    write(thread.locator("leaf-text"), "Start with the mounts.")
-    rendered(page)
-
-    thread_model.post_reply(
-        serve.page_dir, {"responds": root}, "The mounts come first."
-    )
-    append_user_reply(serve.page_dir, root, "And the bird bath?")
-    told(page)
-    notice = thread.get_by_role(
-        "button", name="1 new reply · 1 new message", exact=True
-    )
-    expect(notice).to_have_attribute("data-room", "1 new reply · 1 new message")
-    rendered(page)
-    words = notice.locator(":scope > span")
-    assert words.evaluate(
-        "words => [...words.children].map(fact => fact.offsetTop)"
-    ) == [0, 0]
-    expect(words).not_to_have_attribute("data-lf-more", re.compile(".*"))
 
 
 def test_a_streaming_answer_hides_the_working_message_and_its_progress(
@@ -1047,7 +985,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     )
     told(page)
     expect(receipt).to_have_count(0)
-    news = page.locator(PANEL_NEWS).filter(has_text="1 new reply")
+    news = page.locator(PANEL_NEWS).filter(has_text="1 new")
     if news.count():
         news.click()
     expect(card.locator(".lf-msg").filter(has_text="Cache is done")).to_be_visible()

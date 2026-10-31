@@ -898,7 +898,7 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
         )
     told(page)
     notice = page.locator(".lf-fp-controls .lf-thread-news")
-    expect(notice).to_have_text("2 new replies")
+    expect(notice).to_have_text("2 new")
     expect(view.locator(".lf-msg")).to_have_count(1)
     settled(page)
     assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -2406,7 +2406,7 @@ def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, 
     expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
     agent_said(serve.page_dir, root, "Forty-eight hours covers the first cohort.")
     told(page)
-    expect(reader.locator(".lf-msg-head .lf-thread-news")).to_have_text("1 new reply")
+    expect(reader.locator(".lf-msg-head .lf-thread-news")).to_have_text("1 new")
     expect(reader.locator(".lf-msg")).to_have_count(1)
     assert page.evaluate("() => window.reader.primary")
 

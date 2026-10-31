@@ -331,7 +331,9 @@ leaf-composition-field {
 .lf-compose-dictate[data-dictation="failed"]:hover::before {
   background: var(--danger-tint);
 }
-.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash {
+/* The microphone's slash marks a dictation that failed, so any microphone not on a failed
+   press draws without it. */
+:not([data-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
   display: none;
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -583,7 +585,7 @@ button.lf-media-open {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
 /* A message's rewrite is a comment box standing where the message stood (browser/
-   AGENTS.md, "Editing in place"): every line of its words keeps its place and its
+   AGENTS.md, "Typed words survive"): every line of its words keeps its place and its
    breaks, its pictures stand under them as the message draws them (`sentMedia`,
    input.js), and the field's frame goes around both, in the room around the message's
    content. The frame reaches back over the words' inset, and over the room after their

@@ -52,7 +52,8 @@ lf-playground:has(> .lf-playground-split) {
 
 @container (width < 43.5rem) {
   .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    /* The bar's row is implicit, so a page that draws its own actions leaves none. */
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .lf-playground-controls-region {
     grid-row: 1;
@@ -140,27 +141,28 @@ lf-playground:has(> .lf-playground-split) {
     }
 
     /* The bar takes its content's height (`max-content`), since a box that scrolled
-     * inside the scrolling workspace would hide its end behind two scrolls. */
+     * inside the scrolling workspace would hide its end behind two scrolls. Its row
+     * is implicit, so a page that draws its own actions leaves no empty row. */
     .lf-playground-split:not(
       :has(
         > .lf-playground-controls-region,
         > .lf-playground-rail > .lf-playground-controls-region
       )
     ) {
-      grid-template-rows: minmax(max(12rem, 50dvh), 1fr) max-content;
+      grid-template-rows: minmax(max(12rem, 50dvh), 1fr);
+      grid-auto-rows: max-content;
     }
 
     /* A presets pane with no controls beside it heads the stage. */
     .lf-playground-split:has(> .lf-playground-controls-region) {
-      grid-template-rows:
-        minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr)
-        max-content;
+      grid-template-rows: minmax(min-content, auto) minmax(max(12rem, 50dvh), 1fr);
+      grid-auto-rows: max-content;
     }
 
     @container (min-width: 43.5rem) {
       .lf-playground-rail:has(> .lf-playground-controls-region) {
         align-self: stretch;
-        grid-template-rows: minmax(12rem, 1fr) auto;
+        grid-template-rows: minmax(12rem, 1fr);
       }
     }
   }
@@ -413,7 +415,7 @@ lf-playground-value {
 /* The instruction opens from the bar as a popover (lf-playground.js), at the middle of
  * the window as a popover stands by default, so no anchor ties it to a bar that may be
  * stuck in a sticky rail, where Firefox draws an anchored box at the target's unstuck
- * place (notes/browser-support.md). It is a card in the panel's voice: its title in
+ * place (notes/browser-support.md). It is a card in the panel's fonts: its title in
  * small capitals over the instruction, which scrolls in the room the window leaves. The
  * bar's child selector outweighs a framed box's trim of its last child's margin. */
 .lf-playground-actions > .lf-playground-instruction {

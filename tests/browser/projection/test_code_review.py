@@ -14,6 +14,7 @@ from render_cases_navigation import call_diff, call_node, source_revision
 from render_harness import (
     leaf_page,
     open_page,
+    panel_field,
     panel_settled,
     refuse,
     reported_browser_errors,
@@ -35,6 +36,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import scroll_settled
 from leaf_dev.example_data import patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -451,6 +453,76 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
             expect(page.locator(".lf-live")).to_have_text(
                 f"Opened {path}:{number} in the exact patch"
             )
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_missing_call_location_keeps_the_reader_at_the_source(browser, serve, touch):
+    """An unavailable line explains itself without navigating to an unrelated file."""
+    url = serve(
+        leaf_page(
+            "source navigation",
+            '<h1 id="title">Calls</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<div style="height: 1600px"></div>'
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -8 +8 @@\n-before()\n+after()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        call_diff(
+            call_node("outside_patch()", "app.py", 1),
+            call_node("after()", "app.py", 8, status="added"),
+        ),
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}
+        if touch
+        else {"width": 900, "height": 600},
+        has_touch=touch,
+    )
+    page = open_page(browser, url, context=context)
+    missing = page.get_by_role("link", name="app.py:1", exact=True)
+
+    def read_place():
+        return page.evaluate(
+            "({scroll: scrollY, url: location.href, history: history.length})"
+        )
+
+    def visit_missing():
+        missing.scroll_into_view_if_needed()
+        missing.focus()
+        scroll_settled(page)
+        before = read_place()
+        if touch:
+            missing.tap()
+        else:
+            missing.press("Enter")
+        message = "app.py:1 is not present in the exact patch"
+        expect(panel_field(page)).to_have_attribute("placeholder", message)
+        expect(page.locator(".lf-live")).to_have_text(message)
+        expect(missing).to_be_focused()
+        assert read_place() == before
+
+    visit_missing()
+    available = page.get_by_role("link", name="app.py:8", exact=True)
+    available.click()
+    expect(
+        page.get_by_role("button", name="Comment on app.py · new line 8")
+    ).to_be_in_viewport()
+    page.go_back()
+    expect(available).to_be_in_viewport()
+    visit_missing()
+    # The same failed-navigation contract holds if the target leaves the document.
+    page.locator("#patch").evaluate("node => lfUnwatched(() => node.remove())")
+    visit_missing()
 
 
 def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser, serve):

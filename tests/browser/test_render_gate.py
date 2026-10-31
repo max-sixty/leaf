@@ -171,8 +171,8 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
                         {startTime: 0, value: .1, sources: []},
                         {startTime: 500, value: .2, sources: [{
                             node: document.querySelector('#shifted'),
-                            previousRect: new DOMRect(0, 10, 100, 20),
-                            currentRect: new DOMRect(0, 60, 100, 20),
+                            before: {x: 0, y: 10, width: 100, height: 20},
+                            after: {x: 0, y: 60, width: 100, height: 20},
                         }]},
                         {startTime: 2000, value: .15, sources: []},
                     ],
@@ -4491,3 +4491,32 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     assert wide["beside"], (
         f"a window wide enough for both moved the notes anyway: {wide}"
     )
+
+
+def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serve):
+    """An HTML template appended under SVG is not an SVG label; it must not
+    crash the label probe or hide the genuine small SVG label beside it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Mixed drawing namespaces",
+                '<svg id="drawing" viewBox="0 0 1000 100" '
+                'style="width:250px;font-size:20px">'
+                '<text x="10" y="30">SVG label</text><g></g></svg>',
+            )
+        ),
+    )
+    # Lit's html template creates HTML elements even when its result is rendered
+    # into an SVG parent; the svg template is what creates SVG elements.
+    page.locator("#drawing").evaluate("""async drawing => {
+      const {html, render} = await window.__lfWidgetApi();
+      render(html`<text>HTML template content</text>`, drawing.querySelector('g'));
+    }""")
+    reading = render_checks_model.evaluate_probe(page, "shrunkLabelReading")
+    assert reading["threshold_px"] == 10
+    [drawing] = reading["drawings"]
+    assert drawing["labels"] == 1
+    assert drawing["words"] == "SVG label"
+    assert drawing["set"] == 20
+    assert drawing["drawn"] == 5

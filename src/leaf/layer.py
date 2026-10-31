@@ -628,8 +628,10 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
     the protocol covers only what a page keeps across Leaf versions: its event log
     and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
-    at a higher number is refused as `newer-layer`, since its repair is a newer
-    Leaf: this one does not take it down (`vendoring._plan_page`). For a page at an
+    at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
+    layer record a newer Leaf wrote at a later shape, before this reading
+    (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
+    does not take it down (`vendoring._plan_page`). For a page at an
     older number, the holding session's prompt and Stop hooks, and each of its
     commands that names the page, take it to this Leaf's number first
     (`vendoring.renew_layer`). Every server of the page's files, the website's
@@ -639,15 +641,31 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     recorded = record.get("protocol")
     if type(recorded) is int and recorded == kernel_protocol():
         return None
-    values = {
-        "page": str(page_dir),
-        "recorded": recorded if recorded is not None else "none",
-        "leaf": str(PLUGIN_ROOT),
-        "protocol": kernel_protocol(),
-    }
     if type(recorded) is int and recorded > kernel_protocol():
-        return Finding("newer-layer", values=values)
-    return Finding("foreign-layer", values=values)
+        return newer_layer(page_dir)
+    return Finding(
+        "foreign-layer",
+        values={
+            "page": str(page_dir),
+            "recorded": recorded if recorded is not None else "none",
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
+    )
+
+
+def newer_layer(page_dir: Path) -> Finding:
+    """The refusal of a page a newer Leaf initialized, at a higher page protocol or
+    a later shape of its layer record (`registry.storage.layer_record`). Its repair
+    is that newer Leaf, since this one does not take the page down."""
+    return Finding(
+        "newer-layer",
+        values={
+            "page": str(page_dir),
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
+    )
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

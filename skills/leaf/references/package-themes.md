@@ -13,7 +13,8 @@ Leaf bundles one theme, `reading`: the reading look, which styles the body's typ
 colour and the idioms such as `.callout`, and turns on the reading face markup wears
 in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
 disclosures, definitions, rules and pictures) by setting `--lf-reading-face: 1` on the
-root. A new page
+root. The face's rules rank below every other rule of `lf-base`, so a theme's or
+package's rule for one of those elements outranks them whatever its weight. A new page
 takes it unless the user names another default. A page that takes none
 (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing of the
 look reaches it, while Leaf's widgets, threads and panel keep their own faces. A page
@@ -161,8 +162,8 @@ with the page. To restyle one of them alone, name it by its part:
 
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
-cards their own ground and corners. Each part resolves the chrome's voices again
-(`--voice-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+cards their own ground and corners. Each part resolves the chrome's fonts again
+(`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
 reaches every word the surface shows.
 
 Any other property, such as `letter-spacing` or `display`, goes in the package's
@@ -200,7 +201,7 @@ choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`, `--muted-2`; `--rule`, `--border-2`                                                                                    |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
 | Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |

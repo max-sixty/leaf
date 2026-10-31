@@ -842,7 +842,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         )
     )
     assert "system-ui" in raised["font"], (
-        f"the response bar speaks in the document's voice: {raised['font']}"
+        f"the response bar is set in the document's font: {raised['font']}"
     )
     assert (
         page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")

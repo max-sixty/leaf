@@ -522,11 +522,11 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     expect(preview).to_be_visible()
     editor = preview.get_by_role("textbox", name="Reply", exact=True)
     editor.click()
-    write(editor, "A first line.")
+    write(editor, "A first line.\n")
     rendered(page)
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("A second line grows the card.")
+    # The line given up shrinks the card over the tween.
+    page.keyboard.press("Backspace")
     page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
     close = preview.locator(".lf-margin-preview-close").bounding_box()
     page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
@@ -536,10 +536,10 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     browser, serve
 ):
-    """While the card grows with its reply field, the field's focus ring is drawn
-    whole where the field stood, from the motion's first frame. The field's own paper
-    already stood at its grown size, over the ring's lower edge, until the ring had
-    nearly reached its rest."""
+    """A line typed into a card's reply grows the field in the frame the key lands
+    (box-motion.js, "Whose change it is"), its focus ring drawn whole at its new size
+    in that frame. While the growth travelled, the field's own paper stood at its grown
+    size over the ring's lower edge until the ring had nearly reached its rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -552,14 +552,20 @@ def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(
     rendered(page)
     page.wait_for_function(CARD_AT_REST)
     field = preview.locator(".lf-thread-reply .lf-compose-field")
-    stood = field.bounding_box()
+    before = field.bounding_box()
     ring = field.evaluate(
         "node => getComputedStyle(node).outlineColor.match(/\\d+/g).map(Number)"
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("Shift+Enter")
-    page.wait_for_function("() => window.__lfHeld.some(m => m.playState !== 'idle')")
-    assert field.bounding_box()["height"] > stood["height"] + 10, "the field never grew"
+    page.wait_for_function(
+        "height => document.querySelector('.lf-margin-preview .lf-thread-reply"
+        " .lf-compose-field').getBoundingClientRect().height > height",
+        arg=before["height"] + 10,
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    assert not page.evaluate("() => __lfHeld.some(m => m.playState !== 'idle')")
+    stood = field.bounding_box()
     pixels = Image.open(
         BytesIO(
             page.screenshot(
@@ -694,7 +700,8 @@ def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats)
 def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visible(
     browser, serve
 ):
-    """The attachment keeps its own row above the editor in a bounded card."""
+    """The attachment keeps its own row above the editor in a bounded card, standing
+    the shelf's gap clear of the ring the field wears."""
     page, preview, editor, transcript = long_thread_in_reply(browser, serve)
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     editor.evaluate(
@@ -710,6 +717,23 @@ def test_a_margin_reply_with_a_pasted_image_keeps_its_editor_and_attachment_visi
     )
     image = preview.locator(".lf-composer-media img")
     expect(image).to_have_count(1)
+    rendered(page)
+    clearance = image.evaluate(
+        """image => {
+          const field = image.closest('.lf-thread-reply').querySelector('.lf-compose-field');
+          const ring = Math.max(...[field, field.querySelector('leaf-text')].map(box => {
+            const style = getComputedStyle(box);
+            return style.outlineStyle === 'none'
+              ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+          }));
+          const shelf = getComputedStyle(image.closest('.lf-composer-media'));
+          return {ring, gap: parseFloat(shelf.getPropertyValue('--lf-media-gap')),
+                  clear: field.getBoundingClientRect().top - ring
+                    - image.getBoundingClientRect().bottom};
+        }"""
+    )
+    assert clearance["ring"] > 0, clearance
+    assert clearance["clear"] >= clearance["gap"] - 0.5, clearance
     write(
         editor, "\n".join(f"A reply with several lines, line {n}." for n in range(30))
     )
@@ -936,6 +960,122 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
         "() => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > 0"
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+
+
+# macOS draws the transcript's scrollbar as an overlay, which takes no room; a styled
+# one takes room on every host, as Linux and Windows, or macOS with a mouse, draw it.
+# Chromium styles a bar with `::-webkit-scrollbar` only once the standard properties
+# are unset.
+TRANSCRIPT_BAR_TAKES_ROOM = """(() => {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`
+    .lf-margin-thread .lf-thread-transcript {
+      scrollbar-width: auto !important;
+      scrollbar-color: auto !important;
+    }
+    .lf-margin-thread .lf-thread-transcript::-webkit-scrollbar { width: 11px; }`);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+})()"""
+
+
+# Where the transcript's words stand against its scrollbar, and how far it scrolls
+# sideways.
+CLEARANCE = """list => {
+  const box = list.getBoundingClientRect();
+  const inside = box.left + list.clientLeft + list.clientWidth;
+  list.scrollLeft = list.scrollWidth;
+  const sideways = list.scrollLeft;
+  list.scrollLeft = 0;
+  return {
+    scrolls: list.scrollHeight > list.clientHeight,
+    bar: list.offsetWidth - list.clientWidth,
+    sideways,
+    under: Math.max(...[...list.querySelectorAll('.lf-msg-body')].map(
+      body => body.getBoundingClientRect().right - inside)),
+  };
+}"""
+
+
+def opened_transcript(browser, serve, events):
+    """The open card's transcript, on a page whose scrollbars take room."""
+    page = open_page(
+        browser,
+        serve(LONG_THREAD_PAGE, events=events),
+        init_script=TRANSCRIPT_BAR_TAKES_ROOM,
+    )
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
+    expect(transcript).to_be_visible()
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => "
+        "requestAnimationFrame(done)))"
+    )
+    return transcript
+
+
+def test_a_card_that_fits_keeps_no_room_for_a_scrollbar(scrollbar_browser, serve):
+    """A transcript that fits keeps no room for a scrollbar, so its words wrap as
+    wide as the draft they were sent from."""
+    transcript = opened_transcript(scrollbar_browser, serve, [LONG_THREAD_ROOT])
+    reading = transcript.evaluate(CLEARANCE)
+    assert not reading["scrolls"], reading
+    assert reading["bar"] == 0, reading
+    assert reading["sideways"] == 0, reading
+
+
+def test_a_card_that_scrolls_gives_its_scrollbar_room(scrollbar_browser, serve):
+    """A transcript that scrolls gives its bar room, so its words stand clear of the
+    bar and it scrolls only down. A picture that room narrows is shorter, so a turn
+    can overflow without the room and fit with it; the card keeps the room rather
+    than dropping it and taking it back every frame."""
+    transcript = opened_transcript(scrollbar_browser, serve, LONG_THREAD)
+    reading = transcript.evaluate(CLEARANCE)
+    assert reading["scrolls"], reading
+    assert reading["bar"] > 0, reading
+    assert reading["sideways"] == 0, reading
+    assert reading["under"] <= 0, reading
+
+    # The last turn holds only a picture, shaped to overflow by 6px at the width it
+    # has without the gutter, so the gutter's narrowing makes it fit.
+    reading = transcript.evaluate(
+        """list => new Promise(done => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync(`
+            .lf-thread-transcript > :not(:nth-last-child(1 of .lf-msg)),
+            .lf-msg-body > :not(.picture) { display: none; }`);
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+          const picture = document.createElement('div');
+          picture.className = 'picture';
+          picture.style.cssText = 'width: 100%; aspect-ratio: 1 / 4';
+          list.querySelector(':scope > :nth-last-child(1 of .lf-msg) .lf-msg-body')
+            .append(picture);
+          const gutter = list.offsetWidth - list.clientWidth;
+          const width = picture.getBoundingClientRect().width;
+          const rest = list.scrollHeight - picture.getBoundingClientRect().height;
+          const ratio = (list.clientHeight + 6 - rest) / (width + gutter);
+          let changes = 0;
+          new MutationObserver((records) => (changes += records.length)).observe(
+            list, {attributeFilter: ['data-lf-overflows']});
+          picture.style.aspectRatio = `1 / ${ratio}`;
+          let frames = 20;
+          const step = () => {
+            if (frames--) return requestAnimationFrame(step);
+            list.scrollLeft = list.scrollWidth;
+            done({
+              changes,
+              shrink: ratio * gutter,
+              fits: list.scrollHeight <= list.clientHeight,
+              sideways: list.scrollLeft,
+            });
+          };
+          step();
+        })"""
+    )
+    assert reading["shrink"] > 6, reading
+    assert reading["fits"], reading
+    assert reading["changes"] <= 1, reading
+    assert reading["sideways"] == 0, reading
 
 
 def test_anchored_thread_reading_keys_and_page_return(browser, serve):

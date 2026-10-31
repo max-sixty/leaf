@@ -381,6 +381,20 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
+    # A neighbour under the shadow button's ring is clean above. A real cover at
+    # the same point must still be reported when the screenshot confirms its paint.
+    shadow_button.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      const band = document.body.appendChild(document.createElement('div'));
+      band.id = 'shadow-ring-cover';
+      band.style.cssText = `position: fixed; z-index: 99999; background: red;
+        left: ${b.left}px; top: ${b.top - parseFloat(s.outlineOffset) - parseFloat(s.outlineWidth)}px;
+        width: ${b.width}px; height: ${s.outlineWidth};`;
+    }""")
+    assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
+    page.locator("#shadow-ring-cover").evaluate("el => el.remove()")
+
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
         "retargeting focus to the widget host drew a second ring around its button"
     )

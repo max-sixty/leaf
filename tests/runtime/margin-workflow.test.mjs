@@ -40,7 +40,7 @@ test("margin workflow paint distinguishes live work from conditioned history", (
 });
 
 test("a reply streaming paints the working face under its own word", () => {
-  // Threads says Replying for this receipt (`workflowLabel`); the margin and Page Map
+  // Threads says Replying for this receipt (`workflowWord`); the margin and Page Map
   // control carrying it says the same, under the face it shares with work.
   const control = document.createElement("button");
   presentContributionReceipts(control, workflow("replying"), false);

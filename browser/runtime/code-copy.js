@@ -22,11 +22,11 @@
    The control follows the common pattern for code copy: hidden at rest, and shown while
    a pointer is over the block or the user is on it. A finger has no hover, so a tap on
    the block stands the user on it and shows the control, the touch form of the same
-   reveal. Shown, it is a toolbar of one mark whose middle lies on the block's top
-   border at its right (integration.css, `.lf-mark-bar`), the face and seat a draft's
-   toolbar wears, so it covers the border and padding rather than the first line's last
-   words. The control takes no room, since room made for it would move the page's
-   content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content"). */
+   reveal. Shown, it is a toolbar of one mark (integration.css, `.lf-mark-bar`) just
+   inside the block's top-right corner, so whatever shows the block shows it whole, and
+   it covers the first line's last words only while it shows. The control takes no
+   room, since room made for it would move the page's content (`../AGENTS.md`,
+   "Nothing Leaf draws moves the page's content"). */
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {

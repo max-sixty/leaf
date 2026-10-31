@@ -214,7 +214,7 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
-        "attention": {"const": True},
+        "attention": {"type": "boolean"},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
         "contract": {

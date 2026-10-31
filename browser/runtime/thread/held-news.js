@@ -1,7 +1,7 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
    These holds protect existing reading and active composition
-   (`browser/AGENTS.md`, "Layout and motion"). Each surface's rule below
+   (`browser/AGENTS.md`, "Leaf's interface"). Each surface's rule below
    determines which surrounding content may move as messages arrive. A held change
    shows when a gesture takes the user to it. A hidden tab ends that reading. Returning reveals its held
    news and its first refreshed reading through the shared reading-continuity owner;
@@ -220,7 +220,8 @@ function messageChange(prior, message) {
 // folded when the agent's answer arrives, moves what it covers but is that reply's news,
 // so the notice does not count it, and where it folds the run standing at the thread's
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
-// says the news is the agent answering the user, who had the last turn as drawn: all of
+// names the user's turn and the first reply answering it (null while only work
+// has arrived), when the user had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. `joined` names new messages and existing streamed
@@ -325,8 +326,11 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     (message) => message.author === "user" && !message.progress,
   );
   const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
-  const answers =
-    turn >= 0 &&
+  const currentTurn = now.messages.findIndex(
+    (message) => message.key === was.messages[turn]?.key,
+  );
+  const answering =
+    currentTurn >= 0 &&
     was.messages
       .slice(turn + 1)
       .every((message) => message.progress || message.provisional) &&
@@ -338,6 +342,14 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     !folds.summaries.length &&
     (!news.appended || appendedAtEnd) &&
     ![...changed, ...folds.messages].some((key) => asked.has(key));
+  const answers = answering
+    ? Object.freeze({
+        turn: was.messages[turn].key,
+        reply:
+          now.messages.slice(currentTurn + 1).find((message) => !message.progress)
+            ?.key ?? null,
+      })
+    : null;
   return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
 }
 
@@ -456,6 +468,9 @@ export function newsNotice(header = false) {
   );
   keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
+  // The news is Leaf's, every fact and count of it, so the words wear Leaf's voice
+  // whole, as the panel's field does a reading all Leaf says (voice.js).
+  words.dataset.voice = "leaf";
   node.append(words);
   // A dropped fact wraps onto a line below the first (components/surfaces.css). The
   // count stands just past the last fact shown, which a notice bounded wider than the
@@ -469,9 +484,11 @@ export function newsNotice(header = false) {
     // A fact a pixel short is the room's own rounding (surfaces.css), not a cut.
     let short = null;
     if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
-      const style = getComputedStyle(node);
-      const room = node.clientWidth - parseFloat(style.paddingInlineStart);
-      const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const room =
+        node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
+      // The short form is drawn in the words' face, Leaf's, not the press's.
+      const face = getComputedStyle(words);
+      const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
       short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
     }
     keeps(words, "data-lf-short", short);
@@ -675,7 +692,7 @@ export class HeldNews {
               })
             : null;
         if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
-          return { ...thread, news: null };
+          return { ...thread, news: null, change: held };
         this.#holds.add(thread.key);
         // What the news changes stands as drawn. A held reopening's notice stands
         // where Reopen did, since opening it is what reopening would show.
@@ -687,6 +704,7 @@ export class HeldNews {
           working: news.working ? was.working : thread.working,
           ...(news.settled === "Reopened" && { settlement: null }),
           news,
+          change: null,
         };
       });
     const waiting = this.#threads.size;
@@ -893,7 +911,7 @@ export class HeldReading {
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample does on input inside its child (lf-sample.js). */
+ *  live sample does on a click or key inside its child (lf-sample.js). */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();

@@ -422,12 +422,6 @@ def mark_declared(
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
     edits = []
-    members = {
-        member
-        for holder in tree.find_all(True)
-        if (views := registry.get(holder.tag, {}).get("x-views"))
-        for member in holder.select(f":scope > :is({views['members']})")
-    }
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
@@ -439,7 +433,7 @@ def mark_declared(
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
-        marks = {"data-lf-view": ""} if element in members else {}
+        marks = {}
         for key, mark in kernel_marks().items():
             declared = (
                 exhibits(attrs, declaration)
@@ -457,6 +451,8 @@ def mark_declared(
             else:
                 continue
             if key == "x-views":
+                # Only the browser evaluates view selectors, including before modules.
+                marks["data-lf-view-members"] = declaration[key]["members"]
                 value = "parts" if declaration[key].get("parts") else ""
             marks[mark["paint"]] = value
         sizes = [

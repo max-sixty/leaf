@@ -12,7 +12,8 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
 Leaf's canonical vocabulary and guidance for visible text. A control may
-need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
+need no words at all (`<root>/browser/AGENTS.md`, "Controls are few and quiet"). Before
+changing anything Leaf draws, read that file's "Leaf's interface".
 
 ## Take a backlog item
 
@@ -83,12 +84,13 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste goes in the shipped instructions as a goal with its reason, so the
-authoring agent weighs it against its own page. A CSS rule, validator or Layout that
-fixes how many tiles share a row overrides every page that needs another number. A
-check may report what it sees, as the render check names where a tile row wraps, and
-leave the decision to the agent.
+the user relies on, such as a gesture being recorded or a pressed control staying where
+it was (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
+in the shipped instructions as a
+goal with its reason, so the authoring agent weighs it against its own page. A CSS
+rule, validator or Layout that fixes how many tiles share a row overrides every page
+that needs another number. A check may report what it sees, as the render check names
+where a tile row wraps, and leave the decision to the agent.
 
 `page check` and its render checks enforce Leaf's page contracts: they report widget
 initialization failures and unintended clipping of content or controls.

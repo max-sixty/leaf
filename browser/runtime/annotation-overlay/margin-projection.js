@@ -108,7 +108,7 @@ import {
 import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
+import { cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -277,30 +277,10 @@ export function createMarginProjection({
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   // A core reading can change between a disclosure and a status while retaining the
-  // user's place. Its stable span owns the native-like press it needs while actionable;
-  // ordinary contributed commands remain native buttons.
-  const readingControl = (className) => {
-    const control = offer("span", className);
-    keys(
-      control,
-      "On a margin entry",
-      [
-        {
-          id: "margin.press",
-          keys: PRESS,
-          title: "open / close",
-          run: () => control.click(),
-        },
-      ],
-      {
-        when: () => {
-          const record = contributionEntryRecord(control);
-          return record.behavior === "disclosure" && !record.disabled;
-        },
-      },
-    );
-    return control;
-  };
+  // user's place, so it is a stable span rather than a button; ordinary contributed
+  // commands remain native buttons. While it is a press, Enter and Space press it as
+  // they would a button (role-button-press.js), and as a status nothing presses it.
+  const readingControl = (className) => offer("span", className);
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -850,11 +830,10 @@ export function createMarginProjection({
         key: `reading:${choice?.key ?? "none"}`,
         icon: face.icon,
         label: readingLabel(choice),
-        // A lone receipt's label is its workflow's word, said in that workflow's voice;
-        // a group's is its kind's.
-        voice: face.voice ?? "agent",
-        context: line?.text ?? null,
-        contextVoice: line?.voice ?? null,
+        // A lone receipt's label is its workflow's word, said by whoever says it; a
+        // group's is its kind's name.
+        voice: face.voice ?? null,
+        context: line,
         behavior,
         rank: "reading",
         state: readingState(choice),

@@ -34,17 +34,16 @@ html[data-lf-draw-mode] main {
     cursor: auto;
   }
 }
-/* A block's marks (Copy, a draft's editing controls) stand on one small toolbar whose
-   middle lies on the block's border at its right, so it covers the border and padding
-   rather than a word and takes no room: a patch of the card ground with a ring and a
-   lift, its marks (controls.css, `.lf-mark-action`) 1px inside it. Its marks stand a reach
-   apart, so neighbouring reaches meet rather than overlap and the finger's wider
-   reach widens only the toolbar. A code block's Copy is such a toolbar of one mark, on
-   the block's top border; a draft's toolbar (draft.css) wears the same face in the
-   same seat. `--lf-mark-bar-end` is how far in from the block's outer right edge the
-   toolbar stands. */
+/* A block's marks (Copy, a draft's editing controls) stand on one small toolbar inside
+   the block's top-right corner, `--lf-block-control-inset` from both edges, taking no
+   room: a patch of the card ground with a hairline ring, its marks (controls.css,
+   `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
+   the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
+   reaches meet rather than overlap and the finger's wider reach widens only the
+   toolbar. A code block's Copy is such a toolbar of one mark; a draft's toolbar
+   (draft.css) stands in the same seat. */
 :root {
-  --lf-mark-bar-end: 8px;
+  --lf-block-control-inset: 4px;
 }
 .lf-mark-bar,
 .lf-code-copy {
@@ -55,21 +54,24 @@ html[data-lf-draw-mode] main {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
-  box-shadow: var(--raise-1);
 }
 /* Copy stands over its code without changing the block's box or scrolling its text.
-   Hover, keyboard focus, or a tap that stands the user on the source reveals it
-   (code-copy.js). Hidden, it takes no presses, so a finger selecting the words beneath
-   it reaches them. Its toolbar is its mark, its padding and its ring. */
+   Standing within its block, it shows whole wherever the block does: on the block's
+   top border, a pane that clipped the block's surroundings cut it in half or hid it.
+   While it shows it covers the first line's last words, which a pointer leaving the
+   block uncovers. Hover, keyboard focus, or a tap that stands the user on the source
+   reveals it (code-copy.js). Hidden, it takes no presses, so a finger selecting the
+   words beneath it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
   --lf-code-copy-box: calc(var(--mark-size) + 4px);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) - var(--lf-code-copy-box) / 2 + var(--lf-block-control-dy, 0px)
+    anchor(top, -9999px) + var(--lf-block-control-inset) +
+      var(--lf-block-control-dy, 0px)
   );
   left: calc(
-    anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-code-copy-box) +
+    anchor(right, -9999px) - var(--lf-block-control-inset) - var(--lf-code-copy-box) +
       var(--lf-block-control-dx, 0px)
   );
   width: var(--lf-code-copy-box);
@@ -114,13 +116,12 @@ html[data-lf-draw-mode] main {
   padding: 0;
   border: 0;
   background: none;
-  box-shadow: none;
   opacity: 1;
   pointer-events: auto;
 }
-/* The ring is the shadow button's, and so is the focus a Tab reveals: it stands half
-   above its block, where a scroller's edge can meet it, so it keeps the ring's room as a
-   focused control in the page does (shadow.css, `:focus`). */
+/* The ring is the shadow button's, and so is the focus a Tab reveals, which the page's
+   landing room (surfaces.css, `:focus`) doesn't reach inside the vendor's tree, so the
+   part keeps the ring's room at a scroller's edge itself. */
 .lf-code-copy::part(button) {
   scroll-margin: var(--focus-ring-landing);
 }
@@ -176,18 +177,18 @@ html[data-lf-draw-mode] main {
    picture. */
 :root {
   --lf-video-bar-h: var(--lf-line);
-  --lf-video-bar-inset: 4px;
 }
 .lf-video-controls {
   position: absolute;
   top: calc(
-    anchor(bottom, -9999px) - var(--lf-video-bar-h) - var(--lf-video-bar-inset) +
+    anchor(bottom, -9999px) - var(--lf-video-bar-h) - var(--lf-block-control-inset) +
       var(--lf-block-control-dy, 0px)
   );
   left: calc(
-    anchor(left, -9999px) + var(--lf-video-bar-inset) + var(--lf-block-control-dx, 0px)
+    anchor(left, -9999px) + var(--lf-block-control-inset) +
+      var(--lf-block-control-dx, 0px)
   );
-  width: calc(anchor-size(width, 0px) - 2 * var(--lf-video-bar-inset));
+  width: calc(anchor-size(width, 0px) - 2 * var(--lf-block-control-inset));
   height: var(--lf-video-bar-h);
   box-sizing: border-box;
   display: flex;
@@ -239,7 +240,7 @@ html[data-lf-draw-mode] main {
   accent-color: var(--accent);
 }
 .lf-msg-body a.detached {
-  color: var(--muted-2);
+  color: var(--muted);
   text-decoration: underline dashed;
   cursor: default;
 }
@@ -249,7 +250,7 @@ html[data-lf-draw-mode] main {
 }
 
 .lf-suggest-label {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 
 .lf-react-said {

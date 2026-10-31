@@ -8558,10 +8558,23 @@ function standingFor(block, current) {
 	}
 	return null;
 }
+const MAX_BLOCK_EDITS = 1e3;
+const heldAnywhere = (before, after) => {
+	const held = /* @__PURE__ */ new Map();
+	for (const key of before) held.set(key, (held.get(key) ?? 0) + 1);
+	return after.map(([, key]) => {
+		const left = held.get(key) ?? 0;
+		if (left) held.set(key, left - 1);
+		return {
+			value: [key],
+			added: !left
+		};
+	});
+};
 function changedSince(base, current = currentSource()) {
 	const before = diffBlocks(base.root).map(([, key]) => key);
 	const after = diffBlocks(current.root);
-	const parts = diffArrays(before, after.map(([, key]) => key));
+	const parts = diffArrays(before, after.map(([, key]) => key), { maxEditLength: MAX_BLOCK_EDITS }) ?? heldAnywhere(before, after);
 	const removed = /* @__PURE__ */ new Map();
 	for (const part of parts) if (part.removed) for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
 	const changed = /* @__PURE__ */ new Set();

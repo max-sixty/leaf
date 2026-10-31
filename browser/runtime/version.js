@@ -773,6 +773,19 @@ function standingFor(block, current) {
   }
   return null;
 }
+// The ordered diff costs the page's length times the edits it finds, on the main
+// thread, so past this many edits, such as a long page rewritten whole, the comparison
+// reads a block as unchanged wherever the base holds its words, in one pass.
+const MAX_BLOCK_EDITS = 1_000;
+const heldAnywhere = (before, after) => {
+  const held = new Map();
+  for (const key of before) held.set(key, (held.get(key) ?? 0) + 1);
+  return after.map(([, key]) => {
+    const left = held.get(key) ?? 0;
+    if (left) held.set(key, left - 1);
+    return { value: [key], added: !left };
+  });
+};
 // The content half: the live nodes standing for the blocks of `current` that changed
 // since `base` (`changed`), both painted sources, and for the unchanged blocks that
 // separate one change from the next (`kept`). An ordered diff of the two sources'
@@ -784,10 +797,12 @@ function standingFor(block, current) {
 function changedSince(base, current = currentSource()) {
   const before = diffBlocks(base.root).map(([, key]) => key);
   const after = diffBlocks(current.root);
-  const parts = diffArrays(
-    before,
-    after.map(([, key]) => key),
-  );
+  const parts =
+    diffArrays(
+      before,
+      after.map(([, key]) => key),
+      { maxEditLength: MAX_BLOCK_EDITS },
+    ) ?? heldAnywhere(before, after);
   const removed = new Map();
   for (const part of parts)
     if (part.removed)
@@ -812,9 +827,11 @@ function changedSince(base, current = currentSource()) {
   kept.delete(null);
   return { changed, kept };
 }
-// The view a block stands in, which shows and hides as one: the nearest native
-// disclosure holding it, or member of a widget's declared views (`x-views`), such as a
-// tab.
+// The view a block stands in, which shows and hides as one: the nearest `details`
+// holding it, or member of a widget's declared views (`x-views`), such as a tab. Both
+// are structure, so a change's extent doesn't depend on which views were open when
+// the comparison ran. A widget's own disclosure that declares neither, such as a
+// settled options group, is not a view here.
 function viewOf(block) {
   for (let at = block.parentElement; at; at = at.parentElement) {
     if (at.localName === "details") return at;

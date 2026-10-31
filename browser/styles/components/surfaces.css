@@ -51,7 +51,7 @@
   :root main :is(button, input, select, textarea),
   :host :is(button, input, select, textarea)
 ) {
-  font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+  font: var(--voice-ui);
   font-feature-settings: normal;
   font-variation-settings: normal;
   letter-spacing: normal;
@@ -142,8 +142,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--danger-ink);
   border-radius: var(--r);
   padding: 8px 12px;
-  font-family: var(--sans);
-  font-size: var(--t-5);
+  font: var(--voice-ui);
   font-variant-numeric: tabular-nums;
   white-space: normal;
   --lf-block-frame: 1;
@@ -173,8 +172,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
-  font-family: var(--mono);
-  font-size: var(--t-6);
+  font: var(--voice-code);
   /* The line box the size token is built from: the badge less its border. */
   line-height: calc(var(--lf-key-badge-size) - 2px);
   text-align: center;
@@ -253,15 +251,13 @@ a[data-lf-external]::after,
  * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
- * The ring is the fallback rather than the rule: every control with a ring of its own
- * outranks this, and what is left is the controls that were wearing the platform's
- * outline or, where a widget had restyled them, nothing at all.
+ * The ring is the layer's floor (below), which every box holding visible focus wears,
+ * an offer or not.
  *
  * Every rule here is written to be outranked. The value guard sits in :where() so it
- * costs nothing, which leaves each rule at the weight of the thing it is answering — the
- * ring at a plain attribute and a state, so lf-option's own pick ring and chrome's .lf-btn
- * ring both still win and keep their names. A floor is only a floor if what is built on
- * it comes out on top.
+ * costs nothing, which leaves each rule at the weight of the thing it is answering, a
+ * plain attribute and a state, so a widget's own face still wins. A floor is only a
+ * floor if what is built on it comes out on top.
  *
  * The value and not the bare attribute, because `offer` writes two different facts into
  * one dataset key: "button" or a native choice's input type for a press it built, the
@@ -277,12 +273,15 @@ a[data-lf-external]::after,
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
 /* A visible focus destination wears the layer's band unless its own rule supplies
-   a carrier. Controls and reading destinations follow browser focus visibility.
+   a carrier, or a mark over the page carries it (`.lf-projected-mark`,
+   visual-mark-paint.js), which reads the gap the destination states rather than this
+   one. Controls and reading destinations follow browser focus visibility.
    Current location remains separate, so pointer focus can reveal controls without
    drawing a ring.
-   At no weight, each control's own band wins. Retargeting shadow hosts and a
-   label press's intermediate nodes get no band. */
-:where([data-lf-focus-visible]) {
+   At no weight, so a box that states where its marks stand (base.css, "Where it
+   stands") keeps that place, and a carrier's band wins. Retargeting shadow hosts and
+   a label press's intermediate nodes get no band. */
+:where([data-lf-focus-visible]:not(.lf-projected-mark)) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
@@ -343,10 +342,6 @@ a[data-lf-external]::after,
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default;
   opacity: 0.55;
-}
-[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
    than left to whatever each control's type and padding happened to add up to.
@@ -487,9 +482,7 @@ summary {
   min-width: 0;
   position: relative;
   padding: var(--sp-1);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: var(--lf-ui-lh);
+  font: var(--voice-ui);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -520,14 +513,14 @@ summary {
   pointer-events: none;
   border-radius: inherit;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* A forced palette paints every ground in Canvas, so the quiet ground of a thread
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
 }
 .lf-say {
@@ -657,7 +650,7 @@ summary {
   box-sizing: border-box;
   min-width: 0;
   white-space: nowrap;
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-working-head {
   overflow: hidden;
@@ -708,8 +701,7 @@ summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--lf-msg-name-size);
-  font-weight: 600;
+  font: var(--voice-name);
   color: var(--ink);
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
@@ -762,13 +754,13 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted);
-  font: 500 var(--t-6)/1.3 var(--sans);
+  color: var(--muted-2);
+  font: var(--voice-small);
+  font-weight: 500;
 }
 .lf-summary-text {
   color: var(--ink-2);
-  font-size: var(--t-5);
-  line-height: 1.5;
+  font: var(--voice-ui);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -808,7 +800,7 @@ summary {
 .lf-summary-required {
   margin-top: 6px;
   color: var(--turn-ink);
-  font: 600 var(--t-6)/1.4 var(--sans);
+  font: var(--voice-heading);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -824,7 +816,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: var(--msg-font);
+  font: var(--voice-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);
@@ -905,7 +897,7 @@ summary {
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -1001,7 +993,7 @@ summary {
   white-space: nowrap;
 }
 button.lf-thread-news {
-  font-size: var(--t-6);
+  font: var(--voice-heading);
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,
@@ -1119,7 +1111,7 @@ button.lf-primary-news {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--t-6);
+  font: var(--voice-small);
 }
 .lf-thread-todo-title {
   flex: 1 1 auto;

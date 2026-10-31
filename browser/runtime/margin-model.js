@@ -245,25 +245,35 @@ export function threadMarks(thread, agent) {
     (unread ? `${unread} unread` : null);
   return {
     userAttention: onUser
-      ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" }
+      ? {
+          label: attention.label,
+          reason: thread.attention?.reason ?? "workflow",
+          voice: attention.voice,
+        }
       : null,
     unread,
     context: line,
     mapContext: line,
+    // Who says the line: the thread's word in its own voice (`threadAttention`), and
+    // an unread count in the interface's.
+    contextVoice: line && line === attention?.label ? attention.voice : null,
     workflowReceipt: receipt,
   };
 }
 
 // A reading of one item says that item's own line, as a thread's says its word or its
 // unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
-// its threads hold unread.
+// its threads hold unread. Each line comes with the voice that says it.
 export function readingContext(choice) {
   const items = choice?.items ?? [];
   const attention = userAttention(items);
-  if (attention) return attention.label;
-  if (items.length === 1) return items[0].context ?? null;
+  if (attention) return { text: attention.label, voice: attention.voice ?? null };
+  if (items.length === 1)
+    return items[0].context
+      ? { text: items[0].context, voice: items[0].contextVoice ?? null }
+      : null;
   const unread = unreadIn(items);
-  return unread ? `${unread} unread` : null;
+  return unread ? { text: `${unread} unread`, voice: null } : null;
 }
 
 // The line a reading's name says too: a thread's, which is its word or what it holds
@@ -272,7 +282,7 @@ export function readingContext(choice) {
 export const spokenContext = (choice) => {
   const items = choice?.items ?? [];
   return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
-    ? readingContext(choice)
+    ? (readingContext(choice)?.text ?? null)
     : null;
 };
 

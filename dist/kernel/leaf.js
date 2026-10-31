@@ -3936,12 +3936,12 @@ const TONE = {
 	closed: ""
 };
 const WORK_WORDS = {
-	working: "Working on it",
+	working: "Working",
 	thinking: "Thinking",
 	tool: "Using a tool",
-	awaiting_approval: "Need your approval",
-	awaiting_input: "Need your input",
-	awaiting_user: "Have a question for you",
+	awaiting_approval: "Approval needed",
+	awaiting_input: "Input needed",
+	awaiting_user: "Question waiting",
 	replying: "Writing a reply"
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
@@ -3973,18 +3973,19 @@ const OFFLINE_LINE = "Lost the connection — reconnecting. Keep this page open 
 const KEY_REFUSED_LINE = "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.";
 const BROKEN_LINE = "Couldn't show the latest — reload";
 const publicationWords = (published) => [`${published.kind === "example" ? "This is an example on the Leaf website" : "This website is a Leaf page"}, and this copy is private to this browser. `, "Install Leaf"];
-function deliveredWords({ comments, answers }) {
-	if (comments + answers === 1) return comments ? "your comment" : "your answer";
-	const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-	return [comments && counted(comments, "comment"), answers && counted(answers, "answer")].filter(Boolean).join(" and ");
-}
 const textParts = (words) => (Array.isArray(words) ? words : [words]).filter(Boolean).map((part) => typeof part === "string" ? { text: part } : part);
 const textOf = (parts) => parts.map((part) => part.text).join("");
 const appendWords = (parts, words, step = false) => {
 	const head = textOf(parts);
 	parts.push({ text: after(head, words, step).slice(head.length) });
 };
-function statusWords({ dated, detail, detailSource, handling, invite, kind, overdue, saved, waits, work }) {
+const appendParts = (parts, more) => {
+	const head = textOf(parts);
+	const joined = textOf(more);
+	const lead = after(head, joined).slice(head.length, -joined.length);
+	parts.push(...lead ? [{ text: lead }] : [], ...more);
+};
+function statusWords({ dated, detail, detailSource, invite, kind, overdue, saved, waits, work }) {
 	if (kind === "closed") return [
 		"Done with this page",
 		"Done with this page.",
@@ -3999,16 +4000,26 @@ function statusWords({ dated, detail, detailSource, handling, invite, kind, over
 		];
 	}
 	if (kind === "working") {
-		const delivered = deliveredWords(handling);
 		const sentence = detail ? [{
 			text: detail,
 			source: detailSource
 		}] : [];
-		const said = waits ? [work, ...detail ? [" — ", ...sentence] : []] : detail ? sentence : [delivered ? `Got ${delivered}` : work];
-		return [
-			said,
-			said,
+		if (waits) {
+			const said = [work, ...detail ? [" — ", ...sentence] : []];
+			return [
+				said,
+				said,
+				""
+			];
+		}
+		return detail ? [
+			sentence,
+			sentence,
 			""
+		] : [
+			"",
+			work,
+			work
 		];
 	}
 	if (kind === "listening") return [
@@ -4039,8 +4050,7 @@ function statusWords({ dated, detail, detailSource, handling, invite, kind, over
 		"Not answering — nudge the terminal",
 		`${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
 		`${dated}. ${saved} Nothing is answering them.`,
-		true,
-		"leaf"
+		true
 	] : [
 		"Away",
 		`Away right now. ${saved} They're picked up next turn.`,
@@ -4094,14 +4104,10 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 	const checkedIn = facts.silentSince ? `Last checked in ${facts.silentSince}` : "Haven't checked in yet";
 	const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
 	const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-	const [summaryWords, explanationWords, beyond, asked = false, voice = "agent"] = statusWords({
+	const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
 		dated: facts.left ? ended : checkedIn,
 		detail,
 		detailSource: activity.detail_source,
-		handling: {
-			comments: activity.counts.handling_comments,
-			answers: activity.counts.handling - activity.counts.handling_comments
-		},
 		invite: publication ? "Ready — comment to revise this copy" : "Ready — select text to comment",
 		kind,
 		overdue: activity.counts.overdue,
@@ -4131,7 +4137,7 @@ function pageStatus(state, { reach = "reached", fault = null } = {}) {
 		adds: textOf(addsParts),
 		addsParts,
 		asks: asked || waitsThere,
-		voice,
+		voice: summaryParts.some((part) => part.source) ? "agent" : "leaf",
 		actionableWork,
 		publication
 	};
@@ -4153,13 +4159,35 @@ function queueKinds(items) {
 		byWords.set(nouns, [...byWords.get(nouns) ?? [], item]);
 	}
 	return [...byWords].map(([nouns, all]) => {
-		const words = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
-		return nouns === TODO ? `${words} (${all.map((row) => row.obligation?.prompt.text ?? row.todo.title).join(" · ")})` : words;
+		const words = { text: `${all.length} ${nouns[all.length === 1 ? 0 : 1]}` };
+		if (nouns !== TODO) return [words];
+		const titles = all.flatMap((row, index) => [...index ? [{ text: " · " }] : [], {
+			text: row.obligation?.prompt.text ?? row.todo.title,
+			voice: "agent"
+		}]);
+		return [
+			{
+				...words,
+				text: `${words.text} (`
+			},
+			...titles,
+			{ text: ")" }
+		];
 	});
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
-	const named = (items, whom) => items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
-	return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
+	const named = (items, whom) => items.length ? [
+		{ text: `Waiting on ${whom}: ` },
+		...queueKinds(items).flatMap((kind, index) => [...index ? [{ text: ", " }] : [], ...kind]),
+		{ text: "." }
+	] : [];
+	const onMe = named(onUser, "me");
+	const onAgentParts = named(onAgent, agent);
+	return [
+		...onMe,
+		...onMe.length && onAgentParts.length ? [{ text: " " }] : [],
+		...onAgentParts
+	];
 }
 const WITHOUT_QUEUES = /* @__PURE__ */ new Set([
 	"broken",
@@ -4172,10 +4200,10 @@ function statusModel(status, queues, agent) {
 	let { explanation, adds } = status;
 	const explanationParts = [...status.explanationParts ?? textParts(explanation)];
 	const addsParts = [...status.addsParts ?? textParts(adds)];
-	const counted = WITHOUT_QUEUES.has(kind) ? "" : queueWords(queues, agent);
-	if (counted) {
-		appendWords(explanationParts, counted);
-		appendWords(addsParts, counted);
+	const counted = WITHOUT_QUEUES.has(kind) ? [] : queueWords(queues, agent);
+	if (counted.length) {
+		appendParts(explanationParts, counted);
+		appendParts(addsParts, counted);
 		explanation = textOf(explanationParts);
 		adds = textOf(addsParts);
 	}
@@ -4209,14 +4237,24 @@ function statusModel(status, queues, agent) {
 function leafRow(entry) {
 	const { kind, counts, detail } = entry.activity;
 	const facts = activityFacts(entry);
-	const stated = (word) => word + (detail ? " — " + detail : "");
+	const own = detail ? [{
+		text: detail,
+		voice: "agent"
+	}] : [];
+	const leaf = (text) => ({
+		text,
+		voice: "leaf"
+	});
+	const stated = (word) => [leaf(word), ...detail ? [leaf(" — "), ...own] : []];
 	const since = facts.silentSince ? ` ${facts.silentSince}` : "";
 	const silence = facts.left ? `Stopped${since}` : since ? `Last checked in${since}` : "Haven't checked in yet";
-	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : detail || facts.work : kind === "listening" ? "Ready" : kind === "stalled" ? stated(silence) : kind === "away" ? counts.overdue ? silence : "Away" : kind === "unheld" ? "Not on this page right now" : "Done with this page";
-	const line = facts.waiting.length ? `${primary} · ${facts.waiting.join(" · ")}` : primary;
+	const primary = kind === "working" ? entry.activity.awaiting ? stated(facts.work) : own : kind === "listening" ? [leaf("Ready")] : kind === "stalled" ? stated(silence) : kind === "away" ? [leaf(counts.overdue ? silence : "Away")] : [leaf(kind === "unheld" ? "Not on this page right now" : "Done with this page")];
+	const waiting = facts.waiting.join(" · ");
+	const parts = waiting ? [...primary, leaf(primary.length ? ` · ${waiting}` : waiting)] : primary;
 	return {
 		tone: facts.tone,
-		line
+		line: parts.map((part) => part.text).join(""),
+		parts: Object.freeze(parts)
 	};
 }
 
@@ -4333,7 +4371,7 @@ const listedPages = (state) => state === null ? [] : [{
 	entry
 }))];
 const leavesRows = (state) => Object.freeze(listedPages(state).map(({ key, href, title, entry }) => {
-	const { tone, line } = leafRow(entry);
+	const { tone, line, parts } = leafRow(entry);
 	return Object.freeze({
 		key,
 		self: key === "self",
@@ -4341,6 +4379,7 @@ const leavesRows = (state) => Object.freeze(listedPages(state).map(({ key, href,
 		title,
 		tone,
 		line,
+		parts,
 		account: rowAccount(entry, title, line)
 	});
 }));
@@ -5024,7 +5063,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	const status = () => statusReading() ?? CONNECTING;
 	const statusParts = (parts) => parts.map((part) => {
-		if (!part.source) return part.text;
+		if (!part.source) return part.voice === "agent" ? part.text : html`<span data-voice="leaf">${part.text}</span>`;
 		let stop = null;
 		return html`<span
         class="lf-fp-status-feedback"
@@ -6840,7 +6879,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               aria-hidden="true"
             ></span
             ><span class="lf-fp-label">${row.title}</span
-            ><span class="lf-fp-value">${row.self ? "This page" : row.line}</span>`;
+            ><span class="lf-fp-value"
+              >${row.self ? "This page" : row.parts.map((part) => html`<span data-voice=${part.voice}>${part.text}</span>`)}</span
+            >`;
 			return row.self ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>` : html`<a
                 ${offeredAction("row", "lf-fp-face lf-fp-page")}
                 data-key=${row.key}
@@ -7579,6 +7620,7 @@ function marginMapGroups(entries, faceFor, searchTextByKey) {
 				label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
 				visibleLabel,
 				context: item.mapContext,
+				contextVoice: item.contextVoice ?? null,
 				receipt: item.workflowReceipt,
 				awaitsUser: Boolean(item.userAttention)
 			};
@@ -7671,11 +7713,15 @@ function createPageMapDialog({ inventory, activeInAnnotations, releaseAnnotation
 		const thread = item && inventory.sourceItem(item)?.thread;
 		return thread ? threadHeading(thread) : visibleLabel;
 	};
-	const sheetFace = ({ icon, glyph, item, visibleLabel, context }) => html`<span class="lf-row-lead"
+	const sheetFace = ({ icon, glyph, item, visibleLabel, context, contextVoice }) => html`<span class="lf-row-lead"
         >${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}</span
       ><span class="lf-page-map-action-label-word lf-row-main"
         >${sheetName(item, visibleLabel)}</span
-      >${context ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>` : nothing}`;
+      >${context ? html`<span
+              class="lf-page-map-action-context lf-row-end"
+              data-voice=${contextVoice ?? nothing}
+              >${context}</span
+            >` : nothing}`;
 	function activateSheetControl(event, action) {
 		const { offered, record } = action;
 		if (record.behavior === "status" || record.disabled) return;

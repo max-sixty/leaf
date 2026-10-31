@@ -1578,6 +1578,32 @@ def test_controls_are_built_by_role_and_never_by_face():
     )
 
 
+def test_every_ring_stands_at_a_kind_of_box():
+    """Where a box's marks stand is one of the kinds base.css names ("Where it
+    stands"): a region's gap, a control's, the box's edge, or one band inside it. Every
+    `outline-offset` in Leaf's sheets names its kind's token rather than a length, so
+    a change to a kind reaches every box of it and the overlay marks, which read the
+    gap a box states, stand where its rings do. The overlay's own boxes take the gap
+    their placement writes (`--lf-mark-offset`)."""
+    kinds = {
+        "0",
+        "var(--focus-region-gap)",
+        "var(--focus-ring-gap)",
+        "var(--focus-ring-inset)",
+        "var(--lf-mark-offset)",
+    }
+    stated = [
+        f"{sheet.relative_to(ROOT)}: {selector} {{ outline-offset: {value} }}"
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        for name, value in declarations
+        if name == "outline-offset" and value not in kinds
+    ]
+    assert not stated, "a ring stands at a length of its own:\n" + "\n".join(stated)
+
+
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
     "Visual grammar"): a stripe bent around a corner reads as decoration rather than a

@@ -197,9 +197,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
     tmp_path, directory, name, specifier, module
 ):
     """Module URL spelling preserves logical filenames across delivery and export."""
-    import base64
-
-    from leaf.exporting import _module_urls
+    from leaf.exporting import AssetInliner, _module_urls
     from leaf.revision_artifact import Resource, capture_artifact
     from leaf.revision_delivery import DeliveryAddress, deliver_resource, rebase_module
     from leaf.structure import SourceDocument
@@ -243,10 +241,11 @@ def test_native_package_import_urls_survive_delivery_and_export(
         vocabulary,
     )
     assert artifact.resources[helper].mime == "application/javascript"
-    embedded = _module_urls(artifact, [document])
+    inliner = AssetInliner(artifact.resources.__getitem__)
+    embedded = _module_urls(artifact, [document], inliner)
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
-    source = base64.b64decode(embedded[widget].split(",", 1)[1]).decode()
+    source = inliner.embedded[embedded[widget]].data.decode()
     assert json.dumps(f"leaf:{helper}") in source
 
 
@@ -292,7 +291,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
 
     from model_folds import served_reading
 
-    from leaf.exporting import _module_urls, export_document
+    from leaf.exporting import AssetInliner, _module_urls, export_document
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
@@ -330,7 +329,8 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         },
         vocabulary=vocabulary,
     )
-    modules = _module_urls(artifact, [document])
+    inliner = AssetInliner(artifact.resources.__getitem__)
+    modules = _module_urls(artifact, [document], inliner)
     logical = "/page/" + name
     assert logical in modules
     exported = export_document(
@@ -356,14 +356,13 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         for script in composed.authoring.external_scripts
         if "data-lf-runtime" not in script["attrs"]
     )
-    assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"] == modules[logical]
+    assert entry["attrs"]["src"] == import_map[f"leaf:{logical}"]
+    assert import_map[f"leaf:{logical}"] in package["resources"]
 
 
 def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
     """Widgets introduced by a later message use the page's one ordinary Lit module."""
-    import base64
-
-    from leaf.exporting import _module_urls
+    from leaf.exporting import AssetInliner, _module_urls
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
 
@@ -377,14 +376,13 @@ def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
     artifact = running(
         capture_artifact(tmp_path, document, vocabulary), runtime, layer, vocabulary
     )
+    inliner = AssetInliner(artifact.resources.__getitem__)
     modules = _module_urls(
-        artifact, [document, SourceDocument("<lf-later></lf-later>")]
+        artifact, [document, SourceDocument("<lf-later></lf-later>")], inliner
     )
-    implementation = base64.b64decode(
-        modules["/vendor/lit.js"].split(",", 1)[1]
-    ).decode()
+    implementation = inliner.embedded[modules["/vendor/lit.js"]].data.decode()
     assert implementation == runtime["/vendor/lit.js"]
-    widget = base64.b64decode(modules["/widgets/lf-later.js"].split(",", 1)[1]).decode()
+    widget = inliner.embedded[modules["/widgets/lf-later.js"]].data.decode()
     assert '"leaf:/vendor/lit.js"' in widget
 
 

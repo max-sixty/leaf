@@ -1,15 +1,21 @@
 """Leaf's clerk: a fork of the agent's conversation, made as each of its turns ends,
-that finds what the agent left to the user without putting it On me, and puts it
-there on the agent's behalf. It is experimental, and runs only in Claude Code.
+that checks the pages the session holds against the conversation. It puts On me what
+the agent left to the user without putting it there, restates a status line that no
+longer says what the agent is doing, and passes the agent what else it finds out of
+date. It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left
 the decisions waiting on the user only in their chat replies, so On me read empty, and
 rewording the skill changed 0 of 6 replays of such a session. A fork of the whole
-conversation reads what the agent said, so Leaf asks one, and writes what it finds
-rather than prompting the agent, which would cost a turn and invite rework. The user
-chose this shape on 2026-10-29 over a digest of the final reply, an advisor that
-prompts the agent, and a clerk agent that also rewrites the page.
+conversation reads what the agent said, so Leaf asks one. The user chose this shape on
+2026-10-29 over a digest of the final reply, an advisor that prompts the agent, and a
+clerk agent that also rewrites the page. On 2026-10-31 they split its results by who
+can act on them: Leaf writes a result only where the fork's answer settles it and the
+record is one Leaf keeps for that purpose, an ask On me or the status line, and
+everything else reaches the agent as a message, which it acts on or forks off. That
+reverses the advisor's rejection for those findings alone. Only the agent opens a
+to-do on its own list, since that list holds work the user wants done.
 
 Three principles, the user's (2026-10-30), bound what the fork may do:
 
@@ -23,24 +29,35 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
   wrote. Leaf opens no thread whose title a thread the agent opened on the page to
   ask something already has, and shows the fork the questions already answered or
-  withdrawn so it doesn't word one anew. It writes nothing once a turn has opened
+  withdrawn so it doesn't word one anew. It writes no record once a turn has opened
   since the fork read the conversation (`basis`), since that turn's agent, or the
-  user who opened it, has the newer reading.
+  user who opened it, has the newer reading. A finding still reaches the agent then,
+  naming the turn it came from, since the agent judges whether it still holds.
 
-It asks about one thing: decisions, answers, permissions or steps the agent left to
-the user that no On me item holds. A first version also wrote the status line and
-named missed page steps; the user narrowed it on 2026-10-29 to start from this one
-class, in Leaf's own words rather than any one user's markers, and what the page state
-alone settles, such as input not yet delivered, is code's to report rather than a
-model's.
+What the fork is asked is prose in the shipped skill,
+`skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
+the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
+and the answer's form. It asks for three things. Asks: decisions, answers, permissions
+or steps the agent left to the user that no On me item holds. Findings for the agent:
+a page that still says what the work or the conversation has since changed, an On me
+item already settled elsewhere, and work promised or set running that no page shows.
+Status lines: a started item whose line no longer says what the agent is doing. A
+first version also wrote the status line and named missed page steps; the user
+narrowed it on 2026-10-29 to the asks alone, in Leaf's own words rather than any one
+user's markers, then on 2026-10-31 added back the findings and the status line. They
+left out an open-ended question about the agent's instructions, which drew 12 noise
+findings of 63 in the first version's replay and loses what it checks against once
+compaction drops the skill. What the page state alone settles, such as input not yet
+delivered, is code's to report rather than a model's.
 
 This module is the fork's one home, shared by every harness: what it is asked
-(`fork_prompt`, with each page's On me as `page_facts` reads it), the answer it must
-give (`ANSWER`), and what Leaf does with that answer (`apply_answer`). A harness only
-makes the fork and carries the two halves (`cmd_fork`): Claude Code's hooks module
-calls `$.model.fork` from `turn.complete` (`hooks/claude-code.ts`). Codex would fork
-with App Server's `thread/fork` (ephemeral) and Pi's extension by resending its
-session, each handing the answer back the same way; neither does yet.
+(`fork_prompt`, with each page's On me and started items as `page_facts` reads them),
+the answer it must give (`ANSWER`), and what Leaf does with that answer
+(`apply_answer`). A harness only makes the fork and carries the two halves
+(`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
+(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
+(ephemeral) and Pi's extension by resending its session, each handing the answer back
+the same way; neither does yet.
 
 The fork can't author the page, so it writes what the agent would write without a
 widget, choosing per ask as the agent does (`conversation-loop.md`, "The On lists").
@@ -61,29 +78,39 @@ pick a to-do for a step once `m` opened On me on a to-do, where its title reads 
 (queue-walk.js). A step asked as a thread question had a cost: a clarifying reply
 such as "where do I run it?" answers it, and the agent has to ask again.
 
-Leaf queues one line for each record (`QUEUED`) under the same locks as its page's
-write, so a later page's failure loses no earlier page's lines. The next prompt or
-tool-boundary hook adds the lines to the agent's context
-(`hook_transport.carry_turn`), so the agent knows its records and their words,
-neither repeats nor contradicts them, and spends no turn on them. A line leaves the
+Leaf restates a status line as the agent's start of the same item (`todos.take_in_hand`),
+and only where the turn's end hasn't already retired the line, which is while the
+harness says the session works on in the background (`activity._start_age`). After a
+turn that left nothing running, the panel already reads the item as stalled, and a
+start written then would read as the agent at work for the working grace with nothing
+running.
+
+Leaf queues one line for each record and finding (`QUEUED`) under the same locks as
+its page's write, so a later page's failure loses no earlier page's lines. The next
+prompt or tool-boundary hook adds the lines to the agent's context
+(`hook_transport.carry_turn`), so the agent knows its records and their words, and
+what the fork found, without spending a turn on them. A finding's line carries the
+fork's summary, the words from the conversation it rests on and the session they are
+in, so the agent can find the original message after a compaction. A line leaves the
 queue once a hook has printed it (`heard`), so a prompt that Escape drops loses its
 lines: the questions stay On me and `leaf page state` lists them, but the agent isn't
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
-5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`): the fork
-found 59 of the 63 labelled asks missing from On me; 62 of its 64 findings were
-labelled asks and 2 borderline, none false; 2 of 39 runs at clean turn ends named
-anything. Warm, a fork cost $0.08 (median). Claude Code's fork reuses the session's
-cached prefix only while its
-system prompt, tools and effort match the session's, which `$.model.fork` keeps by
-resending the main thread's own last request.
+5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks
+alone: the fork found 59 of the 63 labelled asks missing from On me; 62 of its 64
+findings were labelled asks and 2 borderline, none false; 2 of 39 runs at clean turn
+ends named anything. Warm, a fork cost $0.08 (median). Claude Code's fork reuses the
+session's cached prefix only while its system prompt, tools and effort match the
+session's, which `$.model.fork` keeps by resending the main thread's own last request.
 """
 
 import json
+from datetime import datetime
 from pathlib import Path
 
+from .schema import SKILL_FILE
 from .state import (
     STRING,
     Record,
@@ -95,11 +122,16 @@ from .state import (
     session_record,
 )
 
+# What the fork is asked, as the skill ships it.
+REFERENCE = SKILL_FILE.parent / "references" / "turn-end-check.md"
+
 # The length of a thread's or to-do's title (`comment` and `todo` in the kernel
 # registry), which the fork is asked to keep a title under. A model can't count characters, so the answer takes a
 # longer title and Leaf shortens it to fit (`_title`) rather than refusing the answer
 # and every ask it found.
 TITLE_LIMIT = 80
+
+_WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 
 ANSWER = {
     "type": "object",
@@ -111,7 +143,7 @@ ANSWER = {
                 "properties": {
                     "page": {"type": "string", "minLength": 1},
                     "kind": {"enum": ["question", "step"]},
-                    "title": {"type": "string", "minLength": 1, "pattern": r"\S"},
+                    "title": _WORDS,
                     # A question's message; a step has none, its title being all
                     # the user reads of its to-do.
                     "text": {"type": "string"},
@@ -124,12 +156,60 @@ ANSWER = {
                 "required": ["page", "kind", "title", "text", "passage", "quote"],
                 "additionalProperties": False,
                 "if": {"properties": {"kind": {"const": "question"}}},
-                "then": {"properties": {"text": {"minLength": 1, "pattern": r"\S"}}},
+                "then": {"properties": {"text": _WORDS}},
+            },
+        },
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"enum": ["stale", "settled", "unshown"]},
+                    "page": {"type": "string", "minLength": 1},
+                    "summary": _WORDS,
+                    # The agent's or the user's words, which the agent finds the
+                    # original message by.
+                    "quote": {"type": "string"},
+                },
+                "required": ["kind", "page", "summary", "quote"],
+                "additionalProperties": False,
+            },
+        },
+        "status": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "string", "minLength": 1},
+                    "item": {"type": "string", "minLength": 1},
+                    "line": _WORDS,
+                },
+                "required": ["page", "item", "line"],
+                "additionalProperties": False,
             },
         },
     },
-    "required": ["asks"],
+    "required": ["asks", "findings", "status"],
     "additionalProperties": False,
+}
+
+# The answer's form, which follows the pages' facts in the fork's question.
+FORM = (
+    "Reply with only this JSON object, no code fence, with empty lists where there is "
+    f"nothing, and each title under {TITLE_LIMIT} characters:\n"
+    '{"asks": [{"page": "<page path>", "kind": "question" or "step", "title": '
+    '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
+    'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
+    '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
+    '"<summary>", "quote": "<the words it rests on>"}], "status": [{"page": "<page '
+    'path>", "item": "<item id>", "line": "<line>"}]}'
+)
+
+# What each kind of finding is, as the agent's line names it.
+FOUND = {
+    "stale": "the page saying what has since changed",
+    "settled": "an On me item already settled",
+    "unshown": "work no page shows",
 }
 
 QUEUED = Record(
@@ -137,7 +217,7 @@ QUEUED = Record(
     described(
         "The lines Leaf's clerk queued for a session's next step, in the state "
         "home's `sessions/<digest>.clerk` (`state.session_file`): one for each "
-        "question or step it put On me (`clerk`).",
+        "record it wrote and each finding it passes on (`clerk`).",
         object_schema({"lines": {"type": "array", "items": STRING}}),
     ),
     since=36,
@@ -147,16 +227,24 @@ QUEUED = Record(
 OPENING = "<leaf-fork-check>"
 
 
-def page_facts(state: dict) -> dict:
+def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it: its On me, and the questions and to-dos on the user that are answered, ended
-    or withdrawn, which the fork must not ask again."""
+    it and the page's `events`: its On me, the questions and to-dos on the user that
+    are answered, ended or withdrawn, which the fork must not ask again, and each item
+    the agent has started with the line its start gives it (`todos.item_starts`)."""
+    from .todos import item_starts
+
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
     todos = {todo["id"]: todo for todo in state["todos"]}
+    updates = {workflow["id"]: workflow for workflow in state["workflows"]}
 
     def words(record: dict) -> str:
         return " ".join((record["prompt"].get("text") or "").split())[:300]
+
+    def thread_named(thread: str) -> str:
+        title = (threads.get(thread) or {}).get("title")
+        return f'"{title}"' if title else "an untitled thread"
 
     on_me = []
     for row in state["queues"]["on_user"]:
@@ -165,9 +253,10 @@ def page_facts(state: dict) -> dict:
             continue
         record = obligations[row["id"]]
         if row["kind"] == "message":
-            title = (threads.get(row["thread"]) or {}).get("title")
-            where = f'"{title}"' if title else "an untitled thread"
-            on_me.append(f"a reply to the agent's message in {where}: {words(record)}")
+            on_me.append(
+                f"a reply to the agent's message in {thread_named(row['thread'])}: "
+                f"{words(record)}"
+            )
         elif row["kind"] == "update":
             on_me.append("an update of the user's to send again")
         else:
@@ -180,11 +269,26 @@ def page_facts(state: dict) -> dict:
         if record["source"]["kind"] in {"todo", "message"}
         and record["status"] != "open"
     ]
+    started = []
+    for item, start in item_starts(events).items():
+        if todos.get(item, {}).get("state") == "open":
+            about = f'the agent\'s to-do "{todos[item]["title"]}"'
+        elif item in updates:
+            subject = updates[item]["subject"]
+            about = (
+                f"the user's message in thread {thread_named(subject['id'])}"
+                if subject["kind"] == "thread"
+                else f"the user's answer on {subject['kind']} {subject['id']}"
+            )
+        else:
+            continue
+        started.append({"item": item, "about": about, "line": start["text"]})
     return {
         "title": state["title"],
         "path": state["page"],
         "on_me": on_me,
         "settled": settled,
+        "started": started,
     }
 
 
@@ -201,29 +305,27 @@ def _block(facts: dict) -> str:
             "Answered or withdrawn on the page; don't ask these again:\n"
             + lines(facts["settled"])
         )
+    parts.append(
+        "Started items, each with the line the panel's status shows for it:\n"
+        + lines(
+            [
+                f'{item["item"]}, {item["about"]}: "{item["line"]}"'
+                for item in facts["started"]
+            ]
+        )
+    )
     return "\n".join(parts)
 
 
 def fork_prompt(pages: list[dict]) -> str:
-    """The one message a fork answers: what it is for, each page's facts
-    (`page_facts`), the question and the answer's form (`ANSWER`)."""
+    """The one message a fork answers: the skill's account of the check
+    (`REFERENCE`), each page's facts (`page_facts`) and the answer's form (`FORM`,
+    `ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
-    return f"""{OPENING}
-This message comes from Leaf, not the user. You are a fork of this session, made as the agent's turn ended, to keep the user's On me list complete. The main session carries on separately and never reads this exchange: Leaf puts each ask you write On me as the agent's own, a question in a new thread and a step as a to-do, and tells the agent at its next step, which takes the user's answer or withdraws the ask. Don't call tools and don't continue the work; answer from the conversation above and the page state below.
-
-{blocks}
-
-On me is where the user finds everything waiting on them. Name each decision, answer, permission or step the agent left to the user, in its replies or anywhere in the conversation, that no On me item above holds and the user hasn't answered since. Leave out what the agent will settle itself. Give each:
-- "page": the page's path.
-- "kind": "step" for an action the user takes and then confirms with Done, such as running a command or trying a build; "question" for anything they answer, decide or permit.
-- "title": for a question, a few words naming its thread's subject ("Merging the two mark styles"); for a step, the action itself, whole, as the only words the user reads of it ("Run /reload-plugins in this Claude session"). Keep it under {TITLE_LIMIT} characters.
-- "text": for a question, the message that asks it, as the agent would write it. The user reads it on the page, perhaps days later and without the chat, so say what is waiting, why it arises and what each answer leads to, naming things as the page does, and end with the question. It shows in a narrow card, so keep it to three or four short sentences of Markdown; link a pull request or commit by its URL where the conversation gives one. For a step, "".
-- "passage": where the ask concerns one passage of the page, a few of its words, exactly as the page shows them and found nowhere else on it, which the ask then stands on; else "", and it stands on the page as a whole.
-- "quote": the agent's words that leave it to the user.
-
-Reply with only this JSON object, no code fence, with "asks": [] if there are none:
-{{"asks": [{{"page": "<page path>", "kind": "question", "title": "<subject>", "text": "<message>", "passage": "<page words or empty>", "quote": "<words>"}}]}}
-</leaf-fork-check>"""
+    return (
+        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Page state\n\n{blocks}\n\n"
+        f"{FORM}\n</leaf-fork-check>"
+    )
 
 
 def read_answer(text: str) -> dict:
@@ -275,7 +377,7 @@ def question(session_id: str) -> dict | None:
 
 
 def take_answer(session_id: str, text: str, asked: dict | None) -> dict:
-    """What Leaf wrote from `text`, the fork's reply to the question asked at
+    """What Leaf wrote and told from `text`, the fork's reply to the question asked at
     `asked`, its `basis` (`apply_answer`)."""
     return apply_answer(session_id, read_answer(text), asked)
 
@@ -286,7 +388,7 @@ def _facts(page_dir: Path) -> dict | None:
 
     try:
         with PageTransaction(page_dir) as page:
-            return page_facts(page_state(page_dir, page.events))
+            return page_facts(page_state(page_dir, page.events), page.events)
     except FileNotFoundError:
         return None
 
@@ -301,24 +403,24 @@ def _title(words: str) -> str:
 
 
 def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
-    """Put each of `answer`'s asks On me as the agent's own, on the page it names among
-    those `session_id` holds: a question in a thread of its own, opened by the agent's
-    message with an obligation, and a step as a to-do on the user; skip one whose
-    title an ask the agent made there already has, and queue a line for each for the
-    agent's next step, while the session's turn is still the one `asked` names; what
-    it wrote, and why it stopped if it did."""
-    from .findings import Rejected
+    """Act on `answer` for each page `session_id` holds: put its asks On me
+    (`_ask`) and restate its status lines (`_restate`) while the session's turn is
+    still the one `asked` names, and pass each finding to the agent whatever turn has
+    opened since, queueing a line for each for the agent's next step; what it wrote
+    and told, and why it wrote no records if it didn't."""
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
-    from .todos import TodoReading
-    from .validation.admission import checked_text
 
     wrote: list[dict] = []
     told: list[str] = []
+    dropped = None
     for page_dir in owned_pages(session_id):
         path = str(page_dir)
-        asks = [item for item in answer["asks"] if item["page"] == path]
-        if not asks:
+        mine = {
+            part: [item for item in answer[part] if item["page"] == path]
+            for part in ("asks", "status", "findings")
+        }
+        if not any(mine.values()):
             continue
         # The page as a command's write takes it (`leases.contract_writer`), then the
         # session, in the lifecycle's lock order (`PageTransaction.publishing_claim`),
@@ -329,58 +431,23 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 PageTransaction(page_dir) as page,
                 flocked(session_lock_path(session_id)),
             ):
-                if basis(session_id) != asked:
-                    return {
-                        "wrote": wrote,
-                        "told": told,
-                        "dropped": "another turn opened since the fork was made",
-                    }
                 claim = page.active_claim
                 if claim is None or claim["id"] != session_id:
                     continue
                 identity = {"agent": claim["agent"], "session": claim["id"]}
-                # The asks the agent made there, by title: the threads it opened to
-                # ask something and its to-dos on the user, open or ended.
-                asked_in = {
-                    event["title"].casefold()
-                    for event in page.events
-                    if event["kind"] == "comment"
-                    and event["author"] == "agent"
-                    and event.get("obligation")
-                    and "title" in event
-                } | {
-                    todo["title"].casefold()
-                    for todo in TodoReading(page.events).todos
-                    if todo["owner"] == "user"
-                }
-                # Every message is checked before the first is written, so a refused
-                # one leaves the page as the fork found it.
-                messages = [
-                    (
-                        item["kind"],
-                        _title(item["title"]),
-                        checked_text(page_dir, item["text"])
-                        if item["kind"] == "question"
-                        else "",
-                        item["passage"].strip(),
-                    )
-                    for item in asks
-                ]
                 lines = []
-                for kind, title, text, passage in messages:
-                    if title.casefold() in asked_in:
-                        continue
-                    asked_in.add(title.casefold())
-
-                    ask = (page_dir, page, kind, title, text, identity)
-                    try:
-                        record = _put(*ask, passage)
-                    except Rejected:
-                        if not passage:
-                            raise
-                        record = _put(*ask, "")
-                    wrote.append(record)
-                    lines.append(_told(path, kind, title, text, passage, record))
+                if (mine["asks"] or mine["status"]) and basis(session_id) != asked:
+                    dropped = "another turn opened since the fork was made"
+                elif mine["asks"] or mine["status"]:
+                    for record, line in [
+                        *_ask(page_dir, page, mine["asks"], identity),
+                        *_restate(page_dir, page, mine["status"], identity),
+                    ]:
+                        wrote.append(record)
+                        lines.append(line)
+                lines.extend(
+                    _found(path, item, session_id, asked) for item in mine["findings"]
+                )
                 if lines:
                     queue_path = session_file(session_id, QUEUED.kind)
                     held = QUEUED.read(queue_path) or {"lines": []}
@@ -388,7 +455,108 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 told.extend(lines)
         except FileNotFoundError:
             continue
-    return {"wrote": wrote, "told": told}
+    return {"wrote": wrote, "told": told, **({"dropped": dropped} if dropped else {})}
+
+
+def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
+    """Each of `asks` put On me as the agent's own in `page`, an open transaction,
+    with the line telling the agent: a question in a thread of its own, opened by the
+    agent's message with an obligation, and a step as a to-do on the user; none whose
+    title an ask the agent made there already has."""
+    from .findings import Rejected
+    from .todos import TodoReading
+    from .validation.admission import checked_text
+
+    # The asks the agent made there, by title: the threads it opened to ask something
+    # and its to-dos on the user, open or ended.
+    asked_in = {
+        event["title"].casefold()
+        for event in page.events
+        if event["kind"] == "comment"
+        and event["author"] == "agent"
+        and event.get("obligation")
+        and "title" in event
+    } | {
+        todo["title"].casefold()
+        for todo in TodoReading(page.events).todos
+        if todo["owner"] == "user"
+    }
+    # Every message is checked before the first is written, so a refused one leaves
+    # the page as the fork found it.
+    messages = [
+        (
+            item["kind"],
+            _title(item["title"]),
+            checked_text(page_dir, item["text"]) if item["kind"] == "question" else "",
+            item["passage"].strip(),
+        )
+        for item in asks
+    ]
+    for kind, title, text, passage in messages:
+        if title.casefold() in asked_in:
+            continue
+        asked_in.add(title.casefold())
+        ask = (page_dir, page, kind, title, text, identity)
+        try:
+            record = _put(*ask, passage)
+        except Rejected:
+            if not passage:
+                raise
+            record = _put(*ask, "")
+        yield record, _told(str(page_dir), kind, title, text, passage, record)
+
+
+def _restate(page_dir: Path, page, status: list[dict], identity: dict):
+    """Each of `status` written as the agent's start of the item it names in `page`,
+    an open transaction, with the line telling the agent: only an item still started,
+    in new words, and only while the turn's end hasn't retired its line."""
+    from .agent_state import page_state
+    from .todos import take_in_hand
+
+    state = page_state(page_dir, page.events)
+    if state["activity"]["dropped"]:
+        return
+    started = {
+        item["item"]: item["line"] for item in page_facts(state, page.events)["started"]
+    }
+    for item in status:
+        line = " ".join(item["line"].split())
+        if started.get(item["item"]) in (None, line):
+            continue
+        started[item["item"]] = line
+        record = take_in_hand(page, item["item"], line, identity)
+        path = str(page_dir)
+        yield (
+            record,
+            f"From your last turn, Leaf restated your status line for {item['item']} "
+            f'on {path} as "{line}", which the panel shows while your work runs on in '
+            f"the background. It is yours like any start you write: restate it with "
+            f'`leaf task start {path} {item["item"]} --text "<what you are doing>"` if '
+            "it doesn't say what you are doing.",
+        )
+
+
+def _found(path: str, item: dict, session_id: str, asked: dict | None) -> str:
+    """The line passing one finding to the agent: what the fork found, the turn it
+    read, and the words it rests on, so the agent can find the original message."""
+    opened = (asked or {}).get("opened")
+    turn = (
+        f"your turn that opened at {datetime.fromisoformat(opened):%H:%M}"
+        if opened
+        else "your last turn"
+    )
+    quoted = "\n".join(f"> {line}" for line in item["quote"].splitlines())
+    rests = (
+        f"\nIt rests on these words in this session's transcript (session "
+        f"{session_id}):\n{quoted}"
+        if quoted
+        else ""
+    )
+    return (
+        f"Leaf's turn-end check read {turn} and found {FOUND[item['kind']]} on "
+        f"{path}: {item['summary']}{rests}\nLeaf changed nothing for this; act on it "
+        "if it still holds."
+    )
 
 
 def _put(page_dir, page, kind, title, text, identity, passage) -> dict:

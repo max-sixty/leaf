@@ -790,8 +790,10 @@ export function createThreadPreview({
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-      // Where the user stands among the target's threads, as every walk says it.
-      keepsText(previewPosition, `${selectedIndex + 1} of ${threadItems.length}`);
+      // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
+      // actions line, which on a 311px phone already leaves the message heads no room;
+      // " of " made it 12px wider, which pushed the actions past the card's start.
+      keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
       const item = selected ? previewItemNode(selected) : null;

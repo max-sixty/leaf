@@ -249,7 +249,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread.locator(".lf-margin-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
     resized(page, 1207, 900)
@@ -1246,7 +1246,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     preview = page.locator(".lf-margin-preview")
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
     previous = preview.get_by_role("button", name="Previous thread")
     next_thread = preview.get_by_role("button", name="Next thread")
     controls = preview.evaluate(
@@ -1288,7 +1288,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
     )
     expect(preview).to_contain_text(COMMENT_ON_OBLIGATION["text"])
     next_thread.click()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview).to_contain_text(second_comment["text"])
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
     expect(previous).to_be_enabled()
@@ -1422,12 +1422,12 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(page.locator(".lf-margin-thread")).not_to_contain_text(
         "A second reading arrived while the preview was pinned."
     )
     page.get_by_role("button", name="Next thread").click()
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(page.locator(".lf-margin-thread")).to_contain_text(
         "A second reading arrived while the preview was pinned."
     )

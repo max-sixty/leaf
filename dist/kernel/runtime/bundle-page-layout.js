@@ -5072,15 +5072,16 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			return {
 				paint: async () => {
 					try {
-						await paint(current);
+						await paint(current, () => {
+							if (!active || current !== generation || abort.signal.aborted) return;
+							candidate.commit();
+							for (const item of nominations) if (item.kind === "transcript") item.options.drawn?.(shown.get(item.key).change?.answers ?? null);
+						});
 					} catch (error) {
 						failing ||= current === generation;
 						throw error;
 					}
-					if (active && current === generation && !abort.signal.aborted) {
-						candidate.commit();
-						failed = false;
-					}
+					if (active && current === generation && !abort.signal.aborted) failed = false;
 				},
 				current: () => active && current === generation && !abort.signal.aborted
 			};
@@ -5089,7 +5090,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			const rendering = render(shownCollection, Object.freeze({
 				signal: abort.signal,
 				thread: (key, outlet) => nominate("thread", key, null, outlet),
-				transcript: (key, outlet) => nominate("transcript", key, null, outlet),
+				transcript: (key, outlet, options) => nominate("transcript", key, null, outlet, options),
 				message: (key, id, outlet) => nominate("message", key, id, outlet),
 				reply: (key, outlet, options) => nominate("reply", key, null, outlet, options),
 				news: (key, outlet) => nominate("news", key, null, outlet)
@@ -5107,7 +5108,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 			throw error;
 		}
 	}
-	async function paint(current) {
+	async function paint(current, drawn) {
 		if (!active || generation !== current) return;
 		for (const item of selected) if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner)) throw new Error("A primary Thread outlet must remain inside its connected owner");
 		const wanted = new Set(selected.map((item) => item.identity));
@@ -5295,6 +5296,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 		}
 		for (const [parent, nodes] of children) orderChildren(parent, nodes);
 		for (const view of views.values()) view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
+		drawn();
 		const widgets = [...readApplication().document.descriptors.values()].filter((descriptor) => descriptor.document.kind === "thread" && renderedUnder(elementById(descriptor.id), owner)).map((descriptor) => descriptor.id);
 		await whenWidgetsPresented(widgets);
 	}

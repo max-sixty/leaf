@@ -109,13 +109,15 @@ export function createFloatingResponsePlacement({
   // mounts: the box the user sees.
   const fabField = () => fabInput.parentElement;
   // The box follows every change of its layout as the panel and the card do
-  // (box-motion.js): a line the field gains or loses, the measure it widens into. The
-  // field's frame is the box, drawn by a surface behind it, and the composer holding
-  // the field and the pictures hanging off it is what moves, so the grip beside it,
-  // whose clip opens its middle to the field's presses, is never cut. It reads in the
-  // plane its placement stands it in (floating.js, `heldEdges`), so a scroll or a carry
-  // that moves it whole moves nothing in it. A box no placement stands has nothing to
-  // move from, and one seated in a widget's outlet stands in that widget's flow.
+  // (box-motion.js): a line the field gains or loses, the measure it widens into, which
+  // a key changes at once but for a line it takes away (box-motion.js, "Whose change
+  // it is"). The field's frame is the box, drawn by a surface behind it, and the
+  // composer holding the field and the pictures hanging off it is what moves, so the
+  // grip beside it, whose clip opens its middle to the field's presses, is never cut.
+  // It reads in the plane its placement stands it in (floating.js, `heldEdges`), so a
+  // scroll or a carry that moves it whole moves nothing in it. A box no placement
+  // stands has nothing to move from, and one seated in a widget's outlet stands in
+  // that widget's flow.
   let following = null;
   const readFab = () => {
     if (!following && !response.open) return;

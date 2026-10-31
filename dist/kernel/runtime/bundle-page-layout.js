@@ -2,7 +2,7 @@ import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, at
 import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, holdingError, isCommandScope, keys, layerHeaders, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
+import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -1869,7 +1869,14 @@ var LeafText = class extends HTMLElement {
 		const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
 		if (!(size > 0)) return false;
 		const { scaleX, scaleY } = view;
-		const box = this.getBoundingClientRect();
+		const carry = style.getPropertyValue("--lf-field-carry").trim();
+		const [dx = 0, dy = 0] = carry === "none" ? [] : carry.split(/\s+/).map(Number.parseFloat);
+		const at = this.getBoundingClientRect();
+		const box = {
+			left: at.left + dx * scaleX,
+			right: at.right + dx * scaleX,
+			bottom: at.bottom + dy * scaleY
+		};
 		const rtl = style.direction === "rtl";
 		const left = rtl ? box.left : box.right - size * scaleX;
 		const right = rtl ? box.left + size * scaleX : box.right;
@@ -3289,7 +3296,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	const marginThreadItem = (thread) => thread ? `comment:${threadKey(thread)}` : null;
 	let entries = Object.freeze([]);
 	const watchers = /* @__PURE__ */ new Set();
-	const threadHasDiscussion = (thread) => replyAvailable(thread) || heldOut(thread.id);
+	const threadHasDiscussion = (thread) => !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
 	function threadIdsAt(node) {
 		const place = placeOf$1(node);
 		let best = null;
@@ -4582,11 +4589,6 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		const ids = active ? threadIdsAt(active) : [];
 		return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
 	};
-	const replyThreadAtCurrentLocation = () => {
-		const id = threadAtCurrentLocation();
-		const thread = allThreads().find((candidate) => candidate.id === id);
-		return thread && replyAvailable(thread) ? id : null;
-	};
 	const addressedPart = (thread, id, part) => ({
 		part,
 		message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null
@@ -4824,7 +4826,6 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		threadFocusTarget,
 		threadHere,
 		threadAtCurrentLocation,
-		replyThreadAtCurrentLocation,
 		threadTarget,
 		threadPlace: threadPlace$1
 	};

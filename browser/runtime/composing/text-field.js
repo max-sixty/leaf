@@ -19,8 +19,9 @@
  * character. Nothing is converted: the value is always the source the user typed,
  * which is what the agent reads. The constructs come from the renderer that sends the
  * message (`markdownTokens`), never from a second grammar, so the preview and the
- * message agree on what is a link, a heading or code, and Shift+Enter continues the
- * quotes and list items the message will hold.
+ * message agree on what is a link, a heading or code, Shift+Enter continues the
+ * quotes and list items the message will hold, and Tab and Shift+Tab nest a list item
+ * and take it out a level.
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces

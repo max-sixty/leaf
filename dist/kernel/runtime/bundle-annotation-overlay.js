@@ -193,7 +193,7 @@ var CardAnchor = class {
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			edge: seat.adopted ? attachment : press?.edge ?? ordinary,
-			rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
+			rises: !seat.adopted && !press?.edge && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
 			}

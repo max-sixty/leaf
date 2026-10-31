@@ -577,9 +577,9 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Written beside its subject, it has the
-            // boundary's whole height (`rises`): a growing editor lifts it from the
-            // window's foot, then scrolls internally.
+            // last moved where that is more. Beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor or an arriving
+            // answer lifts it from the window's foot, then it scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.

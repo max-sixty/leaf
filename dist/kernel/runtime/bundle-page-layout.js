@@ -5655,7 +5655,10 @@ function createSinceSeen({ markSeen }) {
 		const base = newestSeen();
 		if (arriving) {
 			arriving = false;
-			if (base && base.revision < current && comparisonBase() === null) {
+			const standing = comparisonBase();
+			const replaces = standing === null || standing.revision === offered && base !== null && base.revision > offered;
+			if (base && base.revision < current && replaces) {
+				if (standing !== null) stopComparison();
 				const since = revisionBase(base);
 				offered = since.revision;
 				whenDocumentPresented().then(() => offerComparison(since));

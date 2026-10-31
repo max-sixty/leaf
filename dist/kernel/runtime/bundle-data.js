@@ -1533,8 +1533,7 @@ const RUNG_LADDER = [
 	"floating panel",
 	"draw mode",
 	"design mode",
-	"page",
-	"changes"
+	"page"
 ];
 const PAGE_COMMANDS = [
 	"comment.create",
@@ -1548,7 +1547,6 @@ const PAGE_COMMANDS = [
 	"thread.walk",
 	"queue.walk",
 	"change.walk",
-	"change.marks.stop",
 	"page.move",
 	"scroll.move",
 	"reading.align.top",

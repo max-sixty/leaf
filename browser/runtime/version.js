@@ -1150,7 +1150,7 @@ const pressComparison = (version) => {
     : showComparison(revisionBase(entry));
 };
 
-/** Stop marking: the way out of a comparison, whoever started it (change-walk.js). */
+/** End the comparison, as since-seen.js ends its own offer before re-basing it. */
 export const stopComparison = () => setDiff(false);
 /** The base the page's marks compare with, or null where nothing is compared. */
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);

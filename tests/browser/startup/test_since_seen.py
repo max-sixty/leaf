@@ -13,7 +13,7 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import executable_revision, live_url
 from render_cases_navigation import _publish
-from render_harness import compare_with, open_page, panel_menu, wait_for_revision
+from render_harness import compare_with, open_page, wait_for_revision
 
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
@@ -28,6 +28,7 @@ PAGE = leaf_page(
 <p id="d">Delta reads one way.</p>
 """,
 )
+ALPHA = ("Alpha stays as it was.", "Alpha reads another way.")
 BETA = ("Beta reads one way.", "Beta reads another way.")
 DELTA = ("Delta reads one way.", "Delta reads another way.")
 
@@ -118,12 +119,16 @@ def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
-    # The marks stand until the reader stops them: Escape lets go of the change it is
-    # on, and the next takes the marks off.
+    # The marks are annotations: Escape lets go of the change and leaves them, and `o`
+    # hides them with the rest.
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
-    page.keyboard.press("Escape")
-    expect(marked).to_have_count(0)
+    clear = "rgba(0, 0, 0, 0)"
+    page.keyboard.press("o")
+    expect(page.locator("#b")).to_have_css("background-color", clear)
+    page.keyboard.press("o")
+    expect(page.locator("#b")).not_to_have_css("background-color", clear)
 
 
 def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
@@ -150,9 +155,22 @@ def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
     attention(page, True)
     expect(marked).to_have_count(1)
     assert marked_ids(page) == ["d"]
-    # The menu's row is the pointer's and finger's way to stop marking.
-    panel_menu(page).locator('[data-row="command:change.marks.stop"]').click()
-    expect(marked).to_have_count(0)
+    # A glance at the terminal that brings nothing new keeps the marks.
+    attention(page, False)
+    wait_for_seen(d, [2, 3], "losing focus again named no revision the user saw")
+    attention(page, True)
+    page.wait_for_timeout(300)
+    assert marked_ids(page) == ["d"]
+    # A return that brings a revision they haven't seen marks only what came after the
+    # newest they had.
+    attention(page, False)
+    (d / "index.html").write_text(revised(PAGE, BETA, DELTA, ALPHA))
+    wait_for_revision(page, 4)
+    attention(page, True)
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('main .lf-ins-block')]"
+        ".map(b => b.id).join() === 'a'"
+    )
 
 
 def test_a_chosen_comparison_outranks_the_one_offered(browser, serve):

@@ -166,6 +166,11 @@ html[data-lf-region-capture] main * {
   box-shadow: 0 0 0 4px var(--add-tint);
   border-radius: var(--r-s);
 }
+/* A change's mark is an annotation, so hiding annotations (`o`) hides it too. */
+:root[data-lf-annotations="hidden"] .lf-ins-block {
+  background: transparent;
+  box-shadow: none;
+}
 /* A marked block becomes one inline text diff when its Change disclosure opens
    (version.js): the block wash steps back so the insertion highlight marks only new
    text; a newly added block keeps it. The version label and deletions wear `.lf-ui`, so

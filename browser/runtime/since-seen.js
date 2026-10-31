@@ -24,11 +24,17 @@
    another application, it posts a `seen` event naming the newest revision it saw, with
    `keepalive` so a closing document's send arrives, and hands the same revision to the
    document a reload brings (tab storage, read once), so a reload does not mark what the
-   user watched land because its first reading came before the send. A comparison this
-   owner offered follows the server's reading as it catches up, as when another tab's
-   send lands after this one's reading: it re-bases where the newer seen revision is
-   still behind the page, and stops where it reaches it. A comparison the reader chose
-   in Versions outranks the offer and is left alone.
+   user watched land because its first reading came before the send.
+
+   The marks are annotations and have no stop of their own (change-walk.js). An offer
+   stands, taking in each revision that lands while the user watches, until a return
+   brings a revision they haven't seen: then it starts again from the newest they had,
+   so only what came after is marked. A return that brings nothing new leaves it, so a
+   glance at the terminal keeps the marks and the walk's place. An offer also follows
+   the server's reading as it catches up, as when another tab's send lands after this
+   one's reading: it re-bases where the newer seen revision is still behind the page,
+   and stops where it reaches it. A comparison the reader chose in Versions outranks the
+   offer and is left alone.
 
    Whether the user saw a revision is a logged fact, not browser storage, for the reason
    a message's read is: the page has one user, who reads it in more than one browser and
@@ -87,8 +93,8 @@ export function createSinceSeen({ markSeen }) {
     if (!takesPart() || current === null || !runtime.showsActive) return;
     // An offer follows the server's reading as it catches up: another tab's or a
     // departing document's send that landed after this tab's first reading. What this
-    // tab saw itself and posted is no news to its own offer, whose marks stand until
-    // the reader stops them.
+    // tab saw itself and posted is no news to its own offer, which stands until a
+    // return brings something new.
     const seen = runtime.seen;
     if (
       offered !== null &&
@@ -104,7 +110,12 @@ export function createSinceSeen({ markSeen }) {
     const base = newestSeen();
     if (arriving) {
       arriving = false;
-      if (base && base.revision < current && comparisonBase() === null) {
+      const standing = comparisonBase();
+      const replaces =
+        standing === null ||
+        (standing.revision === offered && base !== null && base.revision > offered);
+      if (base && base.revision < current && replaces) {
+        if (standing !== null) stopComparison();
         const since = revisionBase(base);
         offered = since.revision;
         void whenDocumentPresented().then(() => offerComparison(since));

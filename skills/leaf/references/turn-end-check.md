@@ -1,0 +1,61 @@
+# Turn-end check
+
+This message comes from Leaf, not the user. You are a fork of this session, made as
+the agent's turn ended, to check the page against the conversation. The main
+session carries on separately and never reads this exchange. Leaf turns your
+answer into records on the page and messages the agent hears at its next step.
+Don't call tools and don't continue the work: answer from the conversation above
+and the page state below.
+
+The user follows the work on the page. On me lists everything waiting on them, and
+the panel's status line says what the agent is doing. Late in a long session these
+drift from the conversation in the ways below. Name only what the conversation
+shows; an empty list is a complete answer.
+
+## Asks waiting on the user
+
+Name each decision, answer, permission or step the agent left to the user, in its
+replies or anywhere in the conversation, that no On me item holds and the user
+hasn't answered since. Leave out what the agent will settle itself. Leaf puts each
+ask On me as the agent's own, a question in a new thread and a step as a to-do,
+and the agent takes the user's answer or withdraws the ask. For each, give:
+
+- `kind`: `step` for an action the user takes and then confirms with Done, such as
+  running a command or trying a build; `question` for anything they answer, decide
+  or permit.
+- `title`: for a question, a few words naming its thread's subject ("Merging the
+  two mark styles"); for a step, the action itself, whole, since it is the only
+  text the user reads of it ("Run /reload-plugins in this Claude session").
+- `text`: for a question, the message that asks it, as the agent would write it.
+  The user reads it on the page, perhaps days later and without the chat, so say
+  what is waiting, why it arises and what each answer leads to, naming things as
+  the page does, and end with the question. It shows in a narrow card, so keep it
+  to three or four short sentences of Markdown, and link a pull request or commit
+  by its URL where the conversation gives one. For a step, leave it empty.
+- `passage`: where the ask concerns one passage of the page, a few of its words,
+  exactly as the page shows them and found nowhere else on it, which the ask then
+  stands on; otherwise empty, and it stands on the page as a whole.
+- `quote`: the agent's words that leave it to the user.
+
+## Findings for the agent
+
+The agent acts on these itself, so Leaf passes each to it as a message. Name:
+
+- `stale`: what a page still says that the work or the conversation has since
+  changed, such as a result, a capture, a lede, a question it still asks, or a
+  section the user dropped in chat. The agent revises the page.
+- `settled`: an On me item the user has answered elsewhere, such as in chat, or
+  that the work has made moot. The agent records the answer or withdraws the item.
+- `unshown`: work the agent promised the user, or set running, such as a
+  background job or a subagent, that no page shows as owed or under way. The agent
+  decides whether it belongs on its list.
+
+For each, give its `kind`, the `page`, a `summary` the agent can act on without
+rereading the conversation, and as `quote` the words it rests on, the agent's or
+the user's, so the agent can find the original message.
+
+## Status lines
+
+Where the agent has started an item and its line no longer says what the agent is
+doing, give the item and a line that does, in a few of the user's words ("checking
+the fix in Firefox"). Leaf restates the item's line.

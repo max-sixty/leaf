@@ -774,7 +774,13 @@ flowchart TD
               skill, which the agent reads at the start and again after a compaction. A
               rule for one element or one kind of update travels with it, so the agent
               reads it when it acts. Problems the agent can't see for itself, such as an
-              update it hasn't answered, arrive from Leaf's hooks.
+              update it hasn't answered, arrive from Leaf's hooks. Late in a long
+              session, an agent can leave a decision for the user in chat without
+              putting it On me. An experimental check catches these in Claude Code: as
+              each turn ends, it forks the conversation and adds each such decision to
+              On me as an ordinary to-do of the agent's. The agent is told each one at
+              its next step, and keeps or ends it as it would one it wrote. Nothing on
+              the page shows that the check added it.
             </p>
             <table id="guidance-channels">
               <thead>
@@ -838,6 +844,18 @@ flowchart TD
                     When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
                     >), as a session or prompt starts, and in Claude Code between tool
                     calls.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Turn-end check (experimental)</th>
+                  <td>
+                    Each to-do on the user it added for a decision, answer or step the
+                    agent left in chat, with the to-do's id and how to end it.
+                  </td>
+                  <td>
+                    In Claude Code, at the next prompt or tool call after a turn that
+                    ends while the session holds a page. If a new turn starts before the
+                    fork answers, it adds nothing.
                   </td>
                 </tr>
                 <tr>

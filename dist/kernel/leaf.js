@@ -4833,7 +4833,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                           ${ref(declareView)}
                           style=${route === top && opening.room !== null ? `height: ${opening.room}px` : nothing}
                           ?data-leaving=${route === leaving}
-                          @scroll=${sawAnswer}
+                          @scroll=${viewScrolled}
                         >
                           ${viewOf(route).draw(route)}
                         </div>`)}
@@ -5369,6 +5369,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		drawnSections: null,
 		waiting: null,
 		placed: null,
+		foot: null,
 		onPageSeat: false,
 		unreadSeat: null,
 		quoteExpanded: false,
@@ -5519,8 +5520,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (target) focusDestination(target, "move");
 	}
 	let viewMovingUntil = 0;
-	const fit = sizeObserver(() => {
+	const fit = sizeObserver((entries) => {
 		stood = openView()?.offsetHeight ?? null;
+		keepFoot(entries);
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5689,6 +5691,27 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
 		opening.waiting = null;
 		paint();
+	}
+	function keepFoot(entries) {
+		const view = openView();
+		const before = opening.foot;
+		const room = view?.clientHeight;
+		if (before?.view === view && room !== before.room && entries.every(({ target }) => target === view)) {
+			moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
+			opening.placed = view.scrollTop;
+		}
+		opening.foot = view ? {
+			view,
+			room,
+			top: view.scrollTop
+		} : null;
+	}
+	function viewScrolled(event) {
+		const view = event.currentTarget;
+		const { foot } = opening;
+		if (foot?.view !== view) return sawAnswer(event);
+		if (!(view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view))) foot.top = view.scrollTop;
+		sawAnswer(event);
 	}
 	let held = null;
 	let seats = [];

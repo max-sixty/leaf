@@ -50,12 +50,17 @@ from leaf_dev.leaf_assets import pinned_copy
 
 
 def capture_evidence(
-    page: Path, inputs: Path | None, screens: Path, shots: Path, arrival: list[str]
+    page: Path,
+    inputs: Path | None,
+    screens: Path | None,
+    shots: Path,
+    arrival: list[str],
 ) -> dict:
     """Keep the judge's captures, page media and rendered screens after scratch exits.
 
-    The rendered screens lead with `arrival`, the page on arrival at each selected
-    viewport, which every condition has; Leaf adds its render check's sweep."""
+    The rendered screens are `arrival`, the page on arrival at each selected
+    viewport, which every condition has, then the render check's sweep in `screens`
+    where the caller passes one."""
     sources, media = {}, {}
     shots.mkdir(parents=True, exist_ok=True)
     if inputs is not None and inputs.is_dir():
@@ -87,7 +92,7 @@ def capture_evidence(
             if source_digest == digest
         ]
     rendered = list(arrival)
-    if screens.is_dir():
+    if screens is not None and screens.is_dir():
         shutil.copytree(screens, shots / "screens")
         rendered += [str(path) for path in sorted((shots / "screens").rglob("*.png"))]
     return {
@@ -429,7 +434,12 @@ def execute(
                             "capture_evidence": capture_evidence(
                                 page,
                                 images,
-                                state / "leaf" / "screens",
+                                # A case that compares conditions judges each on
+                                # what all of them have, so Leaf's sweep stays the
+                                # author's feedback and isn't extra evidence.
+                                state / "leaf" / "screens"
+                                if metadata.get("conditions", ["leaf"]) == ["leaf"]
+                                else None,
                                 shots,
                                 [
                                     image

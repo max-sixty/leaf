@@ -14,7 +14,9 @@
 # The plain HTML control gets the same request. On 945fce2f8, 4 runs per condition:
 # values-in-view 4/4 on both; subject-leads Leaf 0/4, HTML 4/4, but the judge saw
 # Leaf's render-check sweep (each failure clipped at 1000-1120px) and only HTML's
-# 1280px arrival, where one HTML page overflows 142px at 1120px. Read the pages too.
+# 1280px arrival, where one HTML page overflows 142px at 1120px. Both arms are now
+# judged on the page on arrival at the run's windows, and the prompt no longer
+# names a 1440x900 window that contradicted the run's 1280x800 one.
 description: playground-tunes-what-ships
 metadata:
   purpose: "Playground: a tuning page leads with the subject being decided and lets
@@ -95,7 +97,7 @@ vars:
     </style>
     ```
 
-    Build that page. The user works in a 1440x900 window.
+    Build that page.
 assert:
   - type: agent-rubric
     metric: values-in-view

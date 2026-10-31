@@ -3,6 +3,25 @@
 Read with [module-authoring.md](module-authoring.md), which holds what every behavior
 module owes.
 
+## Where a widget keeps its state
+
+Leaf keeps every kind of state a widget has; the module writes no storage or server
+code of its own. Choose by what the state is:
+
+| State                                                                                      | Kept through                                                                                                     | Who sees it                                                                                             | How the widget hears of a change                                                                           |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `x-state` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                   | `watchDraft`                                                                                               |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                | only this tab writes it; read it during setup                                                              |
+| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                | Leaf sets the property, and `render()` runs                                                                |
+| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                  | `watch(callback)`                                                                                          |
+
+Undo tells the first row from the third. Record a change the user would expect Undo to
+take back, and that a comment on the page may be about. Keep in the tab what Undo should
+leave alone, such as which panel they opened. State a module keeps in `localStorage`,
+IndexedDB or memory never reaches another device or the agent, and Undo can't take it
+back.
+
 ## The widget controller
 
 A registry-declared widget draws its state in `render()` from `this.state` and
@@ -64,17 +83,11 @@ The draw counts as shown only once `updateComplete` settles, and a rejection is 
 draw's failure. Set the promise on every update, `undefined` when it starts none, so a
 finished failure doesn't fail every later draw.
 
-### Tab-local working state
+### State only this tab keeps
 
-State the user arranges but doesn't record, such as which groups they collapsed, stays
-out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
-for this page in this tab; set `null` to remove it. Read it during setup so the first visible state reflects it
-(`module-authoring.md`, "First paint").
-
-Record what the user makes instead, such as a playground's settings, since Undo should
-take it back and a comment on the page may refer to it. A verb declaring `attention: false`
-records work the user hasn't sent
-([package-data.md, "User state"](package-data.md#user-state)).
+`tabStore.get(key)` and `tabStore.set(key, value)` keep a string for this page in this
+tab, such as which groups the user collapsed; set `null` to remove it. Read it during
+setup so the first visible state reflects it (`module-authoring.md`, "First paint").
 
 ## Declared widget state
 

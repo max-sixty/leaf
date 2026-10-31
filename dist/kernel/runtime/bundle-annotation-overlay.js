@@ -1891,6 +1891,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		for (const control of selectedReadingCarriers) if (!selected.has(control)) syncContributionSelection(control, false);
 		for (const control of selected) syncContributionSelection(control, true);
 		selectedReadingCarriers = selected;
+		scheduleMarginEntryLabels();
 	}
 	const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
 	const entryThread = (node) => {

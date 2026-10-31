@@ -742,6 +742,23 @@ def on_me(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
+def on_me_todo(page: Page) -> None:
+    """The full to-do title beside its subject after the On me walk arrives."""
+    as_agent(
+        "task",
+        "create",
+        "plan-context",
+        "--title",
+        "Review the change or name a reviewer, then merge it after checking the build",
+        "--on",
+        "user",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    page.locator("#plan-top").click()
+    page.keyboard.press("m")
+
+
 def on_me_choice(page: Page) -> None:
     """A described choice card in On me, before answering."""
     on_me(page)
@@ -3128,6 +3145,8 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me-todo", "review-a-plan", on_me_todo),
+    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

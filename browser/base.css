@@ -1832,8 +1832,25 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   transform: translateY(0);
   transition: none;
 }
+/* An obligation's subject need not say what the user owes. Keep its question
+   readable at the selected destination, including when the subject owns focus. */
+.lf-margin-entry[data-lf-kinds~="on-me"][data-lf-target-selected]
+  > .lf-margin-entry-label {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: none;
+}
+.lf-margin-entry[data-lf-kinds~="on-me"][data-lf-target-selected]
+  .lf-margin-entry-label-word {
+  white-space: normal;
+}
 @media (hover: none) {
-  .lf-margin-entry[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
+  .lf-margin-entry[data-lf-focus]:not(
+      :focus-visible,
+      [data-lf-held-word],
+      [data-lf-target-selected]
+    )
     > .lf-margin-entry-label {
     opacity: 0;
     visibility: hidden;

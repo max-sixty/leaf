@@ -429,10 +429,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     """A block sample below the window starts loading at once, but the page presents
     and takes keys without it, reading as arriving until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
-    so what follows stays put, until the frame leaves their sight. A wheel over the
-    frame scrolls past it and claims nothing. Once they press inside it, its growth is
-    theirs: a disclosure they open, and growth the child makes of its own accord
-    afterwards, apply at once.
+    so what follows stays put, until the frame leaves their sight or the tab is
+    hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
+    inside it, its growth is theirs: a disclosure they open, and growth the child makes
+    of its own accord afterwards, apply at once.
 
     The inner window sample's document is held throughout, so the child is still
     arriving at every step."""
@@ -531,10 +531,26 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     rendered(child_document)
     rendered(page)
     assert frame.evaluate(height) == before
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    grows_to(child.locator("body").evaluate(body))
+    page.evaluate("""async () => {
+      window.continuity = await window.__lfCheckApi();
+      delete document.visibilityState;
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    # The reading resumes once the returning page's first refreshed reading lands.
+    page.wait_for_function("continuity.readingReturn() === null")
+
+    child_grows_unseen(1800)
     child.locator("#more > summary").click()
     expect(child.locator("#more")).to_have_attribute("open", "")
     grows_to(child.locator("body").evaluate(body))
-    grows_to(child_grows(1800))
+    grows_to(child_grows(2000))
 
 
 def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(

@@ -141,9 +141,8 @@ customElements.define(
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
           host.on("arrived", () => this.#arrival?.reported?.());
-          // A click, a key or text entered in the child claims the frame. A wheel or a
-          // touch that scrolls past it claims nothing, as the platform's user
-          // activation leaves both out.
+          // A click, a key or text entered in the child claims the frame. A wheel, or a
+          // touch that scrolls, moves the containing page past it and claims nothing.
           host.on("input", ({ type }) => {
             if (type === "click" || type === "keydown" || type === "input")
               this.#release();

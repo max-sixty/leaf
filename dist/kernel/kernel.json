@@ -191,7 +191,7 @@
     "runtime/resolved-target.js": "0ad5ce95bacdb335e46638af14a10f636f9c28332818c1e207623c897f2e9c12",
     "runtime/restore-state.js": "661f9d43a14bc7208379d493be03687fa4af83b9bfbce48050561712221aa33c",
     "runtime/root-state.js": "5e533ca61f3c3050be6d7a3631cd14e344b9b0c723bea7c84d7a45ad6d82edc2",
-    "runtime/sample-child.js": "c6bcbbeffbacef31df885713fb1a6c30682773dd35e178a2ed4893968988dbf4",
+    "runtime/sample-child.js": "449ffc99981c393221aafbba1369ef77ecc9369023a7336654cefe8ebff68244",
     "runtime/sample.js": "4c56ccbc4263e94a898e4d733e651d200c5a70c16183621e9cf1df8ea118d061",
     "runtime/scrolling.js": "9ea4235c0ec3441e567b4adea0d9ac48110dcf6b2ca3409afb18b75bd533bd12",
     "runtime/semantic-news.js": "2cfbef66f46f16f74ba33338347035bdbe384769c119b6af6f5123cb17672072",

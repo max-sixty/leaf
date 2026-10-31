@@ -58,11 +58,11 @@ if (child) {
       focused: Boolean(node && node !== document.body),
     });
   });
-  // The reader's own input here goes to the containing page by its event type: its
-  // focus reads a press or a key (focus.js, `inputInFrame`), and a click or a key
-  // makes the frame theirs to move (lf-sample.js, `#release`). The inputs are the
-  // document's one reading of them (focus.js, `onUserInput`). A click is input of its
-  // own, since by pointer or by Enter or Space it lands after the press that began it.
+  // The reader's own input here goes to the containing page by its event type, for its
+  // focus (focus.js, `inputInFrame`) and for whether the frame is theirs to move
+  // (lf-sample.js, `#release`). The inputs are the document's one reading of them
+  // (focus.js, `onUserInput`). A click is input of its own, since by pointer or by
+  // Enter or Space it lands after the press that began it.
   const input = (event) => {
     if (!event.isTrusted || event.type === "blur") return;
     sampleNotice("input", { type: event.type });

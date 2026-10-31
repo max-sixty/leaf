@@ -1644,6 +1644,36 @@ def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
     assert on_rule[-3:] == [True, False, True], landed
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_show_the_quote_marker_the_caret_reaches(engine, request, serve):
+    """Up and Down at the start of a quote's lines show the `>` of the line the caret
+    reaches and hide the one it left, and nothing moves. CodeMirror moves one line's
+    marker element to the other line and swaps its `> ` for that line's, which the
+    browser fixture's write watch read as rewriting a marker unchanged."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    write(field, "> one\n> two\n> three")
+    page.keyboard.press("Home")
+    rendered(page)
+    still = field.evaluate(STILL)
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(
+      line => !line.querySelector('.lf-md-quote-marker').matches('.lf-md-unseen'))"""
+    seen = [field.evaluate(shown)]
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown"]:
+        page.keyboard.press(key)
+        rendered(page)
+        seen.append(field.evaluate(shown))
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), seen
+    assert seen == [
+        [False, False, True],
+        [False, True, False],
+        [True, False, False],
+        [False, True, False],
+    ]
+
+
 # The caret's left edge in the field's content: a collapsed range at it, measured on
 # the text node holding it in the line it stands on.
 CARET_X = """box => {

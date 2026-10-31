@@ -2725,6 +2725,7 @@ const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = "";
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
+fabBar.setAttribute("part", "composer");
 const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";

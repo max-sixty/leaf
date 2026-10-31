@@ -492,7 +492,15 @@
     container-type: inline-size;
     --lf-block-frame: trim;
     --lf-reading-region: layout;
-    --lf-track-beside: clamp(0, sign(var(--lf-track-parent-width) - 100cqi), 1);
+    /* 1 while the track's aside sits beside the body, narrower than `.layout-sidebar`
+     * by at least the gap, and 0 once it wraps to the full width. Wrapped, Chromium
+     * computes the two widths a float rounding error apart at some window sizes (960px
+     * among them), so the comparison rounds to whole pixels. */
+    --lf-track-beside: clamp(
+      0,
+      sign(round(var(--lf-track-parent-width) - 100cqi, 1px)),
+      1
+    );
   }
   .layout-track {
     --lf-sidebar-slot: beside;

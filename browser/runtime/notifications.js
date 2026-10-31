@@ -33,6 +33,12 @@ const noticePresentation = signal(Object.freeze({ message: "", visible: false })
 export const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
 
+// A notice's words are a string, the interface's own, or parts each in the voice of
+// whoever says them (`{text, voice}`, semantic-news.js), which the seat draws apart and
+// the live region hears as one line.
+export const noticeText = (message) =>
+  typeof message === "string" ? message : message.map((part) => part.text).join("");
+
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
 const presentNotice = (message, visible) => {
@@ -45,7 +51,7 @@ export function announce(msg) {
   if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
     if (liveEl.firstChild) liveEl.replaceChildren();
-    liveEl.append(msg);
+    liveEl.append(noticeText(msg));
   }, 30);
 }
 
@@ -75,7 +81,7 @@ function showNotice(msg, background = null) {
 function showBackground(entry) {
   while (entry) {
     const message = entry.format(entry.value);
-    if (message) {
+    if (noticeText(message)) {
       showNotice(message, entry);
       return true;
     }

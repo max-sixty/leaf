@@ -843,8 +843,9 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each question it asked in a thread for something the agent left to
-                    the user in chat, with the message, its id and how to withdraw it.
+                    Each question it asked in a thread, and each step it put On me as a
+                    to-do, for something the agent left to the user in chat, with its
+                    words, its id and how to withdraw it.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1156,20 +1157,23 @@ flowchart TD
               <p id="fork-excludes">
                 The fork leaves out what an On me item already holds, what the user has
                 answered since, and what the agent will settle itself. For each ask it
-                gives a thread title, a message of a few sentences that the user can
-                answer without the chat, and the words of the passage the ask concerns,
-                if one does. Leaf skips an ask whose title a thread the agent opened to
-                ask something already has.
+                says whether it is a question or a step the user takes and confirms with
+                Done, and gives the words of the passage it concerns, if one does. A
+                question gets a thread title and a message of a few sentences that the
+                user can answer without the chat; a step gets a title naming the action
+                whole. Leaf skips an ask whose title an ask the agent made already has.
               </p>
               <p id="fork-writes">
-                Leaf opens each remaining ask as a thread on that passage, or on the
-                page as a whole where the fork named none or the page doesn't show its
-                words once, its message written as the agent's with an obligation, as
-                <code>leaf thread create --obligation</code> writes one. It appears On
-                me until the user replies, and nothing on the page marks where it came
-                from. At its next prompt or tool call, the agent reads each message and
-                its id, and the user's reply reaches it as any reply does; it withdraws
-                a question with <code>leaf task end</code>.
+                Leaf opens each remaining question as a thread, its message written as
+                the agent's with an obligation, as
+                <code>leaf thread create --obligation</code> writes one, and puts each
+                step On me as the agent's to-do on the user, as
+                <code>leaf task create --on user</code> does. Each stands on that
+                passage, or on the page as a whole where the fork named none or the page
+                doesn't show its words once. It stays On me until the user replies or
+                presses Done, and nothing on the page marks where it came from. At its
+                next prompt or tool call, the agent reads what Leaf wrote and its id,
+                and withdraws any of it with <code>leaf task end</code>.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the

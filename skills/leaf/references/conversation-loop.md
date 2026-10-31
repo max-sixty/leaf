@@ -200,12 +200,13 @@ comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On me doesn't
-hold, asks each in a new thread, on the passage it concerns or the page, as your
-message with `--obligation`, and tells you at your next step, quoting what it wrote.
-That catches what slips; it doesn't ask your questions for you, so keep asking by the
-routes below. Each thread it opens is yours like any you open: the user's reply
-reaches you as any reply does, and you withdraw a question that isn't theirs to decide
-with `leaf task end <page> message:<id> dropped`.
+hold. It asks each question in a new thread as your message with `--obligation`, puts
+each step On me as your to-do on the user, places either on the passage it concerns
+or the page, and tells you at your next step what it wrote. That catches what slips;
+it doesn't ask for you, so keep asking by the routes below. What it writes is yours
+like anything you write: the user's reply reaches you as any reply does, and you end
+one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id being
+`message:<id>`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each

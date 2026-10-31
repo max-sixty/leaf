@@ -34,6 +34,7 @@ def reply(page, *titles: str, passage: str = "") -> str:
             "asks": [
                 {
                     "page": str(page),
+                    "kind": "question",
                     "title": title,
                     "text": f"{title}: which would you like?",
                     "passage": passage,
@@ -158,6 +159,65 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
     assert f'"The retry budget" On me, in a new thread on {page} as a whole,' in context
 
 
+def test_a_step_goes_on_me_as_a_todo_titled_as_the_action(claimed, capsys):
+    """A step the user takes and confirms with Done goes On me as the agent's to-do on
+    the user, on the element holding the passage it concerns or else on the page, and
+    the agent hears its id. A step the agent already put on the user isn't put there
+    again, open or ended."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    basis = asked()["basis"]
+
+    def step(title, passage=""):
+        return {
+            "page": str(page),
+            "kind": "step",
+            "title": title,
+            "text": "",
+            "passage": passage,
+            "quote": title,
+        }
+
+    answer = {
+        "asks": [
+            step("Run the backfill job on staging", "The cutoff lives in"),
+            step("Run /reload-plugins in this Claude session"),
+        ]
+    }
+    wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
+    assert [
+        (record["kind"], record["owner"], record["subject"]) for record in wrote
+    ] == [
+        ("todo", "user", {"kind": "element", "id": "plan"}),
+        ("todo", "user", {"kind": "page"}),
+    ]
+    assert {(record["author"], record["session"]) for record in wrote} == {
+        ("agent", "s1")
+    }
+    on_me = cmd_page_state(claimed)["queues"]["on_user"]
+    assert [row["id"] for row in on_me] == [record["id"] for record in wrote]
+    context = hook(capsys, "PostToolBatch")
+    assert (
+        f'Leaf put the step "Run /reload-plugins in this Claude session" On me as your '
+        f"to-do {wrote[1]['id']} on the user, on {page} as a whole." in context
+    )
+    assert f"leaf task end {page} {wrote[0]['id']} dropped" in context
+
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "todo_end",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "todo": wrote[1]["id"],
+            "outcome": "dropped",
+        },
+    )
+    again = clerk_model.take_answer("s1", json.dumps(answer), asked()["basis"])
+    assert again["wrote"] == []
+
+
 def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):
     """A message is checked as `thread create` checks one, and every message before
     the first is written, so a refused one leaves the page as the fork found it."""
@@ -191,6 +251,8 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
         "Nothing to report.",
         '{"asks": [], "extra": 1}',
         '{"asks": [{"page": "p", "title": "x"}]}',
+        '{"asks": [{"page": "p", "kind": "question", "title": "x", "text": "", '
+        '"passage": "", "quote": ""}]}',
     ],
 )
 def test_an_answer_outside_the_schema_writes_nothing(text):

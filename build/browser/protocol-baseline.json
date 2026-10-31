@@ -49,7 +49,7 @@
     },
     "clerk": {
       "since": 36,
-      "schema": {"description":"The lines Leaf's clerk queued for a session's next step, in the state home's `sessions/<digest>.clerk` (`state.session_file`): one for each question it asked On me (`clerk`).","type":"object","properties":{"lines":{"type":"array","items":{"type":"string"}}},"required":["lines"]}
+      "schema": {"description":"The lines Leaf's clerk queued for a session's next step, in the state home's `sessions/<digest>.clerk` (`state.session_file`): one for each question or step it put On me (`clerk`).","type":"object","properties":{"lines":{"type":"array","items":{"type":"string"}}},"required":["lines"]}
     },
     "codex-adapter": {
       "since": 13,

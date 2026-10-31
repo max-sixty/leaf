@@ -98,7 +98,7 @@ line to renew. Whether the work has moved on is the agent's judgement; the hook 
 says how long the line has stood. This was the user's choice (28 October 2026) over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
-The prompt hook and a tool boundary also carry each question Leaf's clerk asked On me
+The prompt hook and a tool boundary also carry each ask Leaf's clerk put On me
 at the last turn's end, one line each (`clerk.queued`), and take them off the queue once
 printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
 ended.
@@ -566,7 +566,7 @@ def carry_turn(
         if event == "PostToolBatch" and status_check_due(sid)
         else []
     )
-    # The questions Leaf's clerk asked On me since the agent last heard
+    # The asks Leaf's clerk put On me since the agent last heard
     # (`clerk.queued`), which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     if event == "PostToolBatch" and not batches and not renewals and not told:

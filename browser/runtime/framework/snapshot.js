@@ -183,7 +183,8 @@ export function share(prior, next) {
     return /** @type {T} */ (prior);
   if (keys.every((key, index) => children[index] === after[key])) return next;
   /** @type {Record<string, unknown>} */
-  const copy = Object.getPrototypeOf(next) === null ? Object.create(null) : {};
+  const copy =
+    Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
   // Defined, not assigned: a JSON field named `__proto__` is an own property, and
   // assigning it would set the copy's prototype instead.
   keys.forEach((key, index) =>

@@ -1,8 +1,8 @@
+import { drawToc } from "./toc-view.js";
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The outline, the destination of each of its links and the frame that holds them are
- * `toc-view.js`'s, which the initial renderer draws before first paint, so the widget
- * first shows at the box it keeps. The module redraws the outline in those same nodes
+ * `toc-view.js`'s. The module redraws the outline in those same nodes
  * whenever the document's headings change, and measures and moves the map.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
@@ -52,7 +52,7 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  initialRender,
+  render,
   keeps,
   landingInsets,
   LAYOUT,
@@ -117,7 +117,8 @@ customElements.define(
     };
 
     connectedCallback() {
-      this.#drawing ??= initialRender(this);
+      this.#drawing ??= drawToc(this, { label: wrote, chrome: inChrome, lends: true });
+      render(this.#drawing.render(), this.#drawing.root ?? this, { host: this });
       const main = this.#drawing.scope();
       if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
         return;
@@ -139,11 +140,16 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      this.#sections = this.#drawing.update({
-        label: wrote,
-        chrome: inChrome,
-        lends: true,
-      });
+      render(
+        this.#drawing.render({
+          label: wrote,
+          chrome: inChrome,
+          lends: true,
+        }),
+        this,
+        { host: this },
+      );
+      this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination
       // survives. Restore focus if Lit moved a retained row through the DOM.
       if (restore) {
@@ -154,7 +160,6 @@ customElements.define(
           );
         restore(continuation?.link);
       }
-      this.toggleAttribute("data-lf-toc-empty", !this.#sections.length);
       this.#observeDestinations(previous);
     }
 
@@ -180,7 +185,9 @@ customElements.define(
       // each kind of scroller.
       const scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = sizeObserver(() => this.#scheduleMeasure());
+      // The map writes only its own geometry. Measure during size delivery so
+      // the document and its section lengths paint together.
+      this.#watching = sizeObserver(() => this.#measure());
       this.#watching.observe(this.#main);
       this.#renamed = new MutationObserver(() => {
         this.#reconcile();

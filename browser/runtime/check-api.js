@@ -2,7 +2,7 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { exceptionText } from "./layer-client.js";
+export { exceptionText } from "./exception.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -26,7 +26,6 @@ export {
 export {
   shownBand,
   shownBox,
-  skipped,
   shownRect,
   visibleBand,
   landingBand,
@@ -37,8 +36,9 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
+export { skipped } from "./shown-box.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
-export { authoredBody } from "./initial-render.js";
+export { authoredBody } from "./widget-elements.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -55,7 +55,6 @@ export {
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-  pageRange,
   closestAcross,
   pageText,
   fencePassageParts,
@@ -92,7 +91,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, watchScrollEnds } from "./arrivals.js";
+export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -103,7 +102,8 @@ export {
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
 export { runtimeRootState } from "./root-state.js";
-export { tabStore, draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { tabStore } from "./tab-store.js";
 export {
   frameVisibility,
   onFrameVisibility,
@@ -124,4 +124,6 @@ export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
-export { selfComparison, servedElements } from "./version.js";
+export { servedElements } from "./version.js";
+
+export { pageRange } from "./native-selection.js";

@@ -9,7 +9,6 @@ from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
     PANEL_THREAD,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -320,8 +319,9 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
 ):
     """Only an external settlement interrupting active editing retains the editor.
 
-    Deliberate Resolve and reload close it. Every path preserves the words for an
-    explicit Reopen, while an interrupted writer retains the native caret.
+    Deliberate Resolve and reload close it. Every path preserves the words, which the
+    panel's reply box shows in the resolved thread and keeps through Reopen, while an
+    interrupted writer retains the native caret.
     """
     url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3.")])
     root = thread_root(serve.page_dir, surface)
@@ -357,29 +357,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # Resolving from the panel moves the user on, so the field is the next
         # thread's.
         expect(page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')).to_have_count(0)
+    elif surface == "panel":
+        # The panel's reply box stands in a resolved thread, its words with it.
+        expect(field).to_have_js_property("value", words)
     else:
         expect(field).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root}") == words
-    if resolution == "inactive-agent":
-        # The thread drew its inactive reply box after Escape, and agent settlement
-        # then closes it, as this lifecycle deliberately requires. The generic words
-        # sensor cannot infer that ending the editing session made this later passive
-        # close legitimate. Calibrate only this exact loss here; Escape itself, active
-        # settlement, and every other field remain strict.
-        errors = consume_browser_errors(
-            page,
-            {
-                "code": "words-left-screen",
-                "words": words,
-                "place": ["leaf-text.lf-ui.scroll"],
-            },
-        )
-        assert len(errors) == 1
 
     page.reload()
     wait_until_ready(page)
     recovered = open_panel_thread(page, root)
-    expect(page.locator(PANEL_REPLY)).not_to_be_visible()
+    expect(page.locator(PANEL_REPLY)).to_have_js_property("value", words)
     with sending(page, "reopen with the saved reply"):
         page.locator(".lf-fp-settle").click()
     expect(recovered).to_be_visible()
@@ -414,7 +402,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
-        expect(field).not_to_be_visible()
+        # The panel's field stands in a resolved thread, where a reply reopens it.
+        if surface == "panel":
+            expect(field).not_to_be_focused()
+        else:
+            expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root}") == ""
         return
     page.keyboard.press("Tab")
@@ -563,6 +555,76 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     expect(card.locator("leaf-text")).to_be_visible()
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
+
+
+def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
+    browser, serve
+):
+    """A tabbed-away reply continues without reopening the file the reader left."""
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f'@@ -1 +1 @@\n-return "old"\n+return "{value}"\n'
+        for path, value in [("app.py", "new"), ("tests.py", "checked")]
+    )
+    url = serve(
+        leaf_page(
+            "Review files beside a reply",
+            '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
+            'view="file"><pre></pre></lf-diff>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree>'
+            '<a id="after-files" href="#patch">Back to the patch</a>',
+        ),
+        packages=("diff", "file-tree"),
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "What about this return value?",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    page = open_page(browser, url)
+    reply = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"] leaf-text')
+    words = "Keep this draft while I inspect the test."
+    write(reply, words)
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    caret = reply.evaluate("node => node.selectionStart")
+    search = page.locator("#files").get_by_role("textbox")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if search.evaluate('node => node.matches(":focus")'):
+            break
+    expect(search).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("End")
+    target = page.locator("#files").get_by_role("treeitem", name="tests.py", exact=True)
+    expect(target).to_be_focused()
+    page.keyboard.press("Enter")
+    wait_until_ready(page)
+    expect(target).to_have_attribute("aria-selected", "true")
+    expect(
+        page.locator("#patch").get_by_text('return "checked"', exact=True)
+    ).to_be_visible()
+    expect(target).to_be_focused()
+    assert stored_draft_text(page, f"reply:{root}") == words
+    # Resuming is explicit; merely inspecting another file must not take the reader back.
+    page.keyboard.press("Tab")
+    expect(page.locator("#after-files")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    resumed = page.locator("leaf-text:focus")
+    expect(resumed).to_have_js_property("value", words)
+    expect(resumed).to_have_js_property("selectionStart", caret)
 
 
 def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(

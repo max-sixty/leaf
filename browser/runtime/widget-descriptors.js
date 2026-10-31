@@ -15,7 +15,6 @@ import { elementDeclarations, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
-import { initialOrigin, initialParent, initialSource } from "./initial-render.js";
 
 const byElement = new WeakMap();
 const byId = new Map();
@@ -33,15 +32,8 @@ const candidates = (root) => {
   return found;
 };
 
-const parentOf = (element) => {
-  if (authoredParents.has(element)) return authoredParents.get(element);
-  if (element.parentElement) return element.parentElement;
-  // A copied arriving root is detached, although its authored coordinate was
-  // captured against the parent it will join before insertion. Only that outer
-  // edge leaves the reconstructed source tree; descendants use its own ancestry.
-  const live = initialOrigin(element);
-  return authoredParents.has(live) ? authoredParents.get(live) : initialParent(live);
-};
+const parentOf = (element) =>
+  authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 
 const declaredAncestors = (element) => {
   const ancestors = [];
@@ -75,10 +67,9 @@ export function stageWidgetDescriptors(
 ) {
   const captured = new Map();
   const bindings = [];
-  for (const element of candidates(initialSource(root))) {
+  for (const element of candidates(root)) {
     if (!element.id) continue;
-    const live = initialOrigin(element);
-    const existing = byElement.get(live);
+    const existing = byElement.get(element);
     if (
       existing &&
       existing.document.kind === documentContext.kind &&
@@ -99,7 +90,7 @@ export function stageWidgetDescriptors(
       ancestors,
       quoted: quotedBy(element),
     };
-    bindings.push({ element: live, descriptor });
+    bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);
   }
   return Object.freeze({

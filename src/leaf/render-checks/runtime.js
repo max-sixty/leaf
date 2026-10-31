@@ -1,4 +1,4 @@
-import { USER_VIEW_RESTORE_CASES } from "/runtime/check-api.js";
+import { USER_VIEW_RESTORE_CASES, scrolling } from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -30,7 +30,12 @@ export function moving() {
     );
 }
 
-export const pageSettled = () => moving().length === 0;
+// The page is settled once nothing is moving: no finite animation, and no scroll in
+// flight, such as a landing's smooth glide, which is no animation and moves every box
+// it scrolls. The runtime's reading of scrolls starts with its first call, so the
+// probes take one as they load, before any input they wait out.
+scrolling();
+export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
 const formControl = (node) => node.constructor.formAssociated === true;
@@ -90,3 +95,38 @@ export function openThreadToCheck(key) {
   );
 }
 export const threadOpening = (key) => (opening?.key === key ? opening.answer : null);
+
+// Native layout shifts are evidence for the page's author, not a refusal budget.
+// CLS uses the platform metric's session windows: gaps below 1s, at most 5s long.
+export function startupLayoutShifts() {
+  const entries = globalThis.__leafRenderDriver.startupLayoutShifts();
+  if (!entries.length) return [];
+  let cls = 0,
+    score = 0,
+    first = -Infinity,
+    previous = -Infinity;
+  for (const entry of entries) {
+    if (entry.startTime - previous >= 1000 || entry.startTime - first >= 5000) {
+      first = entry.startTime;
+      score = 0;
+    }
+    score += entry.value;
+    cls = Math.max(cls, score);
+    previous = entry.startTime;
+  }
+  return [
+    {
+      code: "startup-layout-shift",
+      cls,
+      entries: entries.map((entry) => ({
+        at: entry.startTime,
+        value: entry.value,
+        sources: entry.sources.map((source) => ({
+          node: at(source.node),
+          before: source.previousRect.toJSON(),
+          after: source.currentRect.toJSON(),
+        })),
+      })),
+    },
+  ];
+}

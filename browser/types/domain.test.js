@@ -99,3 +99,21 @@ function boundary(app, event, thread, dispatch, actionForWidget, post) {
   ];
 }
 void boundary;
+
+/** @param {typeof import("../runtime/semantic-state.js").applicationPresenter} presenter
+ * @param {boolean} enabled */
+function presenterBoundary(presenter, enabled) {
+  presenter({
+    region: "typed-reading",
+    reading: () => (enabled ? { count: 1 } : null),
+    paint(value, current, resume) {
+      // @ts-expect-error The paint receives the reading's value, never any.
+      void value.missing;
+      const next = resume(/** @param {number} count */ (count) => count + 1);
+      // @ts-expect-error Resuming preserves the continuation's parameter type.
+      next("wrong");
+      return current() ? next(value.count) : 0;
+    },
+  });
+}
+void presenterBoundary;

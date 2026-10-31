@@ -25,6 +25,7 @@ import {
   scrollsContent,
   shownBox,
 } from "./geometry.js";
+import { PRESSES } from "./control-selectors.js";
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
@@ -42,8 +43,11 @@ const paints = (shape, property) => {
   );
 };
 
+// A drawing's shapes and groups each take their own contour. The drawing itself, an
+// outermost `<svg>`, is a box among the page's, as a figure is, so its marks stand round
+// its box rather than round each of the shapes it draws.
 export function paintGeometry(surface) {
-  if (!(surface instanceof SVGElement)) return null;
+  if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
   const geometry = [surface, ...surface.querySelectorAll("*")].filter(
     (child) => child instanceof SVGGeometryElement,
   );
@@ -171,9 +175,6 @@ export function paintStand(box = null) {
   root.className = "lf-ui lf-target-paint lf-paint-stand";
   root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
-  // A contour spends its stroke outside the target. Let that stroke survive when
-  // the target meets a scrollport edge; drawings and chips use stands without a box.
-  if (box) root.style.setProperty("--lf-paint-outset", "var(--focus-ring-w)");
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
   if (box) carrier.append(box);
@@ -266,7 +267,62 @@ export function standOver(stand, placed, borderRadius) {
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
-  return { ...stood, anchor, at };
+  const band = token("--focus-ring-w");
+  const outside = markGap(placed.surface);
+  const gap = cramped(placed, band + outside) ? -band : outside;
+  stand.box.style.setProperty("--lf-mark-offset", layoutPx(gap));
+  // The frames let the band survive outside the target where it stands outside, and
+  // cut it exactly on an edge they already cut the target at, where it would otherwise
+  // stand over what the scroller has scrolled past (css-anchors.js, `cutPath`).
+  const room = Math.max(0, band + gap);
+  for (const side of ["top", "right", "bottom", "left"])
+    stand.root.style.setProperty(
+      `--lf-paint-outset-${side}`,
+      layoutPx(cutsAt(placed, side) ? 0 : room),
+    );
+  return { ...stood, anchor, at, room };
+}
+
+const token = (name) =>
+  Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+
+// Where a mark's band stands outside its target, which the target decides (base.css,
+// "Where it stands"): the `outline-offset` its face states, where its own focus ring
+// stands too. A target that states none stands at a control's ring's gap or at a
+// region's. A field states its edge, 0, which reads as none here, so a mark round a
+// field stands at a control's gap.
+function markGap(surface) {
+  const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
+  if (stated) return stated;
+  return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
+}
+
+// Whether a frame cuts the target on `side`, as on a target scrolled partly out of its
+// scroller.
+function cutsAt({ rect, levels }, side) {
+  const axis = side === "top" || side === "bottom" ? "y" : "x";
+  const low = side === "top" || side === "left";
+  return levels.some(
+    ({ band, axes }) =>
+      axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]),
+  );
+}
+
+// Where a box that clips the target, as a joined lf-options frame clips its cells,
+// shows the target's edge but not `room` beyond it, the mark stands just inside the
+// edge instead, as a control packed into a list insets its own ring (base.css).
+// Outside, the clip cut away its sides and left stubs across the neighbours. An edge
+// the clip already cuts asks for no room.
+function cramped({ rect, levels }, room) {
+  const short = (band, low, high) =>
+    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
+    (rect[high] <= band[high] && rect[high] + room > band[high]);
+  return levels.some(
+    ({ holder, band, axes }) =>
+      holder &&
+      ((axes.x && short(band, "left", "right")) ||
+        (axes.y && short(band, "top", "bottom"))),
+  );
 }
 
 // A set of paint boxes, each over a target and standing in the frames that cut it

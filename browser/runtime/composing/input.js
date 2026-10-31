@@ -42,13 +42,13 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
 import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
-import { iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import {
   LitElement,
@@ -72,9 +72,12 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { offered, offeredAction } from "../widget-elements.js";
+import { namedAction, offered, offeredAction } from "../widget-elements.js";
 
 const INPUT_DRAFT = Symbol("composition draft");
+// How long the pointer rests on Send's corner, once words reach it, before Send takes
+// presses there: longer than a press aimed at the words' end takes to land.
+const SEND_DWELL = 150;
 
 /** @typedef {CompositionField} CompositionFieldElement For its tag. */
 class CompositionField extends SignalWatcher(LitElement) {
@@ -148,29 +151,23 @@ function mediaTemplate({ drawing, target, media, sent, actions }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke")}
+              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.undoStroke}
-            >
-              ${iconTemplate("undo", "lf-mark-icon")}
-            </button>
+            ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing")}
+              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
               @mousedown=${(event) => event.preventDefault()}
               @click=${actions.removeDrawing}
-            >
-              ${iconTemplate("cross", "lf-mark-icon")}
-            </button>
+            ></button>
           </span>
         `
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`)}
+        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
         @click=${() => actions.removeMedia(index)}
-      >
-        ${iconTemplate("cross", "lf-mark-icon")}
-      </button>`;
+      ></button>`;
       // A sent message's picture is the one its message draws (markdown.js, the image
       // rule), in a paragraph of its own as the message sets it, with the removal mark
       // a rewrite adds.
@@ -228,7 +225,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hintLabel.value = hint?.label ?? "";
   };
   // `sends` states the box's own submit action. Composers send by default; a caller whose
-  // action differs, such as adding an option, supplies the matching icon.
+  // action differs, such as adding an option, names that action.
   function wireInput(
     ta,
     {
@@ -236,15 +233,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A structured visual hint can mark the exact words its owner observes. It
       // shares the existing placeholder slot and send key; null keeps the plain hint.
       hintParts = null,
-      // Words that pass while the hint stands, said at the empty box's far end after
-      // the hint and its key, where they move none of the box's controls.
-      hintAside = () => "",
+      // Words that stand before the hint while it does, such as whose turn it is, which
+      // send the hint and its key to the empty box's far end and move none of its
+      // controls as they come and go.
+      hintLead = () => "",
       accessibleName = null,
       save,
       send,
       sendClass = "",
       sends,
-      icon = "send",
+      action: submitAction = "send",
       altLabel = null,
       altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
@@ -294,7 +292,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-    const offersDictation = Boolean(Recognition && icon === "send" && !submitIn);
+    const offersDictation = Boolean(
+      Recognition && submitAction === "send" && !submitIn,
+    );
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
@@ -404,6 +404,39 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
+    // Once words reach Send's corner, Send shows there as the pointer comes to it, and
+    // takes presses only once the pointer has rested on it (response.css), so a quick
+    // press at the words' end places the caret. Typing, or a press on the words, puts
+    // Send away until the pointer next moves, so a second press of a double-click
+    // selects rather than sends. Where the pointer is decides, read from each move and
+    // leave alike: the user's Firefox follows nearly every move with a `pointerleave`
+    // out to the document at the same point, and a leave taken as the pointer going put
+    // Send away on every move.
+    let dwell = 0;
+    const unpoint = () => {
+      clearTimeout(dwell);
+      dwell = 0;
+      ta.parentElement?.removeAttribute("data-send-pointed");
+      ta.parentElement?.removeAttribute("data-send-armed");
+    };
+    const point = (event) => {
+      if (event.pointerType === "touch") return;
+      const box = event.currentTarget;
+      const send = sendBtn?.getBoundingClientRect();
+      const on =
+        send &&
+        event.clientX >= send.left &&
+        event.clientX < send.right &&
+        event.clientY >= send.top &&
+        event.clientY < send.bottom;
+      if (!on) return unpoint();
+      if (box.hasAttribute("data-send-pointed")) return;
+      box.setAttribute("data-send-pointed", "");
+      dwell = setTimeout(() => {
+        dwell = 0;
+        box.setAttribute("data-send-armed", "");
+      }, SEND_DWELL);
+    };
     let sending = false;
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
@@ -429,13 +462,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
-      const aside = status ? "" : hintAside();
-      const richHint = (suffix && !status) || parts != null || aside;
+      const lead = status ? "" : hintLead();
+      const richHint = (suffix && !status) || parts != null || lead;
       render(
         richHint
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
-              <span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd
-              ><span class="lf-compose-placeholder-aside">${aside}</span>
+              <span class="lf-compose-placeholder-lead">${lead}</span
+              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
             </span>`
           : nothing,
         ta,
@@ -469,16 +502,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const submitControl = html`<button
         type="button"
         ${offered(`${sendClass} lf-compose-submit`)}
-        aria-label=${action}
-        title=${sendKeys ? `${action} (${sendKeys})${newline}` : action}
+        ${namedAction(submitAction, {
+          label: action,
+          title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
+        })}
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
-      >
-        ${iconTemplate(icon, "lf-action-icon")}
-      </button>`;
+      ></button>`;
       if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
       const drawn = drawing?.read() ?? null;
       const media = mediaTemplate({
@@ -514,14 +547,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             ${offered("lf-compose-dictate")}
             ?hidden=${!micShown}
             data-dictation=${dictationState}
-            aria-label=${micAction}
+            ${namedAction("dictate", {
+              label: micAction,
+              title: live || !status ? micAction : `${micAction} (${status})`,
+            })}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
-            title=${live || !status ? micAction : `${micAction} (${status})`}
             @mousedown=${(event) => event.preventDefault()}
-          >
-            ${iconTemplate("microphone", "lf-action-icon")}
-          </button>`
+          ></button>`
         : nothing;
       const content = html`
         ${ta}${sentMedia ? shelf : nothing} ${submitIn ? nothing : submitControl}
@@ -552,7 +585,17 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           </button>`
         : nothing;
       return html`${sentMedia ? nothing : shelf}
-        <div class="lf-compose-field" ?data-words=${hasWords}>${content}</div>
+        <div
+          class="lf-compose-field"
+          ?data-words=${hasWords}
+          @pointermove=${point}
+          @pointerleave=${point}
+          @pointerdown=${(event) => {
+            if (!sendBtn?.contains(event.target)) unpoint();
+          }}
+        >
+          ${content}
+        </div>
         ${alternate}`;
     };
     field.updated = () =>
@@ -642,6 +685,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
+      unpoint();
       loadingFailure = "";
       dictation?.edited();
       // A user's edit also retires a microphone press still loading its module.
@@ -789,7 +833,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        raiseError(`Could not add image — ${error?.message ?? error}`, { subject: ta });
+        raiseError(`Could not add image — ${describeFailure(error)}`, { subject: ta });
         return false;
       } finally {
         uploading = false;

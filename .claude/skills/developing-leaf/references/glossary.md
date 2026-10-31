@@ -26,25 +26,46 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Saving…** and **Saved** on the user's side, then the agent's **Up next** (stage `queued`) and **Got it** (stage `picked_up`), handed into its turn. Got it doesn't mean work has begun |
-| **Saved** | An update Leaf has logged that no harness has queued or opened into a turn yet (stage `sent` in `workflows.py`); before the log accepts it, the browser shows **Saving…** |
+| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
+| **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
-Leaf's interface speaks in the agent's voice: the user is talking with the agent, and
-the page is where that conversation happens. Every status, notice and label reads as
-something the agent would say to the user in conversation (“Got it”, “Your turn”,
-“running the browser suite”, “Lost the connection — reconnecting”), with no name in
-front of it and never as a narrator describing the agent from outside (“Claude is
-working”, “Waiting for Claude”), which puts a third party between them. A line Leaf
-composes from what it observes, such as an agent that stopped or a server it can't
-reach, is Leaf's best guess at what the agent would say, and reads the same way. Only
-words the agent can't be saying, such as an instruction about the agent (“Not
-answering — nudge the terminal”), Leaf's own state (“Lost the connection —
-reconnecting”) or an error, are set apart in italic, as a script sets a stage direction
-apart from the lines (`pageStatus`, `voice`).
+The user is talking with the agent, and the page is where that conversation happens,
+so every word a surface shows about the work is said by the agent or by Leaf, and
+each speaker has one face on every surface (`voice.js`): the agent's words are
+regular and upright, as its messages are set, and Leaf's are set in that face's italic,
+as a script sets a stage direction apart from the lines. A surface sets only their size,
+which ranks them among its other words. The agent says what it wrote: its status line
+(“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
+the agent's voice where what the agent would say is reliable, because the agent's own
+command or its reply's stream shows it: **On it** once it started an update,
+**Replying** while its reply streams in, **Your turn** once it asked, **Still to do**
+for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
+ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it
+infers from the harness or the clock, such as an update on its way (“Queued for
+Claude”, “Up next”, “Delivered”), what became of it
+(“Stopped”, “Gone quiet”, “Not answered”), a turn that stopped (“Stopped 3m ago”), a
+step the harness reports (“Using a tool”), a dialog waiting in the agent's window
+(“Approval needed in the terminal”) or an instruction about the agent (“Not answering —
+nudge the terminal”); and whatever else it tells the user, such as a notice (“Updated
+to v4”), what is new (“2 unread”, “New on me”), a thread's state (“Resolved”), its own
+state (“Lost the connection — reconnecting”) or an error. Leaf's words are a state or
+a past participle, never an elided “I” (“Got it”, “Couldn't answer”, “Need your
+approval”). Where the agent hasn't said what it is doing, Leaf doesn't guess its words:
+a working page shows its leaf in the working tone and no words until the agent writes
+a line. Rejected, on 28 and 30 October 2026: Leaf's inferences set in the agent's voice
+(“Got your comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth.
+
+Words nobody says are the interface's, in its ordinary face: the name of a control,
+list or thing (“On me”, “Threads”, a thread's title, Draw mode), an offer of a press
+(“Reply”, “Comment on the page”), and where the user stands (“3 of 11”, a time).
+Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
+working”, “Waiting for Claude”), which puts a third party between the user and the
+agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
+for Claude”.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On me**, **my change**, and commands such as
@@ -81,7 +102,7 @@ the page's work has ended.
 |---|---|
 | **Page directory** | The directory containing a page’s source, revisions, selected layer, data, media and event history |
 | **Package** | One composable source directory of declarations and their payload. Its code runs in the page document beside every other script, so a package bounds reuse, not reach |
-| **Leaf layer** | One checked, vendored composition of packages |
+| **Leaf layer** | One checked composition of the packages a page selects |
 | **User session** | One browser tab's temporary interaction with a page: its focus, scroll, selection and throwaway exploration |
 | **In force** | An action, report, reaction or decision that no undo took back and no version note retracted; for each widget, unit and action kind, the latest one in force sets the state (`events.InForce`, `StateProjection.in_force`; the served event field is still called `stands`) |
 
@@ -119,7 +140,7 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
-| **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
+| **Margin sidebar** | An `aside > .layout-track` beside a `.layout-column` body in `.layout-sidebar`: supporting material in the left margin where both fit, stacked otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
 | **Part** | One `lf-part` of a page of parts, listed down the window's left edge under the page's title (`page-layout.md`, "A page of parts"). Not a **view**, which is Leaf's panel's |
 | **Full-height** | A workspace that exactly fills the window, where the window is large enough (`--lf-full-height: 1` on `main`); the web calls it a full-height or app-shell layout |
@@ -141,7 +162,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The small menu above the leaf of the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list in the menu's place: Navigate, Annotations, About this page, Versions |
-| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows the reply, with a walk's position at its end |
+| **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |
 | **View** | What opens above the row and covers the page beneath it: a thread, the On view (tabs On me, On *agent*, Threads and the plan) or All pages. Escape or a press on the page closes it |
 
 A view takes no width from the page and leaves it live. A thread about a passage opens
@@ -158,7 +179,7 @@ dialog**. The margin projection has its own terms:
 | Term | Identity criterion |
 |---|---|
 | **Rail** | The strip right of `main` where margin rows sit beside their targets, where there is room, without moving the column (`page-layout.md`, "The rail and the margin") |
-| **Margin content** | Something the margin holds where there is room beside `main`: the rail, the contents map, a column page's first sidebar, its sidenotes (`marginContentLayout` in `prepaint.js`) |
+| **Margin content** | Something beside the prose: annotations read its native track; CSS arranges the contents map, sidebar and notes (`page-layout.md`) |
 | **Margin row** | One row tied to a target and aligned with it, placed in the `rail`, as a `pin`, or `withheld` (`groupFor` in `annotation-inventory.js` says which rows a target gets) |
 | **Pin** | A margin row drawn over the page beside its target, used where the row can't sit in the rail (`rowPlacement`; `seatRows` in `margin-placement.js` places it) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its full face found no room |
@@ -188,7 +209,7 @@ the headings over the document's height.
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
-| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
+| **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On me list (`m`), the blocks a version comparison marks as changed (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
 | **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do given to the user (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`, or the to-do's own id). A thread is never one |
 | **On me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user and the to-dos the agent gave them. `m` walks it. Labels for what waits on the user name the list, as **Next on me** and **Waiting on me** do, and a row names its obligation by the widget's word (`x-word`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
@@ -198,7 +219,7 @@ the headings over the document's height.
 | **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On me, next actor the user, until they do |
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
-| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads |
+| **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
 | **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
@@ -207,7 +228,7 @@ the headings over the document's height.
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `theme.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `base.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 

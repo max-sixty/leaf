@@ -17,6 +17,7 @@
  * milliseconds from the recording's origin.
  */
 import {
+  setScroll,
   html,
   keyed,
   nothing,
@@ -246,7 +247,7 @@ export class RecordingTimeline {
     this.#start = this.#pxToTime(target);
     if (target === Math.round(scroller.scrollLeft)) return;
     this.#expectedScroll = target;
-    scroller.scrollLeft = target;
+    setScroll(scroller, { left: target });
   }
   #applyZoom() {
     const track = this.#host.querySelector(".lf-trace-track");

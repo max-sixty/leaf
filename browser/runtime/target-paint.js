@@ -59,10 +59,13 @@ export function clearAim() {
   delete aimStand.root.dataset.lfPaintPlane;
 }
 
-export function paintAim(element, surface = null) {
-  const geometry = surface ? paintGeometry(surface) : null;
-  const placed =
-    element && placement(surface ?? element, Boolean(geometry), inChrome(element));
+// The aim stands over `surface`, the element itself where nothing draws it for it, as a
+// comment's mark does (anchor-paint.js), so an SVG element's aim and its comment both
+// take its contour.
+export function paintAim(element, surface) {
+  surface ??= element;
+  const geometry = surface && paintGeometry(surface);
+  const placed = element && placement(surface, Boolean(geometry), inChrome(element));
   if (!placed?.shown) {
     clearAim();
     return null;
@@ -78,7 +81,7 @@ export function paintAim(element, surface = null) {
   aimStood = standOver(
     aimStand,
     placed,
-    shaped ? "0" : getComputedStyle(surface ?? element).borderRadius,
+    shaped ? "0" : getComputedStyle(surface).borderRadius,
   );
   aimPlaced = placed;
   return placed.shown;
@@ -94,7 +97,7 @@ export function paintAim(element, surface = null) {
 export function labelAim(node) {
   if (!aimPlaced) return;
   const { rect, shown, levels } = aimPlaced;
-  const above = shown.top - node.offsetHeight - 2;
+  const above = shown.top - node.offsetHeight - aimStood.room;
   // The frames cut the label too, so the room above is what every band leaves.
   const room = Math.max(
     0,

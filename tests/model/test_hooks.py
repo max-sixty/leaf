@@ -9,8 +9,9 @@ import re
 import shutil
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
@@ -23,6 +24,7 @@ from interact_support import (
     append_carried_log_record,
     continued,
     declare_idle,
+    declare_work,
     declared,
     delivered,
     delivered_ref,
@@ -39,13 +41,13 @@ from interact_support import (
     working,
     yaml_document,
 )
+from interact_support import declare as declare_status
 
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
-from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -55,9 +57,11 @@ from leaf import schema as schema_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import LAYER, layer_record
 
 
 def handed(page_dir, input_id: str) -> bool:
@@ -85,6 +89,29 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
     assert capsys.readouterr().out == "[]\n"
 
 
+def test_pages_follower_reads_on_its_timer_without_a_native_subscription(
+    claimed, monkeypatch, capsys
+):
+    """The per-session page list follows claims without an inotify instance."""
+
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("the page list allocated a native subscription")
+
+    def release(_seconds):
+        cleanup_model.end_session("s1")
+
+    monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
+    monkeypatch.setattr(hooks_model, "time", SimpleNamespace(sleep=release))
+    hooks_model.cmd_pages({"session_id": "s1"})
+    first, last = map(json.loads, capsys.readouterr().out.splitlines())
+    assert len(first) == 1
+    assert first[0]["page_key"] == cleanup_model.page_key(claimed)
+    assert last == []
+
+
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
     """A `working` claim is written by a model's turn, and a turn can end at any token
     without running anything — so nothing writes its close, and the page was left to
@@ -97,24 +124,35 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     record rather than in a status — what the agent said it was doing stays the
     agent's to write, which is the line SessionEnd already draws."""
     working(claimed, "reading the reconnect traces")
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    assert claim_record["turn_closed"] is None
     events = events_model.read_events(claimed)
     assert presence_model.presence(claimed, events)["turn_closed"] is None
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path is not None
+    assert session is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
-    closed = service_model.page_claim(claimed)["turn_closed"]
+    claim_record_2 = service_model.page_claim(claimed)
+    assert claim_record_2 is not None
+    closed = claim_record_2["turn_closed"]
     assert closed
     assert presence_model.presence(claimed, events)["turn_closed"] == closed
-    # And what the agent said it was doing is untouched by the observation of it.
-    [task] = page_state(claimed)["browser"]["todos"]
-    assert task["running"]["text"] == "reading the reconnect traces"
+    # And what the agent said it was doing is untouched by the observation of it:
+    # the page reads the turn ended, still in the agent's last words.
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["dropped"], activity["detail"]) == (
+        "stalled",
+        True,
+        "reading the reconnect traces",
+    )
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.
@@ -123,13 +161,17 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert capsys.readouterr().out == ""
-    reentered_closed = service_model.page_claim(claimed)["turn_closed"]
+    claim_record_3 = service_model.page_claim(claimed)
+    assert claim_record_3 is not None
+    reentered_closed = claim_record_3["turn_closed"]
     assert reentered_closed >= closed
 
     # Another session's turn ending says nothing about a page that is not one of its
     # own — the stamp names when this claim's turn ended or it means nothing.
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s2"})
-    assert service_model.page_claim(claimed)["turn_closed"] == reentered_closed
+    claim_record_4 = service_model.page_claim(claimed)
+    assert claim_record_4 is not None
+    assert claim_record_4["turn_closed"] == reentered_closed
     leases_model.release_lease(lease)
 
 
@@ -157,8 +199,12 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"]
-    assert service_model.page_claim(sibling)["turn_closed"]
+    claim_record_5 = service_model.page_claim(claimed)
+    assert claim_record_5 is not None
+    assert claim_record_5["turn_closed"]
+    claim_record_6 = service_model.page_claim(sibling)
+    assert claim_record_6 is not None
+    assert claim_record_6["turn_closed"]
 
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
@@ -166,8 +212,12 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     cleanup_model.prompt_turn("s1")
     assert session_model.cmd_wait() == 0
     delivered(capsys)
-    assert service_model.page_claim(claimed)["turn_closed"] is None
-    assert service_model.page_claim(sibling)["turn_closed"] is None
+    claim_record_7 = service_model.page_claim(claimed)
+    assert claim_record_7 is not None
+    assert claim_record_7["turn_closed"] is None
+    claim_record_8 = service_model.page_claim(sibling)
+    assert claim_record_8 is not None
+    assert claim_record_8["turn_closed"] is None
 
     # A page another session holds is not this turn's to speak for.
     others = tmp_path / "others"
@@ -176,6 +226,7 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     serving(others, 3)
     assert service_model.claim_page(others)
     claim = service_model.page_claim(others)
+    assert claim is not None
     record_claim(
         others, **{**claim, "id": "s2", "turn_closed": "2026-01-01T00:00:00+00:00"}
     )
@@ -187,9 +238,9 @@ def test_receiving_a_batch_observes_the_session_turn_on_every_owned_page(
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c2"]
-    assert (
-        service_model.page_claim(others)["turn_closed"] == "2026-01-01T00:00:00+00:00"
-    )
+    claim_record_9 = service_model.page_claim(others)
+    assert claim_record_9 is not None
+    assert claim_record_9["turn_closed"] == "2026-01-01T00:00:00+00:00"
     declare_idle(sibling)
     declare_idle(others)
 
@@ -218,16 +269,24 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"]
-    assert service_model.page_claim(sibling)["turn_closed"]
+    claim_record_10 = service_model.page_claim(claimed)
+    assert claim_record_10 is not None
+    assert claim_record_10["turn_closed"]
+    claim_record_11 = service_model.page_claim(sibling)
+    assert claim_record_11 is not None
+    assert claim_record_11["turn_closed"]
 
     status_before = declared(claimed)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"] is None
-    assert service_model.page_claim(sibling)["turn_closed"] is None
+    claim_record_12 = service_model.page_claim(claimed)
+    assert claim_record_12 is not None
+    assert claim_record_12["turn_closed"] is None
+    claim_record_13 = service_model.page_claim(sibling)
+    assert claim_record_13 is not None
+    assert claim_record_13["turn_closed"] is None
     # Only the stamp moves: what the agent said it was doing stays the agent's.
     assert declared(claimed) == status_before
 
@@ -237,13 +296,17 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
-    closed = service_model.page_claim(claimed)["turn_closed"]
+    claim_record_14 = service_model.page_claim(claimed)
+    assert claim_record_14 is not None
+    closed = claim_record_14["turn_closed"]
     assert closed
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s2"}
     )
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"] == closed
+    claim_record_15 = service_model.page_claim(claimed)
+    assert claim_record_15 is not None
+    assert claim_record_15["turn_closed"] == closed
     declare_idle(sibling)
 
 
@@ -260,7 +323,9 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_16 = service_model.page_claim(claimed)
+    assert claim_record_16 is not None
+    assert claim_record_16["turn_closed"]
 
     serving(claimed, 1)
     append_carried_log_record(
@@ -270,7 +335,9 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
 
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_17 = service_model.page_claim(claimed)
+    assert claim_record_17 is not None
+    assert claim_record_17["turn_closed"]
     assert declared(claimed) == status_before
     assert acknowledged_through(claimed) == 0
     assert not any(
@@ -287,7 +354,9 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
     reason = continued(capsys.readouterr().out)
     [batch] = json.loads(reason.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == ["c1"]
-    assert service_model.page_claim(claimed)["turn_closed"] is None
+    claim_record_18 = service_model.page_claim(claimed)
+    assert claim_record_18 is not None
+    assert claim_record_18["turn_closed"] is None
 
     # A batch this session never took says nothing about its turn: the successor
     # that delivers it is the one whose turn opened.
@@ -296,13 +365,17 @@ def test_a_named_wait_does_not_invent_turn_entry(claimed, printing, capsys):
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     capsys.readouterr()
-    closed = service_model.page_claim(claimed)["turn_closed"]
+    claim_record_19 = service_model.page_claim(claimed)
+    assert claim_record_19 is not None
+    closed = claim_record_19["turn_closed"]
     assert closed
     append_carried_log_record(
         claimed, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
     )
     cleanup_model.open_session_turn("s2")
-    assert service_model.page_claim(claimed)["turn_closed"] == closed
+    claim_record_20 = service_model.page_claim(claimed)
+    assert claim_record_20 is not None
+    assert claim_record_20["turn_closed"] == closed
 
 
 def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
@@ -315,14 +388,18 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     watch, which wakes once the turn closes, gives the input a turn whose prompt
     hook hands it over."""
     session_model.cmd_waiting(claimed)
-    turn = service_model.page_claim(claimed)["turn"]
+    claim_record_21 = service_model.page_claim(claimed)
+    assert claim_record_21 is not None
+    turn = claim_record_21["turn"]
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "and this?"}
     )
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_22 = service_model.page_claim(claimed)
+    assert claim_record_22 is not None
+    assert claim_record_22["turn_closed"]
     assert acknowledged_through(claimed) < comment["seq"]
 
     hooks_model.cmd_hook(
@@ -334,6 +411,7 @@ def test_a_stop_leaves_input_arriving_at_the_end_to_a_turn_of_its_own(
     [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
+    assert claim is not None
     assert claim["turn"] != turn
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     assert (pickup["kind"], pickup["turn"]) == ("pickup", claim["turn"])
@@ -347,9 +425,11 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     nothing new is the turn really ending."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path_2 = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path_2 is not None
+    assert session is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "and this?"}
@@ -362,6 +442,7 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
     [batch] = envelope["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     claim = service_model.page_claim(claimed)
+    assert claim is not None
     assert (claim["turn"], claim["turn_closed"]) == (session["turn"], None)
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     assert (pickup["kind"], pickup["turn"]) == ("pickup", session["turn"])
@@ -371,7 +452,9 @@ def test_a_stop_that_hands_over_input_keeps_the_turn_open(claimed, printing, cap
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
     assert capsys.readouterr().out == ""
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_23 = service_model.page_claim(claimed)
+    assert claim_record_23 is not None
+    assert claim_record_23["turn_closed"]
     leases_model.release_lease(lease)
 
 
@@ -448,7 +531,9 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         str(claimed),
         [comments[claimed]["id"]],
     )
-    assert service_model.page_claim(moved)["id"] == "s2"
+    claim_record_24 = service_model.page_claim(moved)
+    assert claim_record_24 is not None
+    assert claim_record_24["id"] == "s2"
     assert acknowledged_through(moved) == 0
     assert all(e["kind"] != "pickup" for e in events_model.read_events(moved))
     assert handed(claimed, comments[claimed]["id"])
@@ -485,6 +570,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     large goes as a pointer instead: the hook confirms nothing, and the reader
     confirms after every part reaches its context."""
     harness = harness_model.ClaudeCodeHarness
+    assert harness.hook_context_bytes is not None
     comment = append_carried_log_record(
         claimed,
         {"kind": "comment", "author": "user", "text": "x" * harness.hook_context_bytes},
@@ -523,6 +609,7 @@ def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
     not confirmed, and the page's later input follows once the reader confirms."""
     prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     boundary = {"hook_event_name": "PostToolBatch", "session_id": "s1"}
+    assert harness_model.ClaudeCodeHarness.hook_context_bytes is not None
     large = append_carried_log_record(
         claimed,
         {
@@ -555,6 +642,7 @@ def test_a_pointer_is_handed_once_per_turn_until_its_reader_confirms(
     assert [event["id"] for event in batch["events"]] == [later["id"]]
 
     # A new turn's prompt hands over again whatever a pointer left unconfirmed.
+    assert harness_model.ClaudeCodeHarness.hook_context_bytes is not None
     unread = append_carried_log_record(
         claimed,
         {
@@ -587,6 +675,7 @@ def test_a_prompt_that_reopens_the_turn_lets_its_tool_boundary_point_again(
     again into the same turn. Whether or not that prompt's own hook hands the input
     over, the pointer the dropped one carried reached no model, so the reopened
     turn's tool boundary points at the input again."""
+    assert harness_model.ClaudeCodeHarness.hook_context_bytes is not None
     append_carried_log_record(
         claimed,
         {
@@ -606,10 +695,14 @@ def test_a_prompt_that_reopens_the_turn_lets_its_tool_boundary_point_again(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
     assert handed_a_pointer()
-    turn = cleanup_model.session_record("s1")["turn"]
+    turn_record = cleanup_model.session_record("s1")
+    assert turn_record is not None
+    turn = turn_record["turn"]
     time.sleep(0.002)  # `turn_opened` counts milliseconds
     cleanup_model.prompt_turn("s1")
-    assert cleanup_model.session_record("s1")["turn"] == turn
+    turn_record_2 = cleanup_model.session_record("s1")
+    assert turn_record_2 is not None
+    assert turn_record_2["turn"] == turn
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "PostToolBatch", "session_id": "s1"}
     )
@@ -624,6 +717,7 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     monkeypatch.setenv("PI_SESSION_ID", "s1")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
+    assert harness_model.ClaudeCodeHarness.hook_context_bytes is not None
     text = "x" * harness_model.ClaudeCodeHarness.hook_context_bytes
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": text}
@@ -671,12 +765,17 @@ def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
 
     before("toolu_1")
     record = cleanup_model.session_record("s9")
+    assert record is not None
     assert record["turn_closed"] is None
     cleanup_model.close_session_turn("s9", None, expected=record)
     before("toolu_1")
-    assert cleanup_model.session_record("s9")["turn_closed"] is not None
+    turn_record_3 = cleanup_model.session_record("s9")
+    assert turn_record_3 is not None
+    assert turn_record_3["turn_closed"] is not None
     before("toolu_2")
-    assert cleanup_model.session_record("s9")["turn_closed"] is None
+    turn_record_4 = cleanup_model.session_record("s9")
+    assert turn_record_4 is not None
+    assert turn_record_4["turn_closed"] is None
 
 
 def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
@@ -696,9 +795,11 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     assert workflow["stage"] == "sent"
     # A running wait changes nothing: it only wakes the session.
     session = service_model.page_claim(claimed)
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
+    assert session is not None
+    lease_path_3 = leases_model.waiter_lease_path(claimed, session["id"])
+    assert lease_path_3 is not None
+    assert session is not None
+    lease = leases_model.take_wait_lease(lease_path_3)
     assert lease
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
@@ -724,6 +825,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
         "opened",
         [comment["id"]],
     )
+    assert claim is not None
     assert (pickup["session"], pickup["turn"]) == (claim["id"], claim["turn"])
 
     # Input that arrives during the turn enters it at its next tool boundary.
@@ -879,7 +981,9 @@ def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
 
     time.sleep(0.01)
     live.update(state="idle", since=datetime.now().astimezone().isoformat())
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(claimed, "s1"))
+    lease_path_4 = leases_model.waiter_lease_path(claimed, "s1")
+    assert lease_path_4 is not None
+    lease = leases_model.take_wait_lease(lease_path_4)
     server.live_until = 0
     server.refresh()
     assert nudged == []
@@ -995,11 +1099,17 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
         )
         return capsys.readouterr().out
 
-    assert not cleanup_model.session_record("s1")["provider"]
+    turn_record_5 = cleanup_model.session_record("s1")
+    assert turn_record_5 is not None
+    assert not turn_record_5["provider"]
     hook("PostToolBatch", "p9")
-    assert cleanup_model.session_record("s1")["turn"] == "p9"
+    turn_record_6 = cleanup_model.session_record("s1")
+    assert turn_record_6 is not None
+    assert turn_record_6["turn"] == "p9"
     hook("Stop", "p9")
-    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+    turn_record_7 = cleanup_model.session_record("s1")
+    assert turn_record_7 is not None
+    assert turn_record_7["turn_closed"] is not None
 
     hook("UserPromptSubmit", "p10")
     # Typed while p10 runs; Escape ends p10 and the typed prompt runs as p11.
@@ -1008,9 +1118,60 @@ def test_a_step_opens_a_claude_code_turn_no_prompt_hook_named(claimed, capsys):
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}
     )
     assert comment["id"] in hook("PostToolBatch", "p11")
-    assert cleanup_model.session_record("s1")["turn"] == "p11"
+    turn_record_8 = cleanup_model.session_record("s1")
+    assert turn_record_8 is not None
+    assert turn_record_8["turn"] == "p11"
     hook("Stop", "p11")
-    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+    turn_record_9 = cleanup_model.session_record("s1")
+    assert turn_record_9 is not None
+    assert turn_record_9["turn_closed"] is not None
+
+
+def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
+    claimed, capsys
+):
+    """Each renewal interval, a tool boundary tells the agent how long its working
+    status line has stood once that reaches the interval, naming the command that
+    restates it. A page put down to wait for the user shows no working line, so it
+    is never reminded however long it waits."""
+
+    def hook(event: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": event, "session_id": "s1", "prompt_id": "p1"},
+        )
+        return capsys.readouterr().out
+
+    mark = cleanup_model.session_file("s1", cleanup_model.STATUS_CHECKED_SUFFIX)
+    stood = datetime.now().astimezone() - timedelta(minutes=3)
+
+    def check_due():
+        os.utime(mark, (stood.timestamp(), stood.timestamp()))
+
+    hook("UserPromptSubmit")
+    start = declare_work(claimed, "reading the traces", session="s1")
+    assert hook("PostToolBatch") == ""
+
+    declare_work(
+        claimed,
+        "reading the traces",
+        ts=stood.isoformat(timespec="seconds"),
+        session="s1",
+    )
+    # Checked a moment ago, when the line was fresh: the next check is due later.
+    assert hook("PostToolBatch") == ""
+    check_due()
+    context = json.loads(hook("PostToolBatch"))["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert '"reading the traces" for 3 min' in context
+    assert f"leaf task start {claimed} {start['item']}" in context
+    assert hook("PostToolBatch") == ""
+
+    declare_status(claimed, ts=stood.isoformat(timespec="seconds"), session="s1")
+    assert activity_reading(claimed)["kind"] != "working"
+    check_due()
+    assert hook("PostToolBatch") == ""
 
 
 def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
@@ -1099,10 +1260,13 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
     assert left_owed() == []
     hooks_model.cmd_hook("claude-code", stop)
     assert capsys.readouterr().out == ""
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_25 = service_model.page_claim(claimed)
+    assert claim_record_25 is not None
+    assert claim_record_25["turn_closed"]
     assert left_owed() == [asked["id"]]
 
     woke = hooks_model.cmd_watch("claude-code", stop)
+    assert woke is not None
     assert woke.startswith(f"{claimed} has an update still owed an answer")
     hooks_model.cmd_hook("claude-code", prompt)
     reminder = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
@@ -1111,7 +1275,9 @@ def test_a_turn_ends_on_its_answer_and_a_turn_of_its_own_names_what_it_owes(
 
     hooks_model.cmd_hook("claude-code", stop)
     assert capsys.readouterr().out == ""
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_26 = service_model.page_claim(claimed)
+    assert claim_record_26 is not None
+    assert claim_record_26["turn_closed"]
     assert left_owed() == []
 
 
@@ -1134,7 +1300,9 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
         "claude-code",
         {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True},
     )
-    assert service_model.page_claim(claimed)["turn_closed"]
+    claim_record_27 = service_model.page_claim(claimed)
+    assert claim_record_27 is not None
+    assert claim_record_27["turn_closed"]
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
@@ -1145,6 +1313,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     activity = activity_reading(claimed)
     assert activity["kind"] == "working"
     assert activity["obligations"][0]["stage"] == "picked_up"
+    assert claim is not None
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
     assert activity["obligations"][0]["condition"] is None
 
@@ -1228,7 +1397,11 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     envelope = json.loads(delivery)
     assert envelope["batches"][0]["events"][0]["id"] == sent["id"]
     session = service_model.page_claim(page)
-    lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
+    assert session is not None
+    lease_path_5 = leases_model.waiter_lease_path(page, session["id"])
+    assert lease_path_5 is not None
+    assert session is not None
+    lease = leases_model.take_wait_lease(lease_path_5)
     assert lease
     try:
         # The turn ends on its own answer, and the watch wakes a turn of its own
@@ -1393,7 +1566,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
                     {"parent": asked["id"], "responds": asked["id"]},
                     "Because B preserves the invariant",
                 )
-            except Exception as error:  # noqa: BLE001 - forward worker failures to assertion
+            except Exception as error:
                 errors.append(error)
 
         writer = threading.Thread(target=settle, daemon=True)
@@ -1588,12 +1761,15 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
 
 
 def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
-    claimed, capsys
+    claimed, capsys, monkeypatch
 ):
     """A plugin update that bumps the page protocol leaves the session's page on the
     older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
     log, and hands over the input waiting there, so the user's comment reaches the
-    turn with nothing asked of the agent first."""
+    turn with nothing asked of the agent first. The re-vendor runs inside the hook's
+    time, which a loaded host can stretch past CONFIRM_WITHIN; that bound has its
+    own tests."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 600.0)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1609,6 +1785,30 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     assert "page protocol" not in context
     assert handed(claimed, comment["id"])
     assert event_contracts_model.write_refusal(claimed) is None
+    assert session_runtime_model.selected_launcher("s1") is None
+
+
+@pytest.mark.parametrize("selected", [False, True])
+def test_a_checkout_that_re_vendors_a_page_delivers_for_its_session(
+    claimed, tmp_path, selected
+):
+    """A command from a checkout, such as a worktree's `bin/leaf`, that re-vendors
+    a page becomes its session's delivering Leaf, whether the session had no
+    selection, as an installed plugin's doesn't, or had selected another, so its
+    hooks and watch can still read the page."""
+    if selected:
+        other = tmp_path / "installed" / "bin" / "leaf"
+        other.parent.mkdir(parents=True)
+        other.write_text("#!/bin/sh\n")
+        other.chmod(0o755)
+        session_runtime_model.select_launcher("s1", other)
+    vendored_at_another_protocol(claimed)
+
+    vendoring_model.renew_layer(claimed, harness_model.session_harness(), command=True)
+
+    assert event_contracts_model.write_refusal(claimed) is None
+    own = session_runtime_model.own_launcher()
+    assert session_runtime_model.selected_launcher("s1") == own
 
 
 def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
@@ -1657,10 +1857,9 @@ def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(
     monkeypatch.setattr(hook_transport_model, "owned_pages", lambda _: [claimed])
 
     assert hook_transport_model.read_plans("s1") == []
-    assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == vendored
-    )
+    layer = layer_record(claimed)
+    assert layer is not None
+    assert layer["protocol"] == vendored
 
 
 def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypatch):
@@ -1674,18 +1873,29 @@ def test_a_re_vendor_a_newer_leaf_made_first_is_not_taken_back(claimed, monkeypa
     def newer_leaf_first(page_dir):
         if next(raced, False):
             # Another Leaf's own `page init` reaches the page before this one.
-            registry = files_model.read_json(page_dir / "registry.json")
-            registry["$events"]["protocol"] += 2
-            cleanup_model.write_json(page_dir / "registry.json", registry)
+            record = layer_record(page_dir)
+            (page_dir / schema_model.LAYER_FILE).unlink()
+            assert record is not None
+            LAYER.write(
+                page_dir / schema_model.LAYER_FILE,
+                {**record, "protocol": record["protocol"] + 2},
+            )
         return locked(page_dir)
 
     monkeypatch.setattr(vendoring_model, "page_locked", newer_leaf_first)
-    newer = files_model.read_json(claimed / "registry.json")["$events"]["protocol"] + 2
+    layer_2 = layer_record(claimed)
+    assert layer_2 is not None
+    newer = layer_2["protocol"] + 2
 
-    assert vendoring_model.renew_layer(claimed, harness_model.session_harness()) is None
     assert (
-        files_model.read_json(claimed / "registry.json")["$events"]["protocol"] == newer
+        vendoring_model.renew_layer(
+            claimed, harness_model.session_harness(), command=True
+        )
+        is None
     )
+    layer_3 = layer_record(claimed)
+    assert layer_3 is not None
+    assert layer_3["protocol"] == newer
 
 
 def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
@@ -1697,8 +1907,8 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     the same input again. It names the page protocol and the re-vendor instead, and
     the input waits on the page for the first prompt after the page is writable
     again."""
-    stamp = claimed / "registry.json"
-    vendored = stamp.read_text(encoding="utf-8")
+    stamp = claimed / schema_model.LAYER_FILE
+    vendored = layer_record(claimed)
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1717,7 +1927,9 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
     assert hook_transport_model.INLINE_OPENING not in refused
     assert acknowledged_through(claimed) < comment["seq"]
 
-    cleanup_model.write_json(stamp, json.loads(vendored))
+    stamp.unlink()
+    assert vendored is not None
+    LAYER.write(stamp, vendored)
     assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert handed(claimed, comment["id"])
 
@@ -1730,6 +1942,17 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     receipt's locks only until CONFIRM_WITHIN, hands over the pages it recorded, and
     leaves the input of a page still locked then pending for a later hook."""
     monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 2.0)
+    # Only lock waits advance this clock: page preparation must not spend the
+    # budget before the test reaches the contended receipt lock.
+    elapsed = 0.0
+
+    def advance(seconds):
+        nonlocal elapsed
+        elapsed += seconds
+
+    clock = SimpleNamespace(monotonic=lambda: elapsed, sleep=advance)
+    for module in (hooks_model, hook_transport_model, cleanup_model):
+        monkeypatch.setattr(module, "time", clock)
     sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
     vendoring_model.cmd_init(sibling)
     service_model.claim_page(sibling)
@@ -1749,11 +1972,10 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
         hook_transport_model, "freeze_delivery", freeze_then_lock_sibling
     )
     try:
-        started = time.monotonic()
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
         )
-        assert time.monotonic() - started < 2 * hook_transport_model.CONFIRM_WITHIN
+        assert elapsed == pytest.approx(hook_transport_model.CONFIRM_WITHIN)
         _, envelope, *_ = continued(capsys.readouterr().out).split("\n")
         assert [batch["page"] for batch in json.loads(envelope)["batches"]] == [
             str(claimed.resolve())
@@ -1766,7 +1988,7 @@ def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
     # Past the deadline even a free lock is not taken, so nothing is confirmed late.
     with (
         pytest.raises(TimeoutError),
-        service_model.PageTransaction(sibling, deadline=time.monotonic()),
+        service_model.PageTransaction(sibling, deadline=clock.monotonic()),
     ):
         pass
 
@@ -1801,14 +2023,18 @@ def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(
     confirmed = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
     assert confirmed.exit_code == 0, confirmed.output
     current = cleanup_model.session_record("s1")
+    assert current is not None
+    assert closed is not None
     assert current["turn"] != closed["turn"]
     assert current["turn_closed"] is None
     assert acknowledged_through(claimed) == event["seq"]
     *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
+    turn_record_10 = cleanup_model.session_record("s1")
+    assert turn_record_10 is not None
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",
         [event["id"]],
-        cleanup_model.session_record("s1")["turn"],
+        turn_record_10["turn"],
     )
 
 
@@ -1842,7 +2068,9 @@ def test_a_hooks_handover_commits_its_pickup_before_session_end(
         ):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert not ended.is_set()
-        assert cleanup_model.session_record("s1")["ended"] is None
+        turn_record_11 = cleanup_model.session_record("s1")
+        assert turn_record_11 is not None
+        assert turn_record_11["ended"] is None
         return pickup(*args, **kwargs)
 
     monkeypatch.setattr(delivery_model, "record_pickup", pickup_while_end_attempts)

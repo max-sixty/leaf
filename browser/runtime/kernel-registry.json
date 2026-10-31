@@ -1,4 +1,13 @@
 {
+  "$public-modules": {
+    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities.",
+    "paths": [
+      "/vendor/lit.js",
+      "/runtime/widget-api.js",
+      "/runtime/portable-api.js",
+      "/vendor/floating-ui.esm.js"
+    ]
+  },
   "$authored": {
     "description": "The page-wide declarations an author writes for the runtime to read. `allocations` lists the attributes of `body` and their permitted values; a sample template carries them onto its child's body. `data-rail` says whether the page cedes its right margin to the overlay rail or keeps it for its own margin content, `data-annotations` whether Leaf's overlay or the page presents annotations. `page check` holds a page to this table (`structure.AUTHORED_ALLOCATIONS`), build/browser/contract-types.mjs types the runtime's readers by it, and `build/registry.test.mjs` holds every stylesheet selector that spells an allocation to it.",
     "allocations": {
@@ -12,7 +21,7 @@
     "widget": "lf-[a-z0-9]+(?:-[a-z0-9]+)*"
   },
   "$marks": {
-    "description": "The declarations a stylesheet reads, each painted on the element as `paint`, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound), draws into a box of a stated height (x-height), the reading structure it supplies (x-reading-role), the margin placement it takes where it stands in a column's sidebar (x-margin-content), whether it shows one member at a time (x-views), and whether it draws a picture (x-visual). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room and the margin placement, which are the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). The paint names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
+    "description": "The declarations a stylesheet reads, each painted on the element as `paint`, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds (x-exhibit), holds its own height (x-bound), draws into a box of a stated height (x-height), the reading structure it supplies (x-reading-role), whether it shows one member at a time (x-views), and whether it draws a picture (x-visual). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room, which is the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). The paint names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
     "x-content": { "paint": "data-lf-content", "message": true },
     "x-verbatim": { "paint": "data-lf-verbatim", "message": true },
     "x-space": {
@@ -36,7 +45,6 @@
       "message": true
     },
     "x-reading-role": { "paint": "data-lf-reading-role", "message": true },
-    "x-margin-content": { "paint": "data-lf-margin-content", "message": false },
     "x-views": { "paint": "data-lf-views", "message": true },
     "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true },
     "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true }
@@ -68,7 +76,7 @@
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },
   "$events": {
-    "protocol": 32,
+    "protocol": 36,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 17,
@@ -123,7 +131,7 @@
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation or to-do on the user, work the agent has started and its inputs, or widget input whose active verb declares `$state.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries in its `format` the protocol at which its own shape last changed: a `state.Record` its `since`, and the composer's draft `draft.since`. A Leaf serves and writes only pages vendored at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw; a message is withdrawn only as a reaction (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's x-state verb, which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation or to-do on the user, work the agent has started and its inputs, or widget input whose active verb declares `$state.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries in its `format` the protocol at which its own shape last changed: a `state.Record` its `since`, and the composer's draft `draft.since`. A Leaf serves and writes only pages at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `skippable` kind feeds only readings that came with it, so a Leaf that does not know it reads the rest of the log rightly without it (`layer-registry.md`, \"Page protocol\"). A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw; a message is withdrawn only as a reaction (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's x-state verb, which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
     "handling": {
       "comment": [
         {
@@ -163,7 +171,7 @@
               }
             }
           },
-          "text": "A design comment is about how the page looks or behaves. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise; offer to file it (SKILL.md, \"Improve Leaf through use\"). Your reply names the stamped version that carries the fix."
+          "text": "A design comment is about how the page looks or behaves. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package and take the change into the page as the Leaf skill's `references/packages.md` says, and note the package change on the stamp. A fix to Leaf itself is the user's to raise; offer to file it (SKILL.md, \"Improve Leaf through use\"). Your reply names the stamped version that carries the fix."
         },
         {
           "when": {
@@ -465,7 +473,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it, write the answer into the markup, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+          "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
         }
       ]
     },
@@ -978,6 +986,26 @@
           "additionalProperties": false
         },
         "browser": { "required": ["kind", "messages"] }
+      },
+      "seen": {
+        "bookkeeping": true,
+        "skippable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "user" },
+            "kind": { "const": "seen" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "revision"],
+          "additionalProperties": false
+        },
+        "browser": { "required": ["kind", "revision"] }
       },
       "thread_title": {
         "record": {

@@ -55,6 +55,7 @@ from render_harness import (
     panel_control,
     regions_side_by_side,
     resized,
+    rgb_pixels,
     root_overflow,
     round_trip,
     sending,
@@ -143,7 +144,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     rails = [
         page.locator(f"#{i} > dl.facts").bounding_box() for i in ("st-sd", "st-pi")
     ]
-    for rail, card in zip(rails, (sd, pi)):
+    for rail, card in zip(rails, (sd, pi), strict=True):
         assert rail["x"] > card["x"] + card["width"] / 2, "the facts rail docks right"
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
@@ -1017,7 +1018,7 @@ def test_a_picked_cell_rings_every_side_alike(browser, serve):
         shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
         inked = [
             sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
-            for px in shot.getdata()
+            for px in rgb_pixels(shot)
         ]
         # The ring's two edges along this line: from the middle outward, the first run
         # of ink each way, so a picked neighbour's edge past the hairline is its own.
@@ -2514,12 +2515,12 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
-    expect(status).to_have_text("Saved")
+    expect(status).to_have_text(re.compile(r"^Queued for "))
     record_claim(d)
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Got it")
+    expect(status).to_have_text("Delivered")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 
@@ -2616,7 +2617,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     )
     statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(statuses).to_have_count(1)
-    expect(statuses).to_have_text("Saved")
+    expect(statuses).to_have_text(re.compile(r"^Queued for "))
 
 
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
@@ -2636,7 +2637,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.
-    expect(page.locator('.lf-margin-entry[aria-label^="Saved"]')).to_be_visible()
+    expect(page.locator('.lf-margin-entry[aria-label^="Queued for "]')).to_be_visible()
     rendered(page)
     seats = page.evaluate(
         """() => [...document.querySelectorAll('#ar-canary-choice > lf-option')].map((o) => {

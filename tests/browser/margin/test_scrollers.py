@@ -242,7 +242,7 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     """Every frame Chrome draws while a pane scrolls shows the pin level with its
     target, since the browser carries both through the same scroll."""
     marks = (
-        f"<style data-controls>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
         f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
         " !important; }</style></head>"
     )
@@ -808,7 +808,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                     contribution.unregister();
                     host.remove();
                     target.remove();
-                  } else document.querySelector('main').dataset.lfMargin = 'none';
+                  }
                   const host = document.createElement('div');
                   host.style.cssText = 'height: 300px; width: 400px; overflow: auto';
                   host.dataset.bound = 'start';
@@ -895,7 +895,6 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
           const {contributionEntry, registerContribution} =
             await window.__lfWidgetApi();
           const main = document.querySelector('main');
-          main.dataset.lfMargin = 'none';
           const space = document.createElement('div');
           space.style.cssText = 'position: relative; height: 1400000px';
           const target = document.createElement('p');

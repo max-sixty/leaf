@@ -108,10 +108,11 @@ lf-shot {
   outline: none;
 }
 .lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
-  /* The source can scroll beyond its frame; focus stays on the visible image. */
+  /* The source can scroll beyond its frame; focus stays on the visible image, at a
+     region's gap (base.css). */
   --lf-wears-ring: 1;
   outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: var(--focus-region-gap);
 }
 .lf-shot-pixel-key {
   border-block-start: 1px solid var(--rule);
@@ -164,7 +165,12 @@ lf-shot {
   flex: 1 1 auto;
   min-inline-size: 0;
   min-block-size: 0;
-  overflow: auto;
+  /* The stage scrolls only on an axis its drawing can outgrow (reading regions, in
+     skills/leaf/references/module-scroll-and-motion.md): at 100%, sideways, and down
+     too where the shot holds its height (below); in Pair each capture's window
+     scrolls instead. Fit shows every capture whole, so there it clips, and the stable
+     gutter keeps its width the same at both scales. */
+  overflow: hidden;
   /* Native chaining belongs to ordinary document evidence. A bounded parent or
      modal decides its own outer scrolling boundary. */
   overscroll-behavior: auto;
@@ -173,9 +179,9 @@ lf-shot {
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {
-  lf-shot[data-lf-shot-mode="compare"] .lf-shotstage {
-    /* Keep the same content width as the other modes on classic-scrollbar hosts. */
-    overflow: hidden;
+  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+    .lf-shotstage {
+    overflow-x: auto;
   }
 }
 .lf-shotcanvas {
@@ -209,8 +215,11 @@ lf-shot {
     --lf-holds-height: 1;
     inline-size: var(--lf-shot-viewport-width);
     block-size: var(--lf-shot-viewport-height);
-    overflow: auto;
+    overflow: hidden;
     overscroll-behavior: auto;
+  }
+  lf-shot[data-lf-shot-mode="compare"][data-lf-shot-scale="actual"] .lf-shotviewport {
+    overflow: auto;
   }
 }
 .lf-shot-frame-label {
@@ -423,11 +432,18 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
     overflow: clip;
   }
 }
-/* A shot that holds its height scrolls its drawing in the stage, which holds that
-   height too; the declaration doesn't inherit, so the stage states it. */
+/* A shot that holds its height scrolls its drawing down the stage at 100%, and the
+   stage holds that height too; the declaration doesn't inherit, so the stage states
+   it. */
 @container style(--lf-holds-height:1) {
   lf-shot > .lf-shotstage {
     --lf-holds-height: 1;
+  }
+  @media screen {
+    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+      > .lf-shotstage {
+      overflow-y: auto;
+    }
   }
 }
 @media print {

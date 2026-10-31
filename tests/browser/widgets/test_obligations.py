@@ -20,6 +20,7 @@ from render_cases_interaction import (
     answered_comment,
     live_url,
 )
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
 from render_harness import (
     ROOT,
@@ -57,7 +58,7 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose>
+    <lf-options id="{id}-choice" choose{across}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested" choose>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
@@ -74,14 +75,16 @@ ACROSS_OBLIGATION = """
 
 ACROSS_OBLIGATION_PAGE = leaf_page(
     "options laid across",
-    "<h1>Retention</h1>" + ACROSS_OBLIGATION.format(id="across", width=""),
+    "<h1>Retention</h1>"
+    + ACROSS_OBLIGATION.format(id="across", width="", across=" across")
+    + ACROSS_OBLIGATION.format(id="down", width="", across=""),
 )
 
 
 ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
     "options laid across a widened obligation",
     "<div>"
-    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"')
+    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"', across=" across")
     + "</div>",
     layout="sidebar",
 )
@@ -127,44 +130,108 @@ PLATED_OPTION = """
       </lf-option>"""
 
 
+CAPTURED_OPTION = """
+      <lf-option id="captured-{side}"><strong>{title}</strong>
+        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      </lf-option>"""
+
+
+ROWED_OPTION = """
+      <lf-option id="rowed-{side}">{title}
+        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+          height="60" role="img" aria-label="{title}">
+          <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
+    + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
     + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
+    + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + ROWED_OPTION.format(side="yes", title="Along the fence")
+    + ROWED_OPTION.format(side="no", title="Under the lawn")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
+    + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
 )
 
 
-def test_options_holding_pictures_lay_across(browser, serve):
-    """An obligation whose options each hold a picture of what choosing it gives, with
-    no figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A widget
-    whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
-    A group given `data-width` lays them across its own width, with each picture
-    growing toward its authored size as the group gains room."""
+def test_options_holding_pictures_stand_apart(browser, serve):
+    """Joined into one control, a hairline was the only boundary between one option's
+    picture and the next option's title, so a live group whose options hold a picture
+    draws them as standalone cards a gap apart, each framed, bare rows and the add field
+    as well as titled cards, while a group of words stays one control with hairlines
+    between its cells. A
+    picture is a drawing, a capture or a widget whose entry declares it draws one
+    (`x-visual`), wrapped in the link that opens it or not.
+
+    The cards read down unless the author asks for `across`, so each picture stands at
+    the size its author gave it, in the reading column or a group given `data-width`;
+    laid across, the cards keep the same gap between them."""
+    media = {SHOT_SRC[name]: data for name, data in SHOTS.items()}
     page = open_page(
-        browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
+        browser,
+        serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE, media=media),
     )
     resized(page, 1440, 900)
+    page.wait_for_function("[...document.images].every((i) => i.complete)")
     at = page.evaluate(
-        """() => Object.fromEntries(['pictured', 'widened', 'plated'].map((id) => {
-          const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
-          return [id, {
-            tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
-            lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
-            pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
-          }];
-        }))"""
+        """() => Object.fromEntries(
+          ['pictured', 'widened', 'across', 'plated', 'captured', 'rowed', 'worded'].map((id) => {
+            const el = (s) => document.getElementById(`${id}-${s}`);
+            const edge = (node) => parseFloat(getComputedStyle(node).borderTopWidth);
+            const [yes, no] = ['yes', 'no'].map((s) => el(s).getBoundingClientRect());
+            const group = el('choice');
+            return [id, {
+              tops: [yes, no].map((r) => Math.round(r.top)),
+              lefts: [yes, no].map((r) => Math.round(r.left)),
+              gap: Math.round(
+                no.top >= yes.bottom ? no.top - yes.bottom : no.left - yes.right),
+              spacing: parseFloat(getComputedStyle(group).getPropertyValue('--sp-3')),
+              edges: {group: edge(group), options: ['yes', 'no'].map((s) => edge(el(s))),
+                      add: edge(group.querySelector(':scope > .lf-another'))},
+              pictures: ['yes', 'no'].map((s) =>
+                Math.round(el(`${s}-picture`)?.getBoundingClientRect().width ?? 0)),
+            }];
+          }))"""
     )
-    for id in ("pictured", "widened", "plated"):
-        assert at[id]["tops"][0] == at[id]["tops"][1], at
-        assert at[id]["lefts"][0] < at[id]["lefts"][1], at
-    assert at["widened"]["pictures"][0] == at["widened"]["pictures"][1], at
-    assert at["pictured"]["pictures"][0] < at["widened"]["pictures"][0] < 480, at
+    pictured = ("pictured", "widened", "across", "plated", "captured", "rowed")
+    for id in pictured:
+        assert at[id]["edges"] == {"group": 0, "options": [1, 1], "add": 1}, (id, at)
+        assert at[id]["gap"] == at[id]["spacing"], (id, at)
+    assert at["worded"]["edges"] == {"group": 1, "options": [0, 0], "add": 0}, at
+    assert at["worded"]["gap"] == 1, at
+    for id in ("pictured", "widened", "plated", "captured", "rowed", "worded"):
+        assert at[id]["tops"][0] < at[id]["tops"][1], (id, at)
+        assert at[id]["lefts"][0] == at[id]["lefts"][1], (id, at)
+    assert at["across"]["tops"][0] == at["across"]["tops"][1], at
+    for id in ("pictured", "widened"):
+        assert at[id]["pictures"] == [480, 480], at
+    assert at["captured"]["pictures"] == [600, 600], at
+    # Apart or joined changes only the frame: a pick fills and rings a card as it does
+    # a cell, so it reads among pictures as plainly as among words.
+    for id in ("pictured", "worded"):
+        page.locator(f"#{id}-yes > strong").click()
+        expect(page.locator(f"#{id}-yes")).to_have_attribute("chosen", "")
+    page.mouse.move(0, 0)
+    face = """el => { const s = getComputedStyle(el);
+                      return [s.backgroundColor, s.boxShadow]; }"""
+    picked = page.locator("#pictured-yes").evaluate(face)
+    assert picked == page.locator("#worded-yes").evaluate(face), picked
+    assert picked != page.locator("#pictured-no").evaluate(face), picked
 
 
 ACROSS_GEOMETRY = """(id) => {
@@ -182,14 +249,15 @@ ACROSS_GEOMETRY = """(id) => {
 }"""
 
 
-def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
-    """An obligation holding a figure before its option list sets the titled options side by
-    side under the figure in columns of one width, so the question, its figure and every
+def test_options_marked_across_lay_across(browser, serve):
+    """A group the author marks `across` sets its titled options side by side in columns
+    of one width, under the figure before it, so the question, its figure and every
     option share a window. Where the row can't hold them all, they stack one to a row
     rather than leaving a card alone on a second. Where the heading sits, in an hgroup
     after an eyebrow, and a paragraph after the list change nothing. The arrangement
-    belongs to that obligation's own list: a group nested in one of its options keeps
-    its options one to a row."""
+    belongs to the group marked: a group nested in one of its options keeps its options
+    one to a row, and the same obligation, figure and all, keeps its cards reading down
+    without `across`."""
     page = open_page(browser, serve(ACROSS_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     wide = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -197,6 +265,9 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert wide["tops"][0] >= wide["figureBottom"], wide
     assert wide["lefts"] == sorted(set(wide["lefts"])), wide
     assert wide["nested"][0] < wide["nested"][1], wide
+    down = page.evaluate(ACROSS_GEOMETRY, "down")
+    assert down["tops"] == sorted(set(down["tops"])), down
+    assert len(set(down["lefts"])) == 1, down
     # Two of the three would fit across at this width.
     resized(page, 700, 900)
     middle = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -205,7 +276,7 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
 
 
 def chipped_obligation(id, cards):
-    """An obligation framing a drawing, so its titled cards lay across; each card is
+    """An obligation framing a drawing, its titled cards laid across; each card is
     (chips, title, attributes)."""
     options = "".join(
         f'<lf-option id="{id}-{n}"{attributes}>'
@@ -217,7 +288,7 @@ def chipped_obligation(id, cards):
         f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" choose>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
     )
 
 
@@ -690,7 +761,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -698,7 +769,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
           inspect.textContent = 'Inspect';
           source.append(inspect);
           suggestion.append(source);
-          commands(source, 'Suggestion action', [
+          source.lfCommands = { title: 'Suggestion action', rows: [
             {
               id: 'test.inspect',
               keys: ['x', 'y'], contextKeys: ['3'],
@@ -709,7 +780,8 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               line: 'Inspect',
               run: () => { inspect.dataset.activated = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(source);
         }"""
     )
 
@@ -761,14 +833,15 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
-          commands(inspect, 'Inspect control', [{
+          inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
             title: 'Run an unavailable local command',
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
-          }]);
+          }] };
+          commandsChanged(inspect);
         }"""
     )
     rendered(page)
@@ -800,12 +873,12 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfWidgetApi();
+          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
           suggestion.append(inspect);
-          commands(inspect, 'Inspect control', [
+          inspect.lfCommands = { title: 'Inspect control', rows: [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
@@ -816,7 +889,8 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               title: 'Run the local third command', line: 'local three',
               run: () => { inspect.dataset.localThree = '1'; },
             },
-          ]);
+          ] };
+          commandsChanged(inspect);
         }"""
     )
 
@@ -850,7 +924,7 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfWidgetApi();
+          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -861,16 +935,18 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
           inside.textContent = 'Inside configuration';
           layer.append(inside);
           suggestion.append(control, layer);
-          commands(control, 'Configuration action', [{
+          control.lfCommands = { title: 'Configuration action', rows: [{
             id: 'test.configure', keys: [], contextKeys: ['3'], control,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
-          }]);
-          commands(inside, 'In the configuration layer', [{
+          }] };
+          commandsChanged(control);
+          inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
-          }]);
+          }] };
+          commandsChanged(inside);
         }"""
     )
 
@@ -976,7 +1052,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commands} = await window.__lfWidgetApi();
+           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -992,11 +1068,12 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
             control.textContent = id;
             control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
             source.append(control);
-            commands(control, id, [{
+            control.lfCommands = { title: id, rows: [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
-            }]);
+            }] };
+            commandsChanged(control);
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));

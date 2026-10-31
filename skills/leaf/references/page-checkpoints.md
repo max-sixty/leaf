@@ -2,7 +2,7 @@
 
 ## Pre-handover review
 
-The main skill's "Review an important page in the browser" step says when a page takes this review.
+The main skill's "Publish and review" section says when a page takes this review.
 It adds the browser render check, in both colour schemes, to the markup check every
 activation runs:
 
@@ -21,6 +21,10 @@ stacking. Inspect the end of a longer page yourself. Look in every screen for il
 labels in drawings, lone tiles, pins covering headings, and a summary that comes too
 late on a phone, and fix what the page controls.
 
+Test recorded actions in a disposable review copy
+[served without an agent claim](serving-pages.md#page-lifetime), so the tests stay out
+of the user's page and task.
+
 Then decide whether a fresh reader sees the page before the user does. A reader with
 only the user's request and the saved screens catches what your own notes fill in for
 you: a step you skipped, a term you never defined, something you only described in words
@@ -35,10 +39,9 @@ they read.
 When you run one, give it only the request, saved screens and served page, without
 your notes. Have it try the task from the initial view, verify the visible outcome,
 and judge the effort of finding information, comparing it and reaching a decision or
-action. Use a disposable review copy for interactions so test decisions stay out of the
-user's record. Its first judgment comes from what the user can see and do, before
-reading source or the author's explanations. Have it report anything it can't follow,
-has to guess or has to picture from a description, and fix what it finds.
+action. Its first judgment comes from what the user can see and do, before reading
+source or the author's explanations. Have it report anything it can't follow, has to
+guess or has to picture from a description, and fix what it finds.
 
 In your own read-through, check that headings state findings, claims have evidence,
 decisions have controls, and every line of prose is needed, and draw anything the page
@@ -50,9 +53,9 @@ with pointer and keyboard, and check that each destination leaves the user orien
 
 For a page with obligations on On me, the check also saves the window at each of the first
 eight as `m` reaches it from the top (`conversation-loop.md`, "The On lists"). At each,
-confirm that the question, premise, alternatives and evidence are visible together,
-that the numbers shown match the actions offered, and that the next `m` reaches the next
-item on the user's On me list.
+review the question against `authoring-on-me.md`, "On the page", and check that the
+numbers shown match the actions offered and the next `m` reaches the next item on the
+user's On me list.
 
 If you can't see the rendered page, review the words, evidence and choices from the
 active HTML and `leaf page state <page>`, and report the visual and keyboard review as

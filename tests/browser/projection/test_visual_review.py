@@ -29,7 +29,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
-SELECTED = '.lf-vr-case[aria-hidden="false"]'
+SELECTED = ".lf-vr-case:not([hidden])"
 
 
 def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
@@ -208,7 +208,7 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
         ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
-    capture = {
+    capture: dict[str, dict | str | int] = {
         "observedAt": "2026-09-10T10:30:00-07:00",
         "browser": "Chrome",
         "browserVersion": "140",
@@ -218,6 +218,9 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
         "locale": "en-US",
         "timezone": "America/Los_Angeles",
     }
+
+    viewport = capture["viewport"]
+    assert isinstance(viewport, dict)
 
     def run(before, after, *, viewport_width):
         return {
@@ -236,7 +239,7 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
                     "result": "The evidence remains aligned.",
                     "classification": "changed",
                     "capture": capture
-                    | {"viewport": capture["viewport"] | {"width": viewport_width}},
+                    | {"viewport": viewport | {"width": viewport_width}},
                     "focus": {"x": 20, "y": 80, "width": 300, "height": 150},
                     "before": before,
                     "after": after,

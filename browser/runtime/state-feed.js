@@ -97,8 +97,7 @@ function buffer(bound) {
 // startup continues. The result is still applied through readAndApply, at the boundary
 // that has captured the upgraded authored state. A malformed answer therefore remains a
 // startup fault; buffering changes when the network work runs, not what its answer
-// means. The interface opens independently at upgrade, so the first read takes the long
-// bound while authoritative presentation waits for its actual answer.
+// means. Initial presentation waits for this answer, or its bounded offline result.
 export function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
 }

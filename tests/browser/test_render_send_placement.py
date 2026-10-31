@@ -33,6 +33,7 @@ import base64
 import io
 import json
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,7 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
+    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -57,9 +59,12 @@ from render_harness import (
     select,
     selection_field,
     sending,
+    told,
     write,
 )
 
+from browser.threads import append_agent_reply
+from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
@@ -524,9 +529,9 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_send_opens_the_card_a_reopen_shows(browser, serve):
-    """The card Send opens from a one-line comment is the card its margin marker
-    reopens: the same width, at least the card's minimum, at the same place."""
+def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
+    """Send keeps the comment frame's width, already at least the card minimum. Reopening
+    chooses its width afresh for the thread's contents, at the same attachment."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -537,11 +542,17 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     )
     page.keyboard.insert_text("Keep the runner fixed.")
     rendered(page)
+    frame = page.evaluate(RECT, ".lf-fab-bar")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert frame["right"] - frame["left"] >= minimum - 0.5, (frame, minimum)
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     sent = page.evaluate(RECT, ".lf-margin-preview")
+    assert sent["right"] - sent["left"] == pytest.approx(
+        frame["right"] - frame["left"], abs=0.5
+    ), (frame, sent)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
@@ -549,9 +560,11 @@ def test_send_opens_the_card_a_reopen_shows(browser, serve):
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     reopened = page.evaluate(RECT, ".lf-margin-preview")
-    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
     assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
-    assert sent == pytest.approx(reopened, abs=0.5), (sent, reopened)
+    edges = ("left", "top", "bottom")
+    assert {edge: sent[edge] for edge in edges} == pytest.approx(
+        {edge: reopened[edge] for edge in edges}, abs=0.5
+    ), (sent, reopened)
 
 
 @pytest.mark.parametrize(
@@ -575,7 +588,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = f"""<style data-controls>
+    marker_style = f"""<style>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
@@ -856,6 +869,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             / f"wheel-return-{region}-{route}"
         )
         evidence.mkdir(parents=True, exist_ok=True)
+        (evidence / "compositor.json").write_text(json.dumps({"traceEvents": events}))
         for index, event in enumerate(frames):
             (evidence / f"frame-{index:03}.jpg").write_bytes(
                 base64.b64decode(event["args"]["snapshot"])
@@ -886,7 +900,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
                 indent=2,
             )
         )
-        error.add_note(f"Original compositor frames and raw history: {evidence}")
+        error.add_note(f"Original compositor trace, frames and raw history: {evidence}")
         raise
 
     expect(field).to_have_js_property("value", words)
@@ -1106,6 +1120,160 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     )
 
 
+@pytest.mark.parametrize("subject", ["shot-fit", "shot-actual", "pane"])
+def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
+    browser, serve, subject
+):
+    """A card stands in the box that scrolls its row out of view. A screenshot in the
+    page's flow scrolls nothing down, whether at Fit, which shows its whole image, or at
+    100%, which only pans it sideways, and a pane the page scrolls scrolls nothing
+    itself. So a comment ⌥-clicked into the shot stands beside it rather than over it,
+    and one on words in the pane takes the window's room: the answer that arrives grows
+    the card, rather than scrolling inside a card the shot or the pane cuts short."""
+    shot = None
+    if subject.startswith("shot"):
+        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        resized(page, 1440, 900)
+        shot = page.locator("#rn-console-shot")
+        shot.scroll_into_view_if_needed()
+        if subject == "shot-actual":
+            shot.get_by_role("button", name="Image options").click()
+            shot.get_by_role("button", name="100%", exact=True).click()
+            page.keyboard.press("Escape")
+        width = shot.bounding_box()["width"]
+        shot.locator("wa-comparison").click(
+            modifiers=["Alt"], position={"x": width / 4, "y": 80}
+        )
+    else:
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Notes in flow",
+                    '<lf-pane id="notes" label="Notes"><div>'
+                    '<p id="note">The export keeps each tenant in an archive.</p>'
+                    + "<p>More notes on the export.</p>" * 4
+                    + "</div></lf-pane>",
+                )
+            ),
+        )
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#notes"), "flow")
+        box = page.locator("#note").bounding_box()
+        select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+        page.locator(".lf-fab-input").click()
+    write(page.locator(".lf-fab-input"), "Why this?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    root = next(
+        event
+        for event in reversed(event_log.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )["id"]
+    append_agent_reply(serve.page_dir, root, "Because each tenant restores alone. " * 8)
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    assert card.locator(".lf-thread-transcript").evaluate(
+        "list => list.scrollHeight <= list.clientHeight + 1"
+    ), card.evaluate("card => getComputedStyle(card).maxHeight")
+    if shot:
+        right = shot.bounding_box()["x"] + shot.bounding_box()["width"]
+        assert card.bounding_box()["x"] >= right - 0.5, (card.bounding_box(), right)
+
+
+def test_a_row_pointed_in_a_scrolling_pane_keeps_its_card_in_the_pane(browser, serve):
+    """⌥-clicking a row deep in a pane whose rows have no ids comments on the whole
+    pane, at that row. The pane scrolls the row, so the card stands in the pane and
+    stops at its top as the row scrolls away, rather than standing over the pane above."""
+    findings = "".join(
+        f"<p>Finding {n}: the export wrote tenant {n} to its archive.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stacked panes",
+                '<div id="stack"><lf-pane id="summary" label="Summary"><div>'
+                + "<p>What the reader should take from the findings.</p>" * 12
+                + '</div></lf-pane><lf-pane id="findings" label="Findings"><div>'
+                + findings
+                + "</div></lf-pane></div>",
+                head="<style>#stack{display:grid;grid-template-rows:360px 1fr}</style>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    pane = page.locator("#findings")
+    pane_scroll_behavior(page, pane, "bounded")
+    rows = pane.locator(":scope > div")
+    rows.evaluate("rows => { rows.scrollTop = 300; }")
+    pane.locator("p").nth(20).click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    write(page.locator(".lf-fab-input"), "Why this row?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rows.evaluate("rows => { rows.scrollTop += 600; }")
+    rendered(page)
+    assert card.bounding_box()["y"] >= rows.bounding_box()["y"] - 0.5, (
+        card.bounding_box(),
+        rows.bounding_box(),
+    )
+
+
+def test_a_card_stays_in_a_pane_whose_rows_all_show(browser, serve):
+    """A workspace pane scrolls its rows whether or not they overflow it yet, so a
+    comment on words in a short pane beside a long one keeps its card inside that pane
+    rather than standing over its neighbour."""
+    findings = "".join(
+        f"<p>Finding {n}: the export wrote tenant {n} to its archive.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Short pane",
+                '<div id="split"><lf-pane id="findings" label="Findings"><div>'
+                + findings
+                + '</div></lf-pane><lf-pane id="notes" label="Notes"><div>'
+                '<p>Notes open the pane.</p><p id="note">The export keeps each tenant '
+                "in an archive of its own.</p></div></lf-pane></div>",
+                head=regions_side_by_side("split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    notes = page.locator("#notes")
+    pane_scroll_behavior(page, notes, "bounded")
+    box = page.locator("#note").bounding_box()
+    select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+    page.locator(".lf-fab-input").click()
+    write(page.locator(".lf-fab-input"), "Why these words?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rendered(page)
+    inner, outer = card.bounding_box(), notes.bounding_box()
+    assert outer["x"] - 0.5 <= inner["x"], (inner, outer)
+    assert inner["x"] + inner["width"] <= outer["x"] + outer["width"] + 0.5, (
+        inner,
+        outer,
+    )
+    assert outer["y"] - 0.5 <= inner["y"], (inner, outer)
+    assert inner["y"] + inner["height"] <= outer["y"] + outer["height"] + 0.5, (
+        inner,
+        outer,
+    )
+
+
 def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     """A card sent in a pane grows out of its box no further than the pane's edge
     cuts it at rest: the growth moves the card's surface inside the region's cut, so the
@@ -1173,7 +1341,94 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
     assert len(cut) == 4 and max(cut) > -48, ("the pane cuts nothing", rest)
     assert clips, "Send showed the card without growing it out of the box"
     for clip in clips:
-        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
+        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut, strict=True)), (
+            clip,
+            rest,
+        )
+
+
+# The words of `node`, or of the editor `node` hosts, grouped into the lines they stand on.
+WORD_LINES = """node => {
+  const root = window.editorRoots.get(node)?.querySelector('.cm-content') ?? node;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const lines = [];
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    for (const word of text.data.matchAll(/\\S+/g)) {
+      const range = document.createRange();
+      range.setStart(text, word.index);
+      range.setEnd(text, word.index + word[0].length);
+      const top = range.getClientRects()[0].top;
+      const line = lines.find(line => Math.abs(line.top - top) < 4);
+      if (line) line.words.push(word[0]);
+      else lines.push({top, words: [word[0]]});
+    }
+  }
+  return lines.map(line => line.words.join(' '));
+}"""
+
+
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
+def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
+    browser, serve, touch
+):
+    """The comment box and the card's reply box each end their words, on every line,
+    where the card's messages end theirs, so a comment and a reply break each line
+    where they did as they were typed."""
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(
+        browser,
+        serve(PAGE),
+        context=context,
+        init_script="""
+      window.editorRoots = new WeakMap();
+      const attach = Element.prototype.attachShadow;
+      Element.prototype.attachShadow = function(options) {
+        const root = attach.call(this, options);
+        if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+        return root;
+      };
+    """,
+    )
+    STEP.open(page, touch)
+    page.keyboard.insert_text(
+        "This step should say which runner it targets, and whether the workspace it "
+        "leaves behind is kept for inspection once a run fails."
+    )
+    rendered(page)
+    commented = page.locator(".lf-fab-input").evaluate(WORD_LINES)
+    if touch:
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    messages = card.locator(".lf-msg.user")
+    rendered(page)
+    assert len(commented) > 1, "the comment never wrapped"
+    assert messages.first.locator(".lf-msg-text").evaluate(WORD_LINES) == commented
+    reply = card.locator(".lf-thread-reply leaf-text")
+    if touch:
+        reply.tap()
+    else:
+        reply.click()
+    page.keyboard.insert_text(
+        "Name the runner in the step itself, since the manifest the supervisor reads "
+        "is written later and a reviewer reading this list cannot see it yet. Say "
+        "whether a failed run keeps its workspace for inspection, and who removes it "
+        "once the inspection is over, so the next job never starts on its leftovers."
+    )
+    rendered(page)
+    typed = reply.evaluate(WORD_LINES)
+    with sending(page, "reply"):
+        if touch:
+            card.locator(".lf-thread-reply .lf-compose-submit").tap()
+        else:
+            page.keyboard.press("Enter")
+    expect(messages).to_have_count(2)
+    rendered(page)
+    assert messages.last.locator(".lf-msg-text").evaluate(WORD_LINES) == typed
 
 
 @pytest.mark.parametrize(
@@ -1375,29 +1630,25 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        painted_growth = size == (900, 600) and not options
-        if painted_growth:
+        check_reply_growth = size == (900, 600) and not options
+        if check_reply_growth:
             rendered(page)
-            # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed. The
-            # card grows up from its foot here, so its painted top rises. Its source
-            # rect is the card's visual rect, which takes in the ink below its box, so
-            # that rect's height need not change while the card's does.
+            # Read the card's border box, not Layout Instability's attribution:
+            # the moving surface may be attributed to its shadow-bearing ground,
+            # whose visual-overflow rectangle need not move with the card's edge.
             card.evaluate("""card => {
-              const growth = [];
-              const record = entries => {
-                for (const entry of entries) for (const source of entry.sources) {
-                  if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.top, after = source.currentRect.top;
-                  if (Math.abs(after - before) > 0.75) growth.push({before, after});
-                }
+              const frames = [];
+              const sample = () => {
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                window.__replyFrame = requestAnimationFrame(sample);
               };
-              const observer = new PerformanceObserver(list => record(list.getEntries()));
-              observer.observe({type: 'layout-shift'});
+              sample();
               window.__replyGrowth = () => {
-                record(observer.takeRecords());
-                observer.disconnect();
-                return growth;
+                cancelAnimationFrame(window.__replyFrame);
+                const {top, bottom} = card.getBoundingClientRect();
+                frames.push({top, bottom});
+                return frames;
               };
             }""")
         with sending(page, "reply"):
@@ -1406,9 +1657,18 @@ def test_send_grows_thread_around_the_words(
         expect(
             card.get_by_text("The same placement works for a reply.")
         ).to_be_visible()
-        if painted_growth:
-            growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
+        if check_reply_growth:
+            frames = page.evaluate("window.__replyGrowth()")
+            assert frames[-1]["top"] < frames[0]["top"] - 0.75, frames
+            assert [frame["bottom"] for frame in frames] == pytest.approx(
+                [frames[0]["bottom"]] * len(frames), abs=0.75
+            ), frames
+            changes = [
+                after["top"] - before["top"]
+                for before, after in pairwise(frames)
+                if abs(after["top"] - before["top"]) > 0.75
+            ]
+            assert len(changes) == 1 and changes[0] < 0, frames
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.
@@ -1695,7 +1955,7 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
                 + "Export tenants."
                 + "<br>" * 60
                 + '</p><div style="height:1200px"></div>',
-                head=f"<style data-controls>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
+                head=f"<style>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
                 " font: 900 72px/1 sans-serif; -webkit-text-stroke: 6px currentColor; }"
                 f" .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}</style>",
             )

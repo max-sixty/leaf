@@ -89,7 +89,7 @@ def browser_thread(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
     summaries_for = active_summaries(events, threads)
-    rendered_threads = []
+    rendered_threads: list[dict] = []
     first_answers: dict[str, str] = {}
     for event in events:
         if is_answer(event):
@@ -97,7 +97,9 @@ def browser_thread(
     for thread_id, thread in threads.items():
         protected = set()
         if awaits_agent(thread):
-            protected.add(turn_message(unanswered_agent_turn(thread)))
+            turn = unanswered_agent_turn(thread)
+            assert turn is not None
+            protected.add(turn_message(turn))
         protected.update(
             item["message"]
             for item in thread_obligations["unanswered"]

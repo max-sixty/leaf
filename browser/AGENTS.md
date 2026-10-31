@@ -22,7 +22,7 @@ representative desktop viewport.
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`theme.css`) sets type, spacing and form as tokens,
+  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
   and a widget reads only its own box and the theme's tokens. A widget therefore behaves
   the same in a shipped Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
@@ -35,8 +35,9 @@ representative desktop viewport.
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The rail and the
-  margin"). Only the left margin content and sidenotes move the column, through
-  `marginContentLayout` in `prepaint.js`. Checks:
+  margin"). Native document tracks and wrapping rows place the page's own sidebars and notes
+  from the first paint. `runtime/content-layout.js` reads their CSS geometry for
+  annotations and never reallocates document space. Checks:
   `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
   `annotation-overlay/margin-placement.js`.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
@@ -86,8 +87,8 @@ representative desktop viewport.
   a thread's reply and the seated comment box share the floating panel's field.
   The container grows only for content, such as typed words, or an explicit action,
   such as More room. Changing labels (`data-room`, below) and rendering a widget
-  after its first paint (`keeps-first-box`) follow the same sizing rule. A
-  one-line control's visible height is `--lf-line` (theme.css); its touch target meets
+  after its first visible paint follow the same sizing rule. A
+  one-line control's visible height is `--lf-line` (base.css); its touch target meets
   the minimum size set by surfaces.css. A control that instead derives its visible
   height from its font or the touch-target minimum changes the height of every
   container that holds it. Check:
@@ -105,8 +106,9 @@ representative desktop viewport.
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
-  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, and
-  `reading-continuity.js` for a hidden tab. The user chose one exception: the answer
+  `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
+  `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
+  hidden tab. The user chose one exception: the answer
   they wait for in the floating panel's thread grows that view upward while its
   controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
   `tests/shift_watch.js`).
@@ -117,11 +119,11 @@ representative desktop viewport.
   `thread/card-anchor.js` owns what each interaction preserves. A box a scroll carried
   away comes back when the user types into it (`off-flow.js`). Only a field in flow
   scrolls to keep its controls in view (`thread/reply-landing.js`).
-- **A widget paints its final box before it upgrades.** The theme sizes each widget
-  under `html[data-lf-interactive]` as its module will draw it
-  (`../skills/leaf/references/module-authoring.md`, "First paint"). Check: the widget quality check
-  `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
-  doesn't list.
+- **Deliver readable content before activating it.** Authored HTML paints while
+  browser modules load. Each widget owns one Lit view across its lifetime; native
+  slots retain authored children and CSS owns their initial layout. Let each control
+  wait only for the behavior or state it needs. Never hold the whole document behind
+  widget readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
 - **Generated interface appears in its final position, and room is held only for what
   will be drawn**, such as a widget's upgraded controls. A state that may never come,
   such as a failed save, shows in a slot already on screen, as a message's head carries
@@ -134,11 +136,17 @@ representative desktop viewport.
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
   and its Undo confirm success, so success needs no notice beyond the announcement
-  for a listener. A gesture that moves the
+  for a listener. The pressed control draws from the same reading, the pending
+  gesture included, so it stays live: no busy or disabled face while the gesture
+  travels, and a second press does what the control then says, such as Undo, which
+  names a pending gesture by its attempt. A refusal restores the server's state, and
+  delivery says why in the notice seat. A gesture that moves the
   user, such as resolving a thread, leaves them at its place again when it is refused
-  or undone (`undo.js` owns where undo leaves the user). A result only the log can supply waits with `aria-busy`, shown
-  after a delay so a fast answer shows nothing. Persistent status text is for a
-  state the user must return to, such as a failure.
+  or undone (`undo.js` owns where undo leaves the user). Content whose result only
+  the log can supply, such as a message being sent or an upload, waits with
+  `aria-busy`; a control a package marks busy fades after a delay, so a fast answer
+  shows nothing, and keeps its cursor. Persistent status text is for a state the user
+  must return to, such as a failure.
 
 ### Words stay where they were typed
 
@@ -181,11 +189,15 @@ representative desktop viewport.
 - **Leaf's controls are few, and each shows a symbol where a standard symbol for its
   action exists, and its word where none does.** A standard symbol is one readers
   already know for that action from the software they use, such as ✕ for close, ✓ for
-  done, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
+  resolve, ‹ and › for back and next, and the symbols for play, pause, copy and undo, so
   they can tell what the control does before hovering it. The words on Leaf's controls
   compete with the page's own words for the reader's attention, and a symbol is
-  smaller and quieter. Draw it from `runtime/icon-paths.js` and give the control its
-  name as tooltip and accessible name, without the word beside the symbol. One control
+  smaller and quieter. The control names its action from `ACTIONS` in
+  `runtime/icon-paths.js`, which gives it the action's symbol, and says its name as
+  tooltip and accessible name, without the word beside the symbol. An action shows one
+  symbol, or one word, wherever Leaf offers it, so a reader who learns it in one place
+  knows it in every other, and a press names an action, never an icon, so its symbol
+  can't drift. One control
   whose symbol follows its state, such as play turning to pause, replaces a button for
   each state. A symbol that is only related to the action, such as a speech bubble for
   answering a question, leaves the reader guessing, and a tooltip doesn't fix that:
@@ -195,11 +207,11 @@ representative desktop viewport.
   what its task needs, and the leaf's menu holds the rest.
 - **A control wears its role's face.** Code builds a control by its role, with
   `offerAction` or `offeredAction`, and never names a face's classes, so two controls
-  of one kind can't look different (`runtime/prepaint.js`, `ACTION_FACES`, lists the
+  of one kind can't look different (`runtime/control-faces.js`, `ACTION_FACES`, lists the
   roles). A new role needs a difference in the user's task, not only in a widget's
   taste. Check: `test_controls_are_built_by_role_and_never_by_face`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`theme.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Every surface paints a thread's `unread` and `attention` from one value**, so the
   On me mark's dot, Threads, panel, margin entry and Page Map change together. Green marks
@@ -223,13 +235,17 @@ representative desktop viewport.
 `leaf.js` only boots the page: it imports the owner modules, each of which exports its
 capability, and starts them in the order "Startup and presentation" lists. Two classic
 scripts run before any module. `runtime/prepaint.js` runs inline in every document,
-served or exported, and sets `data-lf-interactive` so the theme gives widgets their
-upgraded size. When something the page needs fails, it removes that attribute and names
-the reason in `data-lf-startup-error`, and every widget shows its readable fallback.
+served or exported. It marks the interactive document, restores native reading state
+and reports startup failures. Content remains readable while modules load; controls
+activate through their owning widget lifecycle. A failure removes the interactive mark
+and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, holds keys pressed before upgrade
 and shows a startup failure.
 
-Content modules import only `runtime/widget-api.js`, the public helper surface. Owners
+Content modules import only `runtime/widget-api.js`, the public helper surface, or a
+widget that also runs off Leaf only its part any document loads,
+`runtime/portable-api.js`;
+`module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
@@ -237,39 +253,39 @@ literal paths; only the widget and interaction loaders compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
-| Concern                                                                                                     | Owners                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                      |
-| Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                  |
-| Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                               |
-| Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                         |
-| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                     |
-| External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                    |
-| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                           |
-| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                   |
-| Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                       |
-| Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                     |
-| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                    |
-| Obligations                                                                                                 | `obligations/`                                                                                                                                           |
-| Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                    |
-| Threads                                                                                                     | `thread/`                                                                                                                                                |
-| Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                               |
-| Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                       |
-| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                    |
-| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`      |
-| Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js` |
-| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                    |
-| Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                         |
-| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                         |
-| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                        |
-| Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                        |
-| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                               |
-| Child pages                                                                                                 | `sample*.js`                                                                                                                                             |
-| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                       |
-| Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                            |
-| Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                   |
+| Concern                                                                                                     | Owners                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                        |
+| Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                    |
+| Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                  |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `obligations/model.js`, `queues.js`                                 |
+| Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
+| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
+| External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `since-seen.js`                                     |
+| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                     |
+| Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
+| Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
+| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                    |
+| Obligations                                                                                                 | `obligations/`                                                                                                                                             |
+| Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                      |
+| Threads                                                                                                     | `thread/`                                                                                                                                                  |
+| Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                 |
+| Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                         |
+| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                      |
+| Passages and target identity                                                                                | `passages.js`, `kernel-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`        |
+| Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`   |
+| Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                      |
+| Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                           |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `at-work.js`                                                                                             |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                          |
+| Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                          |
+| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                 |
+| Child pages                                                                                                 | `sample*.js`                                                                                                                                               |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `base-layer.js`                                                                                          |
+| Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                              |
+| Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `syntax-tokens.js`, `motion.js`, `color-scheme.js`, `storage.js`, `tab-store.js`, `interaction-log.js` |
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
@@ -300,8 +316,9 @@ these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
-name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules skip the chrome and every `.lf-ui`
-control unless a sheet is granted access (`runtime/page-sheets.js`).
+name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
+controls as they reach the page's own; the chrome keeps unlayered page rules up to one
+class's weight off itself (`styles/chrome-guard.css`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
@@ -378,6 +395,12 @@ id. A module keeps any other state in its own store under the element's id. Dela
 revision only for a gesture in progress that has no value to carry, such as an open
 composer or menu (`version.js`).
 
+State a module keeps for one press, or for one view while it stays open, lives in one
+record that starts when the press or view does and is dropped when it ends, rather than
+in variables the module resets by hand. A module keeps its record against the press
+through `focus.js` `pressRecords`. A field added to the record ends with the others,
+where a separate variable needs a reset at every place the press or view can end.
+
 ### One answer for each question
 
 A question the runtime asks in many places has one owner, which every caller asks,
@@ -410,6 +433,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
 | The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
+| Whether a box shows what it holds, not only its own box as one hidden until found does                | `geometry.js` `showsContents`                                                      |
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
@@ -432,7 +456,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
-| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
+| Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
+| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
@@ -536,9 +561,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The browser framework, `runtime/framework.js` and the
-modules behind it, is JavaScript a page runs as written. `pnpm run check:browser`
-type-checks the runtime and widget modules, strictly where a module is marked
-`// @ts-check`, which the build requires of every framework module; `types/` holds the
-check's configuration and the declarations it reads. Declare a new global, event detail or runtime element tag in
-`types/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
+`pnpm run check:browser` type-checks runtime and widget modules, strictly where a
+module is marked `// @ts-check`, which the build requires of every framework module.
+`../build/browser/build.mjs` owns checker selection; `types/` holds its configuration
+and declarations. Declare a new
+global, event detail or runtime element tag in `types/runtime-globals.d.ts`.

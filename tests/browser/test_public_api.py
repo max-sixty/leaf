@@ -13,6 +13,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     observe_output_documents,
     rendered,
+    wait_until_ready,
 )
 from leaf.render_gate.scheme import _render_scheme
 from leaf.render_gate.widget_quality import widget_findings
@@ -32,6 +33,48 @@ def test_package_imports_fail_at_the_browser_module_boundary(browser, serve):
     }""")
     assert problem["name"] == "SyntaxError"
     assert "setRuntimeRootStyle" in problem["message"]
+
+
+def test_formatted_page_words_follow_rendered_blocks_and_whitespace(browser, serve):
+    page = open_page(
+        browser, serve(leaf_page("Formatted words", "<p>A package page.</p>"))
+    )
+    readings = page.evaluate("""async () => {
+      const {says} = await import('/runtime/widget-api.js');
+      return lfUnwatched(() => {
+        const cases = {
+          divs: '<div>Step one</div><div>Step two</div>',
+          indented: '<div>Step one</div>\\n  <div>Step two</div>',
+          pre: '<p>Apply:</p><pre>a: 1\\n  b: 2</pre>',
+          preWrap: '<div style="white-space:pre-wrap">a: 1\\n  b: 2</div>',
+          preLine: '<div style="white-space:pre-line">a:  1  \\n  b: 2</div>',
+          table: '<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>',
+          list: '<ul><li>Outer<ul><li>Inner</li></ul></li><li>Next</li></ul>',
+          inline: '<div>Use <span data-lf-gen="1" data-lf-said>cpu</span>.</div>',
+          br: 'Line one<br>Line two',
+          island: '<div>Intro <span data-lf-markdown-words><strong>bold</strong> tail</span> rest</div>',
+          inlineDiv: '<div style="display:inline">Alpha</div><div style="display:inline">beta</div>',
+          blockSpan: '<span style="display:block">Alpha</span><span style="display:block">beta</span>',
+          ruby: '<p>Use <ruby>漢<rt>kan</rt></ruby> here.</p>',
+          chrome: '<p>Apply <b>these settings</b><span class="lf-ui">1 comment</span>.</p>',
+        };
+        return Object.fromEntries(Object.entries(cases).map(([name, html]) => {
+          const root = document.createElement('section');
+          root.innerHTML = html;
+          document.body.append(root);
+          const lines = says(root, {format: 'lines'});
+          root.querySelectorAll('.lf-ui').forEach(node => node.remove());
+          const shown = root.innerText;
+          root.remove();
+          // Lines keeps boundaries, not the browser's extra paragraph spacing.
+          const normalize = text => text.replace(/\\n{2,}/g, '\\n');
+          return [name, {lines: normalize(lines), shown: normalize(shown)}];
+        }));
+      });
+    }""")
+    assert {name: value["lines"] for name, value in readings.items()} == {
+        name: value["shown"] for name, value in readings.items()
+    }
 
 
 def test_independent_document_headers_contribute_measured_landing_room(browser, serve):
@@ -202,6 +245,69 @@ def test_render_check_preserves_an_authored_classic_script_named_leaf(browser, s
     assert not [f for f in findings if f.severity == "error"]
 
 
+@pytest.mark.parametrize("reader", ["page", "widgets"])
+def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usable(
+    browser, serve, monkeypatch, reader
+):
+    """A context disposes fetched responses before its page reports itself closed."""
+    import asyncio
+    import time
+
+    from playwright._impl._fetch import APIRequestContext, APIResponse
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    from leaf.render_gate import scheme, widget_quality
+
+    pages = []
+    body, dispose = APIResponse.body, APIRequestContext.dispose
+    reading, released, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    readings = []
+
+    async def held_body(response):
+        reading.set()
+        await asyncio.wait_for(released.wait(), SERVED_TIMEOUT_MS / 1000)
+        readings.append(pages[0].is_closed())
+        try:
+            return await body(response)
+        finally:
+            finished.set()
+
+    async def disposed(context, **kwargs):
+        await dispose(context, **kwargs)
+        # Hold context closure at its real disposal boundary: the page has not
+        # closed yet, but the observer's API response is already unavailable.
+        released.set()
+        await asyncio.wait_for(finished.wait(), SERVED_TIMEOUT_MS / 1000)
+
+    def abandoned_check(page):
+        pages.append(page)
+        observe_output_documents(page)
+        page.goto(url, wait_until="commit")
+        deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
+        while not reading.is_set():
+            assert time.monotonic() < deadline, "the observer never read its entry body"
+            page.evaluate("1")
+        raise PlaywrightTimeout("the check was abandoned during output capture")
+
+    url = serve(leaf_page("closing observer", "<h1>Closing</h1>"), packages=())
+    with monkeypatch.context() as patch:
+        patch.setattr(APIResponse, "body", held_body)
+        patch.setattr(APIRequestContext, "dispose", disposed)
+        owner = scheme if reader == "page" else widget_quality
+        patch.setattr(owner, "observe_output_documents", abandoned_check)
+        if reader == "page":
+            _findings, _notices, complete = _render_scheme(
+                browser.unwatched, url, "light", RENDER_VIEWPORT, SERVED_TIMEOUT_MS, []
+            )
+            assert not complete
+        else:
+            with pytest.raises(widget_quality.UnreadablePage):
+                widget_quality._readings(browser.unwatched, url, [])
+        next_page = browser.unwatched.new_page()
+        assert next_page.evaluate("1 + 1") == 2
+        assert readings == [False]
+
+
 def test_output_capture_fetch_failure_reaches_the_browsers_network_boundary(
     browser, serve, monkeypatch
 ):
@@ -329,3 +435,41 @@ def test_page_output_declaration_keeps_its_owner_beside_the_package_implementati
     assert failures[0].values["module"] == "/widgets/lf-output-proof.js"
     assert "package implementation" in str(failures[0])
     assert "page contract" in str(failures[0])
+
+
+def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
+    tmp_path, browser, serve
+):
+    """A widget that draws without Leaf's helpers says it has drawing under way with a
+    `pending-task` event, as one that also runs off Leaf does (module-authoring.md, "A
+    widget that also runs off Leaf"). The page holds the widget's presentation on it, as
+    on `present(promise)`, and presents once the drawing is in."""
+    package = tmp_path / "pending-package"
+    tag = "lf-pending-proof"
+    add_test_widget(package, tag, upgrade=True)
+    (package / "widgets" / f"{tag}.js").write_text(
+        'import { PendingTaskEvent, once } from "/runtime/portable-api.js";\n'
+        f'customElements.define("{tag}", class extends HTMLElement {{\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const held = Promise.withResolvers();\n"
+        "    window.releaseDrawing = held.resolve;\n"
+        "    const drawing = held.promise.then(() => { this.textContent = 'Drawn.'; });\n"
+        "    this.dispatchEvent(new PendingTaskEvent(drawing));\n"
+        "  }\n"
+        "});\n"
+    )
+    url = serve(
+        leaf_page("Pending", f'<{tag} id="proof">Drawing.</{tag}>'),
+        packages=(package,),
+    )
+    page = browser.new_page()
+    page.goto(url)
+    page.wait_for_function("() => typeof window.releaseDrawing === 'function'")
+    pending = """async () => (await window.__lfCheckApi())
+        .readApplicationPresentation().pending.includes('widget:proof:preparation')"""
+    assert page.evaluate(pending), "the page must hold the widget's drawing"
+    page.evaluate("releaseDrawing()")
+    wait_until_ready(page)
+    assert page.locator("#proof").text_content() == "Drawn."
+    assert not page.evaluate(pending)

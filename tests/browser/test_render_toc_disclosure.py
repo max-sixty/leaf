@@ -8,13 +8,16 @@ from render_harness import leaf_page, open_page, resized, told
 from leaf.render_checks import rendered, wait_until_ready
 
 
-def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, serve):
-    """Later headings must not grow an open index above text already being read."""
+@pytest.mark.parametrize("initially_open", [False, True])
+def test_an_outline_first_paints_with_its_complete_reading_scope(
+    browser, serve, initially_open
+):
+    """Reading proceeds during parsing; the index later includes its complete scope."""
     source = leaf_page(
-        "initially open contents",
-        """<h1 id="page-title">Field guide</h1>
+        "streamed contents",
+        f"""<h1 id="page-title">Field guide</h1>
 <lf-tabs id="topics"><lf-tab id="topic" label="Preparation">
-  <lf-toc id="contents" open></lf-toc>
+  <lf-toc id="contents"{" open" if initially_open else ""}></lf-toc>
   <h2 id="first">Take inventory</h2><p>Read the current counts.</p>
   <!--pause-parsing-->
   <h2 id="second">Save a snapshot</h2><p>Keep a reference.</p>
@@ -44,7 +47,7 @@ def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, s
         page.evaluate("() => new Promise(requestAnimationFrame)")
         assert page.evaluate("document.readyState") == "loading"
         expect(page.locator("#page-title")).to_be_visible()
-        expect(page.locator("#first")).to_be_hidden()
+        expect(page.locator("#first")).to_be_visible()
         assert page.locator("#contents li").count() == 0
 
         held.pop().fulfill(status=200, content_type="text/javascript", body="")
@@ -54,6 +57,9 @@ def test_an_open_outline_first_paints_with_its_complete_reading_scope(browser, s
         expect(page.locator("#contents li a")).to_have_text(
             ["Take inventory", "Save a snapshot"]
         )
+        if not initially_open:
+            expect(page.locator("#contents summary")).to_be_visible()
+            page.locator("#contents summary").click()
         expect(page.locator("#contents li a").first).to_be_visible()
     finally:
         for route in held:
@@ -66,11 +72,12 @@ def test_contents_disclosure_keeps_its_links_focus_and_open_state(
 ):
     source = leaf_page(
         "adaptive contents",
-        '<h1>Report</h1><aside class="sidebar"><lf-toc id="contents"'
+        '<aside><div class="layout-track"><lf-toc id="contents"'
         + (" open" if initially_open else "")
-        + "></lf-toc></aside>"
+        + '></lf-toc></div></aside><div class="layout-column"><h1>Report</h1>'
         '<section id="evidence"><h2>Evidence</h2><p>Read the counts.</p></section>'
-        '<section id="decision"><h2>Decision</h2><p>Choose the next step.</p></section>',
+        '<section id="decision"><h2>Decision</h2><p>Choose the next step.</p></section></div>',
+        layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 390, 844)
@@ -144,8 +151,9 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     )
     source = leaf_page(
         "sidebar contents",
-        '<header><h1>Review</h1></header><aside id="rail"><section class="panel">'
-        '<lf-toc id="contents"></lf-toc></section></aside>'
+        '<header><h1>Review</h1></header><aside id="rail">'
+        '<div class="layout-track"><section class="panel">'
+        '<lf-toc id="contents"></lf-toc></section></div></aside>'
         f'<div id="body">{sections}</div>',
         layout="sidebar",
     )
@@ -153,11 +161,51 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     resized(page, 1440, 900)
     toc = page.locator("lf-toc")
     disclosure = toc.locator("details")
-    expect(page.locator("#rail")).to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["x"] + rail["width"] <= body["x"], (rail, body)
     expect(toc.locator("summary")).to_be_hidden()
     expect(disclosure).to_have_attribute("open", "")
     expect(toc.get_by_role("link", name="Section 3", exact=True)).to_be_visible()
     resized(page, 700, 900)
-    expect(page.locator("#rail")).not_to_have_attribute("data-lf-beside", "")
+    rail = page.locator("#rail").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert rail["y"] + rail["height"] <= body["y"], (rail, body)
+    assert rail["x"] == pytest.approx(body["x"], abs=1)
     expect(toc.locator("summary")).to_be_visible()
     expect(disclosure).not_to_have_attribute("open", "")
+
+
+def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
+    """Stacked above the body, the contents is the in-flow disclosure, since the map
+    fixed in the margin would draw over the body's first words. Stacked, the aside and
+    `.layout-sidebar` are one width, but Chromium computed them a float rounding error
+    apart at some widths (a 960px window among them), so the test reads every width in
+    a band either side of the wrap."""
+    sections = "".join(
+        f'<section id="s{n}"><h2>Section {n}</h2><p>{"Words. " * 80}</p></section>'
+        for n in range(1, 5)
+    )
+    source = leaf_page(
+        "margin contents",
+        '<aside id="rail"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        f'</div></aside><div class="layout-column" id="body"><h1>Review</h1>{sections}</div>',
+        layout="sidebar",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    readings = page.evaluate("""() => {
+      const main = document.querySelector('main');
+      const rail = document.getElementById('rail'), body = document.getElementById('body');
+      const toc = document.getElementById('contents');
+      const readings = [];
+      for (let width = 860; width <= 1100; width++) {
+        main.style.inlineSize = `${width}px`;
+        readings.push({width,
+          stacked: rail.getBoundingClientRect().bottom <= body.getBoundingClientRect().top,
+          map: getComputedStyle(toc).position === 'fixed'});
+      }
+      main.style.inlineSize = '';
+      return readings;
+    }""")
+    assert {r["stacked"] for r in readings} == {True, False}
+    assert [r["width"] for r in readings if r["map"] == r["stacked"]] == []

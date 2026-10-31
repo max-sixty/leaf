@@ -134,6 +134,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     folder.mkdir()
     target = folder / "notes.txt"
     target.write_text("hello\n")
+    (page_dir / "page").mkdir(exist_ok=True)
     page = resolve_dir(str(respelled(page_dir)), renew=False)
     bind_file(page, "notes", respelled(target))
     changes, _generation = page_changes(page)
@@ -441,6 +442,7 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
                         (publishing,) = publications
                         # The mark planned again after subscribing, so the
                         # prepared claim is already among what it watches.
+                        assert watch.change_pages is not None
                         assert service_model.claim_path(page_dir).name in {
                             target.name for target in watch.change_pages[1]
                         }
@@ -456,6 +458,7 @@ def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
                     # Reconnect to the prepared discovery set, then consume any
                     # preparation notifications before the later commit.
                     watch.mark()
+                    assert watch.changes is not None
                     while watch.changes.wait(watch.changes.mark(), 0.1):
                         pass
                     _write_during_native_wait(watch, allow_commit.set, monkeypatch)
@@ -482,6 +485,7 @@ def test_native_watch_rearms_a_session_partition_created_after_startup(
         partition = service_model.session_claims("new-partition")
         assert not partition.exists()
         partition.mkdir()
+        assert watch.changes is not None
         assert watch.changes.wait(mark[2], STATED_TIMEOUT)
         # Consume creation before reconnecting; a delayed mkdir event must not
         # masquerade as notification of the later locator publication.
@@ -491,6 +495,7 @@ def test_native_watch_rearms_a_session_partition_created_after_startup(
         new_page = tmp_path / "later-acquisition"
         new_page.mkdir()
         (new_page / "events.jsonl").touch()
+        assert watch.harness is not None
         prepared = service_model.prepare_claim(watch.harness, new_page)
         _write_during_native_wait(
             watch, lambda: service_model.publish_claim(new_page, prepared), monkeypatch
@@ -555,6 +560,7 @@ def test_shared_page_native_owner_rearms_created_and_replaced_directories(
             (source / "after-replacement.html").write_text("replacement authored input")
             assert waiting.result(timeout=STATED_TIMEOUT)
     finally:
+        assert owner.release is not None
         owner.release()
 
 
@@ -614,6 +620,7 @@ def test_session_native_watch_pins_roots_until_replacement(page_dir, monkeypatch
         list(watch.tick())
         watch.mark()
         previous = watch.changes
+        assert previous is not None
         descriptor = previous.roots[page_dir][1]
         held = os.fstat(descriptor)
         shutil.rmtree(page_dir)

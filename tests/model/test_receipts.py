@@ -162,7 +162,9 @@ def test_concurrent_receipts_observe_one_session_without_nesting_page_locks(
         shutil.copytree(claimed, page)
         service_model.claim_page(page)
     pages = (claimed, second, silent)
-    session_id = service_model.page_claim(claimed)["id"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    session_id = claim_record["id"]
     cleanup_model.close_session_turn(session_id)
     cleanup_model.prompt_turn(session_id)
     deliveries = []
@@ -209,7 +211,9 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         out, err = consumer.communicate(timeout=STATED_TIMEOUT)
         assert consumer.returncode == 0, out + err
     for page in pages:
-        assert service_model.page_claim(page)["turn_closed"] is None
+        claim_record_2 = service_model.page_claim(page)
+        assert claim_record_2 is not None
+        assert claim_record_2["turn_closed"] is None
     for page in pages[:2]:
         assert acknowledged_through(page) == 1
         [pickup] = [
@@ -275,9 +279,10 @@ def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_
         text=True,
         env=os.environ,
     )
-    lease_path = leases_model.waiter_lease_path(
-        page_dir, harness_model.session_harness().session
-    )
+    harness = harness_model.session_harness()
+    assert harness is not None
+    lease_path = leases_model.waiter_lease_path(page_dir, harness.session)
+    assert lease_path is not None
     wait_for(
         lambda: (leases_model.lock_is_held(lease_path), waiting.poll()),
         lambda reading: reading[0] or reading[1] is not None,
@@ -285,6 +290,7 @@ def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_
     )
 
     assert acknowledged_through(page_dir) == first["seq"]
+    assert lease_path is not None
     assert leases_model.lock_is_held(lease_path), "the wait exited without input"
     status_before_delivery = page_state(page_dir)["status"]
     second = append_carried_log_record(
@@ -309,9 +315,11 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     identity = harness_model.session_harness()
-    lease = leases_model.take_lease(
-        leases_model.waiter_lease_path(page_dir, identity.session)
-    )
+    assert identity is not None
+    lease_path_2 = leases_model.waiter_lease_path(page_dir, identity.session)
+    assert lease_path_2 is not None
+    assert identity is not None
+    lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
     with lease:
         acknowledged = CliRunner().invoke(
@@ -352,7 +360,9 @@ def test_ack_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot):
     assert result.exit_code == 1, result.output
     assert "delivery no longer owns its page" in result.output
     assert acknowledged_through(page_dir) == 0
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_3 = service_model.page_claim(page_dir)
+    assert claim_record_3 is not None
+    assert claim_record_3["id"] == "successor"
 
     snapshot.check(
         yaml_document(
@@ -403,8 +413,10 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     )
     wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
     identity = harness_model.session_harness()
+    assert identity is not None
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert acknowledged_through(page_dir) == first["seq"]
+    assert lease_path is not None
     assert leases_model.lock_is_held(lease_path)
     assert waiting.poll() is None
 
@@ -422,7 +434,9 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     assert header["page"] == str(other)
     assert (event["id"], event["text"]) == ("second", "two")
     assert acknowledged_through(other) == 0
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_4 = service_model.page_claim(page_dir)
+    assert claim_record_4 is not None
+    assert claim_record_4["id"] == "successor"
 
 
 def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
@@ -453,8 +467,10 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
     wait_for(selected.exists, bool, failure="the rearm never selected its batch page")
     identity = harness_model.session_harness()
+    assert identity is not None
     lease_path = leases_model.waiter_lease_path(page_dir, identity.session)
     assert acknowledged_through(page_dir) == first["seq"]
+    assert lease_path is not None
     assert leases_model.lock_is_held(lease_path)
     assert waiting.poll() is None
 
@@ -466,7 +482,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     assert (waiting.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the page closed" not in err
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_5 = service_model.page_claim(page_dir)
+    assert claim_record_5 is not None
+    assert claim_record_5["id"] == "successor"
 
     snapshot.check(
         yaml_document(
@@ -565,6 +583,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
     parts = [first["text"]]
     assert first["part"] == 1 and first["parts"] > 1
     assert first["acknowledge"] is None
+    reading = first
     for part in range(2, first["parts"] + 1):
         output = read_part(payload["id"], part)
         assert len(output.encode("utf-8")) <= 24000
@@ -572,6 +591,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         parts.append(reading["text"])
     reconstructed = json.loads("".join(parts))
     assert reconstructed["batches"] == payload["batches"]
+    assert reading is not None
     assert reading["next"] is None
     # A reader with no harness session names the page its wait watched again.
     assert (
@@ -630,5 +650,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     assert "no longer owns" in result.output
     assert acknowledged_through(page_dir) == cursor
     assert events_model.read_events(page_dir) == before
-    assert service_model.page_claim(page_dir)["id"] == "successor"
+    claim_record_6 = service_model.page_claim(page_dir)
+    assert claim_record_6 is not None
+    assert claim_record_6["id"] == "successor"
     assert event["id"] in {record["id"] for record in before}

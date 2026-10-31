@@ -12,9 +12,8 @@ import { landingPlace } from "./runtime/reading-place.js";
 import { claimTraversals, mountHistory, replaceEntry } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-import { upgradeWidgets } from "./runtime/widget-loader.js";
+import { prepareDocument, upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
   markPageUpgraded,
@@ -88,14 +87,16 @@ import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createChangeWalk } from "./runtime/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
+import { atWorkLayer } from "./runtime/at-work.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
-import { createVersionController } from "./runtime/version.js";
+import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
@@ -128,7 +129,7 @@ import {
 } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { openMarginContentLayout } from "./runtime/content-layout.js";
+import { openDocumentLayout } from "./runtime/content-layout.js";
 import {
   createNavigation,
   placeThreadEdge,
@@ -147,13 +148,14 @@ import { mediaViewer } from "./runtime/media.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // The boot runs in a function, since a compiled module awaits nothing at its top
-// level (`topLevelAwait` in build/runtime-bundle.mjs says why). A failure
-// still reaches the window as the uncaught error a rejected module evaluation was,
-// which the prepaint reads as a startup fault.
+// level (`topLevelAwaitRule` in eslint.config.mjs says why). Its rejection names
+// an incomplete startup through the same boundary, wherever boot stopped.
 async function boot() {
   await document.documentElement.lfSample?.ready;
   initializeServedDocument();
-  keepPageRulesOffLayer();
+  const initialStateRead = beginRead();
+  const initialDocument = takeInitialDocument();
+  if (!(await prepareDocument(initialDocument))) return;
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -241,6 +243,7 @@ async function boot() {
     targetPaint: visualMarkPaint,
     pointer: pointerAt,
     currentLocationThreadId,
+    currentLocationObligation: () => items.currentLocationIn(),
     rowThread: () => floatingPanel?.hoveredThread() ?? null,
     threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
     marginThread: () => app?.overlay?.pointedThread() ?? null,
@@ -305,6 +308,7 @@ async function boot() {
     focusForNavigation,
     threadFocusTarget: (id, options) =>
       app.threadDestinations.threadFocusTarget(id, options),
+    clearFor: (destination, landed) => floatingPanel?.clearFor(destination, landed),
     announce,
   });
   const landing = createThreadLanding();
@@ -323,6 +327,7 @@ async function boot() {
   });
 
   const version = createVersionController({
+    initialDocument,
     compositionInput: fabInput,
     openThread: (id, options) =>
       app.threadDestinations.openPageThread(id, { ...options, travel: false }),
@@ -452,6 +457,7 @@ async function boot() {
     readableDestination: anchorTravel.readableDestination,
     announce,
   });
+  const changeWalk = createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -686,6 +692,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
+      atWorkLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
@@ -708,6 +715,7 @@ async function boot() {
     pageMapDialog.mount(chromeForeground);
     items.mount();
     queueWalk.mount();
+    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();
@@ -762,7 +770,6 @@ async function boot() {
     once: true,
   });
 
-  const initialStateRead = beginRead();
   if (!offlineInteractive) {
     restoreUserView({ setDesignMode: designMode.setActive });
     annotationRenderer?.restoreAnnotations();
@@ -873,8 +880,8 @@ async function boot() {
     ]);
     if (!upgraded) return;
     app.watchThreadSurfaces();
-    // Initial layout and later margin content layout share prepaint's synchronous computation.
-    openMarginContentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
+    // Read native document layout and subscribe annotations to its later changes.
+    openDocumentLayout({ onRead: annotationRenderer?.syncMarginContentLayout });
     if (!offlineInteractive) {
       layout.syncLayout();
       items.buildBulkAnswers();
@@ -887,37 +894,42 @@ async function boot() {
     // opening keyboard capture, so malformed coordinates never become controls.
     setAnchoringReady(true);
     try {
-      const draftOpened =
-        !offlineInteractive &&
-        // A thread address takes the reader to its destination. The saved draft
-        // remains available through Resume writing, without taking that arrival's focus.
-        !threadRoute(arrivalUrl) &&
-        recoverComposer() &&
-        responseSurface.openDraft(savedComposer);
       await app.presentThread();
       await whenApplicationPresented();
-      if (draftOpened) await responseSurface.fabPositioned();
     } catch (error) {
       setAnchoringReady(false);
       throw error;
     }
     markPageUpgraded();
+    // Restoring an editor requires a visible destination. Its placement certifies
+    // drawn content, so it cannot be a prerequisite for revealing the page itself.
+    const draftOpened =
+      !offlineInteractive &&
+      // A thread address takes the reader to its destination. The saved draft
+      // remains available through Resume writing, without taking that arrival's focus.
+      !threadRoute(arrivalUrl) &&
+      recoverComposer() &&
+      responseSurface.openDraft(savedComposer);
+    if (draftOpened) {
+      await app.presentThread();
+      await responseSurface.fabPositioned();
+    }
     anchorControls.publishVisualActions();
     responseSurface.updateFab();
     paintKeys();
     app.startFeed(presentPage, initialStateRead);
   }
 
-  startPage().catch((error) => {
-    const reason = `page failed to start: ${error?.message ?? error}`;
-    document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
-      window.dispatchEvent(
-        new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
-      );
-      reportPageError(error, "page failed to start");
-      applicationState.setReach("broken");
-    });
-  });
+  return startPage();
 }
 
-boot().catch(reportError);
+boot().catch((error) => {
+  const reason = `page failed to start: ${error?.message ?? error}`;
+  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
+    );
+    reportPageError(error, "page failed to start");
+    applicationState.setReach("broken");
+  });
+});

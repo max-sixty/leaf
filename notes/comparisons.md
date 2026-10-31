@@ -349,6 +349,58 @@ Agentation embeds precise annotation into an existing application. It is a
 reference for selecting rendered targets and connecting feedback to a host,
 rather than a document revision or persistent agent-workspace model.
 
+## Hypothesis
+
+Read on 2026-10-29 from the [client source](https://github.com/hypothesis/client)
+on `main`, last pushed October 19. Hypothesis injects an annotation layer, by
+browser extension or script tag, into pages whose authors never see the
+annotations. It is not an agent tool, but it has shipped two mechanisms Leaf also
+needs.
+
+**Re-attaching a comment to changed text.** Each annotation stores W3C Web
+Annotation selectors: a `RangeSelector` (XPaths and offsets), a
+`TextPositionSelector` (character offsets) and a `TextQuoteSelector` (the quote with
+32 characters of `prefix` and `suffix`).
+[`anchoring/html.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/html.ts)
+tries them in that order, and the first two count only when the text they reach
+equals the stored quote. The quote selector then matches approximately
+([`match-quote.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/anchoring/match-quote.ts)):
+it allows edit errors up to half the quote's length, scores each candidate on how
+closely its quote, its prefix and suffix and, as a tie-breaker, its offset match the
+stored ones, and takes the best. An annotation with no candidate becomes an orphan,
+counted on its own sidebar tab.
+
+Leaf's anchor carries the same `quote`, `prefix` and `suffix`, but matches the quote
+exactly ([events.md](../src/leaf/events.md), "Anchors";
+`anchor_capture.resolve_quote`). It takes the occurrence whose context matches
+exactly, or the quote's only occurrence. Repeated text with no deciding context
+detaches, and a revision that drops the passage moves the thread to its surviving
+section or detaches it. Approximate matching suits Hypothesis, where a page changes
+without its author knowing about the annotations, so a likely position is better than
+an orphan. In Leaf the agent revising the page can move a thread itself in a reply,
+and a thread moved silently to the wrong sentence would misstate what the user said.
+
+**Keeping injected interface clear of the page's styles.** Each in-page control,
+such as the selection toolbar, the bucket bar and the notebook, renders into a
+`<hypothesis-NAME>` element with an open shadow root
+([`preact-container.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/util/preact-container.ts)).
+The sidebar is a separate application in an iframe, which sits in a
+`<hypothesis-sidebar>` shadow root and talks to the page over message ports.
+Highlights are `<hypothesis-highlight>` elements wrapped around the page's own text
+nodes, where page CSS can reach them. Two details bear on Leaf's shadow-root
+question, recorded in [chrome-guard.css](../browser/styles/chrome-guard.css):
+
+- [`shadow-root.ts`](https://github.com/hypothesis/client/blob/main/src/annotator/util/shadow-root.ts)
+  copies each `@property` rule from the shadow tree's stylesheet into a sheet the
+  document adopts, since engines ignore `@property` inside a shadow tree
+  ([tailwindcss#15005](https://github.com/tailwindlabs/tailwindcss/issues/15005),
+  [csswg-drafts#10541](https://github.com/w3c/csswg-drafts/issues/10541)). Leaf's
+  chrome registers its custom properties with `@property` too, so a shadow-root
+  chrome would need the same copy.
+- Hypothesis places its toolbar with inline `top` and `left` computed from the
+  selection's rectangle. It uses no CSS anchor positioning, which is what stopped
+  Leaf's shadow-root spike.
+
 ## html-effectiveness
 
 Read on 2026-07-31 from the
@@ -553,6 +605,41 @@ planning/execution board and aiview companion for local specs, diagrams,
 mockups, variants and design decisions. The inspected manifest was 2.4.1 with
 no GitHub releases returned. This is a workflow companion, not a new renderer
 standard or a newly launched competitor.
+
+## Chopin and Planning with Agents
+
+Read on 2026-10-27 from Maggie Appleton's talk
+[Planning with Agents](https://maggieappleton.com/planning-agents), its demo videos,
+and GitHub Next's [Chopin write-up](https://githubnext.com/projects/chopin)
+(research prototype, published September 2026, by Krzysztof Cieślak and Maggie
+Appleton). Chopin itself was not used.
+
+The talk argues that planning as multiple-choice questions in a CLI, ending in a wall
+of Markdown to approve, leaves the human unable to judge what they decide. Plans
+should be boundary objects built for human understanding: visual, interactive,
+social, and grounded in the real codebase. Chopin is a multiplayer planning document
+in an MDX editor, with a planner agent in a side chat, embedded diagrams, and
+decisions that record who answered and when. That is the closest product framing to
+Leaf's we have found: a shared document the agent writes, with decisions recorded in
+place. Leaf differs in its append-only log and revisions, and in running beside the
+user's own harness rather than hosting the agent. Chopin's write-up reports
+multiplayer planning, which Leaf doesn't do (see "When Leaf is the wrong choice").
+
+The talk's four demos each give one decision its own instrument: a shadow scale tuned
+on the app's real cards, with each shadow layer drawn as a tile; a card-motion easing
+curve to drag; a video player driving its own state diagram; and three retry-logic
+branches built and compared by every call site's outcome. Appleton says they were
+made "essentially designing all of these examples myself", since agents aren't yet
+good at visual explanation.
+
+On the same shadow-scale task, a fresh agent following Leaf's instructions built a
+settings form of percentage sliders, while an agent copying her design got the
+instrument close in about half an hour. What still pulled that copy down was Leaf's
+frame: a required generic control, page CSS skipping controls built with `offer()`,
+and the playground's own rail and actions bar. #4478 removes those three obstacles,
+and #4479 rewrites the playground author guide around the decision's goals. The
+lesson is that Leaf's value is the instrument shaped for the decision with Leaf's
+record behind it, and Leaf should stay out of that instrument's way.
 
 ## Further comparisons
 

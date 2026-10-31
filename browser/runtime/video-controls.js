@@ -5,9 +5,9 @@
    runtime, or one that failed to start, keeps the browser's controls. Once the runtime
    runs, each video standing in the document or a widget's first shadow stage
    (arrivals.js), where the bar can anchor to it, trades `controls` for `data-lf-player`
-   while it stands, and gets the attribute back when it leaves. prepaint.js makes the
-   trade for the served document's videos before their first paint, so the browser's
-   controls never draw there to give way to the bar. The browsers' own
+   while it stands, and gets the attribute back when it leaves. Startup makes the
+   trade before revealing the rendered page, so the browser's controls never draw
+   there to give way to the bar. The browsers' own
    controls each start a recording differently, and Firefox's grow the first play's
    button to three times its size while fading it out over 400 ms, which a replay never
    shows, so the same recording looked different on its first play and in each engine.
@@ -53,12 +53,12 @@ import {
 } from "./block-controls.js";
 import { headerLevels, nameable } from "./css-anchors.js";
 import { focusDestination, focused } from "./focus.js";
-import { iconTemplate } from "./icons.js";
+import { actionTemplate } from "./icons.js";
 import { keeps } from "./keeps.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { plainPress } from "./pointer.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { offer, offered } from "./widget-elements.js";
+import { offer, offered, offeredAction } from "./widget-elements.js";
 import { html, live, nothing, render } from "/runtime/framework.js";
 
 const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
@@ -97,14 +97,15 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
   keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
   render(
     html`<button
-        ${offered("lf-video-play")}
-        tabindex="-1"
-        aria-label=${!video.paused ? "Pause recording" : "Play recording"}
-      >
-        ${iconTemplate("play", "lf-video-icon")}${iconTemplate(
-          "pause",
-          "lf-video-icon",
+        ${offeredAction(
+          "symbol",
+          "lf-video-play",
+          !video.paused ? "Pause recording" : "Play recording",
+          { action: "play" },
         )}
+        tabindex="-1"
+      >
+        ${actionTemplate("pause", "lf-action-icon")}
       </button>
       <input
         ${offered("lf-video-time")}
@@ -124,12 +125,11 @@ export function paintRecordingControls(video, bar, enterFullScreen) {
       ${
         enterFullScreen
           ? html`<button
-              ${offered("lf-video-full-screen")}
+              ${offeredAction("symbol", "lf-video-full-screen", "Full screen", {
+                action: "expand",
+              })}
               tabindex="-1"
-              aria-label="Full screen"
-            >
-              ${iconTemplate("expand", "lf-video-icon")}
-            </button>`
+            ></button>`
           : nothing
       }`,
     bar,
@@ -286,8 +286,8 @@ function giveBack(video) {
 
 export function watchVideos() {
   // A page whose runtime cannot start falls back to its readable form, which takes
-  // `data-lf-interactive` off the root and gives every video its `controls` back
-  // (prepaint.js). The bars stand down with it, and no later arrival takes one.
+  // `data-lf-interactive` off the root (prepaint.js). The bars give the browser its
+  // controls back, and no later arrival takes one.
   const root = document.documentElement;
   const fallenBack = () => !root.hasAttribute("data-lf-interactive");
   new MutationObserver(() => {

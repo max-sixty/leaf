@@ -1,6 +1,8 @@
+@import "./styles/notes.css";
 @import "./styles/disclosure.css";
+@import "./styles/worktrees.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in widgets.css stops
+/* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -65,6 +67,11 @@
   > .lf-resolved-summary::before {
   flex: none;
   font-size: var(--t-5);
+}
+/* The file's head is a flex row whose gap parts the arrow from the path. */
+:host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+  align-self: center;
+  margin: 0;
 }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
@@ -390,8 +397,10 @@
 .lf-diff-line-comment[data-lf-focus]::before {
   opacity: 1;
 }
-.lf-diff-filtered {
-  display: none;
+/* A file the filter leaves out keeps the box until-found gives it, which spends no room
+   once it shares no hairline. */
+.lf-diff-file[hidden="until-found"] {
+  margin: 0;
 }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
@@ -401,17 +410,16 @@
 .lf-diff-line-comment::after {
   content: none;
 }
-.lf-diff-comment[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
+/* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
+.lf-diff-comment {
+  outline-offset: 0;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
-   is inset — theme.css's rule for a control packed into something rather than standing
+   is inset — base.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(lf-diff.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
+  outline-offset: var(--focus-ring-inset);
 }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -419,9 +427,8 @@
    sides there; each row is positioned, so the row after painted over its lower run; and
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
-:host(lf-diff.lf-rendered) .lf-diff-line > [data-line][data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-diff.lf-rendered) .lf-diff-line > [data-line] {
+  outline-offset: var(--focus-ring-inset);
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
@@ -460,7 +467,7 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-/* The path is evidence — a file's name in the file's own voice — and a shadow tree
+/* The path is evidence — a file's name in the file's own face — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path {
   font-family: var(--mono);
@@ -569,7 +576,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 [data-lf-focus-visible] + .lf-diff-frame {
   outline: var(--focus-ring);
@@ -605,7 +612,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */
@@ -629,23 +636,23 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-thread-reply:not(
     :focus-within,
     :has(
-      > .lf-composer-media:not([hidden]),
-      > .lf-compose-field[data-words],
+      > leaf-composition-field > .lf-composer-media:not([hidden]),
+      > leaf-composition-field > .lf-compose-field[data-words],
       .lf-compose-dictate[aria-pressed="true"],
       .lf-compose-error:not([hidden])
     )
   ) {
   margin-top: var(--sp-1);
-  > .lf-compose-field {
+  > leaf-composition-field > .lf-compose-field {
     border-color: transparent;
     background: transparent;
   }
-  > .lf-compose-field > leaf-text {
+  > leaf-composition-field > .lf-compose-field > leaf-text {
     min-height: var(--aim-floor);
     padding-block: 0;
     cursor: pointer;
   }
-  > .lf-compose-field > .lf-compose-dictate {
+  > leaf-composition-field > .lf-compose-field > .lf-compose-dictate {
     display: none;
   }
 }
@@ -685,8 +692,9 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-head wbr {
     display: inline;
   }
-  .lf-diff-filtered {
-    display: block;
+  .lf-diff-file[hidden="until-found"] {
+    content-visibility: visible;
+    margin-top: -1px;
   }
   [data-line] {
     white-space: pre-wrap;
@@ -696,6 +704,20 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     width: 100%;
   }
   .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
+    position: static;
+    inline-size: 100%;
+  }
+}
+
+/* Author prose follows a source row without taking its code face or change tint.
+   Like conversations, its width and sideways position belong to the reader. */
+.lf-diff-rows > lf-diff-note {
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: 100cqw;
+}
+@media print {
+  .lf-diff-rows > lf-diff-note {
     position: static;
     inline-size: 100%;
   }

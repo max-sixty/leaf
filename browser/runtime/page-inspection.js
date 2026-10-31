@@ -5,6 +5,7 @@
  * here changes authored content, starts a website session, or polls for updates.
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
+import { describeFailure } from "./exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -35,8 +36,8 @@ import {
 
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
-const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "About this page"));
+const head = el("div", "lf-dialog-head");
+head.append(el("strong", "lf-dialog-title", "About this page"));
 const copy = copyControl("", {
   label: "Copy diagnostics",
   success: "Diagnostics copied",
@@ -145,11 +146,9 @@ const observations = (label, rows, describe) =>
                     ${
                       destinations.has(row)
                         ? html`<button
-                            ${offeredAction("word")}
+                            ${offeredAction("symbol", "", "Show on page", { action: "show" })}
                             @click=${() => showOnPage(row)}
-                          >
-                            Show on page
-                          </button>`
+                          ></button>`
                         : nothing
                     }
                   </li>`,
@@ -252,16 +251,19 @@ function present() {
       </p>
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
-        <h2>Authored CSS</h2>
+        <h2 class="lf-label">Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${
           sourceError
             ? html`<p role="status">${sourceError}</p>
                 ${
                   report.basis
-                    ? html`<button ${offeredAction("word")} @click=${loadSource}>
-                        Retry source inspection
-                      </button>`
+                    ? html`<button
+                        ${offeredAction("symbol", "", "Retry source inspection", {
+                          action: "retry",
+                        })}
+                        @click=${loadSource}
+                      ></button>`
                     : nothing
                 }`
             : nothing
@@ -285,7 +287,7 @@ function present() {
       ${
         report.javascript
           ? html`<section aria-label="Authored JavaScript">
-              <h2>Authored JavaScript</h2>
+              <h2 class="lf-label">Authored JavaScript</h2>
               <p>
                 ${number(report.javascript.page.bytes)} page-owned bytes ·
                 ${number(report.javascript.page.inline_scripts)} inline scripts ·
@@ -310,7 +312,7 @@ function present() {
       ${
         report.page_widgets?.length
           ? html`<section aria-label="Page-owned widgets">
-              <h2>Page-owned widgets</h2>
+              <h2 class="lf-label">Page-owned widgets</h2>
               <dl>
                 ${report.page_widgets.map(
                   (widget) =>
@@ -322,7 +324,7 @@ function present() {
           : nothing
       }
       <section aria-label="Browser observation">
-        <h2>This tab at opening</h2>
+        <h2 class="lf-label">This tab at opening</h2>
         ${browserReading(report.current_view)}
         <p>
           The captured view stays fixed while this dialog is open. Close and reopen to
@@ -356,7 +358,7 @@ async function loadSource() {
     report = { ...source, current_view: report.current_view };
   } catch (error) {
     if (request !== attempt || !dialog.open) return;
-    sourceError = `Source inspection unavailable: ${error.message}`;
+    sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
   } finally {
     if (request === attempt && dialog.open) {
       loading = false;
@@ -397,7 +399,7 @@ export async function openPageInspection(intent) {
     : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
   loading = available;
   render(
-    html`<h2>Page details</h2>
+    html`<h2 class="lf-label">Page details</h2>
       ${pageControls()
         .filter((entry) => entry.copies)
         .map(

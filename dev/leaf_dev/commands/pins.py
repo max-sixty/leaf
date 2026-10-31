@@ -613,7 +613,8 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
                 outline=(40, 110, 230),
                 width=SCALE,
             )
-    image.crop(tuple(SCALE * edge for edge in rect)).save(out)
+    left, top, right, bottom = rect
+    image.crop((SCALE * left, SCALE * top, SCALE * right, SCALE * bottom)).save(out)
     return out
 
 

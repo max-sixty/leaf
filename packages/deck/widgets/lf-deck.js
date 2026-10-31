@@ -22,7 +22,7 @@
  * it. Where neither the address nor the tab names a card, the deck opens on the first
  * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
  * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`, `lf-reveal`); `m` is therefore the keyboard's Later, and a card the
+ * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
  * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
  * answer it takes back before taking it, which opens its card the same way, so the deck
  * has no Undo of its own.
@@ -51,8 +51,7 @@
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
-  commands,
-  iconElement,
+  nameAction,
   rowArrows,
   dragging,
   focusDestination,
@@ -71,6 +70,7 @@ import {
   offerAction,
   placeOf,
   openingView,
+  viewMembers,
   quoted,
   readObligations,
   scrollBehavior,
@@ -82,6 +82,7 @@ import {
   whileConnected,
   html,
   nothing,
+  commandsChanged,
 } from "/runtime/widget-api.js";
 
 // How far a touch drag travels before a release sends the card; how long a card takes
@@ -99,9 +100,6 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 // Whether a card's obligations, by the reading, wait on the user.
 const waitsOn = (held) =>
   held.some((item) => item.status === "open" && item.next_actor === "user");
-
-const isCard = (node) =>
-  node instanceof HTMLElement && !node.matches("script, style, template");
 
 customElements.define(
   "lf-deck",
@@ -133,14 +131,13 @@ customElements.define(
     }
 
     setup() {
-      this.#cards = [...this.children].filter(isCard);
+      this.#cards = viewMembers(this);
       if (!this.#cards.length) return;
       this.#bar = offer("div", "lf-deck-bar");
       this.#status = document.createElement("span");
       this.#status.className = "lf-deck-status";
-      const control = (name, icon, label) => {
-        const button = offerAction("symbol", `lf-deck-${name}`, label, { icon });
-        button.dataset.icon = icon;
+      const control = (name, action, label) => {
+        const button = offerAction("symbol", `lf-deck-${name}`, label, { action });
         return button;
       };
       this.#back = control("back", "previous", "Back");
@@ -154,38 +151,38 @@ customElements.define(
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
       this.#end.append(this.#again);
       const [back, ahead] = rowArrows(this);
-      commands(this, "In a deck", [
-        {
-          id: "deck.back",
-          keys: [back],
-          title: "Back",
-          control: this.#back,
-          bindingBadge: null,
-          touch: false,
-          when: () => this.#index() > 0,
-          run: () => this.#stepBack(),
-        },
-        {
-          id: "deck.forward",
-          keys: [ahead],
-          title: () => this.#forwardWord(),
-          control: this.#forward,
-          bindingBadge: null,
-          touch: false,
-          run: () => this.#forwardPress(this.#readings()),
-        },
-      ]);
+      this.lfCommands = {
+        title: "In a deck",
+        rows: [
+          {
+            id: "deck.back",
+            keys: [back],
+            title: "Back",
+            control: this.#back,
+            bindingBadge: null,
+            touch: false,
+            when: () => this.#index() > 0,
+            run: () => this.#stepBack(),
+          },
+          {
+            id: "deck.forward",
+            keys: [ahead],
+            title: () => this.#forwardWord(),
+            control: this.#forward,
+            bindingBadge: null,
+            touch: false,
+            run: () => this.#forwardPress(this.#readings()),
+          },
+        ],
+      };
+      commandsChanged(this);
       for (const card of this.#cards) {
         card.addEventListener("beforematch", () => this.#show(card));
-        card.addEventListener("lf-reveal", (event) => {
-          if (this.#open.value !== card) event.detail.replacedView?.();
-          event.detail.present?.(this.#show(card));
-        });
       }
       this.prepend(this.#bar);
       this.append(this.#end);
       this.classList.add("lf-rendered");
-      const opening = openingView(this, this.#cards, null);
+      const opening = openingView(this, null);
       this.#show(opening ?? this.#cards[0]);
       this.#defaulted = !opening;
       if (quoted(this)) return;
@@ -210,19 +207,18 @@ customElements.define(
     #show(card) {
       // Arriving at the open card, as `m` does at the card a motion is bringing up,
       // leaves that motion to finish.
-      if (card === this.#open.value) return Promise.resolve();
+      if (card === this.#open.value) return;
       this.#landing?.();
+      keepView(this, card);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === card ? "" : null);
-        keeps(each, "hidden", each === card ? null : "until-found");
       }
       keepsHidden(this.#end, Boolean(card));
       this.#open.value = card;
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      if (card) keepView(this, card);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
 
     // Move from the open card to `next`, or to the end of the pass when it is null.
@@ -311,17 +307,15 @@ customElements.define(
         card.style.setProperty("--lf-deck-leave-top", `${card.offsetTop}px`);
         keeps(card, "data-lf-deck-leaving", side);
       }
+      keepView(this, next, moving ? card : null);
       for (const each of this.#cards) {
         keeps(each, "data-lf-deck-open", each === next ? "" : null);
-        if (each !== card || !moving)
-          keeps(each, "hidden", each === next ? null : "until-found");
       }
       keepsHidden(this.#end, Boolean(next));
       this.#open.value = next;
       this.#defaulted = false;
       this.#waited = null;
       this.#pressed = null;
-      if (next) keepView(this, next);
       if (running.length) {
         const after = parseFloat(getComputedStyle(this).height);
         if (Math.abs(after - before) > 1)
@@ -344,7 +338,7 @@ customElements.define(
         away = true;
         keeps(card, "data-lf-deck-leaving", null);
         card.style.removeProperty("--lf-deck-leave-top");
-        if (card !== upcoming) keeps(card, "hidden", "until-found");
+        keepView(this, this.#open.value, card === upcoming ? card : null);
       };
       const land = (upcoming) => {
         if (this.#landing !== land) return;
@@ -559,15 +553,7 @@ customElements.define(
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
-      keeps(this.#forward, "aria-label", word);
-      keeps(this.#forward, "title", word);
-      const icon = this.#open.value ? "next" : "start";
-      if (this.#forward.dataset.icon !== icon) {
-        this.#forward.dataset.icon = icon;
-        this.#forward
-          .querySelector("svg")
-          ?.replaceWith(iconElement(icon, "lf-action-icon"));
-      }
+      nameAction(this.#forward, this.#open.value ? "next" : "start", { label: word });
       // Once the pass is over the end frame's button is the step back in.
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();

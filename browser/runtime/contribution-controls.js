@@ -5,9 +5,11 @@
 import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
-import { progressFace, workflowLabel } from "./thread/workflow.js";
+import { progressFace, workflowWord } from "./thread/workflow.js";
+import { agentSays, saidBy, voiced } from "./voice.js";
+import { agentName } from "./semantic-state.js";
 import { elementDirective, offer } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";
@@ -197,14 +199,14 @@ function paintAgentDescription(control) {
   }
   const record = records.get(control);
   // What the title says beyond the label, which a margin entry's label says too, so a
-  // finger holding the entry reads all of it.
+  // finger holding the entry reads all of it, each word said by whoever says it.
   const more = [
     reading.title !== record?.label && reading.title,
     reading.stage && reading.word,
-    reading.stage && reading.detail,
+    reading.stage && reading.detail && agentSays(reading.detail),
   ]
     .filter(Boolean)
-    .join(" · ");
+    .flatMap((part, index) => (index ? [" · ", part] : [part]));
   paintLabelMore(control, more);
   if (!reading.stage) {
     for (const [attribute, value] of [
@@ -215,7 +217,7 @@ function paintAgentDescription(control) {
     }
     return;
   }
-  const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
+  const work = [reading.word?.text, reading.detail].filter(Boolean).join(" · ");
   keeps(
     control,
     "aria-description",
@@ -238,7 +240,7 @@ function paintLabelMore(control, more) {
   const line = control.querySelector(
     ":scope > .lf-margin-entry-label > .lf-margin-entry-more",
   );
-  if (line) keepsText(line, more ?? "");
+  if (line) render(voiced(more ?? []), line);
 }
 
 function syncAgentDescriptionBase(control, description, title) {
@@ -258,7 +260,11 @@ function syncContributionAgentWorkflow(control, receipt) {
   Object.assign(
     reading,
     paintedStage
-      ? { stage: paintedStage, word: workflowLabel(receipt), detail: receipt.detail }
+      ? {
+          stage: paintedStage,
+          word: workflowWord(receipt, agentName()),
+          detail: receipt.detail,
+        }
       : { stage: null, word: null, detail: null },
   );
   paintAgentDescription(control);
@@ -409,9 +415,13 @@ export function presentContributionEntry(control, offered, options = {}) {
   render(
     html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word">${visibleLabel}</span>${
+        ><span class="lf-margin-entry-label-word"
+          >${record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel}</span
+        >${
           record.context
-            ? html`<span class="lf-margin-entry-context">${record.context}</span>`
+            ? html`<span class="lf-margin-entry-context"
+                >${voiced(record.context)}</span
+              >`
             : null
         }<span class="lf-margin-entry-more"></span></span
       >${

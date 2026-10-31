@@ -6,6 +6,7 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
     ROOT,
     displayed,
@@ -374,6 +375,7 @@ def _stacked_headers(browser, serve, flow="page"):
     is wide enough to scroll sideways, and another long one after the tabs. In the
     page's flow the strip stands over the root; a set in a section is a framed box,
     whose strip stands over only the set."""
+    flow_class = ' class="layout-flow"' if flow == "page" else ""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -394,12 +396,12 @@ def _stacked_headers(browser, serve, flow="page"):
                 "Stacked headers",
                 "<h1>Stacked</h1>"
                 + ("<section>" if flow == "box" else "")
-                + '<lf-tabs id="tabs">'
-                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
+                + f'<lf-tabs id="tabs"{flow_class}>'
+                f'<lf-tab id="diff-tab" label="Diff"{flow_class}><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
-                + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
+                + f'</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes"{flow_class}>'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
                 + ("</section>" if flow == "box" else "")
                 + '<lf-diff id="after-tabs"><pre>'
@@ -412,7 +414,7 @@ def _stacked_headers(browser, serve, flow="page"):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
-    expect(page.locator("#tabs")).to_have_attribute("data-lf-views-flow", flow)
+    expect(page.locator("#tabs")).to_have_css("--lf-views-flow", flow)
     return page
 
 
@@ -550,7 +552,7 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     under the strip."""
     page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
     resized(page, 1280, 720)
-    expect(page.locator("#views")).to_have_attribute("data-lf-views-flow", "box")
+    expect(page.locator("#views")).to_have_css("--lf-views-flow", "box")
     # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
     # root's landing band, which the strip covers.
     page.evaluate(
@@ -582,13 +584,17 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
     source = (
         ROOT_TABS_PAGE.read_text()
-        .replace('<lf-tabs id="root-tabs">', '<section><lf-tabs id="root-tabs">')
+        .replace(
+            '<lf-tabs id="root-tabs" class="layout-flow">',
+            '<section><lf-tabs id="root-tabs">',
+        )
+        .replace(' class="layout-flow"', "")
         .replace("</lf-tabs>", "</lf-tabs></section>")
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-views-flow", "box")
+    expect(tabs).to_have_css("--lf-views-flow", "box")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -601,16 +607,20 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
 
 
-def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve):
+@pytest.mark.parametrize("target_id", ["x", "two"])
+def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
+    browser, serve, target_id
+):
     """Back restores the offset an entry was left at, unless the element its fragment
     names is no longer shown: the user closed its tab since, so that offset belongs to
     a page that has changed, and landing the fragment, which opens the tab, is the
-    answer. The tab set is embedded, so it keeps no history of its own."""
+    answer. The fragment may name the panel itself or its contents. The tab set is
+    embedded, so it keeps no history of its own."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
             "Back to a hidden fragment",
-            '<h1 id="top">Hidden fragment</h1><p><a href="#x">To x</a></p>'
+            f'<h1 id="top">Hidden fragment</h1><p><a href="#{target_id}">To target</a></p>'
             '<section><lf-tabs id="views">'
             '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
             f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
@@ -622,9 +632,9 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     tabs = page.locator("#views")
     one = tabs.get_by_role("tab", name="One", exact=True)
     two = tabs.get_by_role("tab", name="Two", exact=True)
-    target = page.locator("#x")
+    target = page.locator(f"#{target_id}")
 
-    page.get_by_role("link", name="To x").click()
+    page.get_by_role("link", name="To target").click()
     expect(two).to_have_attribute("aria-selected", "true")
     expect(target).to_be_in_viewport()
     one.click()
@@ -646,7 +656,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_attribute("data-lf-views-flow", "page")
+    expect(tabs).to_have_css("--lf-views-flow", "page")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -674,15 +684,93 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_onto_a_nested_workspace_link_clears_the_floating_panel(
+    request, serve, engine
+):
+    """The workspace's tab scroller clears the collapsed panel on native Tab,
+    including when an outer tab transfers its end clearance to nested views."""
+    source = leaf_page(
+        "Review evidence",
+        '<header><h1>Review evidence</h1></header><lf-tabs id="views">'
+        '<lf-tab id="changes" label="Changes"><lf-tabs id="experiments">'
+        '<lf-tab id="runtime" label="Runtime">'
+        '<div style="height:380px"></div>'
+        '<p style="text-align:center"><a id="output" href="#runtime">'
+        "Try the output</a></p>"
+        + "<p>Further evidence.</p>" * 20
+        + "</lf-tab></lf-tabs></lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 900, 600)
+    page.get_by_role("tab", name="Changes", exact=True).click()
+    for _ in range(4):
+        page.keyboard.press("Tab")
+    link = page.locator("#output")
+    expect(link).to_be_focused()
+    scroll_settled(page)
+    position = link.evaluate("""link => {
+      const box = link.getBoundingClientRect();
+      const hits = [box.top + 1, box.bottom - 1].map(y =>
+        document.elementFromPoint(box.x + box.width / 2, y));
+      return {exposed: hits.every(hit => hit === link || link.contains(hit)),
+        link: box.toJSON(), hits: hits.map(hit => hit?.tagName)};
+    }""")
+    assert position["exposed"], position
+
+
+def test_a_hidden_workspace_tab_preserves_lazy_image_dimensions(browser, serve):
+    """Inactive views keep their column width and zero height, so sized lazy images
+    reserve their aspect ratio before the reader opens the view or its disclosure."""
+    src = SHOT_SRC["before"]
+    source = leaf_page(
+        "Saved evidence",
+        '<header><h1>Saved evidence</h1></header><lf-tabs id="views">'
+        '<lf-tab id="intro" label="Introduction"><p>Introduction.</p></lf-tab>'
+        '<lf-tab id="saved" label="Saved"><lf-tabs id="outputs">'
+        '<lf-tab id="output" label="Output"><figure><details>'
+        "<summary>More screens</summary>"
+        f'<img id="capture" src="{src}" alt="Saved screen" loading="lazy"'
+        ' width="600" height="300" style="aspect-ratio:2/1">'
+        "</details></figure></lf-tab></lf-tabs></lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    page = browser.new_page(viewport={"width": 900, "height": 600})
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Audits.enable")
+    issues = []
+    cdp.on("Audits.issueAdded", lambda event: issues.append(event["issue"]["code"]))
+    page.goto(serve(source, media={src: SHOTS["before"]}))
+    wait_until_ready(page)
+    dimensions = page.locator("#capture").evaluate("""image => {
+      const tab = document.getElementById('saved').getBoundingClientRect();
+      const box = image.getBoundingClientRect();
+      return {tab: {width: tab.width, height: tab.height},
+        image: {width: box.width, height: box.height}};
+    }""")
+    assert dimensions["tab"]["height"] == 0, dimensions
+    assert dimensions["image"]["width"] > 0, dimensions
+    assert dimensions["image"]["height"] == pytest.approx(
+        dimensions["image"]["width"] / 2
+    ), dimensions
+    assert "LazyLoadImageIssue" not in issues
+    page.get_by_role("tab", name="Saved", exact=True).click()
+    page.get_by_text("More screens", exact=True).click()
+    page.wait_for_function("document.getElementById('capture').naturalWidth > 0")
+
+
 def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
-    """A full-height page tab's only block fills its content box from first paint,
-    leaving the tab's panel clearance below it. Upgrade keeps that same box, including
-    the ring's room around the set and the clearance after the reading content."""
+    """The selected workspace fills its available box before modules load.
+
+    Native layout reserves navigation's row, so activation preserves the content's
+    height, width and bottom clearance.
+    """
     source = leaf_page(
         "Workspace page tab",
-        '<header><h1>Review</h1></header><lf-tabs id="views">'
+        '<header><h1>Review</h1></header><lf-tabs id="views" class="layout-flow">'
         '<lf-tab id="work" label="Work"><template></template>'
         '<section id="surface"><p>Work here.</p>'
         '</section></lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p>'
@@ -749,22 +837,21 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
             for space in ("wide", "available")
         )
 
+    panel_flow = ' class="layout-flow"' if layout != "workspace" else ""
     content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
-        f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
-        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<lf-tabs id="root-tabs" class="layout-flow"><lf-tab id="compare" label="Compare"{panel_flow}>{tables("in")}'
+        f'</lf-tab><lf-tab id="notes" label="Notes"{panel_flow}><p>Notes.</p></lf-tab></lf-tabs>'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
-    # A sidebar page with no aside holds one flow: the page's own CSS gives each block
-    # the row, and the tab set stays root, a direct child of main.
+    # A sidebar's reading body owns the shared document tracks, including its tabs.
+    if layout == "sidebar":
+        content = f'<div class="layout-column">{content}</div>'
     source = leaf_page(
         "Evidence in page tabs",
         content,
-        head="<style>main > * { flex-basis: 100%; }</style>"
-        if layout == "sidebar"
-        else "",
         layout=layout,
     )
     boot = []
@@ -805,7 +892,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    expect(page.locator("#root-tabs")).to_have_attribute("data-lf-views-flow", "page")
+    expect(page.locator("#root-tabs")).to_have_css("--lf-views-flow", "page")
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
@@ -1089,7 +1176,9 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
         return leaf_page(
             "Grouped queue",
             '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
-            + "".join(item(key, group) for key, group in zip("abcdef", groups))
+            + "".join(
+                item(key, group) for key, group in zip("abcdef", groups, strict=True)
+            )
             + "</lf-tabs>",
         )
 
@@ -1317,7 +1406,33 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         tab = page.get_by_role("tab", name=name, exact=True)
         tab.click()
         tab.blur()
+    # Sample the first resized layout before paint, not the settled endpoint: the
+    # selected tab must never disappear for a frame as the column becomes a row.
+    page.evaluate("""() => {
+      window.firstStripResize = {};
+      const observer = new ResizeObserver(entries => {
+        for (const {target} of entries) {
+          const id = target.parentElement.id;
+          const strip = target.getBoundingClientRect();
+          if (innerWidth !== 390 || id in firstStripResize) continue;
+          const tab = target.querySelector('[aria-selected="true"]').getBoundingClientRect();
+          firstStripResize[id] = {left: tab.left - strip.left,
+            right: tab.right - strip.left, width: strip.width,
+            before: target.hasAttribute('data-lf-more-before'),
+            after: target.hasAttribute('data-lf-more-after')};
+        }
+      });
+      for (const id of ['framed', 'queue'])
+        observer.observe(document.querySelector(`#${id} > .lf-tabstrip`));
+      window.stripResizeObserver = observer;
+    }""")
     resized(page, 390, 844)
+    first_resize = page.evaluate("firstStripResize")
+    assert set(first_resize) == {"framed", "queue"}, first_resize
+    for box in first_resize.values():
+        assert box["left"] >= 0 and box["right"] <= box["width"], first_resize
+        assert box["before"] and not box["after"], first_resize
+    page.evaluate("stripResizeObserver.disconnect()")
     for strip in ("framed", "queue"):
         page.wait_for_function(shown, arg=[strip, 0])
 
@@ -1904,7 +2019,7 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         for name in ("A", "B")
     )
     body += "</lf-tabs>"
-    head = """<style data-controls>
+    head = """<style>
     @container (width >= 36rem) {
       #views > .lf-tabstrip {position: sticky; top: var(--lf-top, 0px);
         align-self: start; max-block-size: 100dvh; overflow-y: auto;}
@@ -1944,3 +2059,57 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         page.evaluate("window.navigation.transition?.finished")
         scroll_settled(page)
         assert page.evaluate("scrollY") == pytest.approx(offset, abs=2)
+
+
+def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
+    browser, serve, subtests
+):
+    """Shared document tracks and a boxed neighbor keep their own width and face."""
+    source = leaf_page(
+        "Authored tab flow",
+        '<aside><div class="layout-track"><p>Reading route</p></div></aside>'
+        '<div class="layout-column"><p id="reading">The document prose track.</p>'
+        '<section class="layout-flow"><lf-tabs id="flow" class="layout-flow">'
+        '<lf-tab id="flow-first" label="First" class="layout-flow">'
+        '<section class="layout-flow"><p id="first-prose">First reading.</p></section>'
+        '<table data-width="wide"><tr><th>Context</th></tr><tr><td>First.</td></tr></table></lf-tab>'
+        '<lf-tab id="flow-second" label="Second" class="layout-flow">'
+        '<section class="layout-flow"><p id="second-prose">Second reading.</p></section>'
+        '<table data-width="available"><tr><th>Context</th></tr><tr><td>Second.</td></tr></table>'
+        "</lf-tab></lf-tabs></section>"
+        '<section><lf-tabs id="boxed"><lf-tab id="boxed-first" label="Boxed first">'
+        '<p>Boxed reading.</p></lf-tab><lf-tab id="boxed-second" label="Boxed second">'
+        "<p>Other boxed reading.</p></lf-tab></lf-tabs></section></div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    flow, boxed = page.locator("#flow"), page.locator("#boxed")
+    for width in (1600, 900, 390):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            expect(flow).to_have_css("border-left-width", "0px")
+            expect(boxed).to_have_css("border-left-width", "1px")
+            active = flow.locator(":scope > lf-tab:not([hidden])")
+            expect(active).to_have_css("container-type", "normal")
+            assert active.evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns.startsWith('subgrid')"
+            )
+            prose = active.locator("p").bounding_box()
+            reading = page.locator("#reading").bounding_box()
+            assert (prose["x"], prose["width"]) == pytest.approx(
+                (reading["x"], reading["width"]), abs=0.5
+            )
+            expect(boxed.locator(":scope > lf-tab:not([hidden])")).to_have_css(
+                "container-type", "inline-size"
+            )
+            flow.get_by_role("tab", name="First", exact=True).click()
+            page.keyboard.press("ArrowRight")
+            expect(
+                flow.get_by_role("tab", name="Second", exact=True)
+            ).to_have_attribute("aria-selected", "true")
+            boxed.get_by_role("tab", name="Boxed first", exact=True).click()
+            page.keyboard.press("ArrowRight")
+            expect(
+                boxed.get_by_role("tab", name="Boxed second", exact=True)
+            ).to_have_attribute("aria-selected", "true")
+            assert root_overflow(page) == 0

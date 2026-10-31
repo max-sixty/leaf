@@ -14,12 +14,15 @@
 # order or every-option requirement) the rubric came to check that goal: base and
 # candidate 5 of 5 each. Under the rubric before it, candidate runs left the reach label
 # off the keep-today option in 2 of 5.
+# The compact-title allowance still conflicted with this rubric's title prohibition.
+# Saved-output calibration now accepts facts in compact titles or labels and rejects
+# both original responses with reach only in option bodies; no new author runs.
 description: options-label-what-sets-them-apart
 metadata:
   purpose:
     "Asks: when alternatives differ on facts the user compares across them, such as effort or
-    reach, each lf-option labels those facts with small.tag labels rather than stating them
-    in its prose."
+    reach, compact titles or labels make those facts comparable without reading each
+    option's explanatory prose."
   tags:
     - asks
 vars:
@@ -102,12 +105,13 @@ assert:
       tuples passed to `opt(i, title, body, rec=False, tags=())`; the `tags`
       argument becomes `small.tag` labels before the option's title. The
       alternatives differ in how much work each is and in how far back `z` can
-      reach. Pass only if a reader can compare the options on those differences
-      from labels, through `tags` or literal `<small class="tag">` markup (such as
-      "effort: small" and "reach: no limit", in any wording), without reading the
-      options' prose. An option that keeps today's behavior may leave a value to
-      the context that describes today. Fail if any option states its effort only
-      in its title or body text, such as a trailing "Small." or "A medium change".
+      reach. Pass only if a reader can compare the options on both differences
+      from compact titles or labels, such as "effort: small" and "reach: no limit",
+      without reading the options' explanatory prose. Labels may use `tags` or
+      literal `<small class="tag">` markup and need not repeat facts supplied by
+      titles. An option that keeps today's behavior may leave a value to the
+      context that describes today. Fail if an option leaves its differing effort
+      or reach only in its body text, such as a trailing "Small." or "No age limit."
       The `recommended` label alone does not count.
   - type: llm-rubric
     metric: reason-beside-options

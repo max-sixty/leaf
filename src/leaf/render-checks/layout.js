@@ -3,7 +3,6 @@ import {
   layoutBox,
   pageDocument,
   readingRegions,
-  renderedParent,
   shownBand,
   shownRegionBounds,
   skipped,
@@ -19,45 +18,10 @@ import { coveredWords, shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A box the theme lets stand past its holder, which says so where it lets it
-// (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
-// lf-ask spanning such a block (ask.css). Every other box keeps to the column, as text
-// does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
-// holding authored blocks (`data-lf-content="markup"`) break out.
+// A direct document child granted a wider track by its own declared width.
+// Holders request their own width; a wide child alone stays inside its holder.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
-
-// The box a block's width and margins resolve against: its nearest ancestor that
-// generates a block, inside that ancestor's border, padding and any scrollbar gutter,
-// at the place its scroll puts it. An inline holder, such as a link around a chart, is
-// passed as prepaint.js's `holderOf` passes it, since the browser sets a block inside
-// an inline in its holder's flow; read from the link, a linked breakout was named for
-// standing off the axis of a room 0px wide.
-function contentBox(el) {
-  let s = getComputedStyle(el);
-  while (s.display === "contents" || s.display === "inline")
-    s = getComputedStyle((el = renderedParent(el)));
-  const left =
-    el.getBoundingClientRect().left +
-    el.clientLeft +
-    parseFloat(s.paddingLeft) -
-    el.scrollLeft;
-  return {
-    left,
-    right:
-      left + el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
-  };
-}
-
-// The page's own margin content, without Leaf's rail: that holds only markers and
-// never moves the column. Both a sweep sample and its breakpoint refinement read the
-// tokens the margin layout publishes, rather than rediscovering margin placement from boxes.
-export function marginContent() {
-  return (layoutBox()?.getAttribute("data-lf-margin") ?? "")
-    .split(" ")
-    .filter((token) => token && token !== "rail")
-    .join(" ");
-}
 
 // One settled-size geometry sample: every reading that moves with the window, which the
 // gate takes only as these samples, across its sweep and at each render's own size
@@ -70,14 +34,74 @@ export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
+    contained: containedSpace(),
     scrollbars: scrollbarClearance(),
-    margin: marginContent(),
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
     clipped: clippedControls(),
     covered: coveredWords(),
     squeezed: squeezedTables(),
   };
+}
+
+// Advice about document tracks: flows directly inside another flow or column share
+// its tracks. A flow under an ordinary holder owns only that holder's room. Existing
+// containment may be deliberate, so these readings never refuse a page.
+export function containedSpace() {
+  const main = pageDocument();
+  if (!main) return [];
+  const flows = [...main.querySelectorAll(".layout-flow")].flatMap((el) => {
+    if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
+    const parent = el.parentElement;
+    if (!parent.matches(".layout-column, .layout-flow")) return [];
+    if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
+    const style = getComputedStyle(el);
+    const start = style.gridColumnStart;
+    const end = style.gridColumnEnd;
+    if (
+      style.gridTemplateColumns.startsWith("subgrid") &&
+      ["full", "full-start", "1"].includes(start) &&
+      ["full", "full-end", "-1"].includes(end)
+    )
+      return [];
+    return [
+      {
+        code: "flow-tracks",
+        at: at(el),
+        place: place(el),
+        parent: at(parent),
+        columns: style.gridTemplateColumns,
+        start,
+        end,
+      },
+    ];
+  });
+  const contained = [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
+    if (skipped(el) || !el.checkVisibility()) return [];
+    const holders = [];
+    for (let holder = el.parentElement; holder; holder = holder.parentElement) {
+      if (holder.matches(".layout-column"))
+        return holders.length
+          ? [
+              {
+                code: "contained-space",
+                at: at(el),
+                place: place(el),
+                space: el.getAttribute("data-lf-space"),
+                holders,
+              },
+            ]
+          : [];
+      if (
+        holder.matches("[data-lf-space], .layout-workspace, .layout-sidebar") ||
+        breaksOut(holder)
+      )
+        return [];
+      if (!holder.matches(".layout-flow")) holders.push(at(holder));
+    }
+    return [];
+  });
+  return [...flows, ...contained];
 }
 
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
@@ -89,7 +113,7 @@ export function geometryReading(open) {
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
-// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+// browser style and lay out each such subtree first (runtime/shown-box.js, `skipped`).
 export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];
@@ -210,8 +234,8 @@ export function overflowingRegions() {
 // here scrolls sideways on the machine it was written for.
 //
 // Two kinds of element answer for their own width and not to this, and both say
-// so in their computed style. The margin has legitimate content — a sidenote,
-// the hidden line the paint pass writes, a page's own furniture — and
+// so in their computed style. The margin has legitimate content —
+// the hidden line the paint pass writes or a page's own furniture — and
 // each is out there by its own declaration: placed absolutely or fixed, or floated
 // clear of the column. Where the box sits is what separates margin content from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
@@ -219,8 +243,8 @@ export function overflowingRegions() {
 // own float inside the column (an option's .facts rail) is never in question.
 //
 // Margin content answers for what it holds, which is why both readings are made up the
-// ancestors and not of the element alone. A sidenote is prose, so it carries the
-// <code>, links and emphasis any other prose does, and each of those inherits a box
+// ancestors and not of the element alone. Margin prose carries <code>, links and
+// emphasis as other prose does, and each of those inherits a box
 // its parent put in the margin on purpose — named, one by one, as spilling out of a
 // column none of them was ever in.
 //
@@ -307,9 +331,7 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isMarginContent, left, marginElements, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
-      breaksOut,
-    ),
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
   );
   // A widget the registry declares wide is answered for out here, the way
   // absolutely-positioned margin content is: standing past the column is what it was
@@ -336,10 +358,14 @@ export function misplacedBoxes() {
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
   // of this pass having gone straight past the container that cut it.
+  // A fixed box answers for itself wherever it stands, as a badge pinned to the
+  // window's corner across the column's edge does: it hangs off the window, so it can
+  // never scroll the page sideways, and where it sits is the author's call.
+  const pinned = (el) => getComputedStyle(el).position === "fixed";
   const answeredFor = (el) => {
-    if (isMarginContent(el)) return true;
+    if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
-      if (isMarginContent(a)) return true;
+      if (isMarginContent(a) || pinned(a)) return true;
       if (shownBand(a)) return true;
     }
     return false;
@@ -362,7 +388,7 @@ export function misplacedBoxes() {
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
   // as the exhibit it is. A box that draws one says so where it draws it
-  // (--lf-block-frame: 1, theme.css) and the theme reads that declaration to withhold
+  // (--lf-block-frame: 1, base.css) and the theme reads that declaration to withhold
   // the room; this is what says so when a box that draws hasn't made it.
   const draws = (el) => {
     const s = getComputedStyle(el);
@@ -419,20 +445,10 @@ export function misplacedBoxes() {
     else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
     else report(el, "past-room", { past });
   }
-  // The room being the page's own box is not the whole of what a wide widget owes,
-  // because the page hangs things in that box. A sidenote stands a gutter off the
-  // column, while the strip it is reserved out of comes off the far edge of the page —
-  // and those are the same place only when the column is flush against the strip, which
-  // it never is, since it centres in what the strip leaves. So the reservation says
-  // where the room ends and the occupancy says where the furniture is, and between them
-  // is a band that is inside the page's box and already spoken for.
-  //
-  // The theme holds a wide widget's growth to what is free beside the page (--lf-free-l,
-  // --lf-free-r), and this is what says so when a widget grows past it anyway — the same
-  // bargain the framing rule above has, and the reason neither has to be a list anybody
-  // maintains. Margin content is whatever `marginReading` finds standing past the column, so
-  // a project hanging its own furniture out there is covered without declaring anything
-  // to this pass.
+  // Authored furniture may occupy room outside its parent, as an absolutely
+  // positioned label does. Report a wide exhibit that crosses that occupied room.
+  // Notes and sidebars in native document tracks already own their boxes in flow;
+  // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
@@ -449,34 +465,6 @@ export function misplacedBoxes() {
       );
     });
     if (hit) report(el, "over-margin", { marginContent: at(hit) });
-    // The theme grows a breakout past its holder by its margins and gives it the
-    // room's width (layouts.css), so it spans exactly the room its margins open. A
-    // width of the box's own, such as a page rule sizing an iframe, overrides the
-    // width and keeps the margins, so the box starts where the room does and ends
-    // somewhere else, off the prose axis, while every bound above still holds. The
-    // computed margins are the ones the theme set, however the box's own width
-    // over-constrains them. Only growth the margins made counts: a positioned box is
-    // not grown (prepaint.js, `breakouts`), and a table is placed by its translation
-    // (layouts.css), so its margins do not say where its room is. Only a box the user
-    // can see is read.
-    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
-      continue;
-    const s = getComputedStyle(el);
-    const grownL = -parseFloat(s.marginLeft);
-    const grownR = -parseFloat(s.marginRight);
-    if ((grownL > 1 || grownR > 1) && s.translate === "none") {
-      const h = contentBox(el.parentElement);
-      const left = h.left - grownL;
-      const right = h.right + grownR;
-      const off = Math.round(
-        Math.max(Math.abs(b.left - left), Math.abs(b.right - right)),
-      );
-      if (off > 1)
-        report(el, "off-axis", {
-          drawn: Math.round(b.width),
-          granted: Math.round(right - left),
-        });
-    }
   }
   // The other half of excusing margin content: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —

@@ -43,12 +43,15 @@ import { build } from "rolldown";
 import { parse } from "acorn";
 
 import { signalsPath } from "./browser/build.mjs";
+import kernel from "../browser/runtime/kernel-registry.json" with { type: "json" };
 
 export const runtimeEntries = [
   "leaf.js",
   "runtime/layer-client.js",
   "runtime/media.js",
-  "runtime/widget-api.js",
+  ...kernel["$public-modules"].paths
+    .filter((path) => path.startsWith("/runtime/"))
+    .map((path) => path.slice(1)),
   "runtime/check-api.js",
 ];
 
@@ -99,6 +102,17 @@ function moduleUrlReads(source) {
   return ranges.sort(([a], [b]) => a - b);
 }
 
+/** Module sources are strings by Acorn's grammar; its general Literal type is wider.
+ * @param {import("acorn").Program} module
+ */
+function moduleSources(module) {
+  return module.body.flatMap((node) =>
+    "source" in node && node.source
+      ? [/** @type {import("acorn").Literal & { value: string }} */ (node.source)]
+      : [],
+  );
+}
+
 /** Static declarations of one captured native module, resolved by layer path. */
 async function nativeImports(layerRoot, local, assetRoot) {
   const path = join(layerRoot, local);
@@ -106,16 +120,29 @@ async function nativeImports(layerRoot, local, assetRoot) {
     ecmaVersion: "latest",
     sourceType: "module",
   });
-  return module.body
-    .filter((node) => node.source)
-    .map((node) => {
-      const specifier = node.source.value;
-      return specifier.startsWith("/")
-        ? (layerPath(specifier, assetRoot) ?? specifier)
-        : specifier.startsWith(".")
-          ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
-          : specifier;
-    });
+  return moduleSources(module).map(({ value: specifier }) => {
+    return specifier.startsWith("/")
+      ? (layerPath(specifier, assetRoot) ?? specifier)
+      : specifier.startsWith(".")
+        ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
+        : specifier;
+  });
+}
+
+/** The modules `runtime/portable-api.js` re-exports, which the compiler captures with
+ * their dependencies into one chunk. Left to its default, it splits them along every
+ * set of entries reaching each one, so a plain page loading the portable helpers, and
+ * a Leaf page's boot beside it, would fetch a handful of small chunks rather than one.
+ */
+async function portableHomes(layerRoot) {
+  const entry = join(layerRoot, "runtime/portable-api.js");
+  const module = parse(await readFile(entry, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  return new Set(
+    moduleSources(module).map(({ value }) => resolve(dirname(entry), value)),
+  );
 }
 
 /** Retain native static edges and keep their runtime imports as kernel entries. */
@@ -138,50 +165,10 @@ async function nativeRuntimeEntries(layerRoot, assetRoot) {
   return { entries: [...entries].sort(), imports };
 }
 
-/** Where a module awaits outside every function, or null.
- *
- * One such await anywhere in a build turns off rolldown's chunk optimization
- * (`mergeCommonChunks`, `avoidRedundantChunkLoads`) for every module in it, since
- * that is how rolldown keeps a waiting module's execution order, and it says
- * nothing. When leaf.js awaited at its top level, every page loaded eleven more
- * kernel chunks before it presented.
- */
-function topLevelAwait(program) {
-  const visit = (node) => {
-    if (/Function/.test(node.type)) return null;
-    if (
-      node.type === "AwaitExpression" ||
-      (node.type === "ForOfStatement" && node.await) ||
-      (node.type === "VariableDeclaration" && node.kind === "await using")
-    )
-      return node;
-    for (const value of Object.values(node))
-      for (const child of [value].flat())
-        if (typeof child?.type === "string") {
-          const found = visit(child);
-          if (found) return found;
-        }
-    return null;
-  };
-  return visit(program);
-}
-
-/** Keep native modules at their public URLs and compiled modules in one graph, and,
- * where `refuseAwaits`, refuse a compiled module that awaits at its top level
- * (`topLevelAwait`). */
-function moduleBoundaries(layerRoot, assetRoot, refuseAwaits) {
+/** Keep native modules at their public URLs and compiled modules in one graph. */
+function moduleBoundaries(layerRoot, assetRoot) {
   return {
     name: "leaf-module-boundaries",
-    transform(code, path) {
-      if (!refuseAwaits || !code.includes("await")) return null;
-      const found = topLevelAwait(this.parse(code, { sourceType: "module" }));
-      if (found)
-        this.error(
-          `${browserPath(relative(layerRoot, path))} awaits at its top level, which turns off the bundler's chunk merging for the whole build: await inside a function the module calls`,
-          found.start,
-        );
-      return null;
-    },
     resolveId(path, importer) {
       if (!importer || !/^[./]/.test(path)) return null;
       const rooted = path.startsWith("/");
@@ -256,10 +243,10 @@ function kernelFacts(layerRoot, read) {
     async load(path) {
       if (path !== facts) return null;
       let source = await readFile(path, "utf8");
-      const imports = parse(source, { ecmaVersion: "latest", sourceType: "module" })
-        .body.filter((node) => node.source)
-        .reverse();
-      for (const { source: specifier } of imports) {
+      const imports = moduleSources(
+        parse(source, { ecmaVersion: "latest", sourceType: "module" }),
+      ).reverse();
+      for (const specifier of imports) {
         if (!specifier.value.endsWith(".json"))
           throw new Error(`${path} may import only JSON, not ${specifier.value}`);
         const file = resolve(dirname(path), specifier.value);
@@ -279,9 +266,10 @@ function kernelFacts(layerRoot, read) {
 }
 
 /** Compile one graph in memory; an asset root names the website's resource scope. */
-async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = true) {
+async function compile(layerRoot, entries, assetRoot, minify) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [...new Set([...entries, ...native.entries])];
+  const portable = await portableHomes(layerRoot);
   const inlined = new Set();
   const result = await build({
     cwd: layerRoot,
@@ -292,10 +280,7 @@ async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = tru
     makeAbsoluteExternalsRelative: false,
     tsconfig: false,
     preserveEntrySignatures: "strict",
-    plugins: [
-      kernelFacts(layerRoot, inlined),
-      moduleBoundaries(layerRoot, assetRoot, refuseAwaits),
-    ],
+    plugins: [kernelFacts(layerRoot, inlined), moduleBoundaries(layerRoot, assetRoot)],
     output: {
       format: "esm",
       entryFileNames: "[name].js",
@@ -303,10 +288,18 @@ async function compile(layerRoot, entries, assetRoot, minify, refuseAwaits = tru
       minify,
       minifyInternalExports: minify,
       comments: false,
+      codeSplitting: { groups: [{ name: "portable", test: (id) => portable.has(id) }] },
     },
     write: false,
   });
-  return { ...result, nativeImports: native.imports, inlined };
+  // Native resources stay external; neither plugin emits assets, and this build
+  // enables neither asset loaders nor source maps, so its outputs are JS chunks.
+  return {
+    ...result,
+    output: /** @type {import("rolldown").OutputChunk[]} */ (result.output),
+    nativeImports: native.imports,
+    inlined,
+  };
 }
 
 /** The website's minified rebundle and static dependency graph, by layer path.
@@ -377,7 +370,7 @@ async function layerModules(layerRoot) {
  * which a runtime serving it no longer carries. The modules it leaves native, such as the classic scripts
  * nothing imports, are served from source beside it.
  */
-export async function kernelOutputs(layerRoot, { refuseAwaits = true } = {}) {
+export async function kernelOutputs(layerRoot) {
   layerRoot = await realpath(layerRoot);
   const entries = [...runtimeEntries];
   for (const entry of diagnosticEntries) {
@@ -387,7 +380,7 @@ export async function kernelOutputs(layerRoot, { refuseAwaits = true } = {}) {
       if (error.code !== "ENOENT") throw error;
     }
   }
-  const result = await compile(layerRoot, entries, null, false, refuseAwaits);
+  const result = await compile(layerRoot, entries, null, false);
   const files = new Map(
     result.output.map((file) => [file.fileName, Buffer.from(file.code)]),
   );
@@ -417,10 +410,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 4)
     throw new Error("usage: node build/runtime-bundle.mjs LAYER KERNEL");
   const kernel = resolve(process.argv[3]);
-  // A comparison arm's kernel (dev/leaf_dev/commands/distribution.py), which may be
-  // an older tree's whose modules await at their top level: it still compiles, as
-  // that tree's own build compiled it. This tree's build refuses one.
-  const files = await kernelOutputs(resolve(process.argv[2]), { refuseAwaits: false });
+  const files = await kernelOutputs(resolve(process.argv[2]));
   await rm(kernel, { force: true, recursive: true });
   for (const [name, bytes] of files) {
     await mkdir(dirname(join(kernel, name)), { recursive: true });

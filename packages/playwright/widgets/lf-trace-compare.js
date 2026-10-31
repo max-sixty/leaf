@@ -3,17 +3,24 @@
  * elapsed times and labels never establish correspondence. A chosen key also
  * reaches recordings whose data arrives later. Source switches share the image
  * inspection view and pause hidden recordings without moving their playheads.
- * Each direct child that holds a trace is one view, including its caption. */
+ * Each direct child that holds a trace is one view, including its caption. The
+ * chooser's measured height clears focus and navigation inside those views. */
 import {
+  cancelRender,
   el,
   generatedElement,
   keepView,
   keeps,
   layoutChanged,
+  layoutPx,
+  nextRender,
   once,
   offer,
   openingView,
+  viewMembers,
   quoted,
+  sizeObserver,
+  whileConnected,
 } from "/runtime/widget-api.js";
 import "./lf-trace.js";
 
@@ -27,15 +34,14 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
-      for (const child of this.children) {
+      for (const child of viewMembers(this)) {
         const recording = child.matches("lf-trace")
           ? child
           : child.querySelector("lf-trace");
-        if (!recording) continue;
         this.#views.push(child);
         this.#recordings.push(recording);
       }
-      this.#selected = this.#views.indexOf(openingView(this, this.#views));
+      this.#selected = this.#views.indexOf(openingView(this));
       const header = el("div", "lf-trace-compare-controls");
       generatedElement(header, { says: false });
       /** @type {any} Web Awesome's radio group exposes form properties. */
@@ -46,12 +52,6 @@ customElements.define(
       choices.orientation = "horizontal";
       for (const [index, recording] of this.#recordings.entries()) {
         const view = this.#views[index];
-        view.addEventListener("lf-reveal", (event) => {
-          if (index !== this.#selected) event.detail.replacedView();
-          this.#selected = index;
-          choices.value = String(index);
-          event.detail.present(this.#draw());
-        });
         view.addEventListener("beforematch", () => {
           this.#selected = index;
           choices.value = String(index);
@@ -84,24 +84,36 @@ customElements.define(
       });
       header.append(choices);
       this.prepend(header);
+      whileConnected(this, () => {
+        const paintHeight = (height) =>
+          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
+        paintHeight(header.getBoundingClientRect().height);
+        let paint;
+        const size = sizeObserver(([entry]) => {
+          cancelRender(paint);
+          // Clearance resizes the stage; publish outside size delivery.
+          paint = nextRender(() => {
+            paintHeight(entry.borderBoxSize[0].blockSize);
+          });
+        });
+        size.observe(header, { box: "border-box" });
+        return () => {
+          size.disconnect();
+          cancelRender(paint);
+        };
+      });
       this.#draw();
     }
 
     #draw() {
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
-      keeps(this.#views[this.#selected], "hidden", null);
+      keepView(this, this.#views[this.#selected]);
       for (const [index, recording] of this.#recordings.entries()) {
         if (index !== this.#selected) recording.pause();
-        keeps(
-          this.#views[index],
-          "hidden",
-          index === this.#selected ? null : "until-found",
-        );
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
-      return layoutChanged(this);
+      layoutChanged(this);
     }
   },
 );

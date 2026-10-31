@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { URL, fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,7 +39,13 @@ describe("published runtime bundle", () => {
         join(layer, "runtime", "url.js"),
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
-      for (const entry of ["layer-client", "media", "widget-api", "check-api"]) {
+      for (const entry of [
+        "layer-client",
+        "media",
+        "widget-api",
+        "portable-api",
+        "check-api",
+      ]) {
         await writeFile(
           join(layer, "runtime", `${entry}.js`),
           `export const revision = "${revision}";`,
@@ -104,8 +110,8 @@ describe("published runtime bundle", () => {
   it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     try {
-      // The production layer is a page's bundled packages beside the runtime a
-      // prepared installation serves, as the live shell publishes a revision.
+      // The production layer is the one a prepared installation composes for a page
+      // and serves beside its runtime, as the live shell publishes a revision.
       const install = join(directory, "install");
       execFileSync("uv", ["run", "leaf-dev", "distribution", "--output", install], {
         cwd: fileURLToPath(new URL("../..", import.meta.url)),
@@ -127,9 +133,16 @@ describe("published runtime bundle", () => {
           [
             "import sys",
             "from pathlib import Path",
+            "from leaf.registry.storage import layer_record, selected",
+            "from leaf.revision_artifact import Resource, resource_type",
             "from leaf.runtime_selection import serving_runtime",
-            "for path, resource in serving_runtime().resources({}).items():",
-            "    target = Path(sys.argv[1]) / path.lstrip('/')",
+            "page = Path(sys.argv[1])",
+            "layer = {",
+            "    path: Resource(data, resource_type(path))",
+            "    for path, data in selected(layer_record(page), page).files.items()",
+            "}",
+            "for path, resource in serving_runtime().resources(layer, {}).items():",
+            "    target = page / path.lstrip('/')",
             "    target.parent.mkdir(parents=True, exist_ok=True)",
             "    target.write_bytes(resource.data)",
           ].join("\n"),

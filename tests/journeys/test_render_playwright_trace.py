@@ -15,7 +15,6 @@ from browser.test_render_playwright_trace import (
     navigate_to_phase,
     stop_time,
 )
-from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
     holding,
@@ -30,6 +29,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.page_fixtures import example_media
 
 
 def expect_after_checkpoint(root, seconds):
@@ -85,7 +85,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
 
     script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
+    assert spec is not None
     importer = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(importer)
     record = importer.import_trace(
         archive,
@@ -597,7 +599,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
 
     script = ROOT / "packages/playwright/scripts/import_trace.py"
     spec = importlib.util.spec_from_file_location("trace_import", script)
+    assert spec is not None
     importer = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(importer)
     record = importer.import_trace(
         archive,
@@ -695,8 +699,9 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
     expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
     widget.get_by_role("button", name="Next", exact=True).click()
-    expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"Completion · {(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
+    expect(widget.locator(".lf-trace-phase")).to_have_text("Completion")
+    expect(widget.locator(".lf-trace-position")).to_have_text(
+        f"{(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
     expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
 
@@ -1795,7 +1800,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     widget.get_by_role("radio", name="Page 1", exact=True).click()
     # The list's numbered rows count the scope's moments; its heading doesn't.
     moments = widget.locator(".lf-trace-bookmark:visible")
-    expect(widget.locator(".lf-trace-moments-heading")).to_have_text("Moments")
+    expect(widget.locator(".lf-trace-bookmarks .lf-rows-head")).to_have_text("Moments")
     expect(moments).to_have_count(20)
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     pins = widget.locator(".lf-trace-moment-pin")

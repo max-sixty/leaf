@@ -1,18 +1,7 @@
-/* lf-toc's drawing: its frame and the outline of the headings in the document it
- * stands in. The initial renderer (`initial/lf-toc.js`) draws it before first paint, so
- * the widget first shows at the box it keeps, and the module redraws the outline in the
- * same nodes, adding the map's measurement and position to them (`lf-toc.js`).
- *
- * Before modules run, the runtime's readings of a heading are not there, so each caller
- * passes its own: `label` reads a heading's words and `chrome` whether it stands in
- * Leaf's chrome. The module reads them as the rest of the runtime does (`wrote`,
- * `inChrome`), and its first redraw rewrites any label the early reading said
- * differently. Lit retains the keyed rows, and the module restores focus through moves.
- * Only the module lends ids (`lends`): the page's markup as it parsed is
- * the source a revision compares against (version.js), so the early drawing writes
- * nothing outside its host, and a destination without an id has no link until upgrade.
- */
-import { html, nothing, render, repeat } from "/vendor/lit.js";
+import { generatedElement, keeps } from "/runtime/widget-api.js";
+/* The contents view draws its frame and outline from the complete document.
+ * The live widget supplies the canonical heading and chrome readings. */
+import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
@@ -21,19 +10,42 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // headings that a native fragment link can reveal.
 export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
 
-// The initial drawing keeps the template call sites and root part for its lifetime.
-// Upgrading calls this same closure: importing another compiled copy of a template
-// would make Lit replace the early nodes instead of updating their parts.
-export function drawToc(host, generatedElement) {
+// Delivery and live behavior call this same template, retaining its native disclosure
+// and keyed links. Geometry readers collect the nodes only after its shared render.
+export function drawToc(host, headingReading) {
   const open = host.hasAttribute("open");
+  let outline = { start: { label: "Top" }, items: [] };
   const href = (destination) => (destination?.id ? `#${destination.id}` : nothing);
-  const paint = (start, items) =>
-    render(
-      html`
-        <nav class="lf-toc-nav lf-ui scroll" aria-label="On this page">
-          <p class="lf-toc-heading lf-label">On this page</p>
+  const generated = (says) => ref((node) => node && generatedElement(node, { says }));
+  host.replaceChildren();
+  return {
+    scope: () => outlineDocument(host),
+    get nav() {
+      return host.querySelector("nav");
+    },
+    get track() {
+      return host.querySelector(".lf-toc-rows");
+    },
+    get lens() {
+      return host.querySelector(".lf-toc-window");
+    },
+    render(reading = headingReading) {
+      if (reading) {
+        outline = readOutline(host, reading);
+        keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
+      }
+      const { start, items } = outline;
+      return html`
+        <nav
+          class="lf-toc-nav lf-ui scroll"
+          aria-label="On this page"
+          ${generated(false)}
+        >
+          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label">On this page</summary>
+            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
+              On this page
+            </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
@@ -53,27 +65,12 @@ export function drawToc(host, generatedElement) {
             </div>
           </details>
         </nav>
-      `,
-      host,
-    );
-  host.replaceChildren();
-  paint({ label: "Top" }, []);
-  const nav = host.querySelector("nav");
-  generatedElement(nav, { says: false });
-  for (const label of nav.querySelectorAll(".lf-toc-heading, .lf-toc-toggle"))
-    generatedElement(label, { says: true });
-  const track = nav.querySelector(".lf-toc-rows");
-  const startRow = track.querySelector(".lf-toc-start");
-  const list = track.querySelector("ol");
-  return {
-    scope: () => outlineDocument(host),
-    nav,
-    track,
-    lens: track.querySelector(".lf-toc-window"),
-    update(reading) {
-      const { start, items } = readOutline(host, reading);
-      paint(start, items);
-      const rows = [...list.children];
+      `;
+    },
+    sections() {
+      const { start, items } = outline;
+      const startRow = host.querySelector(".lf-toc-start");
+      const rows = [...host.querySelector("ol").children];
       return items.length
         ? [
             { ...start, row: startRow, link: startRow.firstElementChild },
@@ -143,7 +140,7 @@ function readOutline(host, { label, chrome, lends }) {
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
   const items = headings.map(({ heading, label }, index) => {
     const destination = destinationFor(host, heading, index + 1, lends);
-    // A lent id is no key: the early drawing lent none, and the module adopts its rows.
+    // A lent id is no key: row identity follows the authored heading.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
     const depth = Math.min(level(heading) - floor, 4);
     return { key, heading, label, destination, depth };

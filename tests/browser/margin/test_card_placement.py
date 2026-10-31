@@ -4,6 +4,7 @@ through news, presses, reflows and scrolls, panes included."""
 import re
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
@@ -31,9 +32,10 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    leave_card_by_its_target,
+    leave_card,
     resized_shell,
 )
+from browser.threads import append_user_reply
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 
@@ -170,7 +172,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         page.locator("#row").click(position={"x": 20, "y": 10})
     expect(
         page.locator('[data-lf-margin-for="choice"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile(r"^Saved\b"))
+    ).to_have_attribute("aria-label", re.compile(r"^Queued for Claude\b"))
     for _ in range(2):
         rendered(page)
         assert preview.evaluate(where) == card
@@ -194,7 +196,7 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
         page.locator("#two").click(position={"x": 20, "y": 10})
     receipt = page.locator('[data-lf-margin-for="choice"]')
     expect(receipt.locator(".lf-margin-marker")).to_have_attribute(
-        "aria-label", re.compile(r"^Saved\b")
+        "aria-label", re.compile(r"^Queued for Claude\b")
     )
     rendered(page)
     assert thread.evaluate(where) == row
@@ -226,13 +228,22 @@ TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
 
 
 def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
-    """A card at its narrowest, with Previous and Next for its target's two threads,
+    """A narrow card, with Previous and Next for its target's two threads,
     holding news while the user writes: the notice reads whole beside the actions, the
     message head's time stays whole, and the name gives up the room, with an ellipsis."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
+    # Supply the overflow this test needs: a short author can fit as the other
+    # header content changes.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "The release review and accessibility assistant",
+            "text": "Make the banner quieter",
+            "anchor": {"section": "h-how"},
+        },
+    )["id"]
     panel_comment(serve.page_dir, "Keep the logo where it is", {"section": "h-how"})
     page = open_page(browser, url)
     resized(page, 1200, 900)
@@ -244,7 +255,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     rendered(page)
     thread_model.post_reply(
         serve.page_dir,
-        {"responds": root},
+        {"parent": root},
         "The status line can drop one weight.",
     )
     thread_model.post_reply(
@@ -261,6 +272,75 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     name = card.locator(".lf-msg-head b").first
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+
+
+# Where a card's notice stands against the user's head beside it: the notice's start,
+# and the head's end, its Edit's symbol and its time's end.
+NEWS_BESIDE_HEAD = """([notice, head]) => {
+  const box = (node) => node?.getBoundingClientRect();
+  return {
+    notice: box(notice).left,
+    head: box(head).right,
+    edit: box(head.querySelector('.lf-msg-controls > .lf-msg-edit svg')).left,
+    time: box(head.querySelector('time')).right,
+  };
+}"""
+
+
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
+    """A card holding news while the user writes: the notice takes only the room the
+    head of the user's message leaves beside its name and time, and stands clear of
+    it. On a desktop card, with Previous and Next for its target's two threads, the
+    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
+    notice and the head's Edit each take a finger's width, the notice says one count,
+    "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
+    does before its name. Drawn whole, the notice stood over the head."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    if phone:
+        context = browser.new_context(
+            viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+        )
+        page = open_page(browser, url, context=context)
+    else:
+        panel_comment(serve.page_dir, "Make the banner quieter", {"section": "h-how"})
+        page = open_page(browser, url)
+        resized(page, 1200, 900)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.type("Also check the dark scheme")
+    rendered(page)
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": root, "responds": root},
+        "The status line can drop one weight.",
+    )
+    append_user_reply(serve.page_dir, root, "Sent from my other tab.")
+    told(page)
+    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    if phone:
+        expect(notice.locator(":scope > span")).to_have_attribute(
+            "data-lf-short", "2 new"
+        )
+    rendered(page)
+    card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
+    head = card.locator(".lf-msg-head").first
+    stands = page.evaluate(
+        NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
+    )
+    assert stands["notice"] >= stands["head"] - 0.5, stands
+    assert stands["time"] <= stands["edit"] + 0.5, stands
+    times = card.evaluate(TIMES_WHOLE)
+    assert times and all(time["whole"] != phone for time in times), times
+    name = head.locator("b")
+    expect(name).to_have_text("Me")
+    assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 
 
 @pytest.mark.watch_shifts
@@ -464,14 +544,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
-    leave_card_by_its_target(page)
+    leave_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
 
-    leave_card_by_its_target(page)
+    leave_card(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()

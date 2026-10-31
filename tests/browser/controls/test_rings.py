@@ -28,6 +28,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_settled,
+    rgb_pixel,
     scroll_settled,
 )
 
@@ -153,6 +154,10 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
             f"<pre>{code}</pre></lf-tab>"
             '<lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         )
+        if reading == "page-tab":
+            content = content.replace(
+                '<lf-tabs id="readings">', '<lf-tabs id="readings" class="layout-flow">'
+            )
         if reading == "boxed-tab":
             content = f"<section>{content}</section>"
         ident = "log"
@@ -170,7 +175,57 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     )
     scroll_settled(page, f"#{ident}")
     accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    edges = mark_edges(page, ident, accent)
+    # A page's tabs hang their panel's ring from the strip's rule and stand it a region's
+    # room out on its other three sides (tabs.css), clear of the text's first letter; a
+    # boxed set's panel is padded inside its frame, and its ring stays inside.
+    room = page.evaluate(
+        """() => ['--focus-region-gap', '--focus-ring-w'].reduce((sum, name) =>
+          sum + parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue(name)), 0)"""
+    )
+    outset = (
+        dict.fromkeys(("left", "right", "bottom"), room)
+        if reading == "page-tab"
+        else {}
+    )
+    edges = mark_edges(page, ident, accent, outset)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
+
+
+def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
+    """A list taller than the open panel leaves the panel its whole cell, so the ring
+    the set draws round the panel meets the frame on every side, where it stopped under
+    the panel's last line. The closed panels in that cell stay flat, so the open
+    panel's words still take the pointer."""
+    tabs = "".join(
+        f'<lf-tab id="item-{i}" label="Item {i}"><p id="words-{i}">Item {i}.</p></lf-tab>'
+        for i in range(6)
+    )
+    url = serve(
+        leaf_page(
+            "Queue", f'<h1>Queue</h1><lf-tabs id="queue" list="side">{tabs}</lf-tabs>'
+        )
+    )
+    page = open_page(browser, url)
+    page.get_by_role("tab").first.click()
+    page.keyboard.press("Tab")
+    expect(page.locator("#item-0")).to_be_focused()
+    rendered(page)
+    reach = page.evaluate(
+        """() => {
+          const strip = document.querySelector('#queue > .lf-tabstrip');
+          const words = document.getElementById('words-0').getBoundingClientRect();
+          return {
+            panel: document.getElementById('item-0').getBoundingClientRect().bottom,
+            list: strip.getBoundingClientRect().bottom,
+            hit: document.elementFromPoint(words.left + 2, words.top + 2)?.id,
+          };
+        }"""
+    )
+    assert reach["hit"] == "words-0", reach
+    assert reach["panel"] == pytest.approx(reach["list"], abs=1), reach
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    edges = mark_edges(page, "item-0", accent)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
@@ -206,7 +261,9 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
     shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    assert shot.getpixel((0, 0)) == accent, [shot.getpixel((x, 0)) for x in range(4)]
+    assert rgb_pixel(shot, (0, 0)) == accent, [
+        rgb_pixel(shot, (x, 0)) for x in range(4)
+    ]
 
     page.evaluate(
         """(x) => {
@@ -324,6 +381,20 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
 
+    # A neighbour under the shadow button's ring is clean above. A real cover at
+    # the same point must still be reported when the screenshot confirms its paint.
+    shadow_button.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      const band = document.body.appendChild(document.createElement('div'));
+      band.id = 'shadow-ring-cover';
+      band.style.cssText = `position: fixed; z-index: 99999; background: red;
+        left: ${b.left}px; top: ${b.top - parseFloat(s.outlineOffset) - parseFloat(s.outlineWidth)}px;
+        width: ${b.width}px; height: ${s.outlineWidth};`;
+    }""")
+    assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
+    page.locator("#shadow-ring-cover").evaluate("el => el.remove()")
+
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
         "retargeting focus to the widget host drew a second ring around its button"
     )
@@ -403,7 +474,7 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
       ['mode-on', 'word'],
       ['mode-off', 'word'],
     ]) {
-      const button = offerAction(role, '', id, {icon});
+      const button = offerAction(role, '', id, {action: icon});
       button.id = id;
       if (id.startsWith('mode-')) button.setAttribute('aria-pressed', String(id === 'mode-on'));
       this.append(button);
@@ -954,7 +1025,8 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         shot = page.screenshot(
             clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1}
         )
-        red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        getpixel_result = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
+        red, green, blue = getpixel_result
         painted = red > 200 and green < 80 and blue < 80
         covers = current_location_ring(page)["covers"]
         assert bool(covers) == painted, (
@@ -1057,7 +1129,8 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
       return [b.left + b.width / 2, b.top - 3];
     }""")
     shot = page.screenshot(clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1})
-    red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+    getpixel_result_2 = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
+    red, green, blue = getpixel_result_2
     assert not (red > 200 and green < 80 and blue < 80), (
         "the page paints the band over the ring here, so this case holds nothing"
     )
@@ -1213,7 +1286,6 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     page = open_page(browser, serve(RING_PROBE_PAGE))
     page.evaluate("""() => {
       const sheet = document.createElement('style');
-      sheet.setAttribute('data-controls', '');
       document.head.append(sheet);
       sheet.textContent = `
         #ring-holder { position: relative; height: 200px; }

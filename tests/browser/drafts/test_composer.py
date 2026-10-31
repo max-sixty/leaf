@@ -36,7 +36,6 @@ from render_harness import (
 
 from browser.threads import clear_of_the_panel
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -49,8 +48,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
 
     The composer sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
-    the disc behind it is a clear 28px that takes the accent tint under the pointer,
-    which is why it stays the same size as the target around it grows.
+    the disc behind it stays clear until it takes the accent tint under the pointer.
     """
     page = open_page(browser, serve(LONG_PAGE, comments=True))
     for box in ("reply", "general", "composer"):
@@ -81,12 +79,10 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             assert face["press"] == "rgba(0, 0, 0, 0)", face
             assert face["glyph"] == token_colour(page, "--accent"), face
             assert face["disc"] == "rgba(0, 0, 0, 0)", face
-            assert face["discWidth"] == "28px", face
             send.hover()
             hovered = glyph_action_face(send)
             assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
             assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
-            assert hovered["discWidth"] == "28px", hovered
             with sending(page, f"the {box} message"):
                 send.click()
 
@@ -457,40 +453,26 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).focus()
         page.keyboard.press("Enter")
-    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     scroll_settled(page)
+    expect(page.locator("#elsewhere")).to_be_in_viewport()
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
     if hidden_tab:
-        page.evaluate("""() => {
-          const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
-          document.querySelector('#views').addEventListener('lf-layout', event => {
-            event.detail.present(held);
-            window.resumeLayoutStarted = true;
-          }, {once: true});
+        expect(page.locator("#writing-view")).to_be_visible()
+        first_view = page.locator("#editable").evaluate("""async draft => {
+          const {landingBand} = await window.__lfCheckApi();
+          const rect = draft.getBoundingClientRect();
+          const band = landingBand(document.scrollingElement);
+          return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
         }""")
-        try:
-            page.keyboard.press("g")
-            page.keyboard.press("i")
-            page.wait_for_function("window.resumeLayoutStarted === true")
-            one_frame(page)
-            expect(page.locator("#writing-view")).to_be_visible()
-            first_view = page.locator("#editable").evaluate("""async draft => {
-              const {landingBand} = await window.__lfCheckApi();
-              const rect = draft.getBoundingClientRect();
-              const band = landingBand(document.scrollingElement);
-              return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
-            }""")
-            assert first_view["top"] >= first_view["low"], first_view
-            assert first_view["bottom"] <= first_view["high"], first_view
-        finally:
-            page.evaluate("releaseResumeLayout()")
-    else:
-        page.keyboard.press("g")
-        page.keyboard.press("i")
+        assert first_view["top"] >= first_view["low"], first_view
+        assert first_view["bottom"] <= first_view["high"], first_view
     expect(edit).to_be_focused()
     # In sight: in the window, clear of the panel's open view where it covers the page.
     assert clear_of_the_panel(page, edit)

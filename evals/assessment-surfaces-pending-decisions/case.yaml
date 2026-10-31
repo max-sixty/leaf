@@ -67,30 +67,9 @@ variants:
         remains agent work."
     vars:
       now: "2026-10-12T18:00:00-07:00"
-      prompt: |
-        We have been splitting a large UI branch into independently reviewable changes.
-        I asked for a Leaf explaining the work that is left and what we should do next.
-        The first small fixes have landed. You prepared the remaining extraction scopes
-        on the existing page; I have not chosen among them.
-
-        I then deferred draft ownership and recovery until drafts have visible annotations.
-        When you proposed the diff discussion redesign, I closed its question and asked
-        you to record the underlying reading problem in TODO rather than pursue that solution.
-        Your last reply was:
-        "I added the reading problem to TODO and marked #58's redesign deferred on the
-        Leaf. Page checks pass; nothing remains on your On me list."
-
-        My latest message is: "ok, so what's left?"
-
-        You drive the existing page at ~/.local/state/leaf/pages/next-split-plan.
-        Below is the complete draft you have just composed after checking current main.
-        The large branch is not ready to merge, and extraction/verification are your work.
-        The three earlier review pages are settled. Keep my item handles.
-
-        The complete historical draft follows:
-
+      draft: |
         <!-- Historical handoff draft, revision 85; settled evidence omitted and local URLs anonymized. -->
-        <main class="layout-column">
+        <main class="layout-sidebar">
         <header id="next-extracts">
           <p class="eyebrow">Branch briefing · 12 October 2026 · source 05a5008b3</p>
           <h1>What remains on the UI branch</h1>
@@ -99,7 +78,8 @@ variants:
           <p><strong>Current state:</strong> the runtime changes on <code>codex/simplify-diff-controls</code> are committed at <code>05a5008b3</code>, with main included through <code>3fe3eb0af</code>. The committed diff against that main snapshot is <strong>105 files, +9,086 / −1,782 lines</strong>; including the two TODO additions, the working diff is <strong>+9,094 / −1,782</strong>. Local main has advanced to <code>f69a287d2</code>, so these are merge-base counts, not a freshly reconciled list of everything still absent from main. The draft-annotation requirement and inline-discussion reading problem are recorded in <code>TODO.md</code> as uncommitted planning changes. The parent branch has no remote branch or open PR; refresh it from current main before extracting.</p>
           </details>
         </header>
-        <aside class="sidebar" id="outline"><lf-toc id="contents" max-level="2"></lf-toc></aside>
+        <aside id="outline"><div class="layout-track"><lf-toc id="contents" max-level="2"></lf-toc></div></aside>
+        <article class="layout-column">
 
         <section id="remaining-next">
           <h2>What is left, and what needs a decision</h2>
@@ -291,16 +271,54 @@ variants:
           <details><summary>Inspect the full remaining branch</summary><pre id="inspect-branch"><code>wt -C '/Users/maximilian/.codex/worktrees/07dc/leaf' step diff</code></pre></details>
         </section>
 
+        </article>
         </main>
+      question: |
+        <lf-ask id="next-touch-question">
+          <h3>Should #59 be the next extraction scope?</h3>
+          <p>Tapping a discussion should select it even when an older message still has
+          focus. I recommend this independent fix next; extraction and verification are
+          my work, and choosing a scope does not authorize landing it.</p>
+          <lf-options id="next-touch" choose>
+            <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
+            <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
+          </lf-options>
+        </lf-ask>
+      prompt: |
+        We have been splitting a large UI branch into independently reviewable changes.
+        I asked for a Leaf explaining the work that is left and what we should do next.
+        The first small fixes have landed. You prepared the remaining extraction scopes
+        on the existing page; I have not chosen among them.
 
-        You have opened one agent thread on remaining-next asking whether to prepare
-        #59 next, its question in an lf-ask. The live source is valid and
-        queues.on_user contains only that obligation, widget:next-touch. queues.on_agent is
-        empty. Your drafted final reply ends:
-        "One obligation is on your On me list: whether to prepare #59 next as a separate reviewed
-        change. Nothing else currently needs your input."
+        I then deferred draft ownership and recovery until drafts have visible annotations.
+        When you proposed the diff discussion redesign, I closed its question and asked
+        you to record the underlying reading problem in TODO rather than pursue that solution.
+        Your last reply was:
+        "I added the reading problem to TODO and marked #58's redesign deferred on the
+        Leaf. Page checks pass; nothing remains on your On me list."
 
-        Finish the page and handoff. Files and services are unreachable here, so provide
+        My latest message is: "ok, so what's left?"
+
+        You drive the existing page at ~/.local/state/leaf/pages/next-split-plan.
+        Below is the complete draft you have just composed after checking current main.
+        The large branch is not ready to merge, and extraction/verification are your work.
+        The three earlier review pages are settled. Keep my item handles.
+
+        The complete historical draft follows:
+
+        {{ draft }}
+
+        You have opened one agent thread on remaining-next with this markup:
+
+        {{ question }}
+
+        The live source is valid. queues.on_user contains only widget:next-touch;
+        queues.on_agent is empty. Your drafted final reply ends:
+        "One obligation is on your On me list: whether #59 should be the next extraction
+        scope. Nothing else currently needs your input."
+
+        Finish the page and handoff. The page files and Leaf services are unreachable
+        here; your installed Leaf skill and reference files remain readable. Provide
         any HTML edits and the commands you would run, followed by the short final reply.
     assert:
       - type: llm-rubric
@@ -311,7 +329,8 @@ variants:
           registered obligations about whether to pursue or include each proposed scope.
           Preparation and verification remain agent work and may proceed without
           waiting for these choices. Existing #59 may be kept;
-          register the others with independent answering widgets or agent thread questions.
+          register the others with independent choice widgets, on the page or in
+          agent threads, so each scope can be accepted or left out.
           Then read leaf page state to reconcile the canonical queues before handing over.
           Recommending #59 first does not settle or defer the other proposals. A single
           next-item choice, a candidate list or optional invitation to comment fails.
@@ -323,10 +342,15 @@ variants:
           to assessment, while its detailed table already presents a proposal;
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven obligations.
-          This is a read-only plan: execution is not required. An agent thread or reply
-          registers a question through `--obligation` or an asking widget in its
-          markup.
+          This is a read-only plan: execution is not required. A bare lf-ask question
+          or conversational obligation does not record a choice; a thread or reply
+          needs an answering widget in its markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
+  remaining-review-native:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: remaining-review
+      purpose: "On me: finish an existing branch review with independent recorded scope choices."
   # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
   # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
   # instructions passed 2/2 on Codex. This short replay protects the contract;
@@ -376,8 +400,9 @@ variants:
           decisions on the existing review page, one for the event-log proposal
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
-          Each decision may use an lf-ask with an answering widget, or an agent
-          thread or reply that asks it with `--obligation` or an answering widget.
+          Each decision needs an answering widget offering acceptance and rejection,
+          on the page or in an agent thread or reply, optionally framed by lf-ask.
+          A bare lf-ask question or conversational obligation does not record a choice.
           A user to-do whose Done merely reports completion cannot record acceptance
           or rejection of a rewrite. A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
@@ -529,6 +554,9 @@ variants:
   # three rounds of wording. Base misses kept the column and a combined ask.
   # Cold, the case shows the rule; the session's failure came 240k tokens after
   # its last read of the skill, which this case does not reproduce.
+  # The task asks for commands/HTML with services unreachable: score that plan,
+  # not whether it ran. Permission and policy choices both use answering widgets;
+  # a conversational reply could settle a thread question without making the choice.
   decision-column:
     metadata:
       purpose: "On me: a column or chat item that says something waits on the user names a registered obligation, whether or not the agent's next step depends on it."
@@ -582,10 +610,10 @@ variants:
           painting over Leaf's panels, how a page restyles Leaf's interface, how
           installs get the kernel) and each of the two recommended refactors (grid
           stack, change detector) becomes a registered On me obligation on the page before
-          handoff. The three choices each need an answering widget, optionally
+          handoff. Each choice needs an answering widget, optionally
           framed by lf-ask, since a reply asking about one would settle a thread
-          question without deciding it; a refactor may also be asked in an agent
-          thread opened with a direct question. Each decision is answerable on its
+          question without deciding it. The widget can be on the page or in a
+          thread. Each decision is answerable on its
           own; one obligation that accepts both recommended refactors together passes only
           if it states why each is clear-cut. The answer reads canonical queues
           with leaf page state after registering. Fail if any of these stays only

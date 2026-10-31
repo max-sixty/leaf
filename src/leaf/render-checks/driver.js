@@ -3,15 +3,25 @@
  * The driver is an init script rather than page-authored code. It starts the probe
  * module without awaiting it, exposes bounded polling facts to Playwright, and keeps
  * every probe invocation synchronous so a stopped page cannot strand Python inside
- * `evaluate`. The pre-upgrade readings live here as well: they must run while the
- * Leaf entry is held, before the probe module and runtime exist, and a probe that
- * compares against them reads what they kept through `firstBoxes`. So do the rendering
- * waits, which hold on any page the driver runs in, a published capture that serves no
- * probes among them, and cost no module load. */
+ * `evaluate`. Rendering waits hold on every document the driver runs in and
+ * require no probe module load. */
 (() => {
   if (globalThis.__leafRenderDriver) return;
 
   let loading = null;
+  // The platform records visible movement from parsing through the first settled
+  // presentation. Later interactive checks have their own gesture observations.
+  const startupShifts = [];
+  const shiftObserver = new PerformanceObserver((list) => {
+    startupShifts.push(...list.getEntries());
+  });
+  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+    shiftObserver.observe({ type: "layout-shift", buffered: true });
+  const startupLayoutShifts = () => {
+    startupShifts.push(...shiftObserver.takeRecords());
+    shiftObserver.disconnect();
+    return startupShifts.filter((entry) => !entry.hadRecentInput);
+  };
 
   // The probe module is served beside the page's Leaf entry, so a page served under a
   // revision path loads that revision's probes.
@@ -95,43 +105,16 @@
     return read();
   };
 
-  const themeReady = () =>
-    [...document.styleSheets].some((sheet) => sheet.href?.endsWith("/theme.css"));
-
-  // Each authored widget's border box as the page first paints it: the whole authored
-  // document laid out under the theme, with the prepaint's `data-lf-interactive` on
-  // the root and nothing upgraded. The element is kept, so a reading taken once the
-  // page presents measures the same node (`changedBoxes` in widgets.js). `stated` is
-  // whether a stylesheet gave the box its height, rather than its content: a computed
-  // `block-size` other than `auto`, which only the typed object model reports, since
-  // `getComputedStyle` answers with the used height either way.
-  let firstBoxes = Object.freeze([]);
-
-  const preUpgradeFindings = () => {
-    firstBoxes = Object.freeze(
-      [...document.querySelectorAll("body > main *")]
-        .filter((element) => element.localName.startsWith("lf-"))
-        .map((element) => {
-          const { width, height } = element.getBoundingClientRect();
-          const stated =
-            String(element.computedStyleMap().get("block-size")) !== "auto";
-          return Object.freeze({ element, width, height, stated });
-        }),
-    );
-    const main = document.querySelector("body > main");
-    const custom = [...document.querySelectorAll("*")]
-      .map((element) => element.localName)
-      .filter((tag) => tag.includes("-"));
-    const upgraded = [...new Set(custom)].filter((tag) => customElements.get(tag));
-    const painted = ["lf-upgraded", "lf-applied", "lf-presented"].filter((name) =>
-      document.body.hasAttribute(`data-${name}`),
-    );
-    const box = main?.getBoundingClientRect();
-    return [
-      ...(upgraded.length ? [{ code: "upgraded-early", tags: upgraded }] : []),
-      ...(painted.length ? [{ code: "ready-early", stamps: painted }] : []),
-      ...(!box || box.width <= 0 || box.height <= 0 ? [{ code: "main-unlaid" }] : []),
-    ];
+  // Widget-quality comparison holds the entry while these authored boxes are laid
+  // out. Retain the actual nodes so the final reading compares the same instances.
+  let firstBoxes = [];
+  const captureFirstBoxes = () => {
+    firstBoxes = [...document.querySelectorAll("body > main *")]
+      .filter((element) => element.localName.startsWith("lf-"))
+      .map((element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { element, width, height };
+      });
   };
 
   globalThis.__leafRenderDriver = Object.freeze({
@@ -140,8 +123,8 @@
     requestFrame,
     framePresented,
     renderingState,
-    themeReady,
-    preUpgradeFindings,
+    startupLayoutShifts,
+    captureFirstBoxes,
     firstBoxes: () => firstBoxes,
   });
 })();

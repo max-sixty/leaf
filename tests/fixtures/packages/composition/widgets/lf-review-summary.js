@@ -1,4 +1,11 @@
-import { LeafElement, commands, el, html, offer, quoted } from "/runtime/widget-api.js";
+import {
+  LeafElement,
+  el,
+  html,
+  offer,
+  quoted,
+  commandsChanged,
+} from "/runtime/widget-api.js";
 
 // Only the generated controls repaint; authored evidence keeps its nodes and state.
 customElements.define(
@@ -14,28 +21,31 @@ customElements.define(
     }
 
     setup() {
-      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       if (quoted(this)) return;
-      commands(this, "Review result", [
-        {
-          id: "review.pass",
-          title: "Pass review",
-          keys: ["p"],
-          control: this.passButton,
-          bindingBadge: null,
-          when: () => this.reading.actions.review.available,
-          run: () => this.review("pass"),
-        },
-        {
-          id: "review.fail",
-          title: "Fail review",
-          keys: ["f"],
-          control: this.failButton,
-          bindingBadge: null,
-          when: () => this.reading.actions.review.available,
-          run: () => this.review("fail"),
-        },
-      ]);
+      this.lfCommands = {
+        title: "Review result",
+        rows: [
+          {
+            id: "review.pass",
+            title: "Pass review",
+            keys: ["p"],
+            control: this.passButton,
+            bindingBadge: null,
+            when: () => this.reading.actions.review.available,
+            run: () => this.review("pass"),
+          },
+          {
+            id: "review.fail",
+            title: "Fail review",
+            keys: ["f"],
+            control: this.failButton,
+            bindingBadge: null,
+            when: () => this.reading.actions.review.available,
+            run: () => this.review("fail"),
+          },
+        ],
+      };
+      commandsChanged(this);
     }
 
     review(outcome) {

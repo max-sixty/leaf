@@ -158,10 +158,6 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
-def _requests(v: dict) -> str:
-    return f"; still requesting {', '.join(v['requesting'])}" if v["requesting"] else ""
-
-
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -234,6 +230,30 @@ def _clipped_content(at: str, v: dict) -> str:
 def _line(at: str, v: dict) -> str:
     """An element of the author's file, as they find it: its name and its line."""
     return f"{at} (line {v['line']})"
+
+
+def _blocks(v: dict) -> str:
+    """The blocks of the author's file a finding lists (`values.elements`), as they
+    find them: a run of one tag in a row, under one enclosing id, reads as one, with
+    its count and its lines."""
+    runs: list[list[dict]] = []
+    for element in v["elements"]:
+        if runs and all(
+            runs[-1][0].get(key) == element.get(key) for key in ("tag", "enclosing")
+        ):
+            runs[-1].append(element)
+        else:
+            runs.append([element])
+
+    def said(run: list[dict]) -> str:
+        first, last = run[0]["line"], run[-1]["line"]
+        lines = f"line {first}" if first == last else f"lines {first}–{last}"
+        count = f"{len(run)} " if len(run) > 1 else ""
+        enclosing = run[0].get("enclosing")
+        within = f" in #{enclosing}" if enclosing else ""
+        return f"{count}<{run[0]['tag']}> ({lines}){within}"
+
+    return ", ".join(said(run) for run in runs)
 
 
 def _bearing(at: str, v: dict, value: str) -> str:
@@ -310,16 +330,6 @@ def _unservable_layer(v: dict, why: str, action: str) -> str:
     )
 
 
-def _unservable_revision(v: dict, why: str) -> str:
-    """Why this Leaf can neither serve one revision nor admit input made on it."""
-    return (
-        f"Revision {v['revision']} {why}, so it cannot serve that revision or accept"
-        " input made against it. Revisions saved since the page was re-vendored still"
-        " open, and serving the page saves one from its source; where that fails,"
-        " `leaf page check` names why."
-    )
-
-
 def _invalid_record(v: dict) -> str:
     """How the refusal of a record one widget's verb writes begins."""
     return f"<{v['tag']}> {v['kind']} {v['verb']!r} is invalid: "
@@ -338,15 +348,12 @@ def _size(box: dict) -> str:
 
 def _declared(words, sep: str = ": "):
     """A registry finding's words: the file it read (`registry`), the element
-    declaration `at` names, then `words`; and, for a fault in a vendored layer, how to
-    replace it (`revendor`, the page to re-vendor)."""
+    declaration `at` names, then `words`."""
 
     def said(at: str, v: dict) -> str:
         text = f"{at} {words(v)}" if at else words(v)
         if "registry" in v:
             text = f"{v['registry']}{sep}{text}"
-        if "revendor" in v:
-            text += f"; run `leaf page init {v['revendor']}` to re-vendor it"
         return text
 
     return said
@@ -432,6 +439,23 @@ def _listed(findings: list[dict]) -> str:
     return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
 
 
+# What each element `structure.document_declarations` holds declares.
+_DECLARES = {"<base>": "base URL", "<meta>": "HTTP headers", "<script>": "import map"}
+
+# How a page names a module, since delivery owns the import map: said the same way
+# where a bare name is refused and where the page's own map is.
+_IMPORT_BY_URL = (
+    "import a file under page/ by its path, or a package by its full http(s) URL"
+    " (such as https://esm.sh/NAME)"
+)
+
+# The fix for a page's own file named outside page/, whichever reference names it.
+_MOVE_UNDER_PAGE = (
+    "move the file into page/ beside index.html and name it by that path, such as"
+    " page/style.css or page/app.js"
+)
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -469,18 +493,13 @@ _TEXT = {
             "incomplete": " (the confirming render attempt did not complete)",
         }[v.get("confirmation")]
     ),
-    "upgraded-early": lambda at, v: (
-        f"pre-upgrade: widgets upgraded before Leaf entry ran: {', '.join(v['tags'])}"
-    ),
-    "ready-early": lambda at, v: (
-        "pre-upgrade: runtime readiness appeared before Leaf entry ran: "
-        + ", ".join(v["stamps"])
-    ),
-    "main-unlaid": lambda at, v: (
-        "pre-upgrade: authored main has no measurable pre-upgrade layout"
-    ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
+    "startup-layout-shift": lambda at, v: (
+        f"startup CLS {v['cls']:.4f} before first settled presentation; "
+        "inspect the movement and whether it interrupts reading: "
+        + json.dumps(v["entries"], ensure_ascii=False)
+    ),
     "moved-without-input": lambda at, v: (
         f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
@@ -526,23 +545,13 @@ _TEXT = {
     "gate-failed": lambda at, v: (
         f"the browser gate failed while running its probe module: {v['error']}"
     ),
-    "probe-failed": lambda at, v: f"the browser probe module failed: {v['error']}",
+    "probe-failed": lambda at, v: (
+        f"the browser probe module failed: {v['error']}"
+        + (" — " + _explained(v["console"]) if v.get("console") else "")
+    ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
-    ),
-    "never-reached": lambda at, v: (
-        f"pre-upgrade proof failed: the document never reached {v['arrival']}"
-        + _requests(v)
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-single": lambda at, v: (
-        "pre-upgrade proof failed: the document has no single canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-requested": lambda at, v: (
-        "pre-upgrade proof failed: the browser did not request one canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
     ),
     "never-upgraded": lambda at, v: (
         "the widget layer never finished upgrading — "
@@ -574,10 +583,6 @@ _TEXT = {
         f"{at} shows {v['w']}x{v['h']}px of words, but neither it nor anything"
         " inside it draws a box, so a comment anchored here outlines nothing. Put"
         " the words in an element that takes a box"
-    ),
-    "undeclared-shadow": lambda at, v: (
-        "shadow roots the registry doesn't declare (an undeclared root's words anchor"
-        f" quotes astray; declare x-shadow): {', '.join(v['hosts'])}"
     ),
     "devtools-issue": lambda at, v: (
         f"DevTools issue {v['issue']}"
@@ -613,13 +618,6 @@ _TEXT = {
         " widget's own styles or module must be showing it, and no comment can"
         " anchor to its words"
     ),
-    "read-as-changed": lambda at, v: (
-        f"{at} reads as changed when this version is compared with itself: a module"
-        f" wrote {_json(v['words'])} there without marking it, so every version"
-        " comparison marks it though nobody changed it. Mark the element the module"
-        " fills with generatedElement(node, {says}), or generated({says}) in a"
-        " template, from /runtime/widget-api.js"
-    ),
     "render-threw": lambda at, v: (
         f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
@@ -635,7 +633,9 @@ _TEXT = {
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
     "past-column": lambda at, v: (
-        f"{at} is set {v['past']}px past the column, out in the margin"
+        f"{at} is set {v['past']}px past the column, out in the margin; to give it"
+        ' more room, mark it data-width="wide" or "available" rather than sizing it'
+        " past the column"
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -648,11 +648,6 @@ _TEXT = {
     "over-margin": lambda at, v: (
         f"{at} grows into the margin and is drawn over {v['marginContent']}, which already"
         " sits there; that side of the page has no free room for it"
-    ),
-    "off-axis": lambda at, v: (
-        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
-        " of room, so it stands off the prose axis — a width or max-width set on it"
-        " overrides the room's"
     ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
@@ -691,6 +686,22 @@ _TEXT = {
         f" {_json(v['covered'])}"
     ),
     # Advice: what the author decides.
+    "unreduced-motion": lambda at, v: (
+        f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
+        " under @media (prefers-reduced-motion: reduce)"
+    ),
+    "flow-tracks": lambda at, v: (
+        f"{at} is a reading flow under {v['parent']}, but its columns are"
+        f" {v['columns']!r} and its span is {v['start']} / {v['end']}; share all"
+        " document columns with grid-template-columns: subgrid and grid-column: full;"
+        " data-width can narrow that span, and layout containment or container-type can prevent subgrid"
+    ),
+    "contained-space": lambda at, v: (
+        f"{at} declares {v['space']} space but stays inside "
+        + ", ".join(v["holders"])
+        + "; to widen the enclosing box, put data-width on that holder; to share"
+        ' document tracks through unframed section wrappers, give them class="layout-flow"'
+    ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
@@ -699,17 +710,6 @@ _TEXT = {
         " and its labels with it, so set them larger in the viewBox's units, draw"
         " the viewBox nearer the width it is shown at, or give it more room"
         " (authoring-evidence.md, Interactive and visual evidence)"
-    ),
-    "unreserved-height": lambda at, v: (
-        f"{at} first paints {v['first']}px tall, "
-        + (
-            "reserving no height"
-            if v["reserved"] is None
-            else f"reserving {v['reserved']}px"
-        )
-        + f", and draws {v['drawn']}px tall, so what follows it moves"
-        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
-        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -760,10 +760,6 @@ _TEXT = {
         lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
     ),
     "fixture-refused": _fixture(lambda v: v["error"]),
-    "missing-vendored": lambda at, v: (
-        f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
-        " the layer"
-    ),
     "head-count": lambda at, v: (
         "the page must have one explicit <head> directly under <html>; found"
         f" {v['tags']} head tags, {v['parsed']} parsed heads, and {v['direct']} direct"
@@ -774,8 +770,9 @@ _TEXT = {
         f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
     ),
     "outside-main": lambda at, v: (
-        "paintable authored content must stay inside the one <main> directly under"
-        f" <body>; found {_json(_outside_main(v['content']))}"
+        "the page's content goes inside the one <main> directly under <body>, which"
+        " Leaf reads as the page; move these inside it (a grid or header of the"
+        f" page's own goes on or in <main>): {_json(_outside_main(v['content']))}"
     ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
@@ -792,18 +789,9 @@ _TEXT = {
     "unnamed-sample": lambda at, v: (
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
-    "async-script": lambda at, v: (
-        f"<script async> (line {v['line']}) runs whenever it arrives, which can be"
-        " before Leaf reads the page; leave async off"
-    ),
-    "parser-blocking-script": lambda at, v: (
-        f"{_line(at, v)} runs while the page is still parsing, before Leaf reads it;"
-        ' write inline JavaScript as <script type="module">, and load a classic script'
-        " file with <script defer src>"
-    ),
     "document-declaration": lambda at, v: (
-        f"{_line(at, v)} declares something about the whole document, which delivery"
-        " owns"
+        f"{_line(at, v)} declares the document's {_DECLARES[at]}, which delivery"
+        " owns; remove it" + (f", and {_IMPORT_BY_URL}" if at == "<script>" else "")
     ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
@@ -815,6 +803,10 @@ _TEXT = {
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
+    ),
+    "css-dropped": lambda at, v: (
+        f"{v['sheet']} syntax error at {v['row']}:{v['column']}, a declaration or"
+        f" rule a browser drops without a word: {v['message']}"
     ),
     "unserved-media": lambda at, v: (
         f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
@@ -850,7 +842,7 @@ _TEXT = {
     ),
     # Widgets, against the registry that declares them.
     "unknown-widget": lambda at, v: (
-        f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
+        f"{_line(at, v)}: unknown widget — not in the page's registry"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
     "member-record-slot": lambda at, v: (
@@ -999,7 +991,7 @@ _TEXT = {
     ),
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
-        " into; the page serves the one vendored theme it was reviewed with"
+        " into; the page serves the one theme its layer composes"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
@@ -1008,16 +1000,17 @@ _TEXT = {
     ),
     # Advice on the source.
     "unpointable-section": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so no comment or reading position"
-        " can hold to it"
+        "unpointable — no comment or reading position can hold to a section with"
+        f" no id: {_blocks(v)}; give each an id"
     ),
     "unpointable": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, nor anything enclosing it, so"
-        " element selection has no target"
+        "unpointable — these blocks have no id, nor does anything enclosing them, so"
+        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
-        f" the whole of #{v['enclosing']}"
+        "unpointable — a comment aimed at a block with no id lands on the whole of"
+        f" the section named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1050,11 +1043,12 @@ _TEXT = {
         lambda v: "the incoming layer has no registry.json"
     ),
     "page-layer": _declared(lambda v: "$layer belongs to the selected layer"),
-    "layer-packages": _declared(
-        lambda v: "$layer.packages must be a unique list of non-empty strings"
+    "layer-unavailable": lambda at, v: (
+        f"this Leaf cannot compose the page's layer: {v['error']}; choose its"
+        " packages again with `leaf page init --package`"
     ),
-    "layer-identity": _declared(
-        lambda v: "vendored registry lacks its $layer identity; run `leaf page init`"
+    "no-layer": lambda at, v: (
+        f"{v['page']} has no layer.json; run `leaf page init` first"
     ),
     # Its shared layer facts.
     "layer-facts": _declared(lambda v: f"{_json_path(v['path'])}: {v['reason']}"),
@@ -1149,35 +1143,6 @@ _TEXT = {
     ),
     "needs-upgrade": _declared(
         lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
-    ),
-    "initial-and-prepaint": _declared(
-        lambda v: "declares both x-initial and x-prepaint"
-    ),
-    "prepaint-as": _declared(
-        lambda v: (
-            f"x-prepaint names <{v['as']}>, which declares no x-prepaint markup"
-            " of its own"
-        )
-    ),
-    "prepaint-upgrade": _declared(
-        lambda v: (
-            "x-prepaint requires x-upgrade: true, since only the widget's"
-            " module takes it out"
-        )
-    ),
-    "prepaint-shape": _declared(
-        lambda v: (
-            "x-prepaint must be one element written as the parser reads it"
-            " back, every element closed"
-        )
-    ),
-    "prepaint-element": _declared(
-        lambda v: f"x-prepaint may not hold <{v['element']}>"
-    ),
-    "prepaint-marks": _declared(
-        lambda v: (
-            f"x-prepaint may carry no id and no data-lf- attribute (<{v['element']}>)"
-        )
     ),
     "unknown-declarations": _declared(
         lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
@@ -1570,7 +1535,10 @@ _TEXT = {
     ),
     "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
     "dependency-outside-page": _captured(
-        lambda v: "dependency escapes /page/ and /media/"
+        lambda v: (
+            "a page's own files (stylesheets, scripts, images, data) live under page/"
+            f" or media/; {_MOVE_UNDER_PAGE}"
+        )
     ),
     "dependency-symlink": _captured(
         lambda v: "dependency escapes its source directory through a symlink"
@@ -1578,23 +1546,29 @@ _TEXT = {
     "dependency-unreadable": _captured(
         lambda v: f"cannot capture dependency: {v['error']}"
     ),
-    "dependency-type": _captured(lambda v: "unsupported dependency MIME type"),
     "module-not-local": _captured(
-        lambda v: "a module import must name a relative or absolute local URL"
+        lambda v: (
+            f"a bare module name has no import map to resolve it; {_IMPORT_BY_URL}"
+        )
     ),
     "module-type": _captured(
         lambda v: "a module dependency must be JavaScript or JSON"
     ),
     "module-outside-page": _captured(
-        lambda v: "module imports may use /page/ or a public layer entry point"
+        lambda v: (
+            "a module the page imports is a public entry point such as"
+            " /runtime/widget-api.js, an http(s) URL, or the page's own file under"
+            f" page/; {_MOVE_UNDER_PAGE}"
+        )
     ),
     "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),
-    "script-outside-page": _captured(lambda v: "authored scripts must be under /page/"),
+    "script-outside-page": _captured(
+        lambda v: "a page's own scripts live under page/; move it there"
+    ),
     "stylesheet-type": _captured(
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),
     "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
-    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
     "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
     "css-import": _captured(
         lambda v: "CSS @import requires a stylesheet with CSS MIME type"
@@ -1608,17 +1582,20 @@ _TEXT = {
     "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
-    "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
-    ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
+    "passive-layout-shift": lambda at, v: (
+        f"{at} moved without input during a {v['observed_ms']}ms observation after"
+        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
+        " boxes, not necessarily the cause; reserve space for changing content."
+        " Later timers and gesture paths were not checked."
+    ),
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
-        f" {_size(v['first'])}, {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
+        f" before upgrade, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
@@ -1640,34 +1617,16 @@ _TEXT = {
     ),
     "foreign-layer": lambda at, v: _unservable_layer(
         v,
-        f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f"was initialized by a Leaf at page protocol {v['recorded']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
-        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
-        f" {v['protocol']}, so it can neither serve nor re-vendor the page. Use a"
-        f" Leaf at protocol {v['vendored']} or later; in Claude Code,"
-        " `/reload-plugins` loads an installed update."
+        f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
+        f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
+        " write the page. Use a newer Leaf."
     ),
-    "retired-layer": lambda at, v: _unservable_layer(
-        v,
-        f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
-        f" Leaf ({v['leaf']}) no longer admits",
-        "Re-vendor it",
-    ),
-    "foreign-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved at page protocol {v['saved']}, and this Leaf speaks protocol"
-        f" {v['protocol']}",
-    ),
-    "retired-revision": lambda at, v: _unservable_revision(
-        v,
-        f"was saved by a Leaf that declares {', '.join(v['retired'])}, which this"
-        " Leaf no longer admits",
-    ),
-    "no-registry": lambda at, v: "the page has no registry.json",
+    "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",
     "invalid-event": lambda at, v: f"{v['kind']} event is invalid: {v['error']}",
     "unknown-revision": lambda at, v: (
@@ -1917,14 +1876,16 @@ _TEXT = {
             else "None of its updates still owes an answer."
         )
     ),
-    # A re-vendor a command naming the page made (`vendoring.renew_layer`), and the
-    # service it held down (`hosting.restarting_server`).
-    "unready-revendor": lambda at, v: (
-        f"re-vendored {v['page']}, but index.html will not activate until"
+    # A `page init`, or the renewal a command naming the page made
+    # (`vendoring.renew_layer`), and the service it held down
+    # (`hosting.restarting_server`).
+    "unready-reinit": lambda at, v: (
+        f"re-initialized {v['page']}, but index.html will not activate until"
         " `leaf page check` passes:\n" + "\n".join(f"  - {e}" for e in v["errors"])
     ),
-    "revendor-refused": lambda at, v: (
-        f"{v['page']} needs a re-vendor this Leaf could not make: {v['error']}"
+    "renewal-refused": lambda at, v: (
+        f"{v['page']} is at an older page protocol, and this Leaf could not take it"
+        f" to its own: {v['error']}"
     ),
     "server-stays-stopped": lambda at, v: (
         f"{v['page']}'s server stays stopped; `leaf server start {v['page']}` serves"
@@ -1934,9 +1895,9 @@ _TEXT = {
         f"{v['page']}'s server has no live session owner, so it stays stopped;"
         f" `leaf server start {v['page']}` serves it for this one."
     ),
-    "stopped-while-revendored": lambda at, v: (
-        f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
-        " stopped."
+    "stopped-during-init": lambda at, v: (
+        f"{v['page']}'s server was stopped while `page init` held it down, so it"
+        " stays stopped."
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
@@ -2074,9 +2035,6 @@ _CONSOLE = {
     "page-exception",
     "window-error",
     "resize-loop",
-    "upgraded-early",
-    "ready-early",
-    "main-unlaid",
 }
 
 

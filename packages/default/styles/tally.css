@@ -1,57 +1,65 @@
-/* lf-tally: a region's obligations still to answer, in the chip face a header's .tag chips wear,
+/* lf-tally: a region's obligations still to answer, in a chip (chip.css) as a header's are,
  * with its Next on me beside it. The count's room stacks the widest labels the count
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
- * the ok tone a .tag ok wears. */
+ * the ok tone (`.lf-chip.ok`). */
 lf-tally {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
   max-width: 100%;
   vertical-align: middle;
 }
-lf-tally .lf-tally-face {
+:host(lf-tally) .lf-tally-face {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-1) var(--sp-2);
   max-width: 100%;
 }
-lf-tally:not([data-lf-ready]) .lf-tally-face {
+:host(lf-tally) .lf-tally-face:not([data-lf-ready]) {
   visibility: hidden;
 }
-lf-tally:not([next]) .lf-tally-next {
-  display: none;
-}
-lf-tally .lf-tally-count {
+:host(lf-tally) .lf-tally-count {
   display: inline-grid;
   font-family: var(--sans);
-  font-size: var(--t-6);
-  line-height: var(--chip-lh);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  padding: var(--chip-pad);
-  border-radius: var(--chip-r);
-  background: var(--chip);
-  color: var(--ink-2);
 }
-lf-tally .lf-tally-count > * {
+:host(lf-tally) .lf-tally-count > * {
   grid-area: 1 / 1;
   justify-self: center;
 }
-lf-tally .lf-tally-room {
+:host(lf-tally) .lf-tally-room {
   visibility: hidden;
-}
-lf-tally[data-lf-done] .lf-tally-count {
-  background: var(--ok-tint);
-  color: var(--ok-ink);
 }
 /* Next on me stands in a header row beside the chips at their type size, as tall as
  * the layer's aim floor, so the row keeps the height its title gives it. A chip after
  * it paints over whatever of its focus ring reaches the chip, and a space between the
  * two is narrower than the ring, so it keeps the ring's room after it. */
-lf-tally .lf-tally-next {
+:host(lf-tally) .lf-tally-next {
   font-size: var(--t-6);
   padding-block: 0;
   min-height: var(--aim-floor);
   margin-inline-end: var(--focus-ring-room);
+}
+
+lf-tally:not(:defined)::before {
+  content: "00 left to answer · 00 on the agent";
+  display: inline-block;
+  visibility: hidden;
+  font: var(--font-chip);
+  padding: var(--chip-pad);
+}
+lf-tally[next]:not(:defined)::after {
+  content: "Next on me";
+  display: inline-block;
+  visibility: hidden;
+  font: var(--font-small);
+  box-sizing: border-box;
+  padding-inline: 10px;
+  border: 1px solid transparent;
+  margin-inline-end: var(--focus-ring-room);
+  min-block-size: var(--aim-floor);
 }

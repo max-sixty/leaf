@@ -1,6 +1,5 @@
 """Widget structure and interaction contract validation."""
 
-import turbohtml
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
@@ -12,12 +11,14 @@ from leaf.schema import (
 from .contract import (
     deciding_outcomes,
     deciding_verb,
+    gathering,
     reference_relation_problem,
     registry_error,
     state_specs,
 )
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
+    validate_answered_conditions,
     validate_deciding_verb,
     validate_widget_record_contracts,
     validate_widget_retirement,
@@ -25,63 +26,84 @@ from .state import (
 )
 
 
-def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
-    # First validate every declaration in isolation. Cross-declaration checks run only after this
-    # pass, so their result cannot depend on which widget happened to be written first.
-    for tag, entry in declarations.items():
+def validate_widget_schemas(declarations: dict, path) -> None:
+    """Hold each declaration on its own to its schemas, refusing with the first
+    finding in each. The cross-declaration checks wait for this pass, so their
+    result cannot depend on which widget happened to be written first."""
+    with gathering() as unit:
+        for tag, entry in declarations.items():
+            with unit():
+                _validate_widget_schema(tag, entry, path)
+
+
+def _validate_widget_schema(tag: str, entry: dict, path) -> None:
+    try:
+        check_schema(entry)
+    except SchemaError as error:
+        raise registry_error(
+            "declaration-schema", path, tag, **schema_reading(error)
+        ) from error
+    description = entry.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise registry_error("no-description", path, tag)
+    extensions = {key: value for key, value in entry.items() if key.startswith("x-")}
+    errors = sorted(json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str)
+    if errors:
+        raise registry_error(
+            "invalid-extensions", path, tag, **schema_reading(errors[0])
+        )
+    if entry.get("x-text-format") == "markdown" and entry.get("x-content") != "data":
+        raise registry_error("markdown-needs-data", path, tag)
+    for verb, spec in state_specs(entry):
+        if spec.get("record"):
+            continue
         try:
-            check_schema(entry)
+            check_schema(spec["detail"])
         except SchemaError as error:
             raise registry_error(
-                "declaration-schema", path, tag, **schema_reading(error)
+                "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
             ) from error
-        description = entry.get("description")
-        if not isinstance(description, str) or not description.strip():
-            raise registry_error("no-description", path, tag)
-        extensions = {
-            key: value for key, value in entry.items() if key.startswith("x-")
-        }
-        errors = sorted(
-            json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
-        )
-        if errors:
-            raise registry_error(
-                "invalid-extensions", path, tag, **schema_reading(errors[0])
-            )
-        if (
-            entry.get("x-text-format") == "markdown"
-            and entry.get("x-content") != "data"
-        ):
-            raise registry_error("markdown-needs-data", path, tag)
-        for verb, spec in state_specs(entry):
-            if spec.get("record"):
-                continue
-            try:
-                check_schema(spec["detail"])
-            except SchemaError as error:
-                raise registry_error(
-                    "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
-                ) from error
 
 
 def validate_widget_relations(
     registry: dict, declarations: dict, data: dict, path
 ) -> None:
-    for tag, entry in declarations.items():
-        properties, said = _validate_widget_structure(
-            tag, entry, registry, declarations, data, path
-        )
-        awaits = _validate_widget_predicates(tag, entry, properties, path)
-        _validate_widget_interactions(tag, entry, properties, awaits, path)
-        validate_widget_state_relations(tag, entry, declarations, path)
-        validate_widget_record_contracts(
-            tag, entry, properties, said, registry, declarations, path
-        )
-        validate_deciding_verb(tag, entry, path)
-        validate_widget_retirement(tag, entry, declarations, path)
-    # A view relation joins two declarations, each held to its own attributes above.
-    for tag, entry in declarations.items():
-        _validate_shown_answers(tag, entry, declarations, path)
+    """Hold each declaration to the others and to the layer's facts, refusing with
+    the first finding in each. A declaration's checks run in order, each relying on
+    the ones before it, and read the others only as their schemas admit them, so
+    one declaration's fault doesn't stop another's being checked."""
+    with gathering() as unit:
+        for tag, entry in declarations.items():
+            with unit():
+                _validate_widget_relations(
+                    tag, entry, registry, declarations, data, path
+                )
+
+
+def _validate_widget_relations(
+    tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
+) -> None:
+    properties, said = _validate_widget_structure(
+        tag, entry, registry, declarations, data, path
+    )
+    awaits = _validate_widget_predicates(tag, entry, properties, path)
+    _validate_widget_interactions(tag, entry, properties, awaits, path)
+    validate_widget_state_relations(tag, entry, declarations, path)
+    validate_widget_record_contracts(
+        tag, entry, properties, said, registry, declarations, path
+    )
+    validate_deciding_verb(tag, entry, path)
+    validate_widget_retirement(tag, entry, declarations, path)
+    _validate_shown_answers(tag, entry, declarations, path)
+    validate_answered_conditions(tag, entry, data, declarations, path)
+
+
+def _typed(properties: dict, attr: str, kind: str) -> bool:
+    """Whether the declaration's schema for `attr` is an object naming `kind` as its
+    type. JSON Schema admits `true` and `false` as an attribute's schema too, and
+    neither names a type."""
+    schema = properties.get(attr)
+    return isinstance(schema, dict) and schema.get("type") == kind
 
 
 def _validate_widget_structure(
@@ -97,20 +119,6 @@ def _validate_widget_structure(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
     properties = entry.get("properties", {})
-    if entry.get("x-initial"):
-        if not entry["x-upgrade"]:
-            raise registry_error(
-                "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
-            )
-        if entry.get("x-prepaint") is not None:
-            raise registry_error("initial-and-prepaint", path, tag)
-    if (prepaint := entry.get("x-prepaint")) is not None:
-        if isinstance(prepaint, dict):
-            named = declarations.get(prepaint["as"], {}).get("x-prepaint")
-            if not isinstance(named, str):
-                raise registry_error("prepaint-as", path, tag, **{"as": prepaint["as"]})
-            prepaint = named
-        _validate_prepaint(tag, entry, prepaint, path)
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
@@ -123,11 +131,10 @@ def _validate_widget_structure(
                 value="markup",
             )
         required = set(entry.get("required", []))
-        if "id" not in required or properties.get("id", {}).get("type") != "string":
+        if "id" not in required or not _typed(properties, "id", "string"):
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if layout == "pane" and (
-            "label" not in required
-            or properties.get("label", {}).get("type") != "string"
+            "label" not in required or not _typed(properties, "label", "string")
         ):
             raise registry_error(
                 "reading-role-attr", path, tag, role="pane", attr="label"
@@ -185,10 +192,7 @@ def _validate_widget_structure(
             raise registry_error("measured-run", path, tag, attr=run_attr)
     said = set(entry.get("x-says", {}))
     for role in ("x-awaits", "x-thread-seat"):
-        if entry.get(role) is not None and (
-            not isinstance(properties.get("id"), dict)
-            or properties["id"].get("type") != "string"
-        ):
+        if entry.get(role) is not None and not _typed(properties, "id", "string"):
             raise registry_error("addressable-id", path, tag, key=role)
     for key in ATTRIBUTE_KEYS:
         declared = entry.get(key) or ()
@@ -203,9 +207,7 @@ def _validate_widget_structure(
             raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("x-visual"), dict):
         if not (
-            "id" in entry.get("required", [])
-            and isinstance(properties.get("id"), dict)
-            and properties["id"].get("type") == "string"
+            "id" in entry.get("required", []) and _typed(properties, "id", "string")
         ):
             raise registry_error("visual-id", path, tag)
         part_attribute = entry["x-visual"].get("parts")
@@ -253,31 +255,6 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
         ]
         if (spec.get("record") or {}).get("kind") != "attribute" or not keyed:
             raise registry_error("awaits-key", path, tag, key=key)
-
-
-def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
-    """Hold an x-prepaint to what delivery can write into every occurrence: one plain
-    element that only a module will take out again.
-
-    Delivery and the message path insert its bytes as written, so they must be the
-    element the parser reads back, byte for byte: markup the parser would close,
-    reorder or drop, such as a root left open, would take in the occurrence's own
-    children once inserted, and taking the prepaint out would take those with it. It
-    is copied into each occurrence, so an id would repeat; a custom element would
-    upgrade as a widget of its own, and a script would run. Delivery owns its
-    `data-lf-` marks (`revision_delivery.mark_declared`).
-    """
-    if entry.get("x-upgrade") is not True:
-        raise registry_error("prepaint-upgrade", path, tag)
-    nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
-    if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
-        raise registry_error("prepaint-shape", path, tag)
-    for element in [nodes[0], *nodes[0].find_all(True)]:
-        attrs = element.attrs
-        if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
-            raise registry_error("prepaint-element", path, tag, element=element.tag)
-        if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
-            raise registry_error("prepaint-marks", path, tag, element=element.tag)
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
@@ -398,10 +375,7 @@ def _validate_widget_interactions(
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
-    if agent_verbs and not (
-        isinstance(properties.get("overruled"), dict)
-        and properties["overruled"].get("type") == "boolean"
-    ):
+    if agent_verbs and not _typed(properties, "overruled", "boolean"):
         raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
     # A user decision folded on the widget needs an explicit withdrawal route:
     # `restated` names that intent; ordinary source edits leave the decision in
@@ -409,8 +383,5 @@ def _validate_widget_interactions(
     folds_whole = any(
         spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
     )
-    if folds_whole and not (
-        isinstance(properties.get("restated"), dict)
-        and properties["restated"].get("type") == "boolean"
-    ):
+    if folds_whole and not _typed(properties, "restated", "boolean"):
         raise registry_error("unrestated", path, tag)

@@ -14,6 +14,7 @@
    and the last cases hold it to where a climb would have answered: at a shadow root, at
    a slot, and on the way back from a position in the reading to its node. */
 
+import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -31,10 +32,9 @@ import {
   pageBlocks,
   pageWords,
   pointAt,
-  programmaticSelection,
   quoteFrom,
-  selectEnds,
   says,
+  segmentsIn,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
@@ -248,6 +248,19 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
+// A page script's own custom element attaches a root no declaration vouches for. The
+// file reading can't know a script will, so the page reading leaves the root's words out
+// and reads the host by its light children, slotted or not, exactly as the file does.
+test("an undeclared shadow tree is opaque, and its host reads by its children", () => {
+  Object.assign(registry, { $layer: { generation: "passage-undeclared-root" } });
+  document.body.innerHTML =
+    '<main><p>Before</p><author-card><span slot="lead">Lead</span>Loose</author-card>' +
+    "<p>After</p></main>";
+  document.querySelector("author-card").attachShadow({ mode: "open" }).innerHTML =
+    '<h3>Shadow</h3><slot name="lead"></slot>';
+  assert.equal(pageText().raw.replace(/\0+/g, " "), "Before Lead Loose After");
+});
+
 // The walk carries what it knows down the tree rather than climbing from each word, so
 // the places where a climb would have stopped are where a carried context has to start
 // over: `closest` stops at a shadow root, and a slotted node reads where its host
@@ -289,6 +302,62 @@ test("a line break assigned to a shadow slot separates its words", () => {
   host.innerHTML = "Alpha<br>Beta";
   assert.equal(says(host.shadowRoot), "Alpha Beta");
   assert.equal(pageText().raw, "Alpha Beta");
+});
+
+test("a selection in nested slots keeps exactly the rendered words it covers", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-nested-slots" },
+  });
+  document.body.innerHTML =
+    '<main><p id="before">Before</p><lf-staged id="outer"></lf-staged>' +
+    '<p id="after">After</p></main>';
+  const stage = (host, label) => {
+    const template = document.createElement("template");
+    template.innerHTML = `<p>${label}</p><slot></slot><p>${label} tail</p>`;
+    return shadowStage(host, [...template.content.childNodes]);
+  };
+  const outer = document.querySelector("#outer");
+  const outerRoot = stage(outer, "Outer");
+  const inner = document.createElement("lf-staged");
+  outer.append(inner);
+  const innerRoot = stage(inner, "Inner");
+  inner.innerHTML = '<p id="words">Selected words</p>';
+  const words = inner.querySelector("p");
+  // happy-dom distributes assignedNodes but has no assignedSlot getter.
+  // State the ancestry the native browser gives these same nodes.
+  Object.defineProperty(inner, "assignedSlot", {
+    value: outerRoot.querySelector("slot"),
+  });
+  Object.defineProperty(words, "assignedSlot", {
+    value: innerRoot.querySelector("slot"),
+  });
+  assert.equal(
+    quoteFrom(pageText().segments),
+    "Before Outer Inner Selected words Inner tail Outer tail After",
+  );
+  const range = document.createRange();
+  range.selectNodeContents(words);
+  assert.equal(quoteFrom(segmentsIn(range)), "Selected words");
+  range.setStart(words.firstChild, 3);
+  range.setEnd(words.firstChild, 8);
+  assert.equal(quoteFrom(segmentsIn(range)), "ected");
+  range.setStart(document.querySelector("#before").firstChild, 0);
+  range.setEnd(words.firstChild, words.textContent.length);
+  assert.equal(quoteFrom(segmentsIn(range)), "Before Outer Inner Selected words");
+  range.setStart(words.firstChild, 0);
+  range.setEnd(document.querySelector("#after").firstChild, 5);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Selected words Inner tail Outer tail After",
+  );
+  range.selectNode(outer);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Outer Inner Selected words Inner tail Outer tail",
+  );
+  range.selectNodeContents(innerRoot.querySelector("p"));
+  assert.equal(quoteFrom(segmentsIn(range)), "Inner");
 });
 
 test("a declared label inside chrome is read down to its last word", () => {

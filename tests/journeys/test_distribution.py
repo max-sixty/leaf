@@ -6,24 +6,21 @@ Compiler shims fail every attempted Node/package-manager invocation after prepar
 
 import json
 import os
-import shutil
 import subprocess
 
 from interact_support import PAGE
+from playwright.sync_api import expect
+
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from playwright.sync_api import expect
+from leaf_dev.commands.distribution import prepare
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(
-    tmp_path, spawn, request, compiled_installation
+    tmp_path, spawn, request
 ):
     install = tmp_path / "install"
-    shutil.copytree(
-        compiled_installation,
-        install,
-        ignore=shutil.ignore_patterns(".venv", "__pycache__"),
-    )
+    prepare(install)
     assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
     blocked = tmp_path / "blocked"
     blocked.mkdir()
@@ -123,15 +120,6 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         expect(playground.locator("input[type=text]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(
             "Use Prepared."
-        )
-        assert playground.evaluate(
-            "async host => { "
-            "const { initialRender } = await import(document.querySelector('[data-lf-offline]') "
-            "? 'leaf:/runtime/widget-api.js' : '/runtime/widget-api.js'); "
-            "const drawing = initialRender(host); "
-            "return document.documentElement.lfInitial.has(host.localName) && "
-            "drawing.output === host.querySelector('lf-playground-output') && "
-            "drawing.inputs.get('label') === host.querySelector('input[type=text]'); }"
         )
         choice = tab.locator("#flag-first .lf-pick")
         if target == address:

@@ -36,12 +36,14 @@
  * such as entering a reply or returning to a thread, asks it before moving anything.
  * Navigation does not: `nearest` stays the native alignment (rect.js,
  * `nearestScrollBy`), which fills the band with a tall destination partly in view, so a
- * fold the user goes to opens from its start.
+ * fold the user goes to opens from its start. Where a landing would leave a
+ * destination (`landedBox`) is read by the same arithmetic, so a surface that would
+ * stand over it there can give way first (floating-panel.js, `clearFor`).
  *
  * A landing is the reader's choice of where each box it moves stands (scrolling.js).
- * One in motion is counted as it starts, since the navigation that lands often changes
- * layout first, as opening a disclosure hands a region to a scroller of its own, and
- * the keeper's restore for that change runs before the motion ends.
+ * Count it as it starts, including an instant landing: navigation can change layout
+ * in the same task, so its scroll end alone cannot distinguish the landing from
+ * anchoring or a clamp before the keeper restores that layout change.
  *
  * A destination the user is on is measured by the box that wears its focus ring
  * (focus.js, `ringBox`), with its own margins, the ring's room: a playground's choice
@@ -80,10 +82,15 @@ import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
+import { setScroll } from "./arrivals.js";
 
 const land = (box, by, behavior) => {
-  if (behavior !== "instant") startScroll(box);
-  box.scrollBy({ ...by, behavior });
+  startScroll(box);
+  setScroll(box, {
+    top: box.scrollTop + (by.top ?? 0),
+    left: box.scrollLeft + (by.left ?? 0),
+    behavior,
+  });
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the
@@ -237,9 +244,13 @@ function verticalTravel(box, movement) {
   return { local, moved: local * scale };
 }
 
-export function scrollIntoReadingBand(where, holder, block, behavior) {
+// The moves a landing in the reading band makes, region by region from the one
+// holding `where` outward, each a box and the local offset it scrolls by, and how far
+// they carry the destination down the window together (`moved`). Scrolling and its
+// prediction (`landedBox`) both read it, so they can't disagree.
+function readingBandMoves(where, holder, block) {
   const [box, ...around] = scrollersOf(holder);
-  if (!box) return;
+  if (!box) return { moves: [], moved: 0 };
   const rect = destinationBox(where);
   const margin = topMargin(where, box);
   let { top, bottom } = rect;
@@ -250,13 +261,13 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     bottom += scrollMargin(where, "Bottom");
   }
   let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
-  if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+  const moves = [{ box, local, moved }];
   let inner = box;
   for (const outer of around) {
     top -= moved;
     bottom -= moved;
     const band = landingBand(outer);
-    if (!band) return;
+    if (!band) break;
     // An inner scroller restarts its own header slot. Read what covers its box
     // from the enclosing region, rather than reading the destination's reset slot.
     band.top = Math.max(band.top, readingTop(inner, outer));
@@ -267,9 +278,24 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
       outer,
       nearestScrollBy(top, bottom, band.top, band.bottom),
     ));
-    if (Math.abs(moved) >= 1) land(outer, { top: local }, behavior);
+    moves.push({ box: outer, local, moved });
     inner = outer;
   }
+  return { moves, moved: moves.reduce((sum, move) => sum + move.moved, 0) };
+}
+
+// Where travel's landing (`scrollIntoReadingBand`, centred, as anchor travel lands)
+// would leave `where`: in the band where its regions can scroll that far, and short
+// of it at a region's end.
+export function landedBox(where) {
+  const rect = destinationBox(where);
+  const { moved } = readingBandMoves(where, holderOf(where), "center");
+  return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
+
+export function scrollIntoReadingBand(where, holder, block, behavior) {
+  for (const { box, local, moved } of readingBandMoves(where, holder, block).moves)
+    if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry

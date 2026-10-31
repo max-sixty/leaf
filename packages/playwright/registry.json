@@ -415,8 +415,7 @@
     "x-visual": {
       "prefixes": ["trace-"]
     },
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
-    "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>"
   },
   "lf-trace-bookmark": {
     "description": "A labeled link to one captured image or action phase in its trace.",
@@ -458,7 +457,7 @@
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,
-    "x-views": true,
+    "x-views": { "members": "lf-trace, :has(lf-trace)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }

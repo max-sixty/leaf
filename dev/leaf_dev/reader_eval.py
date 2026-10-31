@@ -9,6 +9,7 @@ the rubric's wording fails one of them. This calibrates count reading, not
 general page acceptance or the live authoring judge's reliability.
 """
 
+import json
 from pathlib import Path
 
 import turbohtml
@@ -17,7 +18,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source
 from leaf_dev.arrangement_eval import Run, capture_phase, listing
-from leaf_dev.commands.distribution import cached_installation
+from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("reader_eval")
@@ -53,14 +54,15 @@ def execute_scenario(
     condition: str = "leaf",
 ) -> dict:
     """Render the scenario's page; no author is invoked to construct it."""
-    payload = cached_installation(payload)
+    payload = current_kernel(payload)
     work.mkdir(parents=True, exist_ok=True)
     source = work / "source.html"
     source.write_text(fixture(CASES[case]))
     (work / "work-dir").write_text(str(work))
     run = Run("dashboard", payload, work, shots)
     build_source(payload, run.state, source, work / "page")
-    captures = capture_phase(run, 1, work / "page")
+    captured = capture_phase(run, 1, work / "page")
+    captures = captured["captures"]
     return {
         "output": "\n".join(
             [
@@ -70,5 +72,12 @@ def execute_scenario(
                 *listing(captures),
             ]
         ),
-        "metadata": {"checks": {"completed": all(captures.values())}},
+        "metadata": {"checks": {"completed": all(captures.values())}, **captured},
+        **(
+            {
+                "error": f"Screenshot capture unavailable: {json.dumps(captured['capture_errors'])}"
+            }
+            if captured["capture_errors"]
+            else {}
+        ),
     }

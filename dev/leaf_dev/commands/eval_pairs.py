@@ -8,6 +8,7 @@ both completed judgments name counts. Incomplete exploration is recorded as
 insufficient evidence, rather than a tie or a quality result. Model judgments
 and their native browser/agent traces are retained separately from execution checks.
 Verdicts go to `pairs.json` in the first run's directory.
+An incomplete native author keeps its pair position but receives no comparison grade.
 """
 
 import json
@@ -28,7 +29,7 @@ VERDICT = DEFINITION["output_schema"]
 
 def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
     """Each authored task's samples by column, in the order they started."""
-    found = defaultdict(lambda: defaultdict(list))
+    found: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
     for run in runs:
         results = json.loads((run / "results.json").read_text())["results"]["results"]
         for result in results:
@@ -68,15 +69,30 @@ def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
             "page": Path(sample["diagnostics"]["phases"][version]["page"]),
             "payload": Path(sample["diagnostics"]["payload"]),
             "condition": sample["diagnostics"]["condition"],
+            "author_reply": sample["diagnostics"]["phases"][version]["trace"]["reply"],
         }
         for label, sample in samples.items()
         for suffix, version in comparison["phases"].items()
     }
 
 
+def comparison_handovers(samples: dict[str, dict], comparison: dict) -> dict:
+    """Actual inputs by final page, retaining missing decision evidence as unknown."""
+    return {
+        label: sample["diagnostics"].get("decision")
+        for label, sample in samples.items()
+        if comparison["decision_task"] is not None
+    }
+
+
 def judge(a: dict, b: dict, evidence: Path) -> dict | None:
-    """One judgment of A against B, or None when the judge gives no verdict."""
+    """One judgment of completed outputs, or None when grading is unavailable."""
     evidence.mkdir(parents=True, exist_ok=True)
+    if not all(sample["checks"].get("completed") for sample in (a, b)):
+        (evidence / "response.json").write_text(
+            json.dumps({"error": "A native author did not complete; pair unscored."})
+        )
+        return None
     attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
     comparison = saved_comparison([a, b])
     response = judge_pages(
@@ -91,6 +107,7 @@ def judge(a: dict, b: dict, evidence: Path) -> dict | None:
         ),
         VERDICT,
         attempt,
+        handovers=comparison_handovers({"A": a, "B": b}, comparison),
     )
     (evidence / "response.json").write_text(json.dumps(response, indent=2))
     return response.get("output")
@@ -136,7 +153,7 @@ def eval_pairs(runs: tuple[Path, ...]):
                 f"{subject}: {first} has {len(firsts)} samples and {second} has "
                 f"{len(seconds)}; run each column the same number of times"
             )
-        for n, (x, y) in enumerate(zip(firsts, seconds), 1):
+        for n, (x, y) in enumerate(zip(firsts, seconds, strict=True), 1):
             orders = []
             for order, (a, b, names) in enumerate(
                 ((x, y, {"A": first, "B": second}), (y, x, {"A": second, "B": first})),

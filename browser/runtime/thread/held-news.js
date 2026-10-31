@@ -142,9 +142,10 @@
    it is scrolled, so nothing tells the reader a row is cut off. */
 import { html, render } from "/runtime/framework.js";
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
-import { offer } from "../widget-elements.js";
+import { offer, offerAction } from "../widget-elements.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { sizeObserver } from "../rendering.js";
+import { textWidth } from "../time-axis.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread } from "./focus.js";
@@ -163,7 +164,7 @@ import { watchOwner } from "../arrivals.js";
 // application publisher says which thread each stands in (`thread.gestured`). Their
 // words from another tab, or a turn a seat first draws after the log answered it, arrive
 // like the agent's.
-const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {
@@ -415,16 +416,21 @@ const newsParts = ({
   ].filter(Boolean);
 
 // What a notice says: each fact of the news, most telling first and each after the
-// first led by its separator, and the line they make.
+// first led by its separator, the line they make, and how many things wait in all, a
+// settling counting as one.
 const said = (news) => {
   const parts = newsParts(news).map((part, index) => (index ? ` · ${part}` : part));
-  return { parts, label: parts.join("") };
+  const { settled, replies, messages, edits, reactions, summaries, threads } = news;
+  const counts = [replies, messages, edits, reactions, summaries, threads];
+  const total = counts.reduce((sum, count) => sum + (count ?? 0), settled ? 1 : 0);
+  return { parts, label: parts.join(""), total };
 };
 
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({parts, label, reopened, open}); `open` returns the thread to land a
- *  keyboard on, since the notice goes with what it held. A held reopening's notice stands
- *  where Reopen did, with the same compact face as other news, and is the thread's
+ *  keyboard on, since the notice goes with what it held. It is an inline press that
+ *  announces news waiting (`data-lf-news`, controls.css). A held reopening's notice
+ *  stands where Reopen did, in the same face as other news, and is the thread's
  *  reopen control (`lf-reopen`), so the thread's Enter and `r` keep their meaning and
  *  press it to show the thread reopened. A `header` notice stands in a resolved panel
  *  card's title as a node of its own, since the notice in the card's rows may have
@@ -435,23 +441,56 @@ const said = (news) => {
  *  "1 new reply" with a message arriving after it still reads "1 new reply", where a cut
  *  read "1 new re…" (components/surfaces.css); the title and the accessible name keep
  *  every fact. While facts are dropped, the notice counts them at its end ("+1",
- *  `data-lf-more`), so a reader with no tooltip, as on a phone, knows more waits. The
- *  count reads the layout, so a size observer recounts whenever the words or a fact
- *  change size, a fact's first observation included. */
+ *  `data-lf-more`), so a reader with no tooltip, as on a phone, knows more waits. Where
+ *  even the first fact would be cut, the notice says one count of all that waits
+ *  instead (`data-lf-short`): "2 new", or "+2" where that doesn't fit either, so a
+ *  placement that gives it little room, as a phone's margin card does beside a head's
+ *  name and time, still reads. The facts keep their places under it, so what the
+ *  notice measures doesn't change with what it shows. The count reads the layout, so a
+ *  size observer recounts whenever the words or a fact change size, a fact's first
+ *  observation included. */
 export function newsNotice(header = false) {
-  const node = offer(
-    "button",
-    header
-      ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news"
-      : "lf-thread-notice lf-thread-notice-news lf-thread-news",
+  const node = offerAction(
+    "inline",
+    header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news",
   );
+  keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
+  // The news is Leaf's, every fact and count of it, so the words wear Leaf's voice
+  // whole, as the panel's field does a reading all Leaf says (voice.js).
+  words.dataset.voice = "leaf";
   node.append(words);
-  // A dropped fact wraps onto a line below the first (components/surfaces.css).
+  // A dropped fact wraps onto a line below the first (components/surfaces.css). The
+  // count stands just past the last fact shown, which a notice bounded wider than the
+  // facts it shows leaves short of the words' end (`--lf-news-shown`).
+  let total = 0;
   const dropped = sizeObserver(() => {
-    const [first, ...later] = /** @type {HTMLElement[]} */ ([...words.children]);
-    const count = later.filter((fact) => fact.offsetTop !== first.offsetTop).length;
+    const facts = /** @type {HTMLElement[]} */ ([...words.children]);
+    const shown = facts.filter((fact) => fact.offsetTop === facts[0].offsetTop);
+    const count = facts.length - shown.length;
     keeps(words, "data-lf-more", count ? `+${count}` : null);
+    // A fact a pixel short is the room's own rounding (surfaces.css), not a cut.
+    let short = null;
+    if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
+      const room =
+        node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
+      // The short form is drawn in the words' face, Leaf's, not the press's.
+      const face = getComputedStyle(words);
+      const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
+      short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
+    }
+    keeps(words, "data-lf-short", short);
+    const last = shown.at(-1);
+    if (!count) words.style.removeProperty("--lf-news-shown");
+    else
+      words.style.setProperty(
+        "--lf-news-shown",
+        layoutPx(
+          getComputedStyle(words).direction === "rtl"
+            ? words.clientWidth - last.offsetLeft
+            : last.offsetLeft + last.offsetWidth,
+        ),
+      );
   });
   let open = () => null;
   const show = () => {
@@ -478,6 +517,7 @@ export function newsNotice(header = false) {
       }
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
+      total = news.total ?? news.parts.length;
       open = news.open;
     },
   };
@@ -858,7 +898,7 @@ export class HeldReading {
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample does on input inside its child (lf-sample.js). */
+ *  live sample does on a click or key inside its child (lf-sample.js). */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();

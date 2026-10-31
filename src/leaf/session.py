@@ -19,12 +19,11 @@ from .files import file_stamp
 from .findings import Finding, note
 from .harness import Harness, claim_harness, session_harness
 from .hook_transport import HOOK_TIMEOUT_S
-from .interaction_log import record_command
+from .interaction_log import record_command, record_watch
 from .leases import (
     end_if_terminated,
     release_lease,
-    supersede_lease,
-    take_lease,
+    take_wait_lease,
     waiter_lease_path,
 )
 from .locations import path_location, paths_same
@@ -47,6 +46,7 @@ from .state import (
     session_record,
     state_home,
     still_named,
+    turn_closed,
 )
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
@@ -156,7 +156,7 @@ class Watch:
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with nothing left to bring it back: never served, or dead after a
     revival that did not hold. A stopped service is not lost: `server stop` is
-    the agent's own choice, and `page init` stops a served page to re-vendor it and
+    the agent's own choice, and `page init` stops a served page to re-initialize it and
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,
@@ -172,9 +172,12 @@ class Watch:
         self.session_id = harness.session if harness else None
         self.explicit_pages = pages
         targets = (None,) if harness else pages
-        self.lease_paths = tuple(
-            waiter_lease_path(page, self.session_id) for page in targets
-        )
+        lease_paths = []
+        for page in targets:
+            path = waiter_lease_path(page, self.session_id)
+            assert path is not None
+            lease_paths.append(path)
+        self.lease_paths = tuple(lease_paths)
         self.leases = []
         self._revived: set = set()
         self._lost: set = set()
@@ -194,7 +197,7 @@ class Watch:
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = supersede_lease(path) if supersede else take_lease(path)
+            lease = take_wait_lease(path, supersede=supersede)
             if lease is None:
                 self.release()
                 return False
@@ -282,6 +285,7 @@ class Watch:
             discovery, key, roots = plan()
             if not holds(key, roots):
                 install(key, roots)
+            assert self.changes is not None
             # Stamp the subscribed set. A locator added during installation must
             # differ at the next comparison, so its target is subscribed in turn.
             reading = self.reading(discovery)
@@ -299,6 +303,7 @@ class Watch:
         watched, before, generation = mark
         if self.watched != watched:
             return True
+        assert self.changes is not None
         deadline = time.monotonic() + timeout
         while True:
             if self.reading() != before:
@@ -657,8 +662,7 @@ def left_owed(page: PageTransaction) -> list[dict]:
     from .delivery import reminded
     from .served_state.context import read_page
 
-    claim = page.active_claim
-    if claim is None or claim["turn_closed"] is None:
+    if not turn_closed(page.active_claim):
         return []
     work = read_page(page.page_dir, page.events).work
     by_id = {event["id"]: event for event in page.events}
@@ -716,7 +720,7 @@ def watch_between_turns(
         with no Stop hook, leaving its record open, and the harness's own `idle`
         is the reading that moves then; a harness that gives none keeps the
         immediate wake, except for a prompt's watch."""
-        if claim["turn_closed"] is not None:
+        if turn_closed(claim):
             closed = later_closed.setdefault(claim["turn"], time.monotonic())
             return time.monotonic() > closed + HOOK_TIMEOUT_S
         live = harness.live_turn()
@@ -753,7 +757,7 @@ def watch_between_turns(
         if claim is not None and claim["turn"] != followed:
             return later_turn_wakes(claim)
         return (
-            (claim is not None and claim["turn_closed"] is not None)
+            turn_closed(claim)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
                 for event in pending
@@ -761,6 +765,8 @@ def watch_between_turns(
             or time.monotonic() > settled
         )
 
+    # How the watch ended, which its record in each page it read keeps.
+    ended = "stopped"
     try:
         while harness.process_runs():
             mark = watch.mark()
@@ -775,11 +781,14 @@ def watch_between_turns(
             )
             # Superseded during the pass, it leaves what it found to its successor.
             if not watch.holds():
+                ended = "superseded"
                 return None
             if reading.delivered is not None:
+                ended = "woke"
                 woke_after(harness.session)
                 return reading.delivered
             if reading.outcome is not None:
+                ended = "server-down"
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "
                     f"`leaf server start {tick.page_dir}`"
@@ -787,10 +796,13 @@ def watch_between_turns(
                     if tick.lost
                 )
             if not reading.live:
+                ended = "no-pages"
                 return None
             watch.await_news(mark)
+        ended = "harness-exited"
     finally:
         watch.release()
+        record_watch(watch.watched, harness.session, began, ended)
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     nudge_pending(harness.session)

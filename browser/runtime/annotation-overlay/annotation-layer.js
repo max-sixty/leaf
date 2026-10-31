@@ -11,12 +11,12 @@
    markers" would hide every arrival on every page.
 
    `setAnnotationsHidden` is the one writer. It states the fact on the root for the
-   stylesheets (theme.css, marks.css, chrome.css), keeps it for the tab, and tells each
+   stylesheets (base.css, marks.css, chrome.css), keeps it for the tab, and tells each
    watcher, so the margin can take focus and its card off what it hides. Readers ask
    `annotationsHidden()` rather than the root attribute, which is a rendering; a
    renderer that reads it repaints when it changes. */
 import { signal } from "/runtime/framework.js";
-import { tabStore } from "../storage.js";
+import { tabStore } from "../tab-store.js";
 import { setRuntimeRootAttribute } from "../root-state.js";
 import { pageCommand } from "../keyboard/register.js";
 import { notice } from "../notifications.js";

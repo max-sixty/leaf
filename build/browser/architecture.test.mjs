@@ -101,6 +101,7 @@ test("a namespace reexport is one declaration, not a named one with a specifier"
     ecmaVersion: "latest",
     sourceType: "module",
   }).body;
-  assert.equal(node.type, "ExportAllDeclaration");
+  assert(node.type === "ExportAllDeclaration");
+  assert(node.exported?.type === "Identifier");
   assert.equal(node.exported.name, "browser");
 });

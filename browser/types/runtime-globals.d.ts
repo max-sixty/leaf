@@ -23,48 +23,18 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a margin element layout or breakout reading changed what it writes (`prepaint.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`content-layout.js`). */
 interface LeafReading {
   changed: boolean;
 }
 
-/** The closed set of control roles, each with one face (`prepaint.js`, `ACTION_FACES`). */
-type LeafActionRole = "symbol" | "word" | "commit" | "mark";
+/** The closed set of control roles, each with one face (`control-faces.js`, `ACTION_FACES`). */
+type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
 
-/** A package's synchronous initial drawing of one host (`initial/<tag>.js`). */
-type LeafInitialRenderer = (
-  host: HTMLElement,
-  tools: {
-    tabStore: LeafStore;
-    offer: LeafInitial["offer"];
-    selectableOffer: LeafInitial["selectableOffer"];
-    selectableOfferElement: LeafInitial["selectableOfferElement"];
-    offerElement: LeafInitial["offerElement"];
-    offerAction: LeafInitial["offerAction"];
-    offerActionElement: LeafInitial["offerActionElement"];
-    generatedElement: LeafInitial["generatedElement"];
-    keeps: LeafInitial["keepsAttribute"];
-    /** Moves every child of the host into `node`, the box that holds its authored body. */
-    authoredBody<T extends Element>(node: T): T;
-  },
-) => unknown;
-
-/** The prepaint's initial drawing and root-state registries (`prepaint.js`). */
-interface LeafInitial {
-  /** The single Lit namespace initialized by the classic delivery, before modules. */
-  lit?: typeof import("lit") & Record<string, any>;
-  /** Initial insertion, replaced by dom-move.js before live module rendering. */
-  move(parent: Node, node: Node, before: Node | null): Node;
-  fragmentId(fragment: string): string;
-  externalLinks: {
-    attributes: string[];
-    matches(link: Element): boolean;
-    arrive(link: Element): void;
-    leave(link: Element): void;
-  };
-  keepsAttribute(node: Element, name: string, value: unknown): void;
+/** Root-state writers required by bootstrap before runtime modules load. */
+interface LeafRootState {
+  keeps(node: Element, name: string, value: unknown): void;
   setRuntimeRootAttribute(node: Element, name: string, value: unknown): void;
-  runtimeRootAttributes(node: Element): Set<string>;
   setRuntimeRootStyle(
     node: ElementCSSInlineStyle,
     property: string,
@@ -73,47 +43,8 @@ interface LeafInitial {
   ): void;
   removeRuntimeRootStyle(node: ElementCSSInlineStyle, property: string): void;
   wear(node: Element, dress: LeafDress): void;
-  runtimeRootStyles(node: Element): Set<string>;
-  authoredShell(node: Node): Node;
-  marginContentLayout(): LeafReading;
-  breakouts(): LeafReading;
-  layoutBox(): Element | null;
-  skipped(element: Element, parent?: (node: Element) => Element | null): boolean;
-  register(tag: string, render: LeafInitialRenderer): void;
-  has(tag: string): boolean;
-  paint(host: HTMLElement): unknown;
-  mount(template: HTMLTemplateElement): void;
-  restoreSource<T extends ParentNode>(root: T): T;
-  authoredCopy<T extends Node>(node: T, target?: Document | null): T;
-  reading<T extends Node>(node: T): T;
-  offer<K extends string>(
-    tag: K,
-    cls?: string,
-    label?: string,
-    inputType?: string,
-    pressable?: boolean,
-  ): K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement;
-  selectableOffer(role: string, cls?: string, label?: string): HTMLSpanElement;
-  selectableOfferElement(node: Element, role: string, cls?: string): void;
-  offerElement<T extends Element>(node: T, cls?: string, pressable?: boolean): T;
-  offerAction(
-    role: LeafActionRole,
-    cls?: string,
-    label?: string,
-    options?: { title?: string },
-  ): HTMLButtonElement;
-  offerActionElement<T extends Element>(
-    node: T,
-    role: LeafActionRole,
-    cls?: string,
-    label?: string,
-    options?: { title?: string },
-  ): T;
-  generatedElement<T extends Element>(node: T, options: { says: boolean | "echo" }): T;
-  origin(node: Node): Node | undefined;
-  parent(node: Node): Element | null;
-  /** The box a producer built to hold the host's authored children, if it built one. */
-  authoredBody(host: Element): Element | null;
+  attributes(node: Element): Set<string>;
+  styles(node: Element): Set<string>;
 }
 
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
@@ -141,35 +72,60 @@ interface HTMLElement {
   };
   /** The exception behind the first startup fault, kept before modules load. */
   lfStartupException?: { name: string; message: string; stack?: string } | null;
+  lfViews?: {
+    members(holder: Element): HTMLElement[];
+    opening(holder: Element, fallback?: HTMLElement | null): HTMLElement | null;
+    keep(
+      holder: Element,
+      member: HTMLElement | null,
+      leaving?: HTMLElement | null,
+    ): void;
+  };
+  lfLinks?: {
+    opensElsewhere(href: string | null): boolean;
+    markExternalLink(link: Element): void;
+  };
+  /** Optional focus-preserving mover used by the shared Lit bundle. */
   lfStorage?: {
+    initialDisclosureOpen(node: Element): boolean | undefined;
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
     userStore: LeafStore;
+    keepDisclosures(root: Document | ShadowRoot): void;
   };
   lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
-  /** Whether a link's target leaves the page, and the mark that says so (prepaint.js). */
-  lfExternalLink?: {
-    opensElsewhere(href: string | null): boolean;
-    mark(): SVGSVGElement;
-  };
   /** The floating panel's resting size. */
   lfChrome?: {
     /** `row` or `mark`. */
     readonly rest: string;
     setRest(value: string): void;
   };
-  lfInitial?: LeafInitial;
-  /** Which member a one-at-a-time holder opens on, and the record of each shown. */
-  lfViews?: {
-    opening(holder: Element, members: Element[]): Element;
-    keep(holder: Element, member: Element): void;
-  };
+  lfRootState?: LeafRootState;
   lfSample?: LeafSampleBridge;
 }
 
 interface HTMLElement {
   /** A thread seat's box: the row of its first message (`thread/box.js`). */
   lfFirstMessage?: HTMLElement;
+}
+
+interface Element {
+  /** The keys a widget binds while the user is in this element, as data Leaf reads when
+   * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
+   * title, rows and options, or a `commandScope()` value. */
+  lfCommands?:
+    | {
+        title: string | null;
+        rows: any[];
+        when?: () => boolean;
+        ready?: () => boolean;
+        escape?: "inner";
+        claims?: (binding: string) => boolean;
+      }
+    | ReturnType<typeof import("../runtime/keyboard/scopes.js").commandScope>
+    | null;
+  /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
+  lfCopy?: () => string;
 }
 
 interface HTMLScriptElement {
@@ -185,6 +141,8 @@ interface HTMLScriptElement {
 }
 
 interface Window {
+  lfMove?: (parent: Node, node: Node, before: Node | null) => Node;
+
   /** The sample bridge, kept across a sample child's document swaps. */
   lfSampleBridge?: LeafSampleBridge;
 }
@@ -206,6 +164,9 @@ interface WindowEventMap {
     error?: unknown;
     page?: boolean;
   }>;
+  /** A widget's words for a listener, which Leaf says in its live region
+   * (`widget-upgrade.js`, `announce`). */
+  "lf-announce": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
@@ -236,16 +197,8 @@ interface DocumentEventMap {
   }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<{ amount: number; unit: string }>;
-}
-
-interface HTMLElementEventMap {
-  /** An ancestor is asked to show `target` (`widget-elements.js`, `reveal`). */
-  "lf-reveal": CustomEvent<{
-    target: Element;
-    mayReveal(): boolean;
-    replacedView(): void;
-    present(ready?: Promise<unknown>): void;
-  }>;
+  /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
+  "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests

@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/3edd9c5e7ecf7c336713c9fd8f37c35584baa243/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/3edd9c5e7ecf7c336713c9fd8f37c35584baa243/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/6ad7cc888bbd294fc9e165a9e614b5a9754b2ff8/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/3edd9c5e7ecf7c336713c9fd8f37c35584baa243/demo/demo.gif)
 
 </details>
 

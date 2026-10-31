@@ -1,3 +1,4 @@
+import { render as tallyTemplate } from "./tally-view.js";
 /* lf-tally: how many of a region's obligations are still open, whose turn each is, and the
  * way to the next one waiting on the user.
  *
@@ -18,24 +19,17 @@
  * the walk counts from the obligation the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
- * The structure is the registry's `x-prepaint`, which delivery writes for the first
- * paint and this module fills in. Its room holds the widest words, both sides two digits
+ * One retained Lit drawing follows the server's
+ * reading in the same nodes. Its room holds the widest words, both sides two digits
  * wide and the agent called "the agent", so the words change without moving the control
  * beside them or what follows. A longer count or agent name widens the room once. */
 import {
   agentName,
   obligationsIn,
-  declarationFor,
   elementById,
-  keeps,
   LeafElement,
-  nothing,
-  offerAction,
-  generatedElement,
   obligationActions,
   readObligations,
-  relabel,
-  render,
   tally,
   tallyWords,
 } from "/runtime/widget-api.js";
@@ -43,34 +37,10 @@ import {
 customElements.define(
   "lf-tally",
   class extends LeafElement {
-    #rooms = [];
-    #words = null;
-    #next = null;
-
-    setup() {
-      const drawing = document.createElement("template");
-      drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
-      generatedElement(face, { says: false });
-      this.#rooms = [...face.querySelectorAll(".lf-tally-room")];
-      for (const room of this.#rooms) room.replaceChildren();
-      this.#words = face.querySelector(".lf-tally-words");
-      const seat = face.querySelector(".lf-tally-next");
-      if (this.hasAttribute("next")) {
-        this.#next = offerAction("word", "lf-tally-next");
-        seat.replaceWith(this.#next);
-        relabel(this.#next, "Next on me", { says: false });
-        this.#next.title = "Next on me here";
-        this.#next.setAttribute("aria-controls", this.getAttribute("for"));
-        this.#next.addEventListener("mousedown", (event) => event.preventDefault());
-        this.#next.addEventListener("click", () => {
-          const region = this.#region();
-          if (region) obligationActions.next({ within: region });
-        });
-      } else seat.remove();
-      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
-      this.append(face);
-    }
+    #next = () => {
+      const region = this.#region();
+      if (region) obligationActions.next({ within: region });
+    };
 
     #region() {
       return elementById(this.getAttribute("for"));
@@ -82,18 +52,22 @@ customElements.define(
       const ready = items.phase === "ready" && Boolean(region);
       const held = ready ? obligationsIn(region, items.all) : [];
       const count = tally(held);
-      keeps(this, "data-lf-ready", ready ? "" : null);
-      keeps(this, "data-lf-done", held.length && !count.open ? "" : null);
       // The drawing's two rooms hold the widest words, one calling the agent "the
       // agent" and one by its name; a longer count widens them once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       const widest = { onUser: digits, onAgent: digits, open: digits, total: digits };
-      const [generic, named] = this.#rooms;
-      render(tallyWords(widest, "the agent"), generic);
-      render(tallyWords(widest, agentName()), named);
-      render(ready ? tallyWords(count, agentName()) : "", this.#words);
-      if (this.#next) keeps(this.#next, "disabled", count.onUser ? null : "");
-      return nothing;
+      return tallyTemplate(
+        this,
+        {
+          ready,
+          done: Boolean(held.length && !count.open),
+          generic: tallyWords(widest, "the agent"),
+          named: tallyWords(widest, agentName()),
+          words: ready ? tallyWords(count, agentName()) : "",
+          onUser: count.onUser,
+        },
+        this.#next,
+      );
     }
   },
 );

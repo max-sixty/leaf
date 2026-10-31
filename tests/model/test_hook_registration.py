@@ -36,6 +36,43 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
+def test_an_older_installed_copy_delivers_through_the_copy_installed_since(
+    tmp_path, monkeypatch
+):
+    """Claude Code installs an update beside the copy a running session loaded and
+    records it in `installed_plugins.json`; the older copy's delivery runs the newer
+    one, and a checkout, which someone chose to run, runs itself."""
+    from leaf import session_runtime
+
+    cache = tmp_path / "plugins" / "cache" / "leaf" / "leaf"
+    launchers = {}
+    for version in ("0a0a0a0a0a0a", "1b1b1b1b1b1b"):
+        launcher = cache / version / "bin" / "leaf"
+        launcher.parent.mkdir(parents=True)
+        launcher.write_text("#!/bin/sh\n")
+        launcher.chmod(0o755)
+        launchers[version] = launcher.resolve()
+    (tmp_path / "plugins" / "installed_plugins.json").write_text(
+        json.dumps(
+            {"plugins": {"leaf@leaf": [{"installPath": str(cache / "1b1b1b1b1b1b")}]}}
+        )
+    )
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "0a0a0a0a0a0a")
+    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
+    # A bare command from the older copy runs the newer one, a hook its own way.
+    ran = []
+    monkeypatch.setattr(
+        session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
+    )
+    session_runtime.hand_off_command(["page", "state", "p"])
+    session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
+    assert ran == [[str(launchers["1b1b1b1b1b1b"]), "page", "state", "p"]]
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", cache / "1b1b1b1b1b1b")
+    assert session_runtime.delivering_launcher("") == launchers["1b1b1b1b1b1b"]
+    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "checkout")
+    assert session_runtime.installed_launcher() is None
+
+
 def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
     """An installed hook preserves stdin and defers lifecycle to the checkout.
 
@@ -80,8 +117,10 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
     }
     assert cleanup_model.session_record("selected-runtime") == before
 
+    # A selection whose checkout is gone falls back to the Leaf running, which
+    # refuses whatever page it can't read itself.
     selected.unlink()
-    refused = subprocess.run(
+    fallen_back = subprocess.run(
         [*LEAF_COMMAND, "hook", "--harness", "codex"],
         input=json.dumps(payload),
         capture_output=True,
@@ -89,15 +128,15 @@ def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypat
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert refused.returncode == 1
-    assert "selected Leaf launcher is unavailable" in refused.stderr
-    assert cleanup_model.session_record("selected-runtime") == before
+    assert fallen_back.returncode == 0, fallen_back.stderr
+    assert "argv" not in fallen_back.stdout
 
-    # A new generation returns to the installed default; the stale selection is
-    # never silently substituted while its generation still owns feedback.
+    # A new generation returns to the installed default.
     cleanup_model.end_session("selected-runtime")
     cleanup_model.ensure_session("selected-runtime", {})
-    assert "launcher" not in cleanup_model.session_record("selected-runtime")
+    value = cleanup_model.session_record("selected-runtime")
+    assert value is not None
+    assert "launcher" not in value
 
 
 def _registrations(harness):
@@ -302,7 +341,9 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
     payload = json.dumps({"hook_event_name": event, "session_id": "s1"})
-    turn = service_model.page_claim(claimed)["turn"]
+    claim_record = service_model.page_claim(claimed)
+    assert claim_record is not None
+    turn = claim_record["turn"]
     if event == "PostToolBatch":
         worker = run(
             json.dumps(
@@ -320,8 +361,12 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
     if event == "PostToolBatch":
-        assert service_model.page_claim(claimed)["turn"] == turn
-        assert service_model.page_claim(claimed)["turn_closed"] is None
+        claim_record_2 = service_model.page_claim(claimed)
+        assert claim_record_2 is not None
+        assert claim_record_2["turn"] == turn
+        claim_record_3 = service_model.page_claim(claimed)
+        assert claim_record_3 is not None
+        assert claim_record_3["turn_closed"] is None
         # The next tool boundary adds no repeated response-debt reminders.
         again = run(payload)
         assert (again.returncode, again.stdout, again.stderr) == (0, "", "")
@@ -475,7 +520,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
         assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
         return json.loads(called.read_text()) if called.exists() else None
 
-    session = harness_model.session_harness().session
+    harness_2 = harness_model.session_harness()
+    assert harness_2 is not None
+    session = harness_2.session
     assert run("PostToolUse", session) is None
     assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
 
@@ -751,7 +798,10 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
         page.take_claim(harness)
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)
+    assert claim is not None
     assert claim["turn"] == ("first-turn" if started else None)
     assert claim["turn_opened"] == (opened if started else None)
     assert claim["turn_closed"] is None
-    assert cleanup_model.session_record(sid)["transcript_path"] == str(source)
+    turn_record = cleanup_model.session_record(sid)
+    assert turn_record is not None
+    assert turn_record["transcript_path"] == str(source)

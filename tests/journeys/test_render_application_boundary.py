@@ -7,7 +7,6 @@ from browser.test_render_application_boundary import (
     package_workspace,
 )
 from interact_support import append_carried_log_record
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
@@ -28,6 +27,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.browser import slow_cpu
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -167,11 +167,11 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         slow_cpu(page, 6)
     if back_before_frame:
         page.evaluate("""() => {
-          const scrollBy = Element.prototype.scrollBy;
-          Element.prototype.scrollBy = function(options) {
-            const result = scrollBy.call(this, options);
+          const scrollTo = Element.prototype.scrollTo;
+          Element.prototype.scrollTo = function(options) {
+            const result = scrollTo.call(this, options);
             if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollBy = scrollBy;
+              Element.prototype.scrollTo = scrollTo;
               window.backRequestedAt = scrollY;
               queueMicrotask(() => history.back());
             }

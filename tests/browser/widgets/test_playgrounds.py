@@ -1439,7 +1439,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     # in its corner. Move there before click's actionability check.
     corner = send.bounding_box()
     assert corner is not None
-    page.mouse.move(corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2)
+    page.mouse.move(
+        corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2
+    )
     expect(page.locator(".lf-fab-bar .lf-compose-field")).to_have_attribute(
         "data-send-armed", ""
     )

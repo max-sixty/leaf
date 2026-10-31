@@ -887,7 +887,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the
-    // send hands them on to, as a reply does to its thread (`landSent`), never on the
+    // send hands them on to, as a first message does to its thread (`landSent`), never on the
     // control, where the next letters would fall on nothing. A pointer press never takes
     // the focus (moving it is mousedown's default), so the box keeps it until the send
     // moves it. A keyboard press on the control, or a pointer press while the user was

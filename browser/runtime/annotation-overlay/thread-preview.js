@@ -1026,8 +1026,10 @@ export function createThreadPreview({
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-      if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
-        scheduleThreadPreviewPosition();
+      if (row && !(node && under(node, row))) {
+        previewSession?.anchor.leftReply();
+        if (!row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
+      }
     });
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>

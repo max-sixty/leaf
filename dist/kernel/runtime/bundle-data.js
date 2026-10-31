@@ -4967,13 +4967,12 @@ function wireReply(key, row, input, wireInput, { hint, hintLead, accessibleName,
 			remember(composition);
 		},
 		send: (_text, raw, owns) => {
-			const { actions, landSent, sending, sent } = composition.binding;
+			const { actions, sending, sent } = composition.binding;
 			const land = sendLanding(input);
 			sending?.();
 			if (!sendReply(draftCtx, key, raw, owns, actions)) return;
 			if (sent) return sent();
-			landSent(closestAcross(input, THREAD));
-			land(focused());
+			land(input);
 		},
 		rows: [{
 			id: "message.edit.last",

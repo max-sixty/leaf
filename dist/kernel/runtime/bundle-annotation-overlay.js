@@ -121,14 +121,19 @@ var CardAnchor = class {
 	#sent = null;
 	#press = null;
 	#side = null;
+	#sentFrom = false;
 	constructor(surface) {
 		this.#surface = surface;
 	}
 	sending(attempt) {
 		this.#sent = attempt;
+		this.#sentFrom = true;
 	}
 	writing() {
 		this.#sent = null;
+	}
+	leftReply() {
+		this.#sentFrom = false;
 	}
 	#keepsSend(joined) {
 		return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
@@ -160,7 +165,7 @@ var CardAnchor = class {
 	}
 	#writing() {
 		const field = this.#field();
-		return Boolean(field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== ""));
+		return Boolean(field?.checkVisibility() && (field.value !== "" || !this.#sentFrom && currentLocationIn(field.closest(".lf-thread-reply"))));
 	}
 	#extent() {
 		const transcript = this.#surface.querySelector(".lf-thread-transcript");
@@ -206,6 +211,7 @@ var CardAnchor = class {
 		this.#sent = null;
 		this.#press = null;
 		this.#side = null;
+		this.#sentFrom = false;
 	}
 };
 
@@ -828,7 +834,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				scheduleThreadPreviewPosition();
 			}
 			const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-			if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
+			if (row && !(node && under(node, row))) {
+				previewSession?.anchor.leftReply();
+				if (!row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
+			}
 		});
 		declareOffFlowSurface(preview, { bringBack: (behavior) => scrollToElement(entryPlace(previewSession?.entry) ?? previewSession?.control, behavior, "nearest") });
 		move(chromeRoot, preview, chromeForeground);

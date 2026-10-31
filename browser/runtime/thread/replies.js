@@ -2,9 +2,13 @@
 
    A reply send draws its turn in the gesture that makes it. Its provisional result
    masks the words while the session still owes a refusal; acceptance finishes editing.
-   The send preserves the panel's narrowing and, whichever control sent it, leaves
-   focus on the conversation's card or title (`landSent`). Sending never returns focus
-   to the page. `c`, or Enter on the thread, opens the box again. A saved draft preserves
+   The send preserves the panel's narrowing and, whichever control sent it, leaves the
+   caret in the box for the next message, on a card or a seat as in the floating
+   panel's field; Escape takes the user to the thread. The user chose this on 31
+   October, as an experiment for consistency with the panel: a second send by mistake
+   is rare, so keeping the caret costs little. Reverting it would again leave focus on
+   the conversation's card or title (`landSent`, landing.js), ringed, where the next
+   message takes `c` or Enter on the thread first. A saved draft preserves
    words independently of the editor. External settlement retains a reply the user is
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
@@ -325,18 +329,16 @@ function wireReply(
       tellDraft(draftCtx, v);
       remember(composition);
     },
-    // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, read before the send draws, around wherever the send left them
-    // current location. A view whose box stays for the next turn lands the send itself
-    // (`sent`).
+    // The new turn is drawn above the box, which keeps the caret; the landing shows the
+    // turn with the box, read before the send draws. A view that lands its turns
+    // itself, as the floating panel's does, says so (`sent`).
     send: (_text, raw, owns) => {
-      const { actions, landSent, sending, sent } = composition.binding;
+      const { actions, sending, sent } = composition.binding;
       const land = sendLanding(input);
       sending?.();
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
       if (sent) return sent();
-      landSent(closestAcross(input, THREAD));
-      land(focused());
+      land(input);
     },
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
@@ -437,9 +439,8 @@ export async function restoreReplyEditing(editing, land) {
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
 // (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
-// where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread, told before the send draws
-// (`sending`). The view draws its row again
+// land a send's turn itself (`sent`), as the floating panel's view does at its end,
+// told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,

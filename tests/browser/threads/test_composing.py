@@ -269,7 +269,10 @@ ROW_FOOT = """box => {
 def send_reply(page, thread, box, words):
     """Type `words` into the thread's reply box, its lines on Shift+Enter, and send
     them; return where the row's foot stood before the send and after it drew."""
-    box.click()
+    # A send keeps the caret in the box, so only the first reply clicks into it: a
+    # click scrolls its target, ring room and all, into view, which no typing does.
+    if not box.evaluate("box => box.matches(':focus')"):
+        box.click()
     for at, line in enumerate(words.split("\n")):
         if at:
             page.keyboard.press("Shift+Enter")
@@ -514,6 +517,7 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
     [
         ("card", "pointer"),
         ("panel", "keyboard"),
+        ("diff-reply", "keyboard"),
         ("general", "pointer"),
         ("pause", "keyboard"),
         ("handoff", "pointer"),
@@ -525,9 +529,11 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
     """Pressing a box's submit control is its send key pressed from the box, so it leaves
     the user where Enter would, never on the button, where the next letters fall on
-    nothing. A box that stays to take more keeps them in it, typing on. A reply, or the
-    comment that starts a thread, finishes what they were writing: they stand on the
-    thread's card or title on every surface, and `c` writes the follow-up."""
+    nothing. A box that stays to take more keeps them in it, typing on, and so does a
+    reply's, on a card, in a widget's thread and in the panel alike, where a card's and
+    a widget's once left them on the thread. The comment that starts a thread finishes
+    what they were writing: they stand on the thread's card or title, and `c` writes
+    the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.

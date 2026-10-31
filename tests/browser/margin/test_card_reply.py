@@ -1471,7 +1471,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(preview.locator(".lf-msg").last).to_contain_text("Third point.")
     expect(preview.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
     rendered(page)
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(editor).to_be_focused()
     page.wait_for_function("replyMotion.frames.some(frame => frame.pending)")
     pending = finish(before, "editorFoot")
     assert pending["editorTop"] > before["editorTop"] + 20, (before, pending)

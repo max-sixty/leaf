@@ -4,7 +4,9 @@
    Reading follows the attachment; writing uses the room beside that attachment.
    Send keeps the reply's foot through its own result and receipt. The next arriving
    words restore ordinary reading, including more words in the same stream; writing
-   also ends that hold. A press instead keeps the control it
+   also ends that hold. The empty box a send leaves the caret in (replies.js) is no
+   writing until the user types there or comes back to it, so the answer they wait for
+   shows as it did when Send left them on the thread. A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, reading keeps the foot. Writing keeps the top. Beside its
@@ -36,6 +38,10 @@ export class CardAnchor {
   #press = null;
   /** @type {Seat["side"] | null} */
   #side = null;
+  // The box keeps the caret through a send (replies.js), but the empty box the user
+  // sent from is no draft being written until they type in it, or leave it and come
+  // back, so news, the answer they wait for first, shows as it does to a reader.
+  #sentFrom = false;
 
   /** @param {HTMLElement} surface */
   constructor(surface) {
@@ -46,12 +52,18 @@ export class CardAnchor {
   /** @param {string} attempt */
   sending(attempt) {
     this.#sent = attempt;
+    this.#sentFrom = true;
   }
 
   // Entering or editing the native reply starts a new writing place, even while
   // an earlier send remains in flight. Its later receipt cannot borrow it again.
   writing() {
     this.#sent = null;
+  }
+
+  // The user left the reply, so coming back into it is writing again.
+  leftReply() {
+    this.#sentFrom = false;
   }
 
   // Own words may reveal held news with them: that whole presentation is the send's
@@ -101,7 +113,8 @@ export class CardAnchor {
     const field = this.#field();
     return Boolean(
       field?.checkVisibility() &&
-      (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== ""),
+      (field.value !== "" ||
+        (!this.#sentFrom && currentLocationIn(field.closest(".lf-thread-reply")))),
     );
   }
 
@@ -169,5 +182,6 @@ export class CardAnchor {
     this.#sent = null;
     this.#press = null;
     this.#side = null;
+    this.#sentFrom = false;
   }
 }

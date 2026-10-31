@@ -49,7 +49,6 @@ import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
   replyIsEditing,
-  replyAvailable,
   dismissReply,
   threadHoldsDraft,
 } from "./replies.js";
@@ -290,7 +289,6 @@ export function threadReading(thread, surface, commands) {
       word,
       label,
     }),
-    reply: replyAvailable(thread),
     // The user's open to-dos on the thread, each named at the thread's head with its
     // Done (`threadTodos`), as the floating panel's field names one the user stands on
     // in the page.
@@ -332,8 +330,6 @@ export class ThreadView {
   }
   #transcript;
   #reply = null;
-  #replyShown = false;
-  #draftFrame = 0;
   #settlesAt = null;
   #marginControls = null;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
@@ -477,7 +473,7 @@ export class ThreadView {
     // reply still streaming, or where the transcript, at its cap and scrolled to its
     // end, follows it there (thread-preview.js). Anything else would move the head row
     // or the messages being read, so it waits. A settlement keeps the editor it
-    // interrupts on its own (`replyAvailable`).
+    // interrupts, as every thread keeps its reply box.
     if (this.#model?.surface === "margin") {
       if (news.settled) return false;
       const last = this.#model.messages.at(-1);
@@ -559,8 +555,6 @@ export class ThreadView {
       : null;
     const restoreFocus = holdFocus(this.node);
     this.#model = model;
-    const reply = model.reply || replyIsEditing(model.key);
-    this.#replyShown = reply;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
     if (marginControls && prior)
       marginControls.anchor.presented(threadChange(prior, model)?.joined);
@@ -597,7 +591,7 @@ export class ThreadView {
       arrived: Boolean(prior),
       appends: model.surface === "margin",
     });
-    if (reply && !this.#reply) this.#reply = this.#createReply(model);
+    this.#reply ??= this.#createReply(model);
     // In the head place the notice is a box of its own on the first header's line,
     // anchored to the header beside the controls' box at its end (surfaces.css,
     // `.lf-thread-content > .lf-thread-news`); its words change in place.
@@ -624,8 +618,7 @@ export class ThreadView {
             ? body
             : html`<div class="lf-thread-content">${body}</div>`
         }
-        ${reply ? (this.#continuity?.gap ?? nothing) : nothing}
-        ${reply ? this.#reply.node : nothing}
+        ${this.#continuity?.gap ?? nothing} ${this.#reply.node}
       `,
       this.node,
     );
@@ -635,6 +628,9 @@ export class ThreadView {
     if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
     else this.#releaseMarginNews();
     this.#continuity?.after(bodyPlace);
+    // The reply box's empty words follow the settlement (`#createReply`).
+    if (prior && Boolean(prior.resolved) !== Boolean(model.resolved))
+      this.#reply.sync();
     // A page thread whose render took the user's place puts them in its reply, or on
     // the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -940,17 +936,9 @@ export class ThreadView {
     };
   };
 
+  // Every thread keeps its reply box. A resolved thread's says that a reply reopens it
+  // (events.md), as the floating panel's field does.
   #createReply(model) {
-    // A settled thread keeps its box while a session stands, which every pass and the
-    // margin follow (`replyIsEditing`), so a keystroke repaints this card alone.
-    const replyChanged = () => {
-      if (!this.#reply || this.#draftFrame) return;
-      this.#draftFrame = nextRender(() => {
-        this.#draftFrame = 0;
-        if (!this.#reply) return;
-        if (this.#model.resolved) this.repaint();
-      });
-    };
     const commands = this.#commands.reply;
     return createReplyView(
       model.key,
@@ -970,7 +958,7 @@ export class ThreadView {
       },
       () => this.repaint(),
       {
-        onChange: replyChanged,
+        hint: () => (this.#model?.resolved ? "Reply to reopen" : "Reply"),
         editLast: this.#rewrites.editLast,
         // A margin card moves with the send it presents (thread-preview.js).
         sending: () => this.#marginControls?.sending?.(),
@@ -980,10 +968,6 @@ export class ThreadView {
 
   commit() {
     this.#transcript.commit();
-    if (!this.#replyShown && this.#reply) {
-      this.#reply.dispose();
-      this.#reply = null;
-    }
   }
 
   // The reply being written in this thread, which no view holds, comes into this one

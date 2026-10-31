@@ -699,8 +699,8 @@
   .lf-fp-quick > .lf-fp-chip {
     flex: 1;
   }
-  /* A view's Close at its controls' end, beside a widened field (floating-panel.js,
-     `closeAbove`), takes the face of the presses before it. */
+  /* A view's Close at its controls' end (floating-panel.js, `closeAbove`) takes the
+     face of the presses before it. */
   .lf-fp-controls > .lf-fp-chip {
     flex: none;
     justify-content: center;
@@ -725,8 +725,8 @@
   .lf-fp-on-user {
     justify-content: flex-start;
   }
-  /* The way out ends its seat, so Close stands under the last of a view's controls,
-     Resolve in a thread, rather than 11px inside it. */
+  /* The way out ends its seat, so it stands at the row's end rather than 11px inside
+     it. */
   .lf-fp-exit {
     justify-content: flex-end;
   }

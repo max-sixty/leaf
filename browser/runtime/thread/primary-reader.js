@@ -43,8 +43,7 @@ import { turns } from "./model.js";
    (selectors.js, `threadPart`), as the floating panel declares its field. A reply part takes
    the presentation's words for its box and its own landing of a send (replies.js,
    `createReplyView`). It stands in a resolved thread too, where a reply reopens the
-   thread: the presentation gave the box its place, unlike a card, which would add a
-   row for it (replies.js, `replyAvailable`). The thread itself, where a walk or a notice lands the keyboard, is
+   thread, as a card's reply row does. The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is.
    The notice of what the reader holds back (held-news.js) stands where the
    presentation nominates it (`parts.news`), as the floating panel stands it among its

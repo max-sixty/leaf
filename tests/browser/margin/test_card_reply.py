@@ -546,13 +546,13 @@ def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stoo
     engine, request, serve
 ):
     """A card whose foot stands within a line of where the window's foot holds a card
-    is held by that foot once its reply gains a line, and stands beside its passage
-    again once the line goes. Each change starts from where the card stood: at the
-    motion's first frame its outline, head row and turn are drawn where they were, and
-    at rest the card has moved. Read by the edge holding it after the change, the move
-    the line made read as the page carrying the card, which drew it part of a line lower
-    for a frame and travelled back (reported on 31 October 2026, toggling a new line in
-    Firefox)."""
+    is held by that foot once its reply gains a line, which shows at once, and stands
+    beside its passage again once the line goes, which travels. The travel starts from
+    where the card stood held: at the motion's first frame its outline, head row and
+    turn are drawn where they were, and at rest the card has moved down. Read by the
+    edge holding the card after the line went, its placement's move read as the page
+    carrying it, which drew it part of a line lower for a frame before it travelled back
+    (reported on 31 October 2026 in Firefox)."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
@@ -585,18 +585,23 @@ def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stoo
         held - 10, abs=1
     )
     page.evaluate("() => {" + HOLD_MOTION + "}")
-    for key, rises in (("Shift+Enter", True), ("Backspace", False)):
-        stood = preview.evaluate(CARD_DRAWN)
-        page.keyboard.press(key)
-        page.wait_for_function(
-            "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
-        )
-        drawn = preview.evaluate(CARD_DRAWN)
-        page.wait_for_function(CARD_RELEASED)
-        rest = preview.evaluate(CARD_DRAWN)
-        moved = rest[0] - stood[0]
-        assert (moved < -5) if rises else (moved > 5), f"{key} left the card: {moved}"
-        assert drawn == pytest.approx(stood, abs=1), f"{key}: {stood} -> {drawn}"
+    stood = preview.evaluate(CARD_DRAWN)
+    page.keyboard.press("Shift+Enter")
+    rendered(page)
+    held_up = preview.evaluate(CARD_DRAWN)
+    assert held_up[0] < stood[0] - 5, (
+        f"a line held the card nowhere: {stood} -> {held_up}"
+    )
+    page.wait_for_function(CARD_RELEASED)
+    page.keyboard.press("Backspace")
+    page.wait_for_function(
+        "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
+    )
+    drawn = preview.evaluate(CARD_DRAWN)
+    page.wait_for_function(CARD_RELEASED)
+    rest = preview.evaluate(CARD_DRAWN)
+    assert rest[0] > held_up[0] + 5, f"the line went and the card stayed: {rest}"
+    assert drawn == pytest.approx(held_up, abs=1), f"{held_up} -> {drawn}"
 
 
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(

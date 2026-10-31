@@ -140,10 +140,8 @@ export function createFloatingResponsePlacement({
   });
   function fabMotion() {
     const box = fabField();
-    // The composer, not the field's parent: the field stands in a rendered wrapper of
-    // no box of its own (`display: contents`), whose rectangle is empty, so the plane's
-    // carry read off it was always nothing and a scroll left the box's motion starting
-    // from where it stood before the scroll.
+    // The composer is the root, since the field's parent is a wrapper with no box of its
+    // own (`display: contents`), whose empty rectangle carries nothing with the plane.
     const composer = box.closest(".lf-composer");
     const motion = boxMotion({
       root: composer,
@@ -516,9 +514,9 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
-        // An open box's placement moves it only for a change of layout, as a line
-        // taking it past the window's edge shifts it, and never for a scroll, which
-        // carries it by CSS anchors (`watchFabPosition`), so what it moves travels.
+        // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
+        // moves travels when it follows a change of the box's size (box-motion.js,
+        // `placed`).
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
           fabPosition.stand(position);

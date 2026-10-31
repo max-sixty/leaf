@@ -267,8 +267,6 @@ export function boxMotion({
   // first as far as the edges holding the root moved since (`rebase`), and a box held
   // by its foot that grows at its top reads as growing, not as moving.
   let frame = null;
-  // The root's size where its placement last stood it (`placed`).
-  let placedSize = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   let timing = null;
   // Each part moving, from the box it was drawn at to its rest, on one clock.
@@ -978,26 +976,21 @@ export function boxMotion({
           });
       }
     },
-    // The box's placement stands it (`place`). Every placement goes through here, since
-    // one can change the edge that holds the box, as a line taking it past the window's
-    // foot holds it by that foot, and `rebase` measures the plane's carry by the edge
-    // that holds the box when it reads: read across that change, the move the line made
-    // read as the plane carrying the box whole, which drew it part of a line away for a
-    // frame before it travelled back. A placement answering a change of the box's size
-    // moves it as that change does, travelling from where it was drawn, so the next
-    // reading takes no carry; one at the size the last placement stood it at answers
-    // its plane, as a scroll re-solving a box held at the window's edge does, and the
-    // next reading carries it. Nothing reads the box once it stands: one stood in the
-    // page's plane can lay out where its anchor stood before the last scroll until the
-    // browser places it again (floating.js, `clientBox`).
+    // The box's placement stands it (`place`): once the box has a motion, its owner
+    // stands every placement through here. A placement can change the edges that hold
+    // the box, as a line taking it past the window's foot holds it by that foot, so the
+    // plane's carry is read first, by the edges that held it until then. What the
+    // placement moves is then the box's own change or its plane's. Standing it at a
+    // size its motion has not read yet, the placement follows that change of size: the
+    // next reading takes no carry, so the box travels from where it was drawn. At the
+    // size last read, it follows the plane, as a scroll re-solving a box held at the
+    // window's edge does, and the next reading carries it. So an owner reads a change
+    // of the box's size only once the placement that change asks for has stood it.
     placed(place) {
       rebase();
-      const size = { width: width(frame), height: height(frame) };
+      const read = rests?.get(root);
       const resized =
-        !placedSize ||
-        !near(size.width, placedSize.width) ||
-        !near(size.height, placedSize.height);
-      placedSize = size;
+        !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
       place();
       if (resized) frame = null;
     },

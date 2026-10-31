@@ -1,8 +1,9 @@
 // Records where a floating box's painted parts stand at every frame, for a test that
-// judges how they move (journeys/test_floating_box_motion.py). A test installs it as an
-// init script, then brackets its inputs with `lfMotionWatch.begin({box, ring})`, the
-// selectors of the box and of the ring its surface draws, and `lfMotionWatch.end()`,
-// which returns the frames.
+// judges how they move (journeys/test_floating_box_motion.py). A test installs it as an init
+// script, then brackets its inputs with `lfMotionFrames.begin({box, ring})`, the
+// selectors of the box and of the ring its surface draws, and `lfMotionFrames.end()`,
+// which returns the frames, waiting on `lfMotionFrames.count()` for the frames it needs
+// on either side of them.
 //
 // A frame's reading is taken after the browser has run that frame's callbacks, in a task
 // the frame posts, so it reads what the frame drew: the parts' translations and the
@@ -16,7 +17,7 @@
 //   each of its four edges;
 // - each control's box;
 // - each run of words by its first letter, in the page and in every shadow tree under
-//   the box, closed ones included, which the watch keeps as they are attached.
+//   the box, closed ones included, which the recorder keeps as they are attached.
 //
 // A part hidden, or reaching no farther than the window, is not read. The caret is not a
 // part: the user's key moves it, by design in one frame.
@@ -125,7 +126,7 @@
   ])
     addEventListener(type, () => inputs++, { capture: true, passive: true });
   let recording = null;
-  window.lfMotionWatch = {
+  window.lfMotionFrames = {
     begin({ box: boxSelector, ring: ringSelector }) {
       const frames = [];
       const channel = new MessageChannel();
@@ -143,6 +144,8 @@
       };
       requestAnimationFrame(frame);
     },
+    // How many frames stand recorded.
+    count: () => recording?.frames.length ?? 0,
     // How many inputs the page has handled, which a test reads before each of its own:
     // a frame belongs to the input whose events it has seen.
     inputs: () => inputs,

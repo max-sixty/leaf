@@ -263,7 +263,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		if (!preview.hasAttribute("data-lf-thread-placement")) return following.forget();
 		following.follow();
 	};
-	const followed = sizeObserver(followCard);
+	const followed = sizeObserver(() => {
+		if (previewSession && preview.hasAttribute("data-lf-thread-placement") && !preview.hasAttribute("data-lf-carried")) placedThreadPreview().then((stands) => stands && followCard());
+		else followCard();
+	});
 	const following = boxMotion({
 		root: face,
 		box: face,

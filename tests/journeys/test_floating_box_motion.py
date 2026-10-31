@@ -8,20 +8,22 @@ the user sees. Several rules place these boxes at once, their placement against 
 window's edges, their growth with the words and their motion, so the jerks hide in
 the cases where those rules meet: a box whose foot is a line from the window's, a key
 that lands while the last one's motion runs. Hypothesis draws those cases, and
-`motion_watch.js` records where each part is drawn at every frame.
+`motion_frames.js` records where each part is drawn at every frame. The draw is the
+same on every run, so a run's verdict is the code's; to look further, run it with
+`derandomize` off.
 
-Two jerks it caught stand as explicit examples: a margin card a new line held at the
-window's foot drawn part of a line lower for a frame, the one reported on 31 October
-2026, which also has its own test in `browser/margin/test_card_reply.py`; and a comment
-box scrolled to the window's foot drawn where it stood before the scroll, hundreds of
-pixels away, for a frame."""
+Two jerks it caught stand as explicit examples: a margin card held at the window's foot
+by a new line drawn part of a line lower for a frame as the line went, the one reported
+on 31 October 2026, which also has its own test in `browser/margin/test_card_reply.py`;
+and a comment box scrolled to the window's foot drawn where it stood before the scroll,
+hundreds of pixels away, for a frame as a line went."""
 
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 from browser.margin import LONG_THREAD_ROOT, LOW_PASSAGE_PAGE
-from hypothesis import HealthCheck, example, given, settings
+from browser_sources import browser_source
+from hypothesis import HealthCheck, Phase, example, given, settings
 from hypothesis import strategies as st
 from render_harness import open_page, resized, scroll_settled, write
 
@@ -29,9 +31,9 @@ from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-MOTION_WATCH = (Path(__file__).parent.parent / "motion_watch.js").read_text()
+MOTION_FRAMES = browser_source("motion_frames.js")
 
-# Each box, what opens it with the caret in its field, and its parts (`motion_watch.js`).
+# Each box, what opens it with the caret in its field, and its parts (`motion_frames.js`).
 COMPOSERS = {
     "card": {
         "box": ".lf-margin-preview",
@@ -110,7 +112,7 @@ def stand_foot(page, composer, gap):
 def jerks(frames, marks):
     """Each part an input moved two ways on an axis, from where it stood, farther than
     SLACK: drawn somewhere for a frame and then travelling back, turning back while it
-    travels, or vibrating. `marks` holds the watch's input count before each input, so
+    travels, or vibrating. `marks` holds the recorder's input count before each input, so
     a frame belongs to the input whose events it has seen. An input landing while a part
     moves starts its new motion from where that frame draws it, which may carry it on as
     far as it was going (box-motion.js), so that step is not a turn."""
@@ -139,19 +141,24 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
     """Whatever the edit, wherever the box stands against the window's foot, and
     whether the next key waits for the last one's motion or lands while it runs, each
     painted part of the box travels one way per input on each axis: its outline's
-    edges, its controls and its words (`motion_watch.js`)."""
+    edges, its controls and its words (`motion_frames.js`)."""
     browser = request.getfixturevalue(engine)
     url = serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT])
 
+    # Each example loads a page, so a failure is reported as drawn rather than shrunk.
     @settings(
         max_examples=20,
+        derandomize=True,
         deadline=None,
+        phases=[Phase.explicit, Phase.generate],
         suppress_health_check=[HealthCheck.too_slow],
     )
     @given(
         composer=st.sampled_from(sorted(COMPOSERS)),
         gap=st.integers(-40, 120),
-        draft=st.lists(WORDS, max_size=30).map(" ".join),
+        draft=st.lists(st.lists(WORDS, max_size=12).map(" ".join), max_size=3).map(
+            "\n".join
+        ),
         edits=st.lists(EDITS, min_size=1, max_size=4),
         quick=st.booleans(),
     )
@@ -162,9 +169,15 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
         edits=[("Shift+Enter",), ("Backspace", 1)],
         quick=False,
     )
-    @example(composer="comment", gap=0, draft="", edits=[("Shift+Enter",)], quick=False)
+    @example(
+        composer="comment",
+        gap=0,
+        draft="A first line.\n",
+        edits=[("Backspace", 1)],
+        quick=False,
+    )
     def moves_one_way(composer, gap, draft, edits, quick):
-        page = open_page(browser, url, init_script=MOTION_WATCH)
+        page = open_page(browser, url, init_script=MOTION_FRAMES)
         try:
             page.emulate_media(reduced_motion="no-preference")
             resized(page, 1440, 900)
@@ -174,26 +187,33 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
             at_rest(page, composer)
             stand_foot(page, composer, gap)
             field.focus()
-            page.evaluate("parts => lfMotionWatch.begin(parts)", COMPOSERS[composer])
+            page.evaluate("parts => lfMotionFrames.begin(parts)", COMPOSERS[composer])
+            page.wait_for_function("() => lfMotionFrames.count() >= 2")
             marks = []
             for edit in edits:
                 for press in [edit[0]] * (edit[1] if edit[0] == "Backspace" else 1):
-                    marks.append(page.evaluate("() => lfMotionWatch.inputs()"))
+                    marks.append(page.evaluate("() => lfMotionFrames.inputs()"))
                     if press == "type":
                         page.keyboard.type(" " + edit[1])
                     elif press == "paste":
                         page.keyboard.insert_text("\n".join([edit[1]] * edit[2]))
                     else:
                         page.keyboard.press(press)
+                    # Quick, the next key lands once this one's rendering is done,
+                    # while the motion it set going runs.
                     if quick:
-                        page.wait_for_timeout(80)
+                        rendered(page)
                     else:
                         at_rest(page, composer)
             at_rest(page, composer)
-            page.wait_for_timeout(100)
-            frames = page.evaluate("() => lfMotionWatch.end()")
+            # A few frames at rest, where a part still moving vibrates.
+            page.wait_for_function(
+                "count => lfMotionFrames.count() >= count",
+                arg=page.evaluate("() => lfMotionFrames.count()") + 5,
+            )
+            frames = page.evaluate("() => lfMotionFrames.end()")
             assert sum("outline top" in frame["parts"] for frame in frames) > 3, (
-                "the watch read no frames of the box"
+                "no frame read the box"
             )
             found = jerks(frames, marks)
             assert not found, "\n".join(found[:8])

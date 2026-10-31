@@ -319,7 +319,7 @@
       calc(
         (
             100% - var(--col) - var(--note) *
-              clamp(0, sign(100% - var(--col) - var(--note)), 1)
+              clamp(0, sign(100% - var(--col) - var(--note)) + 1, 1)
           ) /
           2
       )

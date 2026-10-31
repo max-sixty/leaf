@@ -32,7 +32,7 @@ for (const phase of ["waiting", "offline"])
     }
   });
 
-test("generated package views resolve declarations before opening or keeping a view", async () => {
+test("view reads leave generated holders untouched and keeping a choice paints them", async () => {
   const { openingView, keepView, viewMembers } =
     await import("../../browser/runtime/storage.js");
   adoptRegistry({
@@ -55,9 +55,12 @@ test("generated package views resolve declarations before opening or keeping a v
   try {
     const [opening, keeping] = holders;
     const [first, second, apparatus, former] = opening.children;
+    const before = opening.outerHTML;
     assert.equal(openingView(opening), first);
     assert.equal(openingView(opening, null), null);
     assert.deepEqual(viewMembers(opening), [first, second]);
+    assert.equal(opening.outerHTML, before);
+    keepView(opening, first);
     assert.equal(opening.getAttribute("data-lf-views"), "parts");
     assert.equal(apparatus.hasAttribute("data-lf-view"), false);
     assert.equal(former.hasAttribute("data-lf-view"), false);
@@ -65,6 +68,7 @@ test("generated package views resolve declarations before opening or keeping a v
 
     first.classList.remove("view");
     assert.equal(openingView(opening), second);
+    keepView(opening, second);
     assert.equal(first.hasAttribute("data-lf-view"), false);
 
     const [leaving, selected] = keeping.children;

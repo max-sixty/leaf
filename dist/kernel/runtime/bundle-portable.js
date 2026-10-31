@@ -472,6 +472,7 @@ ${evidence}`}`;
 //#region runtime/page-paint.js
 const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 	external: "data-lf-external",
+	viewMember: "data-lf-view",
 	obligation: "data-lf-obligation",
 	done: "data-lf-done",
 	restated: "data-lf-restated",
@@ -497,7 +498,7 @@ const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 });
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	class: "class",
-	viewMember: "data-lf-view",
+	viewMembers: "data-lf-view-members",
 	...RUNTIME_PAINT_ATTRIBUTE,
 	mediaWidth: "data-lf-media-width",
 	mediaHeight: "data-lf-media-height",

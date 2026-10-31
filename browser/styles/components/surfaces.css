@@ -517,6 +517,12 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
+/* A seat's threads close on their own reply boxes, and the seat's box for a new
+   thread stands a gap below them: flush, a reply being written there and the box
+   under it read as two fields of one thread. */
+.lf-thread-seat > :is(.lf-page-thread, .lf-resolved-threads) ~ .lf-say {
+  margin-top: var(--sp-3);
+}
 /* Adjacent whole threads are ruled apart; parts belong to their author's
    transcript. A seat contains only whole cards, its resolved group and reply row;
    there, inert outgoing pixels may stand between the live neighbors. */

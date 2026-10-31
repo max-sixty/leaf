@@ -10,8 +10,8 @@
    native placeholder, wears the run's one voice (`voiceOf`, floating-panel.css). A
    string is said by no one: a name, such as a thread's title or a mode's, an offer of
    a press, such as Reply, or where the user stands in a walk, which the interface
-   states in its own face. So a seat never decides a voice, and a word whose producer
-   gave it none can't be drawn as the agent's. */
+   states in its own face. So a seat never decides a voice: each word reaches it with
+   its speaker, or as the interface's own. */
 import { html } from "/runtime/framework.js";
 
 /** @typedef {"agent" | "leaf"} Voice */

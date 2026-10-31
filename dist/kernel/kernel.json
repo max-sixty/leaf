@@ -253,7 +253,7 @@
     "runtime/video-controls.js": "e742e8666ba72927a291b95b2f856ab70db49cd3c49ea44d1be23ebdb20e6855",
     "runtime/visible-target-parts.js": "5da29b54967c434353455d23197ff8ce75e2fbe7d90b1b70743761e5c4172a41",
     "runtime/visual-parts.js": "3a8cde069612090e05bec0f1bf8e32647c2851cdd6bdb0a66ce28896a9c12b32",
-    "runtime/voice.js": "74b704c968921d70949486a492658b91ebb8d7b460413dc2fb3dc5618b9fc70b",
+    "runtime/voice.js": "18abd582510e3d4447ae0da9d045418d3ee4fee8c1b734a9b00bf1ac132667ed",
     "runtime/walk-position.js": "305d2b7cea0522f487c1ca1e7e94570600fee24ac61b6b4a21d75c4a60f7dfdb",
     "runtime/widget-api.js": "ac52b915416096e1b21ec0b35488604eae105a3e185d25f48cf24ca3936f17fe",
     "runtime/widget-controller.js": "28551a45616d104772ff38171d4a85b29a13fd19b06435b7b3b6f25ac73cd9db",

@@ -2594,6 +2594,8 @@ STATES = (
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
+    # Its threads on the user's turn, tinted and saying so at their ends.
+    State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",

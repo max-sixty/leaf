@@ -220,7 +220,8 @@ function messageChange(prior, message) {
 // folded when the agent's answer arrives, moves what it covers but is that reply's news,
 // so the notice does not count it, and where it folds the run standing at the thread's
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
-// says the news is the agent answering the user, who had the last turn as drawn: all of
+// names the user's turn and the first reply answering it (null while only work
+// has arrived), when the user had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
 // which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. `joined` names new messages and existing streamed
@@ -325,8 +326,11 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     (message) => message.author === "user" && !message.progress,
   );
   const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
-  const answers =
-    turn >= 0 &&
+  const currentTurn = now.messages.findIndex(
+    (message) => message.key === was.messages[turn]?.key,
+  );
+  const answering =
+    currentTurn >= 0 &&
     was.messages
       .slice(turn + 1)
       .every((message) => message.progress || message.provisional) &&
@@ -338,6 +342,14 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     !folds.summaries.length &&
     (!news.appended || appendedAtEnd) &&
     ![...changed, ...folds.messages].some((key) => asked.has(key));
+  const answers = answering
+    ? Object.freeze({
+        turn: was.messages[turn].key,
+        reply:
+          now.messages.slice(currentTurn + 1).find((message) => !message.progress)
+            ?.key ?? null,
+      })
+    : null;
   return { news, changed, joined, folds, appendedAtEnd, footFold, answers };
 }
 
@@ -680,7 +692,7 @@ export class HeldNews {
               })
             : null;
         if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
-          return { ...thread, news: null };
+          return { ...thread, news: null, change: held };
         this.#holds.add(thread.key);
         // What the news changes stands as drawn. A held reopening's notice stands
         // where Reopen did, since opening it is what reopening would show.
@@ -692,6 +704,7 @@ export class HeldNews {
           working: news.working ? was.working : thread.working,
           ...(news.settled === "Reopened" && { settlement: null }),
           news,
+          change: null,
         };
       });
     const waiting = this.#threads.size;

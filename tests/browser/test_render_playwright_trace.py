@@ -14,6 +14,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    scroll_settled,
     still_page,
     told,
 )
@@ -25,8 +26,8 @@ from leaf_dev.page_fixtures import example_media
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve):
-    """The before/after result names differ at their ends, which must remain readable."""
+def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
+    """Result names stay readable and switching recordings keeps their evidence in view."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -35,6 +36,9 @@ def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve
     )
     for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
         page.get_by_role("radio", name=label, exact=True).tap()
+        image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
+        if recording == "after":
+            expect(image).to_be_in_viewport(ratio=1)
         moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
         moment.scroll_into_view_if_needed()
         measured = moment.evaluate("""row => {
@@ -49,6 +53,16 @@ def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve
         }""")
         assert measured["horizontal"] <= 1, measured
         assert measured["words"], measured
+        moment.tap()
+        expect(image).to_be_in_viewport(ratio=1)
+        expect(page.locator(".lf-trace-compare-controls")).to_be_in_viewport(ratio=1)
+
+    page.get_by_role("radio", name="After the fix", exact=True).press("Tab")
+    start = page.locator("#fix-after").get_by_role("button", name="Start", exact=True)
+    expect(start).to_be_focused()
+    scroll_settled(page)
+    chooser = page.locator(".lf-trace-compare-controls").bounding_box()
+    assert start.bounding_box()["y"] >= chooser["y"] + chooser["height"]
 
 
 def test_trace_bookmarks_leave_the_image_allocation(browser, serve):

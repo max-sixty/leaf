@@ -56,7 +56,8 @@ not by looking up the id yourself.
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, updates the fragment, and announces `success` or `missing`. Pass
+focuses it, updates the fragment, and announces `success`. An absent destination
+keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,

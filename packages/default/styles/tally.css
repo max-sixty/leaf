@@ -23,7 +23,6 @@ lf-tally {
 }
 :host(lf-tally) .lf-tally-count {
   display: inline-grid;
-  font-family: var(--sans);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -39,7 +38,7 @@ lf-tally {
  * it paints over whatever of its focus ring reaches the chip, and a space between the
  * two is narrower than the ring, so it keeps the ring's room after it. */
 :host(lf-tally) .lf-tally-next {
-  font-size: var(--t-6);
+  font: var(--font-small);
   padding-block: 0;
   min-height: var(--aim-floor);
   margin-inline-end: var(--focus-ring-room);

@@ -1238,6 +1238,15 @@ def activity_feed(page: Page) -> None:
     page.locator("#triage-moves").scroll_into_view_if_needed()
 
 
+def gloss_open(page: Page) -> None:
+    """A gloss's card, pinned open by a press on its phrase."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    gloss = page.locator("#bg-gloss")
+    gloss.scroll_into_view_if_needed()
+    gloss.click()
+    expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
+
+
 def settled_option(page: Page) -> None:
     """A settled decision collapsed to its one line."""
     page.locator("#bg-outcome").scroll_into_view_if_needed()
@@ -2357,6 +2366,15 @@ STATES = (
         scheme="dark",
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
+    State(
+        "gloss-open",
+        "developer/feature-gallery",
+        gloss_open,
+        region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("deck", "developer/deck", at_rest, region="#deck-catch-up"),
+    State("detail-dial", "developer/detail", at_rest, region="#detail-dial"),
+    State("file-editor", "developer/file-editor", at_rest, region="#research-file"),
     State(
         "settled-option",
         "developer/feature-gallery",

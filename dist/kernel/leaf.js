@@ -4818,6 +4818,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       type="button"
       class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
       ${namedAction("close", { label: "Close" })}
+      ?data-unoffered=${Boolean(search) && viewControls !== nothing}
       @mousedown=${(event) => event.preventDefault()}
       @click=${() => close()}
     ></button>`;
@@ -4854,7 +4855,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ?hidden=${viewControls === nothing}
               ?data-named=${top?.view === "queue"}
             >
-              ${viewControls}${closeAtFoot && !search ? viewClose : nothing}
+              ${viewControls}${closeAtFoot ? viewClose : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -5573,8 +5574,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	};
 	head.addEventListener("click", (event) => {
 		const press = event.target instanceof Element ? event.target.closest("button") : null;
-		if (!press || press.closest(".lf-fp-news-outlet")) return;
+		const route = trail.value.at(-1);
+		if (!press || !route?.thread) return;
 		if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
+		if (press.closest(".lf-fp-news-outlet")) arriveAt(route.thread);
 	}, { capture: true });
 	const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 	const holding = (view) => Math.max(0, ...[...view.children].map((child) => contentTop(child, view) + child.getBoundingClientRect().height));
@@ -6944,14 +6947,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const aux = html`${opening.unreadSeat ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-next-unread")}
-              aria-label="Next unread"
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
               @click=${() => void firstUnread(thread.key)}
             >
-              ${iconTemplate("down", "lf-action-icon")}<span class="lf-fp-words"
-                >Next unread</span
-              >
+              ${iconTemplate("down", "lf-action-icon")}Next unread
             </button>` : nothing}${opening.onPageSeat ? html`<button
               type="button"
               ${offeredAction("symbol", "lf-fp-on-page", inMessage ? "Show in message" : "Show on page", { action: "show" })}

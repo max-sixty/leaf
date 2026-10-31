@@ -338,7 +338,7 @@ def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
 
 def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     """The thread open in the panel answers the keys a card in Threads does, though its
-    reply is the field and its Resolve stands among the view's controls: Enter on the
+    reply is the field and its Resolve stands on the view's head line: Enter on the
     view puts the caret back in the reply with its words, `r` resolves the thread from
     the view, a message in it or its Resolve and moves the user on, here back to
     Threads with no other thread open, `z` takes the resolve back and opens the
@@ -907,7 +907,8 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     """News arriving while the user writes in an open thread waits behind a notice on
     the view's head line, before its presses. It reads whole, and no press and nothing
     in the messages moves; no message head carries it. Pressing it shows what was
-    held, the view growing to show it."""
+    held inside the view, which holds its height, so the presses beside the notice stay
+    under the pointer, and the first reply it held comes into sight."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -954,6 +955,7 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     expect(view.locator(".lf-msg")).to_have_count(3)
     expect(notice).to_be_hidden()
     settled(page)
+    assert page.evaluate(SEATS) == seats
     assert view.locator(".lf-msg", has_text="The export job first").evaluate(
         """message => {
             const seen = message.closest('.lf-fp-view').getBoundingClientRect();
@@ -1518,7 +1520,8 @@ def test_a_thread_s_row_and_its_passage_light_each_other(browser, serve):
 
 def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     """Searching Threads finds a thread by the words it is about as well as by its
-    name and messages: words only the passage holds find the thread on it."""
+    name and messages: words only the passage holds find the thread on it. The search
+    press stays under the pointer as the list's Close waits for the search's ✕."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     page = floating(browser, url)
@@ -1526,8 +1529,14 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     expect(rows).to_have_count(3)
     write(field(page), "Keep my page comment")
     editor = field(page).element_handle()
-    page.get_by_role("button", name="Find a thread or message").click()
+    find = page.get_by_role("button", name="Find a thread or message")
+    settled(page)
+    stood = find.bounding_box()
+    find.click()
     expect(page.locator(".lf-fp-mode")).to_have_text("Search threads")
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_hidden()
+    settled(page)
+    assert find.bounding_box() == stood
     expect(field(page)).to_be_hidden()
     page.locator("input.lf-fp-search").fill("schedule leaves")
     expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
@@ -2207,7 +2216,7 @@ def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve)
 
 def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
     """Opening a thread whose one unread reply is short reads it as the view lands, so
-    Next unread never shows among the view's controls, not even for the moment before
+    Next unread never shows on the view's head line, not even for the moment before
     the reply is read."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")

@@ -1096,7 +1096,7 @@
   .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-unoffered] {
     visibility: hidden;
   }
   /* Next unread is an inline press (controls.css) after its symbol, standing in the
@@ -1112,19 +1112,6 @@
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
-  }
-  /* On a phone the head line shares the panel's width between the thread's name and its
-     presses, so Next unread stands as its symbol alone, as a search's mode does, and the
-     name keeps its room. */
-  @media (max-width: 420px) {
-    .lf-fp-next-unread {
-      justify-content: center;
-      min-width: max(var(--lf-fp-press), var(--aim-floor));
-      padding: 0;
-    }
-    .lf-fp-next-unread > .lf-fp-words {
-      display: none;
-    }
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long

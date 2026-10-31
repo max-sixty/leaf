@@ -8,8 +8,12 @@ import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
-import { typedHeader } from "../runtime-sources.mjs";
+import {
+  buildOutputs,
+  checkOutputs,
+  checkRuntimeModules,
+  compilerPaths,
+} from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -95,6 +99,35 @@ count("wrong");
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
 });
 
+test("framework modules require their checking pragma", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-pragma-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const runtime = path.join(scratch, "browser/runtime");
+  await mkdir(path.join(runtime, "framework"), { recursive: true });
+  const file = path.join(runtime, "framework/unimported.js");
+  await writeFile(file, "export const value = 1;\n");
+  await assert.rejects(checkRuntimeModules(scratch), {
+    message:
+      "Start each framework module with `// @ts-check`, so the strict program checks it:\nbrowser/runtime/framework/unimported.js",
+  });
+  await writeFile(file, "// @ts-check\nexport const value = 1;\n");
+  await checkRuntimeModules(scratch);
+});
+
+test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-source-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const runtime = path.join(scratch, "browser/runtime/nested");
+  await mkdir(runtime, { recursive: true });
+  await writeFile(path.join(runtime, "types.d.ts"), "export type Value = number;\n");
+  await checkRuntimeModules(scratch);
+  await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
+  await assert.rejects(checkRuntimeModules(scratch), {
+    message:
+      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\nbrowser/runtime/nested/unimported.ts",
+  });
+});
+
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
@@ -143,14 +176,6 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
-  // Renaming a TypeScript owner must not leave its old delivery file as authored JS.
-  const orphan = "browser/runtime/removed.js";
-  await writeFile(
-    path.join(scratch, orphan),
-    typedHeader + "export const removed = 1;\n",
-  );
-  await assert.rejects(checkOutputs(outputs, scratch), /runtime\/removed\.js/);
-  await rm(path.join(scratch, orphan));
   // A kernel left behind by a merge names the command that rebuilds it.
   const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");

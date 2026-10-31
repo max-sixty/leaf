@@ -37,6 +37,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             // Producers add context only when it carries another fact. Version
             // comparisons do: their pair is provenance, separate from the account.
             context: item.mapContext,
+            contextVoice: item.contextVoice ?? null,
             receipt: item.workflowReceipt,
             awaitsUser: Boolean(item.userAttention),
           };

@@ -106,8 +106,9 @@ const TONES: Record<string, string> = {
  * listening is the usual case. */
 function statusOf({ kind, detail }: Leaf["activity"]) {
   const stated = (word: string) => (detail ? `${word} — ${detail}` : word);
-  // The agent's own sentence, as the row gives it (`leafRow`).
-  if (kind === "working") return detail || "Working on it";
+  // The agent's own sentence, as the row gives it (`leafRow`), or none: the tone of
+  // the word Leaf says it works.
+  if (kind === "working") return detail;
   if (kind === "stalled") return stated("Quiet");
   if (kind === "away") return "Away";
   return "";

@@ -128,6 +128,14 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
+Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
+token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
+the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
+packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
+marks over the page read the same value where it isn't `0`, so a comment's or an aim's
+frame stands where the ring does.
+
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
 scrolls that box rather than the control into view with room for its ring.
@@ -146,7 +154,7 @@ choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`, `--muted-2`; `--rule`, `--border-2`                                                                                    |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
 | Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |

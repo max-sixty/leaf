@@ -2,7 +2,7 @@
  * the browser's >=50 ms frames, not every task or all CPU time. Script attribution
  * names an entry point, not necessarily the function responsible for its cost.
  * Keep this in developer tooling: no instrumentation ships with a Leaf page. */
-const __leafMainThreadProbe = (() => {
+(() => {
   const supported =
     PerformanceObserver.supportedEntryTypes.includes("long-animation-frame");
   let frames = [];
@@ -28,15 +28,16 @@ const __leafMainThreadProbe = (() => {
   }
   const observer = new PerformanceObserver((list) => record(list.getEntries()));
   if (supported) observer.observe({ type: "long-animation-frame" });
-  return {
-    reset() {
-      observer.takeRecords();
-      frames = [];
+  Object.defineProperty(window, "__leafMainThread", {
+    value: {
+      reset() {
+        observer.takeRecords();
+        frames = [];
+      },
+      reading() {
+        record(observer.takeRecords());
+        return { supported, frames };
+      },
     },
-    reading() {
-      record(observer.takeRecords());
-      return { supported, frames };
-    },
-  };
+  });
 })();
-Object.defineProperty(window, "__leafMainThread", { value: __leafMainThreadProbe });

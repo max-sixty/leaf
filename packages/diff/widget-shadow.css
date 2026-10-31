@@ -410,17 +410,16 @@
 .lf-diff-line-comment::after {
   content: none;
 }
-.lf-diff-comment[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 1px;
+/* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
+.lf-diff-comment {
+  outline-offset: 0;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — base.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(lf-diff.lf-rendered) .lf-diff-file > details > summary[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
+  outline-offset: var(--focus-ring-inset);
 }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -428,9 +427,8 @@
    sides there; each row is positioned, so the row after painted over its lower run; and
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
-:host(lf-diff.lf-rendered) .lf-diff-line > [data-line][data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+:host(lf-diff.lf-rendered) .lf-diff-line > [data-line] {
+  outline-offset: var(--focus-ring-inset);
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
@@ -578,7 +576,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 [data-lf-focus-visible] + .lf-diff-frame {
   outline: var(--focus-ring);
@@ -614,7 +612,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */

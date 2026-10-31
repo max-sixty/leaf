@@ -108,10 +108,7 @@
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-}
-:is(.lf-mark-note, .lf-visual-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-mark-note[data-lf-focus] {
   opacity: 1;
@@ -180,7 +177,6 @@ html[data-lf-region-capture] main * {
 }
 .lf-version-inline-deletion {
   font: inherit;
-  line-height: inherit;
 }
 .lf-version-inline-deletion del {
   margin-inline-end: 0.28em;
@@ -326,7 +322,7 @@ html[data-lf-region-capture] main * {
     user-select: none;
     -webkit-user-select: none;
     --lf-mark-w: 16px;
-    font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+    font: var(--voice-ui);
     color: var(--ink);
     letter-spacing: normal;
     word-spacing: normal;
@@ -369,15 +365,15 @@ html[data-lf-region-capture] main * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  /* On the region's perimeter (base.css, --focus-region-gap), where the location ring
-     stands too: brackets are two 8px end strips of the outline keyboard focus draws
-     whole there. No state changes bounds, radius or offset, and an outline drawn at the
-     gap rounds its corners as the location ring's does. `--lf-mark-room` is how far the
-     band reaches outside the target, which each strip's clip starts from.
-     The placement owner supplies the target rectangle and its corner shape.
+  /* On the target's perimeter, where its focus ring and location ring stand too
+     (base.css, "Where it stands"): brackets are two 8px end strips of the outline
+     keyboard focus draws whole there. No state changes bounds, radius or offset, and
+     an outline drawn at the gap rounds its corners as the location ring's does. The
+     placement owner (target-paint-geometry.js, `standOver`) supplies the target
+     rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
+     how far the band reaches outside the target, which each strip's clip starts from.
      Keep this in shared chrome so Aim and an optional annotation painter agree. */
   :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
-    --lf-mark-offset: var(--focus-region-gap);
     --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
     &::before,
     &::after {
@@ -401,15 +397,6 @@ html[data-lf-region-capture] main * {
           calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
       );
     }
-    /* A control's marks stand at its ring's gap. A clip that leaves no room outside
-       the target (target-paint-geometry.js, `standOver`) puts them just inside its
-       edge, as a control packed into a list insets its own ring (base.css). */
-    &[data-lf-mark-on="control"] {
-      --lf-mark-offset: var(--focus-ring-gap);
-    }
-    &[data-lf-mark-on="inset"] {
-      --lf-mark-offset: calc(-1 * var(--focus-ring-w));
-    }
     &.lf-visual-mark-focus::after {
       clip-path: none;
     }
@@ -432,7 +419,7 @@ html[data-lf-region-capture] main * {
   .lf-dot {
     width: var(--lf-mark-w);
     height: var(--lf-mark-w);
-    background: var(--muted-2);
+    background: var(--muted);
     flex: none;
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
@@ -471,8 +458,8 @@ html[data-lf-region-capture] main * {
   }
   .lf-anchor-status {
     margin-inline-start: 7px;
-    color: var(--muted-2);
-    font: 500 var(--t-6)/1.25 var(--sans);
+    color: var(--muted);
+    font: var(--voice-status);
   }
 
   .lf-quote {
@@ -480,22 +467,17 @@ html[data-lf-region-capture] main * {
     padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2);
     color: var(--muted);
-    font-size: var(--t-working-label);
-    font-style: normal;
+    font: var(--voice-compact);
     cursor: pointer;
     overflow-wrap: anywhere;
   }
   .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
   }
-  .lf-quote[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
 
   .lf-quote.detached {
     border-inline-start-color: var(--border-2);
-    color: var(--muted-2);
+    color: var(--muted);
     cursor: default;
   }
   .lf-quote-expand {
@@ -761,7 +743,7 @@ html[data-lf-region-capture] main * {
     padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2))
       max(10px, var(--lf-safe-bottom))
       max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
-    font-size: var(--t-5);
+    font: var(--voice-ui);
     color: var(--muted);
     border-top: 1px solid var(--rule);
     max-height: 20dvh;
@@ -793,7 +775,7 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-preference small {
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -827,7 +809,7 @@ html[data-lf-region-capture] main * {
     margin: 6px 0;
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
@@ -907,7 +889,7 @@ html[data-lf-region-capture] main * {
     grid-area: desc;
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -941,14 +923,12 @@ html[data-lf-region-capture] main * {
     max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
-    padding-block: 1px;
-    line-height: 1.3;
     white-space: normal;
   }
   .lf-command-reference-scope {
     flex: none;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
   }
   /* A row's command is its one control: the button stretches over the row, so a press
      on its keys or description runs it too, and the row wears its wash and focus ring. */
@@ -980,7 +960,6 @@ html[data-lf-region-capture] main * {
   }
   .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 1px;
   }
   /* A dialog's head holds its title, then its other controls, with Close last. Every
      dialog the chrome opens sets its title in one face, the chrome's sans at weight
@@ -993,7 +972,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-dialog-title {
     flex: 1;
-    font-weight: 600;
+    font: var(--voice-title);
   }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
@@ -1020,15 +999,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  /* Inset, because a row here fills the list to its own edge and the list is a
-     scroller: there is nothing outside the row for a ring to be drawn in, and an
-     outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints. The ring's width is the inset,
-     so the band lands just inside the row's own edge. */
-  .lf-page-map-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
@@ -1071,12 +1041,34 @@ html[data-lf-region-capture] main * {
     padding: var(--focus-ring-room);
     scroll-padding: var(--focus-ring-room);
   }
+  /* Each section of the report is a region of the dialog, named in the label voice
+     (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title. What
+     names one value, a copyable text's or a list's (h3), is muted and small, as a
+     metric's term is, so no value's name outranks its section's. A heading stands
+     nearer what it names than what precedes it. A disclosure in a section is one of
+     its items, in the dialog's own voice rather than the reading theme's bold
+     summary. */
   .lf-inspection-body h2 {
-    font-size: var(--t-4);
-    margin-block: 18px 8px;
+    margin-block: 22px 6px;
+  }
+  .lf-inspection-body section:first-child > h2:first-child {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body :is(h2, h3) + * {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body h3,
+  .lf-copyable-head > span {
+    font: var(--voice-small);
+    color: var(--muted);
   }
   .lf-inspection-body h3 {
-    font-size: var(--t-5);
+    margin-block: 10px 2px;
+  }
+  /* The title starts where the report's words do, inside the room the report keeps
+     for a focus ring. */
+  .lf-inspection-dialog > .lf-dialog-head {
+    padding-inline-start: var(--focus-ring-room);
   }
   .lf-inspection-body details {
     margin-block: 10px;
@@ -1084,11 +1076,12 @@ html[data-lf-region-capture] main * {
   .lf-inspection-body summary {
     cursor: pointer;
     padding-block: 4px;
+    font: var(--voice-ui);
   }
   .lf-inspection-body pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font-size: var(--t-6);
+    font: var(--voice-code);
   }
   .lf-copyable-head {
     display: flex;
@@ -1103,7 +1096,7 @@ html[data-lf-region-capture] main * {
     border-radius: var(--r);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font: var(--t-6) / 1.5 var(--mono);
+    font: var(--voice-code);
   }
   .lf-inspection-metrics {
     display: flex;
@@ -1112,7 +1105,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-inspection-metrics dt {
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
   }
   .lf-inspection-metrics dd {
     margin: 0;
@@ -1209,7 +1202,7 @@ html[data-lf-region-capture] main * {
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
-    font-weight: 700;
+    font-weight: 600;
     box-shadow: var(--focus-shadow);
   }
   /* Search has one active result, painted as a quiet wash rather than a second native
@@ -1229,7 +1222,7 @@ html[data-lf-region-capture] main * {
     text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--voice-small);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
@@ -1254,8 +1247,7 @@ html[data-lf-region-capture] main * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 0 5px;
-    font-size: var(--t-6);
-    line-height: 1.5;
+    font: var(--voice-small);
     background: color-mix(in srgb, var(--accent) 12%, var(--card));
     color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
@@ -1280,8 +1272,7 @@ html[data-lf-region-capture] main * {
     white-space: nowrap;
     padding: 1px 6px;
     border-radius: var(--r-s);
-    font-size: var(--t-6);
-    line-height: 1.5;
+    font: var(--voice-small);
     background: var(--accent);
     color: var(--paper);
   }

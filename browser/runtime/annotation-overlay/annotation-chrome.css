@@ -169,7 +169,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])
     .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 0;
     --lf-wears-ring: 1;
   }
   .lf-fab-ground {
@@ -192,21 +191,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
-     6px under the composer row, or 6px over the
-     field when the box stands above its passage. The user chose this on 20 October
+     the shelf's gap clear of the field's ring (response.css), under the field, or over
+     it when the box stands above its passage. The user chose this on 20 October
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
      field. The pictures cover the page beside the box while the draft holds them, and
      in a window too short for both they can stand past its edge. The shelf's padding,
      which holds their shadows and removal reach (response.css), is taken back by its
      offsets. Only the pictures take presses, so the padding over page text takes
-     none. */
+     none. Under the field, the marks on the pictures' top corners face it, so the
+     pictures stand clear of it by the marks' reach too, which a finger's aim floor
+     makes wider than the gap: a tap on the field stays the field's. */
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media:not([hidden]) {
     position: absolute;
     /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
     grid-area: auto;
     inset-block-start: calc(
-      100% - var(--lf-comment-frame-bottom) + 6px - var(--lf-media-room)
+      100% - var(--lf-comment-frame-bottom) +
+        max(var(--lf-media-gap) + var(--focus-ring-w), var(--lf-media-room)) -
+        var(--lf-media-room)
     );
     inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
     max-width: calc(
@@ -219,7 +222,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
     .lf-composer-media:not([hidden]) {
     inset-block: auto
-      calc(100% - var(--lf-comment-frame-top) + 6px - var(--lf-media-room));
+      calc(
+        100% - var(--lf-comment-frame-top) + var(--lf-media-gap) + var(--focus-ring-w) -
+          var(--lf-media-room)
+      );
     align-items: flex-end;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"])
@@ -347,7 +353,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;
@@ -442,8 +448,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     flex: none;
     align-items: center;
     gap: 0;
-    color: var(--muted-2);
-    font-size: var(--t-7);
+    color: var(--muted);
+    font: var(--voice-fine);
   }
   .lf-margin-preview-position {
     white-space: nowrap;

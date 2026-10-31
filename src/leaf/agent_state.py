@@ -402,9 +402,9 @@ def page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
-    # The newest revision the user saw while the page was in front of them
-    # (`read_state.seen_revision`), which their page marks its changes since; behind
-    # `active`, they have not seen the revisions after it.
+    # The newest revision a tab showed the user, recorded as they left it
+    # (`read_state.seen_revision`), which their page marks its changes since on their
+    # return. It lags while they are still on the page.
     seen = served["seen"]
     state["seen"] = (
         {"revision": seen["revision"], "label": seen["label"]} if seen else None

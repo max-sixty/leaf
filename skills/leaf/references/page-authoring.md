@@ -94,8 +94,6 @@ rather than stacking past it.
 
 Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Let the content supply the hierarchy; give a card surface a grouping or interaction to
-express.
 
 ## Contents navigation
 

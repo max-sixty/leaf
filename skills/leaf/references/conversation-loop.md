@@ -192,34 +192,37 @@ Work on an update that finishes inside the turn needs no to-do.
 The user's **On me** list holds everything waiting on them: each decision your work
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
-present for their judgment, not only the one you recommend. Ask each as a direct
-question by a route in the table below, grouped as `authoring-on-me.md` says, and keep
-it until the user decides or you withdraw it. A question written in prose, a heading,
-a status line or chat isn't on On me; only the routes in the table put it there.
-Information they may comment on but need not decide is not an obligation.
+present for their judgment, not only the one you recommend. Ask each by a route in
+the table below, grouped as `authoring-on-me.md` says, and keep it until the user
+decides or you withdraw it. A question written in prose, a heading, a status line or
+chat isn't on On me; only the routes in the table put it there. Information they may
+comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On me doesn't
-hold, adds each to On me as your to-do on the user, and tells you at your next step.
-That catches what slips; it doesn't register your questions for you, so keep asking
-by the routes below. Each to-do it adds is yours like any you write: end one that
-isn't the user's to decide with `leaf task end <page> <id> dropped`.
+hold. It asks each question in a new thread as your message with `--obligation`, puts
+each step On me as your to-do on the user, places either on the passage it concerns
+or the page, and tells you at your next step what it wrote. That catches what slips;
+it doesn't ask for you, so keep asking by the routes below. What it writes is yours
+like anything you write: the user's reply reaches you as any reply does, and you end
+one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id being
+`message:<id>`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
-(`1`–`9`) answer it there. A to-do's press lands on its subject. The margin marks that
-subject with the to-do's title, and once the user is there the panel shows the title
-with a Done. A to-do on a thread shows its title and Done at the top of the thread. The
-title is all the user reads of the to-do, so it names the action without the page's
-help.
+(`1`–`9`) answer it there, and on a thread message, its thread opens on it. A to-do's
+press lands on its subject, which the margin marks, and opens On me on the to-do's
+title and Done. A to-do on a thread shows its title and Done at the top of the thread.
+The title is all the user reads of a to-do, so it names the action in a few words; an
+action that needs a sentence of context goes on a thread whose message gives it.
 
-| Request                                                                         | Register it                                                                                                                       | What answers it                                                                       |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                           | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
-| A conversational answer                                                         | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                | The user's next message there or a settling reaction                                  |
-| Permission for a stated action                                                  | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                        | The user's pick and its row in On me                                                  |
-| An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<direct question naming the action>" --on user`, on its thread, widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
+| Request                                                                         | Register it                                                                                                                         | What answers it                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                        | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                             | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
+| A question answered in words                                                    | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                  | The user's next message there or a settling reaction                                  |
+| Permission for a stated action                                                  | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                          | The user's pick and its row in On me                                                  |
+| An action neither route records, such as trying a build or connecting a browser | `leaf task create <page> <id> --title "<the action>" --on user`, on the thread that explains it, the element it concerns, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On me. A message that asks a

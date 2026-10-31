@@ -298,9 +298,12 @@
   /* The document's full width belongs to its grid. Prose takes the middle track;
    * wide exhibits start there and available exhibits span both margins. A nested
    * layout-flow shares those tracks with subgrid. Ordinary boxes contain their
-   * children, so a list item, custom grid or frame needs no geometry policing. */
+   * children, so a list item, custom grid or frame needs no geometry policing. Each grid
+   * keeps its items' margins apart from their children's (`--lf-items-keep-margins`,
+   * base.css). */
   .layout-column {
     --lf-leading-track: 1fr;
+    --lf-items-keep-margins: 1;
     display: grid;
     grid-template-columns:
       [full-start] minmax(0, var(--lf-leading-track))
@@ -340,6 +343,7 @@
    * rather than stretching the rows between the strip and its panel. */
   @container style(--lf-measure) {
     .layout-flow {
+      --lf-items-keep-margins: 1;
       display: grid;
       grid-template-columns:
         [full-start prose-start] minmax(0, 1fr)

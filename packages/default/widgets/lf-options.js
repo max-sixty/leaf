@@ -511,6 +511,7 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
+          commits: true,
           bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>

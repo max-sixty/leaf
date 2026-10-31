@@ -1,5 +1,5 @@
 /* A press that shows a symbol names its action, so one action shows one symbol on
- * every surface (browser/AGENTS.md, "Visual grammar"). */
+ * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { namedAction, offerAction, offeredAction } from "/runtime/widget-elements.js";

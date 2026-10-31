@@ -356,7 +356,6 @@ def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     widget, thread, any other element of the page by its id, or `page` for the
     page as a whole; the record. A thread attachment supplies discussion context
     without making a reply complete the task."""
-    from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -381,19 +380,32 @@ def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                         )
                     ]
                 )
-            record, _ = append_admitted(
-                page,
-                {
-                    "kind": "todo",
-                    "author": "agent",
-                    "owner": owner,
-                    "subject": named,
-                    "title": title,
-                },
-            )
-            return record
+            return open_todo(page, named, title, owner)
 
     return write(page_dir)
+
+
+def open_todo(
+    page, subject: dict, title: str, owner: str, identity: dict | None = None
+) -> dict:
+    """The agent's to-do appended in `page`, an open `service.PageTransaction`, as
+    `cmd_create` describes, on `subject` as the log names one; `identity` names the
+    agent and session where the writer isn't the agent's own process, as Leaf's clerk
+    is (`clerk.apply_answer`)."""
+    from .event_contracts import append_admitted
+
+    record, _ = append_admitted(
+        page,
+        {
+            "kind": "todo",
+            "author": "agent",
+            **(identity or {}),
+            "owner": owner,
+            "subject": subject,
+            "title": title,
+        },
+    )
+    return record
 
 
 def take_in_hand(page, item: str, text: str, identity: dict) -> dict:

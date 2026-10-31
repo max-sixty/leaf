@@ -35,7 +35,10 @@ import { turns } from "./model.js";
    thread's head and reply box itself, as the floating panel's view does; it stands
    instead of message parts of its thread, and grows at its foot, the growing tail
    (`data-lf-append-tail`) of an outlet that declares itself an append region, as the
-   panel's does. A message part offers the user's rewrite of it, and
+   panel's does. Its optional `drawn(answer)` runs after its DOM is placed, before
+   asynchronous widget preparation completes: null unless this draw answers the
+   user's last turn, otherwise its `{turn, reply}` keys, reply null for work alone.
+   A message part offers the user's rewrite of it, and
    a reply part ↑ to the latest, as a thread card does, through the thread's one
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller, a transcript's folds aside. The thread's reply destination is its reply box as
@@ -237,15 +240,18 @@ export function createPrimaryReader(
       return {
         paint: async () => {
           try {
-            await paint(current);
+            await paint(current, () => {
+              if (!active || current !== generation || abort.signal.aborted) return;
+              candidate.commit();
+              for (const item of nominations)
+                if (item.kind === "transcript")
+                  item.options.drawn?.(shown.get(item.key).change?.answers ?? null);
+            });
           } catch (error) {
             failing ||= current === generation;
             throw error;
           }
-          if (active && current === generation && !abort.signal.aborted) {
-            candidate.commit();
-            failed = false;
-          }
+          if (active && current === generation && !abort.signal.aborted) failed = false;
         },
         current: () => active && current === generation && !abort.signal.aborted,
       };
@@ -256,7 +262,8 @@ export function createPrimaryReader(
         Object.freeze({
           signal: abort.signal,
           thread: (key, outlet) => nominate("thread", key, null, outlet),
-          transcript: (key, outlet) => nominate("transcript", key, null, outlet),
+          transcript: (key, outlet, options) =>
+            nominate("transcript", key, null, outlet, options),
           message: (key, id, outlet) => nominate("message", key, id, outlet),
           reply: (key, outlet, options) =>
             nominate("reply", key, null, outlet, options),
@@ -280,7 +287,7 @@ export function createPrimaryReader(
       throw error;
     }
   }
-  async function paint(current) {
+  async function paint(current, drawn) {
     if (!active || generation !== current) return;
     for (const item of selected)
       if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner))
@@ -505,6 +512,10 @@ export function createPrimaryReader(
     // that no view holds (replies.js, `claim`).
     for (const view of views.values())
       view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
+    // The transcript is now on screen: it becomes the held-news baseline and its
+    // presentation can land it before the next frame. Widget preparation is separate
+    // readiness; waiting for it cannot postpone what these words already drew.
+    drawn();
     const widgets = [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>

@@ -132,13 +132,21 @@ REWRITTEN = (
     "<tr><th>Finding</th><td>Leaf</td></tr><tr><th>Behind</th><td>The agent</td></tr>"
     "</table>\n<p>The new reason.</p>"
 )
+KEPT_TABLE = '<table id="owners"><tr><th>Owner</th><td>Leaf</td></tr></table>'
 
 
 def test_a_section_rewritten_whole_is_one_change(browser, serve):
     """Rewriting a section changes every block in it, and the reader sees one edit, as
     a diff shows one hunk: each block keeps its tint, but the run has one margin entry
-    and one stop of the walk. A block the revision left alone separates two changes."""
-    url = live_url(serve(PAGE.replace('<p id="b">Beta reads one way.</p>', SECTION)))
+    and one stop of the walk. A block the revision left alone separates two changes.
+
+    The comparison lines the two versions' blocks up in order, so the new table's
+    "Leaf" cell is new, though the untouched table below holds the same word, and
+    that table stays unmarked."""
+    sectioned = PAGE.replace('<p id="b">Beta reads one way.</p>', SECTION).replace(
+        '<p id="d">', f'{KEPT_TABLE}\n<p id="d">'
+    )
+    url = live_url(serve(sectioned))
     d = serve.page_dir
     page = open_page(browser, url)
     visibility(page, "hidden")
@@ -148,10 +156,32 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
     visibility(page, "visible")
     # The heading, two paragraphs and four cells, and the paragraph after the gap.
     expect(page.locator("main .lf-ins-block")).to_have_count(8)
+    expect(page.locator("#owners .lf-ins-block")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(2)
     for expected in ("main h2", "#d", "main h2"):
         page.keyboard.press("h")
         expect(page.locator(expected)).to_be_focused()
+
+
+def test_a_change_ends_where_a_disclosure_does(browser, serve):
+    """A change hidden in a closed disclosure and one just after it are two changes,
+    so the one the reader can see keeps a margin entry of its own."""
+    folded = PAGE.replace(
+        '<p id="c">Gamma stays as it was.</p>',
+        '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
+    )
+    url = live_url(serve(folded))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    revise(d, ("Gamma reads one way.", "Gamma reads another way."), DELTA)
+
+    visibility(page, "visible")
+    expect(page.locator("main .lf-ins-block")).to_have_count(2)
+    expect(
+        page.locator('[data-lf-margin-for="d"] [data-lf-kinds~="change"]')
+    ).to_be_visible()
 
 
 def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(

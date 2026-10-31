@@ -436,12 +436,22 @@ export function createAnnotationInventory({
     const base = comparisonBase();
     // One entry per change (a run of changed blocks), beside the block the run starts
     // with, so a section rewritten whole gets one entry rather than one per paragraph.
+    // Its size counts what the reader sees changed: the children of the nearest element
+    // holding the whole run, so a rewritten table counts once rather than once a cell.
     comparisonChanges().forEach((change, index) => {
       const [target] = change;
-      const what =
-        change.length > 1
-          ? `${addressableWord(target)} and ${change.length - 1} more`
-          : addressableWord(target);
+      let holder = target.parentElement;
+      while (holder && !change.every((block) => holder.contains(block)))
+        holder = holder.parentElement;
+      const childOf = (block) => {
+        let at = block;
+        while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
+        return at;
+      };
+      const more = new Set(change.map(childOf)).size - 1;
+      const what = more
+        ? `${addressableWord(target)} and ${more} more`
+        : addressableWord(target);
       const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
       const inline = inlineComparison(change);
       const mapAccount = inline ? `${what} changed` : account;

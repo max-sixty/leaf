@@ -3421,7 +3421,15 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 		const base = comparisonBase();
 		comparisonChanges().forEach((change, index) => {
 			const [target] = change;
-			const what = change.length > 1 ? `${addressableWord(target)} and ${change.length - 1} more` : addressableWord(target);
+			let holder = target.parentElement;
+			while (holder && !change.every((block) => holder.contains(block))) holder = holder.parentElement;
+			const childOf = (block) => {
+				let at = block;
+				while (at.parentElement && at.parentElement !== holder) at = at.parentElement;
+				return at;
+			};
+			const more = new Set(change.map(childOf)).size - 1;
+			const what = more ? `${addressableWord(target)} and ${more} more` : addressableWord(target);
 			const account = `${what} changed${base == null ? "" : ` since ${base.name}`}`;
 			const inline = inlineComparison(change);
 			const mapAccount = inline ? `${what} changed` : account;

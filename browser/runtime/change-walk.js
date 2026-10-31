@@ -9,8 +9,10 @@
    A step starts from the user's place by the rule every page walk shares
    (current-target.js, `walkOrigin` and `stepFrom`), and lands on the block the change
    starts with, brought into view where it is not, with the walk's position said as
-   every walk says it (walk-position.js). A place anywhere in a change is at that
-   change. The change's margin entry opens what its blocks said before (version.js,
+   every walk says it (walk-position.js). A current location anywhere in a change is
+   at that change, so the next step goes on to the following one; from any other
+   origin a step compares only where each change starts, as an editor's next-hunk key
+   does. The change's margin entry opens what its blocks said before (version.js,
    `toggleInlineComparison`).
 
    The marks stand until the reader stops them, with Escape once nothing nearer is

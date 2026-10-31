@@ -176,6 +176,7 @@ import {
   rememberPassageParts,
 } from "./widget-loader.js";
 import { byRenderedOrder, under } from "./shadow.js";
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { replaceEntry } from "./history.js";
 import {
   blocksOnScreen,
@@ -653,7 +654,10 @@ function diffBlocks(root) {
       .map((attr) => [attr, w.getAttribute(attr)]);
     pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
   }
-  return pairs;
+  // In document order, which the comparison's ordered diff lines up.
+  return pairs.sort(([a], [b]) =>
+    a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+  );
 }
 /** One revision's browser reading at a log boundary, as `/api/view` answers it.
  * @returns {Promise<import("../types/contract.js").ServedViewAnswer["browser"]>} */
@@ -769,38 +773,71 @@ function standingFor(block, current) {
   }
   return null;
 }
-// The content half: the live nodes standing for the blocks of `current` whose words
-// `base` doesn't hold (`changed`) and for those it does (`kept`), both painted sources.
-// Multiset membership rather than an alignment: an unchanged block that merely moved
-// stays unmarked; a changed or new one has no twin. A revision landing asks it of the
-// source it replaced, to tint the blocks the revision changed.
+// The content half: the live nodes standing for the blocks of `current` that changed
+// since `base` (`changed`), both painted sources, and for the unchanged blocks that
+// separate one change from the next (`kept`). An ordered diff of the two sources'
+// block keys lines their blocks up, as a diff of a file's lines does, so a short block
+// such as a table's "No" cell is unchanged only where it lines up with the base, not
+// wherever the base holds the same words. A block the diff inserts with words it
+// removed elsewhere has only moved, and stays unmarked. A revision landing asks this
+// of the source it replaced, to tint the blocks the revision changed.
 function changedSince(base, current = currentSource()) {
-  const held = new Map();
-  for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
+  const before = diffBlocks(base.root).map(([, key]) => key);
+  const after = diffBlocks(current.root);
+  const parts = diffArrays(
+    before,
+    after.map(([, key]) => key),
+  );
+  const removed = new Map();
+  for (const part of parts)
+    if (part.removed)
+      for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
   const changed = new Set();
   const kept = new Set();
-  for (const [block, key] of diffBlocks(current.root)) {
-    const left = held.get(key) ?? 0;
-    if (left > 0) held.set(key, left - 1);
-    (left > 0 ? kept : changed).add(standingFor(block, current));
+  let next = 0;
+  for (const part of parts) {
+    if (part.removed) continue;
+    const blocks = after
+      .slice(next, (next += part.value.length))
+      .map(([block]) => standingFor(block, current));
+    if (part.added)
+      part.value.forEach((key, i) => {
+        const moved = removed.get(key) ?? 0;
+        if (moved) removed.set(key, moved - 1);
+        else changed.add(blocks[i]);
+      });
+    else for (const block of blocks) kept.add(block);
   }
   changed.delete(null);
   kept.delete(null);
   return { changed, kept };
 }
-// A change is a run of marked blocks with no unchanged block between them in rendered
-// order, as a diff's hunk is a run of changed lines. A reader takes such a run, such as
-// a section rewritten whole, for one edit. Each marked block keeps its own tint, and
-// everything that counts or visits changes reads the runs (`comparisonChanges`), so a
-// run has one margin entry, one stop of the walk and one place in a widget's count. An
-// unchanged block inside a marked one, such as a widget a changed paragraph holds,
-// doesn't end its run.
+// The view a block stands in, which shows and hides as one: the nearest native
+// disclosure holding it, or member of a widget's declared views (`x-views`), such as a
+// tab.
+function viewOf(block) {
+  for (let at = block.parentElement; at; at = at.parentElement) {
+    if (at.localName === "details") return at;
+    const members = registry[at.parentElement?.localName]?.["x-views"]?.members;
+    if (members && at.matches(members)) return at;
+  }
+  return null;
+}
+// A change is a run of marked blocks in one view with no unchanged block between them
+// in rendered order, as a diff's hunk is a run of changed lines. A reader takes such a
+// run, such as a section rewritten whole, for one edit. Each marked block keeps its own
+// tint, and everything that counts or visits changes reads the runs
+// (`comparisonChanges`), so a run has one margin entry, one stop of the walk and one
+// place in a widget's count. An unchanged block inside a marked one, such as a widget a
+// changed paragraph holds, doesn't end its run. A run ends where a view does, so a
+// change hidden in a closed disclosure or another tab doesn't hold the margin entry of
+// one the reader can see.
 function changeRuns(marked, kept) {
   const runs = [];
   let run = null;
   for (const node of byRenderedOrder([...new Set([...marked, ...kept])], (n) => n)) {
     if (marked.has(node)) {
-      if (!run) runs.push((run = []));
+      if (!run || viewOf(node) !== viewOf(run[0])) runs.push((run = []));
       run.push(node);
     } else if (!run?.some((block) => under(node, block))) run = null;
   }

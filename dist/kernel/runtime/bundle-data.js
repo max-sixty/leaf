@@ -8482,7 +8482,7 @@ function diffBlocks(root) {
 		const binding = [...bindingAttrs].sort().map((attr) => [attr, w.getAttribute(attr)]);
 		pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
 	}
-	return pairs;
+	return pairs.sort(([a], [b]) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
 }
 async function baseReading(baseRevision, throughSeq) {
 	const params = new URLSearchParams({
@@ -8559,14 +8559,23 @@ function standingFor(block, current) {
 	return null;
 }
 function changedSince(base, current = currentSource()) {
-	const held = /* @__PURE__ */ new Map();
-	for (const [, key] of diffBlocks(base.root)) held.set(key, (held.get(key) ?? 0) + 1);
+	const before = diffBlocks(base.root).map(([, key]) => key);
+	const after = diffBlocks(current.root);
+	const parts = diffArrays(before, after.map(([, key]) => key));
+	const removed = /* @__PURE__ */ new Map();
+	for (const part of parts) if (part.removed) for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
 	const changed = /* @__PURE__ */ new Set();
 	const kept = /* @__PURE__ */ new Set();
-	for (const [block, key] of diffBlocks(current.root)) {
-		const left = held.get(key) ?? 0;
-		if (left > 0) held.set(key, left - 1);
-		(left > 0 ? kept : changed).add(standingFor(block, current));
+	let next = 0;
+	for (const part of parts) {
+		if (part.removed) continue;
+		const blocks = after.slice(next, next += part.value.length).map(([block]) => standingFor(block, current));
+		if (part.added) part.value.forEach((key, i) => {
+			const moved = removed.get(key) ?? 0;
+			if (moved) removed.set(key, moved - 1);
+			else changed.add(blocks[i]);
+		});
+		else for (const block of blocks) kept.add(block);
 	}
 	changed.delete(null);
 	kept.delete(null);
@@ -8575,11 +8584,19 @@ function changedSince(base, current = currentSource()) {
 		kept
 	};
 }
+function viewOf(block) {
+	for (let at = block.parentElement; at; at = at.parentElement) {
+		if (at.localName === "details") return at;
+		const members = registry$1[at.parentElement?.localName]?.["x-views"]?.members;
+		if (members && at.matches(members)) return at;
+	}
+	return null;
+}
 function changeRuns(marked, kept) {
 	const runs = [];
 	let run = null;
 	for (const node of byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n)) if (marked.has(node)) {
-		if (!run) runs.push(run = []);
+		if (!run || viewOf(node) !== viewOf(run[0])) runs.push(run = []);
 		run.push(node);
 	} else if (!run?.some((block) => under(node, block))) run = null;
 	return runs.map((each) => Object.freeze(each));

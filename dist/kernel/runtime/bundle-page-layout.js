@@ -1862,14 +1862,22 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				a = Math.min(a, jointFrom);
 				b = Math.max(b, jointTo);
 			});
+			const hard = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length, end]).find(([at, end]) => at <= b && b <= end);
 			const insert = `\\\n${prefix}`;
+			const changes = state.changes(hard ? [{
+				from: Math.min(a, hard[0]),
+				to: hard[0]
+			}, {
+				from: hard[1],
+				insert
+			}] : {
+				from: a,
+				to: b,
+				insert
+			});
 			spec = {
-				changes: {
-					from: a,
-					to: b,
-					insert
-				},
-				selection: { anchor: a + insert.length }
+				changes,
+				selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) }
 			};
 		} else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
 		view.dispatch(state.update(spec, {

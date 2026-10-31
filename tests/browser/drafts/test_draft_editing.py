@@ -919,7 +919,14 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     # draft shows as a line.
     editor.evaluate("field => field.setSelectionRange(29, 29)")
     editor.press("Enter")
-    exact = "First **paragraph**.\n\nSecond\\\n`paragraph`."
+    expect(editor).to_have_js_property(
+        "value", "First **paragraph**.\n\nSecond\\\n`paragraph`."
+    )
+    # At a hard break, between its backslash and its line's end, Return begins the
+    # line after it.
+    editor.evaluate("field => field.setSelectionRange(29, 29)")
+    editor.press("Enter")
+    exact = "First **paragraph**.\n\nSecond\\\n\\\n`paragraph`."
     expect(editor).to_have_js_property("value", exact)
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
@@ -928,7 +935,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
         editor.press("ControlOrMeta+Enter")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
-    expect(draft.locator(".lf-draft-body > p br")).to_have_count(1)
+    expect(draft.locator(".lf-draft-body > p br")).to_have_count(2)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")
     expect(draft.locator(".lf-draft-body code")).to_have_text("paragraph")
     edits = [

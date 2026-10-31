@@ -964,13 +964,13 @@ function fieldEditor(
   // Return in a field that joins lines begins a line the body shows too, carrying the
   // markers of the containers the caret's line stands in. Among a paragraph's words it
   // writes a hard break, whose backslash the preview hides, in place of the spaces, and
-  // any joint, the selection touches. After a paragraph's last words, where a hard break
-  // would end its block and show its backslash, it begins a new paragraph, and in a list
-  // item the next item (`continueBlocks`). With none of a paragraph's words before the
-  // caret, in a container it continues the container as Shift+Enter does, leaving it on a
-  // bare line, and elsewhere, as after a heading, it is a plain line. Shift+Enter does
-  // the same here, since a line it continued in a container would join the paragraph
-  // above.
+  // any joint, the selection touches, and at a hard break it begins the line after it.
+  // After a paragraph's last words, where a hard break would end its block and show its
+  // backslash, it begins a new paragraph, and in a list item the next item
+  // (`continueBlocks`). With none of a paragraph's words before the caret, in a
+  // container it continues the container as Shift+Enter does, leaving it on a bare line,
+  // and elsewhere, as after a heading, it is a plain line. Shift+Enter does the same
+  // here, since a line it continued in a container would join the paragraph above.
   function newLine(view) {
     const { state } = view;
     if (!state.facet(joinsLines)) return insertNewline(view);
@@ -1010,11 +1010,25 @@ function fieldEditor(
         a = Math.min(a, jointFrom);
         b = Math.max(b, jointTo);
       });
+      // A hard break where the range ends, with the spaces before it, is a line already,
+      // so the new line begins after it.
+      const hard = placed
+        .filter(({ token }) => token.type === "hardbreak")
+        .map(({ from: at, to: end }) => [
+          at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length,
+          end,
+        ])
+        .find(([at, end]) => at <= b && b <= end);
       const insert = `\\\n${prefix}`;
-      spec = {
-        changes: { from: a, to: b, insert },
-        selection: { anchor: a + insert.length },
-      };
+      const changes = state.changes(
+        hard
+          ? [
+              { from: Math.min(a, hard[0]), to: hard[0] },
+              { from: hard[1], insert },
+            ]
+          : { from: a, to: b, insert },
+      );
+      spec = { changes, selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) } };
     } else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
     view.dispatch(state.update(spec, { scrollIntoView: true, userEvent: "input" }));
     return true;

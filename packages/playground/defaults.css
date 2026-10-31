@@ -413,7 +413,7 @@ lf-playground-value {
 /* The instruction opens from the bar as a popover (lf-playground.js), at the middle of
  * the window as a popover stands by default, so no anchor ties it to a bar that may be
  * stuck in a sticky rail, where Firefox draws an anchored box at the target's unstuck
- * place (notes/browser-support.md). It is a card in the panel's voice: its title in
+ * place (notes/browser-support.md). It is a card in the panel's fonts: its title in
  * small capitals over the instruction, which scrolls in the room the window leaves. The
  * bar's child selector outweighs a framed box's trim of its last child's margin. */
 .lf-playground-actions > .lf-playground-instruction {

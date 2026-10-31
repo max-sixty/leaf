@@ -35,7 +35,12 @@
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import {
+  atScrollEnd,
+  moveScrollerBy,
+  pageScroller,
+  scrollToEnd,
+} from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -55,7 +60,7 @@ import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
-import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
+import { registerReadingRegion, scrollerFor } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
@@ -148,7 +153,7 @@ export function createThreadPreview({
   // about, at the width it was carried at, until its placement chooses afresh.
   const carry = surfaceGrip({
     surface: preview,
-    bounds: () => commentBoundary({ region: previewSession?.region }),
+    bounds: () => commentBoundary({ scroller: previewSession?.scroller }),
     dropped(box) {
       const session = previewSession;
       if (!session) return;
@@ -455,8 +460,7 @@ export function createThreadPreview({
         extent: box,
         row: box.top,
         margin: null,
-        region: null,
-        scroller: effectiveScroller(cluster),
+        scroller: scrollerFor(cluster),
       };
     }
     const thread = threadCardThread(session);
@@ -499,8 +503,8 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ region: place.region });
-    session.region = place.region;
+    const boundary = commentBoundary({ scroller: place.scroller });
+    session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
@@ -703,7 +707,7 @@ export function createThreadPreview({
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
       // comment's card 13px wider than its box.
       width: origin?.box.width ?? null,
-      region: null,
+      scroller: pageScroller,
       // Whether the card's motion has read the card at its first spot (`followCard`).
       followed: false,
     };

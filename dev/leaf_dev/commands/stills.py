@@ -59,6 +59,8 @@ lists the faces it retired.
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
+Once the whole report is written, the command exits 1 if any state failed, so a
+caller that reads only the exit status still learns that a state went uncaptured.
 """
 
 import json
@@ -209,7 +211,7 @@ STYLES = """(properties) => {
   walk(document, "");
   return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
-# The computed properties that make a face, the voice a run of words is set in, which
+# The computed properties that make a face, the font a run of words is set in, which
 # `face_changes` compares across a run.
 FACE = [
     "font-family",
@@ -226,11 +228,12 @@ def at_rest(page: Page) -> None:
 
 
 def worktree_summaries(page: Page) -> None:
-    """Close the initially open worktree so the list's summary columns stand together."""
-    page.locator("#worktree-example-worktree-0 > details > summary").click()
-    expect(
-        page.locator("#worktree-example-worktree-0 > details")
-    ).not_to_have_attribute("open")
+    """Close the initially open worktree so the list's summary columns stand together.
+    Press the widget's summary by its class, since the authored evidence in the row
+    holds a summary of its own."""
+    worktree = page.locator("#worktree-example-worktree-0")
+    worktree.locator(".lf-worktree-summary").click()
+    expect(worktree.locator(".lf-worktree-disclosure")).not_to_have_attribute("open")
 
 
 def plan_execution(page: Page) -> None:
@@ -402,25 +405,26 @@ def panel_corner_hover(page: Page) -> None:
 
 
 def share_link(page: Page) -> None:
-    """The page's link as a readonly field reached by keyboard, where the leaf's menu
-    leaves it to select under About because the clipboard refused the copy."""
+    """The page's link, focused by keyboard as read-only text in About this page,
+    which the menu's Copy link opens when the clipboard refuses the copy."""
     page.evaluate(
         "() => { Clipboard.prototype.writeText ="
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    link = page.locator(".lf-fp-menu[data-level=group]").get_by_label(
-        "Link", exact=True
-    )
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
+    link = about.get_by_label("Link", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
     link.focus()
     expect(link).to_be_focused()
 
 
 def diff_filter(page: Page) -> None:
-    """A nonempty file filter with Clear and its match count inside one field."""
-    field = page.locator("#pr-key-hunk").get_by_role(
+    """A nonempty file filter with Clear and its match count inside one field, on the
+    walkthrough's whole patch, since a diff of one file offers no filter."""
+    field = page.locator("#pr-exact-patch").get_by_role(
         "searchbox", name="Filter diff files"
     )
     field.scroll_into_view_if_needed()
@@ -537,7 +541,7 @@ def motion_controls(page: Page) -> None:
 
 def timeline_steps(page: Page) -> None:
     """A timeline's Previous and Next beside its position, above its lanes."""
-    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+    page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -720,11 +724,11 @@ def seat_held_news(page: Page) -> None:
 
 def option_picked(page: Page) -> None:
     """The panel's row just after the plan's rollout option is picked and admitted,
-    while a passing notice would still stand in its status seat."""
+    which the live region alone announces."""
     option = page.locator("#plan-admin")
     option.scroll_into_view_if_needed()
     option.click()
-    expect(page.locator(".lf-live")).to_contain_text("— sent")
+    expect(page.locator(".lf-live")).to_contain_text("Chose “")
 
 
 def option_references(page: Page) -> None:
@@ -1605,10 +1609,12 @@ def more_menu(page: Page) -> None:
 
 
 def capture_menu(page: Page) -> None:
-    """Capture area, chosen from the leaf menu's Annotations."""
+    """Capture area, chosen from the leaf menu's Annotations, standing over the dimmed
+    page with no area drawn until a drag draws one."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="group:annotate"]').click()
     page.locator('.lf-fp-item[data-row="command:capture.region.open"]').click()
+    expect(page.get_by_role("region", name="Capture area", exact=True)).to_be_visible()
 
 
 def capture_area(page: Page) -> None:
@@ -1616,7 +1622,6 @@ def capture_area(page: Page) -> None:
     of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
@@ -1626,7 +1631,6 @@ def capture_small_drag(page: Page) -> None:
     """Hold a small selection over words, which must remain visible during the drag."""
     page.locator("#plan-current").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
     assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
@@ -1854,7 +1858,7 @@ def trace_timeline_by_keyboard(page: Page) -> None:
 
 def authored_timeline_step(page: Page) -> None:
     """A step reached by Tab, with the timeline's playhead on it."""
-    page.locator("#race-before .lf-timeline-step").first.click()
+    page.locator("#race .lf-timeline-step").first.click()
     page.keyboard.press("Tab")
     page.keyboard.press("Space")
 
@@ -1887,19 +1891,19 @@ STATES = (
         touch=True,
         region=".lf-inspection-dialog",
     ),
-    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State("authored-timeline", "lost-update", at_rest, region="#race"),
     State(
         "authored-timeline-keyboard",
         "lost-update",
         authored_timeline_step,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-dark",
         "lost-update",
         authored_timeline_step,
         scheme="dark",
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-phone",
@@ -1907,7 +1911,7 @@ STATES = (
         at_rest,
         viewport=(390, 900),
         touch=True,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "native-code",
@@ -2127,13 +2131,18 @@ STATES = (
         scheme="dark",
     ),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
-    State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
+    State(
+        "share-link",
+        "developer/feature-gallery",
+        share_link,
+        region='.lf-inspection-dialog [aria-label="Page details"]',
+    ),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
         "diff-filter",
         "pr-walkthrough",
         diff_filter,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "diff-separator",
@@ -2148,7 +2157,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "playground-text",
@@ -2374,7 +2383,7 @@ STATES = (
         "timeline-steps",
         "lost-update",
         timeline_steps,
-        region="#race-before .lf-timeline-controls",
+        region="#race .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",
@@ -2403,24 +2412,30 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("contents-spine", "developer/feature-gallery", at_rest),
     State(
         "topic-contents",
         "developer/feature-gallery",
         topic_contents,
         region="#bg-topic-contents",
     ),
-    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
+    # example draws one, so these states read a fixture built that way.
+    State("contents-spine", "../tests/fixtures/pages/sidebar-contents", at_rest),
+    State(
+        "contents-spine-keyboard",
+        "../tests/fixtures/pages/sidebar-contents",
+        contents_by_keyboard,
+    ),
     State(
         "contents-over-reading",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         region=".lf-toc-start a",
     ),
     State(
         "contents-over-reading-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         scheme="dark",
@@ -2428,17 +2443,27 @@ STATES = (
     ),
     State(
         "contents-spine-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_by_keyboard,
         scheme="dark",
     ),
     # Where the margin has no room for the map, and where a coarse pointer keeps the
     # sidebar's contents in the flow, at a roomy width and on a phone.
-    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
-    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-narrow",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        viewport=(900, 900),
+    ),
+    State(
+        "contents-coarse",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        touch=True,
+    ),
     State(
         "contents-phone",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         at_rest,
         viewport=(390, 844),
         touch=True,
@@ -3596,3 +3621,5 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
             + f" -> {out / 'faces.txt'}"
         )
     click.echo(f"files in {out}")
+    if failed:
+        raise SystemExit(1)

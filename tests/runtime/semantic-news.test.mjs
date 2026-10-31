@@ -410,23 +410,32 @@ test("deferred news drops superseded failures and edits", () => {
   assert.equal(said(current), "2 replies in 1 thread");
 });
 
-test("a notice sets apart only what Leaf read of the answer", () => {
-  // The agent's words stand as it wrote them; what became of an answer is Leaf's
-  // reading, in italic where the seat draws it; the list's name is the interface's.
-  const parts = semanticNewsNotice([
-    { kind: "agent_content", key: "content:m1", thread: "a", message: message("m1") },
-    { kind: "response_failure", key: "failure:f1", condition: "failed" },
-    { kind: "user_obligation", key: "obligation:o1", message: "another" },
-  ]);
+test("a notice sets the agent's words apart from Leaf's news", () => {
+  // The agent's words stand as it wrote them, and its acts as Leaf relays them; what
+  // became of an answer and what else is new are Leaf's, in italic where the seat
+  // draws them.
+  const voices = (news) =>
+    semanticNewsNotice(news).map((part) => [part.text, part.voice]);
   assert.deepEqual(
-    parts.map((part) => [part.text, part.voice]),
+    voices([
+      { kind: "agent_content", key: "content:m1", thread: "a", message: message("m1") },
+      { kind: "response_failure", key: "failure:f1", condition: "failed" },
+      { kind: "user_obligation", key: "obligation:o1", message: "another" },
+    ]),
     [
       ["Words of m1.", "agent"],
-      [" · ", null],
+      [" · ", "leaf"],
       ["Not answered", "leaf"],
-      [" · ", null],
-      ["New on me", null],
+      [" · ", "leaf"],
+      ["New on me", "leaf"],
     ],
+  );
+  const edited = message("m2", { edited: { id: "edit", seq: 2 } });
+  assert.deepEqual(
+    voices([
+      { kind: "agent_content", key: "content:m2", thread: "a", message: edited },
+    ]),
+    [["Edited: Words of m2.", "agent"]],
   );
   assert.deepEqual(semanticNewsNotice([]), []);
 });

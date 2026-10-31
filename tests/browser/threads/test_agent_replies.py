@@ -938,7 +938,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
-    ).to_have_text("Couldn't answer")
+    ).to_have_text("Not answered")
     expect(thread.locator(".lf-thread-working")).to_contain_text("Checking the board")
 
 
@@ -1103,7 +1103,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(page.locator("#cd-q .lf-thread-working")).to_contain_text(
         "Checking the south pair"
     )
-    expect(inline.locator(".lf-msg-failure")).to_have_text("Couldn't answer")
+    expect(inline.locator(".lf-msg-failure")).to_have_text("Not answered")
     assert inline.get_attribute("data-failure") == "turn_failed"
     # The real answer above it wears nothing, so the mark is a difference the user
     # can see rather than a decoration every agent message carries.
@@ -1141,23 +1141,25 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     page.unroute("**/api/event")
     expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
 
-    # The failed answer remains distinct from the muted clock without a chip face.
+    # The failed answer remains distinct from the muted clock without a chip face, in
+    # the colour of a warning and Leaf's italic.
     head = page.evaluate(
         """(id) => {
           const head = document.querySelector(
             `#cd-q .lf-msg[data-event="${id}"] .lf-msg-head`);
-          const failure = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          const failure = head.querySelector(".lf-msg-failure");
+          const words = getComputedStyle(failure.querySelector("[data-voice]"));
           return {
-            failure: failure.color,
-            border: failure.borderTopWidth,
-            weight: failure.fontWeight,
+            failure: words.color,
+            border: getComputedStyle(failure).borderTopWidth,
+            style: words.fontStyle,
             clock: getComputedStyle(head.querySelector("time")).color,
           };
         }""",
         receipt["id"],
     )
     assert head["failure"] != head["clock"]
-    assert head["border"] == "0px" and int(head["weight"]) >= 600
+    assert head["border"] == "0px" and head["style"] == "italic"
 
 
 def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(

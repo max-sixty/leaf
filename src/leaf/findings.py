@@ -1622,10 +1622,9 @@ _TEXT = {
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was initialized at page protocol {v['recorded']} by a newer"
-        f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
-        f" can neither serve nor write the page. Use a Leaf at protocol"
-        f" {v['recorded']} or later."
+        f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
+        f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
+        " write the page. Use a newer Leaf."
     ),
     "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",

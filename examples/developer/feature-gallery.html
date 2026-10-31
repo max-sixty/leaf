@@ -433,10 +433,8 @@
 
       <lf-toc id="bg-contents" max-level="2"></lf-toc>
       <p id="bg-start">
-        Choose a view below. Contents and Page Map lead to each feature. The title has
-        the largest ring, section rings are smaller, and deeper headings use small dots.
-        The current destination fills its marker. Each sample’s eyebrow names the
-        <code>lf-*</code> elements it exercises.
+        Choose a view below. Contents and Page Map lead to each feature. Each sample’s
+        eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs" class="layout-flow">
@@ -1792,6 +1790,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
           </section>
 
+          <section id="bg-since-seen" class="layout-flow">
+            <h2><strong>Changes in place</strong></h2>
+            <p id="bg-since-seen-guide">
+              Switch to another tab, revise this page's source, and come back. The
+              blocks the revision changed are marked where they stand, with a Change
+              entry beside each; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
+              through them. A revision that lands while you watch only flashes. While
+              the agent is On it for a comment, a bar in the margin stands beside the
+              comment's block until it answers.
+            </p>
+          </section>
+
           <section id="bg-widths" class="layout-flow">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>
@@ -1831,9 +1841,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: options laid across</span>
             </h2>
             <p id="bg-ask-across-guide">
-              This question holds a chart and ends in one list of titled options. Under
-              the chart the three cards stand side by side, so the question, the chart
-              and every option fit one window; narrow the window and the cards stack.
+              This question holds a chart and ends in one list of titled options marked
+              <code>across</code>. Under the chart the three cards stand side by side,
+              so the question, the chart and every option fit one window; narrow the
+              window and the cards stack.
             </p>
             <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -1866,7 +1877,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-across-choice" choose>
+              <lf-options id="bg-across-choice" choose across>
                 <lf-option id="bg-across-ridge">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
@@ -1890,7 +1901,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p id="bg-ask-pictured-guide">
               Each option below holds the drawing of what choosing it gives, today's in
               the option that keeps it. The cards read down, so each drawing keeps the
-              size it was drawn at, above its own pick.
+              size it was drawn at, and stand apart, so no drawing runs into the next
+              option's title.
             </p>
             <lf-ask id="bg-pictured-ask" data-width="wide">
               <h3>Should the sample queue group its tickets by owner?</h3>
@@ -2041,9 +2053,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
                 “Saved” means the server recorded it, “Up next” that a later turn will
-                handle it, “Got it” that a turn accepted it, and “On it” or “Replying”
-                that its answer is in progress. “Stopped” and “Gone quiet” show
-                uncertainty without claiming an interruption.
+                handle it, “Delivered” that a turn accepted it, and “On it” or
+                “Replying” that its answer is in progress. “Stopped” and “Gone quiet”
+                show uncertainty without claiming an interruption.
               </li>
               <li>
                 Compare thread colors: green marks a thread that needs an answer from
@@ -2184,8 +2196,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               a recorded card move. The small upward arrow beside “Print the workshop
               map” says “Saved” on hover: the move was recorded, with nothing for you to
               answer. After two minutes undelivered, it becomes “Haven't seen it yet”;
-              Reset starts a fresh example. Up next, Got it, and On it follow the same
-              placement rule. When a target already has a control, that control can
+              Reset starts a fresh example. Up next, Delivered, and On it follow the
+              same placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
             <lf-sample
@@ -2675,7 +2687,7 @@ gallery/
               <lf-sample id="bg-topic-contents" label="topic contents" window>
                 <template id="bg-topic-contents-page" data-sample class="layout-column">
                   <h1>Release field guide</h1>
-                  <lf-tabs id="bg-guide-topics">
+                  <lf-tabs id="bg-guide-topics" data-width="available">
                     <lf-tab
                       id="bg-guide-prepare"
                       label="Prepare"
@@ -3414,7 +3426,7 @@ switch --readers checkout-api,orders-api</code></pre>
             </h2>
             <p id="bg-delivery-guide">
               Drag the card to “Tried”, use its grip with <kbd>Enter</kbd> and the
-              arrows, or tap a destination on a phone. “Saved”, “Got it”, and “On it”
+              arrows, or tap a destination on a phone. “Saved”, “Delivered”, and “On it”
               report the agent workflow. A refused send offers “Retry” and “Cancel”.
             </p>
             <p id="bg-cut-guide">

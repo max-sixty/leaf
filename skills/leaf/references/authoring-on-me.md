@@ -22,9 +22,9 @@ costs, and each title can be the whole option. The user should be able to compar
 options down the group without reading their prose, as through `small.tag` labels for
 the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
 “2 days” rather than “about two days of work”, so a card's labels fit on one line
-beside its pick mark. Where cards stand side by side, labels that wrap push that card's
-title below its neighbours'. Add words only for a consequence that no title or label
-shows.
+beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
+that card's title below its neighbours'. Add words only for a consequence that no title
+or label shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
@@ -41,9 +41,11 @@ appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
 at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
-several captures, such as several surfaces or states, every option sets them out
-alike, in a table of captures with the same columns (`authoring-evidence.md`, "Source
-files and media"), so the reader compares each one down the options. Vary only what
+several captures, such as several surfaces or states, line each capture up with its
+counterparts in the other options and name each surface or state once, so the reader
+compares one at a time down the options. The default is a table of captures in every
+option with the same columns in the same order (`authoring-evidence.md`, "Source files
+and media"), which the theme draws with no page CSS. Vary only what
 the choice changes, and show today in the option that keeps it, or above the options
 where none does.
 
@@ -101,6 +103,12 @@ so all the options fit the window together. A difference of size or extent, such
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
 
+Option cards read down the group, each as wide as the group. `across` on the
+`lf-options` sets them side by side, which suits a group where what the user compares,
+each option's picture or the evidence above the list, still reads at a card's share of
+the row, and the question then fits the window. Keep them reading down where that share
+would shrink the pictures below the size at which their difference reads.
+
 The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
 ## One answer in its section and on a board
@@ -156,9 +164,14 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 Other unanswered questions do not block it. When permission depends on an earlier
 choice, resolve that choice first, then ask for the resulting action.
 
+Approval of an editable proposal applies to the submitted values, while later edits
+remain a working copy. A playground records its complete values together on submission
+([playground authoring](../../../packages/playground/instructions/author.md)); a draft
+edit and an options pick are independent answers. Choose a composition that keeps the
+approved wording or settings distinct from subsequent edits.
+
 The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
 If the action or evidence changes enough to invalidate the permission, explain the
 change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). Distinguish approved wording from later edits to a draft. A new
-stamp neither requests nor renews permission, and recording it does not end the page
-or report that the permitted work has been done.
+"Honor user state"). A new stamp neither requests nor renews permission, and recording
+it does not end the page or report that the permitted work has been done.

@@ -10,7 +10,8 @@ event the reader should stop at, such as a write landing or a lock being release
 is an instant of its own rather than the end of a span. Times are milliseconds from
 the start of the sequence; illustrative times are fine when the prose says so.
 
-For a comparison, such as the run before a fix and the run after it, put one
-`lf-timeline` in each `lf-tab` of an `lf-tabs`, with the same lanes in the same
-order so the reader can compare them at a glance. Event ids share the page's id
-space, so prefix them per run.
+For a comparison, such as the run before a fix and the run after it, put each run in
+an `lf-run` of one `lf-timeline`, with the same lanes in the same order. The runs
+share one time axis, so a run that takes longer draws longer, and one playhead, so
+each step shows every run at the same moment. Event ids share the page's id space, so
+prefix them per run.

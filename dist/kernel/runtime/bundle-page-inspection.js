@@ -183,7 +183,7 @@ function present() {
       </p>
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
-        <h2>Authored CSS</h2>
+        <h2 class="lf-label">Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
                 ${report.basis ? html`<button
@@ -203,7 +203,7 @@ function present() {
               ` : nothing}
       </section>
       ${report.javascript ? html`<section aria-label="Authored JavaScript">
-              <h2>Authored JavaScript</h2>
+              <h2 class="lf-label">Authored JavaScript</h2>
               <p>
                 ${number(report.javascript.page.bytes)} page-owned bytes ·
                 ${number(report.javascript.page.inline_scripts)} inline scripts ·
@@ -221,14 +221,14 @@ function present() {
               </details>
             </section>` : nothing}
       ${report.page_widgets?.length ? html`<section aria-label="Page-owned widgets">
-              <h2>Page-owned widgets</h2>
+              <h2 class="lf-label">Page-owned widgets</h2>
               <dl>
                 ${report.page_widgets.map((widget) => html`<dt><code>${widget.tag}</code></dt>
                       <dd><code>${widget.path}</code></dd>`)}
               </dl>
             </section>` : nothing}
       <section aria-label="Browser observation">
-        <h2>This tab at opening</h2>
+        <h2 class="lf-label">This tab at opening</h2>
         ${browserReading(report.current_view)}
         <p>
           The captured view stays fixed while this dialog is open. Close and reopen to
@@ -290,7 +290,7 @@ async function openPageInspection(intent) {
 	};
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
-	render(html`<h2>Page details</h2>
+	render(html`<h2 class="lf-label">Page details</h2>
       ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label[0].toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();

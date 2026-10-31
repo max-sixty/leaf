@@ -99,7 +99,7 @@ lf-draft > pre {
     align-self: center;
     padding-inline: 6px 2px;
     color: var(--danger-ink);
-    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+    font: var(--font-ui);
     white-space: nowrap;
   }
   .lf-draft-status:empty {

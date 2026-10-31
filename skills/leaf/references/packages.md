@@ -149,6 +149,10 @@ Custom properties come in four kinds:
 | Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
+Leaf's own interface sets its words in fonts derived from those inputs, each a whole
+value for the `font` shorthand (`--font-ui`, `--font-small` and the rest, listed in
+`browser/base.css`); a widget's controls that name one match Leaf's at every density.
+
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a
 control below its touch target or focus clearance.

@@ -237,9 +237,9 @@ layout](/media/051bee487bfb5d13.png)
 
 [room]: /media/051bee487bfb5d13.png"""
 
-# Where a draft's words and picture stand, from its top: the first rendered glyph of each
-# word, the picture, and the mark after the link, in its prose or in its editor's
-# closed root, whose source syntax is skipped where the editor leaves it unseen.
+# Where a draft's words and picture stand, from its top: the first rendered glyph of
+# each word and the picture, in its prose or its editor's closed root, skipping source
+# syntax where the editor leaves it unseen.
 DRAFT_AS_DRAWN = """(draft, words) => {
   const box = draft.getBoundingClientRect();
   const editor = draft.querySelector(':scope > leaf-text');
@@ -262,7 +262,6 @@ DRAFT_AS_DRAWN = """(draft, words) => {
     }
   }
   found.picture = at(root.querySelector('img:not(.cm-widgetBuffer)'));
-  found.mark = at(root.querySelector('.lf-external-mark'));
   found.height = Math.round(box.height);
   return found;
 }"""
@@ -272,9 +271,9 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     """A draft's editor drew its Markdown in a sent message's face: a heading at the
     words' size, a blank line for each gap between blocks, a picture as its source, a
     fence's lines at a code line each and no mark after a link that leaves the page.
-    Opening a draft holding them moved the words below its first block. Each word, the
-    picture and the link's mark now stay where the prose showed them, the editor
-    taking each block's face and gaps from where it stands."""
+    Opening a draft holding them moved the words below its first block. The words and
+    picture now stay where the prose showed them, the editor taking each block's face
+    and gaps from where it stands."""
     url = serve(
         leaf_page(
             "Draft faces",
@@ -293,6 +292,7 @@ def test_a_draft_edits_where_it_reads(browser, serve):
         "Workshop",
         "morning",
         "guide",
+        "first",  # The word after the link also catches room taken by its mark.
         "Two",
         "bold",
         "inline",

@@ -456,6 +456,9 @@ export function newsNotice(header = false) {
   );
   keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
+  // The news is Leaf's, every fact and count of it, so the words wear Leaf's voice
+  // whole, as the panel's field does a reading all Leaf says (voice.js).
+  words.dataset.voice = "leaf";
   node.append(words);
   // A dropped fact wraps onto a line below the first (components/surfaces.css). The
   // count stands just past the last fact shown, which a notice bounded wider than the
@@ -469,9 +472,11 @@ export function newsNotice(header = false) {
     // A fact a pixel short is the room's own rounding (surfaces.css), not a cut.
     let short = null;
     if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
-      const style = getComputedStyle(node);
-      const room = node.clientWidth - parseFloat(style.paddingInlineStart);
-      const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const room =
+        node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
+      // The short form is drawn in the words' face, Leaf's, not the press's.
+      const face = getComputedStyle(words);
+      const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
       short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
     }
     keeps(words, "data-lf-short", short);
@@ -893,7 +898,7 @@ export class HeldReading {
  *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
- *  live sample does on input inside its child (lf-sample.js). */
+ *  live sample does on a click or key inside its child (lf-sample.js). */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();

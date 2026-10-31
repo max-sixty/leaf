@@ -262,12 +262,12 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `since-seen.js`                                     |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                     |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
-| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                      |
+| Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                    |
 | Obligations                                                                                                 | `obligations/`                                                                                                                                             |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                      |
 | Threads                                                                                                     | `thread/`                                                                                                                                                  |
@@ -278,7 +278,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`   |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                      |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                           |
-| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                           |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `at-work.js`                                                                                             |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                          |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                          |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                 |
@@ -456,7 +456,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
 | Threads, workflow, attention, obligations, and whether they are answered                              | the server's state, under "One writer for each fact"                               |
-| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
+| Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
+| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
@@ -560,9 +561,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). `pnpm run check:browser` type-checks runtime and widget
-modules, strictly for TypeScript owners and JavaScript marked `// @ts-check`;
-every framework owner is strict. TypeScript owners deliver committed JavaScript;
-`../build/browser/build.mjs` owns compilation and checker selection. `types/` holds
-the check's configuration and declarations. Declare a new global, event detail or
-runtime element tag in `types/runtime-globals.d.ts`.
+(`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
+`pnpm run check:browser` type-checks runtime and widget modules, strictly where a
+module is marked `// @ts-check`, which the build requires of every framework module.
+`../build/browser/build.mjs` owns checker selection; `types/` holds its configuration
+and declarations. Declare a new
+global, event detail or runtime element tag in `types/runtime-globals.d.ts`.

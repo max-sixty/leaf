@@ -57,7 +57,8 @@ import { atScrollEnd } from "../scrolling.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
-import { threadAttention, todoLabel, workflowLabel } from "./workflow.js";
+import { threadAttention, todoWord, workflowWord } from "./workflow.js";
+import { leafSays } from "../voice.js";
 import { agentName } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
@@ -162,7 +163,7 @@ function workingMessage(thread, attention, messages) {
               stopped.detail,
               stopped.detail_seq,
               false,
-              workflowLabel(stopped, agentName()),
+              workflowWord(stopped, agentName()),
               stopped.agent,
             ]
           : [said, saidAt.get(pending.at(-1)?.id), false, null, null];
@@ -245,9 +246,9 @@ export function threadReading(thread, surface, commands) {
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
     asking.has(message.id)
-      ? "Waiting on me"
+      ? leafSays("Waiting on me")
       : message.todo && openTodos.has(message.id)
-        ? todoLabel(null)
+        ? todoWord(null)
         : null;
   // Completion comes from the server, including the provisional answer. A held
   // reading keeps progress until its completing reply is among the messages shown.

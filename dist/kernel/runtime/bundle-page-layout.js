@@ -1869,7 +1869,14 @@ var LeafText = class extends HTMLElement {
 		const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
 		if (!(size > 0)) return false;
 		const { scaleX, scaleY } = view;
-		const box = this.getBoundingClientRect();
+		const carry = style.getPropertyValue("--lf-field-carry").trim();
+		const [dx = 0, dy = 0] = carry === "none" ? [] : carry.split(/\s+/).map(Number.parseFloat);
+		const at = this.getBoundingClientRect();
+		const box = {
+			left: at.left + dx * scaleX,
+			right: at.right + dx * scaleX,
+			bottom: at.bottom + dy * scaleY
+		};
 		const rtl = style.direction === "rtl";
 		const left = rtl ? box.left : box.right - size * scaleX;
 		const right = rtl ? box.left + size * scaleX : box.right;

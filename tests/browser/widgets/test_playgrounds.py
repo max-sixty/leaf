@@ -1434,8 +1434,17 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     page.locator("#target-reader-heading").click()
     field = page.locator(".lf-fab-input")
     write(field, "Keep the heading aligned with the reader's first line.")
+    send = page.locator(".lf-fab-bar .lf-compose-submit")
+    # Over the draft's words, Send takes a press only after the pointer rests
+    # in its corner. Move there before click's actionability check.
+    corner = send.bounding_box()
+    assert corner is not None
+    page.mouse.move(corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2)
+    expect(page.locator(".lf-fab-bar .lf-compose-field")).to_have_attribute(
+        "data-send-armed", ""
+    )
     with sending(page, "the reader design comment"):
-        page.locator(".lf-fab-bar .lf-compose-submit").click()
+        send.click()
     event = next(
         e
         for e in reversed(events_model.read_events(serve.page_dir))

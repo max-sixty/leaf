@@ -170,6 +170,7 @@
             this.#comparison = this.#playground.registerContributor(
               "comparison",
               DEFAULT_COMPARISON,
+              this.querySelector(".code-comparison-toolbar"),
             );
             this.#playground.registerInstructionProvider((values) => {
               const chosen =

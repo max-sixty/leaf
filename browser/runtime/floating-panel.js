@@ -229,7 +229,7 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { noticeReading } from "./notifications.js";
+import { noticeReading, noticeText } from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -912,7 +912,13 @@ export function createFloatingPanel({
     if (notice.visible)
       return {
         says: "notice",
-        words: stance ? `${stance} · ${notice.message}` : notice.message,
+        words: (stance ? `${stance} · ` : "") + noticeText(notice.message),
+        // Drawn as parts only where Leaf says some of it; the plain hint draws the rest.
+        parts:
+          typeof notice.message !== "string" &&
+          notice.message.some((part) => part.voice === "leaf")
+            ? [stance ? `${stance} · ` : "", noticeWords(notice.message)]
+            : null,
       };
     if (stance)
       return {
@@ -931,6 +937,16 @@ export function createFloatingPanel({
   // thread/workflow.js, `workflowVoice`).
   const spoken = ({ label, voice }) =>
     html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
+  // A notice's words, Leaf's own runs in italic as everywhere else
+  // (notifications.js, `noticeText`).
+  const noticeWords = (message) =>
+    typeof message === "string"
+      ? message
+      : message.map((part) =>
+          part.voice === "leaf"
+            ? html`<span data-voice="leaf">${part.text}</span>`
+            : part.text,
+        );
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): whose turn it is, in the agent's voice, then a
   // walk's position. The thread walk standing on this thread says only its place,
@@ -996,9 +1012,10 @@ export function createFloatingPanel({
     const sync = wireInput(input, {
       hint: () => saying(null, input),
       hintParts: () => {
+        const reading = fieldReading(null, input);
+        if (reading.says === "notice") return reading.parts;
         const parts = status().summaryParts;
-        return fieldReading(null, input).says === "status" &&
-          parts?.some((part) => part.source)
+        return reading.says === "status" && parts?.some((part) => part.source)
           ? [hiddenLead(), ...statusParts(parts)]
           : null;
       },
@@ -1069,6 +1086,7 @@ export function createFloatingPanel({
     if (!replyOptions.has(key))
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
+        hintParts: () => fieldReading(key, replyInput()).parts ?? null,
         hintLead: () => turnLead(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sending: streamSend,
@@ -4287,7 +4305,9 @@ export function createFloatingPanel({
     if (!asked || !readingIsContinuous()) peekReading = null;
     if (asked && !telling && pagePresented()) peekReading ??= parts;
     return {
-      content: telling ? notice.message : statusParts(peekReading ?? parts),
+      content: telling
+        ? noticeWords(notice.message)
+        : statusParts(peekReading ?? parts),
       shown: telling || asked,
     };
   }

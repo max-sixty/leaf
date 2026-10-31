@@ -1087,15 +1087,14 @@ button.lf-primary-news {
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
   color: var(--muted);
 }
-/* A thread projected inline uses the same receipt emphasis as the panel. */
+/* A thread projected inline uses the same receipt emphasis as the panel. Its words take
+   their speaker's face (controls.css), so the colour alone sets them apart. */
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
-  font-weight: 600;
 }
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
-  font-weight: 600;
 }
 /* A to-do on the user stands over the conversation about it: its title, then its Done
    (thread-card.js). */

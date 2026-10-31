@@ -5675,9 +5675,9 @@ function newsNotice(header = false) {
 		keeps(words, "data-lf-more", count ? `+${count}` : null);
 		let short = null;
 		if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
-			const style = getComputedStyle(node);
-			const room = node.clientWidth - parseFloat(style.paddingInlineStart);
-			const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+			const room = node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
+			const face = getComputedStyle(words);
+			const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
 			short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
 		}
 		keeps(words, "data-lf-short", short);

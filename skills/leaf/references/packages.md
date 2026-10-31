@@ -121,8 +121,7 @@ An element with `hidden` is always `display: none`, in the document and in shado
 trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
 state of its own.
 
-Leaf's chrome and comment marks are unlayered, so a layered rule reaches only the
-layered faces of the controls they hold (above): change their colours and type
+Leaf's chrome and comment marks are unlayered, so change their colours and type
 through the theme inputs below, and restyle the chrome's surfaces by part in
 `chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
 `inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").

@@ -169,10 +169,13 @@ own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thre
 cards their own ground and corners. Each part resolves the chrome's fonts again
 (`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
-root's reading, so set them on the part beside their input, as `--focus-ring` and
-`--focus-shadow` beside `--accent`. Leaf draws each surface's ground, ring, corners and
-shadow from these tokens, and places and sizes the surface itself, so restyle those
-through tokens rather than `background`, `border` or a position.
+root's reading on a part, such as the focus ring and link underline, which follow the
+root's `--accent`, and the raise shadows, which follow its `--shade`; set
+`--focus-ring` and `--focus-shadow` on the part beside `--accent`. Leaf draws each
+surface's ground, ring, corners and shadow from these tokens, and places and sizes the
+surface itself, so restyle those through tokens rather than `background`, `border`, a
+position or a transform. The panel's ground is a second box carrying the `panel`
+part, so a property such as `opacity` or `filter` set on the part applies to both.
 
 Any other property, such as `letter-spacing` or `display`, goes in the package's
 `chrome.css`. Leaf nests each of its style rules in the chrome's root, as if written

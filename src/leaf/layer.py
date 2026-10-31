@@ -354,7 +354,8 @@ def chrome_restyle(sheet: str, source: Path) -> str:
     loses to every unlayered chrome rule. Any other at-rule is global, as anywhere in
     CSS. A package names what it restyles by part (`[part~="panel"]`), the chrome's
     public names for its surfaces; its other classes are private and change without
-    notice. What the browser would drop as invalid is dropped here too.
+    notice. What the browser would drop as invalid is dropped here too, a rule whose
+    selector holds `;` included, which nesting would read as a declaration and a rule.
 
     A sheet holding @scope is refused: at its top it would set a scope of its own
     beside the chrome's, reaching the page, and nested in a rule Chromium matches
@@ -373,7 +374,12 @@ def chrome_restyle(sheet: str, source: Path) -> str:
     def restyled(nodes):
         parts = []
         for node in nodes:
-            if node.type == "error":
+            # A `;` in a selector makes it invalid where it stands, but once nested
+            # it would end a declaration and leave the rest a rule of its own.
+            if node.type == "error" or (
+                node.type == "qualified-rule"
+                and any(token == ";" for token in node.prelude)
+            ):
                 continue
             if node.type == "qualified-rule":
                 parts.append(CHROME_RESTYLE.format(tinycss2.serialize([node])))

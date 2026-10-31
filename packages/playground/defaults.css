@@ -308,7 +308,7 @@ lf-playground-choice {
  * threshold choices, saw nothing change, and wrote rules against the generated class
  * instead (13 of 78 pages in 24 configuration samples). A plain face starts its cell
  * at its words' width (`.choice`, controls.css), so its label wraps only where the
- * column is narrower. No `var()` fallback can turn the plain row's flex box into a
+ * column is narrower. No `var()` fallback can turn the plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is
  * set; naming the rich control's class weighs as much as the rich default above, and
  * the later rule wins. */

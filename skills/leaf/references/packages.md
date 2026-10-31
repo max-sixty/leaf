@@ -149,9 +149,13 @@ Custom properties come in four kinds:
 | Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-Leaf's own interface sets its words in fonts derived from those inputs, each a whole
-value for the `font` shorthand (`--font-ui`, `--font-small` and the rest, listed in
-`browser/base.css`); a widget's controls that name one match Leaf's at every density.
+Leaf's interface sets its words in a closed set of fonts derived from those inputs,
+each a whole value for the `font` shorthand, declared together in `browser/base.css`
+beside what each one sets. A widget's own words, such as its controls, statuses,
+counts, labels and readouts, name the font for their kind (`font: var(--font-small)`)
+rather than a size, line height or family of their own. They then match Leaf's at
+every density and under every theme, and a page doesn't collect faces a pixel or a
+weight apart from the ones Leaf already draws.
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
 documents any further inputs it supports. No type or colour override may shrink a

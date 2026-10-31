@@ -762,6 +762,39 @@ details::details-content {
     }
   }
 }
+/* A heading's space before it belongs before the block it opens. In block flow its top
+ * margin collapsed out through a bare wrapper to that block's edge; an item of a reading
+ * column or flow is a grid item, which keeps a child's margin inside its box, so the box
+ * would begin a heading's gap above the heading and every mark Leaf hangs on the box (a
+ * focus ring, a margin entry, a landing) would stand in that gap. So an item that opens
+ * with a heading, or with an eyebrow over one, takes the heading's gap as its own margin,
+ * and the edge trim below clears the heading's; so does a list whose first item opens with
+ * a heading. An item opening any other way, such as a list's first item or a paragraph,
+ * keeps its child's margin inside: moving that margin out would move the text, where the
+ * band it leaves is a few pixels.
+ *
+ * An item that itself stands at a frame's edge, such as a tab panel's first section, loses
+ * its leading space to the trim like any edge child. These rules carry the trim's
+ * specificity and stand before it, so the trim wins there, while they still outrank an
+ * item's own margin, such as a step list's. */
+:where(:is(.layout-column, .layout-flow) > *, .layout-flow):has(
+  > :where(h2):nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+  > :where(.eyebrow):nth-child(1 of :not(.lf-ui, [data-lf-gen])) + :where(h2),
+  > :where(hgroup):nth-child(1 of :not(.lf-ui, [data-lf-gen])) > :where(h2),
+  > :where(li):nth-child(1 of :not(.lf-ui, [data-lf-gen])) > :where(h2:first-child)
+) {
+  margin-block-start: var(--h2-start);
+  --lf-frame-start: 1;
+}
+:where(:is(.layout-column, .layout-flow) > *, .layout-flow):has(
+  > :where(h3):nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+  > :where(.eyebrow):nth-child(1 of :not(.lf-ui, [data-lf-gen])) + :where(h3),
+  > :where(hgroup):nth-child(1 of :not(.lf-ui, [data-lf-gen])) > :where(h3),
+  > :where(li):nth-child(1 of :not(.lf-ui, [data-lf-gen])) > :where(h3:first-child)
+) {
+  margin-block-start: var(--h3-start);
+  --lf-frame-start: 1;
+}
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
@@ -773,38 +806,4 @@ details::details-content {
     margin-block-end: 0;
     --lf-frame-end: 1;
   }
-}
-
-/* A heading's space before it belongs before the block it opens. In block flow its top
- * margin collapsed out through a bare wrapper to that block's edge; an item of a reading
- * column or flow is a grid item, which keeps a child's margin inside its box, so the box
- * would begin a heading's gap above the heading and every mark Leaf hangs on the box (a
- * focus ring, a margin entry, a landing) would stand in that gap. So an item that opens
- * with a heading, or with an eyebrow over one, takes the heading's gap as its own margin,
- * and the edge trim above clears the heading's. A list item's margin is smaller than its
- * list's, into which block flow collapsed it, so a list in the column trims its first item
- * and takes nothing, unless that item opens with a heading, whose gap the list takes as any
- * item would. An item opening any other way keeps its child's margin inside. */
-:is(:is(.layout-column, .layout-flow) > *, .layout-flow):has(
-  > h2:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
-  > .eyebrow:nth-child(1 of :not(.lf-ui, [data-lf-gen])) + h2,
-  > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h2,
-  > li:nth-child(1 of :not(.lf-ui, [data-lf-gen]))
-    > h2:nth-child(1 of :not(.lf-ui, [data-lf-gen]))
-) {
-  margin-block-start: var(--h2-start);
-  --lf-frame-start: 1;
-}
-:is(:is(.layout-column, .layout-flow) > *, .layout-flow):has(
-  > h3:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
-  > .eyebrow:nth-child(1 of :not(.lf-ui, [data-lf-gen])) + h3,
-  > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h3,
-  > li:nth-child(1 of :not(.lf-ui, [data-lf-gen]))
-    > h3:nth-child(1 of :not(.lf-ui, [data-lf-gen]))
-) {
-  margin-block-start: var(--h3-start);
-  --lf-frame-start: 1;
-}
-:is(.layout-column, .layout-flow) > :is(ul, ol) {
-  --lf-frame-start: 1;
 }

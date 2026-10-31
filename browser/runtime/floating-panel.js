@@ -20,8 +20,16 @@
  * - **The row**: the leaf, the comment field, and at its end one seat: the On me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
  *   not read; or, while a stance or a view with no controls stands, the ✕ that closes
- *   it, so the press that opened it closes it from the same place and the seat never
- *   stands empty. A view with controls ends them with its ✕ instead (**Opened**).
+ *   it, so the seat never stands empty. The ✕ takes the leaf's width, beside the field;
+ *   filling the room On me keeps for its count stood it 29px clear of the field, which
+ *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
+ *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
+ *   rest, so a draft standing through a stance rewraps as the stance comes and as it
+ *   goes, which a path this rare may do (browser/AGENTS.md, "Stability is owed to the
+ *   common path"). Rejected: holding the seat for the draft until the next posture
+ *   change. That kept On me beside the draft and the field narrower, and saved no
+ *   rewrap, since the stance's arrival had already rewrapped the draft. A view with
+ *   controls ends them with its ✕ instead (**Opened**).
  *   The user chose the one seat on 25 October over a Threads mark beside On me and a seat kept
  *   empty for the ✕, which left a gap at the row's end; Threads became the On view's
  *   tab, since On me already lists a thread message that waits on the user. Rejected:
@@ -409,7 +417,7 @@ export function createFloatingPanel({
     // rest and widened alike, and widening the field leaves Close beside the controls.
     const closeAbove = exit?.press === close && viewControls !== nothing;
     const quickHidden =
-      initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
+      initial || closeAbove || (!exit && (search || writing || drafted));
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -727,9 +735,8 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
   // The row's end: the On me mark, or the way out of the view or stance the user is in,
-  // there while the user types too (touch-controls.js, `stance`). The two are one width,
-  // so either taking the other's place, a view closing under no press included, moves
-  // nothing beside them (`seatHeld`).
+  // there while the user types too (touch-controls.js, `stance`), each at its own width
+  // (floating-panel.css, `.lf-fp-quick`).
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -841,7 +848,6 @@ export function createFloatingPanel({
   // Dictate's, until the user types again; emptying the field always ends it. A draft is
   // anything typed, a line break included.
   let drafted = false;
-  let seatHeld = false;
   let postureMoved = true;
   // The thread the reader lands in once Leaf has drawn more than `after` of its
   // messages: on opening, the whole of it, at the turn the user comes back for
@@ -4171,16 +4177,10 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     keeps(host, "data-writing", writing ? "" : null);
-    const exit = fieldExit(search, top);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
-    // out holds that seat. Keep its room until the user's next posture change, so a
-    // refused send closing a view cannot rewrap the draft's words.
+    // out holds that seat (`quickHidden`).
     const words = Boolean(draftOf(input));
-    if (postureMoved || !words) {
-      drafted = words;
-      seatHeld = Boolean(exit);
-    }
-    if (exit) seatHeld = true;
+    if (postureMoved || !words) drafted = words;
     postureMoved = false;
     keeps(host, "data-drafted", drafted ? "" : null);
     if (!words) expanded = false;

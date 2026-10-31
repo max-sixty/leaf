@@ -171,8 +171,8 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
                         {startTime: 0, value: .1, sources: []},
                         {startTime: 500, value: .2, sources: [{
                             node: document.querySelector('#shifted'),
-                            previousRect: new DOMRect(0, 10, 100, 20),
-                            currentRect: new DOMRect(0, 60, 100, 20),
+                            before: {x: 0, y: 10, width: 100, height: 20},
+                            after: {x: 0, y: 60, width: 100, height: 20},
                         }]},
                         {startTime: 2000, value: .15, sources: []},
                     ],

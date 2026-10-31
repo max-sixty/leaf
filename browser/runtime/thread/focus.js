@@ -13,7 +13,7 @@ import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
 import { allThreads } from "./state.js";
-import { replyAvailable, replyControlDestination, replyThreadKey } from "./replies.js";
+import { replyControlDestination, replyThreadKey } from "./replies.js";
 import { threadKey } from "./model.js";
 
 // A drawn thread's root is where the user is on it.
@@ -81,12 +81,12 @@ onPress((start) => {
 
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
-// The intent restricted to the thread `id` still present with a reply to write.
+// The intent restricted to the thread `id` still present: every thread takes a reply,
+// a resolved one too, which the reply reopens.
 const mayReplyTo = (id, intent) =>
-  restrictUserIntent(intent, () => {
-    const thread = allThreads().find((candidate) => candidate.id === id);
-    return Boolean(thread && replyAvailable(thread));
-  });
+  restrictUserIntent(intent, () =>
+    allThreads().some((candidate) => candidate.id === id),
+  );
 
 // A pass that redraws threads hands the user on a thread across itself, under
 // the thread's identity. A surface that stops drawing a thread takes what the user was
@@ -154,7 +154,7 @@ let carrying = null;
 // A seat can appear later in the pass, after its former margin card closes. The
 // close must defer its landing while the thread and the user's intent still stand;
 // `may` checks for the new seat only when the pass chooses its destination. A reply
-// already has its own availability rule, including a draft in a resolved thread.
+// goes on in any thread still present, a resolved one included.
 export const carryingThreadPlace = (node) =>
   Boolean(node) &&
   carrying?.node === node &&

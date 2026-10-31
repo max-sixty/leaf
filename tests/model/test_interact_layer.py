@@ -1631,8 +1631,8 @@ def test_every_ring_stands_at_a_kind_of_box():
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
-    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
-    "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
+    """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
+    "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a

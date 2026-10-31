@@ -1,0 +1,19 @@
+# What does each control in a view do, to someone who has only seen it? README.md
+# says how to capture the views this reads (`tests.json`) and run it.
+description: Control legibility
+prompts:
+  - "{{context}}"
+providers:
+  - id: file://provider.mjs
+    label: claude-opus-5-5
+    config:
+      model: claude-opus-5-5
+defaultTest:
+  vars:
+    judgeModel: claude-opus-5-5
+  assert:
+    - type: javascript
+      value: file://grade.mjs
+tests: file://../../.tmp/control-legibility/tests.json
+evaluateOptions:
+  maxConcurrency: 2

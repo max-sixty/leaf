@@ -442,8 +442,11 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			streams = /* @__PURE__ */ new Map();
 			return;
 		}
-		const was = motionPlays() && rests ? drawn(progress, carried) : null;
 		const gesture = theirs();
+		let was = motionPlays() && rests ? drawn(progress, carried) : null;
+		const drawnBox = was?.get(box);
+		const closes = drawnBox && height(next.get(box)) < height(drawnBox) - .5;
+		if (gesture === "typing" && !closes) was = null;
 		const framed = new Set([...motions].filter(([, moving]) => moving.frames).map(([element]) => element));
 		const before = rests;
 		const streamed = /* @__PURE__ */ new Map();

@@ -6,8 +6,10 @@
    A seat in the page's flow gathers its resolved threads under one Resolved
    disclosure after its open ones, closed until the reader opens it, so however many
    conversations a datum has settled they take one row. Inside it each thread draws as
-   any page thread does, its Reopen where Resolve stands. A resolved thread still holding
-   the user's reply stays among the open ones, where its editor shows. The disclosure
+   any page thread does, its Reopen where Resolve stands, and keeps its reply box, whose
+   send reopens it. A thread that resolves while the user writes a reply in it stays
+   among the open ones until they finish, and one they write in inside the disclosure
+   stays there, so the box they type in never moves out from under them. The disclosure
    is where its threads' held news waits (held-news.js), and opening it shows that.
    Rejected: folding each resolved thread to a summary of its own, which repeated
    "Resolved" once per thread and named none of them.
@@ -27,7 +29,7 @@ import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
 import { HeldNews, seatNotice } from "./held-news.js";
-import { releaseReplies } from "./replies.js";
+import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
 
@@ -84,6 +86,7 @@ class ThreadSeat {
   #views = new Map();
   #resolved = null;
   #folding = new Map();
+  #settled = new Set();
   #place = () => {};
   #model = EMPTY;
   #shown = EMPTY;
@@ -161,8 +164,12 @@ class ThreadSeat {
         view.retire();
       }
     const settled = shown.threads.filter(
-      (thread) => thread.surface !== "margin" && thread.resolved && !thread.reply,
+      (thread) =>
+        thread.surface !== "margin" &&
+        thread.resolved &&
+        (!replyIsEditing(thread.key) || this.#settled.has(thread.key)),
     );
+    this.#settled = new Set(settled.map(({ key }) => key));
     // The disclosure owns semantic placement immediately. Only the old room stays
     // outside it while folding, inert so no outgoing control remains actionable.
     if (!settled.length) this.#resolved = null;

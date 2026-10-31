@@ -647,6 +647,33 @@ def card_reply_resolved(page: Page) -> None:
     ).click()
 
 
+def section_ring_by_keyboard(page: Page) -> None:
+    """A thread on a whole section, opened and resolved by keyboard, which hands focus
+    back to the section and rings it: where the ring stands against the section's
+    heading, which no text in a still otherwise shows."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-implementation",
+        "--text",
+        "Is this order right?",
+    )
+    marker = page.locator(
+        '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
+    )
+    marker.wait_for()
+    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    marker.focus()
+    page.keyboard.press("Enter")
+    resolve = page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Resolve thread", exact=True
+    )
+    resolve.focus()
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.activeElement?.id === 'plan-implementation'")
+
+
 def card_reply_resolved_elsewhere(page: Page) -> None:
     """An agent resolves the thread while the user keeps writing in its margin card."""
     card_reply(page)
@@ -2594,6 +2621,8 @@ STATES = (
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
+    # Its threads on the user's turn, tinted and saying so at their ends.
+    State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",
@@ -2750,6 +2779,7 @@ STATES = (
         region=".lf-margin-preview .lf-thread-reply",
     ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(
         "plan-card-reply-resolved-elsewhere",
         "review-a-plan",

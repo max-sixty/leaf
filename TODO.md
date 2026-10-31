@@ -21,8 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage. `notes/shift-watch-cost.md` records the Stability
-  sensor's idle-cost evidence and remaining optimization questions.
+  preserving useful coverage. `notes/shift-watch-cost.md` records the shift
+  watch's idle-cost evidence and remaining optimization questions.
   Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
   cases that can share it") reaches only cases that leave the log and the page's
   own UI alone, so most of the time spent opening pages needs each opening to

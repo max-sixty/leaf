@@ -18,7 +18,7 @@ lf-deck[data-lf-deck-flying] {
   align-items: center;
   gap: var(--sp-2);
   min-block-size: var(--lf-deck-bar-h);
-  font: var(--t-6) / 1.4 var(--sans);
+  font: var(--font-small);
   color: var(--muted);
 }
 /* The marks stand over the count, so a count that grows, as with "· 1 on Claude",

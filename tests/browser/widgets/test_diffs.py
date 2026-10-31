@@ -226,6 +226,20 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         expect(page.locator("#relative-font [data-line]").last).to_contain_text(
             "A wrapped row uses its inherited code font."
         )
+        # A code size the page sets on one diff sizes that diff's source, here the
+        # 1em of the text it stands in, while a diff that sets none keeps the theme's.
+        sizes = page.evaluate("""() => {
+          const size = (el) => getComputedStyle(el).fontSize;
+          const code = (id) => document.getElementById(id)
+            .shadowRoot.querySelector('code[data-code]');
+          const relative = document.getElementById('relative-font');
+          return {
+            text: size(relative.parentElement),
+            relative: size(code('relative-font')),
+            theme: size(code('code')),
+          };
+        }""")
+        assert sizes["relative"] == sizes["text"] != sizes["theme"], sizes
     finally:
         for route in boot:
             route.continue_()

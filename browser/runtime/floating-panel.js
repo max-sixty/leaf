@@ -376,6 +376,8 @@ export function createFloatingPanel({
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
+  // A public part a theme restyles (`layer.chrome_restyle`), as its ground is below.
+  host.setAttribute("part", "panel");
   // The panel's durations and curves, which its stylesheet declares on it and says why
   // each is what it is (floating-panel.css, "The panel's motion"), read live as every
   // `--lf-motion-*` is.
@@ -1562,6 +1564,9 @@ export function createFloatingPanel({
     observer: follow,
   });
   const { ground } = following;
+  // The ground stands beside the panel rather than in it, so it carries the panel's
+  // part too, and the tokens a theme sets there colour both.
+  ground.setAttribute("part", "panel");
   // A send is the user's change joining the stream the box shows (box-motion.js,
   // "send"): the box reads where that stream stands before the send draws, and the
   // readings until the send's rendering settles carry it from there on the box's own
@@ -2225,7 +2230,7 @@ export function createFloatingPanel({
             { opens: true, disabled: gone, row: `group:${group}` },
           ),
       })),
-      { key: "", draw: () => html`<hr />` },
+      { key: "", draw: () => html`<hr class="lf-fp-rule" />` },
       ...[keyboard, fold].filter(Boolean).map(seat),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
@@ -2381,7 +2386,7 @@ export function createFloatingPanel({
         </div>`,
     )}${
       errors.length > 1
-        ? html`<hr />
+        ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}`
         : nothing
     }`;
@@ -2902,6 +2907,13 @@ export function createFloatingPanel({
     const turned = chooseQueueTab("you");
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
+  }
+  // On me standing open on the user's list, as the `m` walk asks where it arrives at a
+  // to-do (queue-walk.js), with focus left where the walk put it.
+  function showOnMe() {
+    const turned = chooseQueueTab("you");
+    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+    else if (turned) paint();
   }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
@@ -3512,7 +3524,7 @@ export function createFloatingPanel({
         (row) => row.key,
         (row) =>
           row.rule
-            ? html`<hr class="lf-fp-on-rule" />`
+            ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
               : html`<h3 class="lf-rows-head">
@@ -4730,6 +4742,7 @@ export function createFloatingPanel({
     pageComment,
     searchPage,
     doors,
+    showOnMe,
     showForSample,
     openThread,
     captureCurrentLocation,

@@ -169,6 +169,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
+const NEW_LINE = "New line";
 const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
@@ -397,7 +398,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const suffix = !advertising ? "" : focusedHere.value ? sendKeys : enteringHint.value;
 			const status = dictationStatus();
 			const word = status || label();
-			const placeholder = suffix && !status ? `${word} ${suffix}` : word;
+			const lineKey = sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+			const lineHint = focusedHere.value && !status ? lineKey : "";
+			const placeholder = suffix && !status ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}` : word;
 			if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
 			const ariaLabel = name();
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
@@ -405,7 +408,10 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const lead = status ? "" : hintLead();
 			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><kbd class="lf-key-badge">${suffix}</kbd>${lineHint ? html`<span class="lf-compose-placeholder-line"
+                      >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                    >` : nothing}
             </span>` : nothing, ta);
 			let error = inputError.value;
 			if (error && !(ta.isConnected && ta.checkVisibility())) {
@@ -418,7 +424,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				else watchError.unobserve(ta);
 			}
 			const action = sendLabel();
-			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
 			const phase = dictationPhase();
 			const live = phase === "starting" || phase === "listening";
 			const failed = loadingFailure || dictation?.failure;
@@ -4408,7 +4414,7 @@ const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
 const groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
 const namedIn = (step) => [...step.item ? [step.item.id] : [], ...step.steps.flatMap(namedIn)];
 const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
-function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
+function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, showOnMe, announce, actions }) {
 	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.thread !== null ? threadPlace(stop.thread) : subjectPlace(stop.subject);
 	const pagePlace = (stop) => {
 		const at = stopElement(stop);
@@ -4566,6 +4572,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		const ready = arriveAt(next).then((arrived) => {
 			if (!arrived) return false;
 			announce(beginWalk("queue", null, () => position(region)) ?? walkPositionLabel(null, list.indexOf(next) + 1, list.length, `${region ? WITHIN : QUALIFIER} · ${next.noun}`));
+			if (next.kind === "obligation" && next.obligation.source.kind === "todo") showOnMe();
 			return true;
 		});
 		ready.catch(() => {});
@@ -4764,6 +4771,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
+	host.setAttribute("part", "panel");
 	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
 	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
@@ -5536,6 +5544,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		observer: follow
 	});
 	const { ground } = following;
+	ground.setAttribute("part", "panel");
 	function streamSend() {
 		following.stream();
 	}
@@ -5912,7 +5921,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			})),
 			{
 				key: "",
-				draw: () => html`<hr />`
+				draw: () => html`<hr class="lf-fp-rule" />`
 			},
 			...[keyboard, fold].filter(Boolean).map(seat)
 		];
@@ -5996,7 +6005,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >
             Dismiss
           </button>
-        </div>`)}${errors.length > 1 ? html`<hr />
+        </div>`)}${errors.length > 1 ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
 	function shownThreads() {
@@ -6294,6 +6303,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
+	}
+	function showOnMe() {
+		const turned = chooseQueueTab("you");
+		if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+		else if (turned) paint();
 	}
 	function pressMark() {
 		if (!onUserCount() && newCount()) {
@@ -6686,7 +6700,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span
@@ -7506,6 +7520,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		pageComment,
 		searchPage,
 		doors,
+		showOnMe,
 		showForSample,
 		openThread,
 		captureCurrentLocation,
@@ -10616,6 +10631,7 @@ async function boot() {
 		prepareNavigationStep: anchorTravel.prepareNavigationStep,
 		arrive: anchorTravel.arrive,
 		readableDestination: anchorTravel.readableDestination,
+		showOnMe: () => floatingPanel.showOnMe(),
 		announce
 	});
 	const changeWalk = createChangeWalk();

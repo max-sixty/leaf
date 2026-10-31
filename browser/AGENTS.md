@@ -75,10 +75,12 @@ representative desktop viewport.
   ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
-- **A box's controls stand on an edge the box holds as its content changes.** The
-  same control may therefore stand at a thread card's head and at the floating panel's
-  foot; each box's header says which edge it holds (`floating-panel.js`, **Opened**;
-  `thread/card-anchor.js`).
+- **A box's controls stay put while the user works them.** A box holds the edge its
+  controls stand on as its content changes, or holds its size while they act. A thread
+  card holds its head's edge (`thread/card-anchor.js`). The floating panel stands on the
+  window's foot, so a list keeps its tabs at its foot, and a thread's view holds its
+  height while Resolve or Next unread, on its head line, acts (`floating-panel.js`,
+  **Opened**).
 - **Stability is owed to the common path.** Every hold costs code on each later
   change, so a rare path the user reads at a glance moves what is on screen rather
   than carry a mechanism of its own. Words a refused send hands back, and a draft typed
@@ -113,8 +115,8 @@ representative desktop viewport.
   `thread/held-news.js`, `newsMoves` in `thread/thread-card.js`, `threadsListing` in
   `floating-panel.js` for the rows of Threads, and `reading-continuity.js` for a
   hidden tab. The user chose one exception: the answer
-  they wait for in the floating panel's thread grows that view upward while its
-  controls stay put (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
+  they wait for in the floating panel's thread grows that view upward, its head line
+  rising with it (`fitAnswer` in `floating-panel.js`, credited by `appendGrowth` in
   `tests/shift_watch.js`).
 - **A box floating over the page grows inside the window**, toward the edge that has
   room. Sending and later growth never scroll the page to make room. A freshly opened

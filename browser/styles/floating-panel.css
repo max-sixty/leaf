@@ -694,9 +694,8 @@
   .lf-fp-quick > .lf-fp-exit {
     width: var(--lf-fp-aim);
   }
-  /* A view's Close at its controls' end (floating-panel.js, `closeAbove`) takes the
-     face of the presses before it. */
-  .lf-fp-controls > .lf-fp-chip {
+  /* A view's Close at its head line's end takes the face of the presses before it. */
+  .lf-fp-head > .lf-fp-chip {
     flex: none;
     justify-content: center;
     min-width: max(var(--lf-fp-press), var(--aim-floor));
@@ -824,7 +823,9 @@
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
      shown while the pointer is near that corner (floating-panel.js, `data-corner`). It
-     fades rather than moves, so nothing shifts under the pointer. */
+     fades rather than moves, so nothing shifts under the pointer. An open view's Close
+     holds that corner, so the mark waits for the view to go rather than stand beside
+     ✕ and Resolve. */
   .lf-fp-minimize {
     top: -9px;
     right: -9px;
@@ -835,7 +836,7 @@
       visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
+    .lf-floating-panel[data-rest="row"][data-corner]:not([data-open]) .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity var(--lf-motion-disclosure);
@@ -894,16 +895,33 @@
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
   }
-  /* The name, with nothing to press, stands at the edge the view grows from, so it
-     takes no room where only a heading for assistive tech stands, as On's does. */
-  .lf-fp-head:has(> .lf-fp-title:not(.lf-quiet)) {
+  /* The head line, over what the view holds: the way back, the name on the words'
+     edge, the view's presses, and its Close in the top-right corner, where it stands
+     in every view, a list's line holding it alone (floating-panel.js, **Opened**). The
+     way back is a ‹ alone at the line's start, and the name follows it. */
+  .lf-fp-head {
     display: flex;
     align-items: center;
+    gap: 2px;
     min-height: 36px;
     padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
-  /* The controls stand on the row, which their growing view never moves, set off from
+  .lf-fp-head:has(> .lf-fp-back) {
+    padding-inline-start: 6px;
+  }
+  /* The presses keep the line's end and their room, a name that names the view to
+     assistive tech alone included, so the name alone gives way to a long title. */
+  .lf-fp-head > :is(.lf-fp-facts, .lf-fp-close) {
+    margin-inline-start: auto;
+  }
+  .lf-fp-head > .lf-fp-aux {
+    flex: none;
+  }
+  .lf-fp-head > .lf-fp-facts ~ .lf-fp-close {
+    margin-inline-start: 0;
+  }
+  /* A list's tabs stand on the row, which their growing view never moves, set off from
      what the view holds by a hairline inset as far as the words. Their reach stops
      short of the row's own presses' (`--lf-reach-room`), so a press between the two
      lands on the one the user is nearer. */
@@ -934,15 +952,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* The two ways back, a view's to the list it came from and the menu's to the page
-     menu, are one press: a row (controls.css, `.lf-row`) holding the chevron and the
-     name of where it leads, in the ink, washed under the pointer. It is as wide as its
-     words, since a view's way back shares its line with the thread's facts and
-     presses, where no row could run the panel's width, and in the menu that width says
-     it leaves the list rather than standing in it. Its chevron stands 8px into its
-     wash, as a menu row's words do, so the menu's way back starts on its rows' edge;
-     a view's reaches out by those 8px, so its chevron starts on the view's words. */
-  :is(.lf-fp-back, .lf-fp-menu-back) {
+  /* The menu's way back to the page menu is a row (controls.css, `.lf-row`) holding
+     the chevron and the menu's name, in the ink, washed under the pointer. It is as
+     wide as its words, which say it leaves the list rather than standing in it, and
+     its chevron stands 8px into its wash, as a menu row's words do, so it starts on
+     its rows' edge. */
+  .lf-fp-menu-back {
     flex: none;
     align-self: flex-start;
     display: inline-flex;
@@ -951,34 +966,30 @@
     min-height: var(--lf-fp-press);
     padding: 0 8px 0 6px;
   }
-  :is(.lf-fp-back, .lf-fp-menu-back) .lf-fp-chevron {
+  .lf-fp-menu-back .lf-fp-chevron {
     flex: none;
     scale: -1 1;
     margin: 0;
   }
-  .lf-fp-crumb > .lf-fp-back {
-    margin-inline-start: -8px;
+  .lf-fp-back {
+    flex: none;
   }
-  /* The thread's facts after the way back, the news it holds, take the room the crumb
-     leaves, so news arriving moves nothing else. They stand further from the controls
-     after them than those stand from each other, so they read as facts about the
-     thread rather than as controls. */
+  /* The thread's facts after its name, the news it holds, stand before its presses,
+     which keep the line's end, so news arriving moves no press and takes its room from
+     the name. They stand further from the presses than those stand from each other, so
+     they read as facts about the thread rather than as presses. */
   .lf-fp-facts {
     flex: none;
     display: flex;
     align-items: baseline;
     gap: 6px;
-    margin-inline: auto 12px;
+    margin-inline-end: 12px;
   }
-  /* What Threads holds while the user reads it stands over the rows it would have
-     moved, at the inset of the Resolved heading: its line grows the box upward from
-     the row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+  /* What Threads holds while the user reads it stands on the head line beside its
+     Close, at the inset of the Resolved heading, so no row moves as it comes
+     (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
-    display: flex;
-    align-items: center;
-    min-height: 32px;
-    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
-    box-sizing: border-box;
+    padding-inline-start: calc(14px + var(--lf-fp-inset));
   }
   .lf-fp-joined {
     display: flex;

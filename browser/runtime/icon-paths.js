@@ -94,6 +94,7 @@ export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
   arrange: { name: "Arrange", icon: "arrange" },
+  back: { name: "Back", icon: "previous" },
   cancel: { name: "Cancel", icon: "cross" },
   close: { name: "Close", icon: "cross" },
   collapse: { name: "Collapse", icon: "collapse" },

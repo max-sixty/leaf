@@ -510,7 +510,7 @@ def floating_thread_unread(page: Page) -> None:
         + "The queue holds each edit until the server confirms it. " * 40,
     )
     floating_thread(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:

@@ -134,9 +134,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
             return r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
         }"""
     )
-    # The box empties as the reply leaves, and the view's ✕ ends its controls.
+    # The box empties as the reply leaves, and the view's ✕ ends its head line.
     expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_hidden()
-    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
 
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
@@ -504,6 +504,32 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
 
 
+def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve):
+    """Resolve stands on the thread's head line, which moves as the view's height does,
+    so the next thread Resolve opens takes the height the resolved one stood at, and a
+    user resolving threads in turn finds Resolve where they pressed it."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    panel_comment(
+        serve.page_dir,
+        "Should the mobile cohort wait? " * 12
+        + "\n\nThe last release took a week to reach it, and the one before took two.",
+    )
+    page = floating(browser, url)
+    open_threads(page)
+    page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
+    title = page.locator(".lf-fp-head .lf-fp-title")
+    expect(title).to_have_text("Is the window long enough?")
+    settle = page.locator(".lf-fp-head .lf-fp-settle")
+    settled(page)
+    pressed = settle.bounding_box()
+    with sending(page, "the resolve"):
+        settle.click()
+    expect(title).to_contain_text("Should the mobile cohort wait?")
+    settled(page)
+    assert settle.bounding_box() == pressed
+
+
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
     """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
     opened on a message is a rung below it, so Escape or Save hands the caret back to
@@ -690,7 +716,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
-    page.locator(".lf-fp-controls .lf-fp-close").click()
+    page.locator(".lf-fp-head .lf-fp-close").click()
     expect(title).to_have_count(0)
 
 
@@ -716,7 +742,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     card.locator(".lf-fp-answer", has_text="Reply").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
     back = page.locator(".lf-fp-back")
-    expect(back).to_have_text("On me")
+    expect(back).to_have_attribute("aria-label", "Back to On me")
     back.click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
@@ -758,8 +784,8 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     assert view.bounding_box() == stands
 
 
-# Where an open thread's name starts, over its view, and where each of its controls
-# stands, on the row under it.
+# Where an open thread's name starts, over its view, and where each of its presses
+# stands, on the same head line.
 SEATS = """() => {
   const seat = (selector) => {
     const box = document.querySelector(selector)?.getBoundingClientRect();
@@ -768,10 +794,10 @@ SEATS = """() => {
   const title = seat('.lf-fp-head .lf-fp-title');
   return {
     name: [title[0], title[1]],
-    back: seat('.lf-fp-controls .lf-fp-back'),
-    on: seat('.lf-fp-controls .lf-fp-on-page'),
-    settle: seat('.lf-fp-controls .lf-fp-settle'),
-    close: seat('.lf-fp-controls .lf-fp-close'),
+    back: seat('.lf-fp-head .lf-fp-back'),
+    on: seat('.lf-fp-head .lf-fp-on-page'),
+    settle: seat('.lf-fp-head .lf-fp-settle'),
+    close: seat('.lf-fp-head .lf-fp-close'),
   };
 }"""
 
@@ -829,12 +855,12 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
         },
     )
     told(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-on-page")).to_be_hidden()
+    expect(page.locator(".lf-fp-head .lf-fp-on-page")).to_be_hidden()
     settled(page)
     assert page.evaluate(SEATS) == seats
 
     agent({"kind": "resolve", "parent": root})
-    expect(page.locator(".lf-fp-controls .lf-reopen")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
     settled(page)
     assert page.evaluate(SEATS) == seats
 
@@ -856,10 +882,10 @@ HELD_READING = """() => {
 
 
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
-    """News arriving while the user writes in an open thread waits behind a notice among
-    the view's controls, after where the way back stands. It reads whole in the room
-    the controls leave, and nothing else among them, in the thread's name or in the
-    messages moves; no message head carries it. Pressing it shows what was held."""
+    """News arriving while the user writes in an open thread waits behind a notice on
+    the view's head line, before its presses. It reads whole, and no press and nothing
+    in the messages moves; no message head carries it. Pressing it shows what was
+    held."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -893,7 +919,7 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
             },
         )
     told(page)
-    notice = page.locator(".lf-fp-controls .lf-thread-news")
+    notice = page.locator(".lf-fp-head .lf-thread-news")
     expect(notice).to_have_text("2 new replies")
     expect(view.locator(".lf-msg")).to_have_count(1)
     settled(page)
@@ -1203,10 +1229,10 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(
 
 def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     """Threads fits the rows it lists, growing from its top edge as the user turns to it
-    from On me, so the Threads tab just pressed and Close, among the controls at its
-    foot, stay under the pointer; a thread arriving after that moves none of its rows,
-    waiting behind a notice. A reply that arrives while its thread is open
-    waits behind the thread's notice."""
+    from On me, so the Threads tab just pressed, among the tabs at its foot, stays under
+    the pointer, and Close rises with the head line; a thread arriving after that moves
+    none of its rows, waiting behind a notice. A reply that arrives while its thread is
+    open waits behind the thread's notice."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -1239,7 +1265,8 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     assert shown["height"] > short["height"] + 40, (short, shown)
     assert shown["y"] + shown["height"] == short["y"] + short["height"]
     assert threads_tab.bounding_box() == before
-    assert close.bounding_box() == closes
+    rose = shown["height"] - short["height"]
+    assert close.bounding_box()["y"] == pytest.approx(closes["y"] - rose, abs=0.5)
     rows = inventory.locator(".lf-fp-thread")
     tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
     row_positions = rows.evaluate_all(tops)
@@ -1251,7 +1278,8 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(rows).to_have_count(4)
     assert rows.evaluate_all(tops) == row_positions
     assert threads_tab.bounding_box() == before
-    assert close.bounding_box() == closes
+    rose = shown["height"] - short["height"]
+    assert close.bounding_box()["y"] == pytest.approx(closes["y"] - rose, abs=0.5)
     joined.click()
     expect(rows).to_have_count(5)
     expect(rows.filter(has_text="Who watches the weekend?")).to_be_visible()
@@ -1271,7 +1299,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
         },
     )
     told(page)
-    held = page.locator(".lf-fp-controls .lf-thread-news:visible")
+    held = page.locator(".lf-fp-head .lf-thread-news:visible")
     expect(held).to_be_visible()
     expect(reader.locator(".lf-msg")).to_have_count(2)
     held.click()
@@ -1640,14 +1668,15 @@ GROWTH = """() => {
 
 
 def risen(before, after, by):
-    """Whether the thread's name (`SEATS`) stands moved `by` down the window, rising
-    with a view that grows at its top, and every control stands where it stood."""
+    """Whether the thread's head line, its name and its presses (`SEATS`), stands moved
+    `by` down the window, rising with a view that grows at its top."""
 
     def moved(name, seat):
-        if name != "name":
-            return seat
-        left, top = seat
-        return [left, top + by]
+        if name == "name":
+            left, top = seat
+            return [left, top + by]
+        left, top, right, bottom = seat
+        return [left, top + by, right, bottom + by]
 
     return all(
         (seat is None) == (after[name] is None)
@@ -1664,7 +1693,7 @@ def risen(before, after, by):
 
 def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serve):
     """The agent's answer to the user's own last turn grows the thread's view to hold
-    it: the field and the view's controls stay where they are, and the thread's name
+    it: the field stays where it is, and the thread's head line, its name and presses,
     rises with the view's top. Past the view's cap the answer goes on below the
     fold behind New reply, with the user's own turn wholly in sight above it, its head
     included, and nothing of the answer showing below the press; a press brings the
@@ -1714,7 +1743,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     assert risen(seats, page.evaluate(SEATS), by), (seats, by)
     assert grown["turn"][0] >= 0 and grown["turn"][1] >= 0, grown
     expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
 
     write(field(page), "And the weekend?")
     with sending(page, "the reply"):
@@ -1746,7 +1775,7 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     answer("One more thing: the alarms page the on-call too.")
     expect(messages).to_have_count(5)
     settled(page)
-    expect(page.locator(".lf-fp-controls .lf-thread-news:visible")).to_have_count(0)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
     assert page.evaluate(SEATS) == seats
     assert page.evaluate(GROWTH)["turn"] == read["turn"]
 
@@ -1945,7 +1974,7 @@ def test_a_thread_s_view_opens_on_its_first_unread_reply(browser, serve):
         }"""
     )
     expect(long_reply).to_have_class(unread)
-    press = page.locator(".lf-fp-controls .lf-fp-next-unread")
+    press = page.locator(".lf-fp-head .lf-fp-next-unread")
     expect(press).to_have_text("Next unread")
 
     # Read tracking needs a reply's whole extent shown (thread/read.js), so the wheel
@@ -2115,16 +2144,14 @@ def test_a_thread_s_view_opens_on_the_summary_holding_its_first_unread_reply(
     page.keyboard.press("t")
     summary = page.locator(".lf-fp-view .lf-summary-checkpoint .lf-summary-header")
     expect(summary).to_be_in_viewport(ratio=1)
-    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_have_text(
-        "Next unread"
-    )
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_have_text("Next unread")
 
 
 def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):
     """Next unread reaching a reply a closed summary holds opens the summary in the
-    view and lands on the reply inside it. The press stands among the controls under
-    the view, so it stays where it was by itself while the view grows from its top
-    edge to show what opened, rather than holding its height."""
+    view and lands on the reply inside it. The press stands on the view's head line,
+    which the view's growth would carry, so the view holds its height, and the press
+    and the head stay where they were while what opened goes on inside the view."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
@@ -2136,7 +2163,7 @@ def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve)
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("t")
-    unread = ".lf-fp-controls .lf-fp-next-unread"
+    unread = ".lf-fp-head .lf-fp-next-unread"
     press = page.locator(unread)
     expect(press).to_be_visible()
     settled(page)
@@ -2147,8 +2174,7 @@ def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve)
     expect(reply).to_be_in_viewport(ratio=1)
     settled(page)
     after = page.evaluate(PRESS_AND_HEAD, unread)
-    assert after["toggle"] == stood["toggle"], (stood, after)
-    assert after["head"] < stood["head"] - 20, (stood, after)
+    assert after == stood, (stood, after)
 
 
 def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
@@ -4330,10 +4356,9 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
-def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
-    """With a view open, its Close ends its controls and the field reaches the row's
-    end, at rest and widened alike, so widening the field leaves Close beside the
-    controls."""
+def test_a_view_s_close_ends_its_head_and_the_field_the_row(browser, serve):
+    """With a view open, its Close ends its head line and the field reaches the row's
+    end, at rest and widened alike."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -4342,7 +4367,7 @@ def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
     page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
     close = page.locator(".lf-fp-close")
     expect(close).to_have_count(1)
-    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
 
     def reaches_the_row_s_end():
         settled(page)
@@ -4355,10 +4380,10 @@ def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
 
     reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
-    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
     reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
-    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
     close.click()
     expect(page.locator(panel_view("threads"))).to_be_hidden()
 
@@ -4815,7 +4840,7 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     page.locator(".lf-fp-menu .lf-fp-item", has_text="All pages").click()
     expect(page.locator(".lf-fp-title")).to_have_text("All pages")
     expect(page.locator(".lf-fp-controls")).to_be_hidden()
-    expect(page.locator(".lf-fp-row .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
     rows = pages.locator(".lf-fp-page")
     expect(rows).to_have_count(2)
     expect(rows.first).to_contain_text("This page")
@@ -4923,9 +4948,9 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     expect(child.locator(panel_view("threads"))).to_be_visible()
     resized(page, 390, 844)
     page.get_by_role("button", name="Full view", exact=True).click()
-    controls = child.locator(".lf-fp-controls")
+    head = child.locator(".lf-fp-head")
     close = child.get_by_role("button", name="Close", exact=True)
-    bounds = controls.bounding_box()
+    bounds = head.bounding_box()
     button = close.bounding_box()
     assert bounds["x"] <= button["x"]
     assert button["x"] + button["width"] <= bounds["x"] + bounds["width"]
@@ -4938,7 +4963,7 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     resolved.click()
     expect(reader.locator(".lf-msg")).to_contain_text("Is the room booked?")
     expect(child.get_by_role("button", name="Reopen", exact=True)).to_be_visible()
-    child.locator(".lf-fp-controls .lf-fp-back", has_text="Threads").click()
+    child.get_by_role("button", name="Back to Threads").click()
     expect(threads).to_be_visible()
     child.get_by_role("button", name="Find a thread or message", exact=True).click()
     search = child.get_by_role("searchbox", name="Find a thread or message")

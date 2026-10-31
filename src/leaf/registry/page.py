@@ -13,7 +13,7 @@ from collections.abc import Collection
 from copy import deepcopy
 from typing import NamedTuple
 
-from .contract import is_element_name, registry_error
+from .contract import gathering, is_element_name, registry_error
 from .layer import merge_layer_declarations, stamp_composition
 from .validation import validate_registry
 
@@ -50,17 +50,11 @@ def compose_page_registry(
         raise registry_error("page-layer", source)
     registry = deepcopy(layer_registry)
     merge_layer_declarations(registry, deepcopy(page_declarations))
-    if registry != validated:
+    fresh = registry != validated
+    if fresh:
         validate_registry(registry, source)
         # Examples validate against the vocabulary as pages read it, stamped.
         stamp_composition(registry)
-
-        # Example validation consumes source/instance readers which themselves load
-        # page registries. Import it after those owners have finished initializing.
-        from leaf.validation.composition import validate_registry_examples
-
-        if page_declarations:
-            validate_registry_examples(registry, source)
     declaration_sources = {
         f"$data.contracts.{name}": (
             "page"
@@ -71,17 +65,31 @@ def compose_page_registry(
     }
     widget_sources = {}
     available = set(widget_paths)
-    for tag, entry in registry.items():
-        if not is_element_name(tag):
-            continue
-        declaration_sources[tag] = "page" if tag in page_declarations else "layer"
-        if not entry["x-upgrade"]:
-            continue
-        candidates = (f"page/widgets/{tag}.js", f"widgets/{tag}.js")
-        implementation = next((path for path in candidates if path in available), None)
-        if implementation is None:
-            raise registry_error(
-                "missing-module", source, tag, expected=list(candidates)
-            )
-        widget_sources[tag] = implementation
+    # Each example and each widget's module is found or missed independently, so one
+    # refusal names every problem among them (`contract.gathering`).
+    with gathering() as unit:
+        if fresh and page_declarations:
+            # Example validation consumes source/instance readers which themselves
+            # load page registries. Import it after those owners have finished
+            # initializing.
+            from leaf.validation.composition import validate_registry_examples
+
+            with unit():
+                validate_registry_examples(registry, source)
+        for tag, entry in registry.items():
+            if not is_element_name(tag):
+                continue
+            declaration_sources[tag] = "page" if tag in page_declarations else "layer"
+            if entry["x-upgrade"]:
+                with unit():
+                    widget_sources[tag] = _implementation(tag, available, source)
     return PageRegistry(registry, declaration_sources, widget_sources)
+
+
+def _implementation(tag: str, available: set, source) -> str:
+    """The module that upgrades `tag`: the page's own over the layer's."""
+    candidates = (f"page/widgets/{tag}.js", f"widgets/{tag}.js")
+    implementation = next((path for path in candidates if path in available), None)
+    if implementation is None:
+        raise registry_error("missing-module", source, tag, expected=list(candidates))
+    return implementation

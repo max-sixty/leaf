@@ -52,6 +52,12 @@ keeps the user's place in the box. Registering an id that another live region ho
 throws, so a widget whose parts scroll independently registers each with an id from
 `compoundReadingRegionId(owner, localName)`.
 
+Give `body` a scrolling overflow (`auto` or `scroll`) only on an axis where its
+content can outgrow it. A scrolling body bounds what stands in it, such as the card of
+a comment on its contents, so a body sized to show everything it holds, as a
+screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where it
+keeps a `scrollbar-gutter` across states.
+
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
 page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
 scrolls itself, and `"flow"` otherwise.
@@ -108,6 +114,11 @@ A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins
 fit, so a widget can bring in a heading or label with an item where there is room, and
 the item alone where there is not.
+
+To set a box's scroll position, use `setScroll(box, {top, left, behavior})`, also
+available from `portable-api.js`. It defaults to `instant` and updates Leaf's scroll
+readers before that position paints, including writes during resize delivery. Smooth
+scrolling reports its positions through the browser's scroll events.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
@@ -235,12 +246,14 @@ newly arrived message.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's panel and announces it to screen
-readers, such as a view the widget switched to. A recorded gesture is acknowledged by
+`notice(message)` shows a moment's news in Leaf's panel, in the italic Leaf sets its
+own words in, and announces it to screen readers, such as a view the widget switched
+to. A recorded gesture is acknowledged by
 the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
 caused by the user passes `{background: true}` and waits behind what the user just did;
 `{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen.
+on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
+`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

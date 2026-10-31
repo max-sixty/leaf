@@ -36,22 +36,33 @@ import hashlib
 import json
 import weakref
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from functools import cache, cached_property
 from types import MappingProxyType
 
-from .layer import files_identity, stylesheet
-from .registry.storage import selected
+from .layer import (
+    LayerComposition,
+    composed_sheets,
+    files_identity,
+    layer_inputs,
+    stylesheet,
+)
+from .registry.storage import revision_vocabulary, selected
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import Resource, RevisionArtifact, resource_type
-from .schema import ASSETS, KERNEL, LAYER_TOP_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
+from .revision_artifact import (
+    PAGE_DECLARATIONS,
+    Resource,
+    RevisionArtifact,
+    resource_type,
+)
+from .schema import ASSETS, KERNEL, KERNEL_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
 from .state import PLUGIN_ROOT, json_bytes
+from .themes import theme_package
 
-# Every input of a layer this tree composes: the core layer files beside the
-# runtime, and the bundled packages (`layer.layer_inputs`).
+# Non-CSS core inputs and the bundled packages. Core stylesheet identity comes
+# from the same composition that delivers them, including its imports and roles.
 LAYER_SOURCES = (
-    *(f"browser/{name}" for name in LAYER_TOP_FILES if name != "registry.json"),
-    "browser/registry.json",
+    *(f"browser/{name}" for name in KERNEL_FILES if not name.endswith(".css")),
     "browser/widgets",
     "packages",
 )
@@ -73,6 +84,19 @@ def _files(root, *names) -> dict[str, bytes]:
     return found
 
 
+@dataclass(frozen=True, eq=False)
+class _ExecutingArtifact(RevisionArtifact):
+    """One execution's identity and bytes, including its vocabulary and the local
+    package sources a child sample needs to compose the same layer."""
+
+    identity: str
+    package_copies: Mapping[str, Mapping[str, bytes]]
+
+    @cached_property
+    def registry(self) -> dict:
+        return json.loads(self.resources["/registry.json"].data)
+
+
 @dataclass(frozen=True)
 class ServingRuntime:
     """One Leaf's browser runtime, read whole: its source modules, the compiled
@@ -83,7 +107,9 @@ class ServingRuntime:
     replaces: frozenset[str]
     probes: Mapping[str, bytes]
     # What `executing` made of each artifact something still holds.
-    _executed: weakref.WeakKeyDictionary[RevisionArtifact, RevisionArtifact] = field(
+    _executed: weakref.WeakKeyDictionary[
+        RevisionArtifact, tuple[LayerComposition, _ExecutingArtifact]
+    ] = field(
         default_factory=weakref.WeakKeyDictionary, init=False, repr=False, compare=False
     )
 
@@ -99,6 +125,10 @@ class ServingRuntime:
                     f"kernel:{path}": data for path, data in (self.kernel or {}).items()
                 },
                 **self.probes,
+                **{
+                    f"layer:/browser/{name}": data
+                    for name, data in composed_sheets([ASSETS]).items()
+                },
                 **{
                     f"layer:{path}": data
                     for path, data in _files(PLUGIN_ROOT, *LAYER_SOURCES).items()
@@ -192,45 +222,66 @@ def serving_runtime() -> ServingRuntime:
 
 
 def execution_identity(artifact: RevisionArtifact) -> str:
-    """What a revision's resources are addressed under as this process runs them: the
-    runtime, and the layer its manifest selects, whose installed packages and the
-    page's own copies change apart from this tree. An address names the same bytes
-    for as long as a browser may cache it."""
-    layer = selected(json.loads(artifact.manifest)["layer"], artifact.page_dir)
-    return files_identity(
+    """The identity of the same runtime and layer that supplies the artifact's bytes."""
+    return executing(artifact).identity
+
+
+def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
+    """Freeze one execution of `artifact`: its runtime, selected layer, vocabulary
+    and resources under one identity. An execution passed back is already frozen.
+
+    A live artifact follows replacement of a page's package copy; the runtime keeps
+    its execution while that composition is unchanged. A snapshot holds the returned
+    execution itself, so later package replacement changes neither its addresses nor
+    the bytes they serve. The authored manifest and digest remain unchanged."""
+    if isinstance(artifact, _ExecutingArtifact):
+        return artifact
+    runtime = serving_runtime()
+    record = json.loads(artifact.manifest)["layer"]
+    composition = selected(record, artifact.page_dir)
+    held = runtime._executed.get(artifact)
+    if held is not None and held[0] is composition:
+        return held[1]
+    layer = {
+        path: Resource(data, resource_type(path))
+        for path, data in composition.files.items()
+    }
+    # The original artifact may have cached a vocabulary from an earlier package
+    # copy. Read this execution's vocabulary against the selected composition.
+    declarations = artifact.resources.get(PAGE_DECLARATIONS)
+    registry = revision_vocabulary(
+        json.loads(artifact.manifest),
+        declarations.data if declarations is not None else None,
+        artifact.page_dir,
+    )
+    layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
+    identity = files_identity(
         {
-            "runtime": serving_runtime().identity.encode(),
-            "layer": layer.fingerprint.encode(),
+            "runtime": runtime.identity.encode(),
+            "layer": composition.fingerprint.encode(),
         }
     ).removeprefix("sha256:")[:16]
+    # Samples re-compose in their own directory. Keep just the local package
+    # copies this selection needs, using the same file inventory as page init.
+    from .vendoring import package_files
 
-
-def executing(artifact: RevisionArtifact) -> RevisionArtifact:
-    """`artifact` with the resources its documents run with under this process's
-    runtime and the layer its manifest selects (`ServingRuntime.resources`), its
-    vocabulary served as `/registry.json`. Its captured identity is unchanged: the
-    manifest, and with it the digest and executable, describe what the revision
-    captured, and the runtime and layer are named beside it by
-    `serving_runtime().identity`.
-
-    The runtime keeps one per artifact for as long as the artifact is kept
-    (`revision_artifact.read_artifact`), so what a reader derives from it, such as
-    its registry and widget aliases, is read once rather than on each of the few
-    dozen resource requests a document makes."""
-    runtime = serving_runtime()
-    executed = runtime._executed.get(artifact)
-    if executed is None:
-        layer = {
-            path: Resource(data, resource_type(path))
-            for path, data in selected(
-                json.loads(artifact.manifest)["layer"], artifact.page_dir
-            ).files.items()
-        }
-        layer["/registry.json"] = Resource(
-            json_bytes(artifact.registry), "application/json"
+    names = [*record["packages"]]
+    if theme := theme_package(record["theme"]):
+        names.append(theme)
+    copies = {
+        root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(
+            package_files(root)
         )
-        executed = runtime._executed[artifact] = replace(
-            artifact,
-            resources=MappingProxyType(runtime.resources(layer, artifact.resources)),
-        )
+        for root in layer_inputs(tuple(names), artifact.page_dir)
+        if root.is_relative_to(artifact.page_dir)
+    }
+    executed = _ExecutingArtifact(
+        artifact.html,
+        MappingProxyType(runtime.resources(layer, artifact.resources)),
+        artifact.manifest,
+        artifact.page_dir,
+        identity,
+        MappingProxyType(copies),
+    )
+    runtime._executed[artifact] = (composition, executed)
     return executed

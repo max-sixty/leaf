@@ -476,9 +476,11 @@ const cutPath = ({ x, y }, band) => {
   const open = 100000;
   const width = band.right - band.left;
   const height = band.bottom - band.top;
-  // Contours may spend a stroke outside the band; all other paint cuts exactly at it.
-  const edge = (value) => `calc(${layoutPx(value)} - var(--lf-paint-outset, 0px))`;
-  return `inset(${edge(y ? 0 : -open)} ${edge(-width - (x ? 0 : open))} ${edge(-height - (y ? 0 : open))} ${edge(x ? 0 : -open)})`;
+  // A mark may spend its band outside the band on each side its stand allows
+  // (target-paint-geometry.js, `standOver`); all other paint cuts exactly at it.
+  const edge = (value, side) =>
+    `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
+  return `inset(${edge(y ? 0 : -open, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -open, "left")})`;
 };
 
 // The levels a box following `item` is cut at so that it passes under the sticky headers

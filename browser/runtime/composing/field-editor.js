@@ -12,6 +12,8 @@
  * compartments are shared by every field's state, as a compartment names a slot in a
  * state's configuration rather than holding one.
  */
+import { externalMark as externalLinkMark, opensElsewhere } from "../declared-words.js";
+
 import { leafEditorView } from "../editor-view.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
@@ -296,18 +298,16 @@ function fieldEditor(
       return false;
     }
   }
-  // The mark the page draws after a link that leaves it (prepaint.js).
+  // The mark the page draws after a link that leaves it (declared-words.js).
   class ExternalMark extends WidgetType {
     eq() {
       return true;
     }
     toDOM() {
-      return document.documentElement.lfExternalLink.mark();
+      return externalLinkMark();
     }
   }
   const externalMark = Decoration.widget({ widget: new ExternalMark(), side: -1 });
-  const opensElsewhere = (href) =>
-    document.documentElement.lfExternalLink?.opensElsewhere(href) ?? false;
 
   function decorate(state, placed) {
     const out = [];
@@ -504,8 +504,8 @@ function fieldEditor(
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
-   * line, and `field.revealed(view, pos)` shows the row holding `pos` in the field's
-   * host. */
+   * line, `field.revealed(view, pos)` shows the row holding `pos` in the field's
+   * host, and `field.focused()` hears the editor take or lose focus. */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -535,6 +535,9 @@ function fieldEditor(
         EditorView.scrollHandler.of((view, range) => {
           field.revealed(view, range.head);
           return false;
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.focusChanged) field.focused();
         }),
         histories.of(history()),
         // A one-line field holds one line, so a line break pasted or inserted by the

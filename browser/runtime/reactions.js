@@ -514,9 +514,9 @@ export function createReactionController({
               });
             return;
           }
-          pickerFor(reactSurface)
-            ?.palette.querySelectorAll(".lf-react")
-            [+binding - 1]?.click();
+          const buttons =
+            pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react");
+          buttons?.[+binding - 1]?.click();
         },
       },
       {

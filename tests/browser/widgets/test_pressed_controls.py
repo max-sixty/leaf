@@ -15,8 +15,13 @@ from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
-from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
-from leaf.render_gate.scheme import arm_interception, served
+from leaf.render_checks import (
+    RENDER_VIEWPORT,
+    rendered,
+    wait_for_probe,
+    wait_until_ready,
+)
+from leaf.render_gate.scheme import served
 from leaf.render_gate.widget_quality import (
     WRAPPERS,
     example_pages,
@@ -31,16 +36,15 @@ CONTROL = (
     '[role="option"], [role="tab"]'
 )
 
-# Every visible, enabled control inside one of the package's own widgets or the margin
-# entries Leaf draws for one, shadow trees included, each marked so the driver can
-# press it with the pointer, and named by its widget and words.
-MARK_CONTROLS = f"""(tags) => {{
-  const own = new Set(tags);
-  const widgetOf = (element) => {{
+# Every visible, enabled control inside an element the selector `within` matches, or in
+# a margin entry Leaf draws for one, shadow trees included, each marked so the driver
+# can press it with the pointer, and named by that element and its words.
+MARK_CONTROLS = f"""(within) => {{
+  const holderOf = (element) => {{
     for (let at = element; at; at = at.parentElement ?? at.getRootNode().host) {{
-      if (own.has(at.localName)) return at;
+      if (within && at.matches(within)) return at;
       const entry = at.dataset?.lfMarginFor;
-      if (entry) return widgetOf(document.getElementById(entry));
+      if (entry) return holderOf(document.getElementById(entry));
     }}
     return null;
   }};
@@ -50,13 +54,13 @@ MARK_CONTROLS = f"""(tags) => {{
       if (element.shadowRoot) walk(element.shadowRoot);
       delete element.dataset?.lfPressCheck;
       if (!element.matches({CONTROL!r})) continue;
-      const widget = widgetOf(element);
-      if (!widget) continue;
+      const holder = holderOf(element);
+      if (!holder) continue;
       if (element.disabled || element.getAttribute('aria-disabled') === 'true') continue;
       if (!element.checkVisibility({{ visibilityProperty: true }})) continue;
       element.dataset.lfPressCheck = String(found.length);
       const words = element.getAttribute('aria-label') || element.textContent.trim();
-      found.push(`${{widget.localName}}#${{widget.id}} ${{JSON.stringify(words)}}`);
+      found.push(`${{holder.localName}}#${{holder.id}} ${{JSON.stringify(words)}}`);
     }}
   }};
   walk(document.body);
@@ -91,18 +95,18 @@ FACE_AT = f"""([x, y]) => {{
   }};
 }}"""
 
-# Whether the control at the point is still the element pressed there, which a widget
-# relabels rather than replaces.
-STILL_PRESSED = f"""([x, y, index]) => {{
+# Whether the control at the point is the one marked, as the pointer reaches it before
+# the press, and as a widget that relabels rather than replaces it keeps it there after.
+UNDER_POINTER = f"""([x, y, index]) => {{
   {AT_POINT}
   return atPoint(x, y).control?.dataset.lfPressCheck === String(index);
 }}"""
 
-# The tab's unresolved gestures by attempt, read through the check entry.
+# The tab's unresolved gestures by attempt and kind, read through the check entry.
 UNRESOLVED = """async () => {
   const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
   const api = await import(new URL('runtime/check-api.js', new URL(boot, location.href)));
-  return api.readApplication().unresolved.map((entry) => entry.event.attempt);
+  return api.readApplication().unresolved.map(({ event }) => [event.attempt, event.kind]);
 }"""
 
 # Whether every send has its outcome, by the runtime's own traffic ledger
@@ -120,16 +124,9 @@ STATES = {
 </lf-options>""",
 }
 
-# The packages whose worked examples show no control to press, by directory, so a
-# sweep that finds none anywhere else has lost its controls.
-UNPRESSABLE = {
-    "code-review",
-    "diagram",
-    "file-tree",
-    "monitoring",
-    "motion",
-    "visual-review",
-}
+# The packages with widgets whose worked examples show no control to press, by
+# directory, so a sweep that finds none anywhere else has lost its controls.
+UNPRESSABLE = {"diagram", "file-tree", "motion", "visual-review"}
 
 # The widgets whose presses once flickered, which the sweep must reach sending.
 REACHED = {"lf-playground", "lf-options", "lf-suggestion"}
@@ -158,66 +155,100 @@ def _example_pages(package):
     return tags, pages
 
 
-def _press_each_control(browser, url, tags):
-    """Press each control on the page with its gesture held, and return the names of
-    those whose press sent one, and what went wrong."""
+def open_served(browser, url):
+    """The page a Leaf server serves at `url`, ready to be pressed."""
     page = browser.new_page(viewport=RENDER_VIEWPORT)
-    arm_interception(page)
+    page.goto(url)
+    wait_until_ready(page, served(page, url, "/api/state").json())
+    rendered(page)
+    return page
+
+
+def press_each_control(page, within, restore=None):
+    """Press each control `MARK_CONTROLS` reads on the page within `within`, with its
+    gesture held, and return the names pressed, the name and event kind of each
+    gesture whose press was read, and what went wrong.
+
+    The controls are read again after each press, and each name is pressed once, those
+    a press revealed first: the Undo that takes Accept's seat, a palette's reactions,
+    or the Resolve of a thread whose row was pressed. A control the pointer can't
+    reach, under a surface or drawn for the keyboard alone, is passed over. Once none
+    is left, Escape closes what the last press opened, as a reader leaves it, and
+    `restore` brings back what a press took away, such as a thread's view; the sweep
+    ends when that brings back nothing to press."""
     sent, failures, held = [], [], []
-    try:
-        page.goto(url)
-        wait_until_ready(page, served(page, url, "/api/state").json())
-        rendered(page)
-        # A press may replace the controls beside it, as Accept's Undo takes Reject's
-        # seat, so the controls are read again after each, and each name pressed once.
-        pressed_names = set()
-        while names := [
-            (index, name)
-            for index, name in enumerate(page.evaluate(MARK_CONTROLS, tags))
-            if name not in pressed_names
-        ]:
-            index, name = names[0]
-            pressed_names.add(name)
-            control = page.locator(f'[data-lf-press-check="{index}"]')
-            control.scroll_into_view_if_needed()
-            box = control.bounding_box()
-            point = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
-            page.route("**/api/event", lambda route: held.append(route))
-            before = page.evaluate(UNRESOLVED)
-            face = page.evaluate(FACE_AT, point)
-            page.mouse.click(*point)
-            rendered(page)
-            travelling = page.evaluate(FACE_AT, point)
-            pressed = page.evaluate(UNRESOLVED)
-            # A press that left no control under the pointer leaves nothing to flicker.
-            if pressed != before and travelling:
-                sent.append(name)
-                if travelling != face:
-                    failures.append(
-                        f"{name}: {face} before the press, {travelling} while its "
-                        "gesture travelled"
-                    )
-                # A control the press replaced, as Undo takes Accept's seat, is another
-                # control, whose press may rightly send nothing.
-                elif page.evaluate(STILL_PRESSED, [*point, index]):
-                    page.mouse.click(*point)
-                    rendered(page)
-                    if page.evaluate(UNRESOLVED) == pressed:
-                        failures.append(
-                            f"{name}: a second press while the first travelled sent "
-                            "nothing"
-                        )
-            # The preview server refuses every gesture, which restores the page for
-            # the next control.
-            for route in held:
-                route.continue_()
-            held.clear()
-            page.unroute("**/api/event")
-            page.wait_for_function(DELIVERED)
-            rendered(page)
+    pressed_names, unreachable, revealed, restored = set(), set(), {}, False
+    while True:
+        found = page.evaluate(MARK_CONTROLS, within)
+        revealed = {shown: revealed.get(shown, len(pressed_names)) for shown in found}
+        names = sorted(
+            (
+                (index, name)
+                for index, name in enumerate(found)
+                if name not in pressed_names | unreachable
+            ),
+            key=lambda item: -revealed[item[1]],
+        )
+        if not names:
+            if restored:
+                break
             page.keyboard.press("Escape")
-    finally:
-        page.close()
+            rendered(page)
+            if restore:
+                restore()
+            restored = True
+            unreachable.clear()
+            continue
+        index, name = names[0]
+        # Playwright's own scroll would wait out a control that is leaving, and a
+        # control that a press set moving, such as a view of the panel, is read where
+        # it comes to rest.
+        control = page.locator(f'[data-lf-press-check="{index}"]')
+        control.evaluate("(control) => control.scrollIntoView({ block: 'nearest' })")
+        wait_for_probe(page, "pageSettled")
+        box = control.bounding_box() if control.count() else None
+        point = box and [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+        if not point or not page.evaluate(UNDER_POINTER, [*point, index]):
+            unreachable.add(name)
+            continue
+        pressed_names.add(name)
+        restored = False
+        page.route("**/api/event", lambda route: held.append(route))
+        before = page.evaluate(UNRESOLVED)
+        face = page.evaluate(FACE_AT, point)
+        page.mouse.click(*point)
+        rendered(page)
+        travelling = page.evaluate(FACE_AT, point)
+        pressed = page.evaluate(UNRESOLVED)
+        # A press that left no control under the pointer leaves nothing to flicker.
+        if pressed != before and travelling:
+            sent += [
+                (name, kind)
+                for attempt, kind in pressed
+                if [attempt, kind] not in before
+            ]
+            if travelling != face:
+                failures.append(
+                    f"{name}: {face} before the press, {travelling} while its "
+                    "gesture travelled"
+                )
+            # A control the press replaced, as Undo takes Accept's seat, is another
+            # control, whose press may rightly send nothing.
+            elif page.evaluate(UNDER_POINTER, [*point, index]):
+                page.mouse.click(*point)
+                rendered(page)
+                if page.evaluate(UNRESOLVED) == pressed:
+                    failures.append(
+                        f"{name}: a second press while the first travelled sent nothing"
+                    )
+        # A read-only server refuses every gesture, which restores the page; a page
+        # that admits them moves on, and its new controls are read above.
+        for route in held:
+            route.continue_()
+        held.clear()
+        page.unroute("**/api/event")
+        page.wait_for_function(DELIVERED)
+        rendered(page)
     return pressed_names, sent, failures
 
 
@@ -225,18 +256,19 @@ def _press_each_control(browser, url, tags):
 def test_a_pressed_control_keeps_its_face_and_takes_the_next_press(browser, package):
     """While a press's gesture travels, the control under the pointer keeps the cursor
     and the available, idle face it had before the press, whatever it now says, and
-    where the same control stands there, a second press sends again rather than being
-    swallowed. A control whose press sends nothing, such as one opening a menu, makes
-    no claim."""
+    where the same control stands there, a second press does what it then says rather
+    than being swallowed. A control whose press sends nothing, such as one opening a
+    menu, makes no claim."""
     if package == schema_model.ASSETS:
         package = layer_model.ASSETS
     tags, pages = _example_pages(package)
     failures, pressed, reached = [], set(), set()
     for _, url, _ in served_examples(package, pages):
-        names, sent, found = _press_each_control(browser.unwatched, url, tags)
+        page = open_served(browser.unwatched, url)
+        names, sent, found = press_each_control(page, ", ".join(tags))
         pressed |= names
-        reached.update(name.split("#")[0] for name in sent)
+        reached.update(name.split("#")[0] for name, _ in sent)
         failures += found
-    assert bool(pressed) != (package.name in UNPRESSABLE), sorted(pressed)
+    assert bool(pressed) != (not tags or package.name in UNPRESSABLE), sorted(pressed)
     assert REACHED & set(tags) <= reached
     assert not failures, "\n".join(failures)

@@ -73,7 +73,7 @@ class ResolvedThreads {
       ${threads.length}${
         notice
           ? html` ·
-              <span class="lf-thread-notice lf-thread-notice-news">${notice}</span>`
+              <span data-lf-news>${notice}</span>`
           : ""
       }`,
       this.summary,

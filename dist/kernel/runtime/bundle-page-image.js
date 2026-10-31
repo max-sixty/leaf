@@ -1,4 +1,5 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
+import { describeFailure } from "./bundle-portable.js";
 
 //#region runtime/composing/page-image.js
 var page_image_exports = /* @__PURE__ */ __exportAll({
@@ -98,7 +99,7 @@ async function pageImage(clip, { exclude = [] } = {}) {
 			img.style.cssText = `display:block;position:relative;left:${crop.x}px;top:${crop.y}px;width:${crop.width}px;height:${crop.height}px`;
 			box.append(img);
 		} catch (error) {
-			warnings.add(`A live sample in this area could not be drawn: ${error.message}`);
+			warnings.add(`A live sample in this area could not be drawn: ${describeFailure(error)}`);
 		}
 		return box;
 	}

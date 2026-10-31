@@ -1,3 +1,4 @@
+import { URL } from "node:url";
 import { readFileSync } from "node:fs";
 
 import { parse } from "smol-toml";

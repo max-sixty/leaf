@@ -35,7 +35,12 @@
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import {
+  atScrollEnd,
+  moveScrollerBy,
+  pageScroller,
+  scrollToEnd,
+} from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -55,7 +60,7 @@ import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
-import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
+import { registerReadingRegion, scrollerFor } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
@@ -148,7 +153,7 @@ export function createThreadPreview({
   // about, at the width it was carried at, until its placement chooses afresh.
   const carry = surfaceGrip({
     surface: preview,
-    bounds: () => commentBoundary({ region: previewSession?.region }),
+    bounds: () => commentBoundary({ scroller: previewSession?.scroller }),
     dropped(box) {
       const session = previewSession;
       if (!session) return;
@@ -286,7 +291,9 @@ export function createThreadPreview({
           identity: (message) => message.dataset.event,
         })
       : null;
-    if (previewRegionMounted && transcript)
+    if (previewRegionMounted && transcript) {
+      // The transcript's width and shown turns when its gutter was last decided.
+      let decided = "";
       previewSession.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
@@ -299,13 +306,25 @@ export function createThreadPreview({
           // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
+          // Once its turns overflow, the transcript holds its scrollbar's gutter
+          // (`data-lf-overflows`, annotation-chrome.css) until its width or the
+          // number of turns it shows changes. The gutter narrows the turns, and a
+          // narrowed picture is shorter, so turns can overflow without the gutter and
+          // fit with it: dropping the gutter whenever they fit brought it back the
+          // next frame, and so on every frame. A transcript that stops overflowing
+          // otherwise, as when the window grows taller or the reply box empties,
+          // keeps its words the gutter's width narrower until then.
+          const messages = transcript.querySelectorAll(":scope > .lf-msg");
+          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const shown = [...messages].filter((message) => !message.hidden).length;
+          const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);
           const top =
             transcript.getBoundingClientRect().top + transcript.clientTop + room;
-          // A later message's controls stand in the actions' track at its head line
-          // (annotation-chrome.css), so while that line shares the actions' they
-          // stand aside.
-          for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+          // A later message's head spans the actions' track (annotation-chrome.css),
+          // so while its line shares the actions' it keeps to its own track and its
+          // controls stand aside.
+          for (const message of messages) {
             const head = message.querySelector(":scope > .lf-msg-head");
             const box = head?.getBoundingClientRect();
             keeps(
@@ -333,8 +352,12 @@ export function createThreadPreview({
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
           keeps(card, "data-lf-scrolled", above ? "" : null);
+          if (overflows || shape !== decided)
+            keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+          decided = shape;
         },
       });
+    }
   }
   let previewSession = null;
   const placementDriver = floatingPlacement({
@@ -455,8 +478,7 @@ export function createThreadPreview({
         extent: box,
         row: box.top,
         margin: null,
-        region: null,
-        scroller: effectiveScroller(cluster),
+        scroller: scrollerFor(cluster),
       };
     }
     const thread = threadCardThread(session);
@@ -499,8 +521,8 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ region: place.region });
-    session.region = place.region;
+    const boundary = commentBoundary({ scroller: place.scroller });
+    session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
@@ -703,7 +725,7 @@ export function createThreadPreview({
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
       // comment's card 13px wider than its box.
       width: origin?.box.width ?? null,
-      region: null,
+      scroller: pageScroller,
       // Whether the card's motion has read the card at its first spot (`followCard`).
       followed: false,
     };

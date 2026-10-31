@@ -102,6 +102,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
         assert activated.created
+        assert activated.revision is not None
         return artifact_model.read_artifact(page_dir, activated.revision)
 
     base = activate()
@@ -178,11 +179,11 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     # activates the source itself.
     extra = page_dir.parent / "extra"
     extra.mkdir()
-    (extra / "theme.css").write_text("/* another selection */\n")
+    (extra / "overrides.css").write_text("/* another selection */\n")
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./extra"))
-    reissued = artifact_model.read_artifact(
-        page_dir, files_model.latest_revision(page_dir)
-    )
+    revision_2 = files_model.latest_revision(page_dir)
+    assert revision_2 is not None
+    reissued = artifact_model.read_artifact(page_dir, revision_2)
     assert reissued.digest != redeclared.digest
     assert reissued.executable != redeclared.executable
 
@@ -1019,7 +1020,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     a table) already gives the aim something to hold."""
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
-        '<aside class="sidenote">The retry path is deliberately separate.</aside>'
+        '<aside class="note">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
     (page_dir / "index.html").write_text(
@@ -1029,18 +1030,16 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 0
-    # The figure's id is aim enough for its <table>.
+    # One finding for each reason, listing its blocks in document order. The
+    # figure's id is aim enough for its <table>.
     assert sorted(
-        (f.code, f.at, f.values.get("enclosing"))
+        (f.code, [(e["tag"], e.get("enclosing")) for e in f.values["elements"]])
         for f in findings
         if f.code.startswith("unpointable")
     ) == [
-        ("unpointable", "<h1>", None),
-        ("unpointable", "<p>", None),
-        ("unpointable", "<p>", None),
-        ("unpointable-section", "<section>", None),
-        ("unpointable-wide", "<aside>", "plan"),
-        ("unpointable-wide", "<pre>", "plan"),
+        ("unpointable", [("h1", None), ("p", None), ("p", None)]),
+        ("unpointable-section", [("section", None)]),
+        ("unpointable-wide", [("pre", "plan"), ("aside", "plan")]),
     ]
 
     # Prose inside an identified section needs no id of its own. Standalone
@@ -1053,7 +1052,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
-            '<aside class="sidenote" id="retry-note">The retry path is deliberately '
+            '<aside class="note" id="retry-note">The retry path is deliberately '
             "separate.</aside>",
         )
     )

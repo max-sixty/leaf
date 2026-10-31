@@ -43,10 +43,10 @@ import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
-  workflowLabel,
   workflowTitle,
-  workflowVoice,
+  workflowWord,
 } from "./workflow.js";
+import { voiced } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
@@ -164,6 +164,7 @@ export function prepareAuthoredMessage(message, thread) {
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
+    markDeclared(template.content);
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
@@ -286,9 +287,9 @@ export function messageReading(
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
-    // (thread-card.js).
+    // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
+    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
+    // promised and has not ended (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,
@@ -310,9 +311,8 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowWord: workflowWord(workflow, agentName()),
     workflowTitle: workflowTitle(workflow, agentName()),
-    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -381,11 +381,11 @@ export class MessageView {
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A
-      // link keeps its own double click.
+      // link keeps its own double click, and a control its own presses.
       this.node.addEventListener("dblclick", (event) => {
         if (
           /** @type {Partial<Element>} */ (event.target).closest?.(
-            ".lf-msg-editor, a[href]",
+            ".lf-msg-editor, .lf-msg-controls, a[href]",
           )
         )
           return;
@@ -465,12 +465,26 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
-    const receipt = model.workflowLabel
-      ? html`<span
-          class="lf-msg-sending"
-          title=${model.workflowTitle}
-          data-voice=${model.workflowVoice}
-          >${model.workflowLabel}</span
+    // The message's own controls, one group at its head's end (controls.css): the user's
+    // own words offer their rewrite, or, open, its Discard and Save; an agent's reply
+    // its reactions; and every message with words its Copy, last.
+    const rewrite = editing
+      ? this.#editor.actions
+      : model.editable
+        ? html`<button
+            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
+              action: "edit",
+            })}
+            tabindex="-1"
+            @click=${() => this.openEdit()}
+          ></button>`
+        : nothing;
+    const react = model.reactions ? this.#reaction.trigger : nothing;
+    const copy =
+      model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
+    const receipt = model.workflowWord
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${voiced(model.workflowWord)}</span
         >`
       : nothing;
     const header = html`
@@ -491,12 +505,12 @@ export class MessageView {
           ${receipt}
           ${
             model.leaves
-              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
               : nothing
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure">${NOT_ANSWERED}</span>`
+              ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>`
               : nothing
           }
           ${
@@ -519,21 +533,11 @@ export class MessageView {
               : nothing
           }
         </span>
-        ${headerControls}
+        ${headerControls}<span class="lf-msg-control-room"
+          ><span class="lf-msg-controls">${rewrite}${react}${copy}</span></span
+        >
       </div>
     `;
-    // The user's own words offer their rewrite where an agent's reply offers its
-    // reactions: the message's one control, at its header's right edge (shadow.css).
-    const rewrite =
-      model.editable && !editing
-        ? html`<button
-            ${offeredAction("symbol", "lf-msg-control lf-msg-edit", "Edit message", {
-              action: "edit",
-            })}
-            tabindex="-1"
-            @click=${() => this.openEdit()}
-          ></button>`
-        : nothing;
     render(
       html`
         ${header}
@@ -548,8 +552,7 @@ export class MessageView {
           }
           ${holds ? keyed(this.#authoredTake, this.#authored) : nothing}
         </div>
-        ${model.markdown && !editing ? this.#copyControl(model.markdown) : nothing}
-        ${strip} ${rewrite}
+        ${strip}
       `,
       this.node,
     );

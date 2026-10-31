@@ -404,7 +404,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.type("!")
     expect(search).to_have_value("r resolve!")
-    expect(help_el.locator(".lf-command-reference-empty")).to_be_visible()
+    expect(help_el.locator(".lf-rows-empty")).to_be_visible()
     page.keyboard.press("Backspace")
     page.keyboard.press("ArrowDown")
     expect(result).to_have_attribute("data-lf-selected", "true")
@@ -559,7 +559,7 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
                 reference.locator(".lf-command-reference-command:visible")
             ).to_have_count(1)
         if query == "no command has these words":
-            expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
+            expect(reference.locator(".lf-rows-empty")).to_be_visible()
             # At the shortest viewport both states can meet the same height limit.
             assert reference.bounding_box()["height"] <= initial_dialog["height"]
             if viewport[1] > 320:
@@ -630,7 +630,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     )
 
     search.fill("no command has these words")
-    expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
+    expect(reference.locator(".lf-rows-empty")).to_be_visible()
     assert search.evaluate("input => input.ariaActiveDescendantElement") is None
     search.fill("r resolve")
     expect(result).to_have_attribute("data-lf-selected", "false")
@@ -820,7 +820,8 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
         ("panel.floating.menu.leave-backward", "Leave backward"),
     ], rows
     # The arrows' glyphs read the same on every platform; Tab's modifier does not.
-    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← / →"], rows
+    # Alternatives stand as keys of their own: ← and → each open or leave a list.
+    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← →"], rows
 
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):

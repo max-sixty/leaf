@@ -38,7 +38,9 @@ declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
-session's pages (`cmd_pages`) to draw them beside the prompt. `leaf hook`
+session's pages (`cmd_pages`) to draw them beside the prompt, and at each turn's
+end asks the clerk what to fork the conversation with and hands back the fork's
+answer (`--fork`, `clerk.cmd_fork`). `leaf hook`
 (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -74,6 +76,8 @@ from .state import (
     prompt_turn,
     session_lock_path,
     session_record,
+    turn_closed,
+    worker_tool_batch,
 )
 
 
@@ -81,14 +85,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
     """Answer one hook of `harness`, the name its registration passes."""
     started = time.monotonic()
     event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
-    if (
-        harness == "claude-code"
-        and event == "PostToolBatch"
-        and payload.get("agent_id")
-    ):
-        # Claude Code's tool hooks name the parent session even inside a worker;
-        # agent_id is its native subagent/teammate identity. Only the parent
-        # receives the input its session claimed.
+    if worker_tool_batch(harness, payload):
         return
     if sid:
         # Capability evidence for hook transport and open-turn activity. An
@@ -96,6 +93,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         mark_hooks(sid)
     if not sid:
         return
+    assert isinstance(event, str)
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -144,11 +142,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # harness whose steps can start a turn opens it first (`reconcile_turn`).
         with flocked(session_lock_path(sid)):
             record = session_record(sid)
-            if (
-                not record
-                or record["ended"] is not None
-                or record["turn_closed"] is not None
-            ):
+            if record is None or turn_closed(record):
                 return
             if record["turn"] != turn_id:
                 if record["provider"] or event != "PostToolUse":
@@ -269,48 +263,36 @@ def cmd_pages(payload: dict) -> None:
     session holds no page. Leaf's Claude Code hooks module draws it beside the
     prompt.
 
-    Rows and the session's claim locators wake the reading. A server that dies
-    leaves its row until a reader finds its lease unheld, so the list is read
-    again every presence interval too."""
+    Read every presence interval: a dead server leaves its row behind, so native
+    notifications cannot replace this timer. The prompt band needs no subscription
+    of its own in addition to the session's between-turn delivery watch."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
-    from .file_changes import FileChanges
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .state import session_claims, state_home
 
-    rows, claims = state_home().resolve() / "rows", session_claims(sid)
-    # A root above rows/ would hear its creation, not the rows written into it.
-    rows.mkdir(exist_ok=True)
-    roots = {rows: False, claims: False}
-    changes = FileChanges(
-        roots,
-        lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),
-    )
     shown = None
-    try:
-        while True:
-            mark = changes.mark()
-            held = {page.resolve() for page in owned_pages(sid)}
-            listed = json.dumps(
-                [
-                    {field: leaf[field] for field in SHOWN_FIELDS}
-                    for _page, leaf in (live_leaves(held) if held else [])
-                ]
-            )
-            if listed != shown:
-                print(listed, flush=True)
-                shown = listed
-            if not held:
-                return
-            changes.wait(mark, PRESENCE_CACHE_S)
-    finally:
-        changes.close()
+    while True:
+        held = {page.resolve() for page in owned_pages(sid)}
+        listed = json.dumps(
+            [
+                {field: leaf[field] for field in SHOWN_FIELDS}
+                for _page, leaf in (live_leaves(held) if held else [])
+            ]
+        )
+        if listed != shown:
+            print(listed, flush=True)
+            shown = listed
+        if not held:
+            return
+        time.sleep(PRESENCE_CACHE_S)
 
 
-def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
+def main(
+    harness: str, *, watch: bool = False, pages: bool = False, fork: bool = False
+) -> None:
     """Read one harness payload and dispatch it.
 
     The Click hook command is the caller.
@@ -348,11 +330,19 @@ def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
                 harness,
                 *(["--watch"] if watch else []),
                 *(["--pages"] if pages else []),
+                *(["--fork"] if fork else []),
             ],
             environment,
         )
     if pages:
         cmd_pages(payload)
+        return
+    if fork:
+        from .clerk import cmd_fork
+
+        answered = cmd_fork(payload.get("session_id") or "", payload)
+        if answered is not None:
+            print(json.dumps(answered, ensure_ascii=False), flush=True)
         return
     if watch:
         from .leases import release_on_termination

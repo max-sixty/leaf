@@ -13,10 +13,12 @@
   --lf-compose-action-inset: 6px;
 }
 /* How far in from a field's frame the words of a field holding Send stop: Send's hit
-   box with the action inset on either side of it. */
+   box with the action inset on either side of it. A surface that sets its own
+   action inset restates this and the field's height. */
 leaf-composition-field {
   display: contents;
 }
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -30,12 +32,16 @@ leaf-composition-field {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
+:is(.lf-fab-bar, .lf-margin-preview),
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
 .lf-compose-field {
   --lf-compose-pad-block: 8px;
   --lf-compose-pad-inline-start: 10px;
+  /* A field: the ring a surface draws round it for the words being typed stands on
+     its edge (base.css, "Where it stands"). */
+  outline-offset: 0;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -98,7 +104,7 @@ leaf-composition-field {
   border-radius: var(--r);
   background: var(--card);
   color: var(--danger-ink);
-  font: 500 var(--t-5) / 1.5 var(--sans);
+  font: var(--font-error);
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: text;
@@ -124,6 +130,108 @@ leaf-composition-field {
     var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
   );
 }
+/* Under a mouse, where Return sends, the words run the whole line and Send shows in
+   its corner while no words reach it (`:state(corner-taken)`, text-field.js). Once
+   words reach it, Send waits unseen in the corner, letting presses through to the
+   words. It shows over them as soon as the pointer comes to it (`data-send-pointed`,
+   input.js), with its tint and pointing hand at once, since a browser may not read a
+   still pointer as over the newly shown Send until it moves; and it takes presses
+   only once the pointer has rested there (`data-send-armed`), so a press aimed at
+   the words' end still places the caret. Focus shows it too. Words can stand above
+   Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
+   at least), centred on the last row and clear of the row above, whether or not the
+   corner is free; the box is as tall as its rows, so that row stands at the same
+   place above its foot however many there are. Send reads that line as the field's
+   own, so a composer sets its words' face on the field, which the words inherit.
+   Over the words Send's box is the field's paper (`--lf-field-ground`), which a field
+   standing on other paper than a card's restates. Rejected: showing it
+   on hovering the whole box, since the pointer rests there while typing and Send
+   would cover the words at the corner most of the time; and taking presses as soon
+   as it shows, which sent a press meant to place the caret.
+
+   Experimental: the user chose on 29 October 2026 to try this although it departs
+   from common practice, where a chat or comment box keeps Send drawn beside or below
+   its words and gives up the column above it. Keeping Send's room on every line,
+   main's layout before this, is the established alternative to return to. */
+@property --lf-field-row {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
+    --lf-field-end-room: 0px;
+    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+    min-height: 0;
+  }
+  .lf-compose-field:has(> .lf-compose-submit) {
+    --lf-field-row: 1lh;
+    --lf-field-ground: var(--card);
+  }
+  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit {
+    --lf-send-height: max(var(--aim-floor), var(--lf-field-row));
+    height: var(--lf-send-height);
+    min-height: 0;
+    inset-block-end: calc(
+      var(--lf-compose-pad-block) + (var(--lf-field-row) - var(--lf-send-height)) / 2
+    );
+  }
+  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit::before {
+    /* An even number of pixels, so the arrow centres in it. */
+    --lf-send-square: round(
+      down,
+      min(var(--lf-icon-action-face), var(--lf-field-row)),
+      2px
+    );
+    inline-size: var(--lf-send-square);
+    block-size: var(--lf-send-square);
+  }
+  /* Focus draws the hover disc with the ring inside its edge: a ring outside the
+     square, which fills its line, reaches into the line above. */
+  .lf-compose-field > .lf-compose-submit[data-lf-focus-visible] {
+    outline: none;
+  }
+  .lf-compose-field:has(> .lf-compose-submit)
+    > .lf-compose-submit[data-lf-focus-visible]::before {
+    background: var(--accent-tint);
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-inset);
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-pointed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
+    opacity: 0;
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)):not([data-send-armed])
+    > .lf-compose-submit:not([data-lf-focus-visible]) {
+    pointer-events: none;
+  }
+  /* Over the words, Send's box is the field's paper, and the letters before it fade
+     into that paper across an em, so the words it covers end softly rather than in a
+     cut stroke beside its square. */
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
+    background: var(--lf-field-ground);
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: auto 100%;
+    inline-size: 1em;
+    background: linear-gradient(to left, var(--lf-field-ground), transparent);
+    pointer-events: none;
+  }
+  .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::before {
+    background: var(--lf-field-ground);
+  }
+  .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
+    > .lf-compose-submit::before {
+    background: var(--accent-tint);
+  }
+  .lf-compose-field[data-send-pointed]:has(> leaf-text:state(corner-taken))
+    > leaf-text {
+    cursor: pointer;
+  }
+}
 .lf-action-icon {
   position: relative;
   z-index: 1;
@@ -148,10 +256,6 @@ leaf-composition-field {
   place-items: center;
   border-radius: var(--r);
   cursor: pointer;
-}
-:where(.lf-compose-submit, .lf-compose-dictate)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -251,10 +355,12 @@ leaf-composition-field {
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it; the shelf owns its pictures' size, face
-   and marks here. In a row that holds a field, the
+   and marks here, and how far its pictures stand from the box their words are typed
+   in (`--lf-media-gap`). In a row that holds a field, the
    shelf comes first and takes a line of its own, so it stands above the field and
    never takes the field's width; a seated comment box's composer adds no box of its
-   own (`display: contents`). */
+   own (`display: contents`). The row's own gap between its lines would add to the
+   shelf's, so the shelf's margin alone sets it. */
 :is(.lf-thread-reply, .lf-say):has(
   > leaf-composition-field > .lf-composer-media:not([hidden])
 ),
@@ -262,6 +368,7 @@ leaf-composition-field {
     > .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])
   ) {
   flex-wrap: wrap;
+  row-gap: 0;
 }
 /* The shelf scrolls sideways when its pictures outrun its field, and a scroller cuts
    what it holds at its padding box, so its padding holds each picture's shadow and the
@@ -285,6 +392,11 @@ leaf-composition-field {
     calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--mark-size)) / 2)
   );
   --lf-media-h: 120px;
+  /* How far the pictures stand clear of the edge they meet as it is drawn, wherever a
+     surface places the shelf: the floating panel's edge, or a field's, where the ring
+     the field wears on its edge (base.css) stands outside its box, so a surface that
+     places its shelf by a field adds `--focus-ring-w`. */
+  --lf-media-gap: 8px;
   display: flex;
   align-items: flex-end;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -293,17 +405,34 @@ leaf-composition-field {
   overflow-x: auto;
   padding: var(--lf-media-room);
   /* In flow, the pictures stand far enough into their row to keep the corner mark
-     inside it, and 4px over what follows. */
+     inside it, and their gap clear of the field that follows. */
   margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room))
-    calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
+    calc(-1 * var(--lf-media-room))
+    calc(var(--lf-media-gap) + var(--focus-ring-w) - var(--lf-media-room));
   box-sizing: border-box;
 }
+/* A mark's reach, the aim floor around it, runs from the item's top corner into the
+   item. The item stands at least that tall, with its picture at its top, so under a
+   picture shorter than the reach it still ends at the item's foot, clear of the field
+   below the shelf. */
 .lf-composer-media-item {
+  --lf-media-mark-reach: calc(
+    var(--mark-size) - var(--lf-media-mark-overhang) +
+      (var(--aim-floor) - var(--mark-size)) / 2
+  );
   position: relative;
   flex: none;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  min-block-size: var(--lf-media-mark-reach);
   box-sizing: border-box;
+}
+/* On a shelf the items stand side by side, so each stands as wide as the reach too,
+   with its picture under its removal, and with the shelf's gap the reach ends clear of
+   the next item's mark. A rewrite stands each picture on a line of its own. */
+.lf-composer-media > .lf-composer-media-item {
+  justify-content: flex-end;
+  min-inline-size: var(--lf-media-mark-reach);
 }
 .lf-media-open {
   display: block;
@@ -318,10 +447,6 @@ leaf-composition-field {
 }
 button.lf-media-open {
   cursor: zoom-in;
-}
-.lf-media-open[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 /* Each attachment is its picture alone and its controls marks on its corners: there
    under a finger, and shown to a pointer over the picture or a key on it. The user
@@ -389,7 +514,7 @@ button.lf-media-open {
   inset-inline: 0;
   inset-block-end: 0;
   padding: 2px;
-  font: 10px/1.2 var(--sans);
+  font: var(--font-fine);
   background: var(--paper);
   color: var(--ink-2);
 }
@@ -423,13 +548,17 @@ button.lf-media-open {
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }
+/* The words wear the message's face, so a box's lines break where its message's
+   will. */
+.lf-comment-box > leaf-composition-field > .lf-compose-field {
+  font: var(--font-message);
+}
 .lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
   max-height: 50vh;
   overflow-y: auto;
 }
@@ -463,7 +592,7 @@ button.lf-media-open {
   display: block;
   min-width: 0;
   /* The message's face, whose line its frame's room is reckoned in. */
-  font: var(--msg-font);
+  font: var(--font-message);
 }
 /* The body holds the field's reach past it, so the message's box is the room it takes. */
 .lf-msg-body:has(> .lf-msg-editor) {
@@ -503,33 +632,22 @@ button.lf-media-open {
   block-size: 0;
   scroll-margin-block-start: 1lh;
 }
-/* Discard and Save take the message's head while it is open, where its Edit and Copy
-   controls stood and with their face, as glyphs: Discard's undo, and Save's save. The
-   user chose glyphs that cover on 2026-10-24 over the words, which ran into the head's
-   labels where it kept them no room, and on 2026-10-25 a save glyph over the reply
-   box's send and a check, neither of which reads as saving. A cross would read as the
-   card's Close beside them. The pair covers the head's end with the head's ground,
-   across the labels' line, so the field's frame just below stays whole, and fades in
-   over a gap's width before it, past the room the head keeps for its controls: a label
-   there hides under the pair while the rewrite is open rather than showing through it
-   or moving, and one cut part-way fades out. Save keeps its press's ink. */
+/* Discard and Save stand among the message's head controls while it is open, in its
+   Edit and Copy controls' place and with their face, as glyphs: Discard's undo, and
+   Save's save. The user chose glyphs on 2026-10-24 over the words, which ran into the
+   head's labels, and on 2026-10-25 a save glyph over the reply box's send and a check,
+   neither of which reads as saving. A cross would read as the card's Close beside
+   them. Where Copy is left out, the pair is one control wider than Edit, and in a
+   short head it stands over the labels' end on the message's ground, as the head's
+   controls do when they show (controls.css), which the pair always does. Save keeps
+   its press's ink. */
+.lf-msg-controls:has(> .lf-msg-edit-actions)::before {
+  opacity: 1;
+}
 .lf-msg-edit-actions {
-  position: absolute;
-  z-index: 2;
-  position-anchor: --lf-msg-head;
-  inset-block-start: anchor(center);
-  inset-inline-end: anchor(right);
-  translate: 0 -50%;
-  display: inline-flex;
+  display: flex;
   gap: var(--lf-msg-edit-gap);
-  padding-inline-start: var(--sp-2);
-  font-size: var(--t-6);
-  background:
-    linear-gradient(to right, transparent, var(--lf-msg-ground) var(--sp-2)),
-    linear-gradient(to right, transparent, var(--lf-ground) var(--sp-2));
-  background-size: 100% 1lh;
-  background-position: center;
-  background-repeat: no-repeat;
+  font: var(--font-small);
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: relative;
@@ -562,32 +680,49 @@ button.lf-media-open {
 /* While a rewrite is open its thread offers no Resolve or Reopen: the row is the
    rewrite's, and saving reopens a resolved thread anyway. The control leaves the row, so
    the controls after it shift over (the user's choice, 2026-10-25). */
-:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) :is(.lf-resolve, .lf-reopen) {
-  display: none;
-}
-/* Beside a thread's first message the thread's controls keep their own room past the
-   head (surfaces.css), so there the pair moves over into Resolve's place. */
-.lf-thread-content:has(> .lf-thread-controls)
-  > .lf-thread-transcript
-  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
-  .lf-msg-edit-actions {
-  inset-inline-end: calc(anchor(right) - var(--lf-thread-action-room) - var(--sp-2));
+:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) {
+  & :is(.lf-resolve, .lf-reopen) {
+    display: none;
+  }
+  /* Here the thread's controls beside its first message's head hold only that control
+     (thread-card.js), so their box goes too, and a rewrite of that message takes the
+     room the head keeps for them (surfaces.css): the pair stands in Resolve's place. */
+  & .lf-thread-controls {
+    display: none;
+  }
+  &
+    .lf-thread-content:has(> .lf-thread-controls)
+    > .lf-thread-transcript
+    > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+    > .lf-msg-head:has(
+      > .lf-msg-control-room > .lf-msg-controls > .lf-msg-edit-actions
+    ) {
+    margin-inline-end: 0;
+  }
 }
 
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-response-height: var(--lf-line);
 }
-/* The comment box and the card its words become share one text column, so Send
-     moves no word: both start the words `--lf-thread-text-inset` inside the field's or
-     the transcript's edge, and both end them `--lf-comment-text-end` inside it, on
-     every line, the room Send stands in at the box's foot. The editor spends one pixel
-     of each inset on its frame, which the card does not draw. */
+/* The comment box, card and card reply share one text column, so Send moves no
+   word. Each starts at the thread text inset and ends `--lf-comment-text-end` inside
+   its edge: past Send, which stands centred in one response line, or under a mouse,
+   where Send takes only a free corner (above), at the thread text inset, as at the
+   start. The field spends one pixel of each inset on its frame. */
 :is(.lf-fab-bar, .lf-margin-preview) {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-  --lf-comment-send-inset: calc(
+  --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
   );
-  --lf-comment-text-end: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset));
+  --lf-comment-text-end: calc(var(--lf-compose-send-end) + 1px);
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.lf-fab-bar, .lf-margin-preview) {
+    --lf-comment-text-end: var(--lf-thread-text-inset);
+  }
+  leaf-text.lf-fab-input {
+    --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
+  }
 }
 .lf-margin-preview .lf-msg {
   --lf-msg-text-end: var(--lf-comment-text-end);
@@ -598,6 +733,7 @@ button.lf-media-open {
    (#2985), which made every short card taller than the box it came from for a rewrite
    the user may never open. */
 .lf-fab-bar .lf-compose-field,
+.lf-margin-preview .lf-thread-reply .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }
@@ -624,10 +760,6 @@ leaf-text.lf-fab-input {
     calc(var(--lf-comment-text-end) - 1px);
   overflow-y: auto;
 }
-.lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
-  inset-inline-end: var(--lf-comment-send-inset);
-  inset-block-end: var(--lf-comment-send-inset);
-}
 /* Other responses stands one action further in, while the field holds no words
    (`data-words`, input.js), and the hint stops short of it. A draft's first word takes
    it away and gives its room back to the words, so nothing moves under the caret
@@ -635,8 +767,8 @@ leaf-text.lf-fab-input {
 .lf-fab-bar .lf-compose-field > .lf-response-trigger {
   position: absolute;
   z-index: 1;
-  inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit));
-  inset-block-end: var(--lf-comment-send-inset);
+  inset-inline-end: calc(var(--lf-compose-action-inset) + var(--lf-icon-action-hit));
+  inset-block-end: var(--lf-compose-action-inset);
 }
 .lf-fab-bar .lf-compose-field[data-words] > .lf-response-trigger {
   display: none;
@@ -644,9 +776,7 @@ leaf-text.lf-fab-input {
 .lf-fab-bar
   .lf-compose-field:not([data-words]):has(> .lf-response-trigger:not([hidden]))
   > leaf-text.lf-fab-input {
-  padding-inline-end: calc(
-    var(--lf-comment-text-end) + var(--lf-icon-action-hit) - 1px
-  );
+  padding-inline-end: calc(var(--lf-compose-send-end) + var(--lf-icon-action-hit));
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));
@@ -742,7 +872,7 @@ leaf-text.lf-fab-input {
    widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-ui);
 }
 @media screen {
   .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {

@@ -29,7 +29,7 @@
   // the anchored response bar, which writes `outline: none` so its states keep one
   // silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
   // focus — and to a user they are the same band as every other ring (--focus-shadow,
-  // theme.css).
+  // base.css).
   //
   // What makes it that band rather than the layer's other shadows: no offsets, no blur, and
   // the ring's own width as its spread. The elevation shadows are the third length away —
@@ -243,7 +243,7 @@
       // leaving — and this once read every ring that way, because the theme's
       // reduced-motion guard shortened transitions rather than removing them and
       // `transition-property` is `all`, so a ring arriving was a ring in transit for two
-      // frames on every page. That is fixed where it was made (theme.css). A layer that
+      // frames on every page. That is fixed where it was made (base.css). A layer that
       // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
       // written here now would wait on nothing, in front of the reading it is meant to
       // protect.
@@ -374,6 +374,7 @@
       };
       const mid = (x, y) => (x + y) / 2;
       const covers = [];
+      const coverPoints = [];
       // Whether this reading has an order to read at all. It works by hit-testing the ring's
       // own pixels and taking whatever comes back as standing over them — but an outline is
       // painted by its control, at its control's level, and an outline's pixels are not
@@ -635,6 +636,7 @@
             const covering = stack.indexOf(over);
             if (control >= 0 && covering >= 0 && control < covering) break;
           }
+          coverPoints.push({ index: covers.length, point: [x, y] });
           covers.push(
             `its ${side} edge is under ` +
               named(over) +
@@ -663,7 +665,9 @@
       const runs = [];
       let opacity = 1;
       for (let a = el; a; a = flatParent(a)) opacity *= +getComputedStyle(a).opacity;
-      if (here && opacity === 1 && scale === 1 && el.getClientRects().length === 1) {
+      const readable =
+        here && opacity === 1 && scale === 1 && el.getClientRects().length === 1;
+      if (readable) {
         const radius = Math.max(
           ...["TopLeft", "TopRight", "BottomLeft", "BottomRight"].map(
             (corner) => parseFloat(cs[`border${corner}Radius`]) || 0,
@@ -705,6 +709,9 @@
         ink: srgb(outlined ? cs.outlineColor : accent),
         ringAt: at(ring),
         runs,
+        // A hit names a candidate cover, not outline paint. Confirm it in pixels
+        // where the ring has an unscaled, opaque colour the screenshot can read.
+        coverPoints: readable ? coverPoints : [],
         here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
@@ -755,7 +762,7 @@
   // What this cannot see, said out loud so a green is not read as more than it is. A
   // joined `lf-options` carrying log news — restated, pending, reported — deliberately
   // stands its ring down, because an element takes one outline and the log has claimed it;
-  // the layer's own comment (packages/default/widgets.css) names the carriers that stand in
+  // the layer's own comment (packages/default/defaults.css) names the carriers that stand in
   // its place as the washed cell and the key badges, and neither is an outline nor an
   // accent shadow. That is a fifth way of drawing "here" and this reading has no honest
   // test for it: accepting a background would pass every stop on a tinted page. No corpus

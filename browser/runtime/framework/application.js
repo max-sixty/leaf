@@ -37,25 +37,15 @@ import {
 import { PENDING } from "../thread/identity.js";
 import { queueOffers } from "../queues.js";
 
-/** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
-/** @typedef {import("../../types/domain.js").Thread} Thread */
-/** @typedef {import("../../types/domain.js").Event} Event */
-/** @typedef {import("../../types/domain.js").Command} Command */
-/** @typedef {import("../../types/domain.js").LocalMessage} LocalMessage */
-/** @typedef {import("../../types/domain.js").LocalEdit} LocalEdit */
-/** @typedef {import("../../types/domain.js").ThreadGesture} ThreadGesture */
-/** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
-/** @typedef {import("../../types/domain.js").PendingProjection} PendingProjection */
-/** @typedef {import("../../types/domain.js").ProjectionEntry} ProjectionEntry */
-/** @typedef {import("../../types/domain.js").ContentVersion} ContentVersion */
-/** @typedef {import("../../types/contract.js").ServedObligation} ServedObligation */
-/** @typedef {import("../../types/contract.js").ServedQueueRow} ServedQueueRow */
-/** @typedef {import("../../types/contract.js").ServedState} ServedState */
-/** @typedef {import("../../types/contract.js").ServedSubject} ServedSubject */
-/** @typedef {import("../../types/contract.js").ServedTodo} ServedTodo */
-/** @typedef {import("../../types/contract.js").ServedView} ServedView */
-/** @typedef {import("../../types/contract.js").ServedWorkflow} ServedWorkflow */
-/** @template T @typedef {import("./snapshot.js").Immutable<T>} Immutable */
+/** @import {
+ *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
+ *   ActionSpec, PendingProjection, ProjectionEntry, ContentVersion
+ * } from "../../types/domain.js" */
+/** @import {
+ *   ServedObligation, ServedQueueRow, ServedState, ServedSubject, ServedTodo,
+ *   ServedView, ServedWorkflow
+ * } from "../../types/contract.js" */
+/** @import { Immutable } from "./snapshot.js" */
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -137,9 +127,9 @@ const UNPRESENTED = new Set([
  * @property {string} timestamp
  * @property {number} order
  * @property {PendingProjection | null} projection
- * @property {LocalMessage | LocalEdit | null} thread What the gesture draws in a
- *   thread, as `foldThreads` reads it: its message, or the user's rewrite of one of
- *   theirs.
+ * @property {LocalMessage | LocalEdit | null} thread
+ *   What the gesture draws in a thread, as foldThreads reads it: its message,
+ *   or the user's rewrite of one of theirs.
  * @property {string | null} undoTarget
  * @property {string} [namedParent]
  * @property {GestureState} state

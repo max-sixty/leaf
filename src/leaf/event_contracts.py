@@ -53,7 +53,7 @@ from leaf.registry.kernel import (
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
-from leaf.registry.storage import layer_record
+from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
@@ -899,7 +899,10 @@ def write_refusal(page_dir: Path) -> Finding | None:
     is at another page protocol (`layer.incompatible_layer`). A writer that must not
     fail on a page it cannot write, such as a hook, asks this first, and so does
     `page check`."""
-    record = layer_record(page_dir)
+    try:
+        record = layer_record(page_dir)
+    except IncompatibleLayer as refused:
+        return refused.findings[0]
     return None if record is None else incompatible_layer(page_dir, record)
 
 

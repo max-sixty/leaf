@@ -8,7 +8,6 @@ import urllib.error
 import urllib.request
 from dataclasses import replace
 
-import leaf_website as website_server
 import pytest
 from interact_support import comment as open_thread
 from interact_support import (
@@ -17,8 +16,8 @@ from interact_support import (
     revision_root,
     running_http_server,
 )
-from leaf_dev.commands import journey, verify_site
 
+import leaf_website as website_server
 from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -30,6 +29,7 @@ from leaf.runtime_selection import executing, serving_runtime
 from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
+from leaf_dev.commands import journey, verify_site
 from process.website_server import (
     FakeCodexHarness,
     get,
@@ -325,7 +325,9 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
             assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
         else:
-            entry = re.search(rb'data-lf-entry="([^"]+)"', document)[1].decode()
+            match = re.search(rb'data-lf-entry="([^"]+)"', document)
+            assert match is not None
+            entry = match[1].decode()
             assert entry.startswith(child["url"] + "revisions/")
             assert get(origin + entry)[0]
         assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
@@ -361,6 +363,7 @@ def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tm
     shutil.copytree(page_dir, published)
     record = layer_record(published)
     (published / LAYER_FILE).unlink()
+    assert record is not None
     LAYER.write(published / LAYER_FILE, {**record, "protocol": 999})
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
@@ -372,7 +375,7 @@ def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tm
         get(f"{root}/api/state")
     assert refused.value.code == 500
     told = json.loads(refused.value.read())["error"]
-    assert "page protocol 999" in told
+    assert "Use a newer Leaf" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):

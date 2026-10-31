@@ -14,10 +14,13 @@
  * one per document, and other surfaces import their readers directly; the controller
  * keeps travel and activation, which do. Block marks show changes, and
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. `comparisonBase` names the current base. `comparisonChanges(owner)` selects
- * changed descendants from the same comparison reading. Its signal advances after
- * the marked DOM and comparison selection have changed together; a pending picker
- * choice stays separate from that committed reading.
+ * request. A base is any earlier revision (`revisionBase`): a stamped version a row
+ * offers, or the revision the user was last shown, which since-seen.js offers on
+ * arrival (`offerComparison`) and which a reader's own choice outranks.
+ * `comparisonBase` names the current base and `stopComparison` ends it.
+ * `comparisonChanges(owner)` selects changed descendants from the same comparison
+ * reading. Its signal advances after the marked DOM and comparison selection have
+ * changed together; a pending picker choice stays separate from that committed reading.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -109,6 +112,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import {
   inlineMarkdownFragment,
@@ -140,16 +144,11 @@ import {
 } from "./reading-regions.js";
 import { PAGE_SCOPE } from "./storage.js";
 import { tabStore } from "./tab-store.js";
-import {
-  authoredBody,
-  initialOrigin,
-  restoreInitialSource,
-  unmarkedCopy,
-} from "./initial-render.js";
+import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, reveal } from "./widget-elements.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { settleMarginContentLayout } from "./content-layout.js";
+import { settleDocumentLayout } from "./content-layout.js";
 import { keeps } from "./keeps.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
@@ -196,13 +195,12 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. Most arrive after this module, but the server's prepaint
-// bootstrap deliberately runs before the module graph and has already written the live
-// shell and provisional user layout. Authored markup cannot use the `data-lf-` or
+// bootstrap deliberately runs before the module graph and has already written sample
+// presentation facts. Authored markup cannot use the `data-lf-` or
 // `lf-` namespaces, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
-  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -227,53 +225,103 @@ const versionedHeadNode = (node) =>
     (node.localName === "meta" &&
       (node.hasAttribute("name") || node.hasAttribute("property"))) ||
     node.localName === "link");
-// This document as its author wrote it, kept inert beside the page it became. A patch
-// applies the difference between two revisions, so it needs the revision the page is
-// standing on as source — not the page, which by then carries a tokenizer's spans, a
-// user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The early coordinator keeps the source of each initially rendered host
-// before its package moves or replaces anything. unmarkedCopy uses those sources
-// and removes delivery's placeholders and invocation scripts. Each copied source
-// node retains its route to the original live node, so pairing still works when a
-// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
-// and are excluded from the separate head baseline above. A later arriving source
-// that has not been initially rendered pairs by the ordinary parallel walk.
+// Keep one inert authored baseline before Leaf mounts or upgrades anything. Live
+// revisions compare against it and pair retained source nodes with their live peers.
+// Delivery's Markdown preview is presentation, so neither baseline includes it.
+const authoredMarkup = (root) => {
+  // Prepaint can already have painted the first document. Both source snapshots
+  // exclude runtime-owned attributes; their live values stay with their writers.
+  for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE))
+    for (const element of root.querySelectorAll(`[${name}]`))
+      element.removeAttribute(name);
+  for (const member of root.querySelectorAll("[data-lf-view]"))
+    member.removeAttribute("hidden");
+  for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+  return root;
+};
 const pairSources = (source, live, pairs) => {
-  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
+    (child) => !child.matches?.("[data-lf-prepaint]"),
   );
   for (const [at, child] of [...held.childNodes].entries()) {
-    const original = initialOrigin(child);
-    const peer = original === child ? children[at] : original;
+    const peer = children[at];
     if (peer) pairSources(child, peer, pairs);
   }
   return pairs;
 };
-// The served baseline is read here, before any widget upgrades, and the version
-// controller takes it whole, replacing each part with every revision. Nothing else
-// keeps it: its source routes each copied node back to the live node it came from
-// (its pairs, and prepaint.js's `origins`), so a reference kept past the first revision
-// would hold every node the page was served with after that revision removed it.
+// Only the version controller keeps this baseline; replacing a revision releases
+// its source and the source/live node pairs together.
 let initialDocument = (() => {
   const main = pageDocument();
-  const source = main ? unmarkedCopy(main) : null;
+  const inert = document.implementation.createHTMLDocument("");
+  const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+  // Cloning transfers native dirty properties too. Read the initial condition from
+  // the defaults, leaving markup and its exact text intact (reparsing drops a leading
+  // newline in pre/textarea). Native setters apply each control's sanitization.
+  for (const input of source?.querySelectorAll("input") ?? []) {
+    if (
+      !["file", "checkbox", "radio"].includes(input.type) &&
+      input.value !== input.defaultValue
+    )
+      input.value = input.defaultValue;
+    input.checked = input.defaultChecked;
+  }
+  for (const textarea of source?.querySelectorAll("textarea") ?? [])
+    textarea.value = textarea.defaultValue;
+  const pairs = main ? pairSources(source, main, new WeakMap()) : new WeakMap();
+  // Native disclosures can already have been used while modules were loading.
+  // Their parse-time owner supplies the authored default for the source baseline;
+  // the live node keeps the user's choice, as it does for every later revision.
+  for (const disclosure of source?.querySelectorAll("details") ?? []) {
+    const open = document.documentElement.lfStorage.initialDisclosureOpen(
+      pairs.get(disclosure),
+    );
+    if (open !== undefined) disclosure.toggleAttribute("open", open);
+  }
   return {
     authoredBodyAttributes: authoredAttributes(document.body),
     authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
     authoredHtmlAttributes: authoredAttributes(document.documentElement),
     source,
-    pairs: main ? pairSources(source, main, new WeakMap()) : new WeakMap(),
+    pairs,
   };
 })();
+
+// Boot lends this same captured source and its original node pairs to typed
+// capture, then transfers ownership to the version controller.
+export function takeInitialDocument() {
+  const captured = initialDocument;
+  initialDocument = null;
+  return captured;
+}
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.
 const stamped = (version) =>
   runtime.versions.find((candidate) => candidate.version === version);
+// A comparison's base: the revision the page is compared with, its document's address,
+// and its name in what the comparison says, a stamp's `vN`, else the time it went live,
+// which is what a reader coming back to an unstamped page can place. It is built from a
+// stamped version's entry or from a revision descriptor such as the state's `seen`.
+/** @param {{revision: number, version: number | null, url: string, activated_at?: string}} entry */
+export const revisionBase = ({ revision, version, url, activated_at }) =>
+  Object.freeze({
+    revision,
+    url,
+    name: version != null ? `v${version}` : wentLive(activated_at),
+  });
+const wentLive = (iso) => {
+  const at = new Date(iso);
+  const sameDay = at.toDateString() === new Date().toDateString();
+  return at.toLocaleString(undefined, {
+    ...(sameDay ? {} : { weekday: "short", day: "numeric", month: "short" }),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
 // The version picker: a press that says which version this is, and a menu that says
 // what each one was and what it changed. It was a <select>, and the two things that
 // cost were both the control's rather than the styling's. A select takes its inner
@@ -333,7 +381,7 @@ function menuRows(state, notes) {
     note: notes[entry.version] ?? null,
     current: entry.version === runtime.currentStamp,
     active: false,
-    comparable: comparable(entry.version),
+    comparable: comparable(entry.revision),
   }));
   for (const revision of draftRevisions()) {
     const active = revision === state.active.revision;
@@ -376,16 +424,16 @@ function pickerModel(state) {
       news: behind,
       keyTitle: offered
         ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}`
+          ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}`
           : diffOn.value
-            ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}`
+            ? `${currentLabel}: showing what changed since ${diffBase.value.name} — pick a version, or press Compare again to stop${newer}`
             : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
         : currentLabel,
       ariaLabel: offered
         ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}`
+          ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}`
           : diffOn.value
-            ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}`
+            ? `${currentLabel}: comparing with ${diffBase.value.name}; open versions${newer}`
             : `${currentLabel}: open versions${newer}`
         : currentLabel,
     }),
@@ -408,11 +456,14 @@ function pickerModel(state) {
         ? Object.freeze([])
         : menuRows(state, runtime.browser?.version_notes ?? {}),
     selection: Object.freeze({
-      base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+      // The base's revision, which each row of the menu names it by.
+      base:
+        (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
+        null,
       currentRevision: runtime.currentRevision,
       on: diffOn.value,
       pendingBase: diffPendingBase.value,
-      baseRevision: stamped(diffBase.value)?.revision ?? null,
+      baseRevision: diffBase.value?.revision ?? null,
     }),
   });
 }
@@ -508,10 +559,11 @@ const diffOpaqueSel = () =>
 // comes from the immutable picker model and is read back by nothing. The comparison
 // owns the marked identities; the CSS marks are only their rendering.
 const diffOn = signal(false);
-const diffBase = signal(null);
+/** @typedef {ReturnType<typeof revisionBase>} ComparisonBase */
+const diffBase = signal(/** @type {ComparisonBase | null} */ (null));
 // Advanced after the marked DOM changes, so tracked readers see its new contents.
 const comparisonGeneration = signal(0);
-const diffPendingBase = signal(null);
+const diffPendingBase = signal(/** @type {ComparisonBase | null} */ (null));
 const diffMarked = new Set();
 // What each marked block said in the base version and says in this version's source,
 // and which of those readings the user has open. The marks say a block changed; these
@@ -742,8 +794,8 @@ export function servedElements() {
   }
   return served;
 }
-function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-  const baseView = baseReading.views[String(stamped(baseVersion).revision)];
+function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
+  const baseView = baseReading.views[String(baseRevision.revision)];
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
   // projection the server read for it. A report in force at the base painted there
@@ -907,15 +959,15 @@ function openInlineComparison(target) {
     "span",
     "lf-ui lf-quiet lf-version-inline-label",
     before === null
-      ? `New since v${diffBase.value}`
-      : `v${diffBase.value} → ${current}`,
+      ? `New since ${diffBase.value.name}`
+      : `${diffBase.value.name} → ${current}`,
   );
   label.id = inlineId(target);
   label.setAttribute(
     "aria-label",
     before === null
-      ? `New since version ${diffBase.value}`
-      : `Inline comparison from version ${diffBase.value} to ${current}`,
+      ? `New since ${diffBase.value.name}`
+      : `Inline comparison from ${diffBase.value.name} to ${current}`,
   );
 
   const nodes = [label];
@@ -955,8 +1007,8 @@ function openInlineComparison(target) {
   paintInlineInsertions();
   layoutChanged(target);
   return before === null
-    ? `v${diffBase.value} had nothing here`
-    : `showing an inline diff from v${diffBase.value}`;
+    ? `${diffBase.value.name} had nothing here`
+    : `showing an inline diff from ${diffBase.value.name}`;
 }
 
 function closeInlineComparison(target) {
@@ -966,7 +1018,7 @@ function closeInlineComparison(target) {
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
-  return `inline diff from v${diffBase.value} hidden`;
+  return `inline diff from ${diffBase.value.name} hidden`;
 }
 
 // What a text-changing marked block holds for the margin's disclosure reading. A pure
@@ -982,7 +1034,7 @@ export const inlineComparison = (target) => {
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
-        offer: `v${diffBase.value} → ${currentVersionToken()}`,
+        offer: `${diffBase.value.name} → ${currentVersionToken()}`,
       }
     : null;
 };
@@ -999,16 +1051,10 @@ export function toggleInlineComparison(target) {
   return said;
 }
 
-// Whether a stamped version can be compared with the revision being read: any stamp
-// on an earlier revision, which is which rows the menu builds a press onto.
-const comparable = (version) => {
-  const base = stamped(version);
-  return (
-    runtime.currentRevision !== null &&
-    base !== undefined &&
-    base.revision < runtime.currentRevision
-  );
-};
+// Whether a revision can be compared with the one being read: any earlier one, which
+// is which stamped rows the menu builds a press onto.
+const comparable = (revision) =>
+  runtime.currentRevision !== null && revision < runtime.currentRevision;
 // Whether the comparison is active and what against, or which base a stopped one is
 // waiting on — the only thing that decides it, the marks and the paint being renderings
 // rather than a second copy.
@@ -1038,7 +1084,7 @@ function setDiff(on, base, pendingBase = null) {
 // after the single await: the walk asks for a comparison per row, and a marking pass
 // that could interleave with the next row's would leave two bases' marks in place
 // under a picker naming one of them.
-async function showComparison(base) {
+async function showComparison(base, { offered = false } = {}) {
   // Selection is immediate even though its result needs two documents. Clear the prior
   // marks, move the menu's checked state to the requested base, and expose the wait as
   // busy. A fast walk then never leaves the last completed base highlighted under focus
@@ -1046,14 +1092,8 @@ async function showComparison(base) {
   // an unlit state it is about to leave.
   setDiff(false, null, base);
   const mine = ++diffRequest;
-  const baseVersion = stamped(base);
-  const baseRevision = baseVersion?.revision;
-  if (baseRevision == null) {
-    diffPendingBase.value = null;
-    raiseError(`Couldn't load v${base}`);
-    return;
-  }
-  const documentRequest = authoredDocument(baseVersion.url);
+  const baseRevision = base.revision;
+  const documentRequest = authoredDocument(base.url);
   let doc;
   let reading;
   let baseAuthored;
@@ -1075,28 +1115,44 @@ async function showComparison(base) {
   } catch {
     if (mine === diffRequest) {
       diffPendingBase.value = null;
-      raiseError(`Couldn't load v${base}`);
+      raiseError(`Couldn't load ${base.name}`);
     }
     return;
   }
   if (mine !== diffRequest) return;
   const n = applyDiff(doc, baseAuthored, base, reading);
+  // A comparison nobody asked for that finds nothing says nothing and stands down, as
+  // after a revision that changed only the layer.
+  if (offered && !n) return setDiff(false);
   setDiff(true, base);
   notice(
     n
-      ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}`
-      : `No text changes since v${base}`,
+      ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}`
+      : `No text changes since ${base.name}`,
   );
 }
-// A press names one base, so pressing the current one again is the way off it: Compare is a
-// toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
-// walk itself — up to the version being read, which is comparable with nothing and so
-// stops rather than re-bases.
-const pressComparison = (base) =>
-  (diffOn.value && base === diffBase.value) || diffPendingBase.value === base
+// Mark what changed since `base` (`revisionBase`), unless a comparison already stands or
+// is on its way: the reader's own choice of base outranks one Leaf offers
+// (since-seen.js).
+export function offerComparison(base) {
+  if (selectedBase() !== null || !comparable(base.revision)) return;
+  void showComparison(base, { offered: true });
+}
+// A press names one stamped version, so pressing the current one again is the way off
+// it: Compare is a toggle where it is lit and a switch of base where it isn't. The
+// keyboard's way off is the walk itself — up to the version being read, which is
+// comparable with nothing and so stops rather than re-bases.
+const pressComparison = (version) => {
+  const entry = stamped(version);
+  if (!entry) return;
+  return selectedBase()?.revision === entry.revision
     ? setDiff(false)
-    : showComparison(base);
+    : showComparison(revisionBase(entry));
+};
 
+/** Stop marking: the way out of a comparison, whoever started it (change-walk.js). */
+export const stopComparison = () => setDiff(false);
+/** The base the page's marks compare with, or null where nothing is compared. */
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
@@ -1120,8 +1176,7 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  // First-paint delivery wrappers have no place in the authored revision.
-  return restoreInitialSource(doc);
+  return authoredMarkup(doc);
 }
 // Repeated comparisons of the same immutable revision share its document fetch.
 const revisionDocuments = new Map();
@@ -1137,7 +1192,11 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
-/** @param {{
+/**
+ * @template RetainedLocation
+ * @template ObligationLocation
+ * @param {{
+ *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
  *   compositionInput: any,
  *   openThread: any,
  *   refreshThread: any,
@@ -1145,13 +1204,14 @@ function revisionDocument(revision) {
  *   hasPending: any,
  *   readAndApply: any,
  *   syncLayout: any,
- *   captureRetainedCurrentLocation?: () => unknown,
- *   restoreRetainedCurrentLocation?: (currentLocation: unknown) => boolean,
- *   captureObligationCurrentLocation?: () => unknown,
- *   restoreObligationCurrentLocation?: (currentLocation: unknown) => void,
+ *   captureRetainedCurrentLocation?: () => RetainedLocation,
+ *   restoreRetainedCurrentLocation?: (currentLocation: RetainedLocation) => boolean,
+ *   captureObligationCurrentLocation?: () => ObligationLocation,
+ *   restoreObligationCurrentLocation?: (currentLocation: ObligationLocation) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
+  initialDocument,
   compositionInput,
   openThread,
   refreshThread,
@@ -1174,7 +1234,6 @@ export function createVersionController({
   } = initialDocument;
   // Every revision pairs its own source here; a superseded source's pairs leave with it.
   const sourcePairs = initialDocument.pairs;
-  initialDocument = null;
   versionSource = () => ({ source: authoredSource, pairs: sourcePairs });
   // The delivery root removed when comparing this revision with the next.
   let authoredRoot = layerRoot(document);
@@ -1344,12 +1403,12 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // A widget declaring `x-patch: members` builds its controls beside its members and
-  // reads nothing of them but their attributes. So what it built stands for its own
-  // attributes and each member's tag and attributes, in order, and while two revisions
-  // agree on that much, the rest of the difference is inside members the author owns.
-  // One that moved them all into an authored body reads none of them, so there its own
-  // attributes stand for everything it built.
+  // An x-patch container retains authored markup while the inputs its renderer
+  // consumes stay the same. A structured member list, or a declared x-views list,
+  // consumes its direct members' identities and attributes. A markup container
+  // without views consumes only its own attributes: the patch owns its evidence,
+  // including native attributes. A generated authored body likewise separates that
+  // evidence from the renderer's inputs.
   const shell = (element, members) => {
     const copy = element.cloneNode(false);
     if (members)
@@ -1357,8 +1416,11 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) => {
-    if (registry[before.localName]?.["x-patch"] !== "members") return false;
-    const members = !authoredBody(sourcePairs.get(before));
+    const entry = registry[before.localName];
+    if (entry?.["x-patch"] !== "members") return false;
+    const members =
+      !authoredBody(sourcePairs.get(before)) &&
+      (entry["x-content"] === "members" || entry["x-views"]);
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1604,7 +1666,7 @@ export function createVersionController({
           // A revision ends every hold, whether or not the reader's intent lets the
           // view be restored: its own handoff places the reader.
           releaseHolds();
-          settleMarginContentLayout();
+          settleDocumentLayout();
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
@@ -2401,8 +2463,7 @@ export function createVersionController({
           restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
           restoreCarryScroll();
           await restoreEditingContinuity(handoff, currentIntent);
-          if (handoff.comparison !== null && stamped(handoff.comparison))
-            showComparison(handoff.comparison);
+          if (handoff.comparison) showComparison(handoff.comparison);
           return;
         }
         // A URL aimed somewhere has already landed there (`aimArrival`).

@@ -24,9 +24,7 @@
       }
 
       notification-simulator .notification-demo-candidates {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
+        --playground-choice-columns: repeat(2, minmax(0, 1fr));
         height: 100%;
       }
 
@@ -36,14 +34,6 @@
         gap: var(--sp-2);
         min-width: 0;
         margin: 0;
-        padding: var(--sp-2);
-        border: 1px solid transparent;
-        border-radius: calc(var(--notification-radius) + var(--sp-1));
-      }
-
-      notification-simulator .notification-demo-candidate[data-selected] {
-        border-color: var(--notification-accent);
-        box-shadow: inset 0 0 0 1px var(--notification-accent);
       }
 
       notification-simulator .notification-demo-caption {
@@ -53,11 +43,6 @@
         justify-content: space-between;
         color: var(--ink-2);
         font: var(--t-6) / 1.3 var(--sans);
-      }
-
-      notification-simulator .notification-demo-name {
-        color: var(--ink);
-        font-weight: 680;
       }
 
       notification-simulator .notification-demo-metric {
@@ -162,10 +147,10 @@
         border-color: color-mix(in srgb, var(--bad) 55%, var(--border-2));
       }
 
-      @container (max-width: 42rem) {
+      @container (max-width: 32rem) {
         /* Stacked, the formats are no longer lanes, and each keeps its own height. */
         notification-simulator .notification-demo-candidates {
-          grid-template-columns: minmax(0, 1fr);
+          --playground-choice-columns: minmax(0, 1fr);
           height: auto;
         }
       }
@@ -222,23 +207,18 @@
         return node;
       }
 
-      function metric(label) {
-        const node = element("span", "notification-demo-metric", label);
-        node.setAttribute("aria-live", "polite");
-        return node;
-      }
-
-      function candidate(name, format) {
-        const figure = element("figure", "notification-demo-candidate");
-        figure.dataset.notificationFormat = format;
-        const caption = element("figcaption", "notification-demo-caption");
-        caption.append(element("strong", "notification-demo-name", name), metric(""));
+      function candidate(root, format) {
+        const figure = root.querySelector(`[data-notification-format="${format}"]`);
         const feed = element(
           "div",
           `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
         );
-        figure.append(caption, feed);
-        return { figure, feed, metric: caption.lastElementChild };
+        const metric = figure.querySelector(".notification-demo-metric");
+        // Event cards and their measurements are this module's words.
+        generatedElement(feed, { says: true });
+        generatedElement(metric, { says: true });
+        figure.append(feed);
+        return { feed, metric };
       }
 
       function notification(event, format, index, values) {
@@ -302,13 +282,8 @@
           }
 
           #build() {
-            this.#banner = candidate("A · Banner stack", "banner");
-            this.#strip = candidate("B · Status stream", "status strip");
-            const candidates = element("div", "notification-demo-candidates");
-            candidates.append(this.#banner.figure, this.#strip.figure);
-            // The simulated notifications are this module's words, not the page's source.
-            generatedElement(candidates, { says: true });
-            this.append(candidates);
+            this.#banner = candidate(this, "banner");
+            this.#strip = candidate(this, "status strip");
           }
 
           #render(values) {
@@ -317,14 +292,6 @@
             keeps(this, "data-compact", values.compact);
             this.style.setProperty("--notification-accent", values.accent);
             this.style.setProperty("--notification-radius", `${values.radius}px`);
-            this.#banner.figure.toggleAttribute(
-              "data-selected",
-              values.format === "banner",
-            );
-            this.#strip.figure.toggleAttribute(
-              "data-selected",
-              values.format === "status strip",
-            );
             // The cards read only the event count, the first title and the owner line;
             // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
@@ -355,13 +322,12 @@
   </head>
   <body>
     <main class="layout-workspace density-working" id="notification-workspace">
-      <lf-ask id="notification-ask">
+      <lf-ask id="notification-ask" data-width="available">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground
           id="notification-playground"
           contract="notification-playground-values"
           submit-label="Create notification"
-          data-width="available"
         >
           <lf-playground-control
             name="events"
@@ -388,18 +354,6 @@
             kind="toggle"
             value="false"
           ></lf-playground-control>
-          <lf-playground-control
-            name="format"
-            label="Format"
-            kind="choice"
-            value="banner"
-          >
-            <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
-            <lf-playground-choice
-              value="status strip"
-              label="Status strip"
-            ></lf-playground-choice>
-          </lf-playground-control>
           <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
             <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
             <lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>
@@ -428,29 +382,51 @@
             <lf-playground-setting for="events" value="2"></lf-playground-setting>
             <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
             <lf-playground-setting for="compact" value="false"></lf-playground-setting>
-            <lf-playground-setting for="format" value="banner"></lf-playground-setting>
             <lf-playground-setting for="accent" value="#4f766f"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preset label="Needs attention">
             <lf-playground-setting for="events" value="4"></lf-playground-setting>
             <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
             <lf-playground-setting for="compact" value="true"></lf-playground-setting>
-            <lf-playground-setting
-              for="format"
-              value="status strip"
-            ></lf-playground-setting>
             <lf-playground-setting for="accent" value="#b6533c"></lf-playground-setting>
           </lf-playground-preset>
 
           <lf-playground-preview id="notification-preview">
             <p>
               Increase Concurrent release events to compare both formats with more
-              notifications. Both show the same events. The Format control selects the
-              requested output while leaving both candidates visible for comparison.
+              notifications. Both show the same events. Select the format to build
+              beside its preview.
             </p>
-            <notification-simulator
-              id="notification-simulator"
-            ></notification-simulator>
+            <notification-simulator id="notification-simulator">
+              <lf-playground-control
+                name="format"
+                label="Format"
+                kind="choice"
+                value="banner"
+                class="notification-demo-candidates"
+              >
+                <lf-playground-choice value="banner" label="Banner">
+                  <figure
+                    class="notification-demo-candidate"
+                    data-notification-format="banner"
+                  >
+                    <figcaption class="notification-demo-caption">
+                      <span class="notification-demo-metric" aria-live="polite"></span>
+                    </figcaption>
+                  </figure>
+                </lf-playground-choice>
+                <lf-playground-choice value="status strip" label="Status strip">
+                  <figure
+                    class="notification-demo-candidate"
+                    data-notification-format="status strip"
+                  >
+                    <figcaption class="notification-demo-caption">
+                      <span class="notification-demo-metric" aria-live="polite"></span>
+                    </figcaption>
+                  </figure>
+                </lf-playground-choice>
+              </lf-playground-control>
+            </notification-simulator>
             <section id="notification-artifact" hidden>
               <lf-text-document
                 id="notification-artifact-source"

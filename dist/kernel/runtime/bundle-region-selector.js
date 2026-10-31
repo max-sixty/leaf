@@ -1,6 +1,5 @@
-import { nextRender } from "./bundle-portable.js";
-import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText } from "./bundle-dom-move.js";
-import { runtime } from "./bundle-layer-stack.js";
+import { describeFailure, keeps, keepsHidden, keepsText, nextRender } from "./bundle-portable.js";
+import { closeLayer, focusDestination, focused, handBack, runtime } from "./bundle-layer-stack.js";
 import { el, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
 import { clamp, layoutWindow } from "./bundle-geometry.js";
 import { pageImage } from "./bundle-page-image.js";
@@ -132,7 +131,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			if (ended || ticket !== attempt) return;
 			busy = false;
 			keeps(overlay, "aria-busy", null);
-			const message = `Could not capture — ${error.message}`;
+			const message = `Could not capture — ${describeFailure(error)}`;
 			keepsText(status, message);
 			raiseError(message);
 			paintKeys();

@@ -1,8 +1,7 @@
-import { afterSettling, composedParentNode, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
-import { canPlaceFocus, focusDestination, focused, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-dom-move.js";
-import { nativeLayers } from "./bundle-layer-stack.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
-import { whenArrived, whenArriving } from "./bundle-content-layout.js";
+import { composedParentNode, exceptionRecord, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
+import { canPlaceFocus, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-layer-stack.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
+import { whenArrived } from "./bundle-content-layout.js";
 import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScope, universalCommandReference } from "./bundle-data.js";
 
 //#region runtime/sample-child.js
@@ -39,11 +38,7 @@ if (child) child.receive(async ({ id, method, type, detail }) => {
 	} catch (error) {
 		child.send({
 			id,
-			error: {
-				name: error.name,
-				message: error.message,
-				stack: error.stack
-			}
+			error: exceptionRecord(error)
 		});
 	}
 });
@@ -56,11 +51,8 @@ if (child) {
 		if (node && node !== document.body) currentLocation = node;
 		sampleNotice("current-location", { focused: Boolean(node && node !== document.body) });
 	});
-	let gestures = 0;
 	const input = (event) => {
 		if (!event.isTrusted || event.type === "blur") return;
-		gestures++;
-		afterSettling(() => gestures--);
 		sampleNotice("input", { type: event.type });
 	};
 	onUserInput(input);
@@ -78,10 +70,7 @@ if (child) {
 		const next = Math.ceil(document.body.getBoundingClientRect().height);
 		if (next !== height) {
 			height = next;
-			sampleNotice("height", {
-				height,
-				gesture: gestures > 0
-			});
+			sampleNotice("height", { height });
 		}
 	};
 	registerSampleCommand("image", async ({ x, y, width, height }) => {
@@ -95,7 +84,7 @@ if (child) {
 	});
 	registerSampleCommand("window", async ({ window: asWindow }) => {
 		child.settings.window = asWindow;
-		document.documentElement.lfInitial.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
+		document.documentElement.lfRootState.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
 		measure();
 		return { height };
 	});
@@ -104,16 +93,7 @@ if (child) {
 		if (error) sampleNotice("error", document.documentElement.lfStartupException ?? { message: error });
 		if (upgraded && !arriving && pagePresented()) {
 			arriving = true;
-			(async () => {
-				await whenArrived();
-				sampleNotice("arrived");
-				for (;;) {
-					await whenArriving();
-					sampleNotice("arriving");
-					await whenArrived();
-					sampleNotice("arrived");
-				}
-			})();
+			whenArrived().then(() => sampleNotice("arrived"));
 		}
 		if (upgraded || !(document.body && pageUpgraded())) return;
 		upgraded = true;
@@ -248,7 +228,7 @@ function stack(binding = null) {
 	if (modalAt < 0) parts.push(...pool);
 	return ordered(parts);
 }
-const ownsLeafInvocation = (row) => Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
+const ownsLeafInvocation = (row) => Boolean(row.run) || [row, ...commandRoutes(row)].some((part) => part.control != null) || commandRoutes(row).some((route) => routedCommand(route));
 const runsElsewhere = (row, scope, control) => {
 	if (!scope.contextual && scopeRoot(scope) === control) return false;
 	const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
@@ -271,6 +251,7 @@ const shadow = (quick = quickShortcuts()) => {
 		}
 	};
 };
+const landing = (row, run) => () => runLanding(row, run, focused());
 function referencedInvocation(reference) {
 	if (!reference) return null;
 	const current = referencedCommandEntry(reference);
@@ -281,7 +262,7 @@ function referencedInvocation(reference) {
 		row: reference.row,
 		entry: current,
 		binding: reference.binding ?? void 0,
-		run,
+		run: landing(reference.row, run),
 		native: false
 	} : null;
 }
@@ -298,7 +279,7 @@ function invocationFor(row, binding, command, recovered = null) {
 		row,
 		entry: current,
 		binding,
-		run,
+		run: landing(row, run),
 		native: Boolean(row.native)
 	} : null;
 }

@@ -234,7 +234,7 @@
     // at dispatch, before target callbacks, under the same source as listeners.
     const name = `on${event.type}`;
     for (const node of event.composedPath())
-      if (typeof node?.[name] === "function") node[name] = node[name];
+      if (typeof node?.[name] === "function") Reflect.set(node, name, node[name]);
   };
   for (const prototype of [
     HTMLElement.prototype,

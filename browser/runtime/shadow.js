@@ -126,37 +126,6 @@ export const inUi = (node) =>
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
-// Every legitimate page shadow tree is built here, so repeat the theme's leading layer
-// inside it: `hidden` hiding whatever display a rule states (theme.css), the
-// generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
-// immediately and its generated interface paints after upgrade, on the same boundaries
-// as authored and generated light DOM. A selector in the tree cannot see body's stamps,
-// so the theme states each boundary as an inherited property these rules query with
-// `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
-// which reads the stamps directly, has no Firefox or Safari support. The anonymous
-// layer leads the tree's sheets, so these important declarations outrank every later
-// layer.
-export const SHADOW_LEADING_CSS = `
-@layer {
-  [hidden]:not([hidden="until-found"]),
-  :host([hidden]:not([hidden="until-found"])) {
-    display: none !important;
-  }
-  @media screen {
-    @container style(--lf-before-presentation: 1) {
-      *,
-      *::before,
-      *::after {
-        transition: none !important;
-      }
-    }
-    @container style(--lf-before-upgrade: 1) {
-      .lf-ui {
-        visibility: hidden !important;
-      }
-    }
-  }
-}`;
 // One read for the tab. The three boundaries that import widget modules each ask for the
 // rules the widgets they are about to upgrade render under, and an x-shadow widget can
 // arrive at any of them — in the document, in a later version, or in an agent's reply —

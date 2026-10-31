@@ -171,8 +171,6 @@ def save_screens(
     whole(widest, False, "the widest window")
     for width, selector, said in reading.arrangement:
         one(width, selector, "arrangement", f"the tightest before {said}")
-    for width in reading.margin_widths:
-        one(width, "main", "margin", "where the page's margin content changes")
     whole(PHONE, True, "phone")
     if final.exists():
         shutil.rmtree(final)

@@ -1,6 +1,6 @@
 # Layer composition and registry contract
 
-A page records the packages and personal theme it selects in `layer.json`
+A page records the packages and theme it selects in `layer.json`
 (`registry.storage.LAYER`), never the layer itself. Every Leaf that serves, checks or
 exports the page composes the layer from that selection, its own core and bundled
 packages and the user's installed ones, in the order and at the merge grains of
@@ -26,10 +26,13 @@ one outside it, or whose sender is gone, stays in history only.
 The layer record holds the selection and two identities:
 
 - `packages` records content-package selections. `theme` is the separately selected
-  personal theme, `{name, source}` with `source` explicit or default, or null.
-  The theme composes after the content packages. Re-running `page init` preserves
-  the recorded choice until `--theme` replaces it or `--no-theme` / `--no-packages`
-  clears it. User catalogue changes affect new pages; `themes.py` owns selection and
+  theme, the page's look, `{name, source}` with `source` explicit or default. A new
+  page takes the user's default or else Leaf's bundled `reading`; null records taking
+  none.
+  The theme composes right after the default package, before the content packages,
+  so a content package can restate what it declares. Re-running `page init` preserves
+  the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
+  catalogue changes affect new pages; `themes.py` owns selection and
   `package-themes.md` documents its authoring interface.
 - `generation`, a fresh epoch whenever the selection or the page protocol changes.
   The served registry names it under `$layer`, a served document names the
@@ -91,7 +94,9 @@ names the older protocol it speaks, so a newer Leaf reads it as no watch and adm
 nudges the session (`leases.wait_is_live`).
 
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
-the log, or a record another wrote outside it. A change to the bundled widgets, their
+the log, or a record another wrote outside it. A Leaf skips an event kind it doesn't
+know, so a new kind declares `skippable` where skipping it leaves that Leaf's reading
+right, and bumps otherwise. A change to the bundled widgets, their
 registry entries, the theme or the public package API (`runtime/widget-api.js` and
 its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
 and an installed package's modules call that API across Leaf versions, and a bump
@@ -102,8 +107,9 @@ The browser build holds the schemas to this. `build/browser/protocol-baseline.js
 keeps `$events`, each `state.Record` schema and the composer's draft as they stood at
 the current number, and `build/browser/protocol.mjs` compares each build against it
 (its header says in which direction for each schema). It refuses a change to an event
-record until the change takes what it took or the number moves. A passing comparison
-doesn't judge whether a bump chosen by hand was needed.
+record, or a new kind not declared `skippable`, until the change takes what it took or
+the number moves. A passing comparison doesn't judge whether a bump chosen by hand was
+needed.
 `served_state/state.schema.json` declares the served state and the `/api/view` answer
 for the generated types and the producer's tests, outside the comparison.
 
@@ -118,7 +124,9 @@ change that a reader at the same format would misread sets `since` to the curren
 protocol, bumping the protocol first where `since` already names it. The build fails
 a change at the same `since` that a reader at either end would misread, and a `since`
 moved anywhere but the current protocol. A reader at another format treats a record
-as absent.
+as absent, except a layer record at a later shape than its own, which refuses the page
+as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would have
+`page init` replace the page's selection.
 
 ## Composition stamps
 

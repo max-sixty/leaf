@@ -278,12 +278,17 @@ export function createThreadDestinations({
       // A route to a message is an arrival at it, so a seat holding it back shows it.
       if (part === "message") showHeld(id);
       const openSurface = async () => {
+        // A passive continuation keeps the reader's chosen file, tab or disclosure.
+        // Its hidden outlet cannot be the route without revealing that subject again.
+        if (!scroll && !presented(surfaceFocusTarget(id, { part: localPart })))
+          return DECLINED;
         if (preview) intent.handoff(preview.close);
         if (navigationStep) {
           if (!(await scrollToThread(id, { part: localPart, focus, intent, history })))
             return null;
         } else if (focus === false) {
-          await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+          if (scroll)
+            await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
           if (!mayPresent()) return null;
         } else if (
           !(await arrive(

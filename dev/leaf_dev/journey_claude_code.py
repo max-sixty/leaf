@@ -54,6 +54,11 @@ The steps, in order:
   handed a comment at a tool boundary and ends on its answer with the comment
   unanswered, and no Stop hook continues it over the comment. The watch wakes a
   turn of its own whose prompt names the owed answer, and that turn answers it;
+- `compacting`: a comment sent while `/compact` runs at the idle prompt wakes the
+  session once the compaction ends, and a turn of its own answers it. Compaction
+  runs no prompt or Stop hook, so the watch the last turn's Stop started keeps
+  running through it, and Claude Code holds that watch's wake until the
+  compaction is done;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -79,7 +84,7 @@ import shutil
 import subprocess
 import time
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -97,7 +102,7 @@ from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
-from leaf.state import session_record
+from leaf.state import session_live, session_record, turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -315,6 +320,7 @@ def runs(pid: int, command: str) -> bool:
 def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     """The steps after setup, as the module docstring lists them."""
     page, sent = place.page, []
+    session = require(cc.session, "the session has no id")
     # The native records the steps so far have counted (`leaf_rows`).
     read: list[dict] = []
 
@@ -336,7 +342,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         escaped: str | None = None,
     ) -> None:
         sent.extend(names)
-        settled(page, cc.session, {name: user.ids[name] for name in sent})
+        settled(page, session, {name: user.ids[name] for name in sent})
         # A watch follows every turn, so no Stop hook continued one with input,
         # which would have put the reply to it in place of the turn's own answer,
         # and Claude Code printed no delivery, whose envelope names its format.
@@ -347,7 +353,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
                     content.startswith((INLINE_OPENING, POINTER_OPENING))
                     for content in attachment.get("content") or []
                 )
-                for record in native_records(cc.home, cc.session)
+                for record in native_records(cc.home, session)
             ),
             f"{name}: a Stop hook continued a turn with input",
         )
@@ -358,7 +364,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         # The turn that answers ends with a watch running.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
-        records = native_records(cc.home, cc.session)
+        records = native_records(cc.home, session)
         rows = leaf_rows(records[len(read) :])
         read[:] = records
         require(
@@ -375,8 +381,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     def closed(turn: str) -> bool:
         """Whether the page's claim has closed `turn`, or opened another after it."""
-        claim = page_claim(page)
-        return claim["turn_closed"] is not None or claim["turn"] != turn
+        return not turn_open(page_claim(page), turn)
 
     def escape(turn: str) -> None:
         """Press Escape on `turn` until Claude Code is idle or the claim has moved
@@ -388,7 +393,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         Stop hook, and a watch running, which may already have woken a turn of its
         own."""
         cc.until(
-            lambda: watched() or page_claim(page)["turn"] != turn,
+            lambda: (
+                watched()
+                or require(page_claim(page), "the page has no claim")["turn"] != turn
+            ),
             f"{name}: no watch after Escape",
             30,
         )
@@ -404,7 +412,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("release", started, "release")
     started = time.monotonic()
     cc.work()
-    turn = page_claim(page)["turn"]
+    turn = require(page_claim(page), "the page has no claim")["turn"]
     mid_turn = user.comment("mid-turn")
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
     require(
@@ -419,7 +427,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     require(
         any(
             event["id"] == mid_turn
-            for record in native_records(cc.home, cc.session)
+            for record in native_records(cc.home, session)
             if (attachment := record.get("attachment", {})).get("hookEvent")
             == "PostToolBatch"
             for content in attachment["content"]
@@ -433,7 +441,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.work()
-    turn = page_claim(page)["turn"]
+    turn = require(page_claim(page), "the page has no claim")["turn"]
     first = user.comment("first")
     cc.until(
         lambda: bool(
@@ -457,7 +465,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.work()
-    turn = page_claim(page)["turn"]
+    turn = require(page_claim(page), "the page has no claim")["turn"]
     escape(turn)
     escaped = after_escape("escape", turn)
     user.comment("escape")
@@ -466,7 +474,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.work()
-    turn = page_claim(page)["turn"]
+    turn = require(page_claim(page), "the page has no claim")["turn"]
     woken = user.comment("woken")
     # The turn reads the comment only at its next tool boundary, once its command
     # ends, so a watch that held the session's lease as the comment arrived leaves
@@ -507,13 +515,13 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
             cc.state() == "busy",
             f"{update}: the slow hook ended before Escape could land",
         )
-        held = len(native_records(cc.home, cc.session))
+        held = len(native_records(cc.home, session))
         cc.tmux("send-keys", "-t", cc.pane, "Escape")
         return held
 
     def since(held: int) -> list[dict]:
         """The conversation's records from record `held` on."""
-        return native_records(cc.home, cc.session)[held:]
+        return native_records(cc.home, session)[held:]
 
     started = time.monotonic()
     dropped = user.comment("dropped")
@@ -528,7 +536,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     step("dropped", started, "dropped")
 
     started = time.monotonic()
-    url = running_server(page)["url"]
+    url = require(running_server(page), "the page has no server")["url"]
     comment = post(url, "withdrawn", "Never mind, I'll check this myself.")
     resolve = PageClient(url).post(
         {"kind": "resolve", "parent": comment, "attempt": attempt("resolve")}
@@ -563,7 +571,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     )
     # Escape during a tool boundary's hooks keeps that boundary's context, so the
     # comment is in the conversation once and the woken turn only names it as owed.
-    handed = deliveries(native_records(cc.home, cc.session), boundary)
+    handed = deliveries(native_records(cc.home, session), boundary)
     require(
         len(handed) == 1,
         f"boundary: the comment Escape kept was handed over {len(handed)} times",
@@ -572,7 +580,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
 
     started = time.monotonic()
     cc.work(DEFERRING_TURN)
-    turn = page_claim(page)["turn"]
+    turn = require(page_claim(page), "the page has no claim")["turn"]
     deferred = user.comment("deferred")
     cc.until(lambda: closed(turn), "deferred: the user's turn did not end")
     require(
@@ -586,7 +594,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     def hook_contexts(event: str) -> list[str]:
         return [
             content
-            for record in native_records(cc.home, cc.session)
+            for record in native_records(cc.home, session)
             if (attachment := record.get("attachment", {})).get("hookEvent") == event
             for content in attachment.get("content") or []
         ]
@@ -604,11 +612,22 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     )
     step("deferred", started, "deferred")
 
+    def compacting() -> bool:
+        return "Compacting conversation" in cc.screen()
+
+    started = time.monotonic()
+    cc.say("/compact")
+    cc.until(compacting, "compacting: the compaction did not start", 30)
+    user.comment("compacting")
+    require(compacting(), "compacting: the compaction ended before the comment")
+    cc.until(answered("compacting"), "compacting: the comment was not answered")
+    step("compacting", started, "compacting")
+
     started = time.monotonic()
     cc.say("/exit")
     cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
     require(
-        session_record(cc.session)["ended"] is not None,
+        not session_live(session_record(session)),
         "quit: the session ended without Leaf's SessionEnd",
     )
     require(
@@ -729,7 +748,7 @@ def delivery_ended(records: list[dict], update: str) -> bool:
 
 
 @contextmanager
-def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
+def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
@@ -800,7 +819,8 @@ def answering(browser, *, sandbox: bool) -> Iterator[tuple[User, Callable]]:
                 "setup: the page was not claimed",
             )
             require(
-                page_claim(place.page)["id"] == session,
+                require(page_claim(place.page), "the page has no claim")["id"]
+                == session,
                 "setup: the page's claim names another session",
             )
             cc.until(

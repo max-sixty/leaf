@@ -7,8 +7,11 @@ module owes.
 
 Read an element's words with `says(element)`, which returns them as passages and
 comments read them; `textContent` also returns words a widget generated that passages
-leave out. To name
-one of the widget's own parts, use `wrote(element)`, which returns only the words the
+leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
+block boundaries, explicit line breaks and preformatted whitespace. Read a connected
+element so its computed styles supply these boundaries; a closed popover is supported.
+Inline values stay in their sentence, and ordinary HTML source indentation collapses.
+To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
 as in a diff.
@@ -53,7 +56,8 @@ not by looking up the id yourself.
 the first element `key` names in the referenced widget: a visual part's id, a projected
 datum's key, or whatever the target's `lfElementsFor(key)` maps it to (`lf-code` takes
 line ranges such as `"3-5,8"`). Leaf loads the datum, opens what holds it, reveals and
-focuses it, updates the fragment, and announces `success` or `missing`. Pass
+focuses it, updates the fragment, and announces `success`. An absent destination
+keeps the reader's place and history and shows `missing` in Leaf's notice seat. Pass
 `focus: false` when the source stays the user's input surface, as a file navigator does
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
@@ -126,6 +130,9 @@ and says the action's name as its tooltip and accessible name, unless `label` or
 its state, such as Expand all turning to Collapse all; it swaps only the symbol.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.
+
+For a Lit control, `actionClass(role, className)` supplies the same face classes as
+`offerAction`; `actionName(action)` supplies the action's accessible name.
 
 ## Page readings
 

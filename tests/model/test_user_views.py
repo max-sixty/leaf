@@ -88,7 +88,11 @@ def test_check_receipt_and_basis_do_not_follow_fresh_context(tmp_path, monkeypat
     user_views.observe_user_view(tmp_path, original)
     checked_at = instant.isoformat()
     instant += timedelta(seconds=20)
-    resized = {**original, "sequence": 2, "viewport": {"width": 420, "height": 800}}
+    resized: dict = {
+        **original,
+        "sequence": 2,
+        "viewport": {"width": 420, "height": 800},
+    }
     resized["identity"] = {"delivery": {"runtime": "new-runtime"}}
     user_views.observe_user_view(tmp_path, resized)
     value = user_views.read_user_views(tmp_path, 1)["sessions"][0]
@@ -103,7 +107,7 @@ def test_check_receipt_and_basis_do_not_follow_fresh_context(tmp_path, monkeypat
         user_views.read_user_views(tmp_path, 1)["sessions"][0]["checks"]
         == value["checks"]
     )
-    updated = deepcopy(resized)
+    updated: dict = deepcopy(resized)
     updated["sequence"] = 4
     updated["checks"]["sequence"] = 4
     updated["checks"]["viewport"] = resized["viewport"]

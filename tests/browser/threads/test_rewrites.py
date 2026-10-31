@@ -11,7 +11,7 @@ import pytest
 from interact_support import append_carried_log_record
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE
+from render_cases_interaction import PANEL_PAGE, THREAD_DIFF_PAGE, panel_comment
 from render_harness import (
     FEATURE_GALLERY,
     LONG_PAGE,
@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    rgb_pixel,
     round_trip,
     sending,
     stored_draft_text,
@@ -33,6 +34,7 @@ from render_harness import (
 from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.test_render_drawing import draw_over
 from browser.threads import (
+    LANDING_WORDS,
     PANEL_REPLY,
     open_panel_thread,
 )
@@ -67,8 +69,8 @@ def _ring_gaps(page, target):
         shot = page.screenshot(
             clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
         )
-        seen = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
-        if max(abs(a - b) for a, b in zip(seen, color)) > 40:
+        seen = rgb_pixel(Image.open(io.BytesIO(shot)).convert("RGB"), (0, 0))
+        if max(abs(a - b) for a, b in zip(seen, color, strict=True)) > 40:
             gaps.append(side)
     return gaps
 
@@ -102,6 +104,11 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
     first_line = words.evaluate(FIRST_LINE)
+    # The card's growth from the comment box cuts what stands past its edge until it
+    # ends, so the ring is read once it has.
+    card.locator(".lf-margin-preview-list").evaluate(
+        "list => Promise.all(list.getAnimations().map(motion => motion.finished))"
+    )
     message.locator(".lf-msg-edit").focus()
     one_frame(page)
     assert _ring_gaps(page, message.locator(".lf-msg-edit")) == []
@@ -384,13 +391,16 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Discard", "Save"):
-        box = message.get_by_role("button", name=name, exact=True).bounding_box()
+        control = message.get_by_role("button", name=name, exact=True)
+        box = control.bounding_box()
         middle = box["y"] + box["height"] / 2
         assert head["y"] - 1 <= middle <= head["y"] + head["height"] + 1, (
             name,
             box,
             head,
         )
+        # A pointer reaches it: a seat's first head once cut Save off at its end.
+        control.click(trial=True, timeout=2000)
     page.keyboard.type("Z")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
     page.keyboard.press("Escape")
@@ -499,8 +509,13 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     assert editing["says"] == shown["says"]
     for side in ("x", "y", "width", "height"):
         for part in ("head", "picture"):
-            # The card's head takes the room its Resolve leaves while a rewrite is open.
-            if (surface, part, side) == ("card", "head", "width"):
+            # A head beside its thread's Resolve takes the room Resolve leaves while a
+            # rewrite is open.
+            if (part, side) == ("head", "width") and surface in (
+                "card",
+                "seat",
+                "shelf",
+            ):
                 continue
             assert editing[part][side] == pytest.approx(shown[part][side], abs=0.5), (
                 part,
@@ -913,14 +928,14 @@ UNDER_EDIT_ACTIONS = """message => {
 def test_a_cards_message_controls_cover_its_head(browser, serve):
     """The margin card kept no room in a head for a message's control, since it draws no
     reactions, so an open rewrite's Discard and Save stood over the head's time and
-    receipt, the words and the controls reading through each other. The head keeps its
-    controls' room as every other surface's does, and the rewrite's pair, two glyphs,
-    stands in that room and covers the head beyond it: nothing under the pair shows
-    while the rewrite is open, and opening it moves none of the head's words. The
-    row is the rewrite's: the card's Resolve leaves it while the rewrite is open.
+    receipt, the words and the controls reading through each other. The pair, two
+    glyphs, stands among the head's controls in its Edit's place, and the head's labels
+    give up its room: nothing of them shows under the pair while the rewrite is open,
+    and opening it moves none of the head's words. The row is the rewrite's: the card's
+    Resolve leaves it while the rewrite is open.
 
     Under a finger each glyph takes the aim floor, so the pair reaches past the Edit's
-    room over the head's labels, which it doesn't at a desktop's card width."""
+    room into the head's labels, which it doesn't at a desktop's card width."""
     context = browser.new_context(has_touch=True, is_mobile=True)
     page, card, message = _rewrite_surface(
         browser, serve, "card", size=(390, 844), context=context
@@ -944,15 +959,81 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     pair = message.evaluate(UNDER_EDIT_ACTIONS)
     assert pair["under"], f"no words of the head reach under the pair: {pair}"
     shown = page.screenshot(clip=pair["box"])
-    # The head's words go clear; hiding the head would hide the pair anchored to it.
+    # The head's words go clear; hiding the head would hide the pair standing in it.
     head.evaluate(
-        "head => [head, ...head.querySelectorAll('*')]"
+        "head => head.querySelectorAll("
+        "':scope > :not(.lf-msg-control-room), :scope > :not(.lf-msg-control-room) *')"
         ".forEach((e) => e.style.setProperty('color', 'transparent', 'important'))"
     )
     one_frame(page)
     assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
     page.keyboard.press("Escape")
     expect(resolve).to_be_visible()
+
+
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
+    browser, serve, phone
+):
+    """A later message's controls stand aside while its head sticks on the line of the
+    card's actions, and that once hid an open rewrite's Discard and Save too, though the
+    rewrite stood open below them. On a narrow phone card beside Previous and Next, the
+    pair, two fingers wide, then ran past the head into the actions, and a tap on Save
+    pressed Previous. The pair stays, over the head's words."""
+    url = serve(PANEL_PAGE)
+    section = {"section": "how-store"}
+    root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
+    for author, text in (
+        ("agent", "Fitted. " + LANDING_WORDS * 2),
+        ("user", "And the south one? " + LANDING_WORDS * 2),
+        ("agent", "Both fitted. " + LANDING_WORDS * 12),
+    ):
+        mine = append_carried_log_record(
+            serve.page_dir,
+            {"kind": "reply", "author": author, "parent": root, "text": text},
+        )
+        if author == "user":
+            later = mine["id"]
+    if phone:
+        panel_comment(serve.page_dir, "Make the banner quieter", section)
+        context = browser.new_context(
+            viewport={"width": 320, "height": 844}, has_touch=True, is_mobile=True
+        )
+        page = open_page(browser, url, context=context)
+    else:
+        page = open_page(browser, url)
+        resized(page, 1200, 700)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(f'.lf-msg[data-event="{later}"]')
+    expect(message).to_be_visible()
+    rendered(page)
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    # The message's opening stands a line above the transcript's top.
+    card.locator(".lf-thread-transcript").evaluate(
+        """(box, id) => {
+          const message = box.querySelector(`.lf-msg[data-event="${id}"]`);
+          box.scrollTop += message.getBoundingClientRect().top
+            - box.getBoundingClientRect().top + 20;
+        }""",
+        later,
+    )
+    rendered(page)
+    expect(message).to_have_attribute("data-lf-beside-actions", "")
+    for name in ("Discard", "Save"):
+        control = message.get_by_role("button", name=name, exact=True)
+        expect(control).to_be_visible()
+        # A press at its middle reaches it where it stands, with no scroll first.
+        hit = control.evaluate(
+            """node => {
+              const box = node.getBoundingClientRect();
+              const at = node.getRootNode().elementFromPoint(
+                box.left + box.width / 2, box.top + box.height / 2);
+              return node.contains(at) || at?.outerHTML.slice(0, 120);
+            }"""
+        )
+        assert hit is True, (name, hit)
 
 
 @pytest.mark.parametrize("previous", ["reply", "reply-after-empty-composer", "drawing"])
@@ -1416,7 +1497,7 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
     words.dblclick()
     expect(editor).to_be_focused()
     rendered(page)
-    for edge, at in zip(editor.evaluate(column), text_column):
+    for edge, at in zip(editor.evaluate(column), text_column, strict=True):
         assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
     # Open, the rewrite takes the message's place exactly: the card neither grows nor
     # scrolls the rewrite's top under the message's head, and its words keep their line.

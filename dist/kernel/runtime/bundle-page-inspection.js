@@ -1,9 +1,8 @@
-import { closeLayer, currentLocationIn, focusDestination, handBack, openLayer, openerOf } from "./bundle-dom-move.js";
-import { closeNativeLayer, guard, html, nothing, offlineInteractive, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, el, offerAction, offeredAction, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
+import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
+import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
 import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
-import { scrollBehavior } from "./bundle-media.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js
@@ -30,8 +29,8 @@ function copyableText(label, value) {
 //#region runtime/page-inspection.js
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
-const head = el("div", "lf-inspection-head");
-head.append(el("strong", "", "About this page"));
+const head = el("div", "lf-dialog-head");
+head.append(el("strong", "lf-dialog-title", "About this page"));
 const copy = copyControl("", {
 	label: "Copy diagnostics",
 	success: "Diagnostics copied",
@@ -184,7 +183,7 @@ function present() {
       </p>
       ${navigationError ? html`<p role="status">${navigationError}</p>` : nothing}
       <section aria-label="Authored CSS">
-        <h2>Authored CSS</h2>
+        <h2 class="lf-label">Authored CSS</h2>
         ${loading ? html`<p role="status">Reading source…</p>` : nothing}
         ${sourceError ? html`<p role="status">${sourceError}</p>
                 ${report.basis ? html`<button
@@ -204,7 +203,7 @@ function present() {
               ` : nothing}
       </section>
       ${report.javascript ? html`<section aria-label="Authored JavaScript">
-              <h2>Authored JavaScript</h2>
+              <h2 class="lf-label">Authored JavaScript</h2>
               <p>
                 ${number(report.javascript.page.bytes)} page-owned bytes ·
                 ${number(report.javascript.page.inline_scripts)} inline scripts ·
@@ -222,14 +221,14 @@ function present() {
               </details>
             </section>` : nothing}
       ${report.page_widgets?.length ? html`<section aria-label="Page-owned widgets">
-              <h2>Page-owned widgets</h2>
+              <h2 class="lf-label">Page-owned widgets</h2>
               <dl>
                 ${report.page_widgets.map((widget) => html`<dt><code>${widget.tag}</code></dt>
                       <dd><code>${widget.path}</code></dd>`)}
               </dl>
             </section>` : nothing}
       <section aria-label="Browser observation">
-        <h2>This tab at opening</h2>
+        <h2 class="lf-label">This tab at opening</h2>
         ${browserReading(report.current_view)}
         <p>
           The captured view stays fixed while this dialog is open. Close and reopen to
@@ -259,7 +258,7 @@ async function loadSource() {
 		};
 	} catch (error) {
 		if (request !== attempt || !dialog.open) return;
-		sourceError = `Source inspection unavailable: ${error.message}`;
+		sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
 	} finally {
 		if (request === attempt && dialog.open) {
 			loading = false;
@@ -291,7 +290,7 @@ async function openPageInspection(intent) {
 	};
 	sourceError = available ? null : "Source inspection is unavailable in this export or public preview. Browser context is shown below.";
 	loading = available;
-	render(html`<h2>Page details</h2>
+	render(html`<h2 class="lf-label">Page details</h2>
       ${pageControls().filter((entry) => entry.copies).map((entry) => html`${copyableText(entry.label[0].toUpperCase() + entry.label.slice(1), entry.copies)}${entry.value ? html`<p>${entry.value}</p>` : nothing}`)}`, identity);
 	openLayer(dialog);
 	if (available) loadSource();

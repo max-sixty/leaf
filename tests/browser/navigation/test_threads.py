@@ -64,11 +64,11 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
       const range = document.createRange();
       range.selectNodeContents(paragraph);
       const line = range.getClientRects()[0];
-      const scrollBy = Element.prototype.scrollBy;
-      Element.prototype.scrollBy = function(options) {
-        const result = scrollBy.call(this, options);
+      const scrollTo = Element.prototype.scrollTo;
+      Element.prototype.scrollTo = function(options) {
+        const result = scrollTo.call(this, options);
         if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollBy = scrollBy;
+          Element.prototype.scrollTo = scrollTo;
           window.returnSubject = document.querySelector('#p3').getBoundingClientRect().toJSON();
           queueMicrotask(() => {
             if (route === 'walk') executeCommand('thread.previous');
@@ -575,26 +575,31 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 # Ways to arrive at, move within, and step back from a thread's margin card. `@mark` is a
 # keyboard arrival on the first passage's mark; `@marker` is a press on its margin marker.
 CARD_ROUTES = {
-    "walk": ["t"],
-    "walk, back to its element": ["t", "Escape"],
-    "walk, let go": ["t", "Escape", "Escape"],
-    "walk on, back to its element": ["t", "t", "Escape"],
-    "walk, Tab within the card": ["t", "Tab"],
-    "walk, go to the page": ["t", "g", "p"],
-    "reply, back out to its element": ["t", "c", "Escape", "Escape"],
-    "arrive at the mark": ["@mark"],
-    "arrive at the mark, step back": ["@mark", "Escape"],
-    "press the marker": ["@marker"],
+    "walk": (["t"], True),
+    "walk, close the card": (["t", "Escape"], False),
+    "walk, Escape again": (["t", "Escape", "Escape"], False),
+    "walk on, close the card": (["t", "t", "Escape"], False),
+    "walk, Tab within the card": (["t", "Tab"], True),
+    "walk, go to the page": (["t", "g", "p"], True),
+    "reply, back to the thread": (["t", "c", "Escape"], True),
+    "reply, close the card": (["t", "c", "Escape", "Escape"], False),
+    "arrive at the mark": (["@mark"], True),
+    "arrive at the mark, step back": (["@mark", "Escape"], True),
+    "press the marker": (["@marker"], True),
 }
 
 
-@pytest.mark.parametrize("route", CARD_ROUTES.values(), ids=CARD_ROUTES.keys())
-def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, route):
-    """A card's reply wears `c`; after letting go, the page control opens its box.
+@pytest.mark.parametrize(
+    ("route", "card_open"), CARD_ROUTES.values(), ids=CARD_ROUTES.keys()
+)
+def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(
+    browser, serve, route, card_open
+):
+    """A card's reply wears `c`; closing the card hands `c` to the page comment.
 
-    The card's being up decides the reply destination. When it is gone, `c` stands in
-    the panel's page comment. The box's placeholder is the runtime's own record of the
-    hint, even while it is not drawn.
+    Escape from a reply returns to its thread; Escape from the thread closes the card.
+    The badge and the press must agree in both states. The box's placeholder is the
+    runtime's own record of the hint, even while it is not drawn.
     """
     page = open_page(
         browser,
@@ -615,7 +620,7 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 
     badged = page.locator("leaf-text[placeholder$=' c']")
     card = page.locator(".lf-margin-preview")
-    if route == CARD_ROUTES["walk, let go"]:
+    if not card_open:
         expect(card).to_be_hidden()
         # The panel's page comment wears `c` now.
         expect(badged).to_have_count(1)

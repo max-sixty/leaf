@@ -48,6 +48,7 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         "bindings": {"notes": str(target.resolve())}
     }
     original = read_file(page_dir, "notes")
+    assert original is not None
     assert original["text"] == "# café\n\nhello\n"
     saved = save_file(
         page_dir,
@@ -74,6 +75,7 @@ def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
         target.chmod(mode)
         assert stat.S_IMODE(target.stat().st_mode) == mode
         text = f"saved {mode:o}\n"
+        assert snapshot is not None
         snapshot = save_file(
             page_dir, "executable", {"revision": snapshot["revision"], "text": text}
         )
@@ -101,6 +103,7 @@ def test_cli_unbinding_revokes_open_editor_access_only_for_its_grant(
     assert set(json.loads(fetch(state_url)[1])["files"]) == {"other"}
     url = f"{server}/api/files/notes"
     assert fetch(url) == (200, b"null")
+    assert original is not None
     posted = json.dumps(
         {"revision": original["revision"], "text": "old draft\n"}
     ).encode()
@@ -130,6 +133,7 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
         bind_file(page_dir, "../notes", target)
     bind_file(page_dir, "notes", target)
     snapshot = read_file(page_dir, "notes")
+    assert snapshot is not None
     for body in (
         {},
         {"revision": snapshot["revision"], "text": 5},
@@ -150,6 +154,7 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
     with pytest.raises(FileBindingError):
         read_file(page_dir, "notes")
     with pytest.raises(FileBindingError):
+        assert snapshot is not None
         save_file(
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
         )
@@ -167,8 +172,11 @@ def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(
     original = read_file(page_dir, "notes")
     bind_file(page_dir, "notes", second)
     rebound = read_file(page_dir, "notes")
+    assert rebound is not None
+    assert original is not None
     assert rebound["revision"] != original["revision"]
     with pytest.raises(StaleFileError):
+        assert original is not None
         save_file(
             page_dir,
             "notes",
@@ -186,7 +194,9 @@ def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
     for page in pages:
         page.mkdir()
         bind_file(page, "notes", target)
-    revision = read_file(pages[0], "notes")["revision"]
+    read_file_result = read_file(pages[0], "notes")
+    assert read_file_result is not None
+    revision = read_file_result["revision"]
     key = hashlib.sha256(os.fsencode(target)).hexdigest()
     waiting = lock_contention(monkeypatch, state_home() / "files" / f"{key}.lock")
     replacing = Event()
@@ -227,6 +237,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert fetch(f"{server}/files.json")[0] == 404
     # A binding the page lacks reads as no file, and only a save against it refuses.
     assert fetch(f"{server}/api/files/unbound") == (200, b"null")
+    assert original is not None
     posted = json.dumps({"revision": original["revision"], "text": "edited\n"}).encode()
     assert (
         fetch(f"{server}/api/files/unbound", data=posted, headers={"Origin": server})[0]
@@ -273,6 +284,7 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     from leaf.revision_artifact import read_artifact, read_revision
 
     revision = latest_revision(page_dir)
+    assert revision is not None
     artifact = read_revision(page_dir, revision)
     assert "/files.json" not in read_artifact(page_dir, revision).resources
     snapshot = capture_page_snapshot(page_dir, artifact.document, revision, url="/")

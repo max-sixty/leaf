@@ -521,23 +521,25 @@ def reading_section_page(title, before=""):
 # Where `#read`'s heading stands below the landing band.
 READ_HEADING = """() => document.querySelector('#read h2').getBoundingClientRect().top
   - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
-# In one frame, content grows above `#read`, which anchoring answers, and a script
-# scrolls on.
+# In one frame, content grows above `#read` and a script scrolls on. The scroll
+# exceeds the growth by 500px even when native anchoring does not answer it, so
+# the assertions measure whether Leaf kept the move rather than whether Chrome
+# anchored the new grid row.
 GROW_ABOVE_AND_SCROLL = """() => new Promise(done => requestAnimationFrame(() => {
   const late = document.createElement('div');
   late.style.height = '300px';
   const section = document.getElementById('read');
   section.parentNode.insertBefore(late, section);
-  document.scrollingElement.scrollBy(0, 400);
+  document.scrollingElement.scrollBy(0, 800);
   done();
 }))"""
 
 
 def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
     """Once the layout a width change restored the reader's place in has settled, one
-    frame grows content above the reader, which anchoring answers, and a script scrolls
-    on. The box and its landmark moved by different distances, which reads as layout's
-    only while the shift's layout settles; after that it is a move someone made, so the
+    frame grows content above the reader and a script scrolls on. The box and its
+    landmark moved by different distances, which reads as layout's only while the
+    shift's layout settles; after that it is a move someone made, so the
     next width change starts from where the script left the page, not from the held
     place."""
     page = open_page(browser, serve(reading_section_page("Content grows above")))
@@ -956,7 +958,9 @@ def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, sh
         )
 
     read = now("take")
+    tolerance = case["tolerance"]
+    assert isinstance(tolerance, (int, float))
     for width in (600, 1200, 800, 1200):
         resized(page, width, 800)
         rendered(page)
-        assert now("read") == pytest.approx(read, abs=case["tolerance"]), width
+        assert now("read") == pytest.approx(read, abs=tolerance), width

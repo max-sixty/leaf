@@ -183,7 +183,7 @@ def live_sessions() -> bool:
 
 
 def serve(lease_fd: int) -> None:
-    lease = open(lease_fd, "rb")  # noqa: SIM115 - held until the bridge retires
+    lease = open(lease_fd, "rb")
     token = secrets.token_urlsafe(32)
     running: set[int] = set()
 
@@ -253,14 +253,15 @@ def serve(lease_fd: int) -> None:
                     os.killpg(child.pid, signal.SIGTERM)
 
         def relay(self, child: subprocess.Popen) -> None:
-            channels = {child.stdout: STDOUT, child.stderr: STDERR}
+            assert child.stdout is not None and child.stderr is not None
+            channels = {child.stdout.fileno(): STDOUT, child.stderr.fileno(): STDERR}
             with selectors.DefaultSelector() as selector:
                 for pipe in channels:
                     selector.register(pipe, selectors.EVENT_READ)
                 while selector.get_map():
                     for key, _ in selector.select():
                         if data := os.read(key.fd, 65536):
-                            send(self.wfile, channels[key.fileobj], data)
+                            send(self.wfile, channels[key.fd], data)
                         else:
                             selector.unregister(key.fileobj)
             # A shell reports a command a signal ended as 128 plus the signal.
@@ -311,6 +312,7 @@ def connect(port: int) -> socket.socket:
     if not proxy:
         return socket.create_connection(("127.0.0.1", port))
     via = urlsplit(proxy)
+    assert via.hostname is not None
     tunnel = HTTPConnection(via.hostname, via.port)
     headers = {}
     if via.username:

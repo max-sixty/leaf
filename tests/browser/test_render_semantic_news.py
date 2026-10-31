@@ -83,8 +83,11 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
         attempt="response-failed-attempt",
     )
     told(page)
-    said(page).to_have_attribute("placeholder", re.compile("^Couldn't answer"))
-    expect(page.locator(".lf-live")).to_have_text("Couldn't answer")
+    said(page).to_have_attribute("placeholder", re.compile("^Not answered"))
+    expect(page.locator(".lf-live")).to_have_text("Not answered")
+    # What became of the answer is Leaf's reading, which the field's placeholder wears
+    # in Leaf's italic (floating-panel.css), as Threads sets it.
+    said(page).to_have_attribute("data-voice", "leaf")
 
 
 def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, request):
@@ -93,9 +96,9 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     claim = record_claim(
         serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
     )
-    lease = leases_model.take_wait_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
-    )
+    lease_path = leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")

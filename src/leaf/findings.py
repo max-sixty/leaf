@@ -158,10 +158,6 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
-def _requests(v: dict) -> str:
-    return f"; still requesting {', '.join(v['requesting'])}" if v["requesting"] else ""
-
-
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -234,6 +230,30 @@ def _clipped_content(at: str, v: dict) -> str:
 def _line(at: str, v: dict) -> str:
     """An element of the author's file, as they find it: its name and its line."""
     return f"{at} (line {v['line']})"
+
+
+def _blocks(v: dict) -> str:
+    """The blocks of the author's file a finding lists (`values.elements`), as they
+    find them: a run of one tag in a row, under one enclosing id, reads as one, with
+    its count and its lines."""
+    runs: list[list[dict]] = []
+    for element in v["elements"]:
+        if runs and all(
+            runs[-1][0].get(key) == element.get(key) for key in ("tag", "enclosing")
+        ):
+            runs[-1].append(element)
+        else:
+            runs.append([element])
+
+    def said(run: list[dict]) -> str:
+        first, last = run[0]["line"], run[-1]["line"]
+        lines = f"line {first}" if first == last else f"lines {first}–{last}"
+        count = f"{len(run)} " if len(run) > 1 else ""
+        enclosing = run[0].get("enclosing")
+        within = f" in #{enclosing}" if enclosing else ""
+        return f"{count}<{run[0]['tag']}> ({lines}){within}"
+
+    return ", ".join(said(run) for run in runs)
 
 
 def _bearing(at: str, v: dict, value: str) -> str:
@@ -419,6 +439,23 @@ def _listed(findings: list[dict]) -> str:
     return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
 
 
+# What each element `structure.document_declarations` holds declares.
+_DECLARES = {"<base>": "base URL", "<meta>": "HTTP headers", "<script>": "import map"}
+
+# How a page names a module, since delivery owns the import map: said the same way
+# where a bare name is refused and where the page's own map is.
+_IMPORT_BY_URL = (
+    "import a file under page/ by its path, or a package by its full http(s) URL"
+    " (such as https://esm.sh/NAME)"
+)
+
+# The fix for a page's own file named outside page/, whichever reference names it.
+_MOVE_UNDER_PAGE = (
+    "move the file into page/ beside index.html and name it by that path, such as"
+    " page/style.css or page/app.js"
+)
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -456,18 +493,13 @@ _TEXT = {
             "incomplete": " (the confirming render attempt did not complete)",
         }[v.get("confirmation")]
     ),
-    "upgraded-early": lambda at, v: (
-        f"pre-upgrade: widgets upgraded before Leaf entry ran: {', '.join(v['tags'])}"
-    ),
-    "ready-early": lambda at, v: (
-        "pre-upgrade: runtime readiness appeared before Leaf entry ran: "
-        + ", ".join(v["stamps"])
-    ),
-    "main-unlaid": lambda at, v: (
-        "pre-upgrade: authored main has no measurable pre-upgrade layout"
-    ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
+    "startup-layout-shift": lambda at, v: (
+        f"startup CLS {v['cls']:.4f} before first settled presentation; "
+        "inspect the movement and whether it interrupts reading: "
+        + json.dumps(v["entries"], ensure_ascii=False)
+    ),
     "moved-without-input": lambda at, v: (
         f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
@@ -513,23 +545,13 @@ _TEXT = {
     "gate-failed": lambda at, v: (
         f"the browser gate failed while running its probe module: {v['error']}"
     ),
-    "probe-failed": lambda at, v: f"the browser probe module failed: {v['error']}",
+    "probe-failed": lambda at, v: (
+        f"the browser probe module failed: {v['error']}"
+        + (" — " + _explained(v["console"]) if v.get("console") else "")
+    ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
-    ),
-    "never-reached": lambda at, v: (
-        f"pre-upgrade proof failed: the document never reached {v['arrival']}"
-        + _requests(v)
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-single": lambda at, v: (
-        "pre-upgrade proof failed: the document has no single canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
-    ),
-    "entry-not-requested": lambda at, v: (
-        "pre-upgrade proof failed: the browser did not request one canonical Leaf entry"
-        + (" — " + _explained(v["console"]) if v["console"] else "")
     ),
     "never-upgraded": lambda at, v: (
         "the widget layer never finished upgrading — "
@@ -627,11 +649,6 @@ _TEXT = {
         f"{at} grows into the margin and is drawn over {v['marginContent']}, which already"
         " sits there; that side of the page has no free room for it"
     ),
-    "off-axis": lambda at, v: (
-        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
-        " of room, so it stands off the prose axis — a width or max-width set on it"
-        " overrides the room's"
-    ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
     ),
@@ -673,6 +690,18 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
+    "flow-tracks": lambda at, v: (
+        f"{at} is a reading flow under {v['parent']}, but its columns are"
+        f" {v['columns']!r} and its span is {v['start']} / {v['end']}; share all"
+        " document columns with grid-template-columns: subgrid and grid-column: full;"
+        " data-width can narrow that span, and layout containment or container-type can prevent subgrid"
+    ),
+    "contained-space": lambda at, v: (
+        f"{at} declares {v['space']} space but stays inside "
+        + ", ".join(v["holders"])
+        + "; to widen the enclosing box, put data-width on that holder; to share"
+        ' document tracks through unframed section wrappers, give them class="layout-flow"'
+    ),
     "squeezed-table": _squeezed,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
@@ -681,17 +710,6 @@ _TEXT = {
         " and its labels with it, so set them larger in the viewBox's units, draw"
         " the viewBox nearer the width it is shown at, or give it more room"
         " (authoring-evidence.md, Interactive and visual evidence)"
-    ),
-    "unreserved-height": lambda at, v: (
-        f"{at} first paints {v['first']}px tall, "
-        + (
-            "reserving no height"
-            if v["reserved"] is None
-            else f"reserving {v['reserved']}px"
-        )
-        + f", and draws {v['drawn']}px tall, so what follows it moves"
-        f" {abs(v['drawn'] - v['first'])}px when it is drawn:"
-        f' state data-height="{v["drawn"]}"'
     ),
     # The page's own code, run once in the browser.
     "page-report": lambda at, v: v["text"],
@@ -772,8 +790,8 @@ _TEXT = {
         f"<template data-sample> at line {v['line']}: needs a stable id"
     ),
     "document-declaration": lambda at, v: (
-        f"{_line(at, v)} declares something about the whole document, which delivery"
-        " owns"
+        f"{_line(at, v)} declares the document's {_DECLARES[at]}, which delivery"
+        " owns; remove it" + (f", and {_IMPORT_BY_URL}" if at == "<script>" else "")
     ),
     "allocation-value": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has an invalid value; expected "
@@ -785,6 +803,10 @@ _TEXT = {
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
+    ),
+    "css-dropped": lambda at, v: (
+        f"{v['sheet']} syntax error at {v['row']}:{v['column']}, a declaration or"
+        f" rule a browser drops without a word: {v['message']}"
     ),
     "unserved-media": lambda at, v: (
         f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
@@ -978,16 +1000,17 @@ _TEXT = {
     ),
     # Advice on the source.
     "unpointable-section": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so no comment or reading position"
-        " can hold to it"
+        "unpointable — no comment or reading position can hold to a section with"
+        f" no id: {_blocks(v)}; give each an id"
     ),
     "unpointable": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, nor anything enclosing it, so"
-        " element selection has no target"
+        "unpointable — these blocks have no id, nor does anything enclosing them, so"
+        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
-        f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
-        f" the whole of #{v['enclosing']}"
+        "unpointable — a comment aimed at a block with no id lands on the whole of"
+        f" the section named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1514,8 +1537,7 @@ _TEXT = {
     "dependency-outside-page": _captured(
         lambda v: (
             "a page's own files (stylesheets, scripts, images, data) live under page/"
-            " beside index.html, or media/; move the file there and name it by that"
-            " path, such as page/style.css"
+            f" or media/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "dependency-symlink": _captured(
@@ -1526,9 +1548,7 @@ _TEXT = {
     ),
     "module-not-local": _captured(
         lambda v: (
-            "a bare module name has no import map to resolve it; import a file under"
-            " page/ by its path, or a package by its full http(s) URL (such as"
-            " https://esm.sh/NAME)"
+            f"a bare module name has no import map to resolve it; {_IMPORT_BY_URL}"
         )
     ),
     "module-type": _captured(
@@ -1536,8 +1556,9 @@ _TEXT = {
     ),
     "module-outside-page": _captured(
         lambda v: (
-            "a module the page imports lives under page/, is a public entry point"
-            " such as /runtime/widget-api.js, or is an http(s) URL"
+            "a module the page imports is a public entry point such as"
+            " /runtime/widget-api.js, an http(s) URL, or the page's own file under"
+            f" page/; {_MOVE_UNDER_PAGE}"
         )
     ),
     "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),
@@ -1548,7 +1569,6 @@ _TEXT = {
         lambda v: "a stylesheet dependency must have CSS MIME type"
     ),
     "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
-    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
     "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
     "css-import": _captured(
         lambda v: "CSS @import requires a stylesheet with CSS MIME type"
@@ -1567,9 +1587,15 @@ _TEXT = {
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
+    "passive-layout-shift": lambda at, v: (
+        f"{at} moved without input during a {v['observed_ms']}ms observation after"
+        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
+        " boxes, not necessarily the cause; reserve space for changing content."
+        " Later timers and gesture paths were not checked."
+    ),
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
-        f" {_size(v['first'])}, {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
+        f" before upgrade, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
         f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
@@ -1596,10 +1622,9 @@ _TEXT = {
         "Update the page's Leaf runtime",
     ),
     "newer-layer": lambda at, v: (
-        f"{v['page']} was initialized at page protocol {v['recorded']} by a newer"
-        f" Leaf, and this Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it"
-        f" can neither serve nor write the page. Use a Leaf at protocol"
-        f" {v['recorded']} or later."
+        f"{v['page']} was initialized by a Leaf newer than this one ({v['leaf']},"
+        f" at page protocol {v['protocol']}), so this Leaf can neither serve nor"
+        " write the page. Use a newer Leaf."
     ),
     "no-registry": lambda at, v: "the page has no layer.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",
@@ -2010,9 +2035,6 @@ _CONSOLE = {
     "page-exception",
     "window-error",
     "resize-loop",
-    "upgraded-early",
-    "ready-early",
-    "main-unlaid",
 }
 
 

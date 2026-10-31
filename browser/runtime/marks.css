@@ -19,8 +19,8 @@
   content: "";
   anchor-name: attr(data-lf-content-start type(<custom-ident>));
 }
+/* The target of an action takes a press. Its mark is the overlay's, on its perimeter
+   (visual-mark-paint.js), which an outline here drew a second time inside its edge. */
 .lf-action-target {
-  outline: 1px solid var(--accent);
-  outline-offset: -1px;
   cursor: pointer;
 }

@@ -38,6 +38,11 @@ export class SettledOptions {
     this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
+    // The command row runs nothing: it names the settled row's keys in the group's
+    // words, as a diff's file row does. On a page the disclosure scope's `disclosure.toggle`
+    // (keyboard/page.js) answers Enter, Space and the arrows; in a message, where that
+    // scope does not reach, Enter and Space press the span as a button
+    // (role-button-press.js).
     this.#row.lfCommands = {
       title: "In settled options",
       rows: [
@@ -45,7 +50,6 @@ export class SettledOptions {
           id: "option.toggle-settled",
           keys: () => DISCLOSE(this.#row),
           title: () => (this.#isOpen ? "close" : "open"),
-          run: () => this.#row.click(),
         },
       ],
     };
@@ -83,7 +87,7 @@ export class SettledOptions {
     render(
       html`<span ${generated({ says: true })}
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
-        >${changes ? html`<span class="lf-settled-diff tag lf-change-count">Δ${changes}</span>` : nothing}`,
+        >${changes ? html`<span class="lf-settled-diff lf-chip lf-change-count">Δ${changes}</span>` : nothing}`,
       this.#row,
     );
   }

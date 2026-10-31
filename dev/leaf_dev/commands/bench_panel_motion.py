@@ -85,7 +85,9 @@ def sample(page):
                 if mark is not None and ring is not None:
                     ring_center = ((ring[0] + ring[2]) / 2, (ring[1] + ring[3]) / 2)
                     separation.append(
-                        max(abs(a - b) for a, b in zip(center, ring_center))
+                        max(
+                            abs(a - b) for a, b in zip(center, ring_center, strict=True)
+                        )
                     )
         readings.append(
             {

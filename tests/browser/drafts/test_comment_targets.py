@@ -4,7 +4,6 @@ or moves to another location, and whose words a transfer carries."""
 import re
 
 import pytest
-from leaf_dev.browser import slow_cpu
 from playwright.sync_api import expect
 from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
@@ -26,6 +25,7 @@ from browser.drafts import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import slow_cpu
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -339,6 +339,9 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
         page.keyboard.press("Escape")
     words = "These words belong to my earlier unfinished comment."
     choose_comment_target(page, "#p3")
+    expect(page.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Paragraph 3")
+    )
     write(page.locator(".lf-fab-input"), words)
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
@@ -353,11 +356,11 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
         # browser animation runs, so a Resume that does not cancel it loses them.
         page.evaluate("""async () => {
           const {executeCommand} = await window.__lfCheckApi();
-          const scrollBy = Element.prototype.scrollBy;
-          Element.prototype.scrollBy = function(options) {
-            const result = scrollBy.call(this, options);
+          const scrollTo = Element.prototype.scrollTo;
+          Element.prototype.scrollTo = function(options) {
+            const result = scrollTo.call(this, options);
             if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollBy = scrollBy;
+              Element.prototype.scrollTo = scrollTo;
               window.earlyResumeBoxes = ['#p3', '.lf-fab-input'].map(selector =>
                 document.querySelector(selector).getBoundingClientRect().toJSON());
               queueMicrotask(() => executeCommand('writing.resume'));
@@ -479,15 +482,30 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     draft where it was, rather than tombstoning the source and replacing the destination.
     The target picker is the real explicit gesture whose carry path owns that choice.
     """
-    url = serve(LONG_PAGE)
+    url = serve(
+        leaf_page(
+            "Neighbouring comment targets",
+            "<h1>Independent notes</h1>"
+            + "".join(
+                f'<p id="p{i}" style="margin:0;line-height:16px">Paragraph {i}.</p>'
+                for i in range(12)
+            ),
+        )
+    )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
 
     source = "This paragraph buries the point."
     destination = "This later paragraph already has its own note."
     choose_comment_target(first, "#p3")
+    expect(first.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Paragraph 3")
+    )
     write(first.locator(".lf-fab-input"), source)
     choose_comment_target(second, "#p9")
+    expect(second.locator(".lf-fab-input")).to_have_attribute(
+        "aria-label", re.compile("Paragraph 9")
+    )
     write(second.locator(".lf-fab-input"), destination)
 
     first.keyboard.press("Escape")

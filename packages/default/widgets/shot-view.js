@@ -1,8 +1,14 @@
-/* The screenshot's retained Lit drawing and source-coordinate geometry. Initial
- * delivery and live behavior use the same template instance. Images load before
- * their sources enter the drawing; frames and controls survive capture revisions.
- * ShotView owns inspection state, retained nodes and fitting from delivery onward.
- * Live behavior fills the same owner with decoded captures and difference readings. */
+/* The screenshot's retained client-side Lit drawing and source-coordinate geometry.
+ * Images load before their sources enter the drawing; frames and controls survive
+ * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
+import {
+  offerElement,
+  offerActionElement,
+  offeredAction,
+  generatedElement,
+  keeps,
+} from "/runtime/widget-api.js";
+
 import { html, nothing, ref, styleMap } from "/vendor/lit.js";
 export const SHOT_VIEWS = {
   flip: "Slider",
@@ -135,10 +141,9 @@ function applyShotGeometry(host, geometry, keeps) {
 // The third-party comparison owns its frame slots; its shell is generated page
 // drawing, so paper prints its images while dropping the toolbar's offered chrome.
 export const shotBox = (tag, cls) =>
-  document.documentElement.lfInitial.generatedElement(
-    Object.assign(document.createElement(tag), { className: cls }),
-    { says: false },
-  );
+  generatedElement(Object.assign(document.createElement(tag), { className: cls }), {
+    says: false,
+  });
 
 export class ShotView {
   view = "flip";
@@ -166,21 +171,14 @@ export class ShotView {
   /** @type {((event: Event) => void) | undefined} */
   changeFull;
 
-  constructor(host, tools) {
+  constructor(host) {
     this.host = host;
-    this.tools = tools;
-    this.choiceRef = (node) => node && tools.offerActionElement(node, "word");
+
+    this.choiceRef = (node) => node && offerActionElement(node, "word");
     this.outlineRef = (node) =>
-      node && tools.offerActionElement(node, "word", "lf-shot-outline");
+      node && offerActionElement(node, "word", "lf-shot-outline");
     this.scaleRef = (node) => {
-      if (node)
-        this.scaleTrigger = tools.offerActionElement(
-          node,
-          "symbol",
-          "lf-shot-scale",
-          "Image options",
-          { action: "more" },
-        );
+      this.scaleTrigger = node;
     };
     let optionsId;
     do optionsId = `lf-shot-options-${++nextOptionsId}`;
@@ -190,8 +188,8 @@ export class ShotView {
   }
 
   render() {
-    const { host, tools, optionsId } = this;
-    const { offerElement, generatedElement, keeps } = tools;
+    const { host, optionsId } = this;
+
     const offered = (cls, save = undefined) =>
       ref((node) => {
         if (!node) return;
@@ -311,6 +309,7 @@ export class ShotView {
     });
     keeps(host, "data-lf-shot-mode", this.view);
     keeps(host, "data-lf-shot-outlines", this.outlines);
+    keeps(host, "data-lf-shot-scale", this.actual ? "actual" : "fit");
     return html`
       <div ${offered("lf-shot-toolbar lf-ui", (node) => (this.toolbar = node))}>
         ${caption("before")}
@@ -318,6 +317,9 @@ export class ShotView {
           ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
           <div ${offered("lf-shot-tools")}>
             <button
+              ${offeredAction("symbol", "lf-shot-scale", "Image options", {
+                action: "more",
+              })}
               ${ref(this.scaleRef)}
               type="button"
               popovertarget=${optionsId}
@@ -420,7 +422,7 @@ export class ShotView {
     });
     if (geometry) {
       this.geometry = geometry;
-      applyShotGeometry(host, geometry, this.tools.keeps);
+      applyShotGeometry(host, geometry, keeps);
     }
     return geometry;
   }

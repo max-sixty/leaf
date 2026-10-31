@@ -141,7 +141,7 @@ def viewport(value: str) -> tuple[int, int]:
     "--motion",
     type=click.Choice(["reduce", "no-preference"]),
     default=None,
-    help="Defaults to normal motion when recording, reduced motion otherwise.",
+    help="Defaults to normal motion, as the user sees it; reduce settles transitions at once.",
 )
 @click.option(
     "--viewport",
@@ -305,7 +305,7 @@ def probe(
             raise click.BadParameter(
                 "the journey must define run(page)", param_hint="--journey"
             )
-    motion = motion or ("no-preference" if record_dir else "reduce")
+    motion = motion or "no-preference"
     if shot:
         OUT.mkdir(parents=True, exist_ok=True)
         shot = Path(tempfile.mkdtemp(prefix="run-", dir=OUT))

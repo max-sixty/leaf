@@ -261,9 +261,9 @@ CONTROL_ARCHETYPES = (
 )
 
 
-# The panel's own controls draw the ring with one rule (floating-panel.css); this is the
-# part of its selector that makes the rule the panel's.
-PANEL_RING = ".lf-fp-on-item)"
+# The layer's focus floor (surfaces.css), which rings every box holding visible focus
+# where no carrier wears the ring for it: the panel's own controls and rows among them.
+FLOOR_RING = "[data-lf-focus-visible]:not(.lf-projected-mark)"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -285,9 +285,9 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-grip", ".lf-grip"),
-                (".lf-fp-leaf", PANEL_RING),
-                (".lf-fp-on-user", PANEL_RING),
+                (".lf-grip", FLOOR_RING),
+                (".lf-fp-leaf", FLOOR_RING),
+                (".lf-fp-on-user", FLOOR_RING),
                 (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
             ),
             "feature-gallery": (
@@ -295,11 +295,11 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    "margin-entry",
+                    FLOOR_RING,
                 ),
                 (".lf-draft-edit", ".lf-draft-edit"),
             ),
-            "heat-loss": ((".lf-visual-action", ".lf-visual-action"),),
+            "heat-loss": ((".lf-visual-action", FLOOR_RING),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
                 ("lf-playground input[type=radio]", ".choice:has"),
@@ -312,7 +312,7 @@ RING_CASES = (
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
-                ("lf-diff summary", ".lf-diff-file > details > summary"),
+                ("lf-diff summary", FLOOR_RING),
                 ("lf-diff code", ".lf-diff-frame"),
             ),
             "release-notes": (
@@ -321,7 +321,7 @@ RING_CASES = (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
                 ),
-                (".lf-shot-views button", "button"),
+                (".lf-shot-views button", FLOOR_RING),
             ),
             "wt-merge": (
                 (
@@ -331,7 +331,7 @@ RING_CASES = (
             ),
         },
     ),
-    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, "[data-line]"),)}),
+    ("a landed diff line", ("]",), {"pr-walkthrough": ((None, FLOOR_RING),)}),
     (
         "an inline response",
         (),
@@ -341,13 +341,13 @@ RING_CASES = (
     (
         "the Threads view",
         ("g", "Shift+t", "ArrowDown"),
-        {RING_CHROME: ((None, PANEL_RING),)},
+        {RING_CHROME: ((None, FLOOR_RING),)},
     ),
     # A resolved thread's view, whose controls offer Reopen.
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-controls .lf-fp-settle", PANEL_RING),)},
+        {"ship-review": ((".lf-fp-controls .lf-fp-settle", FLOOR_RING),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -388,7 +388,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > .lf-settled", ".lf-settled"),
+                ("#comparison-policy > .lf-settled", FLOOR_RING),
             )
         },
     ),
@@ -397,17 +397,14 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                (
-                    "#comparison-policy > lf-option > .lf-pick",
-                    "lf-option .lf-pick",
-                ),
+                ("#comparison-policy > lf-option > .lf-pick", FLOOR_RING),
             )
         },
     ),
     (
         "a contents link",
         (),
-        {"feature-gallery": (("#bg-contents li a:visible", "lf-toc a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", FLOOR_RING),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -416,23 +413,19 @@ RING_CASES = (
     (
         "a reaction palette",
         (),
-        {
-            "ship-review": (
-                (".lf-react-palette:popover-open .lf-react", "[data-lf-offer]"),
-            )
-        },
+        {"ship-review": ((".lf-react-palette:popover-open .lf-react", FLOOR_RING),)},
     ),
     # On me opens on its view; the walk's first step lands on a card.
-    ("On me", ("ArrowDown",), {"ship-review": ((None, PANEL_RING),)}),
-    ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, PANEL_RING),)}),
+    ("On me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
+    ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
     # The leaf's menu, opened by its press; the walk's step lands on a row.
-    ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, PANEL_RING),)}),
+    ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
     # The menu's Versions, which `g V` opens focused on the version being read; the
     # walk's step lands on the earlier one.
     (
         "the versions menu",
         ("g", "Shift+v", "ArrowDown"),
-        {RING_CHROME: ((None, PANEL_RING),)},
+        {RING_CHROME: ((None, FLOOR_RING),)},
     ),
     (
         "the command reference",
@@ -449,28 +442,22 @@ RING_CASES = (
     (
         "a thread card",
         (),
-        {
-            "ship-review": (
-                (
-                    ".lf-margin-preview .lf-resolve",
-                    ".lf-icon-action",
-                ),
-            )
-        },
+        {"ship-review": ((".lf-margin-preview .lf-resolve", FLOOR_RING),)},
     ),
-    # Media in a message the panel's thread view draws wears its own ring, as on the
-    # page: the panel's rule leaves what Leaf's reader draws in its outlet alone.
+    # Media in a message the panel's thread view draws stands its ring where it does on
+    # the page: the panel insets only its own faces, not what Leaf's reader draws in its
+    # outlet.
     (
         "message media",
         (),
-        {"feature-gallery": ((f"{PANEL} .lf-message-media", ".lf-media-open"),)},
+        {"feature-gallery": ((f"{PANEL} .lf-message-media", FLOOR_RING),)},
     ),
     (
         "the Page Map dialog",
         ("g", "Shift+p"),
         {
             RING_CHROME: (
-                (".lf-page-map-action:visible", ".lf-page-map-action"),
+                (".lf-page-map-action:visible", FLOOR_RING),
                 (".lf-page-map-search input:visible", "wa-input::part"),
             )
         },
@@ -501,7 +488,7 @@ RING_EXAMPLE_FILES = {
 RING_REMOTE_CARRIER = {
     ".lf-key-hint.lf-current": ".lf-target-picker-hint.lf-current",
     ".lf-diff-frame": "lf-diff code[data-lf-focus-visible] + .lf-diff-frame",
-    # A pane draws its focused body's band inset over the body's cell (theme.css).
+    # A pane draws its focused body's band inset over the body's cell (base.css).
     "[data-lf-reading-role=pane]": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
@@ -537,7 +524,7 @@ RING_SCOPE_OPENER = {
     "On me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
-    "a reaction palette": f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger",
+    "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
     "a landed diff line": "#pr-exact-patch summary",
 }
@@ -561,7 +548,7 @@ RING_SCOPE_WIDTH = {
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
     "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
-    "a reaction palette": ".lf-react-strip > .lf-react-trigger",
+    "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
 
@@ -695,7 +682,7 @@ def _each_aim_surface(page, page_dir):
     # The agent's answer in the other thread, with its reaction palette open: its chips
     # show only while it stands.
     open_panel_thread(page, answered)
-    page.locator(f"{PANEL_THREAD} .lf-react-strip > .lf-react-trigger").first.click()
+    page.locator(f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger").first.click()
     expect(
         page.locator(".lf-react-palette:popover-open .lf-react").first
     ).to_be_visible()
@@ -1400,15 +1387,16 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
     """The stop reading distinguishes a real ring from a missing one.
 
-    Reach a control by Tab, verify its real indication, then remove that indication. A
-    tab's label supplies the distinct case where a box inside the focused stop carries its
-    ring.
+    Reach a control by Shift+Tab, verify its real indication, then remove that
+    indication. A tab's label supplies the distinct case where a box inside the focused
+    stop carries its ring. The walk runs backward because the mark steps aside while
+    the caret is in the panel's field, which a forward walk passes first.
     """
     url = serve(LONG_PAGE, comments=2)
     page = open_page(browser, url)
     page.evaluate(RING_FOCUS_START)
     for _ in range(60):
-        page.keyboard.press("Tab")
+        page.keyboard.press("Shift+Tab")
         if page.evaluate(
             "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
         ):
@@ -1505,7 +1493,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
         url = serve(example, comments=2, anchored=anchored)
         if name == RING_CHROME:
-            current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
+            match = re.search(r"/v(\d+)\.html", url)
+            assert match is not None
+            current_version = int(match.group(1))
             next_version = current_version + 1
             _publish(
                 serve.page_dir,

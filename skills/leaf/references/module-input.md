@@ -82,7 +82,13 @@ row's keys mean different things, `routes` lists subcommands, each with its own 
 and runs each route.
 
 `run(binding, context)` performs the command; a row without `run` names a press the
-browser or an outer handler makes. `control` is the visible element that activates it.
+browser or an outer handler makes, and one that names a `control` is pressed by a
+click on it. `control` is the visible element that activates it. `lands(from)` says
+where the user stands after Leaf runs the row for a key, a command-reference pick or
+a click on its `control`: Leaf calls it right after the run, so it reads the state the
+run left, with the element the press came from (where the user was for a key or a
+pick, the button for a click), and puts the user on the element it returns as a move,
+or leaves them for `null`. A margin entry's activation keeps its own focus handling.
 `when` says whether it is available, and a route may have its own. `reach` is the short
 phrase the command reference shows while it isn't, such as `in an open draft editor`.
 Set `runFromCommandReference: false` for a step the reference can't run without a choice
@@ -102,8 +108,8 @@ a widget's state or the threads. For any other state it reads, hold the value in
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows have a `run`, so other keys pass
-outward. A row keeps its key while unavailable, so the key never falls through to a
+then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope.
 
@@ -157,6 +163,10 @@ End reach the ends, and each step announces a position such as `Option 3 of 7`. 
 returns the list at each press, `landed(row)` runs after a move, and `scroll: false`
 keeps the page still.
 
+A row whose press carries the user along a list of its own, as a timeline's arrows
+carry a user on its step list to the new step's row, declares `lands(from)` ("Command
+rows") rather than moving focus in its `run`.
+
 A widget that steps through something itself, such as a diff's hunks, calls
 `beginWalk(key, noun, read)` at each step and announces what it returns, such as
 `Hunk 3 of 7`. `read()` returns the position, usually from
@@ -207,6 +217,15 @@ ends where `away(path)` is true of its composed path, as an open editor that a t
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
 the user moves through with arrow keys offers one Tab stop with `rove(items, stop)`.
+
+`onPress(begin)` follows the primary pointer's press through its native compatibility
+events. `begin(pointerdown, path)` may return `end(event, completed)`: release calls
+it with `completed: true`; cancellation, a native context menu, or leaving the document
+calls it with `false`. The function returned by `end` runs when that press is over,
+after any compatibility mouseup and click it owes. Keep press-local work in these
+callbacks. Register inside `whileConnected`; the returned unsubscribe stops new
+presses, and the connection's abort signal ends any work still running when the widget
+disconnects.
 
 `onCurrentLocation(read)` calls `read(node, cause, left)` synchronously when focus
 changes, including inside a declared shadow root, and returns its unsubscribe function;

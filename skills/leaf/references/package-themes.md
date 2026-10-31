@@ -1,13 +1,27 @@
 # Theme packages
 
 Read with [packages.md](packages.md), which holds the package contract and how styles
-compose. Page-wide rules and idioms belong in `theme.css`, whether or not the package
-also declares widgets; widget defaults belong in `widgets.css`. Each stylesheet's
-role determines its scope and cascade priority.
+compose. A theme is a page's look: a package whose rules style the page as a whole,
+whether or not it also declares widgets. Defaults that Layouts and the page's sheet
+should outrank, such as element rules, belong in `defaults.css`, in the layer with
+Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
+`overrides.css`. Idioms belong in either, declared in the package's registry.
 
 ## Personal themes
 
-A user can keep several named themes and choose one default. Each is an ordinary
+Leaf bundles one theme, `reading`: the reading look, which styles the body's type and
+colour and the idioms such as `.callout`, and turns on the reading face markup wears
+in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
+disclosures, definitions, rules and pictures) by setting `--lf-reading-face: 1` on the
+root. The face's rules rank below every other rule of `lf-base`, so a theme's or
+package's rule for one of those elements outranks them whatever its weight. A new page
+takes it unless the user names another default. A page that takes none
+(`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing of the
+look reaches it, while Leaf's widgets, threads and panel keep their own faces. A page
+or a theme may still set `--lf-reading-face: 1` on any box to give the markup in it
+that face.
+
+A user can also keep several named themes and choose one default. Each is an ordinary
 installed package; its `instructions/author.md` describes the tasks it suits. Install
 the package with `leaf package install <directory>`, then list its name in
 `~/.config/leaf/themes.toml` (`$XDG_CONFIG_HOME/leaf/themes.toml` when set):
@@ -17,18 +31,25 @@ themes = ["editorial", "dense"]
 default = "editorial"
 ```
 
+A page takes one theme, so a personal theme is the page's whole look and replaces
+`reading`. One that only adjusts the reading look, such as its palette, is selected
+as a content package on a page that keeps `reading`: `leaf page init <page> --package
+dense`.
+
 `leaf theme list` returns the available choices, default and author instructions.
 The author's selection follows the user's request first, then the task and those
 instructions; leaving it unspecified uses the default on a new page. Select one with
 `leaf page init <page> --theme dense`. Content packages remain independent; the
-selected theme composes last.
+selected theme composes right after Leaf's default package and before them, so a
+project package can restate a theme's idiom, such as `.callout`, and its rules win a
+tie with the theme's.
 
 A page captures its selected theme when initialized. Re-initializing preserves that
 choice, even if the user's default changes; an explicit `--theme` replaces it.
-`--no-packages` clears both explicit packages and the theme, and a later plain init
-keeps them cleared. `--no-theme` clears only the theme, keeping content packages.
+`--no-theme` takes none, and a later plain init keeps none; `--no-packages` clears
+only the content packages.
 Developer fixture builders use an empty configuration home, so examples, the website
-and demo recordings do not inherit the developer's personal default.
+and demo recordings take `reading` rather than the developer's personal default.
 `leaf page state <page>` exposes the effective name and whether it was explicit or
 default under `layer.theme`.
 
@@ -47,7 +68,7 @@ notes on evidence, and `--mono` for literal evidence. The color pairs are descri
 under "Theme colors" below. An ordinary selector tunes one element. A
 pattern the project reuses across pages, such as a callout, is an idiom: declare it
 under its CSS selector in the package's `registry.json`, with a `description`, an
-`x-example` and optional `x-instructions`, and style it in the package's `theme.css`.
+`x-example` and optional `x-instructions`, and style it in one of the package's sheets.
 
 Where a Layout reads a geometry input (the "Theme inputs" table in `packages.md`,
 "Styles and composition"), set that input rather than overriding the Layout.
@@ -59,7 +80,9 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
-The body supplies `--lf-ground: var(--paper)`. Each solid containing surface
+The body supplies `--lf-ground`: the browser's `Canvas`, or `var(--paper)` under the
+reading theme, which paints the body that colour; a theme or page that paints its own
+ground sets it to match. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -106,6 +129,14 @@ or in the host while no match exists. The declaration does not inherit. Declare
 `grows-with-content`). A box that scrolls sideways
 needs nothing: Leaf fades its content at any edge with more beyond.
 
+Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
+token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
+the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
+packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
+marks over the page read the same value where it isn't `0`, so a comment's or an aim's
+frame stands where the ring does.
+
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
 scrolls that box rather than the control into view with room for its ring.
@@ -120,11 +151,11 @@ Startup behavior and transition protection follow
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/theme.css`:
+choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`, `--muted-2`; `--rule`, `--border-2`                                                                                    |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
 | Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |

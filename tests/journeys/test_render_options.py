@@ -25,6 +25,7 @@ from render_harness import (
     available_commands,
     open_page,
     resized,
+    rgb_pixel,
     stamp_page,
     told,
     wait_for_revision,
@@ -364,12 +365,12 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
                 f"back {strip.height} device px: the arithmetic below no longer "
                 f"locates its edge"
             )
-            rows = [strip.getpixel((0, y)) for y in range(strip.height)]
+            rows = [rgb_pixel(strip, (0, y)) for y in range(strip.height)]
             if edge == "bottom":
                 rows.reverse()  # both edges read from the far end of the strip inward
             painted = 0
             while painted < len(rows) and all(
-                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink)
+                abs(a - b) <= 6 for a, b in zip(rows[-1 - painted], ink, strict=True)
             ):
                 painted += 1
             assert painted, (

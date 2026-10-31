@@ -47,7 +47,8 @@
 # first asks the same standalone program, on that environment's interpreter,
 # whether the session holds one (`state.py hook-gate`). That spares uv and the
 # package's imports wherever no page was claimed. Without the environment, or with
-# any answer but "nothing", the hook runs whole.
+# any answer but "nothing", the hook runs whole. Worker tool batches also stop
+# at this gate: only the parent receives the input its session claimed.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
@@ -69,7 +70,7 @@ if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
 fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     payload=$(cat)
-    printf '%s' "$payload" | "$python" -S "$state" hook-gate
+    printf '%s' "$payload" | "$python" -S "$state" hook-gate "$3"
     [ "$?" -eq 3 ] && exit 0
     exec uv run -q --no-dev --project "$root" python -m leaf "$@" <<EOF
 $payload

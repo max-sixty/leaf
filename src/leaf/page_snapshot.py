@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import time
+from collections.abc import Generator
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -30,6 +31,7 @@ from .revision_artifact import (
     read_artifact,
     read_revision,
 )
+from .runtime_selection import executing
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
 from .service import PageTransaction
@@ -64,6 +66,7 @@ class PageSnapshot:
         return replace(self, context=self.context.through(sequence))
 
     def active_revision(self) -> int:
+        assert self.context.active is not None
         return self.context.active["revision"]
 
     def artifact(self, revision: int) -> RevisionArtifact:
@@ -73,6 +76,7 @@ class PageSnapshot:
         return self.context.revision(revision)
 
     def active_registry(self) -> dict:
+        assert self.context.registry is not None
         return self.context.registry
 
     def data_source(self, source: str, registry: dict) -> dict | None:
@@ -86,6 +90,7 @@ class PageSnapshot:
 
     def served_document(self) -> tuple[RevisionArtifact, int, int | None]:
         active = self.context.active
+        assert active is not None
         return self.artifacts[active["revision"]], active["revision"], active["version"]
 
     def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
@@ -98,7 +103,9 @@ class PageSnapshot:
         return list(self.others)
 
     @contextmanager
-    def state_read(self, *, with_token: bool = False):
+    def state_read(
+        self, *, with_token: bool = False
+    ) -> Generator[tuple[PageRead, str | None, str | None]]:
         yield self.context, self.reading, self.source_error
 
     def state_reading(self, reading: str, state: dict) -> str:
@@ -133,7 +140,7 @@ def capture_page_snapshot(
         events = tuple(copy.deepcopy(page.events))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
-        artifacts = {
+        artifacts: dict[int, RevisionArtifact] = {
             revision: read_artifact(page_dir, revision) for revision in revisions
         }
         selected = artifact or artifacts.get(revision)
@@ -154,6 +161,8 @@ def capture_page_snapshot(
         # probes beside it (`runtime_selection`), so the probes call the runtime
         # they were written against, whichever Leaf captured the revision.
         artifacts[revision] = selected
+        artifacts = {number: executing(value) for number, value in artifacts.items()}
+        selected = artifacts[revision]
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         # External data remains current even in a historical document. Its media
@@ -173,10 +182,11 @@ def capture_page_snapshot(
         layer = served_layer(registry["$layer"], page_dir)
         # Stored revisions take their held readings; a candidate the snapshot
         # captured is the checked document under its capture's vocabulary.
-        readings = {
+        stored_readings = {
             revision: read_revision(page_dir, revision) for revision in revisions
         }
-        shown = readings.get(revision)
+        shown = stored_readings.get(revision)
+        readings: dict[int, SourceReading] = dict(stored_readings)
         if shown is None or shown.digest != selected.digest:
             readings[revision] = SourceReading(document, selected.registry)
         # Read inside the transaction, so a snapshot serves what it froze even if

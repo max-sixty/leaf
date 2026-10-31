@@ -27,8 +27,19 @@
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
-   Both stand in one boundary (`commentBoundary`): the part of the window the page shows,
-   within the reading region where that holds a card, else within the page shell.
+   Both stand in one boundary (`commentBoundary`): the part of the window the page
+   shows, within the region that scrolls the pointed row, else the target
+   (`scrollerFor`), where that holds a card, else within the page shell. That region's
+   edges cut the row as it scrolls, so they cut the surface too. A region in flow
+   scrolls nothing itself, so a surface on words in a pane the page scrolls stands in
+   the page, or in whatever box scrolls that pane; which boxes scroll is the
+   stylesheet's to say (reading-regions.js). Rejected: the innermost reading region
+   around the row, whether or not it scrolled, which stopped a card on words in a pane
+   the page scrolls at that pane's foot while the window had room. Also rejected: the
+   innermost box with rows to scroll, which stood a comment in a workspace pane whose
+   rows all show over the pane beside it; and the region that scrolls the target,
+   which stood a comment pointed at a row deep in a pane that is itself the target
+   over the pane beside it.
 
    The side is chosen once, for the thread's footprint rather than the box's, so the box
    stands where its card can: right of `clear` where that room holds the card's minimum
@@ -125,19 +136,18 @@ import {
   shownRect,
 } from "../geometry.js";
 import { clamp, union } from "../rect.js";
-import { moveScrollerBy, scrollLimit } from "../scrolling.js";
+import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 
-import {
-  containingReadingRegionFor,
-  effectiveScroller,
-  shownRegionBounds,
-} from "../reading-regions.js";
+import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
+/** @param {{target: Element | null, point?: Element | null,
+ * passage?: Partial<NonNullable<ReturnType<typeof import("../resolved-target.js").passageGeometry>>> | null,
+ * boundary?: ReturnType<typeof commentBoundary> | null}} options */
 export function commentAttachment({
   target,
   point = null,
@@ -159,8 +169,7 @@ export function commentAttachment({
       lastRow: extent.top,
       column: null,
       margin: null,
-      region: null,
-      scroller: effectiveScroller(element),
+      scroller: pageScroller,
     };
   }
   // If the target is not drawn, a seated editor or card must withhold until it
@@ -181,7 +190,6 @@ export function commentAttachment({
   const whole = shownExtent(target) ?? target.getBoundingClientRect();
   const extent = point ? pointBand(whole, point) : whole;
   const clear = point ? extent : (shown ?? whole);
-  const region = containingReadingRegionFor(element);
   return {
     element,
     contextNode: context,
@@ -192,8 +200,7 @@ export function commentAttachment({
     lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
     margin,
-    region,
-    scroller: effectiveScroller(region ?? element),
+    scroller: scrollerFor(element),
   };
 }
 
@@ -215,7 +222,8 @@ export const COMMENT_GAP = 8;
 export const LEAST_HEIGHT = 96;
 
 // The room both surfaces stand in: the part of the window the page shows, within the
-// reading region's shown bounds where those hold the card's minimum width and the least
+// shown bounds of the reading region whose body is `scroller`, the box that scrolls the
+// surfaces' row (`scrollerFor`), where those hold the card's minimum width and the least
 // height, else within the page shell, whose right edge stops short of the root
 // scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
@@ -228,20 +236,21 @@ export const LEAST_HEIGHT = 96;
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
 // none of its height (`shownWindow`).
-export function commentBoundary({ region = null, right = Infinity } = {}) {
+/** @param {{scroller?: Element, right?: number}} [options] */
+export function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
   const room = (within) => {
     const across = (columns) =>
       shownWindow({ within, gap: COMMENT_GAP, across: columns });
     return Object.assign(across(null), { across });
   };
-  const bounds = region && shownRegionBounds(region);
+  const bounds = scroller !== pageScroller && shownRect(scroller, new Map());
   const inRegion = bounds && room(bounds);
   if (
     inRegion &&
     Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
     inRegion.height >= LEAST_HEIGHT
   ) {
-    const whole = region.body.getBoundingClientRect();
+    const whole = scroller.getBoundingClientRect();
     return Object.assign(inRegion, {
       inRegion: bounds,
       key: [

@@ -173,7 +173,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["aside.sidenote"]["x-example"]
+    sidenote = registry["aside.note"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )
@@ -706,10 +706,8 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         ),
     )
     resized(page, 1440, 900)
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
-    )
+    # This margin stands beside the panel, so its frame can reach the window foot.
+    foot = page.evaluate("innerHeight - 8")
     passage = page.locator("#passage")
     passage.evaluate(
         """(node, foot) => scrollBy({
@@ -723,6 +721,16 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == "right-start"
+    assert (
+        bar.evaluate(
+            """async node => {
+          const {left, right} = node.getBoundingClientRect();
+          return (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}}).bottom;
+        }"""
+        )
+        == foot
+    )
     resting = page.evaluate(SIDE_COMMENT)
     assert resting["bottom"] < foot - 20, (resting, foot)
     write(field, "\n".join(f"Line {n}" for n in range(6)))
@@ -794,9 +802,12 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
     passage.click(modifiers=["Alt"])
     open_compact_comment(page, "Line 0")
     bar = page.locator(".lf-fab-bar")
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
+    foot = bar.evaluate(
+        """async node => {
+          const {left, right} = node.getBoundingClientRect();
+          return (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}}).bottom;
+        }"""
     )
     # Lines until one more takes the box past the window's foot.
     lines = 1
@@ -2833,7 +2844,9 @@ def test_a_visual_part_aim_follows_its_drawn_svg_shape(browser, serve):
     page.keyboard.down("Alt")
     armed = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, armed)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3149,13 +3162,11 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
-    # Contours retain one stroke beyond a clip; the wider shadow
-    # surface must still be cut at that boundary, for both references and aim.
-    stroke = mark.evaluate(
-        "node => parseFloat(getComputedStyle(node).getPropertyValue('--focus-ring-w'))"
-    )
-    right = host_box["x"] + host_box["width"] + stroke
-    assert surface.bounding_box()["width"] > host_box["width"] + stroke
+    # The host cuts the wider shadow surface, so its marks stop exactly at that
+    # boundary, for both references and aim: a band on an edge the clip already cuts
+    # would stand over whatever lies past it.
+    right = host_box["x"] + host_box["width"]
+    assert surface.bounding_box()["width"] > host_box["width"] + 10
     shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
     assert shown["left"] >= host_box["x"]
     assert shown["right"] == pytest.approx(right)
@@ -3269,7 +3280,9 @@ def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
     clip = {**clip, "x": math.floor(moved["x"]), "y": math.floor(moved["y"])}
     painted = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
     delta = ImageChops.difference(quiet, painted)
-    changed = [max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3)]
+    changed = [
+        max(pixel) >= 6 for pixel in zip(*[iter(delta.tobytes())] * 3, strict=True)
+    ]
     width, height = delta.size
 
     def ratio(where):
@@ -3518,7 +3531,8 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
 
 
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
-    """Leaving Comment changes the mark, not which rectangle it identifies.
+    """Leaving Comment changes the mark, not which rectangle it identifies, and every
+    mark stands on the region's perimeter, at the gap the location ring takes.
 
     A native table ends at its last row, a card follows its authored corners, and a
     partly scrolled card keeps its shape behind the scrollport's cut. Compare to the content,
@@ -3540,7 +3554,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 head="""<style>
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
-  #port { height:360px; width:440px; overflow:auto; border:1px solid; }
+  #port { height:400px; width:440px; overflow:auto; border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
   .authored-contour { outline:1px dashed var(--ink-2); }
   </style>""",
@@ -3562,8 +3576,11 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
       const ink = end.content !== 'none' ? end : style;
       const rect = node.getBoundingClientRect();
       const stroke = parseFloat(ink.outlineWidth), gap = parseFloat(ink.outlineOffset);
-      const painted = {left:rect.left - stroke, top:rect.top - stroke,
-        right:rect.right + stroke, bottom:rect.bottom + stroke};
+      const reach = stroke + gap;
+      const painted = {left:rect.left - reach, top:rect.top - reach,
+        right:rect.right + reach, bottom:rect.bottom + reach};
+      const region = parseFloat(getComputedStyle(document.documentElement)
+        .getPropertyValue('--focus-region-gap'));
       for (let frame = node.parentElement; frame; frame = frame.parentElement) {
         if (!frame.matches('.lf-paint-frame')) continue;
         const values = getComputedStyle(frame).clipPath.match(/-?[\d.]+px/g)?.map(parseFloat);
@@ -3574,7 +3591,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
         painted.right = Math.min(painted.right, box.right - values[1]);
         painted.bottom = Math.min(painted.bottom, box.bottom - values[2]);
       }
-      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, ink:ink.outlineStyle,
+      return {source:box.toJSON(), shown, painted, rect:rect.toJSON(), stroke, gap, region, ink:ink.outlineStyle,
         radius:style.borderRadius, clip:ink.clipPath,
         nativeOutline:getComputedStyle(target).outlineStyle,
         rowBottom:id === 'square' ? target.rows[target.rows.length - 1].getBoundingClientRect().bottom : null};
@@ -3583,12 +3600,15 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     def boundary(target, selector):
         reading = page.evaluate(read, [target, selector])
         assert reading["ink"] == "solid", reading
-        assert (reading["stroke"], reading["gap"]) == (2, 0), reading
+        assert (reading["stroke"], reading["gap"]) == (2, reading["region"]), reading
+        reach = reading["stroke"] + reading["gap"]
         for edge in ("left", "top", "right", "bottom"):
             assert reading["rect"][edge] == pytest.approx(
                 reading["source"][edge], abs=0.5
             ), reading
-            outside = -2 if edge in ("left", "top") else 2
+            # An edge the scrollport cuts keeps no band past the cut.
+            cut = abs(reading["shown"][edge] - reading["source"][edge]) > 0.5
+            outside = 0 if cut else -reach if edge in ("left", "top") else reach
             assert reading["painted"][edge] == pytest.approx(
                 reading["shown"][edge] + outside, abs=0.5
             ), reading
@@ -3644,6 +3664,42 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
                 aimed = boundary(target, ".lf-aim")
                 assert aimed["radius"] == clipped["radius"], (aimed, clipped)
                 page.keyboard.up("Alt")
+
+
+def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
+    browser, serve
+):
+    """A joined choice clips its cells, so a cell leaves no room for a mark outside it.
+    The aim and the comment's mark both stand just inside it: the aim stood outside,
+    across the frame and the next cell, while the comment's stood inside, so going from
+    one to the other moved the frame 7px."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cramped cell",
+                """<h1 id="h">Cramped cell</h1>
+<lf-options id="ship" choose>
+  <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
+  <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
+</lf-options>""",
+            )
+        ),
+    )
+    cell = page.locator("#ship-thursday")
+    cell.hover(position={"x": 300, "y": 10})
+    page.keyboard.down("Alt")
+    aim = page.locator(".lf-aim")
+    expect(aim).to_have_attribute("data-for", "ship-thursday")
+    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(inner) == "-2px"
+    page.mouse.down()
+    page.mouse.up()
+    page.keyboard.up("Alt")
+    open_compact_comment(page)
+    pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
+    expect(pending).to_be_visible()
+    assert pending.evaluate(inner) == "-2px"
 
 
 def test_focus_projection_follows_modality_and_leaves_private_controls_their_ring(
@@ -3888,7 +3944,9 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
                 box.width - item.width, box.height - item.height].map(Math.abs);
     }""")
     assert max(geometry) < 1, f"the box missed the card it promises by {geometry}"
-    pixels = zip(*[iter(ImageChops.difference(quiet, armed).tobytes())] * 3)
+    pixels = zip(
+        *[iter(ImageChops.difference(quiet, armed).tobytes())] * 3, strict=True
+    )
     changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
     assert changed > 0.5, (
         f"arming changed {changed:.0%} of the card's pixels — the promise is not "
@@ -4081,8 +4139,8 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
 
 COMPOSER_ATTACHMENT_PAGE = leaf_page(
     "An open comment keeps its writer",
-    """<h1 id="title">Resize an active comment</h1>
-<aside class="sidebar" id="bg-sidebar"><lf-toc id="bg-contents" max-level="2"></lf-toc></aside>
+    """<aside id="bg-sidebar"><div class="layout-track"><lf-toc id="bg-contents" max-level="2"></lf-toc></div></aside>
+<div class="layout-column"><h1 id="title">Resize an active comment</h1>
 <h2 id="first">First section</h2><p id="ordinary" tabindex="0">An ordinary paragraph remains visible at both widths.</p>
 <h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
 <details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
@@ -4094,10 +4152,11 @@ COMPOSER_ATTACHMENT_PAGE = leaf_page(
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.</p>
-<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section>
+<section id="reading-space" style="min-height:1400px"><h2 id="reading-title">Reading space</h2><p>Scroll downward while a comment remains open, then return.</p></section></div>
 """,
+    layout="sidebar",
     head="""<style>
-main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {display:none}
+@media (max-width: 800px) { #bg-sidebar {display:none} }
 </style>""",
 )
 

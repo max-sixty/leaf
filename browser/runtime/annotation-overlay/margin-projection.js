@@ -23,7 +23,7 @@
    obligation to read its discussion with it. followCurrentLocation and the
    shared keyboard ladder decide when that relationship ends. It is margin chrome:
    target, cluster and card are one place. Being elsewhere on the page, releasing the target,
-   or pressing outside that place dismisses it. Escape inside lands on the target;
+   or pressing outside that place dismisses it. Escape inside closes it beside the target;
    Send keeps focus on its thread. The card shows
    the threads of the innermost target holding the user's place that has any (its own,
    else an enclosing one's), never those of a target inside it: a thread on an obligation's
@@ -108,7 +108,7 @@ import {
 import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
-import { PRESS, cycledRow, rowArrows } from "../keyboard/bindings.js";
+import { cycledRow, rowArrows } from "../keyboard/bindings.js";
 import { beginWalk, listWalkPosition, rowWalk } from "../walk-position.js";
 
 import { readingRegionFor } from "../reading-regions.js";
@@ -277,30 +277,10 @@ export function createMarginProjection({
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   // A core reading can change between a disclosure and a status while retaining the
-  // user's place. Its stable span owns the native-like press it needs while actionable;
-  // ordinary contributed commands remain native buttons.
-  const readingControl = (className) => {
-    const control = offer("span", className);
-    keys(
-      control,
-      "On a margin entry",
-      [
-        {
-          id: "margin.press",
-          keys: PRESS,
-          title: "open / close",
-          run: () => control.click(),
-        },
-      ],
-      {
-        when: () => {
-          const record = contributionEntryRecord(control);
-          return record.behavior === "disclosure" && !record.disabled;
-        },
-      },
-    );
-    return control;
-  };
+  // user's place, so it is a stable span rather than a button; ordinary contributed
+  // commands remain native buttons. While it is a press, Enter and Space press it as
+  // they would a button (role-button-press.js), and as a status nothing presses it.
+  const readingControl = (className) => offer("span", className);
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
@@ -842,6 +822,7 @@ export function createMarginProjection({
     const items = choice?.items ?? [];
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
+    const line = readingContext(choice);
     node.lfEntry = entry;
     presentContributionEntry(
       node,
@@ -849,9 +830,10 @@ export function createMarginProjection({
         key: `reading:${choice?.key ?? "none"}`,
         icon: face.icon,
         label: readingLabel(choice),
-        // A lone receipt's label is its workflow's word, said in that workflow's voice.
-        voice: (items.length === 1 && face.voice) || "agent",
-        context: readingContext(choice),
+        // A lone receipt's label is its workflow's word, said by whoever says it; a
+        // group's is its kind's name.
+        voice: face.voice ?? null,
+        context: line,
         behavior,
         rank: "reading",
         state: readingState(choice),
@@ -1274,7 +1256,7 @@ export function createMarginProjection({
     handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
   );
   /** @param {(control?: HTMLElement) => unknown} [land] */
-  function closePreview(land = letGo) {
+  function closePreview(land = () => letGo()) {
     const button = card.selection()?.control;
     const at = focused();
     const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
@@ -1308,10 +1290,16 @@ export function createMarginProjection({
   // hoisted into the chrome while anchored to a target, so it counts as chrome for which
   // surface holds focus and as page-anchored for where the user lands.
   //
-  // Inside it, the thread's parent is the target it is about: the press steps out onto
-  // that target and the card stays up beside it, since the user is still there,
-  // and letting go of the target is the next press. From the entry it hangs from, the
-  // press takes the card down.
+  // The card is one step, from inside it as from the entry it hangs from or the target
+  // it accompanies: the press takes it down and leaves the user beside its target. Tab
+  // goes on from there, so into a target's own controls, such as an ask's options,
+  // with the card coming back beside them, and a walk resumes from that thread.
+  // One press is on trial from 2026-10-29, while the user tries it in use. It replaced
+  // a middle step out onto the target with the card still up, which only the focus
+  // ring told apart from the card: after a click its first press left the card up and
+  // only drew a ring on the target. What that step reached is a Tab away, and the keys
+  // a target forwards, such as an option's number, answer from inside the card. If
+  // the trial fails, `git log -S '"back to element"'` finds the step to restore.
   // A cluster the user unfolded themselves and opened the card from is a level of
   // their own under the card, and the card hands back to it instead (below).
   const unfoldedUnder = () => {
@@ -1323,14 +1311,12 @@ export function createMarginProjection({
       optionsRung(),
     );
   };
-  const stepsOut = (from = focused()) => {
+  // The target a close from inside the card lands beside, where it is still drawn.
+  const besideTarget = () => {
     const target = targetFor(card.selection()?.entry);
-    return preview.contains(from) &&
-      !unfoldedUnder() &&
-      target?.isConnected &&
-      target.checkVisibility()
+    return currentLocationIn(preview) && target?.isConnected && target.checkVisibility()
       ? target
-      : null;
+      : undefined;
   };
   function keyboardRung({ atFocus = true } = {}) {
     const active = focused();
@@ -1346,12 +1332,6 @@ export function createMarginProjection({
         !(card.selection()?.control && host?.contains(card.selection()?.control)))
     )
       return null;
-    if (stepsOut())
-      return {
-        root: preview,
-        title: "back to element",
-        out: () => focusDestination(stepsOut(), "return"),
-      };
     return {
       root: preview,
       title: "dismiss thread",
@@ -1375,9 +1355,10 @@ export function createMarginProjection({
       out: () => {
         const currentLocation = unfoldedUnder();
         const button = card.selection()?.control;
+        const target = besideTarget();
         closeLayer(
           () => closePreview(),
-          currentLocation ? () => landOnEntry(button) : letGo,
+          currentLocation ? () => landOnEntry(button) : () => letGo(target),
         );
       },
     };

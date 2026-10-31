@@ -3,21 +3,32 @@
  * immutable key-sequence reading every keyboard surface renders through one Lit template. */
 import { html, nothing, repeat } from "/runtime/framework.js";
 
-import { labelOf, spell, word } from "./bindings.js";
+import { bindings, spell, word } from "./bindings.js";
 
 // A sequence row may name several presses, while an ordinary row still carries one compact
 // label. Keep that distinction structured until the DOM is built: spaces in a label are
-// words inside one step, never guessed back into a sequence.
-const rowSteps = (row, route = null) => {
-  if (route) return [spell(route.binding)];
-  const label = labelOf(row);
-  return word(row.sequenceSteps) ?? (label ? [label] : []);
+// words inside one step, never guessed back into a sequence. Each step holds the keys
+// that take it, several where a row's bindings are alternatives, as `z` and `⌘z` both
+// undo a stroke; its text joins them as `labelOf` does (bindings.js).
+const rowKeySteps = (row, route = null) => {
+  if (route) return [[spell(route.binding)]];
+  const steps = word(row.sequenceSteps);
+  if (steps) return steps.map((step) => [step]);
+  const label = word(row.label);
+  if (label !== undefined && label !== null) return label ? [[label]] : [];
+  const keys = bindings(row).map(spell);
+  return keys.length ? [keys] : [];
 };
 
-export const completeRowSteps = (row, route = null) => {
-  if (route) return rowSteps(row, route);
-  return word(row.completeSequenceSteps) ?? rowSteps(row);
+export const completeRowKeySteps = (row, route = null) => {
+  const steps = route ? null : word(row.completeSequenceSteps);
+  return steps ? steps.map((step) => [step]) : rowKeySteps(row, route);
 };
+
+export const stepText = (keys) => keys.join(" / ");
+
+export const completeRowSteps = (row, route = null) =>
+  completeRowKeySteps(row, route).map(stepText);
 
 export const neutralStates = (steps) => steps.map(() => "neutral");
 
@@ -37,17 +48,22 @@ export function keySequenceModel(
   steps,
   states = neutralStates(steps),
   spokenSteps = steps,
+  keySteps = steps.map((text) => [text]),
 ) {
   if (
     !steps.length ||
     states.length !== steps.length ||
-    spokenSteps.length !== steps.length
+    spokenSteps.length !== steps.length ||
+    keySteps.length !== steps.length
   )
-    throw new Error("leaf: a key sequence needs one state and spoken label per step");
+    throw new Error(
+      "leaf: a key sequence needs one state, spoken label and set of keys per step",
+    );
   const reading = steps.map((text, index) => {
     const state = states[index];
     const spoken = spokenSteps[index];
-    return Object.freeze({ text, spoken, state });
+    const keys = Object.freeze([...keySteps[index]]);
+    return Object.freeze({ text, keys, spoken, state });
   });
   return Object.freeze({
     label: reading.map(({ spoken }) => spoken.replaceAll(" / ", " or ")).join(" then "),
@@ -65,12 +81,16 @@ export function keySequenceTemplate(model, { id = null, label = false } = {}) {
       model.steps,
       (_step, index) => index,
       (step) =>
-        html`<kbd
-          class="lf-key-badge"
-          data-lf-sequence-step-state=${step.state}
-          aria-hidden="true"
-          >${step.text}</kbd
-        >`,
+        step.keys.map(
+          (key, index) =>
+            html`<kbd
+              class="lf-key-badge"
+              data-lf-sequence-step-state=${step.state}
+              ?data-lf-key-or=${index > 0}
+              aria-hidden="true"
+              >${key}</kbd
+            >`,
+        ),
     )}</span
   >`;
 }

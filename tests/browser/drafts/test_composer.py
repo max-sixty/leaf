@@ -48,8 +48,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
 
     The composer sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
-    the disc behind it is a clear 28px that takes the accent tint under the pointer,
-    which is why it stays the same size as the target around it grows.
+    the disc behind it stays clear until it takes the accent tint under the pointer.
     """
     page = open_page(browser, serve(LONG_PAGE, comments=True))
     for box in ("reply", "general", "composer"):
@@ -80,12 +79,10 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             assert face["press"] == "rgba(0, 0, 0, 0)", face
             assert face["glyph"] == token_colour(page, "--accent"), face
             assert face["disc"] == "rgba(0, 0, 0, 0)", face
-            assert face["discWidth"] == "28px", face
             send.hover()
             hovered = glyph_action_face(send)
             assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
             assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
-            assert hovered["discWidth"] == "28px", hovered
             with sending(page, f"the {box} message"):
                 send.click()
 
@@ -456,9 +453,10 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     if hidden_tab:
         page.get_by_role("tab", name="Reading", exact=True).focus()
         page.keyboard.press("Enter")
-    page.locator("#elsewhere").scroll_into_view_if_needed()
     resized(page, 390, 844)
+    page.locator("#elsewhere").scroll_into_view_if_needed()
     scroll_settled(page)
+    expect(page.locator("#elsewhere")).to_be_in_viewport()
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")

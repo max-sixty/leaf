@@ -40,12 +40,14 @@ const input = (file) => path.join(root, "build", file);
 
 /** The installed version of a package, which is the one the lock resolved. */
 const version = (name) =>
-  JSON.parse(readFileSync(path.join(root, "node_modules", name, "package.json")))
-    .version;
+  JSON.parse(
+    readFileSync(path.join(root, "node_modules", name, "package.json"), "utf8"),
+  ).version;
 
 /** The registry's language names, the vocabulary `page check` accepts. */
 const languages = () =>
-  JSON.parse(readFileSync(path.join(root, assets, "registry.json"))).$languages.names;
+  JSON.parse(readFileSync(path.join(root, assets, "registry.json"), "utf8")).$languages
+    .names;
 
 /** Replace text an upstream module must contain exactly `count` times. */
 export function seam(source, original, replacement, what, count = 1) {
@@ -277,7 +279,7 @@ const bundles = {
     copy: "sortablejs/modular/sortable.esm.js",
     finish: (source) =>
       'import {move as leafMove} from "/runtime/widget-api.js";\n' +
-      [
+      /** @satisfies {[string, string, number?][]} */ ([
         [
           "ghostEl = dragEl.cloneNode(true);",
           "ghostEl = options.cloneElement ? options.cloneElement(dragEl) : dragEl.cloneNode(true);",
@@ -307,7 +309,7 @@ const bundles = {
         ],
         // Both remaining appends, once the sortable's own has been replaced above.
         ["el.appendChild(dragEl);", "leafMove(el, dragEl, null);", 2],
-      ].reduce(
+      ]).reduce(
         (text, [original, replacement, count]) =>
           seam(text, original, replacement, "Sortable clone", count),
         source,

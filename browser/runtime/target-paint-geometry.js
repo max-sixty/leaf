@@ -43,8 +43,11 @@ const paints = (shape, property) => {
   );
 };
 
+// A drawing's shapes and groups each take their own contour. The drawing itself, an
+// outermost `<svg>`, is a box among the page's, as a figure is, so its marks stand round
+// its box rather than round each of the shapes it draws.
 export function paintGeometry(surface) {
-  if (!(surface instanceof SVGElement)) return null;
+  if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
   const geometry = [surface, ...surface.querySelectorAll("*")].filter(
     (child) => child instanceof SVGGeometryElement,
   );
@@ -264,14 +267,14 @@ export function standOver(stand, placed, borderRadius) {
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
-  const control = placed.surface.matches(PRESSES);
-  const outside = markRoom(control);
-  const inset = cramped(placed, outside);
-  keeps(stand.box, "data-lf-mark-on", inset ? "inset" : control ? "control" : null);
+  const band = token("--focus-ring-w");
+  const outside = markGap(placed.surface);
+  const gap = cramped(placed, band + outside) ? -band : outside;
+  stand.box.style.setProperty("--lf-mark-offset", layoutPx(gap));
   // The frames let the band survive outside the target where it stands outside, and
   // cut it exactly on an edge they already cut the target at, where it would otherwise
   // stand over what the scroller has scrolled past (css-anchors.js, `cutPath`).
-  const room = inset ? 0 : outside;
+  const room = Math.max(0, band + gap);
   for (const side of ["top", "right", "bottom", "left"])
     stand.root.style.setProperty(
       `--lf-paint-outset-${side}`,
@@ -280,14 +283,18 @@ export function standOver(stand, placed, borderRadius) {
   return { ...stood, anchor, at, room };
 }
 
-// How far a mark's band reaches outside its target: the band and the gap its box stands
-// at, a control's ring's or a region's (base.css, "Where it stands").
-function markRoom(control) {
-  const root = getComputedStyle(document.documentElement);
-  const gap = control ? "--focus-ring-gap" : "--focus-region-gap";
-  return ["--focus-ring-w", gap]
-    .map((token) => Number.parseFloat(root.getPropertyValue(token)))
-    .reduce((sum, px) => sum + px, 0);
+const token = (name) =>
+  Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+
+// Where a mark's band stands outside its target, which the target decides (base.css,
+// "Where it stands"): the `outline-offset` its face states, where its own focus ring
+// stands too. A target that states none stands at a control's ring's gap or at a
+// region's. A field states its edge, 0, which reads as none here, so a mark round a
+// field stands at a control's gap.
+function markGap(surface) {
+  const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
+  if (stated) return stated;
+  return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
 }
 
 // Whether a frame cuts the target on `side`, as on a target scrolled partly out of its

@@ -1,47 +1,29 @@
-/** TypeScript's checked value imports retain their module's initialization. */
+/** Bundles use caller options without inheriting ambient compiler settings. */
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { build } from "./esbuild.mjs";
 
-test("checked value imports keep initialization when used only as types", async () => {
-  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-typed-import-"));
+test("JavaScript imports keep initialization and ignore ambient emit settings", async () => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-build-config-"));
   try {
     await writeFile(
-      path.join(scratch, "owner.ts"),
+      path.join(scratch, "owner.js"),
       'console.log("owner initialized"); export class Owner { value = 1; }',
     );
-    const entry = path.join(scratch, "reader.ts");
+    const entry = path.join(scratch, "reader.js");
     await writeFile(
       entry,
-      'import { Owner } from "./owner.js"; export function read(owner: Owner) { return owner.value; }',
+      'import { Owner } from "./owner.js"; /** @param {Owner} owner */ export function read(owner) { return owner.value; }',
     );
     const config = path.join(scratch, "tsconfig.json");
     await writeFile(
       config,
-      JSON.stringify({
-        extends: fileURLToPath(
-          new URL("../browser/types/tsconfig.json", import.meta.url),
-        ),
-        compilerOptions: { types: [] },
-        include: ["reader.ts"],
-      }),
+      JSON.stringify({ compilerOptions: { alwaysStrict: true } }),
     );
-    const checked = spawnSync(
-      process.execPath,
-      [
-        fileURLToPath(new URL("../node_modules/typescript/bin/tsc", import.meta.url)),
-        "--project",
-        config,
-      ],
-      { encoding: "utf8" },
-    );
-    assert.equal(checked.status, 0, checked.stdout + checked.stderr);
     const result = await build({
       entryPoints: [entry],
       bundle: true,
@@ -49,6 +31,7 @@ test("checked value imports keep initialization when used only as types", async 
       target: "es2022",
       write: false,
     });
+    assert.doesNotMatch(result.outputFiles[0].text, /["']use strict["']/);
     const initialized = [];
     runInNewContext(result.outputFiles[0].text, {
       console: { log: (message) => initialized.push(message) },

@@ -3691,14 +3691,14 @@ def test_the_aim_and_a_comment_stand_inside_a_cell_their_frame_leaves_no_room(
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "ship-thursday")
-    expect(aim).to_have_attribute("data-lf-mark-on", "inset")
+    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    assert aim.evaluate(inner) == "-2px"
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
     open_compact_comment(page)
     pending = page.locator('.lf-visual-mark-pending[data-for="ship-thursday"]')
-    expect(pending).to_have_attribute("data-lf-mark-on", "inset")
-    inner = "node => getComputedStyle(node, '::before').outlineOffset"
+    expect(pending).to_be_visible()
     assert pending.evaluate(inner) == "-2px"
 
 

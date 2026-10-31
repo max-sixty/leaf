@@ -2,8 +2,11 @@ import { ShotView } from "./shot-view.js";
 /* lf-shot owns screenshot inspection: paired frames, slider, pixel difference,
  * outlines, scale, crop and scrolling. A containing package supplies only capture
  * metadata through inspect({pixelRatio, captureWidth, focus, labels}) and allocates
- * its box. Fit keeps both frames in the allocated box. Actual size pans their
- * images together inside those same windows, keeping both labels and views visible.
+ * its box. Fit keeps both frames in the allocated box and never enlarges a capture
+ * past 100%, because stretching a capture blurs it. A capture narrower than the box
+ * sits at its own size; how large to capture is the author's call. Actual size pans
+ * their images together inside those same windows, keeping both labels and views
+ * visible.
  * Both frames always share one source scale. The retained header belongs to the
  * allocated viewport, outside the image canvas. Controls stay in place when views
  * or scale change. Source labels are passive, and images never change modes.

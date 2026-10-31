@@ -169,7 +169,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])
     .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 0;
     --lf-wears-ring: 1;
   }
   .lf-fab-ground {
@@ -347,7 +346,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;
@@ -443,7 +442,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: center;
     gap: 0;
     color: var(--muted-2);
-    font-size: var(--t-7);
+    font: var(--voice-fine);
   }
   .lf-margin-preview-position {
     white-space: nowrap;

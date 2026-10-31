@@ -264,7 +264,7 @@ lf-event::before {
   list-style: none;
   margin: var(--sp-3) 0 0;
   padding: 0;
-  font: var(--voice-compact);
+  font: var(--font-compact);
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink. */

@@ -209,7 +209,7 @@ STYLES = """(properties) => {
   walk(document, "");
   return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
-# The computed properties that make a face, the voice a run of words is set in, which
+# The computed properties that make a face, the font a run of words is set in, which
 # `face_changes` compares across a run.
 FACE = [
     "font-family",

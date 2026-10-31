@@ -16,7 +16,11 @@
 # Leaf's render-check sweep (each failure clipped at 1000-1120px) and only HTML's
 # 1280px arrival, where one HTML page overflows 142px at 1120px. Both arms are now
 # judged on the page on arrival at the run's windows, and the prompt no longer
-# names a 1440x900 window that contradicted the run's 1280x800 one.
+# names a 1440x900 window that contradicted the run's 1280x800 one. On 81d3cda07,
+# 4 runs per condition: both checks 4/4 on both; 3 Leaf pages drew their own Save
+# with actions="page". eval-pairs preferred HTML in 7 of 8 orders (6 slight) for
+# its comparison tools (hold to flip, zoom, preset swatches), and credited Leaf
+# with the card's supplied dimensions.
 description: playground-tunes-what-ships
 metadata:
   purpose: "Playground: a tuning page leads with the subject being decided and lets

@@ -319,7 +319,7 @@
       calc(
         (
             100% - var(--col) - var(--note) *
-              clamp(0, sign(100% - var(--col) - var(--note)), 1)
+              clamp(0, sign(100% - var(--col) - var(--note)) + 1, 1)
           ) /
           2
       )
@@ -492,7 +492,13 @@
     container-type: inline-size;
     --lf-block-frame: trim;
     --lf-reading-region: layout;
-    --lf-track-beside: clamp(0, sign(var(--lf-track-parent-width) - 100cqi), 1);
+    /* A sibling consumes at least the flex gap plus its own width. Subtract that
+     * real gap so rounding equal container widths cannot mark a stacked track beside. */
+    --lf-track-beside: clamp(
+      0,
+      sign(var(--lf-track-parent-width) - 100cqi - var(--sp-4)),
+      1
+    );
   }
   .layout-track {
     --lf-sidebar-slot: beside;

@@ -6976,7 +6976,6 @@ function disclosed(el) {
 //#region runtime/shadow-stage.js
 const stageStyles = /* @__PURE__ */ new WeakMap();
 function adoptShadowStage(root) {
-	document.documentElement.lfStorage.keepDisclosures(root);
 	watchArrivalsIn(root);
 	root.adoptedStyleSheets = [.../* @__PURE__ */ new Set([
 		...root.adoptedStyleSheets,

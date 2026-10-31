@@ -3,7 +3,10 @@
  * elapsed times and labels never establish correspondence. A chosen key also
  * reaches recordings whose data arrives later. Source switches share the image
  * inspection view and pause hidden recordings without moving their playheads.
- * Each direct child that holds a trace is one view, including its caption. */
+ * Each direct child is one recording view: a trace or any wrapper holding one,
+ * including its caption. Membership is known from its start tag, so a partial
+ * second wrapper stays hidden while the parser is still receiving its trace.
+ * Shared introductory text belongs outside the comparison. */
 import {
   el,
   generatedElement,
@@ -32,6 +35,10 @@ customElements.define(
         const recording = child.matches("lf-trace")
           ? child
           : child.querySelector("lf-trace");
+        if (!recording)
+          throw new Error(
+            "Each lf-trace-compare child must be an lf-trace or contain one; put shared introductory text outside the comparison.",
+          );
         this.#views.push(child);
         this.#recordings.push(recording);
       }

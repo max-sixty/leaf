@@ -228,17 +228,21 @@ native disclosures, links and authored content need no such wait.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
 - A widget that shows one member at a time declares `x-views: {members: "selector"}`;
-  the selector matches direct authored children. Delivery marks these members, and
-  one browser owner shows the chosen member before modules load. Their native
-  `hidden` attribute is view state.
-  Read `viewMembers(holder)` for the canonical member list; the view APIs also mark
-  members of holders a module creates, using that same declaration. During setup, open the
+  the browser matches the selector against each direct authored child, including
+  while HTML is still arriving. A selector that depends on descendants, such as
+  `:has()`, can change membership as they arrive; use the child's own start tag for
+  stable first-paint membership. Delivery carries the selector so the same browser
+  owner shows the chosen member before modules load. Their native `hidden` attribute
+  is view state.
+  Read `viewMembers(holder)` for the canonical member list, including holders a module
+  creates. Reading members or the opening choice changes no DOM. During setup, open the
   member `openingView(holder)` returns, and show each later member with
   `keepView(holder, member)`, which applies native visibility and remembers it for reload.
   Passing null shows none without forgetting the last member. During an exit animation,
   `keepView(holder, member, leaving)` keeps one outgoing member visible too; call it
-  again without that member when the animation ends. Only the selected member is saved. Pass `null` as a second argument
-  to get null where neither the address nor the tab names a member, and choose then. A holder whose members share the
+  again without that member when the animation ends. Only the selected member is
+  saved. Pass `null` as a second argument to get null where neither the address nor
+  the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
 

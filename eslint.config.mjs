@@ -59,6 +59,7 @@ const browserGlobals = Object.fromEntries(
     "FileReader",
     "HTMLAnchorElement",
     "HTMLButtonElement",
+    "HTMLDetailsElement",
     "HTMLDialogElement",
     "HTMLElement",
     "HTMLLinkElement",

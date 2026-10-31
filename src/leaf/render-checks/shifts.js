@@ -1,4 +1,4 @@
-/* Passive layout shifts after the page's first presentation.
+/* Native layout-shift evidence during startup and after presentation.
  *
  * Read Chrome's own painted-shift evidence while the gate leaves the page alone,
  * before its viewport sweeps and thread probes. A finite observation cannot certify
@@ -8,43 +8,78 @@
  */
 import { at } from "./locate.js";
 
+// Chromium withholds a source inside a shadow tree, or one removed before delivery.
+// Its rectangles still prove movement. Hit testing would name whatever occupies the
+// box now, which is neither necessarily the moved element nor the cause.
+const sourceReading = (source) => ({
+  node: source.node ? at(source.node) : "a source node the browser did not expose",
+  before: source.before,
+  after: source.after,
+});
+
 let observation = null;
 
 export function startPassiveLayoutShifts() {
-  observation?.observer.disconnect();
-  const started = performance.now();
+  observation?.stop();
   const moved = new Map();
-  const rect = ({ x, y, width, height }) => ({ x, y, width, height });
-  const collect = (entries) => {
+  const stop = globalThis.__leafRenderDriver.observeLayoutShifts((entries) => {
     for (const entry of entries) {
-      if (entry.startTime < started || entry.hadRecentInput) continue;
       for (const source of entry.sources) {
         const node = source.node;
-        const element = node instanceof Element ? node : node?.parentElement;
-        if (!element?.closest("body > main")) continue;
-        if (element.closest(".lf-chrome, .lf-ui")) continue;
+        if (node && !node.closest("body > main")) continue;
+        if (node?.closest(".lf-chrome, .lf-ui")) continue;
         // One example per moved node; repeated autoplay ticks need no repeated
-        // finding. The native rectangles retain the evidence at that paint.
-        if (!moved.has(node)) {
-          moved.set(node, {
+        // finding. An anonymous source has no identity by which to deduplicate it.
+        const key = node ?? source;
+        if (!moved.has(key)) {
+          const reading = sourceReading(source);
+          moved.set(key, {
             code: "passive-layout-shift",
-            at: at(element),
-            before: rect(source.previousRect),
-            after: rect(source.currentRect),
+            at: reading.node,
+            before: reading.before,
+            after: reading.after,
           });
         }
       }
     }
-  };
-  const observer = new PerformanceObserver((list) => collect(list.getEntries()));
-  observer.observe({ type: "layout-shift" });
-  observation = { observer, collect, moved };
+  });
+  observation = { stop, moved };
 }
 
 export function finishPassiveLayoutShifts() {
-  const { observer, collect, moved } = observation;
-  collect(observer.takeRecords());
-  observer.disconnect();
+  const { stop, moved } = observation;
+  stop();
   observation = null;
   return [...moved.values()];
+}
+
+// Native layout shifts are evidence for the page's author, not a refusal budget.
+// CLS uses the platform metric's session windows: gaps below 1s, at most 5s long.
+export function startupLayoutShifts() {
+  const entries = globalThis.__leafRenderDriver.startupLayoutShifts();
+  if (!entries.length) return [];
+  let cls = 0,
+    score = 0,
+    first = -Infinity,
+    previous = -Infinity;
+  for (const entry of entries) {
+    if (entry.startTime - previous >= 1000 || entry.startTime - first >= 5000) {
+      first = entry.startTime;
+      score = 0;
+    }
+    score += entry.value;
+    cls = Math.max(cls, score);
+    previous = entry.startTime;
+  }
+  return [
+    {
+      code: "startup-layout-shift",
+      cls,
+      entries: entries.map((entry) => ({
+        at: entry.startTime,
+        value: entry.value,
+        sources: entry.sources.map(sourceReading),
+      })),
+    },
+  ];
 }

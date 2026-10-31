@@ -290,31 +290,31 @@ async function clerk($: EngineInterface, session: string) {
   try {
     do {
       forkAgain = false;
-      const asked = await clerkStep($, session, {});
-      if (!asked) return;
-      const reply = await $.model.fork({ prompt: asked.prompt });
-      if (!reply.isAnswered) {
-        $.ui.log(`Leaf: the clerk's fork gave no answer (${reply.reason})`, {
-          to: "debug",
-        });
-        continue;
-      }
       try {
+        const asked = await clerkStep($, session, {});
+        if (!asked) continue;
+        const reply = await $.model.fork({ prompt: asked.prompt });
+        if (!reply.isAnswered) {
+          $.ui.log(`Leaf: the clerk's fork gave no answer (${reply.reason})`, {
+            to: "debug",
+          });
+          continue;
+        }
         const applied = await clerkStep($, session, {
           answer: reply.text,
           basis: asked.basis,
         });
         $.ui.log(
-          `Leaf: the clerk ${applied?.dropped ? `dropped its answer: ${applied.dropped}` : `added ${applied?.wrote?.length ?? 0} to On me`}`,
+          `Leaf: the clerk added ${applied.wrote.length} to On me${applied.dropped ? `, then dropped the rest: ${applied.dropped}` : ""}`,
           { to: "debug" },
         );
       } catch (error) {
-        // A refused answer, as one that doesn't fit the schema, writes nothing.
-        $.ui.log(`Leaf: the clerk's answer was not written: ${error}`, { to: "debug" });
+        // A failed fork, or an answer Leaf refused, as one that doesn't fit the
+        // schema, writes nothing. The user never meets the clerk, so its failures go
+        // to the debug log, and a turn that ended meanwhile still forks.
+        $.ui.log(`Leaf: the clerk wrote nothing: ${error}`, { to: "debug" });
       }
     } while (forkAgain);
-  } catch (error) {
-    $.ui.log(`Leaf: the clerk failed: ${error}`);
   } finally {
     forking = false;
   }
@@ -353,7 +353,10 @@ export const register: Register = (on) => {
     const session = await sessionOf($);
     follow($, session);
     // Only a turn the model answered: an interrupted one has no reply to read.
-    if (e.reason === "answer" && leaves.length > 0) void clerk($, session);
+    // Leaf, not the band, says whether the session holds a page: the band may not
+    // yet list one the turn's last command claimed, and `--if-claimed` answers a
+    // session holding none without starting uv.
+    if (e.reason === "answer") void clerk($, session);
     return completed;
   });
 

@@ -20,10 +20,11 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
   or control of its own. A first version marked its to-dos "added by Leaf"; the user
   rejected that as a second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
-  id, as its own, and keeps, ends or replaces it as it would one it wrote. The fork
-  never adds again what the page shows ended, and yields whole to any turn that has
-  opened since it read the conversation (`basis`), since that turn's agent, or the
-  user who opened it, has the newer reading.
+  id, as its own, and keeps, ends or replaces it as it would one it wrote. Leaf adds
+  no ask whose title an open or ended to-do on the user already has, and shows the
+  fork the ended ones so it doesn't word one anew. It writes nothing once a turn has
+  opened since the fork read the conversation (`basis`), since that turn's agent, or
+  the user who opened it, has the newer reading.
 
 It asks about one thing: decisions, answers, permissions or steps the agent left to
 the user that no On me item holds. A first version also wrote the status line and
@@ -40,11 +41,15 @@ calls `$.model.fork` from `turn.complete` (`hooks/claude-code.ts`). Codex would 
 with App Server's `thread/fork` (ephemeral) and Pi's extension by resending its
 session, each handing the answer back the same way; neither does yet.
 
-Leaf opens each ask as the agent's to-do on the user. Each one written is queued as
-one line for the agent's next step (`QUEUED`), which the next prompt or tool-boundary
-hook adds to its context (`hook_transport.carry_turn`), so the agent knows its
-records, neither repeats nor contradicts them, and spends no turn on them. A line the
-hook handed over leaves the queue (`heard`); a prompt Escape drops loses it.
+Leaf opens each ask as the agent's to-do on the user, and queues one line for each
+(`QUEUED`) under the same locks as its page's write, so a later page's failure loses
+no earlier page's lines. The next prompt or tool-boundary hook adds the lines to the
+agent's context (`hook_transport.carry_turn`), so the agent knows its records,
+neither repeats nor contradicts them, and spends no turn on them. A line leaves the
+queue once a hook has printed it (`heard`), so a prompt that Escape drops loses its
+lines: the to-dos stay open and `leaf page state` lists them, but the agent isn't
+told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
+for input, would close that gap.
 
 Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`): the fork
@@ -236,10 +241,8 @@ def question(session_id: str) -> dict | None:
 
 def take_answer(session_id: str, text: str, asked: dict | None) -> dict:
     """What Leaf wrote from `text`, the fork's reply to the question asked at
-    `asked`, its `basis` (`apply_answer`), or why it wrote nothing."""
-    if basis(session_id) != asked:
-        return {"dropped": "another turn opened since the fork was made"}
-    return apply_answer(session_id, read_answer(text))
+    `asked`, its `basis` (`apply_answer`)."""
+    return apply_answer(session_id, read_answer(text), asked)
 
 
 def _facts(page_dir: Path) -> dict | None:
@@ -262,10 +265,11 @@ def _title(words: str) -> str:
     return title[: TITLE_LIMIT - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
-def apply_answer(session_id: str, answer: dict) -> dict:
+def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     """Open each of `answer`'s asks as a to-do on the user, on the page it names among
-    those `session_id` holds, unless an open to-do there has its title, and queue a
-    line for each for the agent's next step; what it wrote."""
+    those `session_id` holds, unless a to-do on the user there has its title, and
+    queue a line for each for the agent's next step, while the session's turn is
+    still the one `asked` names; what it wrote, and why it stopped if it did."""
     from .event_contracts import append_admitted
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
@@ -278,53 +282,63 @@ def apply_answer(session_id: str, answer: dict) -> dict:
         asks = [item for item in answer["asks"] if item["page"] == path]
         if not asks:
             continue
-        # As a command's write takes them (`leases.contract_writer`).
-        with page_locked(page_dir), PageTransaction(page_dir) as page:
-            claim = page.active_claim
-            if claim is None or claim["id"] != session_id:
-                continue
-            identity = {"agent": claim["agent"], "session": claim["id"]}
-            listed = {
-                todo["title"].casefold()
-                for todo in TodoReading(page.events).todos
-                if todo["owner"] == "user" and todo["state"] == "open"
-            }
-            for item in asks:
-                title = _title(item["title"])
-                if title.casefold() in listed:
+        # The page as a command's write takes it (`leases.contract_writer`), then the
+        # session, in the lifecycle's lock order (`PageTransaction.publishing_claim`),
+        # so no turn opens between reading the turn and queueing what it wrote.
+        try:
+            with (
+                page_locked(page_dir),
+                PageTransaction(page_dir) as page,
+                flocked(session_lock_path(session_id)),
+            ):
+                if basis(session_id) != asked:
+                    return {
+                        "wrote": wrote,
+                        "told": told,
+                        "dropped": "another turn opened since the fork was made",
+                    }
+                claim = page.active_claim
+                if claim is None or claim["id"] != session_id:
                     continue
-                listed.add(title.casefold())
-                record, _ = append_admitted(
-                    page,
-                    {
-                        "kind": "todo",
-                        "author": "agent",
-                        **identity,
-                        "owner": "user",
-                        "subject": {"kind": "page"},
-                        "title": title,
-                    },
-                )
-                wrote.append(record)
-                told.append(
-                    f'From your last reply, Leaf put "{record["title"]}" On me on '
-                    f"{path} as your to-do {record['id']} on the user. It is yours "
-                    "like any you write: keep it, or if it isn't the user's to "
-                    f"decide, end it with `leaf task end {path} {record['id']} "
-                    "dropped`, and ask it another way if you'd rather."
-                )
-    queue(session_id, told)
+                identity = {"agent": claim["agent"], "session": claim["id"]}
+                listed = {
+                    todo["title"].casefold()
+                    for todo in TodoReading(page.events).todos
+                    if todo["owner"] == "user"
+                }
+                lines = []
+                for item in asks:
+                    title = _title(item["title"])
+                    if title.casefold() in listed:
+                        continue
+                    listed.add(title.casefold())
+                    record, _ = append_admitted(
+                        page,
+                        {
+                            "kind": "todo",
+                            "author": "agent",
+                            **identity,
+                            "owner": "user",
+                            "subject": {"kind": "page"},
+                            "title": title,
+                        },
+                    )
+                    wrote.append(record)
+                    lines.append(
+                        f'From your last reply, Leaf put "{record["title"]}" On me on '
+                        f"{path} as your to-do {record['id']} on the user. It is yours "
+                        "like any you write: keep it, or if it isn't the user's to "
+                        f"decide, end it with `leaf task end {path} {record['id']} "
+                        "dropped`, and ask it another way if you'd rather."
+                    )
+                if lines:
+                    queue_path = session_file(session_id, QUEUED.kind)
+                    held = QUEUED.read(queue_path) or {"lines": []}
+                    QUEUED.write(queue_path, {"lines": [*held["lines"], *lines]})
+                told.extend(lines)
+        except FileNotFoundError:
+            continue
     return {"wrote": wrote, "told": told}
-
-
-def queue(session_id: str, lines: list[str]) -> None:
-    """Add `lines` to what the session's next step hears."""
-    if not lines:
-        return
-    path = session_file(session_id, QUEUED.kind)
-    with flocked(session_lock_path(session_id)):
-        held = QUEUED.read(path) or {"lines": []}
-        QUEUED.write(path, {"lines": [*held["lines"], *lines]})
 
 
 def queued(session_id: str) -> list[str]:

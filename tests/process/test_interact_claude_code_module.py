@@ -433,3 +433,34 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         "agent",
     )
     driven.quit()
+
+
+def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork the model refuses writes nothing and reaches only the debug log, since
+    the user never meets the clerk, and a turn that ended while it was out still forks
+    after it. Neither waits on the band: Leaf says whether the session holds a page."""
+    driven = ClaudeCode(spawn, "cc-fork-refused", {"forkRejects": True})
+    holding_page(driven, page_dir, monkeypatch)
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
+    # The second ends while the first fork's question is still being asked.
+    driven.emit("turn.complete", {**ended, "turnId": "t1"})
+    driven.emit("turn.complete", {**ended, "turnId": "t2"})
+    for _ in range(2):
+        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+        told = wait_for(
+            lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+            lambda line: line.startswith("Leaf: the clerk"),
+            failure=lambda: (
+                f"the clerk never reported: {list(driven.diagnostics.queue)}"
+            ),
+        )
+        assert "wrote nothing: Error: the model refused the request" in told, told
+    driven.settle()
+    assert driven.forks.empty()
+    assert driven.diagnostics.empty()
+    assert not [
+        event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
+    ]
+    driven.quit()

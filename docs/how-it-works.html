@@ -774,11 +774,12 @@ flowchart TD
               rule for one element or one kind of update travels with it, so the agent
               reads it when it acts. Problems the agent can't see for itself, such as an
               update it hasn't answered, arrive from Leaf's hooks. Late in a long
-              session the agent's own records slip, so as each Claude Code turn ends
-              Leaf, in an experiment, forks the conversation, adds to On me what the
-              agent left to the user without putting it there, as the agent's own
-              to-dos, and tells the agent what it added. Nothing on the page marks the
-              fork, and the agent keeps or ends each to-do as it would one it wrote.
+              session, an agent can leave a decision for the user in chat without
+              putting it On me. An experimental check catches these in Claude Code: as
+              each turn ends, it forks the conversation and adds each such decision to
+              On me as an ordinary to-do of the agent's. The agent is told each one at
+              its next step, and keeps or ends it as it would one it wrote. Nothing on
+              the page shows that the check added it.
             </p>
             <table id="guidance-channels">
               <thead>
@@ -845,16 +846,15 @@ flowchart TD
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">Leaf's fork at turn end (experimental)</th>
+                  <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each decision, answer or step the agent left to the user that On me
-                    lacked, which Leaf has added there as the agent's own to-do, for the
-                    agent to keep or end.
+                    Each to-do on the user it added for a decision, answer or step the
+                    agent left in chat, with the to-do's id and how to end it.
                   </td>
                   <td>
-                    In Claude Code, one line each at the next prompt or tool call after
-                    a turn ends with a page held. The fork answers from the session's
-                    cached conversation and writes nothing if another turn has started.
+                    In Claude Code, at the next prompt or tool call after a turn that
+                    ends while the session holds a page. If a new turn starts before the
+                    fork answers, it adds nothing.
                   </td>
                 </tr>
                 <tr>

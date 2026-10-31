@@ -41,8 +41,8 @@ def reply(page, *titles: str) -> str:
 def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
     """Each ask the fork names lands On me as the agent's own to-do, with nothing
     marking the fork, and the next tool boundary tells the agent each one, once. An
-    ask On me already holds isn't added again, and one ended is shown to the next fork
-    as settled."""
+    ask On me already holds isn't added again, and one the agent ended stays ended:
+    the next fork is shown it as settled, and Leaf doesn't add it back."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     question = asked()
@@ -90,10 +90,15 @@ def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, 
             "outcome": "dropped",
         },
     )
+    question = asked()
     assert (
         "don't add these again:\n- Open a PR for this branch? (dropped)"
-        in (asked()["prompt"])
+        in question["prompt"]
     )
+    readded = clerk_model.take_answer(
+        "s1", reply(page, "Open a PR for this branch?"), question["basis"]
+    )
+    assert readded["wrote"] == []
 
 
 def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):

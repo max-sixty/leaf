@@ -979,13 +979,14 @@
     margin-inline: auto 12px;
   }
   /* What Threads holds while the user reads it stands over the rows it would have
-     moved, at the inset of the Resolved heading: its line grows the box upward from
-     the row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+     moved, starting where their marks do, as a list's heading does (controls.css,
+     `.lf-rows-head`) and a view's title does: its line grows the box upward from the
+     row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
     display: flex;
     align-items: center;
     min-height: 32px;
-    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
+    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
   .lf-fp-joined {
@@ -1262,9 +1263,6 @@
   .lf-fp-thread:not([data-unread]) .lf-fp-news-mark {
     visibility: hidden;
   }
-  .lf-fp-thread[data-yours] .lf-row-end {
-    color: var(--accent);
-  }
   :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
     color: var(--muted);
   }
@@ -1415,8 +1413,10 @@
     flex: none;
     font: var(--font-small);
   }
+  /* A word space stands before the note, so a listener hears the name and the note as
+     two words; the margin adds the rest of the gap. */
   .lf-fp-note {
-    margin-inline-start: 8px;
+    margin-inline-start: 4px;
     color: var(--muted);
     font-weight: 400;
   }
@@ -1572,6 +1572,11 @@
   .lf-fp-show {
     margin-inline-start: auto;
   }
+  /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
+     as tall as the answers beside it, inside its one-pixel contour. */
+  .lf-fp-answers > .lf-fp-commit {
+    padding-block: calc((var(--lf-fp-press) - 1lh) / 2 - 1px);
+  }
   /* An answer as short as "A" stands as wide as the floor, so its reach, which meets
      the floor on each axis the face falls short (surfaces.css), lies over no answer
      beside it. */
@@ -1604,13 +1609,20 @@
   .lf-fp-choice-name {
     font-weight: 600;
   }
+  /* The page's `recommended` tag, in the chip face it wears on the option (chip.css):
+     the ok tint under the ok ink, standing on the panel's ground where its choice is
+     chosen, as a chosen option's ok chip stands on the card's (options.css). */
   .lf-fp-choice-tag {
-    padding-inline: 5px;
-    border-radius: 4px;
-    font: var(--font-small);
+    display: inline-block;
+    padding: var(--chip-pad);
+    border-radius: var(--chip-r);
+    background: var(--ok-tint);
     color: var(--ok-ink);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+    font: var(--font-chip);
     white-space: nowrap;
+  }
+  .lf-fp-answer[aria-pressed="true"] .lf-fp-choice-tag {
+    background: var(--lf-fp-surface);
   }
   .lf-fp-choice-says {
     display: -webkit-box;
@@ -1882,18 +1894,13 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
-     tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] .lf-fp-summary {
-    color: var(--accent);
+  /* The line reads as the row's status does: in its tone's ink where it asks the user
+     to act (`--lf-fp-asks`, above), in the danger's where it reports a server the page
+     can't reach, so it agrees with the leaf, and in ink where it only reports. */
+  .lf-floating-panel[data-asks] .lf-fp-summary {
+    color: var(--lf-fp-asks);
   }
-  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
-    color: var(--ok-ink);
-  }
-  .lf-fp-state[data-tone="away"] .lf-fp-summary {
-    color: var(--warn-ink);
-  }
-  .lf-fp-state[data-tone="blocked"] .lf-fp-summary {
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks]) .lf-fp-summary {
     color: var(--danger-ink);
   }
 

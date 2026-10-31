@@ -1027,7 +1027,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     # the arrows as soon as it matches.
     search.get_by_role("searchbox").fill("Paragraph 1")
     count = page.locator(".lf-page-search-status")
-    expect(count).to_have_text("1/11")
+    expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     for width in (360, 390, 540, 1280):
@@ -1040,12 +1040,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
         assert abs(query["y"] + query["height"] - close["y"] - close["height"]) < 1
         assert search.get_by_role("searchbox").bounding_box()["width"] >= 60
     following.click()
-    expect(count).to_have_text("2/11")
+    expect(count).to_have_text("2 of 11")
     previous.click()
     previous.click()
-    expect(count).to_have_text("11/11")
+    expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
-    expect(count).to_have_text("1/1")
+    expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
     # the box; a control painted over the words keeps its own press. The press aims at
     # the words, since the mark moves to them a frame after the count changes.
@@ -3700,11 +3700,13 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view).to_be_visible()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
-    # Each version says the note its stamp gave it after its name, whole on hover.
+    # Each version says the note its stamp gave it after its name, whole on hover, and a
+    # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
-        "title", "two"
-    )
+    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    first = view.locator(".lf-fp-version .lf-fp-item").first
+    expect(first).to_have_accessible_name("v2 (latest version) two")
+    expect(first).to_have_accessible_description("")
     # The list is one stop for Tab, which the arrows walk from the first version through
     # each version and its Compare to the way back at its foot.
     stops = view.locator("button:not(:disabled)")
@@ -4058,10 +4060,11 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_mo
 
 
 def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
-    """The menu's head says the agent's state in its one line, in the state's ink, and
-    under that only what the status's disclosure adds to the line: while the agent
-    works, the disclosure's sentence restates the line, so what waits on the user is all
-    it adds. The line names the state itself, so no word for it stands above."""
+    """The menu's head says the agent's state in its one line, and under that only what
+    the status's disclosure adds to the line: while the agent works, the disclosure's
+    sentence restates the line, so what waits on the user is all it adds. The line
+    names the state itself, so no word for it stands above, and a line that only
+    reports, as work under way does, reads in ink, as the row's status does."""
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -4075,7 +4078,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--accent)';
+          ink.style.color = 'var(--ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();

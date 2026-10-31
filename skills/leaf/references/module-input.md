@@ -67,8 +67,10 @@ A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it wh
 or words change. `title` names the command and may be a function where state changes
 it, and `label` replaces the keycap. `description` is the command reference's tooltip
 for it and the line under its title where a touch menu or an On me card offers it. A
-`decision: true` row answers an obligation, and `recommended: true` marks the answer
-the page advises, which an On me card names.
+`decision: true` row answers an obligation, `recommended: true` marks the answer
+the page advises, which an On me card names, and `commits: true` marks the press that
+commits an answer the user composed, such as a group's Done, which an On me card draws
+as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's

@@ -7,20 +7,68 @@
       content="An animated trace of the merge sort Rust shipped in 1.15: natural runs, insertion-sort extension, the run stack's invariants, and merges through a half-size buffer, beside excerpts of the real source."
     />
     <style>
-      /* The sort beside its source, stacked where the workspace flows. */
+      /* A tall window keeps the full-width drawing and timeline. In a short window,
+         controls stand beside the drawing and source follows when both cannot fit. */
       #sort-regions {
         display: grid;
         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
       }
-      @media (width < 720px) {
+      .sort-source-link {
+        display: none;
+      }
+      @media (height < 800px) {
+        #sort-regions {
+          grid-template-columns: minmax(780px, 3fr) minmax(0, 2fr);
+        }
+      }
+      @media (width < 720px), (width < 1200px) and (height < 800px) {
+        .sort-source-link {
+          display: inline;
+        }
         #sort-regions {
           grid-template-columns: minmax(0, 1fr);
+          grid-auto-rows: max-content;
+          align-content: start;
+          --lf-full-height: 0;
         }
+      }
+      #sort-stage-pane {
+        container: sort-pane / inline-size;
       }
       lf-sort-film {
         display: grid;
         gap: 10px;
         grid-auto-rows: max-content;
+      }
+      lf-sort-film .sort-controls {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      @media (height < 800px) {
+        @container sort-pane (min-width: 760px) {
+          lf-sort-film {
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 16px;
+            align-items: start;
+          }
+          lf-sort-film .sort-controls {
+            grid-column: 2;
+            grid-row: 1;
+          }
+          lf-sort-film .sort-stage {
+            grid-column: 1;
+            grid-row: 1;
+          }
+        }
+      }
+      @media (width < 720px) {
+        lf-sort-film .sort-controls {
+          grid-row: 1;
+        }
+        lf-sort-film .sort-stage {
+          grid-row: 2;
+        }
       }
       lf-sort-film .sort-stage {
         border: 1px solid var(--rule);
@@ -138,6 +186,7 @@
     <main class="layout-workspace density-working" id="sort-workspace">
       <header>
         <h1>How Rust's 2016 merge sort uses natural runs</h1>
+        <a class="sort-source-link" href="#sort-source-pane">Read source</a>
       </header>
       <div id="sort-regions">
         <lf-pane id="sort-stage-pane" label="The sort">
@@ -147,7 +196,10 @@
           <lf-sort-film id="sort-film"></lf-sort-film>
         </lf-pane>
         <lf-pane id="sort-source-pane" label="Source">
-          <header><h2>The code as it shipped in Rust 1.15</h2></header>
+          <header>
+            <h2>The code as it shipped in Rust 1.15</h2>
+            <a class="sort-source-link" href="#sort-stage-pane">Back to sort</a>
+          </header>
           <div id="sort-source">
             <p id="sort-lede">
               In December 2016

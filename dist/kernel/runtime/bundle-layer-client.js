@@ -1,4 +1,4 @@
-import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionRecord, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
+import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, ROLE_BUTTON_OFFER, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
 import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
@@ -788,7 +788,7 @@ function nativeClaimAt(control) {
 const LINK = "a[href], area[href]";
 const ACTIVATION = [
 	[LINK, ["Enter"]],
-	["button, details > summary, input:is([type=\"button\"], [type=\"submit\"], [type=\"reset\"], [type=\"image\"])", PRESS],
+	[`button, ${ROLE_BUTTON_OFFER}, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])`, PRESS],
 	["input:is([type=\"checkbox\"], [type=\"radio\"])", [" "]]
 ];
 function nativeActivationAt(control) {
@@ -2002,7 +2002,7 @@ window.addEventListener("error", (e) => {
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
-	reportPageError(exceptionRecord(e.error).stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
+	reportPageError(e.error ?? e.message, e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "");
 });
 window.addEventListener("unhandledrejection", (e) => {
 	reportPageError(e.reason);

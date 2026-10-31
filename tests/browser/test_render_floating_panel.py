@@ -457,10 +457,11 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
-    thread, focused on its view, while the field says the thread was resolved, so a
-    second `r` resolves that one; taking a resolve back returns the user to the thread
-    they resolved; with none left, the user is back at Threads. Escape there puts
-    the view away and returns the user to the page."""
+    thread, focused on its view, so a second `r` resolves that one, while the row says
+    which thread was resolved, by name, beside the Undo that takes it back: the field's
+    "Resolved the thread" read as the thread now open. Undo, by its press or by `z`,
+    returns the user to the thread they resolved; with none left, the user is back at
+    Threads. Escape there puts the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     panel_comment(serve.page_dir, "Should the mobile cohort wait?")
@@ -480,11 +481,14 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-says", "notice"
     )
-    expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
+    notice = page.locator(".lf-fp-row-notice")
+    expect(notice).to_be_visible()
+    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(notice.locator("kbd")).to_have_text("z")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
-        page.keyboard.press("z")
+        notice.get_by_role("button").click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()

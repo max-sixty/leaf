@@ -719,6 +719,12 @@ function coordinateLabel(anchor, about) {
   return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
 
+// The words a thread is about, as its head quotes them: those a version's rewrite took
+// from it (`rewritten_from`, events.md), else those it was detached from, else its
+// anchor.
+export const threadPassage = (thread) =>
+  thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
+
 // A named control part belongs to the coordinate in every reading, not just Design.
 export function anchorLabel(anchor, about) {
   const label = coordinateLabel(anchor, about);

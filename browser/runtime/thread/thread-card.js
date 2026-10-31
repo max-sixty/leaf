@@ -40,7 +40,12 @@ import {
 } from "../focus.js";
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
-import { anchorLabel, messageReading, threadSummary } from "./messages.js";
+import {
+  anchorLabel,
+  messageReading,
+  threadPassage,
+  threadSummary,
+} from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
 import { keeps, layoutPx, roomPx } from "../keeps.js";
@@ -76,7 +81,7 @@ export function quoteReading(thread, anchors) {
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
-  const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+  const quoted = threadPassage(thread);
   const label = anchorLabel(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);

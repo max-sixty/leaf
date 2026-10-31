@@ -744,8 +744,22 @@
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
      (floating-panel.js, `writing`). */
-  .lf-floating-panel:is([data-writing], [data-drafted]) .lf-fp-row-notice {
+  .lf-floating-panel[data-writing] .lf-fp-row-notice:not([data-passing]),
+  .lf-floating-panel[data-drafted] .lf-fp-row-notice {
     display: none;
+  }
+  /* A passing notice with its press (`rowNotice`) stands where the empty field's
+     words would, over its start on the panel's own ground, taking no room, so its
+     coming and its going move neither the field nor its controls. It stands through
+     the writing posture, which lasts while the user stays in the panel, since the
+     gesture it reports, such as a Resolve, stood them outside the field. */
+  .lf-fp-row-notice[data-passing] {
+    position: absolute;
+    left: anchor(--lf-fp-field left);
+    top: anchor(--lf-fp-field top);
+    bottom: anchor(--lf-fp-field bottom);
+    max-width: anchor-size(--lf-fp-field width);
+    background: var(--lf-fp-surface);
   }
   /* The press takes the row's whole line, as every mark does, so a finger finds it;
      the chip's face is drawn inside it. */
@@ -763,6 +777,9 @@
     min-height: 26px;
     padding: 0 9px;
     border-radius: var(--r);
+    /* A notice with no tone, as a passing one's, stands on the panel's own ground. */
+    --lf-fp-notice-tint: transparent;
+    --lf-fp-notice-ink: var(--ink);
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font: var(--font-small);

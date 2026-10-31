@@ -1,5 +1,5 @@
 import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, ROLE_BUTTON_OFFER, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, onUserInput, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
@@ -1604,15 +1604,17 @@ let userContext = false;
 let userHoldTimer = 0;
 const noticePresentation = Z(Object.freeze({
 	message: "",
-	visible: false
+	visible: false,
+	press: null
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
 const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
-const presentNotice = (message, visible) => {
+const presentNotice = (message, visible, press = null) => {
 	noticePresentation.value = Object.freeze({
 		message,
-		visible
+		visible,
+		press
 	});
 };
 function announce(msg) {
@@ -1623,16 +1625,23 @@ function announce(msg) {
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
-function showNotice(msg, background = null) {
-	presentNotice(msg, true);
+function showNotice(msg, background = null, press = null) {
+	presentNotice(msg, true, press);
 	showingBackground = background;
 	clearTimeout(noticeTimer);
-	noticeTimer = setTimeout(() => {
-		if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
-		presentNotice(noticePresentation.peek().message, false);
-		showingBackground = null;
-	}, NOTICE_MS);
+	if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
 }
+function retireNotice() {
+	if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift())) return;
+	presentNotice(noticePresentation.peek().message, false);
+	showingBackground = null;
+}
+const NOTICE_PRESS = "data-lf-notice-press";
+onUserInput((event) => {
+	if (!noticePresentation.peek().press) return;
+	if ((event.composedPath?.() ?? []).some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS))) return;
+	retireNotice();
+});
 function showBackground(entry) {
 	while (entry) {
 		const message = entry.format(entry.value);
@@ -1662,7 +1671,7 @@ function queueBackground(entry, front = false) {
 	if (front) waitingBackground.unshift(entry);
 	else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null, press = null } = {}) {
 	if (speak) announce(msg);
 	if (background) {
 		const entry = group ?? textBackground(msg);
@@ -1670,7 +1679,7 @@ function notice(msg, { background = false, announce: speak = true, group = null 
 		return showBackground(entry);
 	}
 	if (showingBackground) queueBackground(showingBackground, true);
-	showNotice(msg);
+	showNotice(msg, null, press);
 }
 function yieldNotice() {
 	if (showingBackground) queueBackground(showingBackground, true);

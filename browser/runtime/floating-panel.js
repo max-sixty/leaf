@@ -36,7 +36,10 @@
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks. Beside the seat stands at most one small notice for a state
  *   the user should not miss, such as reading an older version, tinted by its tone and
- *   with at most one press (`olderVersion`); the field gives it room, so the seat keeps
+ *   with at most one press (`olderVersion`), or, while it passes, a notice of the user's
+ *   own gesture with the press that takes it back, as a Resolve's Undo (`rowNotice`),
+ *   chosen on 31 October so a Resolve that moves the panel on says which thread it
+ *   resolved and offers its undo there; the field gives it room, so the seat keeps
  *   its place, but only while it holds no words, which a narrower field would rewrap
  *   under the reader; the notice waits while words stand there. The empty field says
  *   what the agent is doing or wants, in the status's words
@@ -181,6 +184,9 @@ import {
 } from "/runtime/framework.js";
 import { el, namedAction, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
+import { actionName } from "./icon-paths.js";
+import { commandSteps } from "./keyboard/control-keys.js";
+import { executeCommand } from "./keyboard/dispatch.js";
 import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, layoutPx } from "./keeps.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -323,9 +329,10 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // window.
 function passing() {
   const notice = noticeReading();
-  if (notice.visible) return { message: notice.message, visible: true };
+  if (notice.visible)
+    return { message: notice.message, visible: true, press: notice.press };
   const message = navigationWords();
-  return { message, visible: Boolean(message) };
+  return { message, visible: Boolean(message), press: null };
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
@@ -418,7 +425,7 @@ export function createFloatingPanel({
     const closeAbove = exit?.press === close && viewControls !== nothing;
     const quickHidden =
       initial || closeAbove || (!exit && (search || writing || drafted));
-    const notice = initial || search ? null : olderVersion();
+    const notice = initial || search ? null : rowNotice();
     const peek = initial ? null : peekPresentation();
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
@@ -584,7 +591,11 @@ export function createFloatingPanel({
               </div>
             </div>
             <div class="lf-fp-response"></div>
-            <div class="lf-fp-row-notice" ?hidden=${!notice}>
+            <div
+              class="lf-fp-row-notice"
+              ?hidden=${!notice}
+              ?data-passing=${Boolean(notice?.passing)}
+            >
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
             <div class="lf-fp-quick" ?hidden=${quickHidden}>
@@ -917,11 +928,15 @@ export function createFloatingPanel({
           .filter(Boolean)
           .join(" · "),
       };
+    // A notice offering a press stands over the empty field with it, in the words'
+    // place (`rowNotice`), so the field says nothing under it.
     const notice = passing();
     if (notice.visible)
       return {
         says: "notice",
-        words: [...(stance ? [`${stance} · `] : []), ...noticeWords(notice.message)],
+        words: notice.press
+          ? ""
+          : [...(stance ? [`${stance} · `] : []), ...noticeWords(notice.message)],
       };
     if (stance)
       return {
@@ -4222,7 +4237,34 @@ export function createFloatingPanel({
 
   // ---------- the row's notice ----------
   // One small notice beside the seat, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`.
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, with
+  // its word and the keys that make it from anywhere on the page (`keys`).
+  // A passing notice offering the press that takes back what it reports, as a Resolve's
+  // offers Undo (notifications.js), stands in the seat its words would take, over the
+  // empty field's start, its press the page's own command, run and spelled as the
+  // command reference runs and spells it; else the older version's notice. It stands
+  // over the field rather than beside it (floating-panel.css), so its coming and going
+  // move nothing in the row, and it stands from the gesture's own paint to the
+  // notice's end, whether or not the command can act yet.
+  // Nothing that passes is said while the caret is in the field, this neither; and
+  // the gesture it reports stood the user outside the field, so it stands through the
+  // writing posture the field keeps until the user leaves the panel, though not over
+  // a draft (floating-panel.css).
+  function rowNotice() {
+    const { visible, message, press } = passing();
+    const input = fieldInput();
+    if (!visible || !press || (input && focused() === input)) return olderVersion();
+    return {
+      says: voiced(noticeWords(message)),
+      tone: null,
+      passing: true,
+      press: {
+        label: actionName(press.action),
+        keys: commandSteps(press.command),
+        run: () => executeCommand(press.command),
+      },
+    };
+  }
   // The page shows an older version than the latest: the menu's row that opens the
   // latest says so too, but only once the menu is open, while the count beside it
   // follows the version shown with no word of why.
@@ -4243,12 +4285,16 @@ export function createFloatingPanel({
       },
     };
   }
-  function rowNoticeTemplate({ says, tone, press = null }) {
-    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
-      >${says}${
+  function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
+    const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
+      ><span class="lf-fp-row-notice-says">${says}</span>${
         press
-          ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-              ><span class="lf-fp-row-notice-act">${press.label}</span>`
+          ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
+              <span class="lf-fp-row-notice-act">${press.label}</span>${
+                press.keys?.length && advertisesKeys()
+                  ? html` ${keySequenceTemplate(keySequenceModel(press.keys))}`
+                  : nothing
+              }`
           : nothing
       }</span
     >`;
@@ -4258,6 +4304,7 @@ export function createFloatingPanel({
       class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
       title=${press.title ?? nothing}
       ?disabled=${press.disabled}
+      ?data-lf-notice-press=${Boolean(passing)}
       @click=${press.run}
     >
       ${face}

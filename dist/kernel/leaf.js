@@ -1,4 +1,4 @@
-import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, describeFailure, holdRendering, iconTemplate, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
+import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionName, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, describeFailure, holdRendering, iconTemplate, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, deepFocus, dismissPopoversOutside, documentChanged, drawn, focusDestination, focusRevision, focused, fragmentId, guard, handBack, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, typesText, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
 import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandDeclarationsWithin, commandPresentations, commandRoutes, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, holdingError, keys, labelOf, live as live$1, liveEl, merge, mountRepaint, namedAction, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
@@ -4734,12 +4734,14 @@ function passing() {
 	const notice = noticeReading();
 	if (notice.visible) return {
 		message: notice.message,
-		visible: true
+		visible: true,
+		press: notice.press
 	};
 	const message = navigationWords();
 	return {
 		message,
-		visible: Boolean(message)
+		visible: Boolean(message),
+		press: null
 	};
 }
 function navigationWords() {
@@ -4797,7 +4799,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const exit = initial ? null : fieldExit(search, top);
 		const closeAbove = exit?.press === close && viewControls !== nothing;
 		const quickHidden = initial || closeAbove || !exit && (search || writing || drafted);
-		const notice = initial || search ? null : olderVersion();
+		const notice = initial || search ? null : rowNotice();
 		const peek = initial ? null : peekPresentation();
 		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
 		const newsName = news ? `${news} ${news === 1 ? "thread" : "threads"} with news` : "";
@@ -4927,7 +4929,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               </div>
             </div>
             <div class="lf-fp-response"></div>
-            <div class="lf-fp-row-notice" ?hidden=${!notice}>
+            <div
+              class="lf-fp-row-notice"
+              ?hidden=${!notice}
+              ?data-passing=${Boolean(notice?.passing)}
+            >
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
             <div class="lf-fp-quick" ?hidden=${quickHidden}>
@@ -5119,7 +5125,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const notice = passing();
 		if (notice.visible) return {
 			says: "notice",
-			words: [...stance ? [`${stance} · `] : [], ...noticeWords(notice.message)]
+			words: notice.press ? "" : [...stance ? [`${stance} · `] : [], ...noticeWords(notice.message)]
 		};
 		if (stance) return {
 			says: "stance",
@@ -7167,6 +7173,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			focusDestination(pageEditor().input, "move");
 		}
 	}
+	function rowNotice() {
+		const { visible, message, press } = passing();
+		const input = fieldInput();
+		if (!visible || !press || input && focused() === input) return olderVersion();
+		return {
+			says: voiced(noticeWords(message)),
+			tone: null,
+			passing: true,
+			press: {
+				label: actionName(press.action),
+				keys: commandSteps(press.command),
+				run: () => executeCommand(press.command)
+			}
+		};
+	}
 	function olderVersion() {
 		const { latest } = versionsReading();
 		if (latest.shown === null) return null;
@@ -7181,10 +7202,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}
 		};
 	}
-	function rowNoticeTemplate({ says, tone, press = null }) {
-		const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone}
-      >${says}${press ? html`<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
-              ><span class="lf-fp-row-notice-act">${press.label}</span>` : nothing}</span
+	function rowNoticeTemplate({ says, tone, press = null, passing = false }) {
+		const face = html`<span class="lf-fp-row-notice-face" data-tone=${tone ?? nothing}
+      ><span class="lf-fp-row-notice-says">${says}</span>${press ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
+              <span class="lf-fp-row-notice-act">${press.label}</span>${press.keys?.length && advertisesKeys() ? html` ${keySequenceTemplate(keySequenceModel(press.keys))}` : nothing}` : nothing}</span
     >`;
 		if (!press) return face;
 		return html`<button
@@ -7192,6 +7213,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       class="lf-fp-face lf-fp-chip lf-fp-row-notice-press"
       title=${press.title ?? nothing}
       ?disabled=${press.disabled}
+      ?data-lf-notice-press=${Boolean(passing)}
       @click=${press.run}
     >
       ${face}

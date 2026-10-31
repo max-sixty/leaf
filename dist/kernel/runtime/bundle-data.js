@@ -3,7 +3,7 @@ import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION
 import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, excerptWords, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, quotedWords, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -4404,6 +4404,7 @@ function coordinateLabel(anchor, about) {
 	}
 	return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
+const threadPassage = (thread) => thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 function anchorLabel(anchor, about) {
 	const label = coordinateLabel(anchor, about);
 	return [
@@ -5345,13 +5346,27 @@ const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (
 
 //#endregion
 //#region runtime/thread/folding.js
+const NAMED = 48;
+function settledName(key) {
+	const thread = threadNamed(key);
+	if (!thread) return "the thread";
+	const passage = threadPassage(thread);
+	return anchorLabel(passage?.quote ? {
+		...passage,
+		quote: excerptWords(passage.quote, NAMED)
+	} : passage, thread.root.about) || quotedWords(threadName(thread), NAMED);
+}
 async function settleThread({ parent, key, resolved, prepareLanding, pendingEntries, actions, landedAway, returnToThread }) {
 	const land = prepareLanding?.();
 	const since = inputCount();
 	const attempt = randomId();
+	const named = settledName(key);
 	const answer = resolved ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
 	if (!answer) return;
-	notice(resolved ? "Reopened the thread" : "Resolved the thread");
+	notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, { press: {
+		command: "history.undo",
+		action: "undo"
+	} });
 	if (land) landedAway(attempt);
 	await landGesture({
 		land,
@@ -6548,7 +6563,7 @@ var Transcript = class {
 function quoteReading(thread, anchors) {
 	const placement = anchors.placedAt(thread.id);
 	const rewritten = thread.rewritten_from;
-	const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+	const quoted = threadPassage(thread);
 	const label = anchorLabel(quoted, thread.root.about);
 	if (!label) return null;
 	const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);

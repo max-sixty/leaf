@@ -71,13 +71,11 @@ import { messageHolding, threadName } from "./thread/messages.js";
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { ago } from "./presence.js";
-import { excerptWords } from "./words.js";
+import { quotedWords as quoted } from "./words.js";
 import { retainUserIntent } from "./user-intent.js";
 import { raiseError } from "./errors.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
-
-const quoted = (words, cap = 60) => `“${excerptWords(words, cap)}”`;
 
 // A widget as the chrome names it on this page, else the word for its kind.
 function widgetNamed(id) {

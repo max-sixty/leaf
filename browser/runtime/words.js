@@ -22,3 +22,8 @@ export function excerptWords(value, cap) {
   const end = boundary >= cap / 2 ? boundary : excerpt.length;
   return `${excerpt.slice(0, end).join("")}…`;
 }
+
+// Words a notice names something by, cut as `excerptWords` cuts them, in quotes:
+// “Rollout safety”.
+/** @param {unknown} value @param {number} [cap] */
+export const quotedWords = (value, cap = 60) => `“${excerptWords(value, cap)}”`;

@@ -159,7 +159,7 @@ lf-column {
 lf-column::before,
 lf-column > [data-lf-said="label"] {
   display: block;
-  font: var(--font-name);
+  font: var(--font-title);
   color: var(--ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
@@ -195,7 +195,7 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: var(--font-name);
+  font: var(--font-title);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }

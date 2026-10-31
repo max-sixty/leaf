@@ -1,5 +1,15 @@
 /* The playground's retained Lit view reads native controls and draws their values.
  * Its live widget owns commands, working state and delivery.
+ *
+ * A playground needs no control: a preview whose script declares contributor slices
+ * is a whole configuration (lf-playground.js). With `actions="page"` the page draws
+ * the submission and Reset and hands them to the playground, so this view draws no bar
+ * of actions, and the instruction stays where it was written, after the stage, as a
+ * quoted playground's does, for the page to show or place. This view still writes the
+ * words of the page's submission, from the one template its own submission uses. The
+ * markup says so, not only the page's call, because this drawing is the first paint: a
+ * bar drawn here and withdrawn once the page's script registered its own would move
+ * the page as it loads.
  */
 import { offerElement, offeredAction, generatedElement } from "/runtime/widget-api.js";
 
@@ -193,6 +203,12 @@ export function createPlayground(host) {
     );
   const instructionId = `${host.id}-instruction`;
   const submitLabel = host.getAttribute("submit-label") ?? "Use these settings";
+  // The submission says what pressing it does: send the working values, or withdraw
+  // the choice they match (lf-playground.js). One room holds both words.
+  const submitRoom = `${submitLabel}\nUndo choice`;
+  const submitWords = (chosen) =>
+    html`<span data-lf-gen="1">${chosen ? "Undo choice" : submitLabel}</span>`;
+  const pageActions = host.getAttribute("actions") === "page";
   const offline = Boolean(document.querySelector("script[data-lf-offline]"));
   const presetBar = () =>
     !presets.length
@@ -238,12 +254,20 @@ export function createPlayground(host) {
     preview,
     parse,
     typed,
+    interactive,
+    pageActions,
     copy: null,
+    // Under `actions="page"`, the page's own two buttons once it registers them.
+    given: null,
     get submit() {
-      return actions()?.querySelector(":scope > .lf-playground-submit") ?? null;
+      return pageActions
+        ? (view.given?.submit ?? null)
+        : (actions()?.querySelector(":scope > .lf-playground-submit") ?? null);
     },
     get reset() {
-      return actions()?.querySelector(":scope > .lf-playground-reset") ?? null;
+      return pageActions
+        ? (view.given?.reset ?? null)
+        : (actions()?.querySelector(":scope > .lf-playground-reset") ?? null);
     },
     get reveal() {
       return actions()?.querySelector(":scope > .lf-playground-reveal") ?? null;
@@ -280,6 +304,12 @@ export function createPlayground(host) {
           ? [{ name, host: region, body: body ? region.querySelector(body) : region }]
           : [];
       });
+    },
+    // The page's buttons under `actions="page"`; render writes the submission's words.
+    give(given) {
+      view.given = given;
+      given.submit.replaceChildren();
+      given.submit.dataset.room = submitRoom;
     },
     isInput(control, target) {
       return nativeInputs(control).includes(target);
@@ -434,67 +464,76 @@ export function createPlayground(host) {
             </button>`,
           preset,
         );
-      return html`<div class="lf-playground-split">
-        ${!railed.length && presets.length ? controlsPane() : nothing}
-        <div
-          class="lf-playground-preview-region"
-          data-lf-reading-role="pane"
-          data-lf-generated
-          role="region"
-          aria-label="Preview"
-        >
-          <div class="lf-playground-preview-body">${preview}</div>
-        </div>
-        <div class="lf-playground-rail" data-lf-track>
-          ${railed.length ? controlsPane() : nothing}
+      if (view.given) render(submitWords(chosen()), view.given.submit);
+      const instructionPane = html`<div
+        class="lf-playground-instruction-region"
+        data-lf-reading-role="pane"
+        data-lf-generated
+        role="region"
+        aria-label="Instruction to agent"
+      >
+        <footer class="lf-playground-actions">
+          <button ${resetOffer}></button>
+          <button
+            ${revealOffer}
+            popovertarget=${instructionId}
+            aria-controls=${instructionId}
+            aria-expanded="false"
+          ></button>
+          <button ${submitOffer} data-room=${submitRoom}>
+            ${submitWords(chosen())}
+          </button>
           <div
-            class="lf-playground-instruction-region"
+            class="lf-playground-instruction"
+            id=${instructionId}
+            popover="auto"
+            role="dialog"
+            aria-labelledby=${`${instructionId}-title`}
+          >
+            <div class="lf-playground-instruction-head">
+              <p
+                class="lf-playground-instruction-title lf-label"
+                id=${`${instructionId}-title`}
+                data-lf-gen="1"
+              >
+                Instruction to agent
+              </p>
+              ${view.copy ?? nothing}
+            </div>
+            <div class="lf-playground-instruction-body">${output}</div>
+          </div>
+          ${
+            offline
+              ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
+                  >Submission unavailable: no agent or server is available.</span
+                >`
+              : nothing
+          }
+        </footer>
+      </div>`;
+      // The rail holds the controls written there and the bar of actions; a page that
+      // draws its own actions and writes no control there leaves it out.
+      const rail =
+        railed.length || !pageActions
+          ? html`<div class="lf-playground-rail" data-lf-track>
+              ${railed.length ? controlsPane() : nothing}
+              ${pageActions ? nothing : instructionPane}
+            </div>`
+          : nothing;
+      return html`<div class="lf-playground-split">
+          ${!railed.length && presets.length ? controlsPane() : nothing}
+          <div
+            class="lf-playground-preview-region"
             data-lf-reading-role="pane"
             data-lf-generated
             role="region"
-            aria-label="Instruction to agent"
+            aria-label="Preview"
           >
-            <footer class="lf-playground-actions">
-              <button ${resetOffer}></button>
-              <button
-                ${revealOffer}
-                popovertarget=${instructionId}
-                aria-controls=${instructionId}
-                aria-expanded="false"
-              ></button>
-              <button ${submitOffer} data-room=${`${submitLabel}\nUndo choice`}>
-                <span data-lf-gen="1">${chosen() ? "Undo choice" : submitLabel}</span>
-              </button>
-              <div
-                class="lf-playground-instruction"
-                id=${instructionId}
-                popover="auto"
-                role="dialog"
-                aria-labelledby=${`${instructionId}-title`}
-              >
-                <div class="lf-playground-instruction-head">
-                  <p
-                    class="lf-playground-instruction-title lf-label"
-                    id=${`${instructionId}-title`}
-                    data-lf-gen="1"
-                  >
-                    Instruction to agent
-                  </p>
-                  ${view.copy ?? nothing}
-                </div>
-                <div class="lf-playground-instruction-body">${output}</div>
-              </div>
-              ${
-                offline
-                  ? html`<span class="lf-playground-unavailable" data-lf-gen="1"
-                      >Submission unavailable: no agent or server is available.</span
-                    >`
-                  : nothing
-              }
-            </footer>
+            <div class="lf-playground-preview-body">${preview}</div>
           </div>
+          ${rail}
         </div>
-      </div>`;
+        ${pageActions ? output : nothing}`;
     },
   };
   const initialReflection = view.reflection(defaults);

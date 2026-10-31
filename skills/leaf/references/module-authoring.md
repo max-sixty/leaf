@@ -94,7 +94,8 @@ script", lists.
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
   label them with `relabel()` ("Generated controls").
-- Keep the widget's visible geometry stable as its state updates ("First paint").
+- Keep the widget's visible geometry stable as its state updates ("First paint"), and
+  meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",

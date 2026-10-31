@@ -441,7 +441,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     flex: none;
     align-items: center;
     gap: 0;
-    color: var(--muted-2);
+    color: var(--muted);
     font: var(--voice-fine);
   }
   .lf-margin-preview-position {

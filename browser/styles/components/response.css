@@ -87,7 +87,7 @@ leaf-composition-field {
 }
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
-  color: var(--muted-2);
+  color: var(--muted);
 }
 /* An error about the box stands over its words and its actions, in the danger's ink,
    until the user comes back to them (composing/input.js). It wraps within the box's
@@ -104,8 +104,7 @@ leaf-composition-field {
   border-radius: var(--r);
   background: var(--card);
   color: var(--danger-ink);
-  font: var(--voice-ui);
-  font-weight: 500;
+  font: var(--voice-error);
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: text;
@@ -305,11 +304,11 @@ leaf-composition-field {
 }
 :is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
-  color: var(--muted-2);
+  color: var(--muted);
   cursor: default;
 }
 :is(.lf-compose-dictate, .lf-response-trigger) {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 :is(.lf-compose-dictate, .lf-response-trigger):hover {
   color: var(--ink);

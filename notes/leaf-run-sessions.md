@@ -50,56 +50,29 @@ log, which misses turns that wrote nothing to it.
 
 Checked on 24 October 2026 against Claude Code 2.1.310, the Codex App Server
 0.163 schema (`codex app-server generate-json-schema --experimental`), Pi 1.0.4's
-extension types (`dev/pi/`) and `claude-agent-sdk` 0.2.174.
+extension types (`dev/pi/`) and `claude-agent-sdk` 0.2.174, and Claude Code's side
+lane, which its hooks module offers, on 31 October against 2.1.316.
 
-| Control                                 | Claude Code hooks                              | Codex app hooks and queue | Terminal Codex on App Server          | Pi extension                              | Agent SDK or `claude -p` stream-json |
-| --------------------------------------- | ---------------------------------------------- | ------------------------- | ------------------------------------- | ----------------------------------------- | ------------------------------------ |
-| A side lane with the session's context  | Outside the session: `--resume --fork-session` | Not checked               | `thread/fork`                         | No: `fork()` replaces the session         | `fork_session`                       |
-| Model and effort per input              | No                                             | No                        | `model`, `effort` on `turn/start`     | `setModel`, `setThinkingLevel`            | `set_model`, `effort`                |
-| Reply words as generated                | No: the transcript lands whole messages        | No                        | The final message; not tool arguments | `message_update` carries tool-call deltas | Partial messages, `input_json_delta` |
-| Interrupt the turn                      | No                                             | No                        | `turn/interrupt`                      | `ctx.abort()`                             | `interrupt()`                        |
-| Reorder queued input                    | No                                             | No                        | `thread/queue/reorder`                | No                                        | Leaf sends the next input itself     |
-| Input at the next tool boundary         | PostToolBatch                                  | PostToolUse               | `turn/steer`                          | `turn_end`                                | Streaming input                      |
-| Leaf's tools without a process per call | No                                             | No                        | Dynamic tools                         | `registerTool`, in Node                   | In-process MCP server, in Python     |
+| Control                                 | Claude Code hooks and hooks module                                  | Codex app hooks and queue | Terminal Codex on App Server          | Pi extension                              | Agent SDK or `claude -p` stream-json |
+| --------------------------------------- | ------------------------------------------------------------------- | ------------------------- | ------------------------------------- | ----------------------------------------- | ------------------------------------ |
+| A side lane with the session's context  | `$.model.fork`, a forked subagent ([fork replies](fork-replies.md)) | Not checked               | `thread/fork`                         | No: `fork()` replaces the session         | `fork_session`                       |
+| Model and effort per input              | No                                                                  | No                        | `model`, `effort` on `turn/start`     | `setModel`, `setThinkingLevel`            | `set_model`, `effort`                |
+| Reply words as generated                | No: the transcript lands whole messages                             | No                        | The final message; not tool arguments | `message_update` carries tool-call deltas | Partial messages, `input_json_delta` |
+| Interrupt the turn                      | No                                                                  | No                        | `turn/interrupt`                      | `ctx.abort()`                             | `interrupt()`                        |
+| Reorder queued input                    | No                                                                  | No                        | `thread/queue/reorder`                | No                                        | Leaf sends the next input itself     |
+| Input at the next tool boundary         | PostToolBatch                                                       | PostToolUse               | `turn/steer`                          | `turn_end`                                | Streaming input                      |
+| Leaf's tools without a process per call | No                                                                  | No                        | Dynamic tools                         | `registerTool`, in Node                   | In-process MCP server, in Python     |
 
 The desktop Codex app's own App Server exposes no endpoint Leaf can use
 ([harness-codex.md](../skills/leaf/references/harness-codex.md#delivery)), so Leaf
-reaches it as it reaches Claude Code. The surfaces most users run, Claude Code and
-the Codex app, expose none of these controls to a companion; reaching them means
-Leaf driving the agent itself.
+reaches it as it reaches Claude Code. Apart from Claude Code's forks, the surfaces
+most users run, Claude Code and the Codex app, expose none of these controls to a
+companion; reaching them means Leaf driving the agent itself.
 
 Leaf's process overhead doesn't need an owned loop. Each hook and command starts
 `bin/leaf` afresh, 120–620 ms each under load; a hook that asked the running page
 server instead might cut most of that on every harness, though nobody has measured
 it.
-
-## A forked Claude Code side lane
-
-A side lane is a short separate run that shares the session's context and answers
-a question while the main turn keeps running its tool. On Claude Code 2.1.310 with
-Opus 5.5 and a 9k-token context, a `claude -p` parent read a file, then ran
-`sleep 45` in the foreground; three seconds into the sleep a second process forked
-the parent's session and asked about the file:
-
-```bash
-echo "<question>" | claude -p --resume <parent-session-id> --fork-session \
-  --output-format stream-json --verbose --include-partial-messages
-```
-
-One run per setting:
-
-| Fork                | First word after spawn | Model time | Cache read / written | Answer                               |
-| ------------------- | ---------------------: | ---------: | -------------------: | ------------------------------------ |
-| `--effort low`      |                 2.24 s |     1.46 s |            0 / 9,073 | Correct                              |
-| The parent's effort |                 3.41 s |     2.95 s |        5,258 / 3,826 | Correct; noted the sleep was cut off |
-
-Both parents finished normally. A fork at another effort read none of the cached
-context, and one at the parent's effort read 58% of it, so on a long session the
-cost of a side answer is unknown until runs on a real session price it. The fork
-reads the running tool call as cut off, and one fork offered to rerun it. The
-parent needs `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` to keep a long command in the
-foreground, and prompts go on stdin because `--tools` swallows a trailing
-argument.
 
 ## Subscriptions
 
@@ -127,18 +100,18 @@ a token, which is the shape the legal page allows.
   and interrupt on an explicit stop on a terminal Codex and Pi; Claude Code and
   Codex app users see no change, and a question asked during a long tool still
   waits for its boundary.
-- **Add a Leaf-run side lane that answers while the session works.** Questions get
-  answered in seconds during long tools, and the user's session still does every
-  edit. Costs: a second voice in the thread that can answer from a stale
-  transcript, an answer the main session must be told about, cache misses, and
-  extra usage against limits that assume ordinary use.
+- **Answer from a fork of the session.** On Claude Code, Leaf's hooks module would
+  fork the user's own session for each thread message, so questions would get
+  answered in seconds, idle or during long tools, while the session still does every
+  edit ([fork replies](fork-replies.md)). Costs: a hold on delivery while a fork
+  decides, a cached read of the whole context per message, and answers as of the
+  main thread's last request.
 - **Host the whole session in Leaf.** Leaf owns every turn and every control above,
   and with them the transcript, approvals, interruption, reconnects, permission
   modes, compaction and the chat surface, as `leaf.page` already does for Codex
   (`EmbeddedHarness`). It ends wake-up gaps only for sessions Leaf hosts, and turns
   Leaf from a page beside the user's agent into the place they work.
 
-The October 2026 recommendation was to keep Leaf a companion, since the measured
-busy wait is a few questions a day. Revisit the side lane when busy waits grow,
-for example if agents stop delegating long work, and hosting when a user wants
-Leaf to be where they work.
+Keep Leaf a companion: a fork would reach Claude Code users without Leaf driving
+the agent, and hosting the session is worth its cost only once a user wants Leaf to be
+where they work.

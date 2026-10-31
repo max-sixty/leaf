@@ -686,8 +686,9 @@
      the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* The interface's fonts. Each is a whole font (weight, size, line height and
-     family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
-     its words by naming one, `font: var(--font-small)`, or by inheriting its holder's.
+     family), and every rule of Leaf's interface, one that selects an `lf-` class in
+     the core's sheets or a bundled package's, sets its words by naming one,
+     `font: var(--font-small)`, or by inheriting its holder's.
      A rule that names a font takes its weight with it. Only a run that keeps its
      holder's font sets a weight (400, 500 or 600), to stand out from the words around
      it or back into them, as a pending thread name does inside a title. A box centres
@@ -716,9 +717,9 @@
   --font-tip: 500 var(--t-6) / 1.2 var(--sans);
   --font-chip: var(--t-6) / var(--chip-lh) var(--sans); /* a small fact (above) */
   --font-count: 600 var(--t-7) / 1 var(--sans); /* a number on a mark */
-  /* A tooltip's second line, or a status under a drawing. */
+  /* A tooltip's second line, a status under a drawing, or a chart's axes. */
   --font-fine: var(--t-7) / 1.25 var(--sans);
-  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or source, verbatim */
+  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or a path, verbatim */
   /* An emoji set as a picture at an icon's size, as the reaction palette holds them. */
   --font-emoji: 16px / 1 var(--sans);
 }
@@ -805,7 +806,18 @@ html:not([data-lf-live]) {
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
  * stops at it. Direct frames and propagated edges share one rule per edge, so that
  * boundary holds even when the row draws its own frame. The frame reset remains
- * independent: a row still bounds its content when its children keep their margins. */
+ * independent: a row still bounds its content when its children keep their margins.
+ *
+ * Margins don't collapse through a grid or flex item: each keeps its own children's
+ * margins inside its box, so an item opening with a heading would begin the heading's gap
+ * above the heading. A grid or flex box says so of its items, --lf-items-keep-margins: 1,
+ * and an item of it that opens with a heading takes the heading's gap as its own margin
+ * (reading.css). */
+@property --lf-items-keep-margins {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -1676,16 +1688,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Opening a reaction in force leaves its familiar face in place and reveals the
-   separately named removal action beside it. Its existing contour takes the shared
-   disclosure accent (above), stated beside it so the two meet on their selectors; the
-   mark does not gain a second ring or pretend the reaction itself changed. */
-.lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px;
-  border-color: var(--border-2);
-  color: var(--lf-entry-ink, var(--ink));
-  box-shadow: var(--lf-entry-lift);
-}
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
    thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
@@ -1701,6 +1703,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--turn-ink);
+}
+/* A row that says the thread's word at its end, in Threads and the Page Map, says the
+   user's turn in the same green. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
   color: var(--turn-ink);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {

@@ -25,8 +25,8 @@
  *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
- *   goes, which a path this rare may do (browser/AGENTS.md, "Stability is owed to the
- *   common path"). Rejected: holding the seat for the draft until the next posture
+ *   goes, which a path this rare may do (browser/AGENTS.md, "The page holds still
+ *   under the user's aim"). Rejected: holding the seat for the draft until the next posture
  *   change. That kept On me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. A view with
  *   controls ends them with its ✕ instead (**Opened**).

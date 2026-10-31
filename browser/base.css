@@ -408,8 +408,7 @@
   --msg-size: max(var(--entry-floor), var(--t-5));
   --voice-message: var(--msg-size) / 1.5 var(--sans);
   /* A message's author name, one rung larger than the time and status beside it, also
-     resolves at the root, for the same reason. The interface's other voices are
-     declared with the ladder's derived tokens (below). */
+     resolves at the root, for the same reason. */
   --voice-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
@@ -489,10 +488,15 @@
   --code-muted: light-dark(#57606a, #9b9992);
   --code-border: light-dark(#d0d7de, #3b3a37);
   --chip: light-dark(#eeeade, #2d2922); /* neutral chip */
-  /* Secondary interface ink, held to 4.5:1 against the page surfaces it lands on.
-     Code owns a near-neutral value because its canvas no longer follows paper. */
+  /* The interface's own secondary inks, held to 4.5:1 against every surface the layer
+     paints, tints and washes included: --muted-2 is what qualifies a line anywhere in
+     the interface (a row's end, a status, a group heading, a field's hint), where
+     --muted is the document's and a theme may set it for its prose alone. The
+     darkest ground it meets is a panel row washed by its linked passage's hover
+     (--mark-hover), where it reads 4.6:1 in either scheme. Code owns a near-neutral
+     value because its canvas no longer follows paper. */
   --ink-2: light-dark(#3c3934, #c9c3b6);
-  --muted-2: light-dark(#6d6960, #988f7f);
+  --muted-2: light-dark(#676257, #b1aa9d);
   --border-2: light-dark(#d5cfc2, #453f36);
   /* A translucent backdrop is the paper it floats over, so it is derived rather than
      restated: a project that overrides --paper gets a backdrop that follows it, where a
@@ -685,11 +689,9 @@
      family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
      its words by naming one, `font: var(--voice-small)`, or by inheriting its holder's.
      Within a voice, a run may take weight 400, 500 or 600 for emphasis, and a box may
-     set its line height to a length it is laid out by, such as a badge's height. The
-     interface used to set each face where it stood and drifted into near-duplicates:
-     13px beside 14px, 12px beside 11.5px, line heights from 1.2 to 1.5, and weights of
-     450, 650 and 700. tests/model/test_interface_voices.py now fails a rule that sets a
-     face of its own, so a new face is added here, beside the others. The two faces a
+     set its line height to a length it is laid out by, such as a badge's height.
+     tests/model/test_interface_voices.py fails a rule that sets a face of its own, so
+     a new face is added here, beside the others. The two faces a
      thread's words take, `--voice-message` and `--voice-name`, are declared on the
      root instead (above), so a density leaves them alone. */
   --voice-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
@@ -1004,7 +1006,7 @@ body {
   display: flex;
   gap: 0.4em;
   align-items: center;
-  color: var(--muted);
+  color: var(--muted-2);
   font: var(--voice-small);
   white-space: nowrap;
   border: 1px solid var(--rule);
@@ -1339,7 +1341,7 @@ img {
   font: var(--voice-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-2);
 }
 @media screen {
   html:root {
@@ -1588,8 +1590,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   align-items: center;
   justify-content: center;
   gap: 0;
-  font: var(--voice-small);
-  font-weight: 600;
+  font: var(--voice-heading);
   line-height: 1;
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-landing);
@@ -1787,11 +1788,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* Leaf's word for an update the agent doesn't have yet stands apart from the agent's
-   own, as the panel's italic does (`workflowVoice`). */
-.lf-margin-entry-label-word[data-voice="leaf"] {
-  font-style: italic;
 }
 .lf-margin-entry-context,
 .lf-margin-entry-more {

@@ -481,6 +481,19 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def thread_code_copy(page: Page) -> None:
+    """A command in an agent's reply, with its source copy control revealed."""
+    as_agent(
+        "thread",
+        "reply",
+        "7b3e0a41",
+        "--text",
+        "Run this command:\n\n```sh\necho hello\n```\n\nThen continue.",
+    )
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread] pre").hover()
+
+
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
     unread, so Next unread stands among the view's controls."""
@@ -1953,6 +1966,7 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("thread-code-copy", "ship-review", thread_code_copy, region=".lf-fp-opened"),
     State(
         "floating-thread-unread",
         "ship-review",

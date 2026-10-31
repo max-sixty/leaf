@@ -754,7 +754,7 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted);
+  color: var(--muted-2);
   font: var(--voice-small);
   font-weight: 500;
 }
@@ -993,8 +993,7 @@ summary {
   white-space: nowrap;
 }
 button.lf-thread-news {
-  font: var(--voice-small);
-  font-weight: 600;
+  font: var(--voice-heading);
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,

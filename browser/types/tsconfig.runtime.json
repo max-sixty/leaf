@@ -14,8 +14,6 @@
   },
   "include": [
     "runtime-globals.d.ts",
-    "../../dev/browser-globals.d.ts",
-    "../../dev/leaf_dev/**/*.js",
     "../../node_modules/@awesome.me/webawesome/dist/components/comparison/comparison.d.ts",
     "../../node_modules/@awesome.me/webawesome/dist/components/copy-button/copy-button.d.ts",
     "../../node_modules/@awesome.me/webawesome/dist/components/input/input.d.ts",

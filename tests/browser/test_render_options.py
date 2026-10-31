@@ -2520,7 +2520,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Got it")
+    expect(status).to_have_text("Delivered")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 

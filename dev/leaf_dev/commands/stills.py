@@ -777,12 +777,20 @@ def card_after_interjection(page: Page) -> None:
     )
     expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
     settle(page)
-    message = card.locator(".lf-msg.agent").last.get_attribute("data-event")
-    assert message
-    as_agent(
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == sent
+    )
+    served.leaf(
         "thread",
-        "edit",
-        message,
+        "reply",
+        reference,
+        "--ephemeral",
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
     )

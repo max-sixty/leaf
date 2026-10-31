@@ -40,6 +40,7 @@ const runtimePrimitives = [
 const browserGlobals = Object.fromEntries(
   [
     "AbortController",
+    "AbortSignal",
     "CSS",
     "CSSImportRule",
     "CSSKeyframesRule",
@@ -82,6 +83,7 @@ const browserGlobals = Object.fromEntries(
     "SVGGeometryElement",
     "SVGImageElement",
     "SVGSVGElement",
+    "SVGTextElement",
     "SVGUseElement",
     "ShadowRoot",
     "URL",

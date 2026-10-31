@@ -43,10 +43,10 @@ import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
-  workflowLabel,
   workflowTitle,
-  workflowVoice,
+  workflowWord,
 } from "./workflow.js";
+import { voiced } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
@@ -287,9 +287,9 @@ export function messageReading(
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its run's face until an answer folds it (transcript.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
-    // user owes words to, Still to do (`todoLabel`) for work it promised and has not ended
-    // (thread-card.js).
+    // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
+    // question the user owes words to, the agent's Still to do (`todoWord`) for work it
+    // promised and has not ended (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,
@@ -311,9 +311,8 @@ export function messageReading(
     // content version.
     base: message.content_version,
     workflow,
-    workflowLabel: workflowLabel(workflow, agentName()),
+    workflowWord: workflowWord(workflow, agentName()),
     workflowTitle: workflowTitle(workflow, agentName()),
-    workflowVoice: workflowVoice(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -483,12 +482,9 @@ export class MessageView {
     const react = model.reactions ? this.#reaction.trigger : nothing;
     const copy =
       model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
-    const receipt = model.workflowLabel
-      ? html`<span
-          class="lf-msg-sending"
-          title=${model.workflowTitle}
-          data-voice=${model.workflowVoice}
-          >${model.workflowLabel}</span
+    const receipt = model.workflowWord
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${voiced(model.workflowWord)}</span
         >`
       : nothing;
     const header = html`
@@ -509,14 +505,12 @@ export class MessageView {
           ${receipt}
           ${
             model.leaves
-              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
               : nothing
           }
           ${
             model.failure
-              ? html`<span class="lf-msg-failure" data-voice="leaf"
-                  >${NOT_ANSWERED}</span
-                >`
+              ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>`
               : nothing
           }
           ${

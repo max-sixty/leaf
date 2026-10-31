@@ -38,7 +38,7 @@ label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
 the new anchor on 2026-10-26, without a transition or `transitionrun` event;
 Chromium 153.0.8010.12 interpolated its position and width. Instant selection
 is an accepted visual difference: the selected label, panel, keyboard routes
-and nested strips remain usable. Recheck by opening `lost-update` with
+and nested strips remain usable. Recheck by opening `code-comparison` with
 `leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
 with the pointer and inspecting `.lf-tab-selection` across animation frames.
 The Chromium behavior and interruption contract are covered by
@@ -208,6 +208,23 @@ whether WebKit reveals those across a frame is unverified. Recheck
 `test_sample_editor_focus_preserves_outer_scroll_and_the_caret[webkit_browser]`
 in `tests/journeys/test_render_controls.py` with the focus listener writing the
 selection on every arrival (`#focusing` never set).
+
+### Selecting words inside a button in WebKit
+
+WebKit begins no text selection inside a form control, whatever its
+`user-select`: `HTMLFormControlElement::canStartSelection` is final and returns
+false. On 2026-10-30, a `<button>` in a paragraph styled `user-select: text;
+-webkit-user-select: text` selected nothing in Playwright WebKit 27.2, build
+2370, under a drag, a double click or a triple click inside it, nor with
+`appearance: none`, `display: inline` or `contents`, or an inner span of its
+own; `user-select: all` selected the whole label at once. Chromium 156.0.8078.4
+and Firefox 157.0, build 1555, selected part of the label, a word and the
+paragraph. A drag beginning outside still extends into the button in all three.
+So a control whose label is the page's own words is a span with a role
+(`selectableOffer`, `browser/runtime/widget-elements.js`), and one with a
+button's role takes Enter and Space from `browser/runtime/role-button-press.js`,
+on a page with Leaf or without it. Recheck with that button and a double click
+on one of its words, reading `getSelection().toString()`.
 
 ### Sample document admission and native navigation
 

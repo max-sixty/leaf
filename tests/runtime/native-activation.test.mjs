@@ -1,10 +1,12 @@
-/* A link or button keeps its own Enter and Space from a container scope around it. */
+/* A link, a button, or a span offered as one, keeps its own Enter and Space from a
+   container scope around it. */
 import assert from "node:assert/strict";
 import test from "node:test";
 // Importing the page's own parts declares "On a link".
 import "../../browser/runtime/keyboard/page.js";
 import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
 import { keys, reflectFirstScopes } from "../../browser/runtime/keyboard/scopes.js";
+import { selectableOffer } from "../../browser/runtime/element-markers.js";
 
 // One press from wherever focus stands: whether Leaf answered it, and whether the
 // browser's own default survives.
@@ -31,7 +33,9 @@ test("Enter and Space on a link or button inside a container stay native", () =>
   disclosure.textContent = "More";
   let toggled = 0;
   disclosure.addEventListener("click", () => toggled++);
-  container.append(link, button, disclosure);
+  // A span offered as a button, so its words stay selectable, presses as a button does.
+  const words = selectableOffer("button", "words", "Step one");
+  container.append(link, button, disclosure, words);
   document.body.append(container);
   let acted = 0;
   keys(container, "In a container", [
@@ -57,6 +61,12 @@ test("Enter and Space on a link or button inside a container stay native", () =>
     // Both press a button, and the bar promises nothing the button won't do.
     button.focus();
     const native = { handled: false, prevented: false };
+    assert.deepEqual(press("Enter"), native);
+    assert.deepEqual(press(" "), native);
+    assert.equal(acted, 3);
+
+    // So does a span offered as one: the press is its own (role-button-press.js).
+    words.focus();
     assert.deepEqual(press("Enter"), native);
     assert.deepEqual(press(" "), native);
     assert.equal(acted, 3);

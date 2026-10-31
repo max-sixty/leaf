@@ -268,7 +268,10 @@ customElements.define(
       for (const words of [stage, this.narration, this.stats])
         generatedElement(words, { says: true });
       generatedElement(this.timeline, { says: false });
-      this.append(stage, this.narration, this.timeline, bar, inputs, this.stats);
+      const controls = document.createElement("div");
+      controls.className = "sort-controls";
+      controls.append(this.narration, this.timeline, bar, inputs, this.stats);
+      this.append(stage, controls);
       this.#layout();
       this.#load();
     }
@@ -285,7 +288,7 @@ customElements.define(
       this.momentCount.style.width = `${String(this.#film.steps.length).length}ch`;
       keepsText(
         this.momentTail,
-        ` of ${this.#film.steps.length} · click to pause · Option/Alt-click to comment`,
+        ` of ${this.#film.steps.length} · Option/Alt-click to comment`,
       );
       this.#paintTimeline();
       this.#paint();

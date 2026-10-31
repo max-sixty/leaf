@@ -887,6 +887,20 @@
       };
     return null;
   };
+  // Cleanup may remove a zero-valued translate binding: `none` and `0px`
+  // are the same underlying endpoint, despite their different computed strings.
+  const sameTranslation = (property, before, after) => {
+    if (before === after) return true;
+    if (before === undefined || after === undefined) return false;
+    const first = animationTranslation(property, before);
+    const last = animationTranslation(property, after);
+    return (
+      first !== null &&
+      last !== null &&
+      first.left === last.left &&
+      first.top === last.top
+    );
+  };
   const translationAxes = (target) => {
     const parent = elementAxes(up(target));
     const zoom = Number(getComputedStyle(target).zoom);
@@ -1090,7 +1104,11 @@
                 effect.target.style.translate === binding ||
                 returning) &&
               (!returning ||
-                origin?.[property] === animatedValue(effect.target, style, property)),
+                sameTranslation(
+                  property,
+                  origin?.[property],
+                  animatedValue(effect.target, style, property),
+                )),
           )
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );

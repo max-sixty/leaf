@@ -1998,6 +1998,23 @@ const actionForWidget = (descriptor, command, revision) => ({
 });
 
 //#endregion
+//#region runtime/voice.js
+const saidBy = (voice, text) => Object.freeze({
+	text,
+	voice
+});
+const agentSays = (text) => saidBy("agent", text);
+const leafSays = (text) => saidBy("leaf", text);
+const runOf = (words) => Array.isArray(words) ? words : [words];
+const wordsText = (words) => runOf(words).map((part) => typeof part === "string" ? part : part.text).join("");
+function voiceOf(words) {
+	const voices = new Set(runOf(words).filter((part) => typeof part === "string" ? part : part.text).map((part) => typeof part === "string" ? null : part.voice));
+	const [voice = null] = voices;
+	return voices.size === 1 ? voice : null;
+}
+const voiced = (words) => runOf(words).map((part) => typeof part === "string" ? part : html$1`<span data-voice=${part.voice}>${part.text}</span>`);
+
+//#endregion
 //#region runtime/queues.js
 const queueOffers = (item, ready, onUser) => ({
 	open: ready,
@@ -2010,7 +2027,7 @@ const OUTCOMES = Object.freeze({
 	failed: "Failed",
 	dropped: "Dropped"
 });
-const itemOutcome = (item) => item.kind === "update" ? "Answered" : OUTCOMES[item.state] ?? item.state;
+const itemOutcome = (item) => item.kind === "update" ? agentSays("Answered") : saidBy(item.owner === "agent" ? "agent" : "leaf", OUTCOMES[item.state] ?? item.state);
 
 //#endregion
 //#region runtime/framework/application.js
@@ -3386,7 +3403,8 @@ const part = {
 	undo: readPart((root) => root.effective.view?.undo ?? []),
 	todos: readPart((root) => root.authoritative?.browser.todos ?? []),
 	receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
-	revisionLabels: readPart((root) => root.authoritative?.revision_labels)
+	revisionLabels: readPart((root) => root.authoritative?.revision_labels),
+	seen: readPart((root) => root.authoritative?.seen ?? null)
 };
 const runtime = {
 	get active() {
@@ -3427,6 +3445,9 @@ const runtime = {
 	},
 	get versions() {
 		return part.versions();
+	},
+	get seen() {
+		return part.seen();
 	},
 	get workflows() {
 		return part.workflows();
@@ -3739,4 +3760,4 @@ function dismissPopoversOutside(root) {
 }
 
 //#endregion
-export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x$1 as x };
+export { AsyncDirective, CARET_KEYS, COLLAPSE, DELIVERY, DRAFT_FORMAT, J, LENT_REACH_STOP, LIVE_ROOT, LitElement, MODIFIER_KEYS, PAGE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, PartType$1 as PartType, SAID, SHARE_ROOT, TAB_STOP, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WEBSITE_DELIVERY, WORKS, Z, actionForWidget, adoptRegistry, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, annotationSheets, applicationPresented, applicationPresenter, applicationRegionsPresented, applicationState, attachApplicationPresentation, attachWidgetPresentation, authoredRank, bareReaction, canPlaceFocus, caretAtKey, carriedFrom, carriesObligation, chromeSharedClasses, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, controlNavigationKeys, createPresentationSchedule, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, declareReading, declareRelease, declaredRoot, deepFocus, directive$1 as directive, discussed, dismissPopoversOutside, documentChanged, drawingSchema, drawn, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focusRevision, focused, foldWidgetStates, fragmentId, guard, handBack, holdCurrentLocation, holdFocus, hostIn, hoveringPointer, html$1 as html, inUi, inputCount, inputInFrame, isElementName, isMessageEvent, isNews, isReaction, isThreadEvent, itemNoun, itemOutcome, keyed, lastMovedAt, layerFact, layerLanding, layerRoot, leafSays, letGo, live, loadShadowRules, marks, marksSheet, matchesWhen, messageKey, move, moved, nativeLayers, nativeModalAdmits, noChange, nothing$1 as nothing, obligationValue, offlineData, offlineInteractive, offlineState, onCurrentLocation, onFocusVisibility, onLetGo, onPress, onPressAway, onUserInput, openLayer, openerOf, overIn, pageClaimed, pageShadowRoots, pageUrl, plainPress, pointerAt, presentDocument, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, projectView, projectionOrigins, projectionRegionsPresented, q, queueWidgetUpdate, rankAt, reactionsAt, readApplication, readApplicationPresentation, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, recoveredLabelFocus, ref, refuseShadowRoot, registry, release, releaseFocus, render, renderedChildren, repeat, restorePointer, revisionLabel, ringBox, rove, runtime, runtimeModule, runtimeResource, saidBy, sameAnchor, seatRoot, selectWidgets, selectsAll, setPresentationFailureReporter, shadowRootsIn, shadowRules, share, shareUrl, showNativeLayer, stateCoordinate, stateSpecs, tabStops, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenChoices, tokenEntry, turns, typesText, uiInside, visibleFocus, voiceOf, voiced, watchCurrentLocationIn, watchLayerChanges, watchLayers, watchPresentation, watchSemantic, wearsLentStop, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x$1 as x };

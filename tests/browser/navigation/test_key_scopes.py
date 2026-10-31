@@ -482,6 +482,13 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     expect(page.locator("#st-keep")).to_be_hidden()
     rendered(page)
     assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # Enter and Space toggle it once each. The span presses as a button does, and the
+    # disclosure's row runs the same press here, which must replace the span's own as
+    # it replaces a native button's, rather than toggle it back.
+    page.keyboard.press("Enter")
+    expect(row).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press(" ")
+    expect(row).to_have_attribute("aria-expanded", "false")
 
     # A disclosure in a message, where the disclosure scope does not reach: thread markup
     # is a second document beside the version, and the arrows are the page's. A diff,

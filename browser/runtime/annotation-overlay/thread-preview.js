@@ -565,9 +565,11 @@ export function createThreadPreview({
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
             // an intermediate cap must not turn an earlier offset into end-following.
+            const priorReading =
+              session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && (session.reading?.end ?? atScrollEnd(session.transcript)),
-              scroll: session.reading?.scroll ?? session.transcript.scrollTop,
+              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              scroll: priorReading?.scroll ?? session.transcript.scrollTop,
               keepTop: stationary && !fresh && anchored.edge === "top" && !anchored.rises,
               latest: session.arriving,
             };
@@ -788,6 +790,7 @@ export function createThreadPreview({
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       atScrollEnd(session.transcript);
     session.reading = session.transcript && {
+      input: inputCount(),
       scroll: session.transcript.scrollTop,
       end: follow,
     };
@@ -834,7 +837,6 @@ export function createThreadPreview({
       if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
-
   }
 
   function stepPreviewThread(step) {

@@ -76,11 +76,9 @@ representative desktop viewport.
   `tests/shift_watch.js`, run on every browser test outside a module marked
   `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
 - **A box's controls stand on an edge the box holds as its content changes.** The
-  floating panel rests on the window's foot and grows from its top edge, so a view's
-  controls stand at its foot (`floating-panel.js`, **Opened**). A thread card can move
-  instead. A press chooses which of its edges the card holds (`prepare` in
-  `thread/card-anchor.js`), so the card's controls can stand at its head. The same
-  control may therefore stand at a card's head and at the panel's foot.
+  same control may therefore stand at a thread card's head and at the floating panel's
+  foot; each box's header says which edge it holds (`floating-panel.js`, **Opened**;
+  `thread/card-anchor.js`).
 - **Stability is owed to the common path.** Every hold costs code on each later
   change, so a rare path the user reads at a glance moves what is on screen rather
   than carry a mechanism of its own. Words a refused send hands back, and a draft typed

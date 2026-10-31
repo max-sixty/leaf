@@ -500,7 +500,7 @@ def thread_code_copy(page: Page) -> None:
 
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
-    unread, so Next unread stands among the view's controls."""
+    unread, so Next unread stands on the view's head line."""
     as_agent(
         "thread",
         "reply",

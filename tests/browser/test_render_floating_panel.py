@@ -508,7 +508,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve):
     """Resolve stands on the thread's head line, which moves as the view's height does,
     so the next thread Resolve opens takes the height the resolved one stood at, and a
-    user resolving threads in turn finds Resolve where they pressed it."""
+    user resolving threads in turn finds Resolve where they pressed it, in every frame
+    of the move, the thread held at that height going as the next one comes."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     panel_comment(
@@ -516,6 +517,7 @@ def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve
         "Should the mobile cohort wait? " * 12
         + "\n\nThe last release took a week to reach it, and the one before took two.",
     )
+    panel_comment(serve.page_dir, "Who watches the weekend?")
     page = floating(browser, url)
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
@@ -529,6 +531,24 @@ def test_resolve_stays_under_the_pointer_as_the_next_thread_opens(browser, serve
     expect(title).to_contain_text("Should the mobile cohort wait?")
     settled(page)
     assert settle.bounding_box() == pressed
+    page.evaluate(
+        """() => {
+            const tops = (window.lfTops = []);
+            const tick = () => {
+                const press = document.querySelector('.lf-fp-head .lf-fp-settle');
+                if (press) tops.push(press.getBoundingClientRect().top);
+                if (!window.lfStop) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        }"""
+    )
+    with sending(page, "the second resolve"):
+        settle.click()
+    expect(title).to_have_text("Who watches the weekend?")
+    settled(page)
+    tops = page.evaluate("() => { window.lfStop = true; return window.lfTops; }")
+    assert settle.bounding_box() == pressed
+    assert {round(top - pressed["y"], 1) for top in tops} == {0}, tops
 
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
@@ -718,7 +738,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
-    page.locator(".lf-fp-head .lf-fp-close").click()
+    page.locator(".lf-fp-controls .lf-fp-close").click()
     expect(title).to_have_count(0)
 
 
@@ -887,7 +907,7 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     """News arriving while the user writes in an open thread waits behind a notice on
     the view's head line, before its presses. It reads whole, and no press and nothing
     in the messages moves; no message head carries it. Pressing it shows what was
-    held."""
+    held, the view growing to show it."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -933,6 +953,14 @@ def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     notice.click()
     expect(view.locator(".lf-msg")).to_have_count(3)
     expect(notice).to_be_hidden()
+    settled(page)
+    assert view.locator(".lf-msg", has_text="The export job first").evaluate(
+        """message => {
+            const seen = message.closest('.lf-fp-view').getBoundingClientRect();
+            const box = message.getBoundingClientRect();
+            return box.top < seen.bottom && box.bottom > seen.top;
+        }"""
+    )
     expect(field(page)).to_have_js_property("value", "I think the export")
 
 
@@ -1231,10 +1259,10 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(
 
 def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     """Threads fits the rows it lists, growing from its top edge as the user turns to it
-    from On me, so the Threads tab just pressed, among the tabs at its foot, stays under
-    the pointer, and Close rises with the head line; a thread arriving after that moves
-    none of its rows, waiting behind a notice. A reply that arrives while its thread is
-    open waits behind the thread's notice."""
+    from On me, so the Threads tab just pressed and Close, among the controls at its
+    foot, stay under the pointer; a thread arriving after that moves none of its rows,
+    waiting behind a notice. A reply that arrives while its thread is open
+    waits behind the thread's notice."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -1267,8 +1295,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     assert shown["height"] > short["height"] + 40, (short, shown)
     assert shown["y"] + shown["height"] == short["y"] + short["height"]
     assert threads_tab.bounding_box() == before
-    rose = shown["height"] - short["height"]
-    assert close.bounding_box()["y"] == pytest.approx(closes["y"] - rose, abs=0.5)
+    assert close.bounding_box() == closes
     rows = inventory.locator(".lf-fp-thread")
     tops = "rows => rows.map(row => [row.dataset.key, row.getBoundingClientRect().top])"
     row_positions = rows.evaluate_all(tops)
@@ -1280,8 +1307,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(rows).to_have_count(4)
     assert rows.evaluate_all(tops) == row_positions
     assert threads_tab.bounding_box() == before
-    rose = shown["height"] - short["height"]
-    assert close.bounding_box()["y"] == pytest.approx(closes["y"] - rose, abs=0.5)
+    assert close.bounding_box() == closes
     joined.click()
     expect(rows).to_have_count(5)
     expect(rows.filter(has_text="Who watches the weekend?")).to_be_visible()
@@ -4358,9 +4384,10 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
-def test_a_view_s_close_ends_its_head_and_the_field_the_row(browser, serve):
-    """With a view open, its Close ends its head line and the field reaches the row's
-    end, at rest and widened alike."""
+def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
+    """With a view open, its Close ends its controls and the field reaches the row's
+    end, at rest and widened alike, so widening the field leaves Close beside the
+    controls."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -4369,7 +4396,7 @@ def test_a_view_s_close_ends_its_head_and_the_field_the_row(browser, serve):
     page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
     close = page.locator(".lf-fp-close")
     expect(close).to_have_count(1)
-    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
 
     def reaches_the_row_s_end():
         settled(page)
@@ -4382,10 +4409,10 @@ def test_a_view_s_close_ends_its_head_and_the_field_the_row(browser, serve):
 
     reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
-    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
-    expect(page.locator(".lf-fp-head .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     close.click()
     expect(page.locator(panel_view("threads"))).to_be_hidden()
 
@@ -4950,9 +4977,9 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     expect(child.locator(panel_view("threads"))).to_be_visible()
     resized(page, 390, 844)
     page.get_by_role("button", name="Full view", exact=True).click()
-    head = child.locator(".lf-fp-head")
+    controls = child.locator(".lf-fp-controls")
     close = child.get_by_role("button", name="Close", exact=True)
-    bounds = head.bounding_box()
+    bounds = controls.bounding_box()
     button = close.bounding_box()
     assert bounds["x"] <= button["x"]
     assert button["x"] + button["width"] <= bounds["x"] + bounds["width"]

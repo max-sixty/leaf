@@ -4795,6 +4795,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const unseen = !initial && errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
+		const closeAtFoot = viewControls !== nothing;
 		const quickHidden = initial || Boolean(top) && !exit || !exit && (search || writing || drafted);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
@@ -4830,7 +4831,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               data-thread=${thread ?? nothing}
               ?data-lf-thread-view=${thread !== null}
             >
-              ${top ? headTemplate(top) : nothing}${initial ? nothing : joinedTemplate()}${top ? viewClose : nothing}
+              ${top ? headTemplate(top) : nothing}${initial ? nothing : joinedTemplate()}${top && !closeAtFoot ? viewClose : nothing}
             </div>
             <div class="lf-fp-stage">
               ${initial ? nothing : repeat([leaving, top].filter(Boolean), routeKey, (route) => html`<div
@@ -4853,7 +4854,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               ?hidden=${viewControls === nothing}
               ?data-named=${top?.view === "queue"}
             >
-              ${viewControls}
+              ${viewControls}${closeAtFoot && !search ? viewClose : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -5570,9 +5571,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		opening.room = height;
 		return true;
 	};
-	const holdHead = () => {
+	head.addEventListener("click", (event) => {
+		const press = event.target instanceof Element ? event.target.closest("button") : null;
+		if (!press || press.closest(".lf-fp-news-outlet")) return;
 		if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
-	};
+	}, { capture: true });
 	const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 	const holding = (view) => Math.max(0, ...[...view.children].map((child) => contentTop(child, view) + child.getBoundingClientRect().height));
 	function pressAt(node) {
@@ -6941,14 +6944,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const aux = html`${opening.unreadSeat ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-next-unread")}
+              aria-label="Next unread"
               ?disabled=${!thread.unread.length}
               ?data-unoffered=${!thread.unread.length}
-              @click=${() => {
-			holdHead();
-			firstUnread(thread.key);
-		}}
+              @click=${() => void firstUnread(thread.key)}
             >
-              ${iconTemplate("down", "lf-action-icon")}Next unread
+              ${iconTemplate("down", "lf-action-icon")}<span class="lf-fp-words"
+                >Next unread</span
+              >
             </button>` : nothing}${opening.onPageSeat ? html`<button
               type="button"
               ${offeredAction("symbol", "lf-fp-on-page", inMessage ? "Show in message" : "Show on page", { action: "show" })}

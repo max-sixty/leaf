@@ -199,7 +199,7 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 # The floating panel's row ends in one seat: at rest the On me mark, which counts what
 # waits on the user and dots a thread with news; while a stance or search stands, its
 # way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
-# ends the view's head line instead.
+# ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
 

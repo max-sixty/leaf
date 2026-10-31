@@ -694,8 +694,9 @@
   .lf-fp-quick > .lf-fp-exit {
     width: var(--lf-fp-aim);
   }
-  /* A view's Close at its head line's end takes the face of the presses before it. */
-  .lf-fp-head > .lf-fp-chip {
+  /* A view's Close at the end of its head line or its tabs takes the face of the presses
+     before it. */
+  :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-chip {
     flex: none;
     justify-content: center;
     min-width: max(var(--lf-fp-press), var(--aim-floor));
@@ -881,7 +882,7 @@
     display: grid;
   }
 
-  /* ---------- an opened view: its name over it, its controls at its foot ---------- */
+  /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
      (geometry.js, `declareOccluder`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
@@ -896,10 +897,11 @@
     display: none;
   }
   /* The head line, over what the view holds: the way back, the name on the words'
-     edge, the view's presses, and its Close in the top-right corner, where it stands
-     in every view, a list's line holding it alone (floating-panel.js, **Opened**). The
-     way back is a ‹ alone at the line's start, and the name follows it. */
-  .lf-fp-head {
+     edge, a thread's presses, and the view's Close in the top-right corner
+     (floating-panel.js, **Opened**). The way back is a ‹ alone at the line's start, and
+     the name follows it. A list, whose name is the tab its foot shows, has no head line
+     where only a heading for assistive tech stands. */
+  .lf-fp-head:has(> :not(.lf-quiet)) {
     display: flex;
     align-items: center;
     gap: 2px;
@@ -985,11 +987,12 @@
     gap: 6px;
     margin-inline-end: 12px;
   }
-  /* What Threads holds while the user reads it stands on the head line beside its
-     Close, at the inset of the Resolved heading, so no row moves as it comes
-     (floating-panel.js, `threadsListing`). */
+  /* What Threads holds while the user reads it stands on a line over its rows, at the
+     inset of the Resolved heading. The line grows the box upward from the row it stands
+     on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
-    padding-inline-start: calc(14px + var(--lf-fp-inset));
+    min-height: 32px;
+    padding: 6px 6px 0 calc(14px + var(--lf-fp-inset));
   }
   .lf-fp-joined {
     display: flex;
@@ -998,10 +1001,9 @@
   .lf-fp-news-outlet {
     display: contents;
   }
-  /* The news qualifies the thread as its place does, so it takes the size of the
-     crumb's words. It stands on the crumb's baseline at the height of its words, a line
-     an em tall, so its arrival grows no line: the room a pointer aims at reaches above
-     and below them, as tall as a control's. */
+  /* The news qualifies the thread, so it takes the size of the head line's words. It
+     stands at the height of its words, a line an em tall, so its arrival grows no line.
+     The room a pointer aims at reaches above and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     align-self: auto;
@@ -1029,12 +1031,10 @@
   .lf-fp-controls[data-named] > .lf-fp-aux {
     margin-inline-start: auto;
   }
-  /* Filter strips share the available width with the crumb and fixed actions. Their
-     tabs scroll at full size when space runs out, keeping Search and Close reachable.
-     The tabs take turns in the controls row with a thread's controls, so they keep
-     their face under a finger too and reach the pointer's floor as the row's other
-     presses do: floor-tall tabs stood the row taller than the thread's controls that
-     replace them. The strip scrolls, which would clip a reach beyond its box, so it
+  /* Filter strips share the available width with the presses after them. Their tabs
+     scroll at full size when space runs out, keeping Search and Close reachable. The
+     tabs keep their face under a finger and reach the pointer's floor as the presses
+     beside them do. The strip scrolls, which would clip a reach beyond its box, so it
      keeps the reach's room inside its box and takes none in the row. */
   .lf-fp-filters {
     --lf-fp-tab: 26px;
@@ -1112,6 +1112,19 @@
   .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
+  }
+  /* On a phone the head line shares the panel's width between the thread's name and its
+     presses, so Next unread stands as its symbol alone, as a search's mode does, and the
+     name keeps its room. */
+  @media (max-width: 420px) {
+    .lf-fp-next-unread {
+      justify-content: center;
+      min-width: max(var(--lf-fp-press), var(--aim-floor));
+      padding: 0;
+    }
+    .lf-fp-next-unread > .lf-fp-words {
+      display: none;
+    }
   }
 
   /* The stage holds the view to its cap, and to what the box leaves it under a long

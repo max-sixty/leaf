@@ -81,9 +81,9 @@ representative desktop viewport.
 - **A box's controls stay put while the user works them.** A box holds the edge its
   controls stand on as its content changes, or holds its size while they act. A thread
   card holds its head's edge (`thread/card-anchor.js`). The floating panel stands on the
-  window's foot, so a list keeps its tabs at its foot, and a thread's view holds its
-  height while Resolve or Next unread, on its head line, acts (`floating-panel.js`,
-  **Opened**).
+  window's foot, so a list keeps its tabs and Close at its foot, and a thread's view
+  holds its height while a press on its head line acts, except news the user opens,
+  which grows the view to show it (`floating-panel.js`, **Opened**).
 - **Stability is owed to the common path.** Every hold costs code on each later
   change, so a rare path the user reads at a glance moves what is on screen rather
   than carry a mechanism of its own. Words a refused send hands back, and a draft typed

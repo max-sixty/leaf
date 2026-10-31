@@ -4951,11 +4951,12 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 
-def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
-    """The field growing a line moves the box's top edge up over the field's tween,
-    and what that line moved rides the edge rather than jumping ahead of it: the
-    tween's first frame shows the panel as it stood, attachment, words and the field's
-    ring included, and midway the attachment keeps its distance from the edge."""
+def test_a_line_the_field_gives_up_rides_the_box_s_top_edge(browser, serve):
+    """The field giving up a line moves the box's top edge down over the field's
+    tween, and what that line moved rides the edge rather than jumping ahead of it:
+    the tween's first frame shows the panel as it stood, attachment, words and the
+    field's ring included, and midway the attachment keeps its distance from the
+    edge."""
     from io import BytesIO
 
     from PIL import Image, ImageChops
@@ -4964,6 +4965,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()
     page.keyboard.type("A first line")
+    page.keyboard.press("Shift+Enter")
     paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
@@ -4992,7 +4994,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     }"""
     resting = page.evaluate(gaps)
     stood = Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
-    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Backspace")
     page.wait_for_function(
         "() => document.querySelector('.lf-fp-ground').getAnimations({subtree: true})"
         ".some(motion => motion.playState === 'running')"
@@ -5009,7 +5011,7 @@ def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
     assert page.evaluate(gaps) == resting
     page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
     settled(page)
-    assert page.locator(".lf-fp-card").bounding_box()["height"] > card["height"] + 15
+    assert page.locator(".lf-fp-card").bounding_box()["height"] < card["height"] - 15
     assert page.evaluate(gaps) == resting
 
 
@@ -5076,13 +5078,15 @@ def ink_rows(image):
     }
 
 
-def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
-    """A line removed carries the field's words down with the box's top edge, as a
-    line added carries them up, and the more-room mark rides that edge's corner, fading
-    in with the fourth line and out with it. The words used to jump to their place on
-    removal while the edge travelled, and the mark stood still while the rising edge
-    uncovered it. The tween's first frame shows the field's words where they stood, so
-    no line is cut off where the field's box no longer reaches."""
+def test_the_field_s_words_and_mark_keep_to_its_top_edge_both_ways(browser, serve):
+    """A line added raises the box's top edge in the frame the key lands, the field's
+    words and the more-room mark with it, as a textarea's would; a line removed carries
+    the words down with that edge over the tween, the mark riding its corner (box-
+    motion.js, "Whose change it is"). The mark fades in with the fourth line and out
+    with it. The words used to jump to their place on removal while the edge
+    travelled, and the mark stood still while the rising edge uncovered it. The
+    removal's first frame shows the field's words where they stood, so no line is cut
+    off where the field's box no longer reaches."""
     from io import BytesIO
 
     from PIL import Image
@@ -5100,33 +5104,50 @@ def test_the_field_s_words_and_mark_ride_its_top_edge_both_ways(browser, serve):
     settled(page)
     three = page.evaluate(BELOW_THE_EDGE)
     assert three["opacity"] == 0, three
-    for key, opacity in (("Shift+Enter", 1), ("Backspace", 0)):
-        hold_motion(page)
-        # The words inside the field's ring as it stood, short of Send.
-        box = page.locator(".lf-fp-field").bounding_box()
-        region = {
-            "x": box["x"] + 3,
-            "y": box["y"] + 3,
-            "width": box["width"] - 40,
-            "height": box["height"] - 6,
-        }
-        stood = picture(region)
-        page.keyboard.press(key)
-        held_motion(page)
-        page.evaluate(SEEK_HELD, 0)
-        assert ink_rows(picture(region)) == ink_rows(stood), key
-        for at in (0, 60, 150):
-            page.evaluate(SEEK_HELD, at)
-            drawn = page.evaluate(BELOW_THE_EDGE)
-            assert [drawn["words"], drawn["mark"]] == pytest.approx(
-                [three["words"], three["mark"]], abs=1
-            ), (key, at, drawn)
-        finish_held(page)
-        rest = page.evaluate(BELOW_THE_EDGE)
-        assert [rest["words"], rest["mark"]] == pytest.approx(
+    top = page.locator(".lf-fp-field").bounding_box()["y"]
+    hold_motion(page)
+    page.keyboard.press("Shift+Enter")
+    page.wait_for_function(
+        "top => document.querySelector('.lf-fp-field').getBoundingClientRect().top"
+        " < top - 10",
+        arg=top,
+    )
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    drawn = page.evaluate(BELOW_THE_EDGE)
+    assert not page.evaluate(
+        "() => __lfHeld.some(motion => motion.effect?.target?.matches?.('.lf-fp-ground'))"
+    )
+    assert [drawn["words"], drawn["mark"]] == pytest.approx(
+        [three["words"], three["mark"]], abs=1
+    ), drawn
+    finish_held(page)
+    assert page.evaluate(BELOW_THE_EDGE)["opacity"] == 1
+    hold_motion(page)
+    # The words inside the field's ring as it stood, short of Send.
+    box = page.locator(".lf-fp-field").bounding_box()
+    region = {
+        "x": box["x"] + 3,
+        "y": box["y"] + 3,
+        "width": box["width"] - 40,
+        "height": box["height"] - 6,
+    }
+    stood = picture(region)
+    page.keyboard.press("Backspace")
+    held_motion(page)
+    page.evaluate(SEEK_HELD, 0)
+    assert ink_rows(picture(region)) == ink_rows(stood)
+    for at in (0, 60, 150):
+        page.evaluate(SEEK_HELD, at)
+        drawn = page.evaluate(BELOW_THE_EDGE)
+        assert [drawn["words"], drawn["mark"]] == pytest.approx(
             [three["words"], three["mark"]], abs=1
-        ), rest
-        assert rest["opacity"] == opacity, (key, rest)
+        ), (at, drawn)
+    finish_held(page)
+    rest = page.evaluate(BELOW_THE_EDGE)
+    assert [rest["words"], rest["mark"]] == pytest.approx(
+        [three["words"], three["mark"]], abs=1
+    ), rest
+    assert rest["opacity"] == 0, rest
 
 
 def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, serve):

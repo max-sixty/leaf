@@ -22,7 +22,12 @@ const fraction = (value) => Math.round(value * 1e5) / 1e5;
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
  * run shares the one axis, scaled to the longest, and the one playhead, so a moment
  * lines up down all of them. A timeline holds either runs or bare lanes: a bare lane
- * beside runs would draw as part of the run above it, so it is reported. */
+ * beside runs would draw as part of the run above it, so it is reported.
+ *
+ * Compared runs live in one timeline rather than in separate timelines linked to a
+ * shared axis: one widget shares the axis and the playhead by construction, where
+ * linked widgets would need code to agree on an axis as each appeared or changed,
+ * and would each keep a playhead of their own. */
 export function timelineModel(host) {
   const problems = [];
   const runs = [];

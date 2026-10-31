@@ -746,13 +746,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-inline-start: 0;
     inset-block-start: calc(50% - 3px);
   }
-  /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
+  /* Each annotation carries its own gap from the word before it, so one cut to nothing
+     takes its gap too. The first, where a message under one of the same age drops its
+     time, carries none: the head's own gap parts it from the name, "Me · Queued". */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
-    padding-inline-start: var(--sp-2);
     flex-shrink: 1000000;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg-meta
+    > :not(.lf-msg-new)
+    ~ :not(time, .lf-msg-new) {
+    padding-inline-start: var(--sp-2);
   }
   /* The actions draw no ground: the transcript covers their track on the heads'
      line (above), with the ground of the message whose head holds it, tinted while

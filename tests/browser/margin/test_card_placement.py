@@ -274,6 +274,40 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
 
 
+# How far each head's first word after the name stands from it: the time, or where a
+# head has none, its first annotation's words.
+AFTER_NAME = """card => [...card.querySelectorAll('.lf-msg-head')].flatMap((head) => {
+  const first = head.querySelector('.lf-msg-meta > :not(.lf-msg-new)');
+  if (!first) return [];
+  const name = head.querySelector('b').getBoundingClientRect().right;
+  const words = first.getBoundingClientRect().left
+    + parseFloat(getComputedStyle(first).paddingInlineStart);
+  return [{first: first.localName, gap: words - name}];
+})"""
+
+
+def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(
+    browser, serve
+):
+    """A message as old as the one above it drops its time, and its first annotation
+    stands where the time would: one gap from the name, "Me · Queued", where it kept
+    the time's gap as well as its own, which read as a missing word."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    append_user_reply(serve.page_dir, root, "And the banner where it is too.")
+    page = open_page(browser, url)
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    expect(card.get_by_text("And the banner where it is too.")).to_be_visible()
+    rendered(page)
+    heads = card.evaluate(AFTER_NAME)
+    assert [head["first"] for head in heads] == ["time", "span"], heads
+    dated, undated = heads
+    assert abs(undated["gap"] - dated["gap"]) < 0.5, heads
+
+
 # Where a card's notice stands against the user's head beside it: the notice's start,
 # and the head's end, its Edit's symbol and its time's end.
 NEWS_BESIDE_HEAD = """([notice, head]) => {

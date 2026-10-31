@@ -98,7 +98,9 @@ the log, or a record another wrote outside it. A Leaf skips an event kind it doe
 know, so a new kind keeps the number where no earlier reading consults it, as `seen`
 feeds only the marks that came with it; its registry entry declares `skippable`. A new
 kind an earlier reading would miss, as one that sets an obligation aside would leave it
-owed, bumps. A change to the bundled widgets, their
+owed, bumps. So does a new optional field an older Leaf skips, or a new meaning for one
+it knows, where it changes what that Leaf reads as owed or decided; the build can't see
+that, so it is bumped by hand. A change to the bundled widgets, their
 registry entries, the theme or the public package API (`runtime/widget-api.js` and
 its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
 and an installed package's modules call that API across Leaf versions, and a bump

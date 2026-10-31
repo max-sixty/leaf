@@ -83,7 +83,9 @@ test("an event record, which a page sends and every Leaf reads, may change neith
   );
   assert.deepEqual(
     changed((s) => (s.events.kinds.other = s.events.kinds.note)),
-    refused("event other: an older Leaf or page reads a kind it doesn't know"),
+    refused(
+      "event other: an older Leaf skips a kind it doesn't know: declare it skippable if no reading that Leaf computes needs it, or bump",
+    ),
   );
   assert.deepEqual(
     changed(

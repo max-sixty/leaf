@@ -307,7 +307,10 @@ export function protocolBreaks(baseline, current) {
       // new kind that no earlier reading consults declares `skippable`.
       else if (!kinds[kind]) {
         if (!now[kind].skippable)
-          refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
+          refused.push([
+            where,
+            "an older Leaf skips a kind it doesn't know: declare it skippable if no reading that Leaf computes needs it, or bump",
+          ]);
       } else {
         compare(where, kinds[kind].record, now[kind].record, SENT, OLDER_READS);
       }

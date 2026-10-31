@@ -236,41 +236,9 @@ flowchart TD
               An agent proposes queue policies for an importer. A choice or comment the
               user sends is an <strong>update</strong>. A comment opens a
               <strong>thread</strong>, the conversation about its passage, widget, or
-              the page as a whole.
+              the page as a whole. To make this choice yourself, try the
+              <a href="#practice-caption">queue policy practice</a> in Workflow.
             </p>
-            <p id="practice-caption">
-              Choose a policy, then open <strong>Show activity</strong> below it to see
-              the recorded choice. Open the page’s leaf menu and choose
-              <strong>Undo</strong>; press <strong>Activity changed</strong> in the feed
-              to see the choice marked undone. This example uses the page’s activity log
-              and Undo; its queue policy is fictional.
-            </p>
-            <lf-sample
-              id="queue-example"
-              label="Practice: choose a queue policy"
-              interactive
-            >
-              <h2>Importer queue policy</h2>
-              <p id="queue-premise">
-                The importer receives bursts of records faster than it can process them.
-                Its queue has room for 1,000 records.
-              </p>
-              <lf-ask id="queue-question">
-                <h3>When the queue fills, what should happen?</h3>
-                <lf-options id="queue-policy" choose>
-                  <lf-option id="block-producer"
-                    ><strong>Pause the producer</strong> Keep every queued record; wait
-                    for space before accepting more.</lf-option
-                  >
-                  <lf-option id="drop-oldest"
-                    ><strong>Drop the oldest record</strong> Accept the newest record
-                    immediately; discard the oldest queued one.</lf-option
-                  >
-                </lf-options>
-              </lf-ask>
-              <h3>Recorded actions</h3>
-              <lf-activity id="queue-activity"></lf-activity>
-            </lf-sample>
             <ol class="steps" id="exchange-steps">
               <li id="exchange-author">
                 <strong>The agent prepares the page.</strong> It writes the
@@ -445,6 +413,39 @@ leaf server start ./review</code></pre>
                 supplies this JSON batch or an id to open with
                 <code>leaf delivery read</code>.
               </p>
+              <p id="practice-caption">
+                Choose a policy, then open <strong>Show activity</strong> below it to
+                see the recorded choice. Open the page’s leaf menu and choose
+                <strong>Undo</strong>; press <strong>Activity changed</strong> in the
+                feed to see the choice marked undone. This example uses the page’s
+                activity log and Undo; its queue policy is fictional.
+              </p>
+              <lf-sample
+                id="queue-example"
+                label="Practice: choose a queue policy"
+                interactive
+              >
+                <h2>Importer queue policy</h2>
+                <p id="queue-premise">
+                  The importer receives bursts of records faster than it can process
+                  them. Its queue has room for 1,000 records.
+                </p>
+                <lf-ask id="queue-question">
+                  <h3>When the queue fills, what should happen?</h3>
+                  <lf-options id="queue-policy" choose>
+                    <lf-option id="block-producer"
+                      ><strong>Pause the producer</strong> Keep every queued record;
+                      wait for space before accepting more.</lf-option
+                    >
+                    <lf-option id="drop-oldest"
+                      ><strong>Drop the oldest record</strong> Accept the newest record
+                      immediately; discard the oldest queued one.</lf-option
+                    >
+                  </lf-options>
+                </lf-ask>
+                <h3>Recorded actions</h3>
+                <lf-activity id="queue-activity"></lf-activity>
+              </lf-sample>
               <p id="answer-flow">
                 For a comment requesting a policy change, the agent follows the
                 delivery’s receipt instructions and first posts a progress message

@@ -54,7 +54,7 @@ import { threadDraft } from "../drafts.js";
 import { focused, onCurrentLocation } from "../focus.js";
 import { presented } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { replyAvailable, replyThreadKey } from "./replies.js";
+import { replyThreadKey } from "./replies.js";
 import { allThreads, threadIdNamed, threadNamed } from "./state.js";
 import { heldThread, threadIn } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
@@ -122,8 +122,7 @@ export function createThreadDestinations({
   };
   // Discussion identity precedes the view that realizes it: where no thread is shown,
   // the thread at the place the user was last in, else the first there, so a walk back
-  // to a place they let go of returns to the thread they left. Reply availability
-  // narrows an editable destination without erasing the user's current location thread.
+  // to a place they let go of returns to the thread they left.
   let lastIn = null;
   onCurrentLocation((node) => {
     lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
@@ -133,11 +132,6 @@ export function createThreadDestinations({
     if (here) return here;
     const ids = active ? threadIdsAt(active) : [];
     return (ids.includes(lastIn) ? lastIn : ids[0]) ?? null;
-  };
-  const replyThreadAtCurrentLocation = () => {
-    const id = threadAtCurrentLocation();
-    const thread = allThreads().find((candidate) => candidate.id === id);
-    return thread && replyAvailable(thread) ? id : null;
   };
   const addressedPart = (thread, id, part) => ({
     part,
@@ -494,7 +488,6 @@ export function createThreadDestinations({
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,
-    replyThreadAtCurrentLocation,
     threadTarget,
     threadPlace,
   };

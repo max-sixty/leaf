@@ -44,6 +44,10 @@ Events keep their stored fields and log order, and add:
 - `was`: on the user's rewrite of their own message, the words it replaced.
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
+- `unsent`: on the user's message or edit in a thread anchored in a widget or one that
+  sent it, the work they had made there without sending it, such as a playground's
+  settings, as it stood when they wrote. It is what the widget showed them; page state
+  may already hold later work.
 - `waiting`: on a widget action, your questions still waiting on the user in a thread
   about that widget, each its obligation `id` and the `text` that asked it. Its
   `handling` says how to settle the ones the action answers.

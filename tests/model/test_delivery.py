@@ -1324,3 +1324,110 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
         {"id": f"message:{about}", "text": "Try it before choosing."}
     ]
     assert any("`waiting`" in batch["handling"][clause] for clause in event["handling"])
+
+
+def test_a_message_on_a_playground_carries_the_settings_it_showed(
+    tmp_path, initialized_page
+):
+    """Unsent work wakes no one, so no batch carries a playground's settings, and the
+    agent answering "too round" needs the radius the preview showed, which current
+    state may already have moved past. Each message or edit about the widget carries,
+    as `unsent`, the work in force when the user wrote it: an undo before it takes a
+    setting back and one after it doesn't, a thread later moved to another
+    playground keeps what its earlier messages were about, a playground sent in a
+    thread counts for that thread, and a message elsewhere carries none."""
+    page_dir = initialized_page(tmp_path / "page", ("playground",))
+
+    def playground(ident, card):
+        return (
+            f'<lf-playground id="{ident}">'
+            '<lf-playground-control name="radius" label="Radius" kind="range" '
+            'value="8" max="20"></lf-playground-control>'
+            f'<lf-playground-preview><p id="{card}">Deployed.</p>'
+            "</lf-playground-preview>"
+            "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
+        )
+
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head><body><main>'
+        + playground("notify", "card")
+        + playground("other", "other-card")
+        + '<p id="aside">An aside.</p></main></body></html>'
+    )
+    publish(page_dir)
+
+    def user(event):
+        dated = {} if event["kind"] in {"undo", "edit"} else {"revision": 1}
+        return append_command(page_dir, {"author": "user", **dated, **event})
+
+    def tune(widget, radius):
+        return user(
+            {
+                "kind": "action",
+                "widget": widget,
+                "action": "tune",
+                "detail": {"values": {"radius": radius}},
+            }
+        )
+
+    round_ = tune("notify", 12)
+    user({"kind": "undo", "undoes": tune("notify", 4)["id"]})
+    # The submission the agent got already is sent work, so it isn't carried again.
+    submit = {"values": {"radius": 12}, "instruction": "Build it."}
+    user({"kind": "action", "widget": "notify", "action": "choose", "detail": submit})
+    comment = {"kind": "comment", "text": "Too round."}
+    opened = user({**comment, "anchor": {"section": "card"}})
+    sharper = tune("notify", 6)
+    reply = user({"kind": "reply", "parent": opened["id"], "text": "Now too sharp."})
+    user({"kind": "undo", "undoes": sharper["id"]})
+    moved = tune("other", 3)
+    agent = {"author": "agent", "agent": "Claude"}
+    append_command(
+        page_dir,
+        {
+            **agent,
+            "kind": "reply",
+            "revision": 1,
+            "parent": reply["id"],
+            "text": "Compare it with this one.",
+            "anchor": {"section": "other-card"},
+        },
+    )
+    edit = user({"kind": "edit", "message": reply["id"], "text": "Still too sharp."})
+    aside = user({**comment, "anchor": {"section": "aside"}})
+    asked = append_carried_log_record(
+        page_dir,
+        {
+            **agent,
+            "kind": "comment",
+            "revision": 1,
+            "text": "Try this one.",
+            "markup": playground("sent", "sent-card"),
+        },
+    )
+    sent = tune("sent", 2)
+    answered = user({"kind": "reply", "parent": asked["id"], "text": "Too sharp."})
+
+    def shown(inputs):
+        [batch] = freeze_events(page_dir, inputs)["batches"]
+        return {event["id"]: event.get("unsent") for event in batch["events"]}
+
+    fields = ("id", "seq", "author", "widget", "action", "detail")
+    on_page = {
+        opened["id"]: [{key: round_[key] for key in fields}],
+        reply["id"]: [{key: sharper[key] for key in fields}],
+        edit["id"]: [{key: moved[key] for key in fields}],
+        aside["id"]: None,
+    }
+    assert shown([opened, reply, edit, aside, answered]) == {
+        **on_page,
+        answered["id"]: [{key: sent[key] for key in fields}],
+    }
+    # The version the user wrote on says what its verbs recorded, so a later one
+    # redeclaring the verb leaves what the earlier messages were about.
+    declare_on_page(
+        page_dir,
+        lambda registry: registry["lf-playground"]["x-state"]["tune"].pop("unsent"),
+    )
+    publish(page_dir)
+    assert shown([opened, reply, edit, aside]) == on_page

@@ -583,7 +583,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
 
 
 def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
-    """A verb declaring `attention: false`, a playground's tune, is no update: before
+    """A verb declaring `unsent`, a playground's tune, is no update: before
     the submission and while the agent works on it, recording the settings asks for no
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(

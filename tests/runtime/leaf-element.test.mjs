@@ -635,6 +635,14 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   await settled(element);
   assert.deepEqual(drawn, ["**Fixed** <now>\n"]);
   element.remove();
+  // A module that makes one without a `<pre>` hosts the input itself.
+  const hosted = document.createElement(tag);
+  hosted.id = "hosted";
+  hosted.value = "set by its host";
+  document.body.append(hosted);
+  await settled(hosted);
+  assert.deepEqual(drawn.at(-1), "set by its host");
+  hosted.remove();
 });
 
 test("a move published just before the element leaves is drawn on its return", async () => {

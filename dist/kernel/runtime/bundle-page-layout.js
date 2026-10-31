@@ -7725,7 +7725,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			return true;
 		});
 		try {
-			if (registry[this.localName]?.["x-content"] === "data" && !this.#inputs.some(({ bound }) => bound)) for (const { property } of this.#inputs) this[property] = dataBody(this);
+			if (this.#writesInput()) for (const { property } of this.#inputs) this[property] = dataBody(this);
 			this.setup();
 		} catch (error) {
 			this.#broken = true;
@@ -7737,6 +7737,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 		});
 	}
 	setup() {}
+	#writesInput() {
+		const declaration = registry[this.localName];
+		return Boolean(declaration?.["x-content"] === "data" && this.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(this, input)));
+	}
 	get reading() {
 		return this.#controller?.read() ?? null;
 	}

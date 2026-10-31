@@ -3323,9 +3323,12 @@ export function createFloatingPanel({
     } else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
-      // two lines at most, so the user can answer here without Show. Rejected: the
-      // option's whole card, whose tags and picture let one choice fill a phone's
-      // screen, and its name alone, which left the user picking blind on a phone.
+      // two lines at most, so the user can answer here without Show, and whole on
+      // hover, as a version's note is. The words carry the tooltip rather than the
+      // press, whose name already holds them: a title there is read again as its
+      // description. Rejected: the option's whole card, whose tags and picture let one
+      // choice fill a phone's screen, and its name alone, which left the user picking
+      // blind on a phone.
       // The press that commits what the user composed, such as a group's Done, wears
       // the commit face its widget gives it, so it never reads as one more choice, and
       // what it does is its tooltip, as in the command reference.
@@ -3359,7 +3362,7 @@ export function createFloatingPanel({
                       : nothing
                   }${
                     choice.description
-                      ? html`<span class="lf-fp-choice-says"
+                      ? html`<span class="lf-fp-choice-says" title=${choice.description}
                           >${choice.description}</span
                         >`
                       : nothing

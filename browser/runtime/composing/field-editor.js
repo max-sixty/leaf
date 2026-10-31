@@ -230,6 +230,8 @@ function fieldEditor(
     EditorSelection,
     Prec,
     StateEffect,
+    StateField,
+    Facet,
     Compartment,
     WidgetType,
     Decoration,
@@ -707,18 +709,167 @@ function fieldEditor(
     { key: "ArrowDown", run: lineStep(true, false), shift: lineStep(true, true) },
   ];
 
+  // The draft as the renderer that will send it reads it (`read`), taken again when the
+  // words change or the renderer arrives. The preview, Shift+Enter and the joints below
+  // read it from the state, where CodeMirror takes a replacement across a line break.
+  const reading = StateField.define({
+    create: (state) => ({ placed: read(state), judged: markdownReady() }),
+    update(value, tr) {
+      const judged = markdownReady();
+      return tr.docChanged || judged !== value.judged
+        ? { placed: read(tr.state), judged }
+        : value;
+    },
+  });
+
+  // Whether a quote or list item, as the renderer reads it, holds a line. An item's
+  // reading takes in the blank lines after its blocks, but words typed on one stand
+  // outside it: it ends with its last block, or its last item's marker line.
+  const CONTAINERS = new Set(["blockquote_open", "list_item_open"]);
+  const holding = (placed, line) => {
+    const blocks = placed.filter(
+      ({ token }) => token.block && !token.type.endsWith("list_open"),
+    );
+    const end = (c) =>
+      c.token.type === "list_item_open"
+        ? Math.max(
+            ...blocks
+              .filter((b) => b.from >= c.from && b.to <= c.to)
+              .map((b) => (b.token.type === "list_item_open" ? b.from + 1 : b.to)),
+          )
+        : c.to;
+    return (c) => c.from <= line.from && line.from < end(c);
+  };
+  const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+  // Where the markers that open a line end.
+  const opened = (l, among) =>
+    Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+  // A line a container holds without its marker carries the quote's `>`, or the item's
+  // indent.
+  const carried = ({ token }) =>
+    token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+  const item = (c) => c?.token.type === "list_item_open";
+
+  // A field that edits a Markdown body in place (`field.joined()`; text-field.js,
+  // `facesOf`) reads its words as the body does, as a file (markdown.js,
+  // `paintMarkdown`), where a line break among a paragraph's words, in a code span or a
+  // link's destination as anywhere else, is a space, and only a hard break's is a line.
+  // Each such break, with the spaces ending its line and the next line's markers and
+  // indent, stands as one space the caret steps over, and deleting it joins the words, so
+  // a paragraph wrapped for a wider editor wraps to the field as it does in the body. It
+  // is never revealed, since revealing it would rewrap the paragraph under the caret.
+  const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+  const joint = Decoration.replace({ widget: new Spelled(" ") });
+  const jointsOf = (state) => {
+    if (!state.facet(joinsLines)) return Decoration.none;
+    const { placed } = state.field(reading);
+    const inline = placed.filter(({ token }) => !token.block);
+    const hard = inline.filter(({ token }) => token.type === "hardbreak");
+    const containers = placed.filter(({ token }) => CONTAINERS.has(token.type));
+    const breaks = new Set();
+    for (const { from, to } of inline) {
+      const text = state.sliceDoc(from, to);
+      for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1))
+        breaks.add(from + at);
+    }
+    const out = [];
+    for (const at of [...breaks].sort((a, b) => a - b)) {
+      if (hard.some(({ from, to }) => from <= at && at < to)) continue;
+      const line = state.doc.lineAt(at);
+      const next = state.doc.line(line.number + 1);
+      const words = opened(next, containers);
+      out.push(
+        joint.range(
+          at - line.text.match(/[ \t]*$/)[0].length,
+          words + state.sliceDoc(words, next.to).match(/^[ \t]*/)[0].length,
+        ),
+      );
+    }
+    return Decoration.set(out);
+  };
+  const joints = StateField.define({
+    create: jointsOf,
+    update: (set, tr) =>
+      tr.state.field(reading) === tr.startState.field(reading) &&
+      tr.state.facet(joinsLines) === tr.startState.facet(joinsLines)
+        ? set
+        : jointsOf(tr.state),
+    provide: (field) => [
+      EditorView.decorations.from(field),
+      EditorView.atomicRanges.of((view) => view.state.field(field)),
+    ],
+  });
+
+  // Return in a field that joins lines begins a line the body shows too, carrying the
+  // markers of the containers the caret's line stands in. Among a paragraph's words it
+  // writes a hard break, whose backslash the preview hides, in place of the spaces, and
+  // any joint, the selection touches. After a paragraph's last words, where a hard break
+  // would end its block and show its backslash, it begins a new paragraph, and in a list
+  // item the next item (`continueBlocks`). With none of a paragraph's words before the
+  // caret, in a container it continues the container as Shift+Enter does, leaving it on a
+  // bare line, and elsewhere, as after a heading, it is a plain line. Shift+Enter does
+  // the same here, since a line it continued in a container would join the paragraph
+  // above.
+  function newLine(view) {
+    const { state } = view;
+    if (!state.facet(joinsLines)) return insertNewline(view);
+    const { from, to } = state.selection.main;
+    const { placed } = state.field(reading);
+    const paragraph = placed.find(
+      ({ token, from: a, to: b }) =>
+        token.type === "paragraph_open" && a <= from && to <= b,
+    );
+    const words = paragraph
+      ? placed.filter(
+          ({ token, from: a, to: b }) =>
+            !token.block &&
+            token.type !== "softbreak" &&
+            a >= paragraph.from &&
+            b <= paragraph.to,
+        )
+      : [];
+    const before = words.some(({ from: a }) => a < from);
+    const after = words.some(({ to: b }) => b > to);
+    const line = state.doc.lineAt(from);
+    const holds = holding(placed, line);
+    const containers = placed.filter((c) => CONTAINERS.has(c.token.type) && holds(c));
+    const inner = containers.at(-1);
+    if (inner && (!before || (!after && item(inner))) && continueBlocks(view, true))
+      return true;
+    if (!before) return insertNewline(view);
+    const prefix = containers.map(carried).join("");
+    let spec;
+    if (after) {
+      let [a, b] = [from, to];
+      a -= state
+        .sliceDoc(Math.min(a, opened(line, containers)), a)
+        .match(/[ \t]*$/)[0].length;
+      b += state.sliceDoc(b, state.doc.lineAt(b).to).match(/^[ \t]*/)[0].length;
+      state.field(joints).between(a, b, (jointFrom, jointTo) => {
+        a = Math.min(a, jointFrom);
+        b = Math.max(b, jointTo);
+      });
+      const insert = `\\\n${prefix}`;
+      spec = {
+        changes: { from: a, to: b, insert },
+        selection: { anchor: a + insert.length },
+      };
+    } else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
+    view.dispatch(state.update(spec, { scrollIntoView: true, userEvent: "input" }));
+    return true;
+  }
+
   // The draft is read by the renderer that will send it, so the preview styles exactly what
-  // the message will: the same constructs, the same links. The reading is taken again when
-  // the words change and the styling when the selection moves. The renderer loads lazily;
-  // until it has, the words stand plain, and its arrival draws every open field.
+  // the message will: the same constructs, the same links. The styling is taken again when
+  // the reading changes and when the selection moves. The renderer loads lazily; until it
+  // has, the words stand plain, and its arrival draws every open field.
   const livePreview = ViewPlugin.fromClass(
     class {
       constructor(view) {
         this.live = true;
-        this.placed = read(view.state);
-        this.drawn = decorate(view.state, this.placed);
-        this.judged = markdownReady();
-        if (!this.judged)
+        this.read = view.state.field(reading);
+        this.drawn = decorate(view.state, this.read.placed);
+        if (!this.read.judged)
           loadMarkdown().then(
             () => this.live && view.dispatch({}),
             () => {},
@@ -728,12 +879,10 @@ function fieldEditor(
         this.live = false;
       }
       update(update) {
-        const judged = markdownReady();
-        if (update.docChanged || judged !== this.judged) {
-          this.judged = judged;
-          this.placed = read(update.state);
-        } else if (!update.selectionSet) return;
-        this.drawn = decorate(update.state, this.placed);
+        const read = update.state.field(reading);
+        if (read === this.read && !update.selectionSet) return;
+        this.read = read;
+        this.drawn = decorate(update.state, read.placed);
       }
     },
     {
@@ -756,7 +905,8 @@ function fieldEditor(
   // Shift+Enter in a quote or a list item begins a line in each container the caret's
   // line stands in, as the preview reads the draft (`livePreview`), which is how the
   // message will read it, a fence's code included: each quote's `>`, each item's indent,
-  // and on the line holding the innermost item's marker, the next item's marker. Pressed
+  // and on the line holding the innermost item's marker, or on any of its lines where
+  // `nextItem` asks (`newLine`), the next item's marker. Pressed
   // on a line holding nothing past its markers, outside code, it leaves the innermost
   // container. An item directly in another item outdents, as rich editors do: its line
   // becomes the next item of the list outside. Otherwise the line keeps what it holds
@@ -769,45 +919,23 @@ function fieldEditor(
   // CodeMirror's Markdown continuation (until October 2026), whose grammar, a second
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
-  const CONTAINERS = new Set(["blockquote_open", "list_item_open"]);
   const CHECKBOX = "[ ] ";
-  function continueBlocks(view) {
+  function continueBlocks(view, nextItem = false) {
     const { state } = view;
-    const placed = view.plugin(livePreview)?.placed ?? [];
+    const { placed } = state.field(reading);
     const { from, to } = state.selection.main;
     const line = state.doc.lineAt(from);
     const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-    // An item's reading takes in the blank lines after its blocks, but words typed on
-    // one stand outside it: it ends with its last block, or its last item's marker line.
-    const blocks = placed.filter(
-      ({ token }) => token.block && !token.type.endsWith("list_open"),
-    );
-    const end = (c) =>
-      c.token.type === "list_item_open"
-        ? Math.max(
-            ...blocks
-              .filter((b) => b.from >= c.from && b.to <= c.to)
-              .map((b) => (b.token.type === "list_item_open" ? b.from + 1 : b.to)),
-          )
-        : c.to;
-    const holding = (c) => c.from <= line.from && line.from < end(c);
-    const containers = all.filter(holding);
+    const holds = holding(placed, line);
+    const containers = all.filter(holds);
     if (!containers.length) return false;
-    const code = placed.some((c) => c.token.type === "fence" && holding(c));
-    const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
-    // Where the markers that open a line end: a line holding nothing past them is bare.
-    const opened = (l, among) =>
-      Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+    const code = placed.some((c) => c.token.type === "fence" && holds(c));
+    // A line holding nothing past its markers is bare.
     const bare = (l) => {
       const rest = state.sliceDoc(opened(l, all), l.to).trim();
       return !rest || `${rest} ` === CHECKBOX;
     };
     if (from < opened(line, containers)) return false;
-    // A line a container holds without its marker carries the quote's `>`, or the
-    // item's indent.
-    const carried = ({ token }) =>
-      token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
-    const item = (c) => c?.token.type === "list_item_open";
     const task = ({ token }) =>
       token.attrGet("class")?.split(" ").includes("task-list-item");
     const next = (c) =>
@@ -844,7 +972,9 @@ function fieldEditor(
             };
     } else {
       const marker =
-        item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
+        item(inner) && (nextItem || inner.from === line.from) && !code
+          ? next(inner)
+          : carried(inner);
       const insert = `\n${outside.map(carried).join("")}${marker}`;
       change = { from, to, insert };
     }
@@ -871,7 +1001,8 @@ function fieldEditor(
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
-   * line, `field.revealed(view, pos)` shows the row holding `pos` in the field's
+   * line, `field.joined()` whether it joins a paragraph's lines (`joints`),
+   * `field.revealed(view, pos)` shows the row holding `pos` in the field's
    * host, and `field.focused()` hears the editor take or lose focus. */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
@@ -957,8 +1088,12 @@ function fieldEditor(
         keymap.of([
           // A one-line field takes no line break (`field.oneLine`).
           { key: "Shift-Enter", run: () => field.oneLine() },
-          { key: "Enter", run: (view) => field.returned() && insertNewline(view) },
-          { key: "Shift-Enter", run: continueBlocks },
+          { key: "Enter", run: (view) => field.returned() && newLine(view) },
+          {
+            key: "Shift-Enter",
+            run: (view) => view.state.facet(joinsLines) && newLine(view),
+          },
+          { key: "Shift-Enter", run: (view) => continueBlocks(view) },
           // Outside a list or quote, a plain new line, which asks to be seen as typing
           // does, so a field at its height limit scrolls to it.
           {
@@ -978,6 +1113,9 @@ function fieldEditor(
           ),
           ...historyKeymap,
         ]),
+        reading,
+        joinsLines.of(field.joined()),
+        joints,
         livePreview,
         EditorView.lineWrapping,
         editable.of(EditorState.readOnly.of(field.readOnly)),

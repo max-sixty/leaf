@@ -261,7 +261,8 @@ DRAFT_AS_DRAWN = """(draft, words) => {
       found[word] = at(range);
     }
   }
-  found.picture = at(root.querySelector('img:not(.cm-widgetBuffer)'));
+  const picture = root.querySelector('img:not(.cm-widgetBuffer)');
+  if (picture) found.picture = at(picture);
   found.height = Math.round(box.height);
   return found;
 }"""
@@ -354,6 +355,51 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     assert len(pictures) == 1 and pictures[0][0] and pictures[0][1] == "Room layout", (
         pictures
     )
+
+
+# Wrapped for an editor wider than the draft, as a passage copied from a hard-wrapped
+# file is: a paragraph, a list item and a quote, each across two source lines.
+WRAPPED = """A paragraph a file wraps for a wider editor than this box reads here as one, its line
+alpha break a space, so each word after one stands where the prose puts it, in `a code
+delta span` too.
+
+- An item wrapped the same way keeps its words in the item's column after its line
+  bravo break, and its marker where the list draws it.
+
+> A quoted passage wrapped across two of its source lines joins as well, the quote's
+> charlie marker hidden with the break before it."""
+
+
+def test_a_wrapped_draft_reads_and_edits_as_one_paragraph(browser, serve):
+    """A draft drew a line break at each of its source's, so one wrapped for a wider
+    editor showed a short line after each long one. It reads as a Markdown file now,
+    a line break inside a paragraph a space, and its editor joins those lines too, so
+    each word stays where the prose showed it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Wrapped draft",
+                f'<h1>Wrapped draft</h1><lf-draft id="wrapped"><pre>{WRAPPED}</pre></lf-draft>',
+            )
+        ),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
+    draft = page.locator("#wrapped")
+    expect(draft.locator(".lf-draft-body blockquote")).to_be_visible()
+    expect(draft.locator(".lf-draft-body br")).to_have_count(0)
+    words = ["alpha", "stands", "delta", "bravo", "marker", "charlie", "hidden"]
+    shown = draft.evaluate(DRAFT_AS_DRAWN, words)
+    draft_control(page, "edit", "wrapped").click()
+    expect(draft.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    editing = draft.evaluate(DRAFT_AS_DRAWN, words)
+    for word in words:
+        assert editing[word] == pytest.approx(shown[word], abs=1), (
+            word,
+            shown,
+            editing,
+        )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -865,12 +911,15 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     editor = draft.locator("leaf-text")
     write(editor, "First **paragraph**.")
     editor.press("End")
-    editor.press("Enter")
-    expect(editor).to_have_js_property("value", "First **paragraph**.\n")
+    # After a paragraph's last words, Return begins a new paragraph.
     editor.press("Enter")
     expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
-    exact = "First **paragraph**.\n\nSecond `paragraph`."
+    # Between its words, Return writes a hard break in place of the space, which the
+    # draft shows as a line.
+    editor.evaluate("field => field.setSelectionRange(29, 29)")
+    editor.press("Enter")
+    exact = "First **paragraph**.\n\nSecond\\\n`paragraph`."
     expect(editor).to_have_js_property("value", exact)
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
@@ -879,6 +928,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
         editor.press("ControlOrMeta+Enter")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
+    expect(draft.locator(".lf-draft-body > p br")).to_have_count(1)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")
     expect(draft.locator(".lf-draft-body code")).to_have_text("paragraph")
     edits = [

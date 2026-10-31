@@ -1501,14 +1501,13 @@ SHOWN_WORDS = """root => {
 
 def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
     """A draft shows the characters its message shows, where the message shows them.
-    The preview left as source a rule, which the message draws as a line no taller than
-    its stroke, an entity, which it shows as the character named, a break's backslash
-    and the spaces leading a paragraph or a quoted line, which it drops, and a task
-    item's brackets, which it draws as a disabled checkbox. A rule in a list item kept
-    the height of the item's line, and code drew a tab four columns wide where the
-    message draws it eight. A press on a task's box puts the caret in its brackets,
-    which then show, as a press on any drawn source does: in Chromium the disabled box
-    took the press, and nothing happened."""
+    The preview left as source a rule, which the message draws as a stroke through a
+    line, an entity, which it shows as the character named, a break's backslash and
+    the spaces leading a paragraph or a quoted line, which it drops, and a task item's
+    brackets, which it draws as a disabled checkbox. Code drew a tab four columns wide
+    where the message draws it eight. A press on a task's box puts the caret in its
+    brackets, which then show, as a press on any drawn source does: in Chromium the
+    disabled box took the press, and nothing happened."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, SPELLED, {"section": "p0"})
     page = open_page(browser, url, init_script=KEEP_ROOTS)
@@ -1557,25 +1556,49 @@ def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
     assert brackets <= pressed[0] <= brackets + 3 and pressed[1] == 1, pressed
 
 
+# The field's height and the top of each of its lines in it, once they hold still,
+# which revealing a line's source leaves where they stood. The caret's reveal can carry
+# them a fraction of a pixel; a scroll bringing the caret into view carries the field
+# with them, and the field carries its words to where its growth puts them.
+STILL = """async box => {
+  const read = () => {
+    const { top, height } = box.getBoundingClientRect();
+    return JSON.stringify([height, ...[...window.__lfRoots.get(box)
+      .querySelectorAll('.cm-line')].map(line => line.getBoundingClientRect().top - top)]);
+  };
+  for (let last = read(); ; ) {
+    await new Promise((done) => setTimeout(done, 100));
+    const now = read();
+    if (now === last) return JSON.parse(now);
+    last = now;
+  }
+}"""
+
+
 # Rules between paragraphs, with and without blank lines around them.
 @pytest.mark.parametrize(
     "source", ["P\n\n---\n\nQ", "P\n***\nQ"], ids=["apart", "close"]
 )
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
-    """Up and Down step onto a rule's line, which then shows its source. The rule's line
-    is a stroke's height while the caret is away, shorter than CodeMirror's vertical
-    motion aims past, so the arrows skipped it."""
+    """Up and Down step onto a rule's line, which then shows its source on that line,
+    and nothing moves. The rule's line was a stroke's height while the caret was away,
+    and grew to a line's height as its source showed, growing the field and moving
+    every line below it."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
     field = page_comment(page)
     write(field, source)
+    rendered(page)
+    still = field.evaluate(STILL)
     rule = next(at for at in range(len(source)) if source[at] in "-*")
     landed = []
     for key in ["ArrowUp"] * source[rule:].count("\n") + ["ArrowUp", "ArrowDown"]:
         page.keyboard.press(key)
         landed.append(field.evaluate("box => box.selectionStart"))
+        rendered(page)
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
     on_rule = [rule <= at <= rule + 3 for at in landed]
     # Up from the last line reaches the rule, Up leaves it, Down comes back.
     assert on_rule[-3:] == [True, False, True], landed
@@ -1611,7 +1634,9 @@ def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, se
     the column it set out from as each line allows, as CodeMirror's own motion does.
     The step onto a short line placed the caret by the character column it carried,
     which a blank line resets to 0, on every short line, and code lines, a pixel
-    shorter than prose, counted as short."""
+    shorter than prose, counted as short. A fence's line shows its source, and nothing
+    moves: it stood for the code box's padding while the caret was away and grew to a
+    code line as the caret arrived, growing the field and moving every line."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )
@@ -1627,11 +1652,15 @@ def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, se
     page.keyboard.press("ArrowRight" if column == 0 else "ArrowLeft")
     page.keyboard.press("ArrowLeft" if column == 0 else "ArrowRight")
     *_, goal = field.evaluate(CARET_X)
+    rendered(page)
+    still = field.evaluate(STILL)
     lines = source.split("\n")
     landed = []
     for _ in range(len(lines) - 1):
         page.keyboard.press("ArrowUp")
         landed.append(field.evaluate(CARET_X))
+        rendered(page)
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
     assert [line for line, _, _ in landed] == list(range(len(lines) - 2, -1, -1))
     for (line, at, x), text in zip(landed, reversed(lines[:-1]), strict=True):
         if column == 0:

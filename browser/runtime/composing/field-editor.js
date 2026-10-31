@@ -125,8 +125,6 @@ export function readFaces(field, display) {
     `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`,
     `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
     `.lf-face-gap-above { padding-block-start: ${GAP} }`,
-    `.lf-face-fence-open { line-height: ${pre.padStart}px }`,
-    `.lf-face-fence-close { line-height: ${pre.padEnd}px }`,
     `.lf-face-code { padding-inline: ${pre.inset} }`,
     `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`,
     `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
@@ -141,10 +139,9 @@ export function readFaces(field, display) {
 
 // Each outermost block's lines name its face, and the lines between two blocks the gap
 // the display leaves there: the blank lines that part them in the source, or the
-// second's first line where none do. A field that edits in place has rules for the
-// names (`readFaces`); elsewhere only a fence's do. A quote's and an item's insets are
-// their boxes' (`decorate`). A code fence's lines stand for its block's padding while
-// the caret is away, and an item after the first in a list stands its gap above it.
+// second's first line where none do. Only a field that edits in place has rules for the
+// names (`readFaces`). A quote's and an item's insets are their boxes' (`decorate`). An
+// item after the first in a list stands its gap above it.
 // The display trims the outer margins of its first and last blocks, so the field
 // leaves none there, but a list's first and last items keep theirs.
 const blockTag = (token) => (token.type === "fence" ? "pre" : token.tag);
@@ -163,32 +160,20 @@ function standBlocks(state, blocks, out, line) {
     const share = runs > 1 ? ` lf-face-share-${Math.min(runs, 3)}` : "";
     lines(from, to, (each) => named(each.from, `lf-face-gap${share} ${gap}`));
   };
-  const lineTouched = (at) => {
-    const { from, to } = state.doc.lineAt(at);
-    return touches(state, from, to);
-  };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
   const before = [];
   const open = [];
   let item = null;
   const blank = (at) => /^[\s>]*$/.test(state.doc.lineAt(at).text);
-  for (const { token, from, to, markers } of blocks) {
+  for (const { token, from, to } of blocks) {
     if (!token.block) continue;
     const tag = blockTag(token);
     // A heading and a fence wear their faces wherever they stand.
-    if (token.type === "heading_open") {
+    if (token.type === "heading_open")
       lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
-    } else if (token.type === "fence") {
+    else if (token.type === "fence")
       lines(from, to, (each) => named(each.from, "lf-face-code"));
-      const opener = state.doc.lineAt(from).number;
-      for (const [at] of markers) {
-        const fence = state.doc.lineAt(at);
-        if (lineTouched(at)) continue;
-        const side = fence.number === opener ? "open" : "close";
-        named(fence.from, `lf-face-fence-${side}`);
-      }
-    }
     while (open.at(-1)?.to <= from) before.length = open.pop().level + 1;
     const within = open.at(-1)?.type;
     if (token.type === "list_item_open" && within !== "list_item_open") {
@@ -422,8 +407,8 @@ function fieldEditor(
     const boxes = [];
     // The ends of the lists open at the token being read, the lines whose leading
     // spaces the message drops, by the level of the block they lead, the blocks whose
-    // lines draw their own leading spaces (code, by its reading, and a rule the caret is
-    // away from, unseen), the containers' markers, and the containers.
+    // lines draw their own leading spaces (code, by its reading, and a rule), the
+    // containers' markers, and the containers.
     const lists = [];
     const leads = [];
     const whole = [];
@@ -514,25 +499,23 @@ function fieldEditor(
         });
         for (const [a, b] of markers) add(a, b, syntax);
       } else if (token.type === "hr") {
-        // A rule, while the caret is away from its line, is the line the message
-        // draws, its source and leading spaces unseen on a line no taller than the
-        // rule: a hidden range would hold the line at a line's height. With the caret
-        // on it, its source at a line's height.
+        // A rule is the line the message draws, its source on it, unseen while the
+        // caret is away from it, and the spaces leading it hidden, as below.
         const rule = state.doc.lineAt(from);
+        whole.push([rule.from, rule.to + 1]);
+        out.push(line("lf-md-rule").range(rule.from));
         const start = after(rule.from, token.level);
-        if (touches(state, rule.from, rule.to)) add(start, rule.to, dim);
-        else {
-          whole.push([rule.from, rule.to + 1]);
-          out.push(line("lf-md-rule").range(rule.from));
-          add(start, rule.to, unseen);
-        }
+        const marks =
+          start + state.doc.sliceString(start, rule.to).match(/^[ \t]*/)[0].length;
+        add(start, marks, hide);
+        add(marks, rule.to, touches(state, rule.from, rule.to) ? dim : unseen);
       } else if (token.type === "fence") {
         whole.push([from, to]);
         // Each line of code keeps the indent the parser's reading of it keeps; the rest,
         // a list item's indent after its containers' markers, the message drops. The code's reading ends each line it holds with a
         // break, except a last line the draft's end ends, and holds none for a fence
-        // with no code. An end no fence line stands for (`standBlocks`) takes the
-        // padding on the code's own line.
+        // with no code. An end no fence line stands for takes the padding on the
+        // code's own line.
         const body = token.content.split("\n");
         if (body.at(-1) === "") body.pop();
         const opened = state.doc.lineAt(from).number + 1;
@@ -551,8 +534,8 @@ function fieldEditor(
           const lead = state.doc.sliceString(start, each.to).match(/^[ \t]*/)[0].length;
           add(start, start + lead - kept.match(/^[ \t]*/)[0].length, hide);
         });
-        // A fence's lines stand for the message's code padding (`standBlocks`), and each
-        // shows its marks, at a line's height, while the caret is on it.
+        // A fence's lines stand for the message's code padding, and each shows its
+        // marks while the caret is on it.
         for (const [a, b] of markers ?? []) {
           const fence = state.doc.lineAt(a);
           add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
@@ -682,11 +665,12 @@ function fieldEditor(
 
   // Up and Down step to the next line, however short the preview draws it. CodeMirror's
   // vertical motion aims half a line of text past the caret's line, so it passes over a
-  // line shorter than that, as a rule's is while the caret is away. Where its step
+  // line shorter than that, as a blank line is where several share the gap a field
+  // that edits in place stands between two blocks (`standBlocks`). Where its step
   // passes over the line beside the caret's, the caret goes to that line instead, at
-  // the goal column CodeMirror aimed for, found in its own map of line heights, and
-  // the line then shows at its height. Without Shift, a selection collapses to its end
-  // that way, as CodeMirror's own step does.
+  // the goal column CodeMirror aimed for, found in its own map of line heights.
+  // Without Shift, a selection collapses to its end that way, as CodeMirror's own step
+  // does.
   const lineStep = (forward, extend) => (view) => {
     const { selection, doc } = view.state;
     const moved = EditorSelection.create(

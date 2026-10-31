@@ -356,6 +356,36 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
+    """Up from a draft's last line visits every line on the way to its first. Blank
+    lines that share the gap the prose leaves between two blocks each stand shorter
+    than CodeMirror's vertical motion aims past, so the arrows skipped them."""
+    source = "Alpha\n\nBravo\n\n\nCharlie\n\n\n\nDelta"
+    url = serve(
+        leaf_page(
+            "Draft gaps",
+            f'<h1>Draft gaps</h1><lf-draft id="gaps"><pre>{source}</pre></lf-draft>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    draft_control(page, "edit", "gaps").click()
+    field = page.locator("#gaps leaf-text")
+    expect(field).to_be_focused()
+    rendered(page)
+    page.keyboard.press("ControlOrMeta+End")
+    last = source.count("\n")
+    visited = []
+    for _ in range(last):
+        page.keyboard.press("ArrowUp")
+        visited.append(
+            field.evaluate(
+                "f => f.value.slice(0, f.selectionStart).split('\\n').length - 1"
+            )
+        )
+    assert visited == list(range(last - 1, -1, -1))
+
+
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
     """Formatted reading retains exact Markdown through caret placement and editing, at
     a phone's width, where the formatted words wrap most."""

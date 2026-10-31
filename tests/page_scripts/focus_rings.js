@@ -374,6 +374,7 @@
       };
       const mid = (x, y) => (x + y) / 2;
       const covers = [];
+      const coverPoints = [];
       // Whether this reading has an order to read at all. It works by hit-testing the ring's
       // own pixels and taking whatever comes back as standing over them — but an outline is
       // painted by its control, at its control's level, and an outline's pixels are not
@@ -635,6 +636,7 @@
             const covering = stack.indexOf(over);
             if (control >= 0 && covering >= 0 && control < covering) break;
           }
+          coverPoints.push({ index: covers.length, point: [x, y] });
           covers.push(
             `its ${side} edge is under ` +
               named(over) +
@@ -663,7 +665,9 @@
       const runs = [];
       let opacity = 1;
       for (let a = el; a; a = flatParent(a)) opacity *= +getComputedStyle(a).opacity;
-      if (here && opacity === 1 && scale === 1 && el.getClientRects().length === 1) {
+      const readable =
+        here && opacity === 1 && scale === 1 && el.getClientRects().length === 1;
+      if (readable) {
         const radius = Math.max(
           ...["TopLeft", "TopRight", "BottomLeft", "BottomRight"].map(
             (corner) => parseFloat(cs[`border${corner}Radius`]) || 0,
@@ -705,6 +709,9 @@
         ink: srgb(outlined ? cs.outlineColor : accent),
         ringAt: at(ring),
         runs,
+        // A hit names a candidate cover, not outline paint. Confirm it in pixels
+        // where the ring has an unscaled, opaque colour the screenshot can read.
+        coverPoints: readable ? coverPoints : [],
         here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,

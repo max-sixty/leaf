@@ -786,6 +786,7 @@ def card_after_interjection(page: Page) -> None:
         for event in batch["events"]
         if event["id"] == sent
     )
+    served.leaf("delivery", "ack", delivery["id"])
     served.leaf(
         "thread",
         "reply",

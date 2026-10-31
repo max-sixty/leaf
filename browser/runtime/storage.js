@@ -27,8 +27,9 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // every tab shows one live copy of it (see the draft section below). An edit to a bound
 // file is not one: the file on disk is what tabs share, so its buffer is working state.
 // `userStore` is this user's lasting preference across pages, which is the chrome
-// they arrange and expect to find arranged. Anything two tabs must *agree* about, or the
-// agent must read, is none of the three: it goes in the log. That includes what the user
+// they arrange and expect to find arranged. The stores reach this tab or this browser.
+// What another browser or the agent must read is none of the three: it goes in the log,
+// which every tab already follows. That includes what the user
 // makes before sending it, such as a playground's settings. The user will submit them,
 // Undo steps them back, and a comment on the preview is about them, so the playground
 // records them with a verb that asks the agent for nothing (`$state.attention: false`).

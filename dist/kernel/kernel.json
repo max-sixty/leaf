@@ -203,7 +203,7 @@
     "runtime/shown-box.js": "36b9acf37007acc6f91724da7a6e79df9f1711d56d08362644c63027743199a9",
     "runtime/state-application.js": "61e6e555a6ace7fbe162910cd6146c946084208c9ffbdc4e45342d6da4550179",
     "runtime/state-feed.js": "7abbf58f9038f7c2ddea2d509a6df65b4ba2f5f2bc7735f236e8b3d843a484e9",
-    "runtime/storage.js": "49d1d95cf57f06ba9c9a160ac89715a9cfb6b7856e6c21da7f2fd822cc483d7f",
+    "runtime/storage.js": "bcc642a6bd608885612f2f789dac87d40a7b8247e6a32003f4d8b72aa3ef0e4d",
     "runtime/stylesheets.js": "f5085b1ff74ca8564f2ef87768d2b6a9230d82b456fede3faa2e151109ea9e4d",
     "runtime/syntax-languages.js": "6e7cc627a26503aa0498bfb148abfd32ab934fe785eadbff759ea07551186787",
     "runtime/syntax-tokens.js": "782ec3e7e09d083e355d5e60afff0a13aaddcc106c8b6b88d6ab43805936ceec",

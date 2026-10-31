@@ -5897,7 +5897,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const keyboard = all.find((entry) => entry.key === "keyboard");
 		const fold = all.find((entry) => entry.key === `command:${FOLD}`);
 		const groups = Object.keys(GROUPS).filter((group) => all.some((entry) => groupOf(entry) === group && listed(entry)));
-		const { tone, summaryParts, adds, addsParts, publication } = status();
+		const { summaryParts, adds, addsParts, publication } = status();
 		const said = adds ? statusParts(addsParts) : "";
 		const explains = publication ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${publication.examplesUrl ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
                   >${publication.examples}</a
@@ -5957,12 +5957,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		];
 		const now = new Map(offered.map((row) => [row.key, row]));
 		seats = held?.seats ?? offered;
-		return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+		return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
@@ -5981,7 +5976,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </div>` : nothing}
       <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-              ${menuItem(html`<span class="lf-fp-version-name">${entry.name}</span>${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
+              ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
 			title: entry.note,
 			current: entry.current
 		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
@@ -6604,7 +6599,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           aria-pressed=${String(choice.chosen)}
           @click=${press}
         >
-          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says"
+          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says" title=${choice.description}
                           >${choice.description}</span
                         >` : nothing}` : capital(choice.label)}
         </button>`;

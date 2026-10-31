@@ -2317,11 +2317,11 @@ export function createFloatingPanel({
           (entry) =>
             html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
               ${menuItem(
-                html`<span class="lf-fp-version-name">${entry.name}</span>${
-                    entry.note
-                      ? html`<span class="lf-fp-note">${entry.note}</span>`
-                      : nothing
-                  }`,
+                html`${entry.name}${
+                  entry.note
+                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    : nothing
+                }`,
                 nothing,
                 () => showVersion(entry),
                 { title: entry.note, current: entry.current },

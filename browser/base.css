@@ -774,7 +774,8 @@ html:not([data-lf-live]) {
  * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
  * else a frame does (withholding the page's room, layouts.css) reads `1`.
  * `--lf-block-frame` inherits, so the reset inside holds the claim to the box's own
- * children; a nested frame outranks the reset by being a selector rather than `*`.
+ * children; a nested frame outranks the reset, which is `*` in the lowest layer of its
+ * tier (reading.css).
  *
  * Which child is at the edge is a question about the page's own blocks, and `:first-child`
  * is the DOM's answer to it. The two are the same only where no module has written
@@ -957,7 +958,8 @@ body {
  * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
  * these declarations outrank every later layer and every unlayered stylesheet
  * declaration without reserving a named layer custom CSS could append to. What ranks
- * higher is what comes earlier: lf-reset, which states nothing important; Web
+ * higher is what comes earlier: lf-reset and markup's reading face
+ * (lf-base.lf-reading-face, reading.css), which state nothing important; Web
  * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
  * important rule hides its own page frame's desktop or mobile parts; and inline
  * importance.

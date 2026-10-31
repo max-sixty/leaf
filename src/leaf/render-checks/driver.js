@@ -9,18 +9,43 @@
   if (globalThis.__leafRenderDriver) return;
 
   let loading = null;
-  // The platform records visible movement from parsing through the first settled
-  // presentation. Later interactive checks have their own gesture observations.
+  // Startup and passive checks observe separate windows through the same lifecycle.
+  // Read entries when delivered: a source node may disappear before a window ends.
+  const observeLayoutShifts = (collect, buffered = false) => {
+    const rect = ({ x, y, width, height }) => ({ x, y, width, height });
+    const read = (entries) =>
+      collect(
+        entries
+          .filter((entry) => !entry.hadRecentInput)
+          .map((entry) => ({
+            startTime: entry.startTime,
+            value: entry.value,
+            sources: entry.sources.map((source) => {
+              const node = source.node;
+              return {
+                node: node instanceof Element ? node : (node?.parentElement ?? null),
+                before: rect(source.previousRect),
+                after: rect(source.currentRect),
+              };
+            }),
+          })),
+      );
+    const observer = new PerformanceObserver((list) => read(list.getEntries()));
+    if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+      observer.observe({ type: "layout-shift", buffered });
+    return () => {
+      read(observer.takeRecords());
+      observer.disconnect();
+    };
+  };
   const startupShifts = [];
-  const shiftObserver = new PerformanceObserver((list) => {
-    startupShifts.push(...list.getEntries());
-  });
-  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
-    shiftObserver.observe({ type: "layout-shift", buffered: true });
+  const endStartupShifts = observeLayoutShifts(
+    (entries) => startupShifts.push(...entries),
+    true,
+  );
   const startupLayoutShifts = () => {
-    startupShifts.push(...shiftObserver.takeRecords());
-    shiftObserver.disconnect();
-    return startupShifts.filter((entry) => !entry.hadRecentInput);
+    endStartupShifts();
+    return startupShifts;
   };
 
   // The probe module is served beside the page's Leaf entry, so a page served under a
@@ -123,6 +148,7 @@
     requestFrame,
     framePresented,
     renderingState,
+    observeLayoutShifts,
     startupLayoutShifts,
     captureFirstBoxes,
     firstBoxes: () => firstBoxes,

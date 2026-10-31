@@ -931,10 +931,19 @@
   .lf-fp-head > .lf-fp-facts ~ .lf-fp-close {
     margin-inline-start: 0;
   }
-  /* A list's tabs stand on the row, which their growing view never moves, set off from
-     what the view holds by a hairline inset as far as the words. Their reach stops
-     short of the row's own presses' (`--lf-reach-room`), so a press between the two
-     lands on the one the user is nearer. */
+  /* A hairline inset as far as the words sets what an open view holds off from the line
+     under it: a list's tabs, or the row, under a view with no tabs, such as a thread
+     over its reply. */
+  .lf-fp-controls,
+  .lf-floating-panel[data-open]
+    .lf-fp-opened:has(> .lf-fp-controls[hidden])
+    + .lf-fp-row {
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
+  }
+  /* A list's tabs stand on the row, which their growing view never moves. Their reach
+     stops short of the row's own presses' (`--lf-reach-room`), so a press between the
+     two lands on the one the user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
@@ -942,8 +951,6 @@
     min-height: 40px;
     padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
   .lf-fp-crumb {
     flex: 1 1 auto;

@@ -26,14 +26,13 @@ export function startPassiveLayoutShifts() {
     for (const entry of entries) {
       for (const source of entry.sources) {
         const node = source.node;
-        if (node && !node.closest("body > main")) continue;
-        if (node?.closest(".lf-chrome, .lf-ui")) continue;
+        if (!node?.closest("body > main")) continue;
+        if (node.closest(".lf-chrome, .lf-ui")) continue;
         // One example per moved node; repeated autoplay ticks need no repeated
-        // finding. An anonymous source has no identity by which to deduplicate it.
-        const key = node ?? source;
-        if (!moved.has(key)) {
+        // finding. Anonymous sources remain in startup evidence, not per-node advice.
+        if (!moved.has(node)) {
           const reading = sourceReading(source);
-          moved.set(key, {
+          moved.set(node, {
             code: "passive-layout-shift",
             at: reading.node,
             before: reading.before,

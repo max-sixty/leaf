@@ -88,11 +88,7 @@ def test_shift_observation_windows_do_not_share_movement(browser, serve):
         )
         assert movement["before"]["y"] == pytest.approx(before)
         assert movement["after"]["y"] == pytest.approx(before + 60)
-        assert any(
-            finding["at"] == "a source node the browser did not expose"
-            and finding["after"]["y"] - finding["before"]["y"] == pytest.approx(60)
-            for finding in passive
-        ), passive
+        assert [finding["at"] for finding in passive] == ["<p id=below>"]
         evaluate_probe(page, "startPassiveLayoutShifts")
         rendered(page)
         assert evaluate_probe(page, "finishPassiveLayoutShifts") == []

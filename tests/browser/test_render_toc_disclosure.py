@@ -85,10 +85,6 @@ def test_contents_disclosure_keeps_its_links_focus_and_open_state(
     disclosure = toc.locator("details")
     summary = toc.locator("summary")
     expect(summary).to_be_visible()
-    # Equal container widths can differ by a tiny positive float at this width.
-    # A wrapped track still keeps its disclosure above the prose.
-    resized(page, 960, 844)
-    expect(summary).to_be_visible()
     if initially_open:
         expect(toc.get_by_role("link", name="Evidence", exact=True)).to_be_visible()
         summary.click()

@@ -32,10 +32,10 @@ import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
-  todoLabel,
-  workflowLabel,
-  workflowVoice,
+  todoWord,
+  workflowWord,
 } from "./thread/workflow.js";
+import { agentSays, leafSays } from "./voice.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
@@ -224,12 +224,15 @@ export function createAnnotationInventory({
     );
   }
 
-  // A receipt's face is its category's icon and rank under the receipt's own label,
-  // so one reading of a receipt never names a different stage than its text does.
+  // A receipt's face is its category's icon and rank under the receipt's own word,
+  // so one reading of a receipt never names a different stage than its text does. Its
+  // line says when, in the interface's words, and what the agent said of it.
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
-    const label = workflowLabel(receipt, agentName());
-    if (!label) return null;
+    const word = workflowWord(receipt, agentName());
+    if (!word) return null;
+    const when = receipt.ts ? ago(receipt.ts) : "";
+    const said = receipt.detail ? [agentSays(receipt.detail)] : [];
     return {
       kind:
         // A receipt handed back to the user always carries its failure.
@@ -242,10 +245,11 @@ export function createAnnotationInventory({
               : receipt.stage === "queued"
                 ? "queued"
                 : "sent",
-      text: label,
-      context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
-        .filter(Boolean)
-        .join(" · "),
+      word,
+      context:
+        when || said.length
+          ? [...(when ? [when] : []), ...(when && said.length ? [" · "] : []), ...said]
+          : null,
     };
   }
 
@@ -382,16 +386,18 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
-        text: labelWords(`${face.text} · ${account}`),
+        text: labelWords(`${face.word.text} · ${account}`),
+        // The same name as its rows show it, the receipt's word in its speaker's face.
+        words: [face.word, ` · ${labelWords(account)}`],
         workflowFace: Object.freeze({
           ...KINDS[face.kind],
-          label: face.text,
-          voice: workflowVoice(receipt),
+          label: face.word.text,
+          voice: face.word.voice,
         }),
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>
-          revealTarget(target, `${face.text}: ${account}`, scrollToElement),
+          revealTarget(target, `${face.word.text}: ${account}`, scrollToElement),
       });
     }
 
@@ -473,19 +479,22 @@ export function createAnnotationInventory({
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
       const { running } = todo;
-      const label = todoLabel(running);
+      const word = todoWord(running);
       const account = [todo.agent, running?.text ?? todo.title]
         .filter(Boolean)
         .join(" · ");
-      const age = running && ago(running.ts);
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
         text: labelWords(account),
-        workflowFace: Object.freeze({ ...KINDS.activity, label }),
-        context: [age && `Checked in ${age}`, running && todo.title]
-          .filter(Boolean)
-          .join(" · "),
+        workflowFace: Object.freeze({
+          ...KINDS.activity,
+          label: word.text,
+          voice: word.voice,
+        }),
+        context: running
+          ? [leafSays(`Checked in ${ago(running.ts)} · `), agentSays(todo.title)]
+          : null,
         activate: () => revealTarget(target, account, scrollToElement),
       });
     }

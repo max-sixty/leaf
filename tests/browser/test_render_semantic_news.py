@@ -86,9 +86,9 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     said(page).to_have_attribute("placeholder", re.compile("^Not answered"))
     expect(page.locator(".lf-live")).to_have_text("Not answered")
     # What became of the answer is Leaf's reading, set apart as Threads sets it.
-    reading = panel_field(page).locator('[slot="placeholder"] [data-voice="leaf"]')
-    expect(reading).to_have_text("Not answered")
-    expect(reading).to_have_css("font-style", "italic")
+    expect(panel_field(page).locator(".lf-field-placeholder")).to_have_css(
+        "font-style", "italic"
+    )
 
 
 def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, request):

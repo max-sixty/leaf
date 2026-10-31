@@ -390,9 +390,9 @@ svg[data-lf-icon] {
   color: var(--muted);
   white-space: nowrap;
 }
-/* Leaf's words about an update or the agent, such as Delivered, Gone quiet or Not
-   answered, stand apart from words the agent's own acts set, as a stage direction
-   does from the lines (`workflowVoice`, glossary.md "Reader-facing words"). */
+/* Whatever Leaf says, such as Delivered, Not answered or a notice, stands apart from
+   the agent's words in italic wherever a seat shows it, as a stage direction does from
+   the lines (voice.js, glossary.md "Reader-facing words"). */
 span[data-voice="leaf"] {
   font-style: italic;
 }

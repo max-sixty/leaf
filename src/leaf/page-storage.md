@@ -7,9 +7,10 @@ file below, in the page directory or the state home. Each entry names the module
 owns it, whose header holds the rest of its contract.
 
 Each JSON record below is a `state.Record`, declared once beside its owning module,
-whose functions are its only writers. A record carries the protocol at which its kind's
-shape last changed, and one this Leaf does not read reads as absent. A state-home
-record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
+whose functions are its only writers. A record's format numbers its kind's shape
+(`layer-registry.md`, "Page protocol"), and one this Leaf does not read reads as
+absent. A state-home record whose pages are gone is removed whichever Leaf wrote it
+(`state.retire_if_gone`).
 
 - `index.html` — the author's mutable document. The server validates it before
   activation and never serves it directly. An invalid save creates no revision, leaves

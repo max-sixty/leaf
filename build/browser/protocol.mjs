@@ -315,15 +315,11 @@ export function protocolBreaks(baseline, current) {
   for (const [kind, { since, schema }] of Object.entries(current.records)) {
     const where = `record ${kind}`;
     const before = baseline.records[kind];
-    if (since > current.protocol)
-      refused.push([where, `since ${since} is past protocol ${current.protocol}`]);
-    else if (before?.since === since)
+    if (before?.since === since)
       compare(where, before.schema, schema, READ, OLDER_READS);
-    else if (since !== current.protocol)
-      refused.push([
-        where,
-        `since ${since} names neither its last shape's protocol nor this one, ${current.protocol}`,
-      ]);
+    // Another shape of the record may already carry a lower number.
+    else if (since < before?.since)
+      refused.push([where, `since ${since} is below its last, ${before.since}`]);
   }
   // The same change shows once, though each direction meets it.
   return [

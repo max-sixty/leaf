@@ -117,7 +117,7 @@ lf-sample::before,
 lf-sample > [data-lf-said="label"] {
   display: table-caption;
   margin-bottom: var(--sp-1);
-  font: 600 var(--t-6) / 1.3 var(--sans);
+  font: var(--voice-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);

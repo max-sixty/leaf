@@ -2,6 +2,8 @@
    block, every block a widget declares, such as a code listing, and any widget block
    that asks with `copyBlock`, such as a draft's Markdown among its own controls.
    Document controls stand in chrome so authored sibling selectors keep their meaning.
+   Runtime prose keeps its control beside the source, inside its surface's interaction
+   boundary, so pressing Copy neither dismisses the surface nor falls behind it.
    A declared block carries `data-lf-copy`, naming what it holds, and its `lfCopy()`
    returns its text, the source the widget drew line numbers, annotations or other words
    over; its control stands right after it, in the widget's tree. A widget declaring
@@ -37,6 +39,7 @@ import {
   tabFromBlock,
 } from "./block-controls.js";
 import { headerLevels } from "./css-anchors.js";
+import { leafSurface } from "./passages.js";
 import { skipped } from "./shown-box.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { focusDestination, onCurrentLocation } from "./focus.js";
@@ -193,7 +196,10 @@ export function watchCodeBlocks() {
       );
     for (const [pre, pending, levels] of prepared) {
       const copy = aimControl(pending);
-      standInChrome(copy, pre, levels);
+      // Runtime surfaces keep their controls inside their own interaction boundary;
+      // a press on a control in document chrome would dismiss an open panel.
+      if (leafSurface(pre)) move(pre.parentNode, copy, pre.nextSibling);
+      else standInChrome(copy, pre, levels);
       copy.tabIndex = -1;
       claimReachStop(pre);
       if (!wired.has(pre)) {

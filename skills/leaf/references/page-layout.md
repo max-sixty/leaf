@@ -200,9 +200,9 @@ the page nearer the window's top.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
-in the header. The list marks each tab's open obligations and the tally counts what is
-left, so write no script or count of your own, and don't state the count in prose or
-chips. Each item's `summary` shows under its label, so the user can choose an item
+where the reader looks for the queue's state, such as the header. The list marks each
+tab's open obligations and the tally counts what is left, so write no script or count
+of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item
 without opening it. Start the summary with what the item is about, such as the problem
 a ticket reports, unless the label already says so, then what sets it apart from its
 neighbours, such as its age or suggested outcome. Leave out the item's group, which its

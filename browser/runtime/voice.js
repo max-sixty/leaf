@@ -2,12 +2,13 @@
 /* Who says each word a seat shows about the work (glossary.md, "Reader-facing words").
 
    Every such word is said by the agent or by Leaf, and each speaker has one face on
-   every surface: the agent's words stand upright in the seat's own face, and Leaf's
-   are set in its italic, as a script sets a stage direction apart from the lines. A
-   word said is a part `{text, voice}` made here, a run of words a list of parts, and
-   every seat draws them with `voiced`, whose `data-voice` the theme sets in italic for
-   Leaf (controls.css); a seat with one face for all its words, such as the field's
-   native placeholder, wears the run's one voice (`voiceOf`, floating-panel.css). A
+   every surface: the agent's words are regular and upright, as its messages are set,
+   and Leaf's are set in that face's italic, as a script sets a stage direction apart
+   from the lines; a seat sets only their size and leading. A word said is a part
+   `{text, voice}` made here, a run of words a list of parts, and every seat draws them
+   with `voiced`, whose `data-voice` the theme gives each speaker's face (controls.css);
+   a seat with one face for all its words, such as the field's native placeholder,
+   wears the run's one voice (`voiceOf`, floating-panel.css). A
    string is said by no one: a name, such as a thread's title or a mode's, an offer of
    a press, such as Reply, or where the user stands in a walk, which the interface
    states in its own face. So a seat never decides a voice: each word reaches it with

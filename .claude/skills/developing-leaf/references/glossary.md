@@ -35,9 +35,10 @@ implementation terms keep their exact spelling where the reader needs them.
 
 The user is talking with the agent, and the page is where that conversation happens,
 so every word a surface shows about the work is said by the agent or by Leaf, and
-each speaker has one face on every surface (`voice.js`): the agent's words stand
-upright, in the surface's own face, and Leaf's are set in italic, as a script sets a
-stage direction apart from the lines. The agent says what it wrote: its status line
+each speaker has one face on every surface (`voice.js`): the agent's words are
+regular and upright, as its messages are set, and Leaf's are set in that face's italic,
+as a script sets a stage direction apart from the lines. A surface sets only their size,
+which ranks them among its other words. The agent says what it wrote: its status line
 (“running the browser suite”), its messages and a to-do's title. Leaf also speaks in
 the agent's voice where what the agent would say is reliable, because the agent's own
 command or its reply's stream shows it: **On it** once it started an update,

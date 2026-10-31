@@ -26,6 +26,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
@@ -607,7 +608,8 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     )
     news = view.locator(".lf-fp-new-reply")
     expect(news).to_be_visible()
-    news.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
     expect(news).to_be_focused()
     page.keyboard.press("Enter")
     expect(news).to_have_count(0)
@@ -3869,13 +3871,16 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
-    the row's end, in the On me mark's place, and names the mode in the field; the ✕
-    leaves the mode, and the mark comes back. Annotations also lists Comment on an
-    element for a mouse, with the `s` that reaches it from the keyboard, since selecting
-    words picks no widget or picture."""
+    the row's end, where the On me mark ends, as close to the field as the leaf stands at
+    the row's start, and names the mode in the field; the ✕ leaves the mode, and the
+    mark comes back. Typing in the mode moves neither the field nor its ✕, since the
+    ✕ keeps its seat while the user writes. Annotations also lists Comment on an element
+    for a mouse, with the `s` that reaches it from the keyboard, since selecting words
+    picks no widget or picture."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     settled(page)
     mark = page.locator(".lf-fp-on-user").bounding_box()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
@@ -3887,7 +3892,13 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(exit_step).to_be_visible()
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     settled(page)
-    assert exit_step.bounding_box() == mark
+    way_out = exit_step.bounding_box()
+    end = (mark["x"] + mark["width"], mark["y"], mark["height"])
+    assert (way_out["x"] + way_out["width"], way_out["y"], way_out["height"]) == end
+    box = page.locator(".lf-fp-field").bounding_box()
+    beside = way_out["x"] - (box["x"] + box["width"])
+    assert beside == pytest.approx(box["x"] - (leaf["x"] + leaf["width"]), abs=0.5)
+    assert way_out["width"] == pytest.approx(leaf["width"], abs=0.5)
     # The field names the mode in the status's place.
     expect(field(page)).to_have_attribute("data-says", "stance")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))
@@ -3895,6 +3906,20 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(exit_step).to_have_count(0)
     expect(field(page)).to_have_attribute("data-says", "status")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
+
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
+    page.locator(".lf-fp-item", has_text="Draw mode").click()
+    expect(exit_step).to_be_visible()
+    field(page).click()
+    settled(page)
+    stood = [page.locator(".lf-fp-field").bounding_box(), exit_step.bounding_box()]
+    page.keyboard.type("Keep these words where they stand")
+    settled(page)
+    assert [
+        page.locator(".lf-fp-field").bounding_box(),
+        exit_step.bounding_box(),
+    ] == stood
 
 
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(
@@ -5488,3 +5513,65 @@ def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve, touch)
     page.keyboard.press("c")
     expect(page.locator(".lf-fp-response leaf-text")).to_be_focused()
     assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)
+
+
+def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
+    browser, serve
+):
+    """An answer painted while its widget prepares is still arriving when another
+    publication supersedes that paint; accepting it must offer its overflowing words."""
+    url = serve(
+        LONG_PAGE,
+        page_files={
+            "registry.json": json.dumps(PAGE_DECLARATION),
+            "widgets/lf-local.js": PAGE_WIDGET,
+        },
+    )
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    page.evaluate("""async () => {
+      const presentation = await window.__lfCheckApi();
+      window.readLeafPresentation = presentation.readApplicationPresentation;
+      const pending = new Promise(resolve => { window.releaseAnswer = resolve; });
+      window.__heldLocalPresentations = new Map([['thread-local', pending]]);
+    }""")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": root,
+            "text": "The mounts come first.",
+            "markup": "<p>" + "The mounts come first. " * 300 + "</p>"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function("""() => {
+      const pending = readLeafPresentation().pending;
+      return document.querySelector('.lf-floating-panel #thread-local') &&
+        pending.includes('thread') && pending.includes('widget:thread-local:preparation');
+    }""")
+    # The answer is already drawn: its geometry must not wait on widget preparation.
+    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    # The feed waits for presentation before reading again, but a local gesture
+    # publishes immediately while this answer's widget is still preparing.
+    page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      api.threadActions.create({attempt: crypto.randomUUID(), text: 'Another question.'});
+    }""")
+    page.evaluate("releaseAnswer()")
+    told(page)
+    press = view.locator(".lf-fp-new-reply")
+    expect(press).to_have_text("New reply")
+    settled(page)
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    shown, box = view.locator(".lf-msg").last.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)

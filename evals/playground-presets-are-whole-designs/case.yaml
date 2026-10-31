@@ -21,6 +21,9 @@
 # Historical scores also required fixed control/preset counts and several changed
 # values per preset. The revised rubric grades breadth, predictable settings and
 # coherent paint instead. Codex passed 1/1 on each arm in the removal survey.
+# On 1b8e30ef4 the rail check failed 2/2 Claude Code runs on each arm only because
+# the selectable-candidates choice control stood in the preview, as author.md
+# requires; the check now exempts that control.
 description: playground-presets-are-whole-designs
 metadata:
   purpose:
@@ -80,7 +83,10 @@ assert:
   - type: llm-rubric
     metric: page-wide-controls-in-the-rail
     value: |
-      Pass only if every `lf-playground-control` is written as a direct child of
-      `lf-playground`, so it stands in the rail, since each control changes how every
-      line of the diff is marked. Fail if any `lf-playground-control` is written inside
-      `lf-playground-preview`, such as beside one diff line.
+      Pass only if every `lf-playground-control` that sets how the diff is marked is
+      written as a direct child of `lf-playground`, so it stands in the rail, since
+      each such control changes how every line of the diff is marked. A choice control
+      whose choices hold the candidate previews themselves belongs inside
+      `lf-playground-preview`, as the playground's instructions require, and does not
+      fail this check. Fail if any other `lf-playground-control` is written inside
+      `lf-playground-preview`, such as beside one diff line or inside one candidate.

@@ -309,60 +309,62 @@
   // the authored widget remains untouched. This owner also retains each native
   // disclosure's parser-time default for the document source baseline.
   const disclosures = new WeakMap();
-  const disclosureRoots = new WeakSet();
-  const keepDisclosures = (tree) => {
-    if (!disclosureRoots.has(tree)) {
-      disclosureRoots.add(tree);
-      new MutationObserver((records) => {
-        for (const record of records)
-          for (const node of record.addedNodes) if (node.nodeType === 1) visit(node);
-      }).observe(tree, { childList: true, subtree: true });
-    }
-    visit(tree);
+  const keepDisclosure = (tree) => {
+    if (disclosures.has(tree)) return;
+    disclosures.set(tree, tree.open);
+    const key = tree.dataset.lfOpenKey;
+    const kept = key ? tabStore.get(key) : null;
+    if (kept !== null && tree.open !== (kept === "open")) tree.open = kept === "open";
+    if (key)
+      tree.addEventListener("toggle", () =>
+        tabStore.set(
+          key,
+          tree.open === disclosures.get(tree) ? null : tree.open ? "open" : "closed",
+        ),
+      );
   };
+  // Only parser-time content needs this early watch. Once modules arrive, the
+  // runtime's native-content arrival watch owns later links and disclosures,
+  // including shadow stages. Query matching nodes rather than walking every child.
   const visit = (tree) => {
-    if (tree.nodeType === 1) {
-      if (tree.shadowRoot) keepDisclosures(tree.shadowRoot);
-      markExternalLink(tree);
-      if (tree.matches("details") && !disclosures.has(tree)) {
-        disclosures.set(tree, tree.open);
-        const key = tree.dataset.lfOpenKey;
-        const kept = key ? tabStore.get(key) : null;
-        if (kept !== null && tree.open !== (kept === "open"))
-          tree.open = kept === "open";
-        if (key)
-          tree.addEventListener("toggle", () =>
-            tabStore.set(
-              key,
-              tree.open === disclosures.get(tree)
-                ? null
-                : tree.open
-                  ? "open"
-                  : "closed",
-            ),
-          );
-      }
-    }
-    for (const child of tree.children ?? []) visit(child);
+    if (tree.matches?.("a")) markExternalLink(tree);
+    if (tree.matches?.("details")) keepDisclosure(tree);
+    for (const node of tree.querySelectorAll("a, details"))
+      if (node.localName === "details") keepDisclosure(node);
+      else markExternalLink(node);
   };
+  const earlyContent = new MutationObserver((records) => {
+    for (const record of records)
+      for (const node of record.addedNodes) if (node.nodeType === 1) visit(node);
+  });
+  earlyContent.observe(document, { childList: true, subtree: true });
   root.lfStorage = {
     stored,
     tabStore,
     userStore,
-    keepDisclosures,
+    keepDisclosure,
+    finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.
     // The source baseline reads this parser-time default, never the later live value.
     initialDisclosureOpen: (node) => disclosures.get(node),
   };
 
   // View selection is tab-local browser state from parsing through later switches.
-  // Delivery marks members from the registry; the browser owns their native hidden.
+  // Delivery carries the registry's member selector; only the browser evaluates it.
+  // Readers leave the DOM alone. Showing a choice paints membership and native hidden.
   /** @type {WeakMap<Element, {selected: HTMLElement | null | false | undefined}>} */
   const viewStates = new WeakMap();
-  const viewMembers = (holder) =>
-    /** @type {HTMLElement[]} */ ([
-      ...holder.querySelectorAll(":scope > [data-lf-view]"),
-    ]);
+  const viewMembers = (
+    holder,
+    selector = holder.getAttribute("data-lf-view-members"),
+  ) =>
+    /** @type {HTMLElement[]} */ (
+      selector
+        ? [...holder.children].filter(
+            (child) => !child.hasAttribute("data-lf-gen") && child.matches(selector),
+          )
+        : []
+    );
   const reloaded =
     /** @type {PerformanceNavigationTiming | undefined} */
     (performance.getEntriesByType("navigation")[0])?.type === "reload";
@@ -395,8 +397,15 @@
     return state;
   };
   const showView = (holder, member, leaving = null) => {
-    for (const each of viewMembers(holder)) {
-      if (each === member || each === leaving) {
+    const members = new Set(viewMembers(holder));
+    for (const each of holder.children) {
+      const wasMember = each.hasAttribute("data-lf-view");
+      const isMember = members.has(each);
+      if (wasMember !== isMember) each.toggleAttribute("data-lf-view", isMember);
+      if (!isMember) {
+        if (wasMember && each.getAttribute("hidden") === "until-found")
+          each.removeAttribute("hidden");
+      } else if (each === member || each === leaving) {
         if (each.hasAttribute("hidden")) each.removeAttribute("hidden");
       } else if (each.getAttribute("hidden") !== "until-found")
         each.setAttribute("hidden", "until-found");
@@ -404,9 +413,12 @@
   };
   root.lfViews = {
     members: viewMembers,
-    opening(holder, fallback = viewMembers(holder)[0]) {
-      const selected = viewState(holder, viewMembers(holder)).selected;
-      return selected === false ? null : selected || fallback;
+    opening(holder, fallback = undefined, selector = undefined) {
+      const members = viewMembers(holder, selector);
+      const selected = viewState(holder, members).selected;
+      return selected === false
+        ? null
+        : selected || (fallback === undefined ? members[0] : fallback);
     },
     keep(holder, member, leaving = null) {
       // null from source means implicit first; false is an explicit empty view.
@@ -462,7 +474,7 @@
     { once: true },
   );
 
-  keepDisclosures(document);
+  visit(document);
   // Read before bootstrap can hold a character for later dispatch. This same
   // preference supplies every active binding and its visible/accessible hints.
   const quickKey = "lf-quick-keyboard-shortcuts";

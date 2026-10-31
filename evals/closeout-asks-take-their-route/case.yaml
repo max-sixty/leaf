@@ -1,0 +1,51 @@
+# From session 5eb16358-f0c0-43e3-9b87-30c4727ffdea (2026-10-31) and a survey of
+# 238 real pages: asks left at a closeout reached On me as to-dos on the user with
+# the page as their subject, titled as questions ("Land … with /merge-pr?"). A
+# to-do's title is all the user reads of it, so the panel showed half the ask beside
+# a bare "?" at the page's heading, and its Done couldn't say yes or no. 12 of the 15
+# such to-dos on real pages were a decision or a permission. The user asked for the
+# routes a question asked well takes, a widget or a thread; the
+# conversation-loop.md table had told agents to title a to-do "as a direct question"
+# and offered `page` as its subject.
+description: closeout-asks-take-their-route
+metadata:
+  purpose: "Conversation loop: a permission or a step the agent leaves to the user at a
+    closeout reaches On me by a route that holds the whole ask, not as a to-do on the
+    page as a whole titled as a question."
+  tags:
+    - asks
+    - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/changes, served with `leaf server start`. The page,
+    "Changes in place", explains a design for marking the blocks an agent changed
+    since the user last looked. You have just finished the turn's work:
+
+    - The design is built on branch `change-marks` at commit `d557100f0`, and the
+      page runs it. Landing it means opening a pull request and merging it once CI
+      passes, which the user's `/merge-pr` command does; you won't land it without
+      their go-ahead.
+    - A separate instruction fix is ready as pull request #25 in the same
+      repository, and also needs their go-ahead to land.
+    - Your Leaf plugin changed during the turn, so the user must run
+      `/reload-plugins` in this Claude session before their comments reach you.
+
+    The page has nothing on the user's On me list yet. Read whatever instructions you
+    need. Only Skill and Read run here, so write out, in order, each command you would
+    run on the page to put what you need from the user in front of them, then your
+    closing reply.
+assert:
+  - type: llm-rubric
+    metric: asks-take-their-route
+    value: |
+      Pass only if each of the three reaches the user's On me list through a leaf
+      command or page markup, and neither landing is asked through a to-do on the
+      user. Each landing must reach On me as options to land it or keep it (an
+      `lf-options` permission on the page or in a thread message's markup) or as a
+      thread message carrying `--obligation`, and its words say which change it lands
+      and what landing does. The `/reload-plugins` step may be a to-do on the user
+      (`leaf task create … --on user`) on a thread or an element, or a thread message
+      with `--obligation`. Fail if any `leaf task create … --on user` names `page` as
+      its subject, if any to-do on the user is titled as a question, or if any of the
+      three is left only in the closing reply or a status line.

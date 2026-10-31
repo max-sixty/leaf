@@ -32,17 +32,25 @@ def reply(page, *titles: str) -> str:
     return json.dumps(
         {
             "asks": [
-                {"page": str(page), "title": title, "quote": title} for title in titles
+                {
+                    "page": str(page),
+                    "title": title,
+                    "text": f"{title}: which would you like?",
+                    "quote": title,
+                }
+                for title in titles
             ]
         }
     )
 
 
-def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
-    """Each ask the fork names lands On me as the agent's own to-do, with nothing
-    marking the fork, and the next tool boundary tells the agent each one, once. An
-    ask On me already holds isn't added again, and one the agent ended stays ended:
-    the next fork is shown it as settled, and Leaf doesn't add it back."""
+def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
+    """Each ask the fork names opens a thread of its own on the page, the agent's
+    message asking the whole question with nothing marking the fork, and lands On me
+    until the user answers; the next tool boundary tells the agent each one and its
+    words, once. A question the agent already asked isn't asked again, and a question
+    the agent withdrew stays withdrawn: the next fork is shown it as settled, and Leaf
+    doesn't ask it again."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     question = asked()
@@ -52,33 +60,59 @@ def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, 
         in question["prompt"]
     )
 
+    # A thread the agent opened to tell rather than ask holds no ask, whatever its
+    # title.
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "revision": 1,
+            "title": "The retry limit",
+            "text": "The suite retries each flaky test.",
+        },
+    )
     wrote = clerk_model.take_answer(
-        "s1",
-        reply(page, "Choose the retry limit: 3 or 5?", "Open a PR for this branch?"),
-        question["basis"],
+        "s1", reply(page, "The retry limit", "A PR for this branch"), question["basis"]
     )["wrote"]
-    on_me = [
-        record["prompt"]["text"]
-        for record in cmd_page_state(claimed)["obligations"]
-        if record["source"]["kind"] == "todo"
+    assert [
+        (record["kind"], record["title"], record["text"], record["obligation"])
+        for record in wrote
+    ] == [
+        ("comment", "The retry limit", "The retry limit: which would you like?", True),
+        (
+            "comment",
+            "A PR for this branch",
+            "A PR for this branch: which would you like?",
+            True,
+        ),
     ]
-    assert on_me == ["Choose the retry limit: 3 or 5?", "Open a PR for this branch?"]
     assert {(record["author"], record["session"]) for record in wrote} == {
         ("agent", "s1")
     }
-    assert not any("by" in record for record in wrote)
+    assert not any("anchor" in record or "by" in record for record in wrote)
+    on_me = cmd_page_state(claimed)["queues"]["on_user"]
+    assert [row["id"] for row in on_me] == [
+        f"message:{record['id']}" for record in wrote
+    ]
 
     context = hook(capsys, "PostToolBatch")
-    assert f'Leaf put "Choose the retry limit: 3 or 5?" On me on {page}' in context
-    assert f"leaf task end {page} {wrote[1]['id']} dropped" in context
+    assert (
+        f'Leaf asked the user "The retry limit" On me, in a new thread on {page}'
+        in (context)
+    )
+    assert "> The retry limit: which would you like?" in context
+    assert f"leaf task end {page} message:{wrote[1]['id']} dropped" in context
     assert hook(capsys, "PostToolBatch") == ""
 
     again = clerk_model.take_answer(
-        "s1", reply(page, "Choose the retry limit: 3 or 5?"), question["basis"]
+        "s1", reply(page, "The retry limit"), question["basis"]
     )
     assert again["wrote"] == []
 
-    # The agent, keeping its say over the record, ends one as not the user's.
+    # The agent, keeping its say over the record, withdraws one as not the user's.
     append_carried_log_record(
         claimed,
         {
@@ -86,19 +120,31 @@ def test_the_clerk_adds_what_the_reply_left_and_the_next_step_hears_it(claimed, 
             "author": "agent",
             "agent": "Claude",
             "session": "s1",
-            "todo": wrote[1]["id"],
+            "todo": f"message:{wrote[1]['id']}",
             "outcome": "dropped",
         },
     )
     question = asked()
     assert (
-        "don't add these again:\n- Open a PR for this branch? (dropped)"
+        "don't ask these again:\n- A PR for this branch: which would you like? (dropped)"
         in question["prompt"]
     )
-    readded = clerk_model.take_answer(
-        "s1", reply(page, "Open a PR for this branch?"), question["basis"]
+    reasked = clerk_model.take_answer(
+        "s1", reply(page, "A PR for this branch"), question["basis"]
     )
-    assert readded["wrote"] == []
+    assert reasked["wrote"] == []
+
+
+def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):
+    """A message is checked as `thread create` checks one, and every message before
+    the first is written, so a refused one leaves the page as the fork found it."""
+    page = claimed.resolve()
+    answer = json.loads(reply(page, "The retry limit", "The chart"))
+    answer["asks"][1]["text"] = "Does ![the chart](/media/0123456789abcdef.png) read?"
+    before = len(events_model.read_events(claimed))
+    with pytest.raises(Refused):
+        clerk_model.take_answer("s1", json.dumps(answer), clerk_model.basis("s1"))
+    assert len(events_model.read_events(claimed)) == before
 
 
 def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
@@ -129,8 +175,8 @@ def test_an_answer_outside_the_schema_writes_nothing(text):
         clerk_model.read_answer(text)
 
 
-def test_a_long_title_is_cut_at_a_word_to_fit_a_to_do():
-    """A model can't count characters, so a title past a to-do's limit is cut rather
+def test_a_long_title_is_cut_at_a_word_to_fit_a_thread():
+    """A model can't count characters, so a title past a thread's limit is cut rather
     than refusing the answer and the asks it found."""
     words = "Choose " + "the retry limit " * 8 + "for the suite?"
     title = clerk_model._title(words)

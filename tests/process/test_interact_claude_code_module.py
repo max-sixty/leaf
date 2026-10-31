@@ -387,7 +387,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
 ):
     """As a main-loop turn the model answered ends in a session holding a live page,
     the module forks the conversation with the clerk's question and hands the answer
-    back, and Leaf writes the ask it names On me. A subagent's turn, or an interrupted
+    back, and Leaf asks what it names On me, in a thread of its own. A subagent's turn, or an interrupted
     one, forks nothing."""
     page = page_dir.resolve()
     reply = json.dumps(
@@ -395,7 +395,8 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
             "asks": [
                 {
                     "page": str(page),
-                    "title": "Choose the retry limit: 3 or 5?",
+                    "title": "The retry limit",
+                    "text": "Should the retry limit be 3 or 5?",
                     "quote": "Should the retry limit be 3 or 5?",
                 }
             ]
@@ -424,13 +425,15 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     )
     assert "added 1 to On me" in told, told
     assert driven.forks.empty()
-    [todo] = [
-        event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
+    [asked] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
     ]
-    assert (todo["owner"], todo["title"], todo["author"]) == (
-        "user",
-        "Choose the retry limit: 3 or 5?",
+    assert (asked["author"], asked["title"], asked["obligation"]) == (
         "agent",
+        "The retry limit",
+        True,
     )
     driven.quit()
 
@@ -461,6 +464,8 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     assert driven.forks.empty()
     assert driven.diagnostics.empty()
     assert not [
-        event for event in events_model.read_events(page_dir) if event["kind"] == "todo"
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
     ]
     driven.quit()

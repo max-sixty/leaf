@@ -78,16 +78,12 @@ export function markPagePresented() {
 // the window between presenting and its first deferred upgrade taking hold. A
 // rejection lands the arrival like a resolution; its owner draws the failure.
 const arriving = new Set();
-// Those waiting for the page to start arriving again (`whenArriving`).
-const restarts = new Set();
 
 /** Declare work this page finishes after presenting, and hand back its promise. */
 export function deferredArrival(work) {
   arriving.add(work);
   const landed = () => arriving.delete(work);
   work.then(landed, landed);
-  for (const restart of restarts) restart();
-  restarts.clear();
   return work;
 }
 
@@ -95,11 +91,6 @@ export function deferredArrival(work) {
 export async function whenArrived() {
   while (arriving.size) await Promise.allSettled(arriving);
 }
-
-/** Wait until some arrival is outstanding: at once if one is, else at the next one
-    declared, as when a sample this page holds is Reset. */
-export const whenArriving = () =>
-  arriving.size ? Promise.resolve() : new Promise((restart) => restarts.add(restart));
 
 /** Run `work` once the page has presented, as an arrival the page answers for. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));

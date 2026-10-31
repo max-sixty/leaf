@@ -348,6 +348,7 @@ export function createAnnotationInventory({
         // The group this row stands in already names the obligation; the row says why it is
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
+        words: leafSays("Waiting on me"),
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows: a widget's name, or a to-do's title, which the element
         // it is on does not say.
@@ -440,6 +441,10 @@ export function createAnnotationInventory({
         text: labelWords(
           [mapAccount, addressableLabel(target)].filter(Boolean).join(" · "),
         ),
+        words: [
+          leafSays(mapAccount),
+          ...(addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []),
+        ],
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -487,6 +492,10 @@ export function createAnnotationInventory({
         kind: "activity",
         id: `todo:${todo.id}`,
         text: labelWords(account),
+        words: [
+          ...(todo.agent ? [`${todo.agent} · `] : []),
+          agentSays(labelWords(running?.text ?? todo.title)),
+        ],
         workflowFace: Object.freeze({
           ...KINDS.activity,
           label: word.text,

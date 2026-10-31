@@ -2,7 +2,7 @@
   "inputs": {
     "leaf.js": "759f01bf6b836ec3865cfe47a3d432927cb438e78301ce4b67a1d8dca263a8ec",
     "runtime/abort.js": "5ac3a80366571da2b98e2aae8cea84bbc2fa8befed9815a9e7d77e8a68445320",
-    "runtime/activity-words.js": "4e81ebcad5df392cb9de57686812470e2f099562f3c15677bcf322f98ee4bce9",
+    "runtime/activity-words.js": "1f66f415fb9aeebb16f03ea5b3ffce9992621e7a7f2eb0b12bbcfa40d45b95d5",
     "runtime/addressable-names.js": "a91c6440c4aaec79fa9a9f0e08185db6bd376cd5e599d5470dad729d32868b16",
     "runtime/anchor-controls.js": "070fc3d1e257bb1e71063f97ff0d6aff68cc523ab9478adfdbe4d4286efdd204",
     "runtime/anchor-coordinate.js": "7a98dddc99f0308a631a677eb642fbc93b7a6b6d9e405b12ab2e2602f56de6e5",
@@ -10,7 +10,7 @@
     "runtime/anchor-placement.js": "7c8490b4627a1bd7bd159b46e62850f87f978444a993b127faa34fe95f9eb73b",
     "runtime/anchor-resolution.js": "b473b872a77ea7a3b029cb37cc4226fae511fcdc6697d1a9b0a331f151cae658",
     "runtime/anchor-travel.js": "293b56384f1115ff90f29a0e0de759d8ec87d96b61d5d15234265312c4c517e8",
-    "runtime/annotation-inventory.js": "645332eaa5b6fcaac5211f35fa1fae4947635f07d353a5b2d8eb7fd9f869ab8f",
+    "runtime/annotation-inventory.js": "44526109c729268c6ed3a9e58080f013eda7da845f8f149ec5209eb1aabafbb1",
     "runtime/annotation-overlay/anchor-paint.js": "0fbfaac6c9e83024d0ade7152f660227f2b003c8582b91fcaa567de7b36912aa",
     "runtime/annotation-overlay/annotation-layer.js": "55671474fd0be706a066d9596874d8626916fd433f1cec17de8748eeed3378a3",
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",

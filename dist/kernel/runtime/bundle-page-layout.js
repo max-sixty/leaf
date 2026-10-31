@@ -3352,6 +3352,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
+				words: leafSays("Waiting on me"),
 				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
 					const items = placed();
@@ -3419,6 +3420,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
 				text: labelWords([mapAccount, addressableLabel(target)].filter(Boolean).join(" · ")),
+				words: [leafSays(mapAccount), ...addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []],
 				...inline ? {
 					context: inline.offer,
 					mapContext: inline.offer
@@ -3441,6 +3443,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "activity",
 				id: `todo:${todo.id}`,
 				text: labelWords(account),
+				words: [...todo.agent ? [`${todo.agent} · `] : [], agentSays(labelWords(running?.text ?? todo.title))],
 				workflowFace: Object.freeze({
 					...KINDS.activity,
 					label: word.text,

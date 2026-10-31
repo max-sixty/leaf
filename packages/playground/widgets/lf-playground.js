@@ -46,11 +46,22 @@ import { createPlayground } from "./playground-view.js";
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
- * flag. */
+ * flag.
+ *
+ * Under `actions="page"` the page draws the submission and Reset, and
+ * `registerActions` hands this playground the two buttons. They become the controls of
+ * its commands, which wire their presses and keep the digit, On me's arrival and
+ * availability, and this module writes the submission's words, as it does for its own,
+ * since the words must say what the press will do. The page's CSS draws them: they are
+ * the page's elements, not Leaf's controls. Rejected: methods the page calls from its
+ * own handlers with a decision state to label from, which would leave every page to
+ * restate when the press withdraws the choice. */
 import {
+  afterPresentation,
   compoundReadingRegionId,
   closeNativeLayer,
   copyControl,
+  failSoft,
   focusDestination,
   holdFocus,
   layoutChanged,
@@ -157,6 +168,27 @@ customElements.define(
     setup() {
       this.#build();
       this.#ready = true;
+      // A page that draws the actions hands them over in its view's `declare`, which
+      // the page's first presentation waits for (`whileInterfaceConnected`). Missing
+      // then, nothing would let the user answer, so the playground fails where `page
+      // check` reads it. A playground arriving after that presentation, in a revision
+      // applied in place or a message, has no settled point of its own to wait for, so
+      // only the page's first presentation is checked.
+      if (
+        this.#view.pageActions &&
+        this.#interactive &&
+        !document.body.hasAttribute("data-lf-presented")
+      )
+        afterPresentation(() => {
+          if (this.isConnected && !this.#submit)
+            failSoft(
+              this,
+              new Error(
+                'actions="page" needs the page script to pass its Save and Reset ' +
+                  "buttons to playground.registerActions({submit, reset}) in declare",
+              ),
+            );
+        });
       whileConnected(this, (signal) => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
@@ -249,6 +281,31 @@ customElements.define(
       this.#draw();
     }
 
+    // The page's own submission and Reset, under `actions="page"` (the header says why
+    // this module labels the submission).
+    registerActions({ submit, reset }) {
+      if (!this.#ready) throw new Error("playground is not ready");
+      if (!this.#view.pageActions)
+        throw new Error('playground draws its own actions; set actions="page"');
+      if (this.#submit) throw new Error("playground already has its actions");
+      for (const [name, button] of [
+        ["submit", submit],
+        ["reset", reset],
+      ])
+        if (!(button instanceof HTMLButtonElement))
+          throw new Error(`registerActions needs a ${name} button`);
+      // A quotation sends nothing, so it shows neither.
+      if (!this.#interactive) {
+        submit.hidden = reset.hidden = true;
+        return;
+      }
+      this.#view.give({ submit, reset });
+      this.#submit = submit;
+      this.#reset = reset;
+      this.#commands();
+      this.#draw();
+    }
+
     #build() {
       const restore = holdFocus(this);
       this.#view = createPlayground(this);
@@ -259,7 +316,7 @@ customElements.define(
       this.#defaults = initial.defaults;
       this.#values = initial.defaults;
       this.#preview = initial.preview;
-      this.#interactive = Boolean(initial.submit);
+      this.#interactive = initial.interactive;
       this.#submit = initial.submit;
       this.#reset = initial.reset;
       this.#regions = initial.regions.map((region) => ({
@@ -303,24 +360,27 @@ customElements.define(
         const { reveal, instruction } = initial;
         // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
         // while its block is away and came back a frame or more after the popover
-        // opened, after a Tab had passed it by.
-        const copy = copyControl("lf-quiet-action lf-playground-copy", {
-          label: "Copy instruction",
-          success: "Instruction copied",
-          error: "Unable to copy instruction",
-        });
-        copy.addEventListener(
-          "click",
-          () => {
-            copy.value = this.#instruction();
-          },
-          { capture: true },
-        );
-        initial.copy = copy;
-        instruction.addEventListener("toggle", (event) => {
-          keeps(reveal, "aria-expanded", event.newState === "open");
-          commandsChanged(this);
-        });
+        // opened, after a Tab had passed it by. A page that draws its own actions
+        // shows the instruction where it was written, with no popover to copy from.
+        if (instruction) {
+          const copy = copyControl("lf-quiet-action lf-playground-copy", {
+            label: "Copy instruction",
+            success: "Instruction copied",
+            error: "Unable to copy instruction",
+          });
+          copy.addEventListener(
+            "click",
+            () => {
+              copy.value = this.#instruction();
+            },
+            { capture: true },
+          );
+          initial.copy = copy;
+          instruction.addEventListener("toggle", (event) => {
+            keeps(reveal, "aria-expanded", event.newState === "open");
+            commandsChanged(this);
+          });
+        }
         this.addEventListener("mousedown", (event) => {
           const target = /** @type {Element} */ (event.target);
           if (target.closest(".lf-playground-control-label")) return;
@@ -445,7 +505,9 @@ customElements.define(
       return at && at !== at.ownerDocument.body ? at : null;
     }
 
+    // A page that draws its own actions has commands once it hands over their controls.
     #commands() {
+      if (!this.#submit) return;
       this.lfCommands = {
         title: "In a playground",
         rows: [
@@ -455,6 +517,7 @@ customElements.define(
             bindingBadge: null,
             control: this.#submit,
             decision: true,
+            commits: true,
             title: () => this.#submit.textContent,
             when: () => (this.#chosen() ? Boolean(this.#undo()) : this.#available()),
             run: () => this.#choose(),

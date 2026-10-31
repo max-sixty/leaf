@@ -170,6 +170,13 @@ reactions, read tracking and reply draft; the package keeps layout, order, selec
 scroll and disclosure. The user's message editor opens in place of the message,
 with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
+`parts.transcript` also takes `{drawn}`. `drawn(answer)` runs once its transcript DOM
+is placed, before asynchronous widget preparation finishes, so layout and scroll can
+follow the words before the next frame. `answer` is null except when this draw answers
+the user's last turn; then it is the read-only `{turn, reply}` message keys, with
+`reply: null` while only work under way has arrived. A render abandoned before drawing
+calls nothing. The handle's `update()` still waits for the widgets' preparation.
+
 `parts.reply` takes `{hint, accessibleName, sent}`, where
 `sent()` runs after a send instead of moving the user to the thread. The reply box
 stands in a resolved thread too, and a reply there reopens it. The collection

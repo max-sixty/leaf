@@ -73,9 +73,9 @@
  * user reads waits on it. The user asked on 30 October for typing to grow the box as
  * a textarea's grows, and chose on 31 October to keep a removed line's travel. News,
  * such as an answer arriving, moves nothing the reader reads (browser/AGENTS.md,
- * "Stability"): each part it moved shows where it now stands, revealed by the frame it
- * stands in or growing from its own old box, while the box's outline and ring still
- * follow.
+ * "The page holds still under the user's aim"): each part it moved shows where it now
+ * stands, revealed by the frame it stands in or growing from its own old box, while
+ * the box's outline and ring still follow.
  *
  * A change arriving during the tween starts each part from where it is drawn then;
  * news arriving while the user's change still carries parts shows them where they now
@@ -662,7 +662,7 @@ export function boxMotion({
       // inside itself as far as that box holds them. Where its start moved up or back,
       // as more room re-wrapping a paragraph moves it, the editor is carried whole
       // instead, except while the user types in it, since typing never moves the field
-      // (browser/AGENTS.md, "Stability"): a line the user removed carries the words
+      // (browser/AGENTS.md, "The page holds still under the user's aim"): a line the user removed carries the words
       // down from above the field's box, which stops cutting them off that far
       // (`--lf-field-reach`, composing/text-field.js) and stops scrolling while they
       // travel, since what it holds now fits.

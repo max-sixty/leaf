@@ -1156,13 +1156,15 @@ flowchart TD
               <p id="fork-excludes">
                 The fork leaves out what an On me item already holds, what the user has
                 answered since, and what the agent will settle itself. For each ask it
-                gives a thread title and a message of a few sentences that the user can
-                answer without the chat. Leaf skips an ask whose title a thread the
-                agent opened to ask something already has.
+                gives a thread title, a message of a few sentences that the user can
+                answer without the chat, and the words of the passage the ask concerns,
+                if one does. Leaf skips an ask whose title a thread the agent opened to
+                ask something already has.
               </p>
               <p id="fork-writes">
-                Leaf opens each remaining ask as a thread on the page as a whole, its
-                message written as the agent's with an obligation, as
+                Leaf opens each remaining ask as a thread on that passage, or on the
+                page as a whole where the fork named none or the page doesn't show its
+                words once, its message written as the agent's with an obligation, as
                 <code>leaf thread create --obligation</code> writes one. It appears On
                 me until the user replies, and nothing on the page marks where it came
                 from. At its next prompt or tool call, the agent reads each message and
@@ -2422,9 +2424,10 @@ flowchart TD
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task create … --on user</code></strong> Puts a task
-                such as trying a build on On me. <kbd>m</kbd> reaches it; its
-                <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the agent. A
-                thread question has no Done button: the user’s reply answers it.
+                such as trying a build on On me. <kbd>m</kbd> reaches it and opens On me
+                on it; its <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the
+                agent. A thread question has no Done button: the user’s reply answers
+                it.
               </li>
               <li id="updates-written-comment">
                 <strong

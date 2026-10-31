@@ -5,13 +5,14 @@
 # a bare "?" at the page's heading, and its Done couldn't say yes or no. 12 of the 15
 # such to-dos on real pages were a decision or a permission. The user asked for the
 # routes a question asked well takes, a widget or a thread; the
-# conversation-loop.md table had told agents to title a to-do "as a direct question"
-# and offered `page` as its subject.
+# conversation-loop.md table had told agents to title a to-do "as a direct question".
+# The user kept the page as a to-do's subject (2026-10-31), once `m` opens On me on a
+# to-do, where its title shows whole.
 description: closeout-asks-take-their-route
 metadata:
   purpose: "Conversation loop: a permission or a step the agent leaves to the user at a
-    closeout reaches On me by a route that holds the whole ask, not as a to-do on the
-    page as a whole titled as a question."
+    closeout reaches On me by a route that holds the whole ask, not as a to-do titled
+    as a question."
   tags:
     - asks
     - wait-loop
@@ -45,7 +46,6 @@ assert:
       `lf-options` permission on the page or in a thread message's markup) or as a
       thread message carrying `--obligation`, and its words say which change it lands
       and what landing does. The `/reload-plugins` step may be a to-do on the user
-      (`leaf task create … --on user`) on a thread or an element, or a thread message
-      with `--obligation`. Fail if any `leaf task create … --on user` names `page` as
-      its subject, if any to-do on the user is titled as a question, or if any of the
-      three is left only in the closing reply or a status line.
+      (`leaf task create … --on user`) titled as the action, or a thread message with
+      `--obligation`. Fail if any to-do on the user is titled as a question, or if any
+      of the three is left only in the closing reply or a status line.

@@ -42,14 +42,17 @@ calls `$.model.fork` from `turn.complete` (`hooks/claude-code.ts`). Codex would 
 with App Server's `thread/fork` (ephemeral) and Pi's extension by resending its
 session, each handing the answer back the same way; neither does yet.
 
-Leaf asks each in a thread of its own on the page as a whole, opened by the agent's
-message with an obligation (`threads.md`): the message holds the whole question, On
-me lists it until the user replies or settles it, and their reply reaches the agent as
-any reply does. A first version opened each as a to-do on the user on the page,
-titled from the chat line. A to-do's title is all the user reads of it, so the page's
-heading carried a bare "?" and the panel cut the title off (2026-10-31); the user
-asked for the routes a question asked well takes, a widget that asks or a thread. The
-fork can't author the page, so it takes the thread.
+Leaf asks each in a thread of its own, opened by the agent's message with an
+obligation (`threads.md`): the message holds the whole question, On me lists it until
+the user replies or settles it, and their reply reaches the agent as any reply does.
+The thread stands on the passage the ask concerns where the fork names words the page
+shows once, and otherwise on the page as a whole, which is also where words the page
+doesn't show once leave it, since the fork has no next attempt. A first version
+opened each as a to-do on the user on the page, titled from the chat line, and the
+panel cut a long title to half a line (2026-10-31). The user asked for the routes a
+question asked well takes, a widget that asks or a thread, and then declined to
+mandate one: a thread on a passage or on the page can each hold an obligation. The
+fork can't author the page, so it takes a thread, placed as the agent would place it.
 
 Leaf queues one line for each thread (`QUEUED`) under the same locks as its page's
 write, so a later page's failure loses no earlier page's lines. The next prompt or
@@ -72,6 +75,7 @@ resending the main thread's own last request.
 """
 
 import json
+from functools import partial
 from pathlib import Path
 
 from .state import (
@@ -102,11 +106,13 @@ ANSWER = {
                     "page": {"type": "string", "minLength": 1},
                     "title": {"type": "string", "minLength": 1, "pattern": r"\S"},
                     "text": {"type": "string", "minLength": 1, "pattern": r"\S"},
+                    # The page's words the ask concerns, or "" for the page as a whole.
+                    "passage": {"type": "string"},
                     # The agent's words, which ground the ask in the conversation;
-                    # Leaf writes only the title and text.
+                    # Leaf writes only the title, text and passage.
                     "quote": {"type": "string"},
                 },
-                "required": ["page", "title", "text", "quote"],
+                "required": ["page", "title", "text", "passage", "quote"],
                 "additionalProperties": False,
             },
         },
@@ -200,10 +206,11 @@ On me is where the user finds everything waiting on them. Name each decision, an
 - "page": the page's path.
 - "title": a few words naming the thread's subject, under {TITLE_LIMIT} characters ("Merging the two mark styles").
 - "text": the message that asks it, as the agent would write it. The user reads it on the page, perhaps days later and without the chat, so say what is waiting, why it arises and what each answer leads to, naming things as the page does, and end with the question. It shows in a narrow card, so keep it to three or four short sentences of Markdown; link a pull request or commit by its URL where the conversation gives one.
+- "passage": where the ask concerns one passage of the page, a few of its words, exactly as the page shows them and found nowhere else on it, which the thread then stands on; else "", and the thread stands on the page as a whole.
 - "quote": the agent's words that leave it to the user.
 
 Reply with only this JSON object, no code fence, with "asks": [] if there are none:
-{{"asks": [{{"page": "<page path>", "title": "<subject>", "text": "<message>", "quote": "<words>"}}]}}
+{{"asks": [{{"page": "<page path>", "title": "<subject>", "text": "<message>", "passage": "<page words or empty>", "quote": "<words>"}}]}}
 </leaf-fork-check>"""
 
 
@@ -287,6 +294,7 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     unless a thread the agent opened there to ask has its title, and queue a line for
     each for the agent's next step, while the session's turn is still the one `asked`
     names; what it wrote, and why it stopped if it did."""
+    from .findings import Rejected
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
     from .thread import open_thread
@@ -331,15 +339,20 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 # Every message is checked before the first is written, so a refused
                 # one leaves the page as the fork found it.
                 messages = [
-                    (_title(item["title"]), checked_text(page_dir, item["text"]))
+                    (
+                        _title(item["title"]),
+                        checked_text(page_dir, item["text"]),
+                        item["passage"].strip(),
+                    )
                     for item in asks
                 ]
                 lines = []
-                for title, text in messages:
+                for title, text, passage in messages:
                     if title.casefold() in asked_in:
                         continue
                     asked_in.add(title.casefold())
-                    record = open_thread(
+                    ask = partial(
+                        open_thread,
                         page_dir,
                         page,
                         text,
@@ -347,11 +360,22 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                         obligation=True,
                         identity=identity,
                     )
+                    try:
+                        record = ask(passage)
+                    except Rejected:
+                        if not passage:
+                            raise
+                        record = ask()
                     wrote.append(record)
+                    where = (
+                        f'the words "{passage}" in {path}'
+                        if "anchor" in record
+                        else f"{path} as a whole"
+                    )
                     quoted = "\n".join(f"> {line}" for line in text.splitlines())
                     lines.append(
                         f'From your last reply, Leaf asked the user "{title}" On me, '
-                        f"in a new thread on {path} opened by your message "
+                        f"in a new thread on {where}, opened by your message "
                         f"{record['id']}:\n{quoted}\nIt is yours like any message you "
                         "write: the user's reply reaches you as any reply does, and if "
                         "it isn't theirs to decide, withdraw it with `leaf task end "

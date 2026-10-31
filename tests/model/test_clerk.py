@@ -28,7 +28,7 @@ def asked() -> dict:
     return question
 
 
-def reply(page, *titles: str) -> str:
+def reply(page, *titles: str, passage: str = "") -> str:
     return json.dumps(
         {
             "asks": [
@@ -36,6 +36,7 @@ def reply(page, *titles: str) -> str:
                     "page": str(page),
                     "title": title,
                     "text": f"{title}: which would you like?",
+                    "passage": passage,
                     "quote": title,
                 }
                 for title in titles
@@ -100,8 +101,8 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
 
     context = hook(capsys, "PostToolBatch")
     assert (
-        f'Leaf asked the user "The retry limit" On me, in a new thread on {page}'
-        in (context)
+        f'Leaf asked the user "The retry limit" On me, in a new thread on {page} as a '
+        "whole," in context
     )
     assert "> The retry limit: which would you like?" in context
     assert f"leaf task end {page} message:{wrote[1]['id']} dropped" in context
@@ -133,6 +134,28 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
         "s1", reply(page, "A PR for this branch"), question["basis"]
     )
     assert reasked["wrote"] == []
+
+
+def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys):
+    """An ask about one passage opens its thread on the page's words the fork names,
+    as `thread create --quote` would. Words the page doesn't show leave the ask on the
+    page as a whole rather than unasked, since the fork has no next attempt, and the
+    agent hears where each went."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    basis = asked()["basis"]
+    answer = json.loads(reply(page, "Where the cutoff lives", "The retry budget"))
+    answer["asks"][0]["passage"] = "The cutoff lives in"
+    answer["asks"][1]["passage"] = "the retry budget"
+    wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
+    assert [record.get("anchor", {}).get("quote") for record in wrote] == [
+        "The cutoff lives in",
+        None,
+    ]
+    assert all(record["obligation"] for record in wrote)
+    context = hook(capsys, "PostToolBatch")
+    assert f'in a new thread on the words "The cutoff lives in" in {page},' in context
+    assert f'"The retry budget" On me, in a new thread on {page} as a whole,' in context
 
 
 def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):

@@ -31,6 +31,38 @@ what fails and what still works.
 
 ## Known gaps
 
+### Typing in an anchored floating card scrolls its subject in Chromium
+
+Playwright Chromium 156.0.8078.4 (build 1248), on 2026-10-31, scrolled the
+page while replacing text in a fixed, CSS-anchored message rewrite. In
+`test_a_card_at_the_windows_foot_grows_back_to_how_it_stood`
+(`tests/browser/threads/test_rewrites.py`), the page moved from 1421px to
+1834px. Placement correctly resets its remembered height when that scroll moves
+its attachment line, so saving then leaves a shorter, scrolling card. The same
+case passed in Playwright Firefox 157 (build 1555).
+
+A plain browser reproduction needs no Leaf or CodeMirror: give a 4000px-tall
+body an absolutely positioned subject at `top: 2000px` with
+`anchor-name: --subject`, and a fixed, 300px-wide contenteditable at
+`left: 800px; position-anchor: --subject; top: anchor(top)`. In a 1200×860
+viewport, scroll to 1300px, focus the editor containing `Short.`, select all,
+and insert thirty newline-separated copies of `Long text to edit here`.
+Chromium moved the page from 1300px to 1695px. Disabling root scroll anchoring
+or adding layout/paint containment did not eliminate the Leaf failure or the
+plain reproduction, respectively.
+
+Tracked in #4821. The two window-foot rewrite tests retain their card and text
+assertions and now also report the document scroll directly. Recheck those
+node ids on Chromium before changing the held-card contract. The existing
+caret-scroll preservation in
+`browser/runtime/annotation-overlay/composing/floating-response.js` covers the
+comment editor; moving it unchanged to `off-flow.js` did not repair rewrites.
+A repair still needs to prevent the native reveal from moving the attachment
+through the edit, while preserving CSS-anchor following during real scrolling.
+Removing `position-anchor` and naming the anchor directly in each inset is not
+a repair: without the default anchor, Chromium read the unscrolled anchor
+position (2016px rather than 716px in the plain reproduction).
+
 ### Tab underline travel between anchors
 
 The selected-tab underline in `packages/default/styles/tabs.css` follows its

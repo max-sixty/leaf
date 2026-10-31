@@ -732,6 +732,41 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     expect(card.locator(".lf-fp-answer[data-told]")).to_have_count(3)
 
 
+def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
+    browser, serve
+):
+    """A `multiple` group's Done stands on its On me card as the press that commits the
+    picks, not as one more described choice: its name alone, what it does as its
+    tooltip, and as wide as its word while each described choice takes the line. A
+    press there answers the group as Done on the page does."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "done on its card",
+                """<h1 id="title">Tags</h1>
+<lf-ask id="tags-ask"><h2>Which tags?</h2>
+<lf-options id="tags" choose multiple>
+  <lf-option id="tag-alpha" chosen><strong>Alpha</strong> The first tag.</lf-option>
+  <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
+</lf-options></lf-ask>""",
+            )
+        ),
+    )
+    open_on_me(page)
+    card = on_card(page, "widget:tags")
+    told = card.locator(".lf-fp-answer[data-told]")
+    expect(told).to_have_count(2)
+    done = card.get_by_role("button", name="Done", exact=True)
+    expect(done).to_have_text("Done")
+    expect(done).to_have_attribute("title", "Finish choosing options")
+    assert done.bounding_box()["width"] < told.first.bounding_box()["width"] / 3
+
+    done.click()
+    round_trip(page)
+    expect(page.locator("#tags .lf-done")).to_have_attribute("aria-pressed", "true")
+
+
 # Two decisions, the first under a heading a thread can be anchored on.
 TWO_DECISIONS_PAGE = leaf_page(
     "two decisions",

@@ -76,6 +76,10 @@ Direct children of `layout-column` and `layout-flow` are grid items: their verti
 margins add rather than collapse, and `float` does not place them beside prose.
 Automatic inline margins make an unsized item shrink to its content; give it
 `inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
+An item that opens with a heading, or with an eyebrow over one, takes the heading's
+gap as its own top margin, so its box starts at the heading. Set that gap with the
+theme's `--h2-start` and `--h3-start` on `:root`. A top margin page CSS gives the item
+replaces the gap, and one it gives the heading adds to it.
 
 ```html
 <main class="layout-column">

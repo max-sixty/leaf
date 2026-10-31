@@ -2,7 +2,10 @@
  * the page's elements (reading.css), the reading theme for its idioms, and every package restates it for the labels its own
  * widgets wear. One rule per package, because what counts as apparatus is a judgement,
  * and a judgement made per
- * widget is a dozen chances to answer it differently.
+ * widget is a dozen chances to answer it differently. Each label's own rule names its
+ * font (base.css, `--font-*`), which sets it in the UI sans, so what this rule adds is
+ * the figures, and it is imported after the widgets' sheets, whose fonts would
+ * otherwise set them back.
  *
  * Figures come with the face, and this package is where that earns its keep: the
  * numbers a report moves between versions are all here — a board's column label or
@@ -15,6 +18,5 @@ lf-sample > [data-lf-said="label"],
 lf-column::before,
 lf-column > [data-lf-said="label"],
 lf-tab::before {
-  font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }

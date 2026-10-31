@@ -281,9 +281,9 @@ what it means to style, such as a class on your own controls or a widget's id be
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
 as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and the same
-token on one of the chrome's parts, such as `[part~="card"]`, changes only that surface
-(`package-themes.md`, "Leaf's chrome"). For
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

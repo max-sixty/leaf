@@ -348,10 +348,13 @@ def chrome_restyle(sheet: str, source: Path) -> str:
     package; a theme restyles the chrome on purpose only from here. Each style rule,
     in its place and inside whatever conditions hold it, is nested in
     `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over Leaf's
-    chrome rules whatever selector either writes. A rule inside a @layer stays layered,
-    and so loses to every unlayered chrome rule. A package names what it restyles by
-    part (`[part~="panel"]`), the chrome's public names for its surfaces; its other
-    classes are private and change without notice.
+    chrome rules whatever selector either writes. Nested, its selector is relative to
+    the chrome's root, so one keyed on the page around the chrome places `&` for that
+    root (`:root.dark & [part~="panel"]`). A rule inside a @layer stays layered, and so
+    loses to every unlayered chrome rule. Any other at-rule is global, as anywhere in
+    CSS. A package names what it restyles by part (`[part~="panel"]`), the chrome's
+    public names for its surfaces; its other classes are private and change without
+    notice. What the browser would drop as invalid is dropped here too.
 
     A sheet holding @scope is refused: at its top it would set a scope of its own
     beside the chrome's, reaching the page, and nested in a rule Chromium matches
@@ -370,6 +373,8 @@ def chrome_restyle(sheet: str, source: Path) -> str:
     def restyled(nodes):
         parts = []
         for node in nodes:
+            if node.type == "error":
+                continue
             if node.type == "qualified-rule":
                 parts.append(CHROME_RESTYLE.format(tinycss2.serialize([node])))
             elif (
@@ -389,7 +394,8 @@ def chrome_restyle(sheet: str, source: Path) -> str:
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     """The layer's three stylesheets: each contribution in its role's cascade tier,
-    in input order. Leaf places sheets and rewrites none of their rules.
+    in input order. Leaf places sheets and rewrites none of their rules but
+    chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,

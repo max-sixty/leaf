@@ -666,7 +666,8 @@
    floor, since a message turns into the editor that rewrites it. Its size is a token
    of its own, so a measure set in it, such as the floating panel's widened field
    (floating-panel.css, `data-expanded`), follows the face. */
-:is(:root, .lf-chrome [part]) {
+:root,
+.lf-chrome [part] {
   --msg-size: max(var(--entry-floor), var(--t-5));
   --font-message: var(--msg-size) / 1.5 var(--sans);
   /* A name one rung larger than the small words beside it, such as a message's author
@@ -680,7 +681,9 @@
    and a scope restating the ladder would inherit the root's result, so these are
    declared on every scope that may restate it: the root, `.density-working` (below)
    and each of the chrome's parts. */
-:is(:root, .density-working, .lf-chrome [part]) {
+:root,
+.density-working,
+.lf-chrome [part] {
   /* A keyboard badge's box: the line box, which is a ratio of the font, plus the ring
      drawn around it (chrome.css dresses one). It is a token for the reason the ring's
      width is — a box somebody else holds room for has to be read back in a calc, and

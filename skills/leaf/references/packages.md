@@ -121,12 +121,14 @@ An element with `hidden` is always `display: none`, in the document and in shado
 trees, except `hidden="until-found"`. Give a box that must stay laid out while unseen a
 state of its own.
 
-Leaf's chrome and comment marks are unlayered, so no layered rule restyles them:
-change their colours and type through the theme inputs below, and restyle the
-chrome's surfaces by part in `chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
+Leaf's chrome and comment marks are unlayered, so a layered rule reaches only the
+layered faces of the controls they hold (above): change their colours and type
+through the theme inputs below, and restyle the chrome's surfaces by part in
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
 `inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
 
-Leaf places each sheet in its tier and changes none of its rules, so a sheet names
+Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
+which it nests in the chrome, so a sheet names
 the widgets it styles: `lf-tag .part` in the document, and `:host(lf-tag) .part` in a
 shadow tree, where `:host(lf-tag.ready)` reads the host's state. A bare `p { … }`
 reaches every paragraph on the page, and in a shadow sheet everything the tree holds,

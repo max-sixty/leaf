@@ -2214,8 +2214,10 @@ def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
     """Each style rule of a package's chrome.css is wrapped in the chrome's scope at a
     weight the chrome's own rules don't reach, inside the conditions and layers that
     hold it. Every other at-rule stays as written where it stood, so a @font-face under
-    @media keeps its condition and a @layer statement keeps its place in the order. A
-    layer whose packages restyle nothing adds no rule."""
+    @media keeps its condition and a @layer statement keeps its place in the order.
+    What a browser would drop inside a condition, such as a stray `;` or a loose
+    declaration, is dropped rather than failing composition. A layer whose packages
+    restyle nothing adds no rule."""
     kernel, package = tmp_path / "kernel", tmp_path / "package"
     for root in (kernel, package):
         root.mkdir()
@@ -2228,6 +2230,8 @@ def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
         "@layer two, one;\n"
         "@media screen { @font-face { font-family: X; src: local(Y); } "
         '[part~="card"] { display: none; } }\n'
+        '@media print { [part~="card"] { color: red }; }\n'
+        "@supports (display: grid) { color: red; }\n"
     )
 
     scoped = layer_model.CHROME_RESTYLE.format
@@ -2239,6 +2243,8 @@ def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
         "@media screen { @font-face { font-family: X; src: local(Y); } "
         + scoped('[part~="card"] { display: none; }')
         + " }\n"
+        "@media print { " + scoped('[part~="card"] { color: red }') + "}\n"
+        "@supports (display: grid) { }\n"
     )
 
 

@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import PLUGIN_ROOT, append_carried_log_record
 from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -643,11 +643,14 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     selector naming the page around it. A page's
     own rule naming a part sets the tokens there and nothing else, which the guard
     rolls back as it does any light page rule (styles/chrome-guard.css). A face set on a
-    part reaches the words there, since each part resolves the fonts again (base.css)."""
+    part reaches the words there, since each part resolves the fonts again (base.css).
+    A rule keyed on the page around the chrome reaches a part through `&`, and the
+    parts the chrome carries are the ones package-themes.md documents."""
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
         '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
+        'html & [part~="card"] { --r-l: 5px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
         "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
@@ -677,16 +680,24 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             font: cs(document.querySelector('[part~="composer"]'))
                 .getPropertyValue('--font-message').trim().split(' ').at(-1),
+            card: cs(document.querySelector('.lf-chrome [part~="card"]'))
+                .getPropertyValue('--r-l').trim(),
+            parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
+                .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
             prose: cs(document.querySelector('main p')).color,
             body: cs(document.body).borderTopWidth,
         };
     }""")
+    section = (PLUGIN_ROOT / "skills/leaf/references/package-themes.md").read_text()
+    section = section.split("## Leaf's chrome", 1)[1].split("\n## ", 1)[0]
     assert faces == {
         "family": "cursive",
         "color": "rgb(1, 2, 3)",
         "corner": "0px",
         "composer": "3px",
         "font": "monospace",
+        "card": "5px",
+        "parts": sorted(re.findall(r"^\| `([a-z-]+)` ", section, re.M)),
         "prose": faces["prose"],
         "body": "0px",
     }, faces

@@ -209,7 +209,12 @@
      colour states both schemes in one `light-dark()`; `color-scheme` picks the half. */
   --paper: light-dark(#faf9f5, #191815);
   --ink: light-dark(#1c1b18, #e8e4db);
-  --muted: light-dark(#6f6a60, #a09889);
+  /* What qualifies a line, in the page's prose and the interface alike: a caption, a
+     row's end, a status, a group heading, a field's hint. It holds 4.5:1 against every
+     surface the layer paints, tints and washes included; the darkest is a panel row
+     washed by its linked passage's hover (--mark-hover), where it reads 4.6:1 in
+     either scheme. */
+  --muted: light-dark(#676257, #b1aa9d);
   --rule: light-dark(#e7e3d9, #34312b);
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
@@ -407,9 +412,12 @@
      panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
   --msg-size: max(var(--entry-floor), var(--t-5));
   --voice-message: var(--msg-size) / 1.5 var(--sans);
-  /* A message's author name, one rung larger than the time and status beside it, also
+  /* A name one rung larger than the small words beside it, such as a message's author
+     over its time and status, or the page's state over the leaf's menu; it also
      resolves at the root, for the same reason. */
   --voice-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
+  /* A plan's goal, over its steps: a message's words, strong. */
+  --voice-goal: 600 var(--msg-size) / 1.5 var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
      in the same faces (runtime/composing/text-field.js), inside a shadow root those
@@ -485,18 +493,10 @@
   --pre-bg: light-dark(#fff, #1b1b1a);
   --code-chrome: light-dark(#f6f8fa, #222220);
   --code-ink: light-dark(#24292f, #e8e7e3);
-  --code-muted: light-dark(#57606a, #9b9992);
+  --code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --code-border: light-dark(#d0d7de, #3b3a37);
   --chip: light-dark(#eeeade, #2d2922); /* neutral chip */
-  /* The interface's own secondary inks, held to 4.5:1 against every surface the layer
-     paints, tints and washes included: --muted-2 is what qualifies a line anywhere in
-     the interface (a row's end, a status, a group heading, a field's hint), where
-     --muted is the document's and a theme may set it for its prose alone. The
-     darkest ground it meets is a panel row washed by its linked passage's hover
-     (--mark-hover), where it reads 4.6:1 in either scheme. Code owns a near-neutral
-     value because its canvas no longer follows paper. */
   --ink-2: light-dark(#3c3934, #c9c3b6);
-  --muted-2: light-dark(#676257, #b1aa9d);
   --border-2: light-dark(#d5cfc2, #453f36);
   /* A translucent backdrop is the paper it floats over, so it is derived rather than
      restated: a project that overrides --paper gets a backdrop that follows it, where a
@@ -682,17 +682,19 @@
      the option that holds a column for one is in another layer's stylesheet entirely.
      Written as a number there, the column stayed at the size the chip was when it was
      measured, and a package redeclaring the ladder grows the chip into whatever the
-     column was holding beside it. The badge's own line height is read back from it
-     (surfaces.css), so the ratio has this one home. */
+     column was holding beside it. The badge centres its key in that box (surfaces.css), so
+     the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* The interface's voices. Each is a whole face (weight, size, line height and
      family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
      its words by naming one, `font: var(--voice-small)`, or by inheriting its holder's.
-     Within a voice, a run may take weight 400, 500 or 600 for emphasis, and a box may
-     set its line height to a length it is laid out by, such as a badge's height.
-     tests/model/test_interface_voices.py fails a rule that sets a face of its own, so
-     a new face is added here, beside the others. The two faces a
-     thread's words take, `--voice-message` and `--voice-name`, are declared on the
+     A rule that names a voice takes its weight with it. Only a run that keeps its
+     holder's voice sets a weight (400, 500 or 600), to stand out from the words around
+     it or back into them, as a pending thread name does inside a title. A box centres
+     its words by layout, never with a line as tall as itself, so every leading is a
+     voice's. tests/model/test_interface_voices.py fails a rule that sets a face of its
+     own, so a new face is added here, beside the others. The faces a thread's words
+     take, `--voice-message`, `--voice-name` and `--voice-goal`, are declared on the
      root instead (above), so a density leaves them alone. */
   --voice-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
   /* The floating panel and its lists, a rung below the chrome's, since the panel
@@ -700,8 +702,13 @@
   --voice-compact: var(--t-working-label) / var(--lf-ui-lh) var(--sans);
   /* Whatever qualifies another line: a row's end, a status, a description, a time. */
   --voice-small: var(--t-6) / var(--lf-ui-lh) var(--sans);
+  /* A status or reference that names a state rather than qualifying a line: a
+     passage's, a drawing's, a summary's. */
+  --voice-status: 500 var(--t-6) / var(--lf-ui-lh) var(--sans);
   --voice-heading: 600 var(--t-6) / var(--lf-ui-lh) var(--sans); /* a group's name */
   --voice-title: 600 var(--t-5) / var(--lf-ui-lh) var(--sans); /* a dialog's or pane's */
+  /* Why a box refused what was typed in it, stood over its words. */
+  --voice-error: 500 var(--t-5) / var(--lf-ui-lh) var(--sans);
   /* A region's name in small capitals (`.lf-label` adds the capitals and their
      tracking), set close, since capitals have no descenders. */
   --voice-label: 600 var(--t-6) / 1.3 var(--sans);
@@ -1006,7 +1013,7 @@ body {
   display: flex;
   gap: 0.4em;
   align-items: center;
-  color: var(--muted-2);
+  color: var(--muted);
   font: var(--voice-small);
   white-space: nowrap;
   border: 1px solid var(--rule);
@@ -1312,16 +1319,10 @@ img {
  * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
  * title, and rides at the words' end, out of the way of what the row says (the package
  * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
- * id on 23 October 2026, reversing the earlier choice to show the id as "what it is".
- *
- * The secondary interface ink and not the document's muted, because a row's ground is
- * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
- * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
- * 4.5:1 against the surfaces it lands on (base.css), which is the promise this
- * reference needs and the document's own muted does not make. */
+ * id on 23 October 2026, reversing the earlier choice to show the id as "what it is". */
 .lf-ref {
   font: var(--voice-small);
-  color: var(--muted-2);
+  color: var(--muted);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1341,7 +1342,7 @@ img {
   font: var(--voice-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted-2);
+  color: var(--muted);
 }
 @media screen {
   html:root {
@@ -1872,9 +1873,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border: 1px solid var(--paper);
   background: var(--ink);
   color: var(--paper);
+  display: grid;
+  place-items: center;
   font: var(--voice-count);
-  line-height: 14px;
-  text-align: center;
 }
 
 /* A pane is one task region: an optional header, one body element, an optional footer,

@@ -1,4 +1,4 @@
-/** One live agent grades the final result and its predecision controls. */
+/** One live agent grades the result against its decision and revision starting points. */
 import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { loadApiProvider } from "promptfoo";
@@ -30,11 +30,12 @@ export default async function grade(output, context, load = loadApiProvider) {
       );
     const pages = Object.fromEntries(
       Object.entries(diagnostics.comparison.phases).map(([suffix, phase]) => [
-        suffix ? "before_decision" : "final",
+        suffix.slice(1) || "final",
         {
           page: diagnostics.phases[phase].page,
           payload: diagnostics.payload,
           condition: diagnostics.condition,
+          author_reply: diagnostics.phases[phase].trace.reply,
         },
       ]),
     );
@@ -57,7 +58,7 @@ ${diagnostics.comparison.brief}
 Original browser decision task:
 ${diagnostics.comparison.decision_task ?? ""}
 
-Author output and feedback:
+Recorded conversation summary and comment answer:
 ${output}
 
 The final page is the author's result after all user feedback. The optional
@@ -72,6 +73,10 @@ exploration cannot settle it.`;
         widths: diagnostics.comparison.widths,
         schema: z.toJSONSchema(Verdict),
         evidence,
+        handovers:
+          diagnostics.comparison.decision_task != null
+            ? { final: diagnostics.decision ?? null }
+            : {},
       },
     });
     if (response.error) throw new Error(response.error);

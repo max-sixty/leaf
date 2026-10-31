@@ -3,7 +3,7 @@ import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION
 import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -1463,7 +1463,8 @@ function watchCodeBlocks() {
 		]);
 		for (const [pre, pending, levels] of prepared) {
 			const copy = aimControl(pending);
-			standInChrome(copy, pre, levels);
+			if (leafSurface(pre)) move(pre.parentNode, copy, pre.nextSibling);
+			else standInChrome(copy, pre, levels);
 			copy.tabIndex = -1;
 			claimReachStop(pre);
 			if (!wired.has(pre)) {
@@ -8102,7 +8103,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (typeof key !== "string" || !key) throw new TypeError("navigateToDatum key must be a non-empty string");
 		let source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const url = new URL(window.location.href);
@@ -8116,29 +8117,15 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (!mayArrive()) return false;
 		source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const destination = addressedElements(source, key)[0] ?? null;
-		departure.plan(destination);
 		if (!destination) {
-			await arrive(() => {
-				const where = referencedProjection(owner, attribute);
-				return where && {
-					where,
-					focus: null,
-					scroll: [{
-						at: where,
-						block: "start"
-					}]
-				};
-			}, {
-				intent: mayArrive,
-				departure
-			});
-			if (mayArrive() && missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
+		departure.plan(destination);
 		const arrived = await arrive(() => {
 			const source = referencedProjection(owner, attribute);
 			const where = source && addressedElements(source, key)[0];
@@ -8155,7 +8142,10 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent: mayArrive,
 			departure
 		});
-		if (mayArrive() && (arrived ? success : missing)) announce(arrived ? success : missing);
+		if (mayArrive()) {
+			if (arrived && success) announce(success);
+			else if (!arrived && missing) notice(missing);
+		}
 		return arrived;
 	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {

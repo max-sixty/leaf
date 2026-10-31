@@ -2218,7 +2218,7 @@ let render = escapedSource;
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
-const renderMarkdown = (text) => render(text);
+const renderMarkdown = (text, breaks = true) => render(text, breaks);
 function renderedWords(html, imageAlt = false) {
 	const parsed = document.createElement("template");
 	parsed.innerHTML = html;
@@ -2229,7 +2229,7 @@ function fragmentWords(fragment, imageAlt = false) {
 	if (imageAlt) for (const image of fragment.querySelectorAll("img")) image.replaceWith(document.createTextNode(image.alt));
 	return fragment.textContent;
 }
-const markdownWords = (text) => renderedWords(render(text));
+const markdownWords = (text) => renderedWords(renderMarkdown(text));
 const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 function inlineMarkdownFragment(text, breaks = true) {
 	const parsed = document.createElement("template");
@@ -2654,10 +2654,11 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let singleLine;
+		let softBreaks;
 		let positioned;
-		render = (text) => markdown.render(text);
-		renderInline = (text, breaks) => (breaks ? markdown : singleLine ??= makeMarkdown(module, false)).renderInline(text);
+		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
+		render = (text, breaks) => dialect(breaks).render(text);
+		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
 		tokenize = (text) => {
 			if (!positioned) {
 				positioned = makeMarkdown(module, true);

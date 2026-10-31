@@ -226,11 +226,12 @@ def at_rest(page: Page) -> None:
 
 
 def worktree_summaries(page: Page) -> None:
-    """Close the initially open worktree so the list's summary columns stand together."""
-    page.locator("#worktree-example-worktree-0 > details > summary").click()
-    expect(
-        page.locator("#worktree-example-worktree-0 > details")
-    ).not_to_have_attribute("open")
+    """Close the initially open worktree so the list's summary columns stand together.
+    Press the widget's summary by its class, since the authored evidence in the row
+    holds a summary of its own."""
+    worktree = page.locator("#worktree-example-worktree-0")
+    worktree.locator(".lf-worktree-summary").click()
+    expect(worktree.locator(".lf-worktree-disclosure")).not_to_have_attribute("open")
 
 
 def plan_execution(page: Page) -> None:
@@ -402,25 +403,26 @@ def panel_corner_hover(page: Page) -> None:
 
 
 def share_link(page: Page) -> None:
-    """The page's link as a readonly field reached by keyboard, where the leaf's menu
-    leaves it to select under About because the clipboard refused the copy."""
+    """The page's link, focused by keyboard as read-only text in About this page,
+    which the menu's Copy link opens when the clipboard refuses the copy."""
     page.evaluate(
         "() => { Clipboard.prototype.writeText ="
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    link = page.locator(".lf-fp-menu[data-level=group]").get_by_label(
-        "Link", exact=True
-    )
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
+    link = about.get_by_label("Link", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
     link.focus()
     expect(link).to_be_focused()
 
 
 def diff_filter(page: Page) -> None:
-    """A nonempty file filter with Clear and its match count inside one field."""
-    field = page.locator("#pr-key-hunk").get_by_role(
+    """A nonempty file filter with Clear and its match count inside one field, on the
+    walkthrough's whole patch, since a diff of one file offers no filter."""
+    field = page.locator("#pr-exact-patch").get_by_role(
         "searchbox", name="Filter diff files"
     )
     field.scroll_into_view_if_needed()
@@ -720,11 +722,11 @@ def seat_held_news(page: Page) -> None:
 
 def option_picked(page: Page) -> None:
     """The panel's row just after the plan's rollout option is picked and admitted,
-    while a passing notice would still stand in its status seat."""
+    which the live region alone announces."""
     option = page.locator("#plan-admin")
     option.scroll_into_view_if_needed()
     option.click()
-    expect(page.locator(".lf-live")).to_contain_text("— sent")
+    expect(page.locator(".lf-live")).to_contain_text("Chose “")
 
 
 def option_references(page: Page) -> None:
@@ -1588,10 +1590,12 @@ def more_menu(page: Page) -> None:
 
 
 def capture_menu(page: Page) -> None:
-    """Capture area, chosen from the leaf menu's Annotations."""
+    """Capture area, chosen from the leaf menu's Annotations, standing over the dimmed
+    page with no area drawn until a drag draws one."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="group:annotate"]').click()
     page.locator('.lf-fp-item[data-row="command:capture.region.open"]').click()
+    expect(page.get_by_role("region", name="Capture area", exact=True)).to_be_visible()
 
 
 def capture_area(page: Page) -> None:
@@ -1599,7 +1603,6 @@ def capture_area(page: Page) -> None:
     of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
@@ -1609,7 +1612,6 @@ def capture_small_drag(page: Page) -> None:
     """Hold a small selection over words, which must remain visible during the drag."""
     page.locator("#plan-current").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
     assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
@@ -2110,13 +2112,18 @@ STATES = (
         scheme="dark",
     ),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
-    State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
+    State(
+        "share-link",
+        "developer/feature-gallery",
+        share_link,
+        region='.lf-inspection-dialog [aria-label="Page details"]',
+    ),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
         "diff-filter",
         "pr-walkthrough",
         diff_filter,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "diff-separator",
@@ -2131,7 +2138,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "playground-text",

@@ -1,7 +1,7 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, layerLanding, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
-import { PRESS, closeControl, cycledRow, el, keys, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, effectiveScroller, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { closeControl, cycledRow, el, keys, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
@@ -240,7 +240,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	let dismiss = () => {};
 	const carry = surfaceGrip({
 		surface: preview,
-		bounds: () => commentBoundary({ region: previewSession?.region }),
+		bounds: () => commentBoundary({ scroller: previewSession?.scroller }),
 		dropped(box) {
 			const session = previewSession;
 			if (!session) return;
@@ -439,8 +439,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				extent: box,
 				row: box.top,
 				margin: null,
-				region: null,
-				scroller: effectiveScroller(cluster)
+				scroller: scrollerFor(cluster)
 			};
 		}
 		const thread = threadCardThread(session);
@@ -478,8 +477,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const boundary = commentBoundary({ region: place.region });
-		session.region = place.region;
+		const boundary = commentBoundary({ scroller: place.scroller });
+		session.scroller = place.scroller;
 		if (!boundary.width || !boundary.height) {
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
@@ -609,7 +608,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			side: commentPlacement(),
 			anchor: new CardAnchor(preview),
 			width: origin?.box.width ?? null,
-			region: null,
+			scroller: pageScroller,
 			followed: false
 		};
 		if (origin) previewSession.side.adopt(origin);
@@ -1150,19 +1149,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return choice ? readingMarginEntries.get(readingKey(entry, choice)) ?? null : null;
 	}
 	const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
-	const readingControl = (className) => {
-		const control = offer("span", className);
-		keys(control, "On a margin entry", [{
-			id: "margin.press",
-			keys: PRESS,
-			title: "open / close",
-			run: () => control.click()
-		}], { when: () => {
-			const record = contributionEntryRecord(control);
-			return record.behavior === "disclosure" && !record.disabled;
-		} });
-		return control;
-	};
+	const readingControl = (className) => offer("span", className);
 	function syncReadingRelation(control, choice) {
 		if (choice?.kind === "comment") {
 			keeps(control, "aria-controls", preview.id);
@@ -1494,13 +1481,14 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		const items = choice?.items ?? [];
 		const face = readingFace(choice);
 		const behavior = readingBehavior(face);
+		const line = readingContext(choice);
 		node.lfEntry = entry;
 		presentContributionEntry(node, contributionEntry({
 			key: `reading:${choice?.key ?? "none"}`,
 			icon: face.icon,
 			label: readingLabel(choice),
-			voice: items.length === 1 && face.voice || "agent",
-			context: readingContext(choice),
+			voice: face.voice ?? null,
+			context: line,
 			behavior,
 			rank: "reading",
 			state: readingState(choice),
@@ -2454,8 +2442,8 @@ function createVisualMarkPaint() {
 //#endregion
 //#region runtime/annotation-overlay/composing/floating-response.js
 function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, response, positioned, dismiss, scrollToElement, scrollToRange }) {
-	const floatBoundary = (region = null) => commentBoundary({
-		region,
+	const floatBoundary = (scroller) => commentBoundary({
+		scroller,
 		right: rightCover()
 	});
 	const fabPlacement = commentPlacement();
@@ -2469,10 +2457,10 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 	let nativeAttachment = false;
 	let editingAttachment = null;
 	let windowPosture = false;
-	let fabRegion = null;
+	let fabScroller = pageScroller;
 	const carry = surfaceGrip({
 		surface: fabBar,
-		bounds: () => floatBoundary(fabRegion),
+		bounds: () => floatBoundary(fabScroller),
 		dropped(box) {
 			if (!response.anchor || !response.floating) return;
 			if (box && response.open) fabPlacement.adopt({
@@ -2688,9 +2676,9 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			}
 		}
 		if (response.open && nativeAttachment && geometry && !windowPosture) return true;
-		const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
+		const boundary = place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
 		if (boundary.width <= 0 || boundary.height <= 0) return false;
-		fabRegion = place.region;
+		fabScroller = place.scroller;
 		const setWidth = (available, scale) => {
 			const room = available;
 			fabBar.style.setProperty("--lf-float-w", roomPx(Math.max(0, room)));

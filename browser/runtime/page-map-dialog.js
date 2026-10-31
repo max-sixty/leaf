@@ -63,6 +63,7 @@ import { commandSteps } from "./keyboard/control-keys.js";
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
 import { threadHeading } from "./thread/messages.js";
+import { voiced, wordsText } from "./voice.js";
 
 const dialog = document.createElement("dialog");
 dialog.className = "lf-ui lf-page-map-dialog";
@@ -151,13 +152,13 @@ export function createPageMapDialog({
   }
 
   // A thread's row names it as Threads does (`threadHeading`).
-  const sheetName = (item, visibleLabel) => {
+  const sheetName = (item, visibleWords) => {
     const thread = item && inventory.sourceItem(item)?.thread;
-    return thread ? threadHeading(thread) : visibleLabel;
+    return thread ? threadHeading(thread) : visibleWords;
   };
   // A row's kind leads it, its name follows, and what it says of its state, such as
   // whose turn a thread is, ends it, where Threads says the same.
-  const sheetFace = ({ icon, glyph, item, visibleLabel, context }) =>
+  const sheetFace = ({ icon, glyph, item, visibleLabel, visibleWords, context }) =>
     html`<span class="lf-row-lead"
         >${
           icon
@@ -165,10 +166,12 @@ export function createPageMapDialog({
             : html`<span class="lf-margin-kind">${glyph}</span>`
         }</span
       ><span class="lf-page-map-action-label-word lf-row-main"
-        >${sheetName(item, visibleLabel)}</span
+        >${voiced(sheetName(item, visibleWords ?? visibleLabel))}</span
       >${
         context
-          ? html`<span class="lf-page-map-action-context lf-row-end">${context}</span>`
+          ? html`<span class="lf-page-map-action-context lf-row-end"
+              >${voiced(context)}</span
+            >`
           : nothing
       }`;
 
@@ -212,7 +215,10 @@ export function createPageMapDialog({
 
   const sheetHost = (action, actions) =>
     contributionHost(contributionSource(action.offered), "map", action.record, {
-      accessibleLabel: [action.record.accessibleLabel, action.record.context]
+      accessibleLabel: [
+        action.record.accessibleLabel,
+        wordsText(action.record.context ?? ""),
+      ]
         .filter(Boolean)
         .join(", "),
       relatedControlIds: relatedControlIds(action, actions),
@@ -224,7 +230,7 @@ export function createPageMapDialog({
       ${offeredAction("row", "lf-page-map-action")}
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
-      aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
+      aria-label=${[action.label, wordsText(action.context ?? "")].filter(Boolean).join(", ")}
       ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${() => activateItem(action.item, action.entry)}
     >

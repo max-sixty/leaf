@@ -17,9 +17,10 @@ import {
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too, and steps it by its buttons, rows and marks,
- * which are the widget's own presses. What Leaf adds it reads from outside: the keys as
- * `lfCommands`, the step a key reached as words for a listener (`announce`), where a key
- * from a row of the step list leaves the user (`lands`), and the events as visual parts.
+ * which are the widget's own presses, by pointer or by Enter and Space. What Leaf adds
+ * it reads from outside: the keys as `lfCommands`, the step a key reached as words for
+ * a listener (`announce`), where a key from a row of the step list leaves the user
+ * (`lands`), and the events as visual parts.
  * The element draws the drawing's template itself, in the task that changes the step or
  * the layout, so nothing waits on it, and a failure shows where it happened
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
@@ -101,8 +102,8 @@ class Timeline extends HTMLElement {
     drawing.next = this.querySelector(".lf-timeline-next");
     drawing.eventElement = (id) =>
       this.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
-    for (const lane of this.querySelectorAll(":scope > lf-lane"))
-      lane.setAttribute("hidden", "");
+    for (const authored of this.querySelectorAll(":scope > :is(lf-lane, lf-run)"))
+      authored.setAttribute("hidden", "");
     for (const problem of model.problems) reportFailure(this, new Error(problem));
     const steps = model.steps.length;
     // A key pressed on a row of the step list carries the user to the step's row.
@@ -153,22 +154,8 @@ class Timeline extends HTMLElement {
       this.#go(drawing.current - 1, true),
     );
     drawing.next.addEventListener("click", () => this.#go(drawing.current + 1, true));
-    for (const row of drawing.rows) {
-      row.lfCommands = {
-        title: "On a timeline step",
-        rows: [
-          {
-            id: "timeline.step",
-            title: "Go to step",
-            keys: ["Enter", " "],
-            run: () => row.click(),
-          },
-        ],
-      };
-      commandsChanged(row);
-    }
     const events = new Map(model.events.map((event) => [event.id, event]));
-    const describe = (event) => `${model.lanes[event.lane].label}: ${event.label}`;
+    const describe = (event) => `${model.lanes[event.lane].name}: ${event.label}`;
     this.#parts = registerVisualParts(
       this,
       () =>
@@ -199,7 +186,8 @@ class Timeline extends HTMLElement {
         if (target && this.contains(target))
           this.#go(Number(target.dataset.step), false);
       };
-      // The step list's rows are its buttons; a press on a mark is the pointer's
+      // The step list's rows are its buttons, which Enter and Space press as they do a
+      // native button's (`selectableOffered`); a press on a mark is the pointer's
       // shortcut to the same step.
       for (const region of [drawing.chart, ...drawing.rows])
         region.addEventListener("click", pick, { signal });
@@ -227,7 +215,7 @@ class Timeline extends HTMLElement {
     if (!keyed) return;
     const { model } = drawing;
     const events = model.steps[step].events
-      .map((event) => `${model.lanes[event.lane].label}: ${event.label}`)
+      .map((event) => `${model.lanes[event.lane].name}: ${event.label}`)
       .join("; ");
     announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
   }

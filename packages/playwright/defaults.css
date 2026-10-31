@@ -24,7 +24,7 @@ lf-trace {
   border-radius: var(--r);
   padding: var(--sp-3);
   background: var(--paper);
-  font: var(--voice-ui);
+  font: var(--font-ui);
   overflow-wrap: anywhere;
 }
 
@@ -90,7 +90,9 @@ lf-trace[hidden="until-found"] {
 /* Keep source names visible and let the shared control own keyboard selection. */
 .lf-trace-sources {
   --wa-form-control-height: var(--lf-trace-control-size);
+  display: block;
   flex: 0 1 auto;
+  min-block-size: var(--lf-trace-control-size);
   min-inline-size: 0;
   max-inline-size: 100%;
 }
@@ -941,13 +943,17 @@ lf-trace-bookmark {
  * A recording is replaced in place, so its outgoing descendants cannot anchor
  * document scrolling. The stable surrounding page remains the reader's anchor. */
 lf-trace-compare {
+  --lf-trace-compare-top: var(--lf-top);
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
   --lf-trace-chooser-padding: var(--sp-2);
-  font: var(--voice-ui);
+  font: var(--font-ui);
+}
+lf-trace-compare > :not(.lf-trace-compare-controls) {
+  --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head-h, 0px));
 }
 .lf-trace-compare-controls {
   position: sticky;
@@ -960,14 +966,11 @@ lf-trace-compare {
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
+  --lf-head-inset: initial;
 }
 @media (max-width: 600px) {
   lf-trace-compare {
     --lf-trace-chooser-padding: var(--sp-1);
-  }
-  .lf-trace-compare-controls {
-    position: static;
-    --lf-head-inset: initial;
   }
 }
 lf-trace-compare > *,

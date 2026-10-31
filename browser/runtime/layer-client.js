@@ -35,7 +35,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { exceptionRecord, exceptionText } from "./exception.js";
+import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -421,10 +421,11 @@ window.addEventListener("error", (e) => {
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
   reportPageError(
-    exceptionRecord(e.error).stack
-      ? e.error
-      : `${e.message} (${e.filename}:${e.lineno})`,
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
   );
 });
 window.addEventListener("unhandledrejection", (e) => {

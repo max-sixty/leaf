@@ -104,8 +104,7 @@ leaf-composition-field {
   border-radius: var(--r);
   background: var(--card);
   color: var(--danger-ink);
-  font: var(--voice-ui);
-  font-weight: 500;
+  font: var(--font-error);
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: text;
@@ -356,10 +355,12 @@ leaf-composition-field {
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it; the shelf owns its pictures' size, face
-   and marks here. In a row that holds a field, the
+   and marks here, and how far its pictures stand from the box their words are typed
+   in (`--lf-media-gap`). In a row that holds a field, the
    shelf comes first and takes a line of its own, so it stands above the field and
    never takes the field's width; a seated comment box's composer adds no box of its
-   own (`display: contents`). */
+   own (`display: contents`). The row's own gap between its lines would add to the
+   shelf's, so the shelf's margin alone sets it. */
 :is(.lf-thread-reply, .lf-say):has(
   > leaf-composition-field > .lf-composer-media:not([hidden])
 ),
@@ -367,6 +368,7 @@ leaf-composition-field {
     > .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])
   ) {
   flex-wrap: wrap;
+  row-gap: 0;
 }
 /* The shelf scrolls sideways when its pictures outrun its field, and a scroller cuts
    what it holds at its padding box, so its padding holds each picture's shadow and the
@@ -390,6 +392,11 @@ leaf-composition-field {
     calc(var(--lf-media-mark-overhang) + (var(--aim-floor) - var(--mark-size)) / 2)
   );
   --lf-media-h: 120px;
+  /* How far the pictures stand clear of the edge they meet as it is drawn, wherever a
+     surface places the shelf: the floating panel's edge, or a field's, where the ring
+     the field wears on its edge (base.css) stands outside its box, so a surface that
+     places its shelf by a field adds `--focus-ring-w`. */
+  --lf-media-gap: 8px;
   display: flex;
   align-items: flex-end;
   flex: 1 0 calc(100% + 2 * var(--lf-media-room));
@@ -398,17 +405,34 @@ leaf-composition-field {
   overflow-x: auto;
   padding: var(--lf-media-room);
   /* In flow, the pictures stand far enough into their row to keep the corner mark
-     inside it, and 4px over what follows. */
+     inside it, and their gap clear of the field that follows. */
   margin: calc(var(--lf-media-mark-overhang) - var(--lf-media-room))
-    calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
+    calc(-1 * var(--lf-media-room))
+    calc(var(--lf-media-gap) + var(--focus-ring-w) - var(--lf-media-room));
   box-sizing: border-box;
 }
+/* A mark's reach, the aim floor around it, runs from the item's top corner into the
+   item. The item stands at least that tall, with its picture at its top, so under a
+   picture shorter than the reach it still ends at the item's foot, clear of the field
+   below the shelf. */
 .lf-composer-media-item {
+  --lf-media-mark-reach: calc(
+    var(--mark-size) - var(--lf-media-mark-overhang) +
+      (var(--aim-floor) - var(--mark-size)) / 2
+  );
   position: relative;
   flex: none;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  min-block-size: var(--lf-media-mark-reach);
   box-sizing: border-box;
+}
+/* On a shelf the items stand side by side, so each stands as wide as the reach too,
+   with its picture under its removal, and with the shelf's gap the reach ends clear of
+   the next item's mark. A rewrite stands each picture on a line of its own. */
+.lf-composer-media > .lf-composer-media-item {
+  justify-content: flex-end;
+  min-inline-size: var(--lf-media-mark-reach);
 }
 .lf-media-open {
   display: block;
@@ -490,7 +514,7 @@ button.lf-media-open {
   inset-inline: 0;
   inset-block-end: 0;
   padding: 2px;
-  font: var(--voice-fine);
+  font: var(--font-fine);
   background: var(--paper);
   color: var(--ink-2);
 }
@@ -527,7 +551,7 @@ button.lf-media-open {
 /* The words wear the message's face, so a box's lines break where its message's
    will. */
 .lf-comment-box > leaf-composition-field > .lf-compose-field {
-  font: var(--voice-message);
+  font: var(--font-message);
 }
 .lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
@@ -568,7 +592,7 @@ button.lf-media-open {
   display: block;
   min-width: 0;
   /* The message's face, whose line its frame's room is reckoned in. */
-  font: var(--voice-message);
+  font: var(--font-message);
 }
 /* The body holds the field's reach past it, so the message's box is the room it takes. */
 .lf-msg-body:has(> .lf-msg-editor) {
@@ -623,7 +647,7 @@ button.lf-media-open {
 .lf-msg-edit-actions {
   display: flex;
   gap: var(--lf-msg-edit-gap);
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: relative;
@@ -848,7 +872,7 @@ leaf-text.lf-fab-input {
    widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
-  font: var(--voice-ui);
+  font: var(--font-ui);
 }
 @media screen {
   .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {

@@ -1,8 +1,8 @@
-import { PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, bindQueuedWork, byRenderedOrder, composedParentNode, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, keepsText, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
-import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, TEXT_FIELD, Z, actionForWidget, agentName, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, marksSheet, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, bindQueuedWork, byRenderedOrder, composedParentNode, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
+import { DRAFT_FORMAT, LitElement, PENDING, PRESENTATION_DOM, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, holdingError, isCommandScope, keys, layerHeaders, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorForRange, anchoringIsReady, commitPoint, declaredName, livePoint, markStateApplied, moveScrollerBy, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoLabel, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowLabel, workflowVoice } from "./bundle-data.js";
+import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyAvailable, replyDraftContext, replyThreadKey, retainThreadSeats, revealHeld, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, intersect, layoutWindow, placeBox, placeHolder, presented as presented$1, seenRect, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
@@ -354,25 +354,29 @@ const KINDS = Object.freeze(Object.fromEntries(Object.entries({
 		label: "Queued",
 		icon: "sent",
 		priority: 3,
-		indication: true
+		indication: true,
+		voice: "leaf"
 	},
 	queued: {
 		label: "Up next",
 		icon: "pickup",
 		priority: 3,
-		indication: true
+		indication: true,
+		voice: "leaf"
 	},
 	pickup: {
-		label: "Got it",
+		label: "Delivered",
 		icon: "pickup",
 		priority: 3,
-		indication: true
+		indication: true,
+		voice: "leaf"
 	},
 	waiting: {
 		label: "Stalled update",
 		icon: "waiting",
 		priority: 3,
-		indication: true
+		indication: true,
+		voice: "leaf"
 	},
 	user: {
 		label: "My change",
@@ -431,7 +435,7 @@ const freezeRelation = (relation) => {
 };
 function contributionEntry$1(offered) {
 	unknownOptions(offered, ENTRY_OPTIONS, "entry");
-	const { key, glyph = null, action = null, icon: mark = null, label, voice = "agent", accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
+	const { key, glyph = null, action = null, icon: mark = null, label, voice = null, accessibleLabel = null, context = null, description = null, behavior = "action", tone = "neutral", rank = "primary", state = "idle", visible = true, disabled = false, count = 1, pressed = null, workflowReceipt = void 0, relation = null, activation = key, title = null, className = null, scope = null } = offered;
 	if (!text$1(key)) throw new TypeError("A contribution entry needs a key");
 	if ([
 		text$1(glyph),
@@ -454,7 +458,7 @@ function contributionEntry$1(offered) {
 		label: text$1(label),
 		voice,
 		accessibleLabel: text$1(accessibleLabel) || text$1(label),
-		context: text$1(context) || null,
+		context: typeof context === "string" || context == null ? text$1(context) || null : context,
 		description: text$1(description) || null,
 		behavior,
 		tone,
@@ -666,13 +670,13 @@ function paintAgentDescription(control) {
 	paintLabelMore(control, [
 		reading.title !== record?.label && reading.title,
 		reading.stage && reading.word,
-		reading.stage && reading.detail
-	].filter(Boolean).join(" · "));
+		reading.stage && reading.detail && agentSays(reading.detail)
+	].filter(Boolean).flatMap((part, index) => index ? [" · ", part] : [part]));
 	if (!reading.stage) {
 		for (const [attribute, value] of [["aria-description", reading.description], ["title", reading.title]]) keeps(control, attribute, value);
 		return;
 	}
-	const work = [reading.word, reading.detail].filter(Boolean).join(" · ");
+	const work = [reading.word?.text, reading.detail].filter(Boolean).join(" · ");
 	keeps(control, "aria-description", [reading.description, work].filter(Boolean).join(" · "));
 	keeps(control, "title", [
 		record?.title ?? record?.label,
@@ -682,7 +686,7 @@ function paintAgentDescription(control) {
 }
 function paintLabelMore(control, more) {
 	const line = control.querySelector(":scope > .lf-margin-entry-label > .lf-margin-entry-more");
-	if (line) keepsText(line, more ?? "");
+	if (line) render(voiced(more ?? []), line);
 }
 function syncAgentDescriptionBase(control, description, title) {
 	Object.assign(agentWorkflowDescription(control), {
@@ -702,7 +706,7 @@ function syncContributionAgentWorkflow(control, receipt) {
 	keeps(control, "data-lf-agent-workflow", paintedStage || null);
 	Object.assign(reading, paintedStage ? {
 		stage: paintedStage,
-		word: workflowLabel(receipt, agentName()),
+		word: workflowWord(receipt, agentName()),
 		detail: receipt.detail
 	} : {
 		stage: null,
@@ -790,9 +794,11 @@ function presentContributionEntry(control, offered, options = {}) {
       >`;
 	render(html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
-        ><span class="lf-margin-entry-label-word" data-voice=${record.voice}
-          >${visibleLabel}</span
-        >${record.context ? html`<span class="lf-margin-entry-context">${record.context}</span>` : null}<span class="lf-margin-entry-more"></span></span
+        ><span class="lf-margin-entry-label-word"
+          >${record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel}</span
+        >${record.context ? html`<span class="lf-margin-entry-context"
+                >${voiced(record.context)}</span
+              >` : null}<span class="lf-margin-entry-more"></span></span
       >${record.count > 1 ? html`<span class="lf-margin-count" aria-hidden="true"
               >${record.count}</span
             >` : null}`, control);
@@ -2952,10 +2958,10 @@ function threadMarks(thread, agent) {
 	const onUser = attention?.kind === "needs_user";
 	const receipt = attention?.kind === "waiting" ? attention.workflow : null;
 	const unread = thread.unread.length;
-	const line = attention && (!receipt || receipt.condition) && attention.label || (unread ? `${unread} unread` : null);
+	const line = attention && (!receipt || receipt.condition) && attention.word || (unread ? leafSays(`${unread} unread`) : null);
 	return {
 		userAttention: onUser ? {
-			label: attention.label,
+			word: attention.word,
 			reason: thread.attention?.reason ?? "workflow"
 		} : null,
 		unread,
@@ -2967,14 +2973,14 @@ function threadMarks(thread, agent) {
 function readingContext(choice) {
 	const items = choice?.items ?? [];
 	const attention = userAttention(items);
-	if (attention) return attention.label;
+	if (attention) return attention.word;
 	if (items.length === 1) return items[0].context ?? null;
 	const unread = unreadIn(items);
-	return unread ? `${unread} unread` : null;
+	return unread ? leafSays(`${unread} unread`) : null;
 }
 const spokenContext = (choice) => {
 	const items = choice?.items ?? [];
-	return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+	return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? wordsText(readingContext(choice) ?? "") || null : null;
 };
 function kindsIn(entry, { markerOnly = false } = {}) {
 	const counts = /* @__PURE__ */ new Map();
@@ -3266,12 +3272,18 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 	}
 	function agentWorkflowFace(receipt) {
 		if (!receipt) return null;
-		const label = workflowLabel(receipt, agentName());
-		if (!label) return null;
+		const word = workflowWord(receipt, agentName());
+		if (!word) return null;
+		const when = receipt.ts ? ago(receipt.ts) : "";
+		const said = receipt.detail ? [agentSays(receipt.detail)] : [];
 		return {
 			kind: receipt.condition ? "waiting" : receipt.at_work ? "activity" : receipt.stage === "picked_up" ? "pickup" : receipt.stage === "queued" ? "queued" : "sent",
-			text: label,
-			context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail].filter(Boolean).join(" · ")
+			word,
+			context: when || said.length ? [
+				...when ? [when] : [],
+				...when && said.length ? [" · "] : [],
+				...said
+			] : null
 		};
 	}
 	const marginThreadItem = (thread) => thread ? `comment:${threadKey(thread)}` : null;
@@ -3340,6 +3352,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "on-me",
 				id: `on-me:${id}`,
 				text: "Waiting on me",
+				words: leafSays("Waiting on me"),
 				label: (item.source.kind === "todo" ? item.prompt.text : addressableLabel(target)) || null,
 				activate: () => {
 					const items = placed();
@@ -3369,15 +3382,16 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			add(groups, target, {
 				kind: face.kind,
 				id: `acknowledgment:${receipt.id}`,
-				text: labelWords(`${face.text} · ${account}`),
+				text: labelWords(`${face.word.text} · ${account}`),
+				words: [face.word, ` · ${labelWords(account)}`],
 				workflowFace: Object.freeze({
 					...KINDS[face.kind],
-					label: face.text,
-					voice: workflowVoice(receipt)
+					label: face.word.text,
+					voice: face.word.voice
 				}),
 				workflowReceipt: receipt,
 				...face.context ? { context: face.context } : {},
-				activate: () => revealTarget(target, `${face.text}: ${account}`, scrollToElement)
+				activate: () => revealTarget(target, `${face.word.text}: ${account}`, scrollToElement)
 			});
 		}
 		for (const origin of projectionOrigins(authoredStates(), projection)) {
@@ -3406,6 +3420,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				kind: "change",
 				id: `change:${targetPath(target)}:${index}`,
 				text: labelWords([mapAccount, addressableLabel(target)].filter(Boolean).join(" · ")),
+				words: [leafSays(mapAccount), ...addressableLabel(target) ? [` · ${addressableLabel(target)}`] : []],
 				...inline ? {
 					context: inline.offer,
 					mapContext: inline.offer
@@ -3422,18 +3437,19 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
 			const target = elementById(todo.subject.id);
 			const { running } = todo;
-			const label = todoLabel(running);
+			const word = todoWord(running);
 			const account = [todo.agent, running?.text ?? todo.title].filter(Boolean).join(" · ");
-			const age = running && ago(running.ts);
 			add(groups, target, {
 				kind: "activity",
 				id: `todo:${todo.id}`,
 				text: labelWords(account),
+				words: [...todo.agent ? [`${todo.agent} · `] : [], agentSays(labelWords(running?.text ?? todo.title))],
 				workflowFace: Object.freeze({
 					...KINDS.activity,
-					label
+					label: word.text,
+					voice: word.voice
 				}),
-				context: [age && `Checked in ${age}`, running && todo.title].filter(Boolean).join(" · "),
+				context: running ? [leafSays(`Checked in ${ago(running.ts)} · `), agentSays(todo.title)] : null,
 				activate: () => revealTarget(target, account, scrollToElement)
 			});
 		}
@@ -5787,7 +5803,6 @@ function combineSemanticNews(older, newer) {
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
 const MESSAGE_WORDS = 60;
 function semanticNewsNotice(news) {
-	if (!news.length) return "";
 	const byKind = (kind) => news.filter((item) => item.kind === kind);
 	const content = byKind("agent_content");
 	const failures = byKind("response_failure");
@@ -5797,18 +5812,18 @@ function semanticNewsNotice(news) {
 		const { message } = content[0];
 		obligations = obligations.filter((item) => item.message !== message.id);
 		const words = excerptWords(message.text, MESSAGE_WORDS);
-		clauses.push(words ? message.edited ? `Edited: ${words}` : words : message.kind === "reply" ? "Replied" : "Commented");
+		clauses.push(words ? message.edited ? [agentSays(`Edited: ${words}`)] : [agentSays(words)] : [agentSays(message.kind === "reply" ? "Replied" : "Commented")]);
 	} else if (content.length) {
 		const replies = content.filter(({ message }) => message.kind === "reply");
 		const threads = new Set(content.map((item) => item.thread)).size;
-		clauses.push(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`);
+		clauses.push([leafSays(replies.length === content.length ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}` : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`)]);
 	}
 	const failed = failures.filter((item) => item.condition === "failed").length;
 	const interrupted = failures.filter((item) => item.condition === "interrupted").length;
-	if (failed) clauses.push(failed === 1 ? "Couldn't answer" : `Couldn't answer ${failed}`);
-	if (interrupted) clauses.push(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`);
-	if (obligations.length) clauses.push(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`);
-	return clauses.join(" · ");
+	if (failed) clauses.push([failed === 1 ? NOT_ANSWERED : leafSays(`${failed} not answered`)]);
+	if (interrupted) clauses.push([leafSays(interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`)]);
+	if (obligations.length) clauses.push([leafSays(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`)]);
+	return clauses.flatMap((clause, index) => index ? [leafSays(" · "), ...clause] : clause);
 }
 
 //#endregion
@@ -7325,11 +7340,11 @@ function answerWords(item) {
 	return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
 function obligationEnding(item) {
-	if (item.source.kind === "todo") return item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done";
-	if (item.status === "withdrawn") return "Withdrawn";
-	if (item.status === "answered_elsewhere") return "Answered elsewhere";
+	if (item.source.kind === "todo") return leafSays(item.status === "withdrawn" ? "Dropped" : item.answer?.value === "failed" ? "Failed" : "Done");
+	if (item.status === "withdrawn") return leafSays("Withdrawn");
+	if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
 	const words = answerWords(item);
-	return words ? `Answered: ${words}` : "Answered";
+	return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }
 
 //#endregion

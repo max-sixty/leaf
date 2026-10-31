@@ -219,14 +219,17 @@ test("an open thread stays reachable while Page Map retains every action in orde
 
 test("thread aggregation preserves canonical user attention and obligation precedence", () => {
   const recovery = marker("recovery", "comment", {
-    userAttention: { label: "Couldn't answer", reason: "workflow" },
+    userAttention: {
+      word: { text: "Not answered", voice: "leaf" },
+      reason: "workflow",
+    },
   });
   const item = marker("question", "comment", {
-    userAttention: { label: "On you", reason: "obligation" },
+    userAttention: { word: { text: "On you", voice: "agent" }, reason: "obligation" },
   });
   assert.equal(awaitingUser([recovery]), true);
-  assert.equal(readingContext({ items: [recovery] }), "Couldn't answer");
-  assert.equal(readingContext({ items: [recovery, item] }), "On you");
+  assert.equal(readingContext({ items: [recovery] }).text, "Not answered");
+  assert.equal(readingContext({ items: [recovery, item] }).text, "On you");
 });
 
 test("a thread's margin entry and Page Map row say the word Threads gives it", () => {
@@ -249,18 +252,25 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
       running: line ? { text: line } : null,
     },
   ];
+  // Each line with who says it, on the margin entry and the Page Map row alike.
   const said = (held) => {
     const item = marker("thread", "comment", threadMarks(held, "Claude"));
     const [row] = map([inventory({ items: [item] })])[0].actions;
-    return [readingContext({ items: [item] }), row.context];
+    return [readingContext({ items: [item] }), row.context].map((line) =>
+      line ? [line.text, line.voice] : null,
+    );
   };
-  assert.deepEqual(said(thread(waitingOnTodo, { todos: todo() })), [
-    "Still to do",
-    "Still to do",
-  ]);
+  const both = (text, voice) => [
+    [text, voice],
+    [text, voice],
+  ];
+  assert.deepEqual(
+    said(thread(waitingOnTodo, { todos: todo() })),
+    both("Still to do", "agent"),
+  );
   assert.deepEqual(
     said(thread(waitingOnTodo, { todos: todo("Rebuilding it"), unread: 1 })),
-    ["On it", "On it"],
+    both("On it", "agent"),
   );
   // A thread whose workflow is under way carries it as its receipt, which says it in
   // the workflow's own words; its line is what else it holds.
@@ -269,8 +279,10 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
     { workflows: [working], unread: 2 },
   );
   assert.equal(threadMarks(busy, "Claude").workflowReceipt, working);
-  assert.deepEqual(said(busy), ["2 unread", "2 unread"]);
-  // A failed response paints no progress, so the line says Threads' word for it.
+  // What it holds unread is Leaf's news.
+  assert.deepEqual(said(busy), both("2 unread", "leaf"));
+  // A failed response paints no progress, so the line says Threads' word for it, in
+  // Leaf's voice, since Leaf observed it.
   const failed = Object.freeze({
     id: "f",
     stage: "picked_up",
@@ -283,17 +295,17 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
         { workflows: [failed] },
       ),
     ),
-    ["Couldn't answer", "Couldn't answer"],
+    both("Not answered", "leaf"),
   );
   const onUser = thread(
     { kind: "needs_user", reason: "obligation", workflow: null },
     { unread: 1 },
   );
   assert.deepEqual(threadMarks(onUser, "Claude").userAttention, {
-    label: "Your turn",
+    word: { text: "Your turn", voice: "agent" },
     reason: "obligation",
   });
-  assert.deepEqual(said(onUser), ["Your turn", "Your turn"]);
+  assert.deepEqual(said(onUser), both("Your turn", "agent"));
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

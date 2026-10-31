@@ -207,7 +207,7 @@
     "runtime/since-seen.js": "63cadd2282330085dce23dc6c119aeaeec48704aad258d7bd23d1c1effe23f01",
     "runtime/state-application.js": "61e6e555a6ace7fbe162910cd6146c946084208c9ffbdc4e45342d6da4550179",
     "runtime/state-feed.js": "7abbf58f9038f7c2ddea2d509a6df65b4ba2f5f2bc7735f236e8b3d843a484e9",
-    "runtime/storage.js": "5d5b2d7ed988c345fd4d35efaf8de8072fbcdd161f5553dba00c3aa1b0c30e42",
+    "runtime/storage.js": "f72add768210d9aa6cf818b622259f39fa6f5021b8ce254321b315b4eb8ecc81",
     "runtime/stylesheets.js": "f5085b1ff74ca8564f2ef87768d2b6a9230d82b456fede3faa2e151109ea9e4d",
     "runtime/syntax-languages.js": "6e7cc627a26503aa0498bfb148abfd32ab934fe785eadbff759ea07551186787",
     "runtime/syntax-tokens.js": "782ec3e7e09d083e355d5e60afff0a13aaddcc106c8b6b88d6ab43805936ceec",

@@ -108,7 +108,7 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
 
     result = CliRunner().invoke(stills.stills)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert visited == [
         (state.name, arm) for state in states for arm in ("base", "head")
     ]
@@ -158,6 +158,12 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         "files in <stills>\n"
     )
 
+    monkeypatch.setattr(
+        stills, "STATES", (stills.State("clean", "fixture", stills.at_rest),)
+    )
+    result = CliRunner().invoke(stills.stills)
+    assert result.exit_code == 0, result.output
+
     def interrupted(page):
         raise KeyboardInterrupt
 
@@ -205,7 +211,7 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
 
     result = CliRunner().invoke(stills.stills)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert stills_catalogue.compared == ["broken", "healthy"]
     assert cropped == (["healthy"] if phase == "comparison" else ["broken", "healthy"])
     assert (out / "healthy" / "head-crop.png").is_file()

@@ -74,8 +74,8 @@ ignores:
   which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
-- Working state in `tabStore`, which keeps nothing on a plain page: a read there
-  answers null.
+- State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
+  there answers null.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -98,8 +98,9 @@ script", lists.
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
-- Record the user's choices only through the widget controller, and keep working state
-  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
+- Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
+  puts it: record what the user makes through the widget controller, and keep how they
+  look at the widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,

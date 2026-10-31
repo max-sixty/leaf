@@ -63,8 +63,17 @@
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
- * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
- * reader reads (browser/AGENTS.md, "The page holds still under the user's aim"): each part it moved shows where it now
+ * moved, so the eye follows it. A key changes the box in the frame it lands, though,
+ * as it changes a textarea sized to its words, since what a key adds is what the user
+ * reads next: a tween cut off the glyph just typed for its first frames as the box
+ * widened, and the word and caret a new line took for about 100 ms, and a tween each
+ * key restarted never settled. Only a line a key takes away travels, both edges on
+ * the one tween, as anything leaving the page folds (motion.js), so words the box
+ * carries down with its top edge stay where the eye can follow them, and nothing the
+ * user reads waits on it. The user asked on 30 October for typing to grow the box as
+ * a textarea's grows, and chose on 31 October to keep a removed line's travel. News,
+ * such as an answer arriving, moves nothing the reader reads (browser/AGENTS.md,
+ * "The page holds still under the user's aim"): each part it moved shows where it now
  * stands, revealed by the frame it stands in or growing from its own old box, while
  * the box's outline and ring still follow.
  *
@@ -505,9 +514,13 @@ export function boxMotion({
       streams = new Map();
       return;
     }
-    // The first reading, and any while motion does not play, is taken as it stands.
-    const was = motionPlays() && rests ? drawn(progress, carried) : null;
     const gesture = theirs();
+    // The first reading, and any while motion does not play, is taken as it stands, as
+    // is one a key makes, but for a line it takes away.
+    let was = motionPlays() && rests ? drawn(progress, carried) : null;
+    const drawnBox = was?.get(box);
+    const closes = drawnBox && height(next.get(box)) < height(drawnBox) - 0.5;
+    if (gesture === "typing" && !closes) was = null;
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(
@@ -606,7 +619,7 @@ export function boxMotion({
 
     // Its content carried by its start corner, where its layout sets it from, cut to its
     // outline growing from where it stood: a field losing a line or the room it was
-    // given carries its words down with its top edge, as one gaining a line carries
+    // given carries its words down with its top edge, as one given more room carries
     // them up. An emptied field is the exception, a send's included, and in a send the
     // frames around it: its words left, so nothing in it carries on. On an axis where
     // such a part shrank and its far edge stayed, it travels by that edge, so the

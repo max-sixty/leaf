@@ -1,4 +1,4 @@
-/* Browser working state has one backing policy, selected by prepaint and shared
+/* Browser state has one backing policy, selected by prepaint and shared
  * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
 import { registry } from "./registry.js";
@@ -18,16 +18,20 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // runtime and two widget modules.
 //
 // Which store is the part worth reading at a call site, and naming them is what puts it
-// there. `tabStore` is this window's working state and dies with the tab — the reading
+// there. `tabStore` is what only this window keeps, and it dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
 // of those is about the window rather than about the page. `draftStore` is what the user
-// typed into a composition the log settles (a comment, a reply, an `lf-draft`) and hasn't
-// sent: it outlives the tab, because closing one is the ordinary end of a tab here, and
+// typed or drew into a composition the log settles (a comment, a reply, an `lf-draft`)
+// and hasn't sent. The agent reads none of it, because sending is when the user says it.
+// It outlives the tab, because closing one is the ordinary end of a tab here, and
 // every tab shows one live copy of it (see the draft section below). An edit to a bound
-// file is not one: the file on disk is what tabs share, so its buffer is working state.
+// file is not one: the file on disk is what tabs share, so its buffer stays in its tab.
 // `userStore` is this user's lasting preference across pages, which is the chrome
-// they arrange and expect to find arranged. Anything two tabs must *agree* about is none
-// of the three: it goes in the log.
+// they arrange and expect to find arranged. The stores reach this tab or this browser.
+// What another browser or the agent must read is none of the three: it goes in the log,
+// which every tab already follows, such as a playground's settings before the user
+// submits them. The skill's `module-state.md`, "Where a widget keeps its state", tells
+// package authors which kind of state goes where.
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
@@ -35,7 +39,7 @@ const { stored } = document.documentElement.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while what they typed here belongs to this page. tabStore is the only one on the helper
-// surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
+// surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for. tab-store.js owns the portable widget store.

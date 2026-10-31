@@ -145,3 +145,50 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
         page.mouse.down()
         page.mouse.up()
     expect(field.locator(":scope > leaf-text")).to_have_js_property("value", "")
+
+
+def _settled(page, field):
+    """Wait until the edit has drawn and the box's motion has carried the field's words
+    to rest, with Send's fade finished."""
+    rendered(page)
+    page.wait_for_function(
+        "field => !field.getAnimations({subtree: true}).length",
+        arg=field.element_handle(),
+    )
+
+
+@pytest.mark.parametrize("engine", ["firefox_browser", "browser"])
+def test_send_follows_the_corner_when_an_edit_adds_or_removes_a_line(
+    engine, request, serve
+):
+    """A line the user breaks off the panel's last row frees the corner, and joining
+    it back with Backspace fills it again. The panel's field grows and shrinks at its
+    top, so its motion carries the words to their new rows after each edit, and once
+    it ends Send shows beside the free corner and stays away from the words that reach
+    it. The user's capture showed Send over the last row's final letters after a
+    Backspace joined two lines, in Firefox. A card's reply grows at its foot, so its
+    words don't travel."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]),
+        init_script=KEEP_ROOTS,
+    )
+    field = _open_panel_field(page)
+    page.keyboard.type("A line above.")
+    page.keyboard.press("Shift+Enter")
+    _type_to_the_corner(page, field)
+    # The words themselves, not only the caret after them, run into the corner.
+    page.keyboard.type("xy")
+    for _ in "xy":
+        page.keyboard.press("ArrowLeft")
+
+    page.keyboard.press("Shift+Enter")
+    _settled(page, field)
+    split = field.evaluate(CORNER)
+    assert split["shown"] and split["presses"], split
+
+    page.keyboard.press("Backspace")
+    _settled(page, field)
+    joined = field.evaluate(CORNER)
+    assert joined["rowEnd"] > joined["sendStart"], joined
+    assert not joined["shown"] and not joined["presses"], joined

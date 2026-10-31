@@ -549,7 +549,7 @@
      * own — and moves whatever stands after it, which for a metric is the delta riding
      * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
      * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
-     * tabular. That is the movement AGENTS.md's "Layout and motion" forbids,
+     * tabular. That is the movement browser/AGENTS.md's "The page holds still under the user's aim" forbids,
      * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
      * explain where the line went.
      *
@@ -759,6 +759,46 @@ details::details-content {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
       --lf-block-frame: 0;
+    }
+  }
+}
+/* A heading's space before it belongs before the block it opens. In block flow its top
+ * margin collapses out through a bare wrapper to that block's edge. An item of a box that
+ * declares --lf-items-keep-margins (base.css), such as a section in the reading column,
+ * keeps it inside instead, so the item's box would begin a heading's gap above the
+ * heading, and every mark Leaf hangs on the box (a focus ring, a margin entry, a
+ * landing) would stand in that gap. So such an item that opens with a heading takes the
+ * heading's gap as its top margin and declares its start edge, which the edge trim below
+ * follows to clear the heading's margin.
+ *
+ * The rules belong to the reading face, so they reach only a page that takes it, and they
+ * stand in the face's layer with zero specificity, so the gap is the item's margin only
+ * where nothing else sets one. A frame's own margin, such as a callout's, outranks them,
+ * and the frame trims its heading anyway. A top margin page CSS gives the item replaces
+ * the gap, where block flow kept the larger of the two. The edge trim outranks them too,
+ * so an item at a frame's edge, such as a column's first section, takes no gap. An item
+ * opening any other way, such as with a list or a paragraph, keeps its child's margin
+ * inside, because moving that margin out would move the text. The reading theme does the
+ * same for an eyebrow over a heading (packages/reading). */
+@layer lf-reading-face {
+  @container style(--lf-reading-face: 1) and style(--lf-items-keep-margins: 1) {
+    :where(
+      :has(
+        > h2:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+        > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h2
+      )
+    ) {
+      margin-block-start: var(--h2-start);
+      --lf-frame-start: 1;
+    }
+    :where(
+      :has(
+        > h3:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+        > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h3
+      )
+    ) {
+      margin-block-start: var(--h3-start);
+      --lf-frame-start: 1;
     }
   }
 }

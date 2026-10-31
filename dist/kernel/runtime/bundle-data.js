@@ -974,6 +974,37 @@ function claimed$1(url) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+const memberSelector = (holder) => registry$1[holder.localName]?.["x-views"]?.members;
+function viewMembers(holder) {
+	return document.documentElement.lfViews.members(holder, memberSelector(holder));
+}
+function openingView(holder, fallback = void 0) {
+	return document.documentElement.lfViews.opening(holder, fallback, memberSelector(holder));
+}
+function markViews(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return;
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
+}
+function keepView(holder, member, leaving = null) {
+	markViews(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
@@ -1016,39 +1047,6 @@ async function highlightBlocks(root) {
 		}
 	}
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-function viewMembers(holder) {
-	const declaration = registry$1[holder.localName]?.["x-views"];
-	if (!declaration) return [];
-	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-	for (const child of holder.children) {
-		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
-		child.toggleAttribute("data-lf-view", member);
-	}
-	return document.documentElement.lfViews.members(holder);
-}
-function openingView(holder, ...fallback) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.opening(holder, ...fallback);
-}
-function keepView(holder, member, leaving = null) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.keep(holder, member, leaving);
-}
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/declared-words.js
@@ -1171,11 +1169,16 @@ function renderExternalLink(link) {
 	});
 	state.painted = linkAttributes(link);
 }
-function watchExternalLinks() {
-	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-		arrive: renderExternalLink,
+function watchNativeContent() {
+	const { keepDisclosure, finishEarlyContent } = document.documentElement.lfStorage;
+	watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: (element) => {
+			if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+			else renderExternalLink(element);
+		},
 		leave: leaveExternalLink
 	});
+	finishEarlyContent();
 }
 function paintDeclaredWords(root) {
 	renderSaid(root);
@@ -1196,7 +1199,7 @@ function markDeclared(root) {
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
 				if (key === "x-views") {
-					viewMembers(el);
+					markViews(el);
 					continue;
 				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
@@ -2216,7 +2219,7 @@ let render = escapedSource;
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
-const renderMarkdown = (text) => render(text);
+const renderMarkdown = (text, breaks = true) => render(text, breaks);
 function renderedWords(html, imageAlt = false) {
 	const parsed = document.createElement("template");
 	parsed.innerHTML = html;
@@ -2227,7 +2230,7 @@ function fragmentWords(fragment, imageAlt = false) {
 	if (imageAlt) for (const image of fragment.querySelectorAll("img")) image.replaceWith(document.createTextNode(image.alt));
 	return fragment.textContent;
 }
-const markdownWords = (text) => renderedWords(render(text));
+const markdownWords = (text) => renderedWords(renderMarkdown(text));
 const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 function inlineMarkdownFragment(text, breaks = true) {
 	const parsed = document.createElement("template");
@@ -2652,10 +2655,11 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let singleLine;
+		let softBreaks;
 		let positioned;
-		render = (text) => markdown.render(text);
-		renderInline = (text, breaks) => (breaks ? markdown : singleLine ??= makeMarkdown(module, false)).renderInline(text);
+		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
+		render = (text, breaks) => dialect(breaks).render(text);
+		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
 		tokenize = (text) => {
 			if (!positioned) {
 				positioned = makeMarkdown(module, true);
@@ -2741,7 +2745,7 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		watchExternalLinks();
+		watchNativeContent();
 		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
@@ -5020,7 +5024,6 @@ const replyIsEditing = (key) => {
 	sessions.value;
 	return compositions.has(replyContext(key));
 };
-const replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land) {
 	if (!editing?.mirrored || !draftEditingStands(editing)) return null;
 	const context = editing.context;
@@ -5032,7 +5035,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
-function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = (() => "Reply"), hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -5076,6 +5079,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 			return composition.controls.input;
 		},
 		cancelDictation: () => composition.sync.cancelDictation(),
+		sync: () => composition.sync(),
 		claim(shown) {
 			const owner = compositions.get(composition.context)?.owner;
 			if (owner && owner !== composition && !owner.binding && !owner.retired && shown()) binding.take(owner);
@@ -5419,10 +5423,7 @@ onPress((start) => {
 	return releasePress;
 });
 const currentLocationThreadId = () => heldThreadId() ?? pressed;
-const mayReplyTo = (id, intent) => restrictUserIntent(intent, () => {
-	const thread = allThreads().find((candidate) => candidate.id === id);
-	return Boolean(thread && replyAvailable(thread));
-});
+const mayReplyTo = (id, intent) => restrictUserIntent(intent, () => allThreads().some((candidate) => candidate.id === id));
 async function replyDestination(id, open, intent, { destination = (thread) => threadPart(thread, "reply"), scroll = true } = {}) {
 	const mayReply = mayReplyTo(id, intent);
 	if (!mayReply()) return null;
@@ -5600,6 +5601,7 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 	const appendedAtEnd = news.appended && was.messages.filter(({ key }) => !retired.has(key)).every((message, index) => now.messages[index]?.key === message.key);
 	const turn = was.messages.findLastIndex((message) => message.author === "user" && !message.progress);
 	const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+	const currentTurn = now.messages.findIndex((message) => message.key === was.messages[turn]?.key);
 	return {
 		news,
 		changed,
@@ -5607,7 +5609,10 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 		folds,
 		appendedAtEnd,
 		footFold,
-		answers: turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key))
+		answers: currentTurn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key)) ? Object.freeze({
+			turn: was.messages[turn].key,
+			reply: now.messages.slice(currentTurn + 1).find((message) => !message.progress)?.key ?? null
+		}) : null
 	};
 }
 function withheld(was, now) {
@@ -5808,7 +5813,8 @@ var HeldNews = class {
 			const held = was && shown && !this.#released.has(thread.key) ? threadChange(was, thread, { progressOpen: this.#view(thread.key)?.progressOpen ?? false }) : null;
 			if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held)) return {
 				...thread,
-				news: null
+				news: null,
+				change: held
 			};
 			this.#holds.add(thread.key);
 			const { news } = held;
@@ -5816,7 +5822,8 @@ var HeldNews = class {
 				...thread.reread(withheld(was.source, thread.source)),
 				working: news.working ? was.working : thread.working,
 				...news.settled === "Reopened" && { settlement: null },
-				news
+				news,
+				change: null
 			};
 		});
 		const waiting = this.#threads.size;
@@ -6682,7 +6689,6 @@ function threadReading(thread, surface, commands) {
 			word,
 			label
 		}),
-		reply: replyAvailable(thread),
 		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
 			id,
 			title
@@ -6713,8 +6719,6 @@ var ThreadView = class {
 	}
 	#transcript;
 	#reply = null;
-	#replyShown = false;
-	#draftFrame = 0;
 	#settlesAt = null;
 	#marginControls = null;
 	#news = newsNotice();
@@ -6841,8 +6845,6 @@ var ThreadView = class {
 		const bodyPlace = published ? this.#continuity?.before([...this.#transcript.views.filter((view) => view.editing).map(({ node }) => node), ...this.#transcript.leaving(model)]) : null;
 		const restoreFocus = holdFocus(this.node);
 		this.#model = model;
-		const reply = model.reply || replyIsEditing(model.key);
-		this.#replyShown = reply;
 		const marginControls = model.surface === "margin" ? this.#marginControls : null;
 		if (marginControls && prior) marginControls.anchor.presented(threadChange(prior, model)?.joined);
 		const notice = this.#news;
@@ -6863,7 +6865,7 @@ var ThreadView = class {
 			arrived: Boolean(prior),
 			appends: model.surface === "margin"
 		});
-		if (reply && !this.#reply) this.#reply = this.#createReply(model);
+		this.#reply ??= this.#createReply(model);
 		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
@@ -6874,14 +6876,14 @@ var ThreadView = class {
     `;
 		render$1(html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${reply ? this.#continuity?.gap ?? nothing : nothing}
-        ${reply ? this.#reply.node : nothing}
+        ${this.#continuity?.gap ?? nothing} ${this.#reply.node}
       `, this.node);
 		if (!marginControls && model.news) measure(this.node, () => this.#retainHeaderSlot());
 		else this.#releaseHeaderSlot();
 		if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
 		else this.#releaseMarginNews();
 		this.#continuity?.after(bodyPlace);
+		if (prior && Boolean(prior.resolved) !== Boolean(model.resolved)) this.#reply.sync();
 		restoreFocus?.(handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node));
 		return this.node;
 	}
@@ -7071,14 +7073,6 @@ var ThreadView = class {
 		};
 	};
 	#createReply(model) {
-		const replyChanged = () => {
-			if (!this.#reply || this.#draftFrame) return;
-			this.#draftFrame = nextRender(() => {
-				this.#draftFrame = 0;
-				if (!this.#reply) return;
-				if (this.#model.resolved) this.repaint();
-			});
-		};
 		const commands = this.#commands.reply;
 		return createReplyView(model.key, {
 			...commands,
@@ -7093,17 +7087,13 @@ var ThreadView = class {
 				}
 			}
 		}, () => this.repaint(), {
-			onChange: replyChanged,
+			hint: () => this.#model?.resolved ? "Reply to reopen" : "Reply",
 			editLast: this.#rewrites.editLast,
 			sending: () => this.#marginControls?.sending?.()
 		});
 	}
 	commit() {
 		this.#transcript.commit();
-		if (!this.#replyShown && this.#reply) {
-			this.#reply.dispose();
-			this.#reply = null;
-		}
 	}
 	claimReply(shown) {
 		this.#reply?.claim(shown);
@@ -7163,6 +7153,7 @@ var ThreadSeat = class {
 	#views = /* @__PURE__ */ new Map();
 	#resolved = null;
 	#folding = /* @__PURE__ */ new Map();
+	#settled = /* @__PURE__ */ new Set();
 	#place = () => {};
 	#model = EMPTY;
 	#shown = EMPTY;
@@ -7207,7 +7198,8 @@ var ThreadSeat = class {
 			releaseReplies(view.node);
 			view.retire();
 		}
-		const settled = shown.threads.filter((thread) => thread.surface !== "margin" && thread.resolved && !thread.reply);
+		const settled = shown.threads.filter((thread) => thread.surface !== "margin" && thread.resolved && (!replyIsEditing(thread.key) || this.#settled.has(thread.key)));
+		this.#settled = new Set(settled.map(({ key }) => key));
 		if (!settled.length) this.#resolved = null;
 		else this.#resolved ??= new ResolvedThreads(() => {
 			if (!this.#folding.size) return;
@@ -8264,8 +8256,8 @@ function authoredAttributes(root) {
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
 const authoredMarkup = (root) => {
+	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
-	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
 	return root;
 };
@@ -9773,4 +9765,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowStep, workflowWord };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowStep, workflowWord };

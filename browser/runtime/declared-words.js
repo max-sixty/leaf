@@ -47,6 +47,7 @@
    the registry says aloud. A module reading its slot or body must call `says` so
    runtime words do not become authored or user content. */
 
+import { markViews } from "./storage.js";
 import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
@@ -55,7 +56,6 @@ import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
-import { viewMembers } from "./storage.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -226,11 +226,16 @@ function renderExternalLink(link) {
   state.painted = linkAttributes(link);
 }
 
-export function watchExternalLinks() {
-  watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-    arrive: renderExternalLink,
+export function watchNativeContent() {
+  const { keepDisclosure, finishEarlyContent } = document.documentElement.lfStorage;
+  watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+    arrive: (element) => {
+      if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+      else renderExternalLink(element);
+    },
     leave: leaveExternalLink,
   });
+  finishEarlyContent();
 }
 
 // What an upgraded subtree owes beyond its module's own work: the words a widget says
@@ -240,7 +245,7 @@ export function watchExternalLinks() {
 // layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
 // the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
-// is the link's for as long as it stands, whoever rendered it (`watchExternalLinks`).
+// is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
 export function paintDeclaredWords(root) {
   renderSaid(root);
   renderQuiet(root);
@@ -314,7 +319,7 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, tag)) {
         const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
         if (key === "x-views") {
-          viewMembers(el);
+          markViews(el);
           continue;
         }
         keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);

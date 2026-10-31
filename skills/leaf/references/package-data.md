@@ -56,7 +56,10 @@ submitted settings do.
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$state.attention` in the registry). Changes to
 that verb's state reach the agent without putting a question on the user's On me list.
-Use `x-awaits` below when the widget instead asks the user for an answer.
+Use `x-awaits` below when the widget instead asks the user for an answer. A verb that
+records what the user is working on before they send it, as a playground's `tune` keeps
+its settings, declares `attention: false`: it reaches every tab and the agent's page
+state but asks the agent for nothing.
 
 Only one widget records each attribute. A member's `value` record can't use the same
 attribute as an `attribute` record on a widget around it; `page check` refuses that in

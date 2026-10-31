@@ -17,6 +17,7 @@
    establishes it without announcing it. */
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
+import { agentSays, leafSays } from "./voice.js";
 import { excerptWords } from "./words.js";
 
 const identity = (record) => record.attempt ?? record.id;
@@ -176,21 +177,19 @@ const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
 // One clause per fact, joined by the middle dot the panel's line joins every fact with,
-// as parts each in the voice of whoever says it (notifications.js, `notice`). A single
-// new message speaks for itself, its opening words in the agent's voice ("I changed the
-// route."), with whatever it asks of the user, since the question and the message are
-// one piece of news. What became of an answer is Leaf's reading, set apart in italic
-// (glossary.md, "Reader-facing words"). The counts, and what else is new on the user's
-// list by the list's name, are the interface's, in no one's voice.
+// as parts each said by the agent or by Leaf (voice.js; notifications.js, `notice`). A
+// single new message speaks for itself, its opening words in the agent's voice ("I
+// changed the route."), with whatever it asks of the user, since the question and the
+// message are one piece of news; that it replied, commented or edited its words is its
+// own act, which Leaf relays in its voice. Everything else is Leaf's news, set apart in
+// italic (glossary.md, "Reader-facing words"): what became of an answer, the counts, and
+// what else is new on the user's list by the list's name.
 const MESSAGE_WORDS = 60;
 export function semanticNewsNotice(news) {
   const byKind = (kind) => news.filter((item) => item.kind === kind);
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
   let obligations = byKind("user_obligation");
-  const agent = (text) => ({ text, voice: "agent" });
-  const leaf = (text) => ({ text, voice: "leaf" });
-  const plain = (text) => ({ text, voice: null });
   const clauses = [];
 
   if (content.length === 1) {
@@ -200,15 +199,15 @@ export function semanticNewsNotice(news) {
     clauses.push(
       words
         ? message.edited
-          ? [plain("Edited: "), agent(words)]
-          : [agent(words)]
-        : [agent(message.kind === "reply" ? "Replied" : "Commented")],
+          ? [agentSays(`Edited: ${words}`)]
+          : [agentSays(words)]
+        : [agentSays(message.kind === "reply" ? "Replied" : "Commented")],
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");
     const threads = new Set(content.map((item) => item.thread)).size;
     clauses.push([
-      plain(
+      leafSays(
         replies.length === content.length
           ? `${plural(content.length, "reply", "replies")} in ${plural(threads, "thread")}`
           : `${plural(content.length, "agent message")} in ${plural(threads, "thread")}`,
@@ -220,18 +219,20 @@ export function semanticNewsNotice(news) {
     (item) => item.condition === "interrupted",
   ).length;
   if (failed)
-    clauses.push([leaf(failed === 1 ? NOT_ANSWERED : `${failed} not answered`)]);
+    clauses.push([failed === 1 ? NOT_ANSWERED : leafSays(`${failed} not answered`)]);
   if (interrupted)
     clauses.push([
-      leaf(
+      leafSays(
         interrupted === 1 ? "Interrupted mid-answer" : `Interrupted on ${interrupted}`,
       ),
     ]);
   if (obligations.length)
     clauses.push([
-      plain(obligations.length === 1 ? "New on me" : `${obligations.length} new on me`),
+      leafSays(
+        obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
+      ),
     ]);
   return clauses.flatMap((clause, index) =>
-    index ? [plain(" · "), ...clause] : clause,
+    index ? [leafSays(" · "), ...clause] : clause,
   );
 }

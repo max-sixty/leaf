@@ -31,6 +31,7 @@ import {
   contributionEntryStateRank,
 } from "./contribution-model.js";
 import { threadAttention } from "./thread/workflow.js";
+import { leafSays, wordsText } from "./voice.js";
 
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
@@ -231,7 +232,7 @@ export const unreadIn = (items) =>
 // What a thread's margin item and its Page Map row carry of it beside its name and
 // place, from the one reading of the thread's state (`threadAttention`) that Threads
 // paints as its status: whose turn it is; the workflow its progress decoration paints
-// while the thread waits on the agent, saying that workflow's word (`workflowLabel`);
+// while the thread waits on the agent, saying that workflow's word (`workflowWord`);
 // and its line, the thread's word wherever no such receipt says it, else how many of
 // its messages the user has not read. A receipt under a condition, such as a response
 // that failed, paints no progress (`progressFace`), so the line says its word.
@@ -240,40 +241,32 @@ export function threadMarks(thread, agent) {
   const onUser = attention?.kind === "needs_user";
   const receipt = attention?.kind === "waiting" ? attention.workflow : null;
   const unread = thread.unread.length;
+  // The thread's word, said by whoever says it (`threadAttention`), or Leaf's count of
+  // what it holds unread.
   const line =
-    (attention && (!receipt || receipt.condition) && attention.label) ||
-    (unread ? `${unread} unread` : null);
+    (attention && (!receipt || receipt.condition) && attention.word) ||
+    (unread ? leafSays(`${unread} unread`) : null);
   return {
     userAttention: onUser
-      ? {
-          label: attention.label,
-          reason: thread.attention?.reason ?? "workflow",
-          voice: attention.voice,
-        }
+      ? { word: attention.word, reason: thread.attention?.reason ?? "workflow" }
       : null,
     unread,
     context: line,
     mapContext: line,
-    // Who says the line: the thread's word in its own voice (`threadAttention`), and
-    // an unread count in the interface's.
-    contextVoice: line && line === attention?.label ? attention.voice : null,
     workflowReceipt: receipt,
   };
 }
 
 // A reading of one item says that item's own line, as a thread's says its word or its
 // unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
-// its threads hold unread. Each line comes with the voice that says it.
+// its threads hold unread. Each line is said by whoever says it (voice.js).
 export function readingContext(choice) {
   const items = choice?.items ?? [];
   const attention = userAttention(items);
-  if (attention) return { text: attention.label, voice: attention.voice ?? null };
-  if (items.length === 1)
-    return items[0].context
-      ? { text: items[0].context, voice: items[0].contextVoice ?? null }
-      : null;
+  if (attention) return attention.word;
+  if (items.length === 1) return items[0].context ?? null;
   const unread = unreadIn(items);
-  return unread ? { text: `${unread} unread`, voice: null } : null;
+  return unread ? leafSays(`${unread} unread`) : null;
 }
 
 // The line a reading's name says too: a thread's, which is its word or what it holds
@@ -282,7 +275,7 @@ export function readingContext(choice) {
 export const spokenContext = (choice) => {
   const items = choice?.items ?? [];
   return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
-    ? (readingContext(choice)?.text ?? null)
+    ? wordsText(readingContext(choice) ?? "") || null
     : null;
 };
 

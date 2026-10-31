@@ -103,7 +103,7 @@ export function createAnnotationInventory({
           !candidate.hasAttribute("data-lf-gen"),
       );
       steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-      if (node.localName === "main" || parent instanceof ShadowRoot) break;
+      if (node.localName === "body" || parent instanceof ShadowRoot) break;
       node = parent;
     }
     return `${prefix}${from}${steps.reverse().join("/")}`;

@@ -2,7 +2,11 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { excludedByInert, renderedParent, uiInside, under } from "./shadow.js";
-import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
+import {
+  nativeLayers,
+  nativeModalAdmits,
+  watchLayerChanges,
+} from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import {
   clippingAxes,
@@ -728,10 +732,12 @@ export function paintClips(item, box, clips, aboveSurfaces, held = false) {
     return walk.cuts.some(({ band }) => !band)
       ? hidden
       : { plane, window: window ?? null, bands };
-  for (const { surface, box: over, level } of aboveSurfaces
-    ? openOccluders(clips)
-    : []) {
-    if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level)
+  for (const { surface, box: over } of aboveSurfaces ? openOccluders(clips) : []) {
+    if (
+      !overlaps(shown, over) ||
+      under(item, surface) ||
+      stackOrder(item, surface) >= 0
+    )
       continue;
     const left = uncovered(shown, over);
     if (!left) return hidden;
@@ -965,7 +971,7 @@ export function coveredShare(surface, where, landed = null) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
   if (under(holder, surface) || under(surface, holder)) return 0;
-  if (stackLevel(holder) >= stackLevel(surface)) return 0;
+  if (stackOrder(holder, surface) >= 0) return 0;
   const box = landed ?? placeBox(where);
   const { left, top, right, bottom } =
     landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
@@ -999,20 +1005,27 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
   where instanceof Range
     ? clippedContents(box, placeHolder(where), clips)
     : clippedRect(box, where, clips);
-// Where a box stacks among the page's root-level layers: the z-index of its outermost
-// positioned ancestor that sets one, and above all of them in the top layer. Both are
-// read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
-// For anything in `main` that ancestor is `main`, a stacking context at 0 (base.css,
-// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
-// unless it stands in the top layer.
-export function stackLevel(node) {
+// Compare the planes the browser paints, then the root stacking levels inside
+// one plane. The native layer owner supplies opening order. Within the chrome's
+// permanent layer the panel, threads and marks retain their own z-index ladder.
+const stacking = (node) => {
   let level = 0;
-  for (let a = node; a; a = renderedParent(a)) {
-    if (isNativeLayer(a)) return Infinity;
-    const { position, zIndex } = getComputedStyle(a);
+  for (let at = node; at; at = renderedParent(at)) {
+    if (isNativeLayer(at)) return { layer: at, level };
+    const { position, zIndex } = getComputedStyle(at);
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }
-  return level;
+  return { layer: null, level };
+};
+export function stackOrder(left, right) {
+  const a = stacking(left),
+    b = stacking(right);
+  if (a.layer === b.layer) return a.level - b.level;
+  const layers = nativeLayers();
+  return (
+    layers.findIndex(({ root }) => root === a.layer) -
+    layers.findIndex(({ root }) => root === b.layer)
+  );
 }
 const OCCLUDERS = Symbol("occluders");
 function openOccluders(clips) {
@@ -1025,15 +1038,14 @@ function openOccluders(clips) {
     .map((surface) => ({
       surface,
       box: restingBox(surface),
-      level: stackLevel(surface),
     }));
   clips.set(OCCLUDERS, open);
   return open;
 }
 const area = (box) => (box.right - box.left) * (box.bottom - box.top);
 function occluded(rect, item, clips) {
-  for (const { surface, box, level } of openOccluders(clips)) {
-    if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level)
+  for (const { surface, box } of openOccluders(clips)) {
+    if (!overlaps(rect, box) || under(item, surface) || stackOrder(item, surface) >= 0)
       continue;
     rect = uncovered(rect, box);
     if (!rect) return null;

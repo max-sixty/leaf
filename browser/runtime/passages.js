@@ -69,9 +69,9 @@
    Use `inChrome` when the question is whether an element belongs to the runtime's
    document layer. Use `.lf-ui` when the question is whether words or styling are
    runtime apparatus. Use `data-lf-offer` when the question is whether something is an
-   injected control. These markers are not interchangeable; `pageWords` is the
-   conjunction of the first two, and the comment over it says which hole each half
-   alone leaves.
+   injected control. These markers are not interchangeable; `pageWords` excludes
+   runtime-owned surfaces and widget apparatus, and its comment says which hole
+   each half alone leaves.
 
    The search pattern uses only a bounded lead (`LEAD_CAP`) to locate candidates.
    `confirmRest` walks the remainder against passage text. Do not truncate the stored
@@ -291,7 +291,7 @@ export const leafSurface = (node) => (node ? closestAcross(node, LEAF_SURFACE) :
 // raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
 // log, naming a section no version holds. `leaf thread create --section` refuses exactly that
 // from the file side, and file capture is the reading that is supposed to promise less.
-export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
+export const pageWords = (node) => inPage(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it
 // answers. Anchoring reads what the user can point at: not the runtime's own words —
 // `inUi`, which a declared label answers for itself — and nothing behind a wall no label
@@ -645,7 +645,10 @@ export function textNodesUnder(
         lineBefore = "";
       }
     },
-    boundary && ((child) => boundary(child, segments.length)),
+    (child) =>
+      ((root === document || root === root.ownerDocument?.body) &&
+        child.matches(LEAF_SURFACE)) ||
+      boundary?.(child, segments.length),
     (ctx) => {
       if (keeps(ctx)) {
         breakBefore = true;
@@ -695,24 +698,28 @@ export function closestAcross(node, selector) {
 // declared inside it.
 /** @param {string} id @param {Document | Element} [root] */
 export const elementById = (id, root = document) => {
+  const page = root === root.ownerDocument?.body;
+  const accepts = (node) =>
+    node && (!page || (!leafSurface(node) && authoredScope(node) === root));
   const found =
     root === document
       ? document.getElementById(id)
-      : root.querySelector(`[id="${CSS.escape(id)}"]`);
-  if (found) return found;
+      : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
+  if (accepts(found)) return found;
   for (const shadow of shadowRootsIn(root)) {
     const inside = shadow.getElementById(id);
-    if (inside) return inside;
+    if (accepts(inside)) return inside;
   }
   return null;
 };
 
 // The root of the authored document a node stands in. A message's widget markup is a
-// document of its own, placed in that message's body; everything else is the page's
-// `main`. A widget resolving a reference among its own document's elements searches
-// here, so markup a message quotes neither answers for the page nor reaches into it.
-// `doc` is a parsed revision's document, where a version reads its authored `main`.
-export const pageDocument = (doc = document) => doc.querySelector("body > main");
+// document of its own, placed in that message's body; the page owns the authored body.
+// Runtime surfaces share that body, so page-scoped identity and membership exclude
+// LEAF_SURFACE. Geometry separately reads `layoutBox`, the semantic main's Layout.
+// `doc` may be a parsed revision whose body holds its authored source.
+export const pageDocument = (doc = document) => doc.body;
+export const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 // The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
 // no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
 // Layout's regions read this box; the authored content is still `pageDocument`.
@@ -730,7 +737,7 @@ export const layoutBox = () => {
 };
 
 export const authoredScope = (node) =>
-  closestAcross(node, ".lf-msg-body") ?? pageDocument();
+  closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
@@ -1114,11 +1121,13 @@ let watcher = null;
 // over-forgetting costs a walk and under-forgetting costs a mark on words the page no
 // longer says.
 const pageReads = (over) =>
-  over?.nodeType !== 1 || READINGS.says(contextAt(over, null));
-// A declared label is the page's words wherever it stands, chrome included, so a subtree
-// holding one is read whatever its place says.
+  over?.nodeType !== 1 || (!leafSurface(over) && READINGS.says(contextAt(over, null)));
+// A declared label belongs to the page even inside generated widget apparatus.
+// Runtime surfaces remain separate documents, including the messages they hold.
 const holdsSaid = (node) =>
-  node.nodeType === 1 && (node.matches(SAID) || node.querySelector(SAID) !== null);
+  node.nodeType === 1 &&
+  !leafSurface(node) &&
+  (node.matches(SAID) || node.querySelector(SAID) !== null);
 // Whether a node can put words in the reading, standing where `read` says the page reads
 // (`pageReads` of its parent). A node that starts chrome (`chromeMark`) and holds no
 // label is silent wherever it goes, which is what the panel's re-rendered rows are.
@@ -1251,7 +1260,7 @@ function readPage() {
       breakBefore = false;
       cellChains.push(ctx.cells);
     },
-    null,
+    (child) => child.matches(LEAF_SURFACE),
     (ctx) => {
       if (keeps(ctx)) breakBefore = true;
     },
@@ -1512,5 +1521,5 @@ export function contextAround(text, segments, { before = 28, after = 28 } = {}) 
 }
 
 export function pageParts(sel) {
-  return pageQueryAll(sel).filter((el) => !inChrome(el));
+  return pageQueryAll(sel).filter(inPage);
 }

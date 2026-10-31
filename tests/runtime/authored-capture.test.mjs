@@ -133,7 +133,7 @@ test("member state owns each physical slot independently across a hierarchy", ()
 
 test("the contents drawing keeps its native state and keyed rows through revisions", () => {
   document.body.innerHTML =
-    '<main><h1>Field guide</h1><lf-toc id="contents"></lf-toc>' +
+    '<header><lf-toc id="contents"></lf-toc></header><main><h1>Field guide</h1>' +
     '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
   const host = document.querySelector("lf-toc");
   const reading = {

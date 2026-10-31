@@ -149,12 +149,16 @@ also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take th
 scheme's values. `--col` sets the reading column's width, and the spacing steps
 `--sp-1` to `--sp-5` tighten under `density-working`.
 
-`body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
-and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
-the page's grid and header on or inside `main`, and its ground in `--paper`; a page that
-takes no theme paints its ground on `html` and names it in `--lf-ground`, since `body`
-is a container, which keeps its own background off the window below a short page. A
-reset that zeroes
+The page's authored content fills `body`, with one `main` directly inside it for the
+primary content and its Layout. A header, navigation, footer or other content can stand
+beside `main`; comments and revisions include them. Leaf's own interface also lives in
+`body`, before the authored elements, and draws in the browser's top layer. Body-child
+position selectors therefore count Leaf's elements too.
+
+The theme pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
+panel. Set the page's ground in `--paper`; a page that takes no theme paints its ground
+on `html` and names it in `--lf-ground`, since `body` is a container, which keeps its
+own background off the window below a short page. A reset that zeroes
 `body`'s padding, or an app shell whose own box scrolls, puts
 `padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
 such as a sticky bar, uses `background: var(--lf-ground)` to match its containing

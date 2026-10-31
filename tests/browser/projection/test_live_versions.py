@@ -286,10 +286,14 @@ def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, 
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
     write(general, "Do not replace the page under these words.")
+    general.evaluate("el => window.retainedComment = el")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live second")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
+    expect(page.locator("body")).to_have_attribute("data-live-body", "second")
+    assert general.evaluate("el => el === window.retainedComment")
     expect(general).to_be_focused()
     expect(general).to_have_js_property(
         "value", "Do not replace the page under these words."

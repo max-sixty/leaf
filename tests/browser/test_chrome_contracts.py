@@ -570,7 +570,7 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
 
 
 def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, serve):
-    """Retained scripts and main's patched scripts have distinct document lifetimes."""
+    """Head and body scripts have distinct document lifetimes; body moves patch."""
     script = (
         '<script id="page-behavior" type="module">'
         "window.pageRuns = (window.pageRuns || 0) + 1;</script>"
@@ -584,7 +584,7 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
     for revision, html, region, reloads in [
         (2, main, "main", True),
         (3, main.replace(script, f"<div>{script}</div>"), "div", False),
-        (4, tail, "body", True),
+        (4, tail, "body", False),
         (5, tail.replace("Original words.", "Revised words."), "body", False),
     ]:
         stamp_page(serve.page_dir, html, "Revise script placement or prose")
@@ -890,9 +890,9 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     browser, serve
 ):
     """A box the page writes stacks beneath every surface Leaf lifts over the page,
-    whatever its z-index: `main` is one stacking context at 0, so the panel with Threads
+    whatever its z-index: Leaf occupies a native layer, so the panel with Threads
     open paints over a page overlay at the largest z-index there is, and
-    `stackLevel`, which paint, chips and landings ask where a node stacks, reads the
+    `stackOrder`, which paint and landings ask how nodes stack, reads the
     overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -900,9 +900,9 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     open_threads(page)
     stacking = page.evaluate(
         """async () => {
-          const { stackLevel } = await window.__lfCheckApi();
+          const { stackOrder } = await window.__lfCheckApi();
           const main = document.querySelector('main');
-          const overlay = main.appendChild(document.createElement('div'));
+          const overlay = document.body.appendChild(document.createElement('header'));
           overlay.id = 'page-overlay';
           overlay.style.cssText = `position: fixed; inset: 0; z-index: 2147483647;
             background: rgb(255 0 0 / 0.3);`;
@@ -913,10 +913,9 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
               r.left + r.width / 2, r.top + r.height / 2);
             return hit === overlay ? 'page' : el.contains(hit) ? 'leaf' : hit?.localName;
           };
-          const panelLevel = stackLevel(panel);
           const read = {
             panel: at(panel),
-            overlayBeneath: stackLevel(overlay) < panelLevel,
+            overlayBeneath: stackOrder(overlay, panel) < 0,
           };
           overlay.remove();
           const dialog = main.appendChild(document.createElement('dialog'));
@@ -926,7 +925,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
           const hit = document.elementFromPoint(
             box.left + box.width / 2, box.top + box.height / 2);
           read.dialog = dialog.contains(hit);
-          read.dialogAbove = stackLevel(dialog) > panelLevel;
+          read.dialogAbove = stackOrder(dialog, panel) > 0;
           dialog.close();
           return read;
         }"""

@@ -40,7 +40,7 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   Enter and Escape on the page's own elements, which hear them first.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
-  attached. Listen on `main` or another stable ancestor, or set up again when
+  attached. Listen on `body`, which survives revisions, or set up again when
   `PAGE_INTERFACE` fires (`module-authoring.md`, "Startup and presentation").
 - Animate from JavaScript through `motion()`, which skips the animation for a user who
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or

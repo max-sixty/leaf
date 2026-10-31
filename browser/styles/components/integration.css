@@ -20,17 +20,18 @@
    cursor the page or a widget states for its own controls. Runtime surfaces keep
    their controls usable wherever their owner seats them, so the crosshair leaves them
    out and they keep their own cursors. A document selector does not cross a declared
-   shadow root, so main states the mode as an inherited property that these rules
+   shadow root, so the body states the mode as an inherited property that these rules
    query; this sheet reaches the document and every shadow tree, so one rule serves
    both. */
-html[data-lf-draw-mode] main {
+html[data-lf-draw-mode] body {
   --lf-draw-mode: on;
 }
 @container style(--lf-draw-mode: on) {
-  :not([data-lf-runtime], [data-lf-runtime] *) {
+  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
     cursor: crosshair !important;
   }
-  :where([data-lf-runtime]) {
+  :where(.lf-chrome, [data-lf-runtime]) {
+    --lf-draw-mode: off;
     cursor: auto;
   }
 }

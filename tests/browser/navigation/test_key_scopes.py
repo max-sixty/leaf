@@ -594,14 +594,14 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
       asModal.textContent = 'A dialog shown modally';
       document.querySelector('main').append(asPopover, asModal);
       asPopover.showPopover();
-      const popover = layers().map((layer) => layer.kind);
+      const popover = layers().find((layer) => layer.root === asPopover).kind;
       asPopover.hidePopover();
       asModal.showModal();
-      const modal = layers().map((layer) => layer.kind);
+      const modal = layers().find((layer) => layer.root === asModal).kind;
       asModal.close();
       return {popover, modal};
     }""")
-    assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+    assert kinds == {"popover": "popover", "modal": "modal"}
 
 
 def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):

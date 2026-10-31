@@ -3,7 +3,7 @@ import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION
 import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, inPage, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, copyControl, fitsWhole, landedBox, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -703,8 +703,8 @@ function pageHead() {
 		const heading = [...document.querySelectorAll(selector)].find((candidate) => !inChrome(candidate));
 		if (heading) return heading;
 	}
-	const content = pageDocument();
-	return content?.firstElementChild ?? content ?? document.body.firstElementChild;
+	const main = document.querySelector("body > main");
+	return main.firstElementChild ?? [...pageDocument().children].find((element) => element !== main && inPage(element)) ?? main;
 }
 function obligationsIn(region, items = readObligations().all) {
 	return items.filter((item) => {
@@ -7730,6 +7730,7 @@ function captureCarry(root, authored) {
 	const held = /* @__PURE__ */ new Map();
 	const regionBodies = new Set(readingRegions().map(({ body }) => body));
 	for (const node of root.querySelectorAll("[id]")) {
+		if (!inPage(node)) continue;
 		const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
 		if (wrote?.localName !== node.localName) continue;
 		const record = {
@@ -7767,7 +7768,7 @@ function captureCarry(root, authored) {
 function restoreCarry(records, held = /* @__PURE__ */ new Map(), handoffFocus = (move) => move()) {
 	const positions = [];
 	for (const record of records ?? []) {
-		const arrived = document.getElementById(record.id);
+		const arrived = elementById(record.id, pageDocument());
 		if (!arrived || arrived === held.get(record.id)) continue;
 		if (arrived.localName !== record.name) continue;
 		if (record.open !== void 0) arrived.open = record.open;
@@ -8261,12 +8262,19 @@ const authoredMarkup = (root) => {
 	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
+	const body = root.localName === "body" ? root : root.body;
+	if (body) {
+		for (const surface of body.querySelectorAll(LEAF_SURFACE)) surface.remove();
+		const attributes = authoredAttributes(body);
+		for (const { name } of [...body.attributes]) body.removeAttribute(name);
+		for (const [name, value] of attributes) body.setAttribute(name, value);
+	}
 	return root;
 };
 const pairSources = (source, live, pairs) => {
 	pairs.set(source, live);
 	const held = source.localName === "template" ? source.content : source;
-	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.("[data-lf-prepaint]"));
+	const children = [...(live.localName === "template" ? live.content : live).childNodes].filter((child) => !child.matches?.(`[data-lf-prepaint], ${LEAF_SURFACE}`));
 	for (const [at, child] of [...held.childNodes].entries()) {
 		const peer = children[at];
 		if (peer) pairSources(child, peer, pairs);
@@ -8274,9 +8282,9 @@ const pairSources = (source, live, pairs) => {
 	return pairs;
 };
 let initialDocument = (() => {
-	const main = pageDocument();
+	const body = pageDocument();
 	const inert = document.implementation.createHTMLDocument("");
-	const source = main ? authoredMarkup(inert.importNode(main, true)) : null;
+	const source = authoredMarkup(inert.importNode(body, true));
 	for (const input of source?.querySelectorAll("input") ?? []) {
 		if (![
 			"file",
@@ -8286,13 +8294,12 @@ let initialDocument = (() => {
 		input.checked = input.defaultChecked;
 	}
 	for (const textarea of source?.querySelectorAll("textarea") ?? []) textarea.value = textarea.defaultValue;
-	const pairs = main ? pairSources(source, main, /* @__PURE__ */ new WeakMap()) : /* @__PURE__ */ new WeakMap();
+	const pairs = pairSources(source, body, /* @__PURE__ */ new WeakMap());
 	for (const disclosure of source?.querySelectorAll("details") ?? []) {
 		const open = document.documentElement.lfStorage.initialDisclosureOpen(pairs.get(disclosure));
 		if (open !== void 0) disclosure.toggleAttribute("open", open);
 	}
 	return {
-		authoredBodyAttributes: authoredAttributes(document.body),
 		authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
 		authoredHtmlAttributes: authoredAttributes(document.documentElement),
 		source,
@@ -8535,7 +8542,7 @@ function paintedSource(source, widgets) {
 	const root = doc.importNode(source, true);
 	const sources = [source, ...source.querySelectorAll("*")];
 	const sourceOf = new Map([root, ...root.querySelectorAll("*")].map((copy, at) => [copy, sources[at]]));
-	doc.body.replaceChildren(root);
+	doc.body.replaceWith(root);
 	formatDeclaredMarkdown(doc);
 	paintBodies(doc, widgets);
 	placeCreated(doc, widgets);
@@ -8825,7 +8832,7 @@ function revisionDocument(revision) {
 	return revisionDocuments.get(revision.revision);
 }
 function createVersionController({ initialDocument, compositionInput, openThread, refreshThread, midComposition, hasPending, readAndApply, syncLayout, captureRetainedCurrentLocation = () => null, restoreRetainedCurrentLocation = () => false, captureObligationCurrentLocation = () => null, restoreObligationCurrentLocation = () => {}, versions }) {
-	let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
+	let { authoredHeadNodes, authoredHtmlAttributes, source: authoredSource } = initialDocument;
 	const sourcePairs = initialDocument.pairs;
 	versionSource = () => ({
 		source: authoredSource,
@@ -8951,7 +8958,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const arrivingRoot = layerRoot(doc);
 		return {
 			pairs: sourcePairs,
-			contains: under,
+			contains: (node, owner) => owner === pageDocument() ? inPage(node) : under(node, owner),
 			declared: upgraded,
 			body: authoredBody,
 			reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
@@ -9004,7 +9011,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		const rules = patchRules(doc);
 		revisionDocuments.delete(target.revision);
 		const isAuthored = authored(live);
-		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && !isAuthored(node);
+		const generated = (node) => (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) && (Boolean(leafSurface(node)) || !isAuthored(node));
 		const arrived = [];
 		const arrivedDescriptors = /* @__PURE__ */ new Map();
 		const prior = readApplication().document;
@@ -9041,7 +9048,6 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		await patchDocument(live, () => {
 			authoredHtmlAttributes = replaceAuthoredAttributes(document.documentElement, doc.documentElement, authoredHtmlAttributes);
 			keeps(document.documentElement, "data-lf-layout", doc.documentElement.getAttribute("data-lf-layout"));
-			authoredBodyAttributes = replaceAuthoredAttributes(document.body, doc.body, authoredBodyAttributes);
 			activateHead(doc, target);
 			sourcePairs.set(source, live);
 			patchTree(authoredSource, source, {
@@ -9268,7 +9274,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const box of boxes) {
 			const region = regionForBox(box);
 			if (region === void 0 || held(box)) continue;
-			if (region && !(under(region.host, pageDocument()) && shownRegionBounds(region))) continue;
+			if (region && !(inPage(region.host) && shownRegionBounds(region))) continue;
 			const before = places.get(region ? region.id : PAGE);
 			const acted = currentLocation || readerChose(box, before?.choices ?? 0) || inputSince(box, before?.inputs ?? 0);
 			if (before && !acted) continue;
@@ -9496,7 +9502,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
 		const recordCurrentLocation = () => {
 			const at = focused();
-			if (!at || !under(at, pageDocument())) return;
+			if (!at || !inPage(at)) return;
 			const box = boxOf(at);
 			recordPlaces([box], { currentLocation: true });
 			nextRender(() => recordPlaces([box], { currentLocation: true }));

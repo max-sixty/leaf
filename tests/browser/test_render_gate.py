@@ -2503,19 +2503,22 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
     scrolls, so the root holds that margin in. The root draws no frame, its edge
-    being the window's, so the reading has nothing to ask of it, where it named the
-    root of every such page. A root that draws padding is a frame like any box."""
+    being the window's. Shell padding is viewport spacing, including Leaf's panel
+    clearance; a border makes the shell an actual frame whose edges can be read."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
     margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.evaluate("() => document.documentElement.style.padding = '12px'")
+    padded = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.border = '1px solid'")
     framed = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.close()
 
     assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
     assert trapped == [], trapped
+    assert padded == [], padded
     assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 

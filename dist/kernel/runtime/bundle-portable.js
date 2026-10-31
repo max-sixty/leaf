@@ -378,11 +378,7 @@ const byRenderedOrder = (items, placeOfItem) => {
 	}));
 	return [...placed.filter(({ place }) => place).sort((a, b) => renderedOrder(a.place, b.place)), ...placed.filter(({ place }) => !place)].map(({ item }) => item);
 };
-const nativeLayerKind = (node) => {
-	if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
-	if (node.matches("dialog:modal")) return "modal";
-	return node.matches(":popover-open") ? "popover" : null;
-};
+const nativeLayerKind = (node) => document.documentElement.lfLayerState.kind(node);
 const isNativeLayer = (node) => nativeLayerKind(node) !== null;
 function nativeLayerHolding(node) {
 	for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;

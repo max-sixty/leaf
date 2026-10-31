@@ -293,9 +293,9 @@ for a text input or select, and
 a stack of layer tiles or a curve's handles, is the page's own design
 (`page-authoring.md`, "Style the page").
 
-Leaf's panel, thread cards and markers draw over everything in `main`, whatever its
-`z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown
-with `showModal()`, or an element with `popover`.
+Leaf's panel, thread cards and markers draw in the top layer over the page's ordinary
+content, whatever its `z-index`. A page modal or menu opened afterward in the top layer
+draws above Leaf: use a `<dialog>` shown with `showModal()`, or an element with `popover`.
 
 ### Space for changing text
 

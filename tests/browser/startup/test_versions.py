@@ -374,9 +374,8 @@ KEPT_BOARD = leaf_page(
     <lf-card id="card-y"><strong>Ship</strong> Steady words.</lf-card>
   </lf-column>
 </lf-board>
-<p id="note">First note.</p>
 """,
-)
+).replace("</body>", '<footer><p id="note">First note.</p></footer></body>')
 
 
 def test_a_change_inside_a_widget_a_later_revision_kept_marks_its_block(browser, serve):
@@ -391,7 +390,7 @@ def test_a_change_inside_a_widget_a_later_revision_kept_marks_its_block(browser,
     stamp_page(serve.page_dir, second.replace("First note.", "Second note."), "a note")
     wait_for_revision(page, 3)
     compare_with(page, 1)
-    marked = page.locator("main .lf-ins-block")
+    marked = page.locator("body > main .lf-ins-block, body > footer .lf-ins-block")
     expect(marked).to_have_count(2)
     assert marked.evaluate_all("blocks => blocks.map(b => b.id)") == [
         "card-x",

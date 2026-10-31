@@ -2,6 +2,7 @@ import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-ap
 import {
   layoutBox,
   pageDocument,
+  inPage,
   readingRegions,
   shownBand,
   shownRegionBounds,
@@ -50,57 +51,61 @@ export function geometryReading(open) {
 export function containedSpace() {
   const main = pageDocument();
   if (!main) return [];
-  const flows = [...main.querySelectorAll(".layout-flow")].flatMap((el) => {
-    if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
-    const parent = el.parentElement;
-    if (!parent.matches(".layout-column, .layout-flow")) return [];
-    if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
-    const style = getComputedStyle(el);
-    const start = style.gridColumnStart;
-    const end = style.gridColumnEnd;
-    if (
-      style.gridTemplateColumns.startsWith("subgrid") &&
-      ["full", "full-start", "1"].includes(start) &&
-      ["full", "full-end", "-1"].includes(end)
-    )
-      return [];
-    return [
-      {
-        code: "flow-tracks",
-        at: at(el),
-        place: place(el),
-        parent: at(parent),
-        columns: style.gridTemplateColumns,
-        start,
-        end,
-      },
-    ];
-  });
-  const contained = [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
-    if (skipped(el) || !el.checkVisibility()) return [];
-    const holders = [];
-    for (let holder = el.parentElement; holder; holder = holder.parentElement) {
-      if (holder.matches(".layout-column"))
-        return holders.length
-          ? [
-              {
-                code: "contained-space",
-                at: at(el),
-                place: place(el),
-                space: el.getAttribute("data-lf-space"),
-                holders,
-              },
-            ]
-          : [];
+  const flows = [...main.querySelectorAll(".layout-flow")]
+    .filter(inPage)
+    .flatMap((el) => {
+      if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
+      const parent = el.parentElement;
+      if (!parent.matches(".layout-column, .layout-flow")) return [];
+      if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
+      const style = getComputedStyle(el);
+      const start = style.gridColumnStart;
+      const end = style.gridColumnEnd;
       if (
-        holder.matches("[data-lf-space], .layout-workspace, .layout-sidebar") ||
-        breaksOut(holder)
+        style.gridTemplateColumns.startsWith("subgrid") &&
+        ["full", "full-start", "1"].includes(start) &&
+        ["full", "full-end", "-1"].includes(end)
       )
         return [];
-      if (!holder.matches(".layout-flow")) holders.push(at(holder));
-    }
-    return [];
-  });
+      return [
+        {
+          code: "flow-tracks",
+          at: at(el),
+          place: place(el),
+          parent: at(parent),
+          columns: style.gridTemplateColumns,
+          start,
+          end,
+        },
+      ];
+    });
+  const contained = [...main.querySelectorAll("[data-lf-space]")]
+    .filter(inPage)
+    .flatMap((el) => {
+      if (skipped(el) || !el.checkVisibility()) return [];
+      const holders = [];
+      for (let holder = el.parentElement; holder; holder = holder.parentElement) {
+        if (holder.matches(".layout-column"))
+          return holders.length
+            ? [
+                {
+                  code: "contained-space",
+                  at: at(el),
+                  place: place(el),
+                  space: el.getAttribute("data-lf-space"),
+                  holders,
+                },
+              ]
+            : [];
+        if (
+          holder.matches("[data-lf-space], .layout-workspace, .layout-sidebar") ||
+          breaksOut(holder)
+        )
+          return [];
+        if (!holder.matches(".layout-flow")) holders.push(at(holder));
+      }
+      return [];
+    });
   return [...flows, ...contained];
 }
 
@@ -109,7 +114,7 @@ export function containedSpace() {
 // through the widgets named in `open`, those whose content is the page's own markup or
 // members, since a pane's or a tab's content is the page's; a widget's own box is the
 // widget's business and is not read, and nothing Leaf generates is. Each box comes back
-// with its place under `main`, a selector another load of the same page resolves to the
+// with its place under `body`, a selector another load of the same page resolves to the
 // same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
 // to what the browser draws, leaving out skipped content such as a tab not chosen: a
 // reading of the view the user has asks nothing of it, and asking would make the
@@ -120,7 +125,8 @@ export function arrangedBoxes(open, { shown = false } = {}) {
   const opens = new Set(open);
   const boxes = [];
   const walk = (el, path) => {
-    if (el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el))) return;
+    if (!inPage(el) || el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el)))
+      return;
     const widget = el.localName.includes("-");
     if (widget && !opens.has(el.localName)) return;
     if (!widget) boxes.push([el, path]);
@@ -128,7 +134,7 @@ export function arrangedBoxes(open, { shown = false } = {}) {
       walk(child, `${path} > :nth-child(${i + 1})`),
     );
   };
-  walk(main, "main");
+  walk(main, "body");
   return boxes.flatMap(([box, path]) => {
     if (!/flex|grid/.test(getComputedStyle(box).display)) return [];
     const tops = laidOutItems(box)
@@ -725,9 +731,12 @@ export function squeezedTables() {
     }
     return false;
   };
-  const tables = [...main.querySelectorAll("table")].filter(
-    (t) => t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
-  );
+  const tables = [...main.querySelectorAll("table")]
+    .filter(inPage)
+    .filter(
+      (t) =>
+        t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
+    );
   if (!tables.length) return [];
   // Each table's columns by left edge, each with its cells, before the probe.
   const read = new Map();

@@ -75,6 +75,12 @@ window.getComputedStyle = (element, pseudo) => {
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
 await import("../../browser/runtime/prepaint.js");
+// Delivery's permanent chrome home. Native top-layer painting is exercised in a
+// browser; this DOM-only world supplies the same container for runtime modules.
+const chrome = document.createElement("div");
+chrome.className = "lf-chrome lf-chrome-root";
+chrome.setAttribute("popover", "manual");
+document.body.append(chrome);
 // And the runtime sheets every delivery carries (`delivery_sheets` in
 // revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.
 // Nothing here is laid out, so their rules are empty.

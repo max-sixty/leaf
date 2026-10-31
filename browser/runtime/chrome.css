@@ -152,8 +152,9 @@ html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   touch-action: pinch-zoom;
 }
-html[data-lf-region-capture] main,
-html[data-lf-region-capture] main * {
+html[data-lf-region-capture]
+  body
+  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
   cursor: crosshair !important;
 }
 /* The glyphs of the reactions in force on a target — a margin entry per reaction,

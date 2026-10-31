@@ -117,7 +117,7 @@ function staying(parent, nodes) {
    authored container is swept out as markup the source does not have.
 
    So both sides of the diff are source. `before` and `after` are the two revisions'
-   authored `main`, inert and untouched by anything: whatever they agree on, this does not
+   authored body, inert and untouched by anything: whatever they agree on, this does not
    touch. `pairs` carries the correspondence, from a source node to the live node standing
    for it — built by a lockstep walk at boot, when the page is still exactly its own
    source, and kept up by every patch since.
@@ -174,7 +174,7 @@ export function patchTree(before, after, rules) {
 export function patchRetains(before, after, target, rules) {
   if (!target?.isConnected) return false;
   // Runtime chrome is outside the authored patch. Ask source pairs, not DOM place:
-  // eviction also removes authored nodes a page module moved outside main.
+  // eviction also removes authored nodes a page module moved outside its original parent.
   if (!sourceOwns(before, target, rules)) return true;
   return retainedWithin(before, after, target, rules);
 }

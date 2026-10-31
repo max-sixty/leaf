@@ -58,7 +58,25 @@ interface LeafSampleBridge {
   install?(): void;
 }
 
+/** A native opening, shared from prepaint through runtime activation. */
+interface LeafNativeLayer {
+  root: HTMLElement;
+  opening: boolean;
+  readonly kind: "modal" | "popover" | null;
+  active(): boolean;
+  fromNowhere: boolean;
+  opener: Element | null;
+  source: Element | null;
+}
+
 interface HTMLElement {
+  /** Native layer order starts before authored content becomes interactive. */
+  lfLayerState?: {
+    kind(node: Node | null): "modal" | "popover" | null;
+    focused(): Element | null;
+    read(): LeafNativeLayer[];
+    watch(root: Document | ShadowRoot): void;
+  };
   /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
   lfDocumentLifetime?: { whenActive(fault: string, report: () => void): void };
   /** Text-entry vocabulary, input count and observation from the first script. */

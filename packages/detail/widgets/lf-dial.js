@@ -98,7 +98,11 @@ customElements.define(
 
     // The document the dial governs.
     get #scope() {
-      return this.closest("[data-lf-views] > *, main") ?? this.ownerDocument.body;
+      return (
+        this.closest("[data-lf-views] > *, main") ??
+        this.closest("body")?.querySelector(":scope > main") ??
+        null
+      );
     }
 
     setup() {

@@ -11,6 +11,7 @@ from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_cases_navigation import DATA_PROJECTION_MODULE, data_projection_page
 from render_harness import (
     PANEL,
+    holding,
     leaf_page,
     open_page,
     stamp_page,
@@ -18,6 +19,7 @@ from render_harness import (
     watched,
 )
 
+from browser.startup import _hold_startup
 from leaf import data as data_model
 from leaf import user_views as user_views_model
 from leaf.render_checks import wait_until_ready
@@ -63,6 +65,50 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
     finally:
         for route in boot:
             route.continue_()
+        page.unroute_all(behavior="wait")
+
+
+@pytest.mark.parametrize("kind", ["popover", "modal"])
+def test_a_native_surface_opened_before_modules_stays_above_leaf(browser, serve, kind):
+    """Native controls work while the runtime loads. Its arrival neither covers
+    their surface nor changes the opening order keyboard and geometry consume."""
+    if kind == "popover":
+        control = '<button id="open" popovertarget="early">Open menu</button>'
+        surface = '<div id="early" popover><button popovertarget="early" popovertargetaction="hide">Close surface</button></div>'
+    else:
+        control = '<button id="open" commandfor="early" command="show-modal">Open dialog</button>'
+        surface = '<dialog id="early"><button commandfor="early" command="close">Close surface</button></dialog>'
+    source = leaf_page("Early native surface", control + surface)
+    source = source.replace(
+        "</head>",
+        "<style>#early {position:fixed; inset:0; margin:0; width:100vw; height:100vh; max-width:none; max-height:none; background:rgb(200 20 20); border:0}</style></head>",
+    )
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    watched(page)
+    held, release = _hold_startup(page, "module")
+    try:
+        page.goto(serve(source), wait_until="commit")
+        holding(page, held, 1, "the runtime module")
+        page.locator("#open").click()
+        expect(page.locator("#early")).to_be_visible()
+        release()
+        held.clear()
+        wait_until_ready(page)
+        assert page.evaluate("""async () => {
+          const {stackOrder} = await window.__lfCheckApi();
+          const surface = document.querySelector('#early');
+          const panel = document.querySelector('.lf-floating-panel');
+          const rect = panel.getBoundingClientRect();
+          return stackOrder(surface, panel) > 0 && surface.contains(
+            document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        }""")
+        # Its authored control stays reachable after runtime activation.
+        page.get_by_role("button", name="Close surface").click()
+        expect(page.locator("#early")).not_to_be_visible()
+        expect(page.locator(PANEL)).to_be_visible()
+    finally:
+        release()
         page.unroute_all(behavior="wait")
 
 

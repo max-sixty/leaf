@@ -600,6 +600,23 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
     )
 
 
+def test_executable_identity_follows_head_and_body_patch_boundaries(tmp_path):
+    script = "<script>window.executions = (window.executions || 0) + 1;</script>"
+
+    def capture(markup):
+        return capture_artifact(tmp_path, SourceDocument(markup), {})
+
+    base = "<html><head></head><body><header></header><main></main></body></html>"
+    main = capture(base.replace("</main>", script + "</main>"))
+    header = capture(base.replace("</header>", script + "</header>"))
+    body = capture(base.replace("</body>", script + "</body>"))
+    head = capture(base.replace("</head>", script + "</head>"))
+
+    assert main.digest != header.digest
+    assert main.executable == header.executable == body.executable
+    assert head.executable != body.executable
+
+
 def test_inert_json_cannot_end_or_reshape_its_script_element():
     """A user's own words travel inside a script element, and two sequences escape it.
 
@@ -717,7 +734,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
-        "<!doctype html><html><head><title>T</title></head><body><main>"
+        "<!doctype html><html><head><title>T</title></head><body>"
+        '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
         '<aside class="callout warn" id="note">Paused.</aside>'
         '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
@@ -741,16 +759,18 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     )
 
     served = SourceDocument(delivered.removeprefix("﻿"))
-    main = served.tree.find("main")
-    assert main is not None
+    body = served.tree.find("body")
+    assert body is not None
     marks = {
         (element.tag, element.attrs.get("id")): {
             name: value
             for name, value in element.attrs.items()
             if name.startswith("data-lf-")
         }
-        for element in main.find_all(True)
+        for element in body.find_all(True)
     }
+    assert marks[("header", "banner")] == {"data-lf-space": "wide"}
+    assert marks[("main", None)] == {}
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
@@ -768,6 +788,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     }
     assert marks[("lf-zone", "later")] == {}
     for mark in (
+        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',

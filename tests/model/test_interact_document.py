@@ -2235,30 +2235,38 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     assert found([finding], code, at, **values), finding
 
 
-@pytest.mark.parametrize(
-    "outside, refused",
-    [
-        ("Authored tail", "outside-main"),
-        ('<p id="tail">Authored tail</p>', "outside-main"),
-        (
-            '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
-            "outside-main",
-        ),
-        ('<main><p id="tail">Second main</p></main>', "main-count"),
-    ],
-)
-def test_check_confines_authored_content_to_one_direct_main(page_dir, outside, refused):
-    """The element the presentation boundary withholds contains the whole page.
+def test_check_accepts_authored_body_content_beside_main(page_dir):
+    """Body siblings are ordinary page content, including passages and widgets."""
+    source = PAGE.replace(
+        "<main>",
+        '<header id="banner">Banner words</header><nav id="nav">Navigation</nav><main>',
+    ).replace(
+        "</main>",
+        '</main><footer id="footer">Footer words</footer>Authored tail'
+        '<aside id="aside">Aside words</aside>'
+        '<lf-options><lf-option id="tail">A sibling option</lf-option></lf-options>',
+    )
+    (page_dir / "index.html").write_text(source)
 
-    Prose, ordinary elements, widgets, and another main beside the first are all
-    visible outside the CSS gate and must be refused at the authoring door.
-    """
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", f"</main>\n{outside}"))
+    status, findings = check_findings(page_dir)
+
+    assert status == 0, findings
+    passages = passages_model.page_passages(structure_model.SourceDocument(source))
+    assert passages.text.startswith("Banner words Navigation")
+    assert "Footer words Authored tail Aside words A sibling option" in passages.text
+    assert passages.enclosing["banner"] == ("banner",)
+    assert passages.enclosing["footer"] == ("footer",)
+
+
+def test_check_requires_exactly_one_main(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '</main><main><p id="tail">Second main</p></main>')
+    )
 
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    assert found(findings, refused)
+    assert found(findings, "main-count", mains=2)
 
 
 def test_check_requires_main_to_be_a_direct_body_child(page_dir):
@@ -2294,23 +2302,6 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
 
     assert status == 1
     assert found(findings, "head-count", tags=2)
-
-
-@pytest.mark.parametrize(
-    "html",
-    [
-        PAGE.replace("</body>", '</body>\n<p id="tail">Authored tail</p>'),
-        PAGE.replace("</head>", '<img src="/media/tail.png" alt="tail">\n</head>'),
-    ],
-)
-def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
-    """HTML recovery cannot move authored pixels around the main boundary."""
-    (page_dir / "index.html").write_text(html)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "outside-main")
 
 
 def test_check_rejects_an_id_containing_whitespace(page_dir):

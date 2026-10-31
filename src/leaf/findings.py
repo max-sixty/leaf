@@ -313,15 +313,6 @@ def _empty_question(at: str, v: dict) -> str:
     )
 
 
-def _outside_main(content: list[dict]) -> list[str]:
-    return [
-        f"text in <{c['tag']}> at line {c['line']}"
-        if c["text"]
-        else f"<{c['tag']}> at line {c['line']}"
-        for c in content
-    ]
-
-
 def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
@@ -769,11 +760,6 @@ _TEXT = {
         f"the page must have one <main> directly under <body>; found {v['bodies']}"
         f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
     ),
-    "outside-main": lambda at, v: (
-        "the page's content goes inside the one <main> directly under <body>, which"
-        " Leaf reads as the page; move these inside it (a grid or header of the"
-        f" page's own goes on or in <main>): {_json(_outside_main(v['content']))}"
-    ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
         + ", ".join(f"<{e['tag']}> (line {e['line']})" for e in v["elements"])
@@ -1005,7 +991,7 @@ _TEXT = {
     ),
     "unpointable": lambda at, v: (
         "unpointable — these blocks have no id, nor does anything enclosing them, so"
-        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        f" element selection has no target: {_blocks(v)}; give the page's sections ids,"
         " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (

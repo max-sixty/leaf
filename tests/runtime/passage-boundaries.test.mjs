@@ -106,6 +106,18 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(pageWords(document.querySelector("main p")), true);
 });
 
+test("header and footer passages belong to the page while runtime surfaces do not", () => {
+  document.body.innerHTML = `<header><p>Opening</p></header><main><p>Content</p></main>
+    <footer><p>Closing</p></footer>
+    <div class="lf-chrome"><p data-lf-said>Thread words</p></div>
+    <div data-lf-runtime><p>Status words</p></div>`;
+  const words = pageText().raw;
+  for (const word of ["Opening", "Content", "Closing"]) assert.ok(words.includes(word));
+  assert.ok(!words.includes("Thread words"));
+  assert.ok(!words.includes("Status words"));
+  assert.equal(says(document.body), "Opening Content Closing");
+});
+
 test("the page's reading is taken once while the document holds still", () => {
   document.body.innerHTML = "<main><p>Alpha beta</p></main>";
   const first = pageText();

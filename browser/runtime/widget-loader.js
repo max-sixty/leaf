@@ -40,7 +40,7 @@ import { widgetImports } from "./widget-imports.js";
    tab. Shared dependency preparation loads shadow rules where the scope
    holds or declares creation of an `x-shadow` widget, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
-   version activation with the incoming `main`, and the state application with the frozen
+   version activation with the incoming authored body, and the state application with the frozen
    markup an agent's reply carries, ahead of the panel building a body. Each of them
    names the tags it needs, so nothing imports on a mutation after the element is already
    connected. A module whose own payload is large (`lf-diff`'s renderer) imports it on

@@ -30,7 +30,7 @@
    than membership (`obligationHolding`, current-target.js). It reads every placed
    obligation, to-dos included, and also falls back to an obligation's unique context. */
 import { projectedDatum } from "../anchor-resolution.js";
-import { elementById, inChrome, pageDocument } from "../passages.js";
+import { elementById, inChrome, inPage, pageDocument } from "../passages.js";
 import { under } from "../shadow.js";
 import { readObligations } from "./model.js";
 
@@ -76,8 +76,14 @@ function pageHead() {
     );
     if (heading) return heading;
   }
-  const content = pageDocument();
-  return content?.firstElementChild ?? content ?? document.body.firstElementChild;
+  const main = document.querySelector("body > main");
+  return (
+    main.firstElementChild ??
+    [...pageDocument().children].find(
+      (element) => element !== main && inPage(element),
+    ) ??
+    main
+  );
 }
 
 // The obligations `region` holds, in the order `obligations` lists them.

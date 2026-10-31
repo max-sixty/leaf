@@ -120,7 +120,14 @@ let currentLocationFloor = () => null;
 export function declareCurrentLocation({ pageState }) {
   currentLocationFloor = () => {
     if (!holding()) return null;
-    if (nativeLayers().length) return null;
+    // This scope stands with the focused control, ahead of native boundaries.
+    // A modal or light-dismiss popover owns that exit; a manual popover has none.
+    if (
+      nativeLayers().some(
+        ({ kind, root }) => kind === "modal" || root.popover !== "manual",
+      )
+    )
+      return null;
     if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
     if (inChrome(focused(document))) return null;
@@ -151,12 +158,11 @@ export function declareCurrentLocation({ pageState }) {
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
 // stands down while the let-go above answers, so the reference names one press rather
-// than two spellings of it. It stands down under a native layer too: a popover or a
-// modal is the browser's own mode, its own scope is the way out of it, and the page
-// beneath is not somewhere a press can reach from inside it.
+// than two spellings of it. The dispatcher's native boundaries keep this page scope
+// behind modal dialogs and light-dismiss popovers; a manual popover has no native
+// Escape dismissal to withhold the page's own step.
 // keyboard/AGENTS.md's "Escape" holds the rest.
 pageRung("page", () => {
-  if (nativeLayers().length) return null;
   if (holding())
     return currentLocationFloor()
       ? null

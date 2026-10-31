@@ -14,9 +14,9 @@ types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
 the captured inputs an already-open document cannot re-evaluate in place; the
 runtime it runs with is named beside it by the delivering Leaf. Scripts include
-their patch region: head and body scripts stay installed while main is patched.
-Moving a script across those regions reloads, so a retained script cannot duplicate
-an arriving main script. Moving among containers within main without changing
+their patch region: head scripts stay installed while authored body content is patched.
+Moving a script between head and body reloads, so a retained script cannot duplicate
+an arriving body script. Moving among containers within body without changing
 script order, or editing prose, does not reload. The HTML revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
 including after a process crash. A publication that also changes the log stages

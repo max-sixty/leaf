@@ -31,6 +31,7 @@ import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./shown-box.js";
 import { readingRegions } from "./reading-regions.js";
+import { elementById, inPage, pageDocument } from "./passages.js";
 
 /** @returns {node is HTMLInputElement | HTMLTextAreaElement | HTMLElementTagNameMap["leaf-text"]} */
 const holdsValue = (node) =>
@@ -50,6 +51,7 @@ export function captureCarry(root, authored) {
   const held = new Map();
   const regionBodies = new Set(readingRegions().map(({ body }) => body));
   for (const node of root.querySelectorAll("[id]")) {
+    if (!inPage(node)) continue;
     const wrote = authored.querySelector(`#${CSS.escape(node.id)}`);
     if (wrote?.localName !== node.localName) continue;
     const record = { id: node.id, name: node.localName };
@@ -94,7 +96,7 @@ export function restoreCarry(
 ) {
   const positions = [];
   for (const record of records ?? []) {
-    const arrived = document.getElementById(record.id);
+    const arrived = elementById(record.id, pageDocument());
     if (!arrived || arrived === held.get(record.id)) continue;
     if (arrived.localName !== record.name) continue;
     // Only a disclosure's record says whether it was open.

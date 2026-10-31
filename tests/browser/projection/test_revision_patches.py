@@ -75,6 +75,62 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-added')")
 
 
+def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(
+    browser, serve
+):
+    """Header, nav and footer participate in the same revision as main. The retained
+    body and chrome keep the user's input, current location and runtime state."""
+    first = leaf_page(
+        "Sibling first", '<h1 id="title">Release</h1><p id="plan">Ship Monday.</p>'
+    )
+    first = first.replace(
+        "<body>",
+        '<body class="before"><header id="masthead"><label>Name <input id="name" value="Max"></label><nav id="routes"><a href="#plan">Plan</a></nav></header>',
+    )
+    first = first.replace(
+        "</body>",
+        '<footer id="site-footer"><p id="site-note">First footer.</p></footer></body>',
+    )
+    page = open_page(browser, live_url(serve(first)))
+    expect(page.get_by_role("banner")).to_have_count(1)
+    expect(page.get_by_role("contentinfo")).to_have_count(1)
+    page.locator("#name").fill("Maximilian")
+    page.evaluate("window.heldChrome = document.querySelector('.lf-chrome')")
+    origin = page.evaluate("performance.timeOrigin")
+    second = (
+        first.replace("Sibling first", "Sibling second")
+        .replace('class="before"', 'class="after"')
+        .replace("Ship Monday.", "Ship Tuesday.")
+        .replace("First footer.", "Revised footer.")
+        .replace(">Plan</a>", ">Release plan</a>")
+    )
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Sibling second")
+    expect(page.locator("#site-note")).to_have_text("Revised footer.")
+    expect(page.locator("#routes a")).to_have_text("Release plan")
+    expect(page.locator("#plan")).to_have_text("Ship Tuesday.")
+    expect(page.locator("#name")).to_have_value("Maximilian")
+    expect(page.locator("#name")).to_be_focused()
+    expect(page.locator("body")).to_have_class("after")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    assert page.evaluate("performance.timeOrigin") == origin
+    assert page.evaluate(
+        "window.heldChrome === document.querySelector('.lf-chrome') && window.heldChrome.matches(':popover-open')"
+    )
+    # Removal and insertion at the shared body boundary must leave the runtime intact.
+    third = second.replace(
+        '<footer id="site-footer"><p id="site-note">Revised footer.</p></footer>',
+        '<aside id="next">Next release</aside>',
+    ).replace("Sibling second", "Sibling third")
+    (serve.page_dir / "index.html").write_text(third)
+    told(page)
+    expect(page).to_have_title("Sibling third")
+    expect(page.locator("#site-footer")).to_have_count(0)
+    expect(page.locator("#next")).to_have_text("Next release")
+    assert page.evaluate("window.heldChrome === document.querySelector('.lf-chrome')")
+
+
 def test_a_revision_brings_its_page_layout_to_the_body(browser, serve):
     """The body's geometry follows the page's Layout across a live revision.
 

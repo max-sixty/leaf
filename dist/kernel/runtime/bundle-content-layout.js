@@ -2,7 +2,7 @@ import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, keeps, layoutChanged, layout
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, fragmentId, hostIn, inUi, isElementName, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
 import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
-import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
+import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, inPage, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
 let clockSkew = 0;
@@ -123,8 +123,7 @@ function whileInterfaceConnected(element, { declare, connect }) {
 
 //#endregion
 //#region runtime/chrome.js
-const chromeRoot = document.createElement("div");
-chromeRoot.className = "lf-chrome";
+const chromeRoot = document.querySelector(".lf-chrome-root");
 const chromeForeground = document.createElement("dialog");
 chromeForeground.className = "lf-ui lf-foreground";
 chromeForeground.setAttribute("open", "");
@@ -1359,8 +1358,8 @@ const actedAt = (at, arriving) => {
 	const region = readingRegionFor(at);
 	if (region) {
 		recentRegionId = region.id;
-		if (under(region.host, pageDocument())) pageRegionId = region.id;
-	} else if ((at === document.body || under(at, pageDocument())) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
+		if (inPage(region.host)) pageRegionId = region.id;
+	} else if (inPage(at) && !(arriving && at === document.body && pressing()?.released === false)) recentRegionId = pageRegionId = null;
 };
 for (const type of [
 	"pointerdown",
@@ -1383,13 +1382,13 @@ const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => region?.host.checkVisibility() ? region : void 0;
 const pageReadingRegion = () => {
 	const at = deepFocus();
-	if (under(at, pageDocument())) return readingRegionFor(at);
+	if (inPage(at)) return readingRegionFor(at);
 	return shown(readingRegion(pageRegionId));
 };
 const userReadingRegion = () => {
 	const at = deepFocus();
 	const region = readingRegionFor(at);
-	if (region || under(at, pageDocument())) return region;
+	if (region || inPage(at)) return region;
 	return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 const containingReadingRegionFor = (node) => {

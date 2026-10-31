@@ -696,7 +696,6 @@ async function boot() {
       fabBar,
       chromeForeground,
     );
-    document.body.append(chromeRoot);
     version.mount();
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
@@ -740,7 +739,6 @@ async function boot() {
   } else {
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
     chromeRoot.append(mediaViewer);
-    document.body.append(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
     // what a widget's own box shows, such as an options group's addition field.
     mountRepaint({

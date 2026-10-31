@@ -17,7 +17,7 @@ const frames = (style) =>
 const moduleOwnsBox = (el) => {
   for (
     let child = el, parent = upFrom(child);
-    parent && parent.localName !== "main";
+    parent && parent.localName !== "body";
     child = parent, parent = upFrom(parent)
   ) {
     if (!declared(parent)) continue;
@@ -50,11 +50,10 @@ const moduleOwnsBox = (el) => {
 // lint over the CSS would be reading the declarations and not the result, which is the same
 // mistake the reserved-width lint made before the press sweep replaced it.
 //
-// A box that holds draws its frame by holding, since a box the reader sees ends where
-// it does. The root is the exception that is no exception: it holds every margin, as
-// the first formatting context, and its edge is the window's, so it frames only by the
-// padding or border it draws. Holding alone, it named the browser's 8px body margin on
-// every page with no Layout (layouts.css), a margin that shows exactly what it states.
+// A content box that holds draws its frame by holding, since the box ends where it
+// does. The document shell's padding instead spaces content from the viewport: Leaf's
+// panel clearance and the author's page gutters do not make paragraph margins wrong.
+// Only a border or an explicit frame declaration makes html/body a content frame.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid container
 // collapses no margin anywhere, so a margin on an item at its edge is a placement rather
@@ -167,7 +166,9 @@ export function trappedMargins() {
         if (!kid.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
         const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
-        if (!drawn && (!holds(s) || el === document.documentElement)) continue;
+        const shell = el === document.documentElement || el === document.body;
+        if (shell && !px(s["border" + side + "Width"]) && !frames(s)) continue;
+        if (!drawn && !holds(s)) continue;
         const leak = edgeMargin(kid, edge);
         if (leak && leak.margin > 0.5)
           found.push({
@@ -264,7 +265,7 @@ export function splitEdges() {
 // nothing Leaf draws may do (browser/AGENTS.md, "The page holds still under the user's aim"). What the runtime
 // says about an element stands in the chrome instead (details-shelf.js).
 //
-// The page's own elements are the document tree under `main`, the authored content root.
+// The page's own elements are the document tree under `body`, excluding Leaf's own surfaces.
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
 // markup or members, or that its module built around the authored body holding them;
@@ -276,7 +277,7 @@ export function apparatusAmongAuthored() {
   const found = [];
   // An element the page wrote stays the page's, whatever words a module fills it with.
   const served = servedElements();
-  for (const el of document.querySelectorAll(`main :is(${generated})`)) {
+  for (const el of document.querySelectorAll(`body :is(${generated})`)) {
     const parent = el.parentElement;
     if (
       served.has(el) ||

@@ -1,5 +1,5 @@
 import { cancelRender, elementBox, excludedByInert, isNativeLayer, nextRender, renderedParent, sizeObserver, under, watchScrolls } from "./bundle-portable.js";
-import { nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
+import { nativeLayers, nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
 
 //#region runtime/rect.js
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -395,8 +395,8 @@ function paintClips(item, box, clips, aboveSurfaces, held = false) {
 		window: window ?? null,
 		bands
 	};
-	for (const { surface, box: over, level } of aboveSurfaces ? openOccluders(clips) : []) {
-		if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level) continue;
+	for (const { surface, box: over } of aboveSurfaces ? openOccluders(clips) : []) {
+		if (!overlaps(shown, over) || under(item, surface) || stackOrder(item, surface) >= 0) continue;
 		const left = uncovered(shown, over);
 		if (!left) return hidden;
 		window ??= shownBand(root);
@@ -536,7 +536,7 @@ function coveredShare(surface, where, landed = null) {
 	const holder = placeHolder(where);
 	if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
 	if (under(holder, surface) || under(surface, holder)) return 0;
-	if (stackLevel(holder) >= stackLevel(surface)) return 0;
+	if (stackOrder(holder, surface) >= 0) return 0;
 	const box = landed ?? placeBox(where);
 	const { left, top, right, bottom } = landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
 	const over = restingBox(surface);
@@ -550,14 +550,26 @@ const underOccluder = (where) => [...occluders].some((surface) => hides(surface,
 const placeHolder = (where) => where instanceof Range ? where.startContainer instanceof Element ? where.startContainer : where.startContainer.parentElement : where;
 const placeBox = (where) => where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
 const clippedPlace = (where, clips, box = placeBox(where)) => where instanceof Range ? clippedContents(box, placeHolder(where), clips) : clippedRect(box, where, clips);
-function stackLevel(node) {
+const stacking = (node) => {
 	let level = 0;
-	for (let a = node; a; a = renderedParent(a)) {
-		if (isNativeLayer(a)) return Infinity;
-		const { position, zIndex } = getComputedStyle(a);
+	for (let at = node; at; at = renderedParent(at)) {
+		if (isNativeLayer(at)) return {
+			layer: at,
+			level
+		};
+		const { position, zIndex } = getComputedStyle(at);
 		if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
 	}
-	return level;
+	return {
+		layer: null,
+		level
+	};
+};
+function stackOrder(left, right) {
+	const a = stacking(left), b = stacking(right);
+	if (a.layer === b.layer) return a.level - b.level;
+	const layers = nativeLayers();
+	return layers.findIndex(({ root }) => root === a.layer) - layers.findIndex(({ root }) => root === b.layer);
 }
 const OCCLUDERS = Symbol("occluders");
 function openOccluders(clips) {
@@ -566,16 +578,15 @@ function openOccluders(clips) {
 	const past = clips.get(PAST);
 	open = [...occluders].filter(standsNow).filter((surface) => !past?.has(surface)).map((surface) => ({
 		surface,
-		box: restingBox(surface),
-		level: stackLevel(surface)
+		box: restingBox(surface)
 	}));
 	clips.set(OCCLUDERS, open);
 	return open;
 }
 const area = (box) => (box.right - box.left) * (box.bottom - box.top);
 function occluded(rect, item, clips) {
-	for (const { surface, box, level } of openOccluders(clips)) {
-		if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level) continue;
+	for (const { surface, box } of openOccluders(clips)) {
+		if (!overlaps(rect, box) || under(item, surface) || stackOrder(item, surface) >= 0) continue;
 		rect = uncovered(rect, box);
 		if (!rect) return null;
 	}
@@ -605,4 +616,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };
+export { clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackOrder, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };

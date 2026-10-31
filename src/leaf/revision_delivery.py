@@ -431,7 +431,7 @@ def mark_declared(
         )
         attrs = element_attrs(element)
         content = element.tag not in {"html", "body", "main"} and (
-            element.closest("main") is not None
+            element.closest("body") is not None
         )
         marks = {}
         for key, mark in kernel_marks().items():
@@ -810,6 +810,15 @@ def compose_document(
     )
     head_start, head_end = document.authoring.wrapper_tags["head"]
     insertions = [(head_end, head)]
+    if delivery.runtime is not None:
+        # The chrome's native layer precedes any surface the user opens while
+        # modules load. Runtime assembly adopts this same root without reopening it.
+        chrome = runtime_element(
+            "div", {"class": "lf-chrome lf-chrome-root", "popover": "manual"}
+        ) + runtime_element(
+            "script", {}, "document.currentScript.previousElementSibling.showPopover()"
+        )
+        insertions.append((document.authoring.wrapper_tags["body"][1], chrome))
     root = dict(delivery.html_attributes)
     if (layout := page_layout(document, registry)) is not None:
         root["data-lf-layout"] = layout

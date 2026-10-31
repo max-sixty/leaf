@@ -261,7 +261,10 @@ export function stack(binding = null) {
         renderedUnder(scopeRoot(scope), layer.root) ||
         (layer === top && foreground(scope) && aboveFloor(scope)),
     );
-    parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
+    // Manual popovers have no native Escape dismissal to protect. Their scopes
+    // still take their turn, then page modes may answer an unhandled Escape.
+    if (layer.kind === "modal") parts.push(MODAL_BOUNDARY);
+    else if (layer.root.popover !== "manual") parts.push(POPOVER_BOUNDARY);
   }
   if (modalAt < 0) parts.push(...pool);
   return ordered(parts);

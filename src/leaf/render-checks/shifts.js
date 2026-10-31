@@ -6,6 +6,7 @@
  * the element whose size changed. Keep this as advice for the author to judge.
  * Unlike the suite's gesture-credit sensor this needs no model of Leaf's inputs.
  */
+import { inPage } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
 // Chromium withholds a source inside a shadow tree, or one removed before delivery.
@@ -26,7 +27,7 @@ export function startPassiveLayoutShifts() {
     for (const entry of entries) {
       for (const source of entry.sources) {
         const node = source.node;
-        if (!node?.closest("body > main")) continue;
+        if (!inPage(node)) continue;
         if (node.closest(".lf-chrome, .lf-ui")) continue;
         // One example per moved node; repeated autoplay ticks need no repeated
         // finding. Anonymous sources remain in startup evidence, not per-node advice.

@@ -223,7 +223,8 @@ function stack(binding = null) {
 	for (let index = visible.length - 1; index >= 0; index -= 1) {
 		const layer = visible[index];
 		take((scope) => renderedUnder(scopeRoot(scope), layer.root) || layer === top && foreground(scope) && aboveFloor(scope));
-		parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
+		if (layer.kind === "modal") parts.push(MODAL_BOUNDARY);
+		else if (layer.root.popover !== "manual") parts.push(POPOVER_BOUNDARY);
 	}
 	if (modalAt < 0) parts.push(...pool);
 	return ordered(parts);

@@ -134,8 +134,12 @@
   // out. Retain the actual nodes so the final reading compares the same instances.
   let firstBoxes = [];
   const captureFirstBoxes = () => {
-    firstBoxes = [...document.querySelectorAll("body > main *")]
-      .filter((element) => element.localName.startsWith("lf-"))
+    firstBoxes = [...document.querySelectorAll("body *")]
+      .filter(
+        (element) =>
+          element.localName.startsWith("lf-") &&
+          !element.closest(".lf-chrome, [data-lf-runtime]"),
+      )
       .map((element) => {
         const { width, height } = element.getBoundingClientRect();
         return { element, width, height };

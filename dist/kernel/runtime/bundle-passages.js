@@ -117,7 +117,7 @@ const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 const showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
 const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
 const leafSurface = (node) => node ? closestAcross(node, LEAF_SURFACE) : null;
-const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
+const pageWords = (node) => inPage(node) && !inUi(node);
 const bareTextRefusal = (n) => {
 	const host = shadowHost(n.getRootNode());
 	const at = host ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>` : "a module";
@@ -300,7 +300,7 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 			breakBefore = false;
 			lineBefore = "";
 		}
-	}, boundary && ((child) => boundary(child, segments.length)), (ctx) => {
+	}, (child) => (root === document || root === root.ownerDocument?.body) && child.matches(".lf-chrome, [data-lf-runtime]") || boundary?.(child, segments.length), (ctx) => {
 		if (keeps(ctx)) {
 			breakBefore = true;
 			lineBefore = "\n";
@@ -324,15 +324,18 @@ function closestAcross(node, selector) {
 	return null;
 }
 const elementById = (id, root = document) => {
-	const found = root === document ? document.getElementById(id) : root.querySelector(`[id="${CSS.escape(id)}"]`);
-	if (found) return found;
+	const page = root === root.ownerDocument?.body;
+	const accepts = (node) => node && (!page || !leafSurface(node) && authoredScope(node) === root);
+	const found = root === document ? document.getElementById(id) : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
+	if (accepts(found)) return found;
 	for (const shadow of shadowRootsIn(root)) {
 		const inside = shadow.getElementById(id);
-		if (inside) return inside;
+		if (accepts(inside)) return inside;
 	}
 	return null;
 };
-const pageDocument = (doc = document) => doc.querySelector("body > main");
+const pageDocument = (doc = document) => doc.body;
+const inPage = (node) => under(node, pageDocument()) && !leafSurface(node);
 const isLayoutBox = (box) => getComputedStyle(box).getPropertyValue("--lf-layout-box").trim() === "1";
 const layoutBox = () => {
 	const main = document.querySelector("body > main");
@@ -340,7 +343,7 @@ const layoutBox = () => {
 	const parts = main.querySelector(":scope > [data-lf-views=\"parts\"]");
 	return [...main.children, ...[...parts?.children ?? []].flatMap((part) => [...part.children])].find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
 };
-const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
+const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
 const elementFromPointAcross = (x, y) => {
 	let el = document.elementFromPoint(x, y);
 	while (el && declaredRoot(el)) {
@@ -549,8 +552,8 @@ let elementReadings = /* @__PURE__ */ new WeakMap();
 let readingVocabulary;
 let readingSettled;
 let watcher = null;
-const pageReads = (over) => over?.nodeType !== 1 || READINGS.says(contextAt(over, null));
-const holdsSaid = (node) => node.nodeType === 1 && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
+const pageReads = (over) => over?.nodeType !== 1 || !leafSurface(over) && READINGS.says(contextAt(over, null));
+const holdsSaid = (node) => node.nodeType === 1 && !leafSurface(node) && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
 const speaks = (node, read) => read && !(node.nodeType === 1 && chromeMark(node) === true) || holdsSaid(node);
 const changesTheReading = (record) => {
 	const { target } = record;
@@ -628,7 +631,7 @@ function readPage() {
 		});
 		breakBefore = false;
 		cellChains.push(ctx.cells);
-	}, null, (ctx) => {
+	}, (child) => child.matches(LEAF_SURFACE), (ctx) => {
 		if (keeps(ctx)) breakBefore = true;
 	});
 	const dynamicWords = /* @__PURE__ */ new Set();
@@ -786,8 +789,8 @@ function contextAround(text, segments, { before = 28, after = 28 } = {}) {
 	};
 }
 function pageParts(sel) {
-	return pageQueryAll(sel).filter((el) => !inChrome(el));
+	return pageQueryAll(sel).filter(inPage);
 }
 
 //#endregion
-export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };
+export { DATUM, LEAF_SURFACE, alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementFromPointAcross, elementOver, elementReading, excerptWords, fencePassageParts, fileModelsPassage, findQuote, findText, inChrome, inPage, labelWords, layoutBox, leafSurface, neighbourhood, pageBlocks, pageDocument, pageParts, pageQueryAll, pageReadingVersion, pageText, pageWords, pointAt, quoteFrom, rangeOf, readingFrom, renderRetired, says, segmentBlock, segmentsIn, sentenceUnits, settledAway, showsWords, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity, watchPassageRoot, wrote };

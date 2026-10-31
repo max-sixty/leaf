@@ -60,6 +60,110 @@
   // (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
 
+  // Native surfaces can open while modules load. Their opening order and opener
+  // belong to this document from its first script, so runtime activation never
+  // guesses their order from the DOM. layer-stack.js adds dismissal/focus effects
+  // and supplies its logical focus reader; the native observation stays here.
+  const nativeLayerKind = (node) => {
+    if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+    if (node.matches("dialog:modal")) return "modal";
+    return node.matches(":popover-open") ? "popover" : null;
+  };
+  const entries = [];
+  const watchedRoots = new WeakSet();
+  const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+  const nativePopoverShow = HTMLElement.prototype.showPopover;
+
+  function prune() {
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (!entries[index].active()) entries.splice(index, 1);
+    }
+  }
+
+  // An open entry is left alone wherever it sits, and not merely where it is already on
+  // top: `toggle` is queued rather than synchronous, so moving a layer on that last
+  // declaration would make it the newest thing on the stack after something else opened over
+  // it. A closed entry is pruned and an actual reopening joins at the top.
+  function pushNativeLayer(node, source = null) {
+    const at = entries.findIndex((entry) => entry.root === node);
+    const existing = at < 0 ? null : entries[at];
+    if (existing?.active()) return existing;
+    prune();
+    const holding = layerState.focused();
+    // `beforetoggle` announces a declarative opening before :popover-open applies.
+    // A synchronous layer read in that interval must not prune its new entry; the
+    // native transition has completed by the next microtask.
+    const entry = {
+      root: node,
+      opening: nativeLayerKind(node) === null,
+      get kind() {
+        return nativeLayerKind(node);
+      },
+      active() {
+        return this.opening || nativeLayerKind(node) !== null;
+      },
+      fromNowhere: !holding || holding === document.body,
+      opener: holding && holding !== document.body ? holding : null,
+      source,
+    };
+    if (entry.opening)
+      queueMicrotask(() => {
+        entry.opening = false;
+      });
+    entries.push(entry);
+    return entry;
+  }
+
+  HTMLDialogElement.prototype.showModal = function () {
+    const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+    try {
+      return nativeDialogShowModal.call(this);
+    } finally {
+      if (entry) entry.opening = false;
+    }
+  };
+
+  HTMLElement.prototype.showPopover = function (options) {
+    const opening = nativeLayerKind(this) !== "popover";
+    const entry = opening ? pushNativeLayer(this) : null;
+    try {
+      nativePopoverShow.call(this, options);
+    } finally {
+      if (entry) entry.opening = false;
+    }
+    if (entry && options?.source) entry.source = options.source;
+  };
+
+  function watchLayers(root) {
+    if (watchedRoots.has(root)) return;
+    watchedRoots.add(root);
+    const opened = (event) => {
+      if (event.newState === "open" && event.target?.matches?.("[popover], dialog"))
+        pushNativeLayer(event.target, event.source);
+      else if (event.newState === "closed") {
+        const entry = entries.find((candidate) => candidate.root === event.target);
+        if (entry) entry.opening = false;
+      }
+    };
+    root.addEventListener("beforetoggle", opened, true);
+    root.addEventListener("toggle", opened, true);
+  }
+  const layerState = {
+    kind: nativeLayerKind,
+    focused() {
+      let at = document.activeElement;
+      while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+      return at;
+    },
+    read() {
+      prune();
+      return entries.filter((entry) => entry.active());
+    },
+    watch: watchLayers,
+  };
+  root.lfLayerState = layerState;
+  watchLayers(document);
+
   // Inputs belong to this document from its first script, even while the module
   // graph is still loading. Delayed arrival work must not take focus or scroll
   // back from someone already using the authored page. focus.js exposes this

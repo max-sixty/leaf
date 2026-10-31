@@ -5,6 +5,7 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
+  inPage,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -388,6 +389,7 @@ export function heldScrollers(tags) {
   for (const tree of openRoots(main))
     for (const box of tree.querySelectorAll("*")) {
       if (
+        !inPage(box) ||
         !(box instanceof HTMLElement) ||
         box.matches(WRITTEN_IN) ||
         box.isContentEditable

@@ -477,13 +477,16 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const boundary = commentBoundary({ scroller: place.scroller });
+		const boundary = commentBoundary({
+			scroller: place.scroller,
+			row: place.row
+		});
 		session.scroller = place.scroller;
 		if (!boundary.width || !boundary.height) {
 			floatingUi().then((ui) => stillCurrent() && watch(ui));
 			return false;
 		}
-		const scroller = place.scroller;
+		const { scroller } = boundary;
 		const seat = session.side.choose({
 			clear: place.clear,
 			row: place.row,
@@ -541,7 +544,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.withheldFocus = null;
 			const card = placementDriver.clientBox(position);
 			session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
-			const region = boundary.inRegion;
+			const region = boundary.cut;
 			const cuts = region ? [
 				(region.top - card.top) / scale.y,
 				(card.right - region.right) / scale.x,
@@ -2442,8 +2445,9 @@ function createVisualMarkPaint() {
 //#endregion
 //#region runtime/annotation-overlay/composing/floating-response.js
 function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, response, positioned, dismiss, scrollToElement, scrollToRange }) {
-	const floatBoundary = (scroller) => commentBoundary({
+	const floatBoundary = (scroller, row = null) => commentBoundary({
 		scroller,
+		row,
 		right: rightCover()
 	});
 	const fabPlacement = commentPlacement();
@@ -2676,7 +2680,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			}
 		}
 		if (response.open && nativeAttachment && geometry && !windowPosture) return true;
-		const boundary = place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
+		const boundary = place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller, place.row);
 		if (boundary.width <= 0 || boundary.height <= 0) return false;
 		fabScroller = place.scroller;
 		const setWidth = (available, scale) => {
@@ -2694,7 +2698,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			column: place.column,
 			extent: place.extent,
 			boundary,
-			scroller: place.scroller,
+			scroller: boundary.scroller,
 			coarse: coarsePointer.matches
 		});
 		const epoch = fabPosition.begin();

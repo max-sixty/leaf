@@ -28,18 +28,25 @@
    browser-owned following (`composing/floating-response.js`).
 
    Both stand in one boundary (`commentBoundary`): the part of the window the page
-   shows, within the region that scrolls the pointed row, else the target
-   (`scrollerFor`), where that holds a card, else within the page shell. That region's
-   edges cut the row as it scrolls, so they cut the surface too. A region in flow
+   shows, within the region whose flow holds the pointed row, else the target, where
+   that region holds a card, else within the page shell. That region is the box that
+   scrolls the row (`scrollerFor`), unless the row is in a bounded block, which scrolls
+   inside the box around it as a paragraph does; then it is the box that scrolls the
+   block (margin-layout.js, `flowScroller`), so a comment on a log row stands in the
+   rail beside the log, where its margin row stands. The region's edges cut the row as
+   it scrolls, so they cut the surface too. The block's edges cut the surface only where
+   the row has crossed one, above the block's top or past its foot. A region in flow
    scrolls nothing itself, so a surface on words in a pane the page scrolls stands in
    the page, or in whatever box scrolls that pane; which boxes scroll is the
-   stylesheet's to say (reading-regions.js). Rejected: the innermost reading region
-   around the row, whether or not it scrolled, which stopped a card on words in a pane
-   the page scrolls at that pane's foot while the window had room. Also rejected: the
-   innermost box with rows to scroll, which stood a comment in a workspace pane whose
-   rows all show over the pane beside it; and the region that scrolls the target,
-   which stood a comment pointed at a row deep in a pane that is itself the target
-   over the pane beside it.
+   stylesheet's to say (reading-regions.js). Rejected: the block that scrolls the row,
+   which capped a card on a log row at the log's height and, once a short log filled,
+   moved its card from the rail into the log. Also rejected: the innermost reading
+   region around the row, whether or not it scrolled, which stopped a card on words in a
+   pane the page scrolls at that pane's foot while the window had room; the innermost
+   box with rows to scroll, which stood a comment in a workspace pane whose rows all
+   show over the pane beside it; and the region that scrolls the target, which stood a
+   comment pointed at a row deep in a pane that is itself the target over the pane
+   beside it.
 
    The side is chosen once, for the thread's footprint rather than the box's, so the box
    stands where its card can: right of `clear` where that room holds the card's minimum
@@ -140,7 +147,7 @@ import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
-import { marginSpot } from "./margin-layout.js";
+import { flowScroller, marginSpot } from "./margin-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
@@ -222,49 +229,76 @@ export const COMMENT_GAP = 8;
 export const LEAST_HEIGHT = 96;
 
 // The room both surfaces stand in: the part of the window the page shows, within the
-// shown bounds of the reading region whose body is `scroller`, the box that scrolls the
-// surfaces' row (`scrollerFor`), where those hold the card's minimum width and the least
-// height, else within the page shell, whose right edge stops short of the root
-// scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
-// pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
-// which carries the surface rather than withdrawing a draft the user is writing. The
-// boundary names the region's shown bounds it stands in (`inRegion`), which then cut the
-// surface. Its `key` is what holds the side (`choose`): the window's edges, or the
-// region's whole box size and the window's, since a scroll of the page moves and clips a
-// region's shown bounds without changing the room it has, and a resize changes it.
+// shown bounds of the region whose flow holds the surfaces' row (`flowScroller` of
+// `scroller`, the box that scrolls the row), where those hold the card's minimum width
+// and the least height, else within the page shell, whose right edge stops short of the
+// root scrollport's gutter and, for the comment box, an open panel's left edge
+// (`right`). A pane a resize narrowed, or a short strip of one a scroll left, so yields
+// to the window, which carries the surface rather than withdrawing a draft the user is
+// writing. Where the row scrolls in a bounded block of that flow, the block's top bounds
+// the room once the row's line (`row`) has passed above it, and its foot once the line
+// has passed below it. The boundary names the edges that cut the surface (`cut`): the
+// region's and any crossed block edge, or null where none do; and the box that scrolls
+// its room (`scroller`), which makes room for it. Its `key` is what holds the side
+// (`choose`): the window's edges, or the region's whole box size and the window's, since
+// a scroll of the page moves and clips a region's shown bounds without changing the room
+// it has, and a resize changes it. A row crossing a block's edge changes neither.
 // It spans every column the surface could stand in, so the side is chosen from it;
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
 // none of its height (`shownWindow`).
-/** @param {{scroller?: Element, right?: number}} [options] */
-export function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+/** @param {{scroller?: Element, row?: number | null, right?: number}} [options] */
+export function commentBoundary({
+  scroller = pageScroller,
+  row = null,
+  right = Infinity,
+} = {}) {
   const room = (within) => {
     const across = (columns) =>
       shownWindow({ within, gap: COMMENT_GAP, across: columns });
     return Object.assign(across(null), { across });
   };
-  const bounds = scroller !== pageScroller && shownRect(scroller, new Map());
-  const inRegion = bounds && room(bounds);
-  if (
-    inRegion &&
-    Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
-    inRegion.height >= LEAST_HEIGHT
-  ) {
-    const whole = scroller.getBoundingClientRect();
-    return Object.assign(inRegion, {
-      inRegion: bounds,
-      key: [
-        whole.width,
-        whole.height,
-        window.visualViewport.width,
-        window.visualViewport.height,
-      ],
-    });
-  }
-  const shell = room({ right: Math.min(shellRight(), right) });
-  return Object.assign(shell, {
-    inRegion: null,
-    key: [shell.left, shell.top, shell.right, shell.bottom],
+  const flow = flowScroller(scroller);
+  const bounds = flow !== pageScroller && shownRect(flow, new Map());
+  const region = bounds && room(bounds);
+  const inRegion =
+    region &&
+    Math.ceil(region.width) >= Math.ceil(cardMinimum()) &&
+    region.height >= LEAST_HEIGHT;
+  const within = inRegion
+    ? bounds
+    : {
+        left: -Infinity,
+        top: -Infinity,
+        right: Math.min(shellRight(), right),
+        bottom: Infinity,
+      };
+  // The row's own block, scrolling in that flow, bounds the room at an edge the row has
+  // crossed.
+  const block = row !== null && scroller !== flow && shownRect(scroller, new Map());
+  const cut = {
+    left: within.left,
+    top: block && row < block.top ? Math.max(within.top, block.top) : within.top,
+    right: within.right,
+    bottom:
+      block && row > block.bottom
+        ? Math.min(within.bottom, block.bottom)
+        : within.bottom,
+  };
+  const crossed = cut.top !== within.top || cut.bottom !== within.bottom;
+  const open = inRegion ? region : room(within);
+  const whole = inRegion ? flow.getBoundingClientRect() : open;
+  return Object.assign(crossed ? room(cut) : open, {
+    cut: inRegion || crossed ? cut : null,
+    scroller: flow,
+    key: inRegion
+      ? [
+          whole.width,
+          whole.height,
+          window.visualViewport.width,
+          window.visualViewport.height,
+        ]
+      : [whole.left, whole.top, whole.right, whole.bottom],
   });
 }
 

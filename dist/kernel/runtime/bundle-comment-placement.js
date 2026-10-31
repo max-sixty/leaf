@@ -274,11 +274,11 @@ function carrierAnchor(subject, sources, scroller) {
 	return carriedAnchor(inner) ?? own();
 }
 const marginColumn = () => layoutBox() || document.body;
-const railBeside = (scroller) => {
-	if (scroller === pageScroller) return true;
-	const block = boundedBlockOf(scroller);
-	return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+const flowScroller = (scroller) => {
+	for (let block; block = boundedBlockOf(scroller);) scroller = scrollerFor(upFrom(block));
+	return scroller;
 };
+const railBeside = (scroller) => flowScroller(scroller) === pageScroller;
 const railMeasureRow = document.createElement("div");
 railMeasureRow.className = "lf-margin-cluster";
 railMeasureRow.dataset.lfPlace = "rail";
@@ -1534,7 +1534,7 @@ function commentReference(place, reference) {
 }
 const COMMENT_GAP = 8;
 const LEAST_HEIGHT = 96;
-function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+function commentBoundary({ scroller = pageScroller, row = null, right = Infinity } = {}) {
 	const room = (within) => {
 		const across = (columns) => shownWindow({
 			within,
@@ -1543,28 +1543,39 @@ function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
 		});
 		return Object.assign(across(null), { across });
 	};
-	const bounds = scroller !== pageScroller && shownRect(scroller, /* @__PURE__ */ new Map());
-	const inRegion = bounds && room(bounds);
-	if (inRegion && Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) && inRegion.height >= 96) {
-		const whole = scroller.getBoundingClientRect();
-		return Object.assign(inRegion, {
-			inRegion: bounds,
-			key: [
-				whole.width,
-				whole.height,
-				window.visualViewport.width,
-				window.visualViewport.height
-			]
-		});
-	}
-	const shell = room({ right: Math.min(shellRight(), right) });
-	return Object.assign(shell, {
-		inRegion: null,
-		key: [
-			shell.left,
-			shell.top,
-			shell.right,
-			shell.bottom
+	const flow = flowScroller(scroller);
+	const bounds = flow !== pageScroller && shownRect(flow, /* @__PURE__ */ new Map());
+	const region = bounds && room(bounds);
+	const inRegion = region && Math.ceil(region.width) >= Math.ceil(cardMinimum()) && region.height >= 96;
+	const within = inRegion ? bounds : {
+		left: -Infinity,
+		top: -Infinity,
+		right: Math.min(shellRight(), right),
+		bottom: Infinity
+	};
+	const block = row !== null && scroller !== flow && shownRect(scroller, /* @__PURE__ */ new Map());
+	const cut = {
+		left: within.left,
+		top: block && row < block.top ? Math.max(within.top, block.top) : within.top,
+		right: within.right,
+		bottom: block && row > block.bottom ? Math.min(within.bottom, block.bottom) : within.bottom
+	};
+	const crossed = cut.top !== within.top || cut.bottom !== within.bottom;
+	const open = inRegion ? region : room(within);
+	const whole = inRegion ? flow.getBoundingClientRect() : open;
+	return Object.assign(crossed ? room(cut) : open, {
+		cut: inRegion || crossed ? cut : null,
+		scroller: flow,
+		key: inRegion ? [
+			whole.width,
+			whole.height,
+			window.visualViewport.width,
+			window.visualViewport.height
+		] : [
+			whole.left,
+			whole.top,
+			whole.right,
+			whole.bottom
 		]
 	});
 }

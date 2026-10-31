@@ -263,14 +263,18 @@ function carrierAnchor(subject, sources, scroller) {
 // The margin follows `main` or, on a page without one, the body.
 export const marginColumn = () => layoutBox() || document.body;
 
-// The rail lies beside the column, so it stands beside the rows of what flows in the
-// column: the document's own, and a bounded block's, which scrolls inside the document
-// as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
-const railBeside = (scroller) => {
-  if (scroller === pageScroller) return true;
-  const block = boundedBlockOf(scroller);
-  return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+// The box whose flow the rows `scroller` scrolls stand in: the scroller itself, or, for
+// a bounded block, which scrolls inside the box around it as a paragraph does, the box
+// that scrolls that one, out through nested blocks.
+export const flowScroller = (scroller) => {
+  for (let block; (block = boundedBlockOf(scroller));)
+    scroller = scrollerFor(upFrom(block));
+  return scroller;
 };
+// The rail lies beside the column, so it stands beside the rows of what flows in the
+// column: the document's own, and a bounded block's. A pane is not in that flow, so its
+// rows pin wherever it stands.
+const railBeside = (scroller) => flowScroller(scroller) === pageScroller;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed

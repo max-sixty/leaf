@@ -137,7 +137,11 @@ leaf-composition-field {
    input.js), with its tint and pointing hand at once, since a browser may not read a
    still pointer as over the newly shown Send until it moves; and it takes presses
    only once the pointer has rested there (`data-send-armed`), so a press aimed at
-   the words' end still places the caret. Focus shows it too. Words can stand above
+   the words' end still places the caret. Focus shows it too. Send hides at once, so a
+   letter just typed never shows under a fading Send, and shows at once for the
+   pointer or focus, since the user is reaching for it. When the row leaves the corner
+   free, Send fades back in over a disclosure's time (`--lf-motion-disclosure`), which
+   the user asked be short enough to go unnoticed (31 October). Words can stand above
    Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
    at least), centred on the last row and clear of the row above, whether or not the
    corner is free; the box is as tall as its rows, so that row stands at the same
@@ -175,6 +179,7 @@ leaf-composition-field {
     inset-block-end: calc(
       var(--lf-compose-pad-block) + (var(--lf-field-row) - var(--lf-send-height)) / 2
     );
+    transition: opacity var(--lf-motion-disclosure);
   }
   .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit::before {
     /* An even number of pixels, so the arrow centres in it. */
@@ -210,6 +215,7 @@ leaf-composition-field {
      cut stroke beside its square. */
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
     background: var(--lf-field-ground);
+    transition: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
     content: "";
@@ -325,7 +331,9 @@ leaf-composition-field {
 .lf-compose-dictate[data-dictation="failed"]:hover::before {
   background: var(--danger-tint);
 }
-.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash {
+/* The microphone's slash marks a dictation that failed, so any microphone not on a failed
+   press draws without it. */
+:not([data-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
   display: none;
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -577,7 +585,7 @@ button.lf-media-open {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
 /* A message's rewrite is a comment box standing where the message stood (browser/
-   AGENTS.md, "Editing in place"): every line of its words keeps its place and its
+   AGENTS.md, "Typed words survive"): every line of its words keeps its place and its
    breaks, its pictures stand under them as the message draws them (`sentMedia`,
    input.js), and the field's frame goes around both, in the room around the message's
    content. The frame reaches back over the words' inset, and over the room after their

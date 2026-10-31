@@ -1,7 +1,7 @@
 import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
 import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
 import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
-import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
+import { clamp, clippedContents, clippedRect, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
@@ -473,24 +473,6 @@ const EVERYWHERE = {
 	right: Infinity,
 	bottom: Infinity
 };
-function clippedBand(el, rect, bands, stop = pageScroller) {
-	let { left, top, right, bottom } = rect;
-	for (let at = renderedParent(el); at && at !== pageScroller && at !== stop; at = renderedParent(at)) {
-		let band = bands.get(at);
-		if (band === void 0) bands.set(at, band = shownBand(at));
-		if (!band) continue;
-		left = Math.max(left, band.left);
-		top = Math.max(top, band.top);
-		right = Math.min(right, band.right);
-		bottom = Math.min(bottom, band.bottom);
-	}
-	return right > left && bottom > top ? {
-		left,
-		top,
-		right,
-		bottom
-	} : null;
-}
 function reach(anchor, box, main, reaches) {
 	let right = box.right;
 	for (let el = renderedParent(anchor); el && el !== main; el = renderedParent(el)) {
@@ -538,7 +520,7 @@ function coverIn(root, band, target, bands, stop) {
 				words.selectNodeContents(node);
 				for (const box of words.getClientRects()) {
 					if (!meets(box)) continue;
-					const shown = clippedBand(node, box, bands, stop);
+					const shown = clippedContents(box, renderedParent(node), bands, stop);
 					if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1) cover.push(shown);
 				}
 				continue;
@@ -555,12 +537,12 @@ function coverIn(root, band, target, bands, stop) {
 			});
 			const control = node.matches(TAB_STOP);
 			if (!boxless && !holds && (node.shadowRoot || node.matches(OPAQUE) || control) && node.checkVisibility()) {
-				const shown = clippedBand(node, box, bands, stop);
+				const shown = clippedRect(box, node, bands, stop);
 				if (shown) cover.push(shown);
 				if (shown && control) controls.push(shown);
 				for (const inner of node.shadowRoot ? controlsIn(node) : []) {
 					if (!inner.checkVisibility()) continue;
-					const part = clippedBand(inner, inner.getBoundingClientRect(), bands, stop);
+					const part = clippedRect(inner.getBoundingClientRect(), inner, bands, stop);
 					if (part) controls.push(part);
 				}
 				continue;
@@ -579,7 +561,7 @@ function coverIn(root, band, target, bands, stop) {
 	const beside = (seat) => boxes.some(({ node, box }) => {
 		if (!overlaps(box, seat) || getComputedStyle(node).display === "inline") return false;
 		if (renderedUnder(node, target) || !node.checkVisibility()) return false;
-		const shown = clippedBand(node, box, bands, stop);
+		const shown = clippedRect(box, node, bands, stop);
 		return Boolean(shown) && overlaps(shown, seat);
 	});
 	return {
@@ -671,7 +653,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
 		const near = (seat) => seat.top >= Math.min(...parts.map((part) => part.top)) - reach && seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach;
 		const seatsAt = (size) => [...seatsBy(parts, home, inline, Boolean(words), room, size, GAP), ...block ? seatsBy(block.parts, block.home, false, false, room, size, GAP).filter((seat) => seat && near(seat)) : []];
 		const within = stop === pageScroller ? rootBounds : contentBox(stop);
-		const clipped = clippedBand(target, EVERYWHERE, bands, stop);
+		const clipped = clippedRect(EVERYWHERE, target, bands, stop);
 		pins.push({
 			key: entry,
 			held: entry.holding ?? null,
@@ -748,11 +730,11 @@ function setStyle(row, property, value) {
 	else row.style.setProperty(property, value);
 }
 function targetShown(target, extent, stands, bands) {
-	const shown = (part) => part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
+	const shown = (part) => part.checkVisibility() && clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
 	if (!visibleTargetParts(target).some(shown)) return false;
-	if (!extent || !clippedBand(target, extent, bands)) return false;
+	if (!extent || !clippedRect(extent, target, bands, pageScroller)) return false;
 	if (!stands) return true;
-	const view = clippedBand(target, EVERYWHERE, bands);
+	const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
 	return stands.top >= view.top - 1 && (stands.right === void 0 || stands.right <= view.right + 1);
 }
 const pushes = /* @__PURE__ */ new Map();
@@ -878,8 +860,8 @@ function layoutMarginRows() {
 		const rootLane = scroller === pageScroller;
 		const box = anchor.getBoundingClientRect();
 		const whole = shownExtent(target);
-		const block = whole && clippedBand(target, whole, bands, scroller);
-		const extent = words.length ? whole && clippedBand(target, union(words), bands, scroller) : block;
+		const block = whole && clippedRect(whole, target, bands, scroller);
+		const extent = words.length ? whole && clippedRect(union(words), target, bands, scroller) : block;
 		const line = point?.getBoundingClientRect() ?? words[0];
 		const top = extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
 		const level = line ? top : box.top;
@@ -1000,7 +982,7 @@ function layoutMarginRows() {
 		const holders = [read.scroller, ...scrollSources(read.scroller)];
 		const rail = stands && railBeside(read.scroller);
 		const levels = holders.map((holder, i) => {
-			const band = clippedBand(holder, shownBand(holder) ?? holder.getBoundingClientRect(), bands, holders[i + 1]);
+			const band = clippedRect(shownBand(holder) ?? holder.getBoundingClientRect(), holder, bands, holders[i + 1] ?? pageScroller);
 			const anchor = anchorElement(holder);
 			const axes = i ? clippingAxes(getComputedStyle(holder)) : {
 				x: true,

@@ -7,7 +7,7 @@
    No renderer folds events or owns a second target inventory. The Thread coordinator
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
-import { replyAvailable } from "./thread/replies.js";
+import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
@@ -31,6 +31,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
+  progressFace,
   strongestWorkflow,
   todoWord,
   workflowWord,
@@ -258,9 +259,11 @@ export function createAnnotationInventory({
   let entries = Object.freeze([]);
   const watchers = new Set();
 
-  // Saved words and an editing session are distinct: only an active session keeps a
-  // settled reply open. A widget-held conversation retains its existing notice.
-  const threadHasDiscussion = (thread) => replyAvailable(thread) || heldOut(thread.id);
+  // A resolved thread leaves the margin, unless a reply is being written in it: saved
+  // words and an editing session are distinct, and only an active session keeps it. A
+  // widget-held conversation retains its existing notice.
+  const threadHasDiscussion = (thread) =>
+    !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
@@ -432,7 +435,7 @@ export function createAnnotationInventory({
 
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
-      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+      const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
       const inline = inlineComparison(target);
       const mapAccount = inline ? `${addressableWord(target)} changed` : account;
       add(groups, target, {
@@ -491,6 +494,8 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
+        // A start running on it is the agent at work there (at-work.js).
+        atWork: Boolean(running),
         text: labelWords(account),
         words: [
           ...(todo.agent ? [`${todo.agent} · `] : []),
@@ -576,6 +581,11 @@ export function createAnnotationInventory({
             offers: Object.freeze(group.offers.map((offered) => offered.model)),
             items: Object.freeze(group.items.map(captureItem)),
             workflowReceipt: workflowReceipt(group.items),
+            // Whether the agent is at work on this target, and not stalled: an update
+            // here it is working on or replying to, or a to-do with a start running.
+            atWork:
+              progressFace(workflowReceipt(group.items)) === "working" ||
+              group.items.some((item) => item.atWork),
           });
         }),
     );

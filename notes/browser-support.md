@@ -423,3 +423,31 @@ by it. Recheck with `leaf-dev probe --browser firefox` on a short page that
 colours `body` and keeps its margin, reading the body's bottom against
 `innerHeight` and the root's scroll height; once Firefox fills it, the Layout
 rule can go.
+
+### A subgrid scroller's `auto` scrollbar
+
+Chromium (156 on macOS, 153 on Linux) and Firefox 155 on Linux lay a subgrid's
+items on its parent's tracks without the room an `overflow: auto` scrollbar takes,
+against css-grid-2's rule that the subgrid's scrollbar gutter is extra margin on
+its edge items. Where the bar takes room (Linux, Windows, macOS with a mouse), a
+margin card's transcript, a subgrid, ran its words under the bar. On 2026-10-30
+Linux Chromium's 10px bar left the transcript 10px of sideways travel; Firefox's
+6px bar fit within the transcript's 6px of room, so its words reached the bar
+without scrolling sideways. Both engines count the bar of `overflow: scroll` and a
+`scrollbar-gutter: stable` gutter, so the transcript holds a gutter once its turns
+overflow (`data-lf-overflows`, `annotation-chrome.css`; `thread-preview.js` says
+until when). WebKit is unrecorded,
+since Playwright's WebKit draws only overlay scrollbars on macOS and Linux. No
+Chromium or Firefox bug tracks the `auto` case (searched 2026-10-30), and Leaf
+has left it unreported, so only a recheck shows when a browser fixes it.
+
+Recheck with a two-column grid holding an 80px-tall `grid-template-columns:
+subgrid` child with `overflow-y: auto` and tall content, comparing its
+`scrollWidth` with its `clientWidth` where bars take room: in the Playwright Linux
+image (`mcr.microsoft.com/playwright/python`, arm64 on this Mac), Chromium
+launched without `--hide-scrollbars`, and Firefox launched headed under
+`xvfb-run` with `GTK_OVERLAY_SCROLLING=0` and
+`widget.gtk.overlay-scrollbars.enabled` false (headless Firefox draws overlay
+bars). Once they match in both, the attribute and its rule can go.
+`test_a_card_that_scrolls_gives_its_scrollbar_room` in
+`tests/browser/margin/test_card_reply.py` covers the card in Chromium.

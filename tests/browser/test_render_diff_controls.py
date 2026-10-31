@@ -266,6 +266,14 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.get_by_text("The supplied checkout is temporarily unavailable.")
     ).to_be_visible()
     expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+    # A fresh shadow tree restores both an authored-open row the reader closed
+    # and an authored-closed row they opened, after startup observation has ended.
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#drafts .lf-worktree-disclosure")).not_to_have_attribute(
+        "open"
+    )
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):

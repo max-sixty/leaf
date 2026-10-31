@@ -25,6 +25,7 @@
     "check": "pnpm run check:hooks && pnpm run check:tools && pnpm run check:framework && pnpm run test:runtime && pnpm run check:worker",
     "test:worker": "vitest run --root worker",
     "test:evals": "node --test dev/tests/node/*.cjs",
+    "eval:legibility": "uv run leaf-dev probe release-notes --journey evals/control-legibility/views.py && PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo eval -c evals/control-legibility/promptfooconfig.yaml --no-cache --no-share -o .tmp/control-legibility/results.json",
     "eval:view": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo view -y",
     "site:dev": "uv run leaf-dev site && wrangler dev --config worker/wrangler.toml",
     "deploy:dev": "worker/deploy-dev.sh"

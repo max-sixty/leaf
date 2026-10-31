@@ -272,7 +272,9 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
 
     def after_row(seconds):
         assert seconds == presence_model.PRESENCE_CACHE_S
-        row = server_rows.ROW.read(publisher.path)["row"]
+        record = server_rows.ROW.read(publisher.path)
+        assert record is not None
+        row = record["row"]
         seen.append(row["threads"]["open"])
         if len(seen) == 1:
             assert seen == [0]
@@ -298,6 +300,7 @@ def test_server_maintenance_needs_no_native_subscription(page_dir, monkeypatch):
 
     def stop_after_check(_seconds):
         service = server_model.read_service(page_dir)
+        assert service is not None
         server_model.write_service(page_dir, {**service, "enabled": False})
 
     def exited(status):

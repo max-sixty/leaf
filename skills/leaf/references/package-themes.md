@@ -152,6 +152,62 @@ the user's machine, not remote ones.
 Startup behavior and transition protection follow
 [module-authoring.md, "Startup and presentation"](module-authoring.md#startup-and-presentation).
 
+## Leaf's chrome
+
+Leaf's panel, thread cards and comment box take the page's look through its tokens, so
+a theme or page that sets `--paper`, `--ink`, `--sans` or `--r` on `:root` changes them
+with the page. To restyle one of them alone, name it by its part:
+
+| Part       | Surface                                             |
+| ---------- | --------------------------------------------------- |
+| `panel`    | the floating panel at the window's foot             |
+| `card`     | a thread card                                       |
+| `composer` | the comment box, and the choices a selection offers |
+
+Tokens set on a part change that surface alone, whether a theme's sheet or the page's
+own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
+cards their own ground and corners. Each part resolves the chrome's fonts again
+(`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+reaches every word the surface shows. Other values Leaf derives on the root keep the
+root's reading on a part, such as the focus ring and link underline, which follow the
+root's `--accent`, and the raise shadows, which follow its `--shade`; set
+`--focus-ring` and `--focus-shadow` on the part beside `--accent`. Leaf draws each
+surface's ground, ring, corners and shadow from these tokens, and places and sizes the
+surface itself, so restyle those through tokens rather than `background`, `border`, a
+position or a transform. The panel's ground is a second box carrying the `panel`
+part, so a property such as `opacity` or `backdrop-filter` set on the part applies to both.
+
+Any other property, such as `letter-spacing` or `display`, goes in the package's
+`chrome.css`. Leaf nests each of its style rules in the chrome's root, as if written
+inside `.lf-chrome { … }`, with more weight than any of the chrome's own selectors, so
+the rule wins over the chrome's stylesheet rules whatever selectors either writes and
+reaches nothing outside the chrome. A selector keyed on the page around the chrome
+therefore places `&` for its root: `html.dark & [part~="panel"]`. The rule still loses
+to a style Leaf's script sets on an element, and to Leaf's few `!important`
+declarations, such as its borders in forced colours. A rule the sheet puts inside
+`@layer` loses to the chrome's rules too. Other at-rules, such as `@keyframes` and
+`@font-face`, are global, as anywhere in CSS, and a sheet holding `@scope` is refused,
+since Leaf already scopes it.
+
+```css
+[part~="panel"],
+[part~="card"] {
+  --sans: var(--mono);
+  --r-l: 0;
+}
+[part~="panel"] {
+  letter-spacing: -0.01em;
+}
+```
+
+The comment box and threads a widget seats in an outlet of its own
+(`x-thread-surface`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+and take the widget's look rather than the theme's `chrome.css`. The part names are
+the chrome's public interface. Its classes are private and change between Leaf
+versions, so a rule naming one can stop applying after an update. A page that restyles
+the chrome beyond tokens does it through a package of its own, named beside every
+package the page keeps: `leaf page init <page> --package diff --package ./chrome-look`.
+
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast

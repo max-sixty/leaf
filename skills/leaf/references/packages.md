@@ -72,6 +72,7 @@ package/
 ├── defaults.css        defaults: its widgets', and a theme's element rules
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── overrides.css       page-wide rules that outrank every package's defaults
+├── chrome.css          rules restyling Leaf's panel, thread cards and comment box
 ├── instructions/       Markdown instructions named for their audiences
 ├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
@@ -94,11 +95,12 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                    | Declared shadow trees |
-| ------------------- | --------------------------- | --------------------- |
-| `defaults.css`      | `lf-base`                   | —                     |
-| `widget-shadow.css` | `lf-base`                   | `lf-shadow`           |
-| `overrides.css`     | Page-wide in `lf-overrides` | —                     |
+| Sheet               | Document                           | Declared shadow trees |
+| ------------------- | ---------------------------------- | --------------------- |
+| `defaults.css`      | `lf-base`                          | —                     |
+| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           |
+| `overrides.css`     | Page-wide in `lf-overrides`        | —                     |
+| `chrome.css`        | Leaf's chrome, above its own rules | —                     |
 
 Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
 below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
@@ -120,10 +122,12 @@ trees, except `hidden="until-found"`. Give a box that must stay laid out while u
 state of its own.
 
 Leaf's chrome and comment marks are unlayered, so change their colours and type
-through the theme inputs below. Put a dependency's default styles in `lf-base` with
+through the theme inputs below, and restyle the chrome's surfaces by part in
+`chrome.css` (`package-themes.md`, "Leaf's chrome"). Put a dependency's default styles in `lf-base` with
 `inBaseLayer(text)` (`module-authoring.md`, "Shadow stages and styles").
 
-Leaf places each sheet in its tier and changes none of its rules, so a sheet names
+Leaf places each sheet in its tier and changes none of its rules but `chrome.css`'s,
+which it nests in the chrome, so a sheet names
 the widgets it styles: `lf-tag .part` in the document, and `:host(lf-tag) .part` in a
 shadow tree, where `:host(lf-tag.ready)` reads the host's state. A bare `p { … }`
 reaches every paragraph on the page, and in a shadow sheet everything the tree holds,

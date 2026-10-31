@@ -3869,13 +3869,15 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
-    the row's end, in the On me mark's place, and names the mode in the field; the ✕
-    leaves the mode, and the mark comes back. Annotations also lists Comment on an
-    element for a mouse, with the `s` that reaches it from the keyboard, since selecting
-    words picks no widget or picture."""
+    the row's end, where the On me mark ends, as close to the field as the leaf stands at
+    the row's start, and names the mode in the field; the ✕ leaves the mode, and the
+    mark comes back. Annotations also lists Comment on an element for a mouse, with the
+    `s` that reaches it from the keyboard, since selecting words picks no widget or
+    picture."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     settled(page)
     mark = page.locator(".lf-fp-on-user").bounding_box()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
@@ -3887,7 +3889,13 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(exit_step).to_be_visible()
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     settled(page)
-    assert exit_step.bounding_box() == mark
+    way_out = exit_step.bounding_box()
+    end = (mark["x"] + mark["width"], mark["y"], mark["height"])
+    assert (way_out["x"] + way_out["width"], way_out["y"], way_out["height"]) == end
+    box = page.locator(".lf-fp-field").bounding_box()
+    beside = way_out["x"] - (box["x"] + box["width"])
+    assert beside == pytest.approx(box["x"] - (leaf["x"] + leaf["width"]), abs=0.5)
+    assert way_out["width"] == pytest.approx(leaf["width"], abs=0.5)
     # The field names the mode in the status's place.
     expect(field(page)).to_have_attribute("data-says", "stance")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))

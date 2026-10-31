@@ -5807,9 +5807,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	let pointedInPanel = false;
 	onUserInput((event) => {
 		if (["keydown", "pointerdown"].includes(event.type)) {
-			const inPanel = event.composedPath().includes(host);
-			keyed$1 = event.type === "keydown" && inPanel;
-			pointedInPanel = event.type === "pointerdown" && inPanel;
+			keyed$1 = event.type === "keydown";
+			pointedInPanel = event.type === "pointerdown" && event.composedPath().includes(host);
 		}
 	});
 	const menuItem = (label, end, press, { urgent = false, disabled = false, role = "menuitem", row = null, opens = false, title = null, current = false } = {}) => html`<button
@@ -6552,6 +6551,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           ${offeredAction("symbol", "lf-fp-show", void 0, { action: "show" })}
           @click=${() => {
 			const route = trail.value.at(-1);
+			if (message && placedAt(thread.id)?.place) close();
 			queueActions.open(queueItemKey(item)).then((arrived) => {
 				if (arrived && trail.value.at(-1) === route) close();
 			});

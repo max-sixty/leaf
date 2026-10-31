@@ -1125,11 +1125,17 @@
     box-sizing: border-box;
     scrollbar-width: thin;
   }
-  /* A view a pointer opened holds focus so keys act there, and wears no ring: nothing
-     in it was chosen yet. */
-  .lf-fp-view:is(:focus, [data-lf-focus-visible]) {
+  /* A view holding focus is where keys act. One a pointer opened wears no ring, since
+     nothing in it was chosen yet; one a key came back to, as Escape does from a
+     thread's reply to its thread, wears it as a card's thread does, inset on the stage
+     the view fills, since a thread's view fades out its own top edge (below). */
+  .lf-fp-view:focus {
     outline: none;
     box-shadow: none;
+  }
+  .lf-fp-stage:has(> .lf-fp-view[data-lf-focus-visible]:not([data-leaving])) {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-fp-view[data-leaving] {
     pointer-events: none;

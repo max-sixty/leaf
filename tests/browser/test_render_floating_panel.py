@@ -1511,8 +1511,8 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
-    """Go to Threads lands in its list, where `/` finds threads and d and u page
-    the list rather than the page under it."""
+    """Go to Threads lands on its list's first row, where `/` finds threads and d and u
+    page the list rather than the page under it."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     for n in range(12):
@@ -1523,7 +1523,7 @@ def test_keys_in_threads_act_on_threads(browser, serve):
     page.keyboard.press("Shift+t")
     view = page.locator(panel_view("threads"))
     rows = view.locator(".lf-fp-thread")
-    expect(view).to_be_focused()
+    expect(rows.first).to_be_focused()
     assert view.evaluate("box => box.scrollHeight > box.clientHeight")
     document = "() => document.scrollingElement.scrollTop"
     before = page.evaluate(document)
@@ -4155,11 +4155,9 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     view = page.locator(panel_view("threads"))
-    expect(view).to_be_focused()
     rows = view.locator(".lf-fp-thread")
     expect(rows).to_have_count(2)
     expect(view.locator(".lf-fp-value", has_text="Open")).to_have_count(0)
-    page.keyboard.press("ArrowDown")
     expect(rows.first).to_be_focused()
     page.keyboard.press("End")
     expect(rows.last).to_be_focused()

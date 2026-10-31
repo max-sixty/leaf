@@ -1815,3 +1815,37 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     assert before is not None
     stream_tokens(100)
     assert reading() == pytest.approx(before, abs=0.5)
+
+
+def test_a_press_on_a_cards_news_leaves_the_caret_in_its_reply(browser, serve):
+    """A card holding news while the user writes its reply shows it on a press of its
+    notice, and the caret stays in the reply with the words before it. The press took
+    focus from the box and landed it on the thread, as a key on the notice does."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Where should this explanation go?", {"section": "how-store"}
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    write(reply, "Drafting while the answer arrives")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Under the queue's heading.",
+        },
+    )
+    told(page)
+    notice = preview.locator(".lf-thread-news")
+    expect(notice).to_be_visible()
+    notice.click()
+    expect(preview.get_by_text("Under the queue's heading.")).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Drafting while the answer arrives")

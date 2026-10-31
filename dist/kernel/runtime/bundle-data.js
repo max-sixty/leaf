@@ -5689,6 +5689,7 @@ function newsNotice(header = false) {
 		else words.style.setProperty("--lf-news-shown", layoutPx(getComputedStyle(words).direction === "rtl" ? words.clientWidth - last.offsetLeft : last.offsetLeft + last.offsetWidth));
 	});
 	let open = () => null;
+	node.addEventListener("mousedown", (event) => event.preventDefault());
 	const show = () => {
 		const currentLocation = focused() === node;
 		const landing = open();

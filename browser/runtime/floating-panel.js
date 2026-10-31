@@ -2018,9 +2018,11 @@ export function createFloatingPanel({
     // reader has drawn the reply there; one taking no reply, as a resolved thread does,
     // holds focus itself, so the user is in it. A list stands on the row of the
     // thread the user was in, where it lists it, as `g T` from a thread does; else,
-    // opened by a key in the panel, on its first row, or its first control where it has
-    // none, or itself where it holds neither, as an empty Threads does; opened from
-    // anywhere else, as `g T` from the page or a pointer, it holds focus itself.
+    // opened by a key, in the panel or on the page as `g T` is, on its first row, or its
+    // first control where it has none, or itself where it holds neither, as an empty
+    // Threads does, so the key's landing wears a ring; opened by a pointer, it holds
+    // focus itself. The user chose this on 31 October, after `g T` from the page left
+    // focus on the list's view, where nothing showed it and Enter went nowhere seen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2042,17 +2044,16 @@ export function createFloatingPanel({
     if (target) focusDestination(target, "move");
   }
 
-  // Where the gesture now under way began: a key in a view stands on its first
-  // control, while a pointer in the panel leaves focus on the pressed control. A
-  // gesture outside the panel, `g T` from the page among them, is neither, whatever
-  // the panel last heard, so the view it opens holds focus itself.
+  // How the gesture now under way began: a key, wherever pressed, stands a view it
+  // opens on its first control, while a pointer in the panel leaves focus on the
+  // pressed control and a pointer elsewhere leaves the view holding focus itself.
   let keyed = false;
   let pointedInPanel = false;
   onUserInput((event) => {
     if (["keydown", "pointerdown"].includes(event.type)) {
-      const inPanel = event.composedPath().includes(host);
-      keyed = event.type === "keydown" && inPanel;
-      pointedInPanel = event.type === "pointerdown" && inPanel;
+      keyed = event.type === "keydown";
+      pointedInPanel =
+        event.type === "pointerdown" && event.composedPath().includes(host);
     }
   });
 
@@ -3277,12 +3278,17 @@ export function createFloatingPanel({
     // stands at the end of the answers' line, where an answer replacing the choices
     // before it moves it nowhere. The arrival may open a thread in this panel; keep
     // its current route until the destination decides, then close only for page travel.
+    // A card drawing the message it asks (`message`) holds that message's drawing ahead
+    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On me
+    // standing landed in this card, and the user fell to the page as it closed. Where
+    // the thread stands on the page, On me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
+            if (message && placedAt(thread.id)?.place) close();
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });

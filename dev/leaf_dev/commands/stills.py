@@ -957,11 +957,11 @@ def image_preview(page: Page) -> None:
 
 
 def panel_by_keyboard(page: Page) -> None:
-    """Threads, opened by Go to Threads, with keyboard focus on its view."""
+    """Threads, opened by Go to Threads, with keyboard focus on its first row."""
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads]')"
+        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads] .lf-fp-thread')"
     )
 
 

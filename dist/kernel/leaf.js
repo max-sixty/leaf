@@ -5214,7 +5214,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			hint: () => saying(null, input),
 			hintParts: () => {
 				const reading = fieldReading(null, input);
-				if (reading.says === "notice") return null;
+				if (reading.says === "notice") return reading.parts;
 				const parts = status().summaryParts;
 				return reading.says === "status" && parts?.some((part) => part.source) ? [hiddenLead(), ...statusParts(parts)] : null;
 			},

@@ -104,7 +104,7 @@ leaf-composition-field {
   border-radius: var(--r);
   background: var(--card);
   color: var(--danger-ink);
-  font: var(--voice-error);
+  font: var(--font-error);
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: text;
@@ -514,7 +514,7 @@ button.lf-media-open {
   inset-inline: 0;
   inset-block-end: 0;
   padding: 2px;
-  font: var(--voice-fine);
+  font: var(--font-fine);
   background: var(--paper);
   color: var(--ink-2);
 }
@@ -551,7 +551,7 @@ button.lf-media-open {
 /* The words wear the message's face, so a box's lines break where its message's
    will. */
 .lf-comment-box > leaf-composition-field > .lf-compose-field {
-  font: var(--voice-message);
+  font: var(--font-message);
 }
 .lf-comment-box > leaf-composition-field > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
@@ -592,7 +592,7 @@ button.lf-media-open {
   display: block;
   min-width: 0;
   /* The message's face, whose line its frame's room is reckoned in. */
-  font: var(--voice-message);
+  font: var(--font-message);
 }
 /* The body holds the field's reach past it, so the message's box is the room it takes. */
 .lf-msg-body:has(> .lf-msg-editor) {
@@ -647,7 +647,7 @@ button.lf-media-open {
 .lf-msg-edit-actions {
   display: flex;
   gap: var(--lf-msg-edit-gap);
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: relative;
@@ -872,7 +872,7 @@ leaf-text.lf-fab-input {
    widget's seat prints as nothing, as the chrome holding a floating one does. */
 .lf-fab-bar {
   display: none;
-  font: var(--voice-ui);
+  font: var(--font-ui);
 }
 @media screen {
   .lf-fab-bar:is([data-lf-target-only], :has(> .lf-composer[data-lf-open])) {

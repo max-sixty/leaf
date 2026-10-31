@@ -1776,9 +1776,10 @@ _LAYER_SHEET_ORDER = [
 def test_the_injected_control_face_is_one_default_in_both_trees():
     """Document and declared-shadow controls share one default before component rules.
 
-    Class specificity protects the face from layered element rules. Only controls
-    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as
-    diff line numbers, retains the component's own typography.
+    It weighs nothing and comes first, so every component rule outranks it, and
+    markup's reading face, a layer below, loses to it. Only native controls and those
+    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as diff
+    line numbers, retains the component's own typography.
     """
     faces = [
         (sheet, selector)
@@ -1790,8 +1791,15 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Both delivery trees use the same face classes and cascade order.
-    control_face = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
-    assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
+    shadow = schema_model.ASSETS / "shadow.css"
+    control_face = (
+        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
+        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":host :is(button, input, select, textarea) )"
+    )
+    control_ink = ":where(.lf-ui-face, .button, .field)"
+    default = [(shadow, control_face), (shadow, control_ink)]
+    assert faces[:2] == default, faces[:2]
     defaults = [
         face
         for face in faces
@@ -1801,9 +1809,10 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
             ":where(.lf-ui-face)",
             ":where(:root) .lf-ui-face",
             control_face,
+            control_ink,
         }
     ]
-    assert defaults == [faces[0]], defaults
+    assert defaults == default, defaults
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():

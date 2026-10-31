@@ -136,7 +136,7 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread, "Claude");
-  assert.equal(attention.label, "Your turn");
+  assert.equal(attention.word.text, "Your turn");
   assert.equal(
     threadAttention(
       {
@@ -151,7 +151,7 @@ test("attention names the outstanding question rather than the latest message", 
         ],
       },
       "Claude",
-    ).label,
+    ).word.text,
     "Send it again",
   );
   assert.equal(
@@ -168,7 +168,7 @@ test("attention names the outstanding question rather than the latest message", 
         ],
       },
       "Claude",
-    ).label,
+    ).word.text,
     "Try it again",
   );
   assert.equal(
@@ -178,7 +178,7 @@ test("attention names the outstanding question rather than the latest message", 
         attention: { kind: "waiting", reason: "uncertain", workflow: null },
       },
       "Claude",
-    ).label,
+    ).word.text,
     "Uncertain",
   );
   assert.equal(
@@ -188,7 +188,7 @@ test("attention names the outstanding question rather than the latest message", 
         attention: { kind: "waiting", reason: "workflow", workflow: null },
       },
       "Claude",
-    ).label,
+    ).word.text,
     "Waiting",
   );
   assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);

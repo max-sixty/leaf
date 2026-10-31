@@ -1,4 +1,4 @@
-:is(lf-event, lf-lane, lf-timeline) {
+:is(lf-event, lf-lane, lf-run, lf-timeline) {
   display: block;
   min-width: 0;
 }
@@ -8,9 +8,12 @@ lf-lane {
   display: block;
   margin-block: var(--sp-2);
 }
-lf-lane::before {
+:is(lf-lane, lf-run)::before {
   content: attr(label);
   font-weight: 600;
+}
+lf-run > lf-lane {
+  margin-inline-start: var(--list-inset);
 }
 lf-event {
   display: list-item;
@@ -42,12 +45,26 @@ lf-event::before {
   --lf-timeline-ground: var(--lf-ground, var(--paper));
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-lanes, 1), auto);
+  grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
   font: var(--lf-timeline-label-weight) 12px/1 var(--sans);
   color: var(--ink);
   user-select: none;
   /* Marks and done spans are painted backgrounds, which paper otherwise drops. */
   print-color-adjust: exact;
+}
+/* A run's name heads its lanes across the chart. The playhead passes behind it, as
+   it passes through every run, so one moment reads down all of them. */
+.lf-timeline-run {
+  grid-column: 1 / -1;
+  justify-self: start;
+  z-index: 2;
+  padding-block: var(--sp-3) var(--sp-1);
+  padding-inline-end: var(--sp-1);
+  background: var(--lf-timeline-ground);
+  white-space: nowrap;
+}
+.lf-timeline-run + .lf-timeline-run {
+  padding-block-start: var(--sp-4);
 }
 .lf-timeline-name {
   grid-column: 1;
@@ -97,6 +114,23 @@ lf-event::before {
   padding-inline: 0 3px;
   border-inline-start: 0;
   border-inline-end: 1px solid var(--muted);
+}
+/* A faint line at each labelled time runs down every lane, so a mark far below the
+   ruler, in a later lane or run, still reads against it. */
+.lf-timeline-grid {
+  grid-row: 2 / -1;
+  grid-column: 2;
+  position: relative;
+  pointer-events: none;
+}
+.lf-timeline-gridline {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  inset-block: 0;
+  border-inline-start: 1px dotted var(--rule);
 }
 .lf-timeline-lane {
   grid-column: 2;
@@ -230,12 +264,16 @@ lf-event::before {
   list-style: none;
   margin: var(--sp-3) 0 0;
   padding: 0;
-  font: var(--voice-compact);
+  font: var(--font-compact);
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink. */
 .lf-timeline-step {
   cursor: pointer;
+}
+/* A step's events stay on one sheet of paper together. */
+.lf-timeline-steps > li {
+  break-inside: avoid;
 }
 .lf-timeline-step:not([data-past], [aria-current]) {
   color: var(--muted);
@@ -244,6 +282,6 @@ lf-event::before {
   font-weight: 600;
 }
 
-lf-timeline > lf-lane[hidden] {
+lf-timeline > :is(lf-lane, lf-run)[hidden] {
   display: none;
 }

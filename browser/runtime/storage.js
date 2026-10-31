@@ -22,12 +22,16 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // position, which panel of a widget stands open, whether design mode is on — because each
 // of those is about the window rather than about the page. `draftStore` is what the user
 // typed into a composition the log settles (a comment, a reply, an `lf-draft`) and hasn't
-// sent: it outlives the tab, because closing one is the ordinary end of a tab here, and
+// sent. The agent reads none of it, because sending is when the user says those words.
+// It outlives the tab, because closing one is the ordinary end of a tab here, and
 // every tab shows one live copy of it (see the draft section below). An edit to a bound
 // file is not one: the file on disk is what tabs share, so its buffer is working state.
 // `userStore` is this user's lasting preference across pages, which is the chrome
-// they arrange and expect to find arranged. Anything two tabs must *agree* about is none
-// of the three: it goes in the log.
+// they arrange and expect to find arranged. Anything two tabs must *agree* about, or the
+// agent must read, is none of the three: it goes in the log. That includes unsent work
+// that changes what the page shows. A comment on a playground's preview refers to the
+// settings the user had made, so the playground records them with a verb that asks the
+// agent for nothing (`$state.attention: false`).
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.

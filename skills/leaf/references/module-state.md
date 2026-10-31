@@ -71,6 +71,11 @@ out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string
 for this page in this tab; set `null` to remove it. Read it during setup so the first visible state reflects it
 (`module-authoring.md`, "First paint").
 
+Record what the user makes instead, such as a playground's settings, since Undo should
+take it back and a comment on the page may refer to it. A verb declaring `attention: false`
+records work the user hasn't sent
+([package-data.md, "User state"](package-data.md#user-state)).
+
 ## Declared widget state
 
 `render()` draws the whole state each time it runs, and draws the same result if run

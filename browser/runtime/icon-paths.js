@@ -60,7 +60,11 @@ const ICONS = {
   start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
   unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
-  undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
+  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick,
+  // 31 October 2026). Rejected: a left arrow whose tail turns down, which is Lucide's
+  // and VS Code's reply and reads as Reply beside a message; and the arc Material's
+  // undo draws.
+  undo: '<path d="M5.5 2.75 2.75 5.5l2.75 2.75M3 5.5h6.25a3.5 3.5 0 0 1 0 7H6.5"/>',
   up: '<path d="m4 9.75 4-4 4 4"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
@@ -87,9 +91,15 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // Each action a press can show as a symbol, and the symbol and name it shows wherever
 // Leaf offers it (browser/AGENTS.md, "Controls are few and quiet"). A press names its action and
 // never an icon, so one action can't show two symbols. Two actions may share one
-// symbol, as Close and Discard share ✕, and a press may say more than the action's
-// name, as "Retry source inspection" does. The icons above that no action names mark
-// a kind or a state, not a press.
+// symbol, as Undo and Discard share the U-turn, and a press may say more than the
+// action's name, as "Retry source inspection" does. The icons above that no action
+// names mark a kind or a state, not a press.
+//
+// Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
+// Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
+// draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
+// from its card's Close. A reaction's removal took undo over ✕ for the same reading
+// (the user's choice, 23 October 2026, anchor-controls.js).
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
@@ -101,7 +111,7 @@ export const ACTIONS = {
   copy: { name: "Copy", icon: "copy" },
   "copy-link": { name: "Copy link", icon: "link" },
   dictate: { name: "Dictate", icon: "microphone" },
-  discard: { name: "Discard", icon: "cross" },
+  discard: { name: "Discard", icon: "undo" },
   done: { name: "Done", icon: "checked" },
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },

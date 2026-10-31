@@ -30,14 +30,19 @@ later change, so the guarantee is owed to the paths users take often: a rare pat
 user takes in at a glance may move what is on screen rather than carry a mechanism of its
 own (`../SOUL.md`, "Keep the foundation small and extensible").
 
-- **Controls stay where the user aims.** A state change may repaint any box, but must not
-  move the controls next to the gesture that caused it, and a scroll the gesture makes
-  carries that control only to bring it whole into a scroller that showed part of it, or
-  where the gesture says it takes the user somewhere. Without a gesture, a box may grow or
-  shrink into free room, but reading content and controls stay put; a change the user
-  asked for may reflow what it replaces, with motion the eye can follow. A reveal on hover, focus or a key never moves its ancestors or siblings,
-  and typing may grow a field but never moves it. Check: `tests/shift_watch.js`, whose
-  header lists what it credits.
+- **Controls stay where the user aims.** A state change may repaint any box, but a control
+  the user pressed stays where it was while it still stands. When the press removes it,
+  the press's result takes its place, and that may be the next item's same control, as
+  when Resolve in the floating panel moves the user on to the next thread
+  (`floating-panel.js`); a change the user asked for may reflow what it replaces, with
+  motion the eye can follow. A scroll the gesture makes carries the pressed control only
+  to bring it whole into a scroller that showed part of it, or where the gesture says it
+  takes the user somewhere. Without a gesture, as when news arrives or a widget finishes
+  loading, a box may grow or shrink into free room, but reading content and controls stay
+  put. No hard-to-undo action arrives under a pointer that hasn't moved. A reveal on
+  hover, focus or a key never moves its ancestors or siblings, and typing may grow a
+  field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it
+  credits.
 - **A box's controls stand on an edge the box holds as its content changes.** The same
   control may therefore stand at a thread card's head and at the floating panel's foot;
   each box's header says which edge it holds (`floating-panel.js`, **Opened**;

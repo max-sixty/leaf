@@ -105,8 +105,9 @@ leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 
 A bound widget always shows its source's current value, in every version of the page
 and every thread that quotes it. To keep evidence exactly as it was reviewed, write it
-into the widget's `<pre>`, or give it its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
-that id again. Evidence that should follow later `data set` calls shares one id.
+into the widget's `<pre>`, or give it its own source id, such as `pr-patch-8f61c2a`
+for one commit's patch, and never write to that id again. Evidence that should follow
+later `data set` calls shares one id.
 
 Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video

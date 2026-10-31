@@ -619,7 +619,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serv
         "</lf-text-document>"
     )
     source = LONG_LINE_DIFF_PAGE.replace(
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>', tags
+        '<lf-diff id="patch" source="review-patch"></lf-diff>', tags
     )
     url = serve(source)
     for name in ("plain-text", "python-text"):

@@ -1509,8 +1509,9 @@ def test_check_rejects_widget_violations(page_dir):
 
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
-    """A data widget's text is its <pre>, which a widget bound to a source leaves out.
-    Written text names its origin with a label, as a bound document names its file."""
+    """A data widget's text is its <pre> or its bound input, never both, so text
+    written under a binding, which the widget would never show, is refused. Written
+    text names its origin with a label, as a bound document names its file."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1519,11 +1520,16 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             '<lf-text-document id="written" label="CHANGELOG.md" preview="markdown">'
             "<pre>**Fixed** a crash.</pre></lf-text-document>"
             '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
+            '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
+            "</lf-text-document>"
             '<lf-code id="bare-code"></lf-code>',
         )
     )
     _, findings = check_findings(page_dir)
-    assert [f.at for f in found(findings, "data-body")] == ["<lf-code>"]
+    assert [(f.at, f.values["bound"]) for f in found(findings, "data-body")] == [
+        ("<lf-text-document>", True),
+        ("<lf-code>", False),
+    ]
     assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
     assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
@@ -4075,7 +4081,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
         )
     )
     initial = state_json(page_dir)
@@ -4122,7 +4128,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
         )
     )
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"

@@ -1303,7 +1303,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
             leaf_page(
                 "Draft faces",
                 "<h1>Draft faces</h1>"
-                '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+                '<lf-diff id="patch" source="review-patch"></lf-diff>',
             )
         )
         data_model.cmd_data_set(

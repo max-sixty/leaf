@@ -130,9 +130,9 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 )
             )
         # Tags that name this declaration in x-owners are its admissible members under
-        # any content model. "data" takes one <pre>, which a widget whose x-data input
-        # the markup binds may leave out, "members" takes element members only, and
-        # "empty" takes nothing at all.
+        # any content model. "data" takes one <pre>, or none where the markup binds an
+        # x-data input, whose value is then the text; "members" takes element members
+        # only, and "empty" takes nothing at all.
         content = entry["x-content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
@@ -146,8 +146,10 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         elif content == "data":
             others = [c for c in stray if c != "pre"]
             pres = rec["children"].count("pre")
-            if not (pres == 1 or (bound and pres == 0)) or others:
-                errors.append(found_at("data-body", rec, children=rec["children"]))
+            if pres != (0 if bound else 1) or others:
+                errors.append(
+                    found_at("data-body", rec, children=rec["children"], bound=bound)
+                )
             if rec["text"]:
                 errors.append(found_at("text-outside-pre", rec))
         elif content == "members":

@@ -54,8 +54,11 @@
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. An input the markup doesn't bind, to a source or to another widget's
-   output, is left to the widget and whoever else hosts it.
+   sets it. Where the markup binds none of a widget's inputs, to a source or to another
+   widget's output, a widget whose body is data (`x-content: data`) reads the text the
+   page wrote in its `<pre>` the same way: this element sets each input's property to
+   it once, at setup, since the widget's drawing replaces the `<pre>`. Any other
+   unbound input is left to the widget and whoever else hosts it.
 
    The widget marks the items it drew with plain attributes (projection/data.js) and
    dispatches a non-bubbling `drawn` event whose detail names one bound property and
@@ -81,6 +84,7 @@ import {
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import {
+  dataBody,
   failSoft,
   failSoftUnreported,
   once,
@@ -262,6 +266,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       return true;
     });
     try {
+      if (
+        registry[this.localName]?.["x-content"] === "data" &&
+        !this.#inputs.some(({ bound }) => bound)
+      )
+        for (const { property } of this.#inputs) this[property] = dataBody(this);
       this.setup();
     } catch (error) {
       this.#broken = true;

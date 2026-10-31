@@ -420,7 +420,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         )
     else:
         contents = (
-            '<h1 id="h">Shipping order</h1><lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            '<h1 id="h">Shipping order</h1><lf-diff id="patch" source="change"></lf-diff>'
             + tail
         )
         if place == "nested-end":

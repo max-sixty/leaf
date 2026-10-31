@@ -863,8 +863,14 @@ _TEXT = {
         f"{_line(at, v)}: takes no content — write {at[:-1]} …></{at[1:-1]}>"
     ),
     "data-body": lambda at, v: (
-        f"{_line(at, v)}: its body is one <pre> holding the text (escape < and >),"
-        " found " + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
+        f"{_line(at, v)}: "
+        + (
+            "its bound input supplies the text, so it holds no <pre>"
+            if v.get("bound")
+            else "its body is one <pre> holding the text (escape < and >)"
+        )
+        + ", found "
+        + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
     ),
     "text-outside-pre": lambda at, v: (
         f"{_line(at, v)}: text outside its <pre> — the whole body goes inside it"

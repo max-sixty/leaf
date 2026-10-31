@@ -257,12 +257,13 @@ timezone-aware instant, `uri` an absolute URL, and `package check` lists the res
 
 A widget declares the inputs it can show under `x-data`, each naming its contract, the
 attribute that carries the page's source id, and the element `property` Leaf sets to the
-value. Make that attribute required when the widget can't work without the input; Leaf
-leaves the property of an input the markup doesn't bind to the widget. A widget with
-`x-content: data` can read the same text from its `<pre>` when the markup binds no input
-(`dataBody`), as `lf-text-document` and `lf-diff` do; `page check` lets a bound one
-leave the `<pre>` out. Tell page authors how to bind it in `x-instructions`, and whoever
-produces the data in the contract's `instructions` (`packages.md`, "Package contract").
+value. Make that attribute required when the widget can't work without the input. A
+widget with `x-content: data` takes its text from its `<pre>` when the markup binds no
+input: Leaf sets the input's property to that text, so the widget reads one property
+either way, as `lf-text-document` and `lf-diff` do, and `page check` refuses a `<pre>`
+on a bound one. Leaf leaves the property of any other unbound input to the widget. Tell
+page authors how to bind it in `x-instructions`, and whoever produces the data in the
+contract's `instructions` (`packages.md`, "Package contract").
 
 ```json
 {

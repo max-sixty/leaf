@@ -130,7 +130,7 @@
     "runtime/keyboard/touch-controls.js": "74b809c2033a9b86a35b61aacd4cd3833aa37d7b8f4a30b1e0db8b7ab495608d",
     "runtime/landing-scroll.js": "7a8730afb63e09407edd6970ff3119641329f18245fd41b449f531c5042272e4",
     "runtime/layer-client.js": "a4d28741dcb5431a3f069dff96633680f4caca4c8e80e36d1c30ccd359b2decc",
-    "runtime/leaf-element.js": "affca696c2c438dd401c35fce72e8729141138e55235ffca375a2ddaa6212c2c",
+    "runtime/leaf-element.js": "437393122f18f45634eed967e608193d53200dae1f38fe123c186940571d4661",
     "runtime/live-leaves.js": "8b4aeb74c35a328d0a354229e8df4dda99b178f7ea51502dc39c7bcfb0a10024",
     "runtime/llm-api.js": "225802ef5bbb88b8e9737dd11b84998fd2a05a97222db1e96ba4ed214874b805",
     "runtime/margin-map-model.js": "481e9c7b520d5b23548438b5029813b3f89dcfc2e58b5eebb0516ab60e55a76e",

@@ -1,6 +1,6 @@
-/* A document owns one text and its source/preview readings. The text is the `<pre>`
- * the page wrote, or the value of a bound source or widget output, read once at setup
- * since the drawing replaces the `<pre>`. Optional
+/* A document owns one text and its source/preview readings. The text is its `value`,
+ * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
+ * wrote when the markup binds neither (leaf-element.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, keeping the page still when switching and its scroll place independent.
@@ -13,7 +13,6 @@
  * Source provenance is stamped with its text before awaiting the frame's presentation. */
 import {
   failSoft,
-  dataBody,
   generatedElement,
   ensureSyntaxLanguage,
   inBaseLayer,
@@ -84,8 +83,6 @@ customElements.define(
   "lf-text-document",
   class extends LeafElement {
     setup() {
-      if (!this.hasAttribute("source") && !this.hasAttribute("for"))
-        this.written = dataBody(this);
       // A departure abandons the rendering in flight and its frame's wait.
       whileConnected(this, () => () => {
         this.rendering = (this.rendering ?? 0) + 1;
@@ -93,17 +90,15 @@ customElements.define(
       });
     }
 
-    // The text, set by whoever hosts the widget: Leaf from the bound source (the
-    // registry's `x-data.document.property`), or null while that source has none.
+    // The text, set by whoever hosts the widget: Leaf from the bound source or output
+    // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+    // while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
       super();
       /** @type {string | null} */
       this.value = null;
-      // The text the page wrote, when no source or widget output binds one.
-      /** @type {string | undefined} */
-      this.written = undefined;
     }
 
     render() {
@@ -114,7 +109,7 @@ customElements.define(
     // them, as a Lit element's completion does for work its update starts.
     updated(changed) {
       super.updated(changed);
-      this.showing = this.show(this.written ?? this.value);
+      this.showing = this.show(this.value);
     }
 
     // Also waits for the drawing the latest update started: a newer update's drawing

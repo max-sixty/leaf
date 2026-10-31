@@ -610,6 +610,33 @@ test("bound data draws only as it is delivered", async () => {
   element.remove();
 });
 
+test("a data widget the markup binds to nothing reads its written <pre> as its input", async () => {
+  const tag = `lf-probe-written-${++tags}`;
+  adoptRegistry({
+    [tag]: {
+      "x-content": "data",
+      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+    },
+  });
+  const drawn = [];
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        drawn.push(this.value);
+        return nothing;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = "written";
+  element.innerHTML = "<pre>**Fixed** &lt;now&gt;\n</pre>";
+  document.body.append(element);
+  await settled(element);
+  assert.deepEqual(drawn, ["**Fixed** <now>\n"]);
+  element.remove();
+});
+
 test("a move published just before the element leaves is drawn on its return", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());

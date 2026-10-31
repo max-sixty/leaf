@@ -1644,6 +1644,36 @@ def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
     assert on_rule[-3:] == [True, False, True], landed
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_show_the_quote_marker_the_caret_reaches(engine, request, serve):
+    """Up and Down at the start of a quote's lines show the `>` of the line the caret
+    reaches and hide the one it left, and nothing moves. CodeMirror moves one line's
+    marker element to the other line and swaps its `> ` for that line's, which the
+    browser fixture's write watch read as rewriting a marker unchanged."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    write(field, "> one\n> two\n> three")
+    page.keyboard.press("Home")
+    rendered(page)
+    still = field.evaluate(STILL)
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(
+      line => !line.querySelector('.lf-md-quote-marker').matches('.lf-md-unseen'))"""
+    seen = [field.evaluate(shown)]
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown"]:
+        page.keyboard.press(key)
+        rendered(page)
+        seen.append(field.evaluate(shown))
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), seen
+    assert seen == [
+        [False, False, True],
+        [False, True, False],
+        [True, False, False],
+        [False, True, False],
+    ]
+
+
 # The caret's left edge in the field's content: a collapsed range at it, measured on
 # the text node holding it in the line it stands on.
 CARET_X = """box => {
@@ -1771,8 +1801,34 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, 
     assert two == pytest.approx(one, abs=0.5), typed
 
 
-# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫` and ArrowLeft as `←`,
-# and the draft they leave.
+# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫`, ArrowLeft as `←`, Tab
+# as `⇥`, Shift+Tab as `⇤` and undo as `↶`, and the draft they leave.
+KEYS = {
+    "⏎": "Shift+Enter",
+    "⌫": "Backspace",
+    "←": "ArrowLeft",
+    "⇥": "Tab",
+    "⇤": "Shift+Tab",
+    "↶": "ControlOrMeta+z",
+}
+
+
+def type_drafts(page, field, drafts):
+    """Type each draft's keys into an emptied field; return the draft each leaves."""
+    left = {}
+    for name, (typed, _) in drafts.items():
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+        for key in typed:
+            if key in KEYS:
+                page.keyboard.press(KEYS[key])
+            else:
+                page.keyboard.type(key)
+        left[name] = field.evaluate("box => box.value")
+    return left
+
+
 CONTINUED = {
     "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
     "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
@@ -1804,16 +1860,52 @@ def test_shift_enter_continues_the_containers_the_message_will_hold(
     nothing."""
     page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
     field = page_comment(page)
-    keys = {"⏎": "Shift+Enter", "⌫": "Backspace", "←": "ArrowLeft"}
-    left = {}
-    for name, (typed, _) in CONTINUED.items():
-        page.keyboard.press("ControlOrMeta+a")
-        page.keyboard.press("Backspace")
-        expect(field).to_have_js_property("value", "")
-        for key in typed:
-            if key in keys:
-                page.keyboard.press(keys[key])
-            else:
-                page.keyboard.type(key)
-        left[name] = field.evaluate("box => box.value")
+    left = type_drafts(page, field, CONTINUED)
     assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
+
+
+# The last draft stays in the field for its preview to be read.
+NESTING = {
+    "taking it out again": ("- one⏎⇥two⇤", "- one\n- two"),
+    "nesting in a quote": ("> - one⏎⇥two", "> - one\n>   - two"),
+    "nesting a numbered item": ("1. one⏎⇥two", "1. one\n   1. two"),
+    "the first item": ("- one⇥", "- one"),
+    "undoing a nest": ("- one⏎⇥↶", "- one\n- "),
+    "nesting a new item": ("- one⏎⇥two", "- one\n  - two"),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_nests_a_list_item_and_shift_tab_takes_it_out(engine, request, serve):
+    """Tab in a list item nests it under the item above, where the message will draw it
+    as a nested item, in the platform's nested bullet; Shift+Tab takes it out a level,
+    and one undo takes back one Tab. The first item, with no item to nest under, stays
+    and keeps the caret. Elsewhere Tab and Shift+Tab leave the field, as they used to
+    from a list too."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    left = type_drafts(page, field, NESTING)
+    assert left == {name: draft for name, (_, draft) in NESTING.items()}
+    expect(field).to_be_focused()
+    # The nested item wears the nested bullet with its words and before them, though
+    # the message reads an empty nested item as words of the item above.
+    bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
+      .map(line => [...line.closest('.lf-md-item').classList]
+        .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
+    for erase in (0, len("two")):
+        for _ in range(erase):
+            page.keyboard.press("Backspace")
+        rendered(page)
+        assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
+    expect(field).to_have_js_property("value", "- one\n  - ")
+    # Outside a list item the press leaves the field as before, and so does Shift+Tab
+    # with no item to take out, so a draft that is all list still lets focus out.
+    for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
+        field.focus()
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.type(typed)
+        page.keyboard.press(key)
+        expect(field).not_to_be_focused()
+        expect(field).to_have_js_property("value", typed)

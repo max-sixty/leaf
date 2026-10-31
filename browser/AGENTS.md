@@ -323,7 +323,8 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
 name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
-class's weight off itself (`styles/chrome-guard.css`).
+class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
+purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome

@@ -222,6 +222,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	const { targetFor, entryPoint, entryPlace, sourceItem } = inventory;
 	const preview = el("aside", "lf-ui lf-margin-preview");
 	preview.id = THREAD_CARD;
+	preview.setAttribute("part", "card");
 	preview.hidden = true;
 	preview.setAttribute("role", "dialog");
 	const previewOpen = () => previewSession !== null;

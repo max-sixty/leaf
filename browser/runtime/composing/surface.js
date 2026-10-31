@@ -1324,7 +1324,8 @@ export function createResponseSurface({
     },
   });
 
-  // Tab opens responses from the editor, while attachments keep native traversal.
+  // Tab opens responses from the editor, outside a list item, where the editor takes
+  // Tab to nest it; attachments keep native traversal.
   // Project this alongside the input owner's submit scope rather than replacing it.
   const composerOptions = commandScope("In the comment box", [
     {

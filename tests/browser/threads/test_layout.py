@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import PLUGIN_ROOT, append_carried_log_record
 from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -633,6 +633,75 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, engine):
+    """A theme restyles Leaf's chrome on purpose from its chrome.css, naming surfaces
+    by part (`layer.chrome_restyle`). Its rules beat the chrome's own whatever either's
+    selector, inside a condition too, and reach nothing outside the chrome, even by a
+    selector naming the page around it. A page's
+    own rule naming a part sets the tokens there and nothing else, which the guard
+    rolls back as it does any light page rule (styles/chrome-guard.css). A face set on a
+    part reaches the words there, since each part resolves the fonts again (base.css).
+    A rule keyed on the page around the chrome reaches a part through `&`, and the
+    parts the chrome carries are the ones package-themes.md documents."""
+    package = tmp_path / "chrome-look"
+    package.mkdir()
+    (package / "chrome.css").write_text(
+        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
+        'html & [part~="card"] { --r-l: 5px; }'
+        '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
+        "p { color: rgb(255, 0, 0); }"
+        "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    "<h1>t</h1><p>Words.</p>",
+                    head='<style>[part~="panel"] { font-family: fantasy;'
+                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --sans: monospace; }</style>',
+                ),
+                packages=(package,),
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const panel = document.querySelector('[part~="panel"].lf-floating-panel');
+        const cs = el => getComputedStyle(el);
+        return {
+            family: cs(panel).fontFamily,
+            color: cs(panel).color,
+            corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
+            composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
+            font: cs(document.querySelector('[part~="composer"]'))
+                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+            card: cs(document.querySelector('.lf-chrome [part~="card"]'))
+                .getPropertyValue('--r-l').trim(),
+            parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
+                .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
+            prose: cs(document.querySelector('main p')).color,
+            body: cs(document.body).borderTopWidth,
+        };
+    }""")
+    section = (PLUGIN_ROOT / "skills/leaf/references/package-themes.md").read_text()
+    section = section.split("## Leaf's chrome", 1)[1].split("\n## ", 1)[0]
+    assert faces == {
+        "family": "cursive",
+        "color": "rgb(1, 2, 3)",
+        "corner": "0px",
+        "composer": "3px",
+        "font": "monospace",
+        "card": "5px",
+        "parts": sorted(re.findall(r"^\| `([a-z-]+)` ", section, re.M)),
+        "prose": faces["prose"],
+        "body": "0px",
+    }, faces
+    assert faces["prose"] != "rgb(255, 0, 0)", faces
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):

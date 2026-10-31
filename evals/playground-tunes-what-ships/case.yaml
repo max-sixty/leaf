@@ -11,11 +11,18 @@
 # edited the selected elevation's layers in pixels beside a CSS readout and
 # showed the cards in a list with a raised and an overlay card. subject-leads
 # failures on both arms are cards clipped at 1120-1280px.
+# The plain HTML control gets the same request. On 945fce2f8, 4 runs per condition:
+# values-in-view 4/4 on both; subject-leads Leaf 0/4, HTML 4/4, but the judge saw
+# Leaf's render-check sweep (each failure clipped at 1000-1120px) and only HTML's
+# 1280px arrival, where one HTML page overflows 142px at 1120px. Read the pages too.
 description: playground-tunes-what-ships
 metadata:
   purpose: "Playground: a tuning page leads with the subject being decided and lets
     the user read the values the build will receive while tuning."
   authoring: true
+  conditions:
+    - leaf
+    - html
   tags:
     - playground
     - design
@@ -88,8 +95,7 @@ vars:
     </style>
     ```
 
-    Build that as a Leaf page using the installed leaf:leaf skill. The user works in
-    a 1440x900 window.
+    Build that page. The user works in a 1440x900 window.
 assert:
   - type: agent-rubric
     metric: values-in-view

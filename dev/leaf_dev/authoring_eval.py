@@ -14,6 +14,8 @@ selected eval viewports, which also reach the author in its request. `check_log`
 lists the author's tool calls in order with the output of each page check it ran,
 so a grader can tell what the checks told the author and what it did next. Reading
 and instruction-only probes stay with native providers.
+The plain HTML control gets the same request with no Leaf in reach, writes
+`index.html` itself, and is captured and judged from a static server.
 The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 """
 
@@ -42,14 +44,18 @@ from leaf_dev.arms import (
     trace_summary,
 )
 from leaf_dev.arrangement_eval import Run, capture_phase, preference
+from leaf_dev.browser import shell_executable
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
 from leaf_dev.leaf_assets import pinned_copy
 
 
 def capture_evidence(
-    page: Path, inputs: Path | None, screens: Path, shots: Path
+    page: Path, inputs: Path | None, screens: Path, shots: Path, arrival: list[str]
 ) -> dict:
-    """Keep the judge's captures, page media and rendered screens after scratch exits."""
+    """Keep the judge's captures, page media and rendered screens after scratch exits.
+
+    The rendered screens lead with `arrival`, the page on arrival at each selected
+    viewport, which every condition has; Leaf adds its render check's sweep."""
     sources, media = {}, {}
     shots.mkdir(parents=True, exist_ok=True)
     if inputs is not None and inputs.is_dir():
@@ -80,10 +86,10 @@ def capture_evidence(
             for name, source_digest in source_hashes.items()
             if source_digest == digest
         ]
-    rendered = []
+    rendered = list(arrival)
     if screens.is_dir():
         shutil.copytree(screens, shots / "screens")
-        rendered = [str(path) for path in sorted((shots / "screens").rglob("*.png"))]
+        rendered += [str(path) for path in sorted((shots / "screens").rglob("*.png"))]
     return {
         "inputs": sources,
         "media": media,
@@ -173,6 +179,9 @@ def execute(
     viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     started = time.monotonic()
+    # Leaf and its JSON format author with the arm's plugin; the plain HTML and
+    # Adaptive Cards controls author ordinary files with no Leaf in reach.
+    leaf = condition in {"leaf", "json"}
     context = (
         instruction_context(payload, metadata["instructions"])
         if metadata.get("instructions")
@@ -196,10 +205,10 @@ def execute(
                 for path in destination.rglob("*")
                 if path.is_file()
             }
-        if condition == "adaptive":
-            page.mkdir()
-        else:
+        if leaf:
             run_leaf(payload, state, "page", "init", str(page), check=True)
+        else:
+            page.mkdir()
         setup_seconds = time.monotonic() - started
         brief = f"{prompt}\n\n{preference(viewports)}"
         request = definition("authoring_eval")["prompt"].format(
@@ -218,6 +227,12 @@ def execute(
                 f"`{sys.executable} {compiler} {page}/spec.json {page}/index.html` "
                 "to compile, then inspect and repair the rendered page. "
                 "The evaluator compiles the JSON once more after your final turn."
+            )
+        elif condition == "html":
+            request += (
+                "\n\nBuild it with HTML, CSS and JavaScript. Use headless browser "
+                "tooling for your own inspection. Installed headless Chrome "
+                f"executable: {shell_executable()}"
             )
         elif condition == "adaptive":
             renderer = ROOT / "evals/widget-formats/adaptive-render.mjs"
@@ -239,16 +254,16 @@ def execute(
                 cwd,
                 request,
                 *instructions,
-                *(("--plugin-dir", str(payload)) if condition != "adaptive" else ()),
+                *(("--plugin-dir", str(payload)) if leaf else ()),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
                 dirs=[payload]
-                if condition != "adaptive"
-                else [ROOT / "evals/widget-formats"],
+                if leaf
+                else [ROOT / "evals/widget-formats"]
+                if condition == "adaptive"
+                else [],
                 env={
-                    "PATH": environment(
-                        payload=payload if condition != "adaptive" else None
-                    )["PATH"],
+                    "PATH": environment(payload=payload if leaf else None)["PATH"],
                     "XDG_STATE_HOME": str(state),
                     render_command_model.PIN_VARIABLE: "",
                 },
@@ -294,12 +309,12 @@ def execute(
                 evidence,
                 shots or evidence / "screens",
                 harness=harness,
-                condition="html" if condition == "adaptive" else "leaf",
+                condition="leaf" if leaf else "html",
                 viewports=viewports,
             )
             operable = False
             if format_valid:
-                if condition == "adaptive":
+                if not leaf:
                     from leaf_dev.arrangement_plain import load, serving
                     from leaf_dev.browser import headless_shell, tab
 
@@ -311,12 +326,21 @@ def execute(
                     ):
                         view.on("pageerror", lambda error: errors.append(str(error)))
                         load(view, url)
-                        rendered = view.locator("#card > *").count() > 0
-                    plain_output = "Adaptive Cards SDK parsed the source\n"
+                        rendered = (
+                            view.locator(
+                                "#card > *" if condition == "adaptive" else "body > *"
+                            ).count()
+                            > 0
+                        )
+                    plain_output = (
+                        "Adaptive Cards SDK parsed the source\n"
+                        if condition == "adaptive"
+                        else "Plain HTML has no source check\n"
+                    )
                     render_output = (
                         "\n".join(errors)
                         if errors
-                        else "Browser loaded the rendered card\n"
+                        else "Browser loaded the rendered page\n"
                     )
                     page_valid = rendered and not errors
                     operable = page_valid
@@ -367,7 +391,11 @@ def execute(
                         "condition": condition,
                         "payload": str(payload),
                         "comparison": {
-                            "brief": brief,
+                            # The user's task, which pair judges hold equal across
+                            # conditions, without Leaf's instruction to use its skill.
+                            "brief": brief.removeprefix(
+                                definition("eval")["skill_prefix"]
+                            ),
                             "decision_task": None,
                             "phases": {"": "1"},
                             "author_phases": [1],
@@ -399,7 +427,15 @@ def execute(
                     **(
                         {
                             "capture_evidence": capture_evidence(
-                                page, images, state / "leaf" / "screens", shots
+                                page,
+                                images,
+                                state / "leaf" / "screens",
+                                shots,
+                                [
+                                    image
+                                    for paths in captures.get("captures", {}).values()
+                                    for image in paths
+                                ],
                             )
                         }
                         if shots is not None
@@ -414,7 +450,7 @@ def execute(
             if error := author_failure(trace):
                 response["error"] = error
         finally:
-            if condition != "adaptive":
+            if leaf:
                 stopped = run_leaf(payload, state, "server", "stop", str(page))
                 (evidence / "stop.txt").write_text(stopped.stdout + stopped.stderr)
             if page.is_dir():

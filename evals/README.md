@@ -583,6 +583,9 @@ arm's launcher first on `PATH`, and a fresh workspace, home, temporary directory
 Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
+Declaring `html` in `metadata.conditions` adds the plain HTML control, which gets
+the same prompt without the Leaf skill prefix, an empty directory and the headless
+Chrome path; its `page-valid` means the page loaded without script errors.
 Assertions grade the saved `index.html`, with additional `completed` and
 `page-valid` checks; the executor independently runs `page check`, plain and with
 `--render`, and keeps the page, native trace, reply, and check output under the

@@ -100,10 +100,11 @@ test("Markdown body readings share file dialect, safe destinations and native st
     );
   }
   const body = document.createElement("div");
+  // A `---` under a line is a rule: Setext headings are off.
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(
     body.innerHTML,
-    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<h2 data-lf-gap="1">&lt;div&gt;<br>Heading</h2>\n',
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -219,6 +220,11 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ["- [x] reader@example.com", "reader@example.com"],
     ["- [ ] reader@example.com", "reader@example.com"],
     ["https://example.com/a%20b", "https://example.com/a%20b"],
+    // The parser links a scheme after any character but a scheme's own; these are
+    // ones linkify-it's search wouldn't start a link after.
+    ["x `https://example.com", "https://example.com"],
+    ["URL=https://example.com", "https://example.com"],
+    ["参见https://example.com/a", "https://example.com/a"],
   ]) {
     const link = placedMarkdownTokens(automatic).find(
       ({ token }) => token.type === "link_open",
@@ -227,11 +233,37 @@ test("editor tokens retain native constructs and exact source syntax after parse
     assert.equal(link.contentFrom, automatic.indexOf(expected));
     assert.equal(link.contentTo, automatic.indexOf(expected) + expected.length);
   }
-  const escaped = placedMarkdownTokens(source).flatMap(({ escapes = [] }) => escapes);
+  // Emphasis after a `*` bullet starts at its own mark, not the bullet's, on an item's
+  // first line and on a later line inside a quote.
+  for (const [source, expected] of [
+    ["* *e*", "*e*"],
+    ["> * **b** w", "**b**"],
+    ["> * a\n>   *e*", "*e*"],
+  ]) {
+    const emphasis = placedMarkdownTokens(source).find(({ token }) =>
+      /^(em|strong)_open$/.test(token.type),
+    );
+    assert.equal(source.slice(emphasis.from, emphasis.to), expected, source);
+  }
+  // Each span the message shows otherwise, and what it shows there.
+  const spelling = "**a &amp; b** \\* &#123; c\\\nd";
   assert.deepEqual(
-    escaped.map((at) => source.slice(at, at + 2)),
-    ["\\*"],
+    placedMarkdownTokens(spelling)
+      .flatMap(({ spelled = [] }) => spelled)
+      .map(([from, to, shown]) => [spelling.slice(from, to), shown]),
+    [
+      ["&amp;", "&"],
+      ["\\*", "*"],
+      ["&#123;", "{"],
+      ["\\", ""],
+    ],
   );
+  // A task item's box stands on its brackets.
+  const task = "- [x] done";
+  const box = placedMarkdownTokens(task).find(
+    ({ token }) => token.type === "html_inline",
+  );
+  assert.equal(task.slice(box.from, box.to), "[x]");
 });
 
 test("block markers retain native source spans inside containers and fences", async () => {
@@ -241,48 +273,63 @@ test("block markers retain native source spans inside containers and fences", as
     [
       "> - # Heading ##",
       [
-        ["blockquote_open", ["> "], null],
-        ["list_item_open", ["- "], null],
-        ["heading_open", ["# ", "##"], "> - # Heading ##"],
-      ],
-    ],
-    [
-      "> Heading\n> -------",
-      [
-        ["blockquote_open", ["> ", "> "], null],
-        ["heading_open", ["-------"], "> Heading\n"],
+        ["blockquote_open", ["> "]],
+        ["list_item_open", ["- "]],
+        ["heading_open", ["# ", "##"]],
       ],
     ],
     [
       "lead\r\n\r\n> # Heading",
       [
-        ["blockquote_open", ["> "], null],
-        ["heading_open", ["# "], "> # Heading"],
+        ["blockquote_open", ["> "]],
+        ["heading_open", ["# "]],
       ],
     ],
-    ["````\n```\nbody\n````", [["fence", ["````", "````"], null]]],
-    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"], null]]],
+    ["````\n```\nbody\n````", [["fence", ["````", "````"]]]],
+    ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"]]]],
     [
       "> 1. ~~~\n>    ```\n>    body",
       [
-        ["blockquote_open", ["> ", "> ", "> "], null],
-        ["list_item_open", ["1. "], null],
-        ["fence", ["~~~"], null],
+        ["blockquote_open", ["> ", "> ", "> "]],
+        ["list_item_open", ["1. "]],
+        ["fence", ["~~~"]],
       ],
     ],
   ]) {
     assert.deepEqual(
       placedMarkdownTokens(source)
         .filter(({ markers }) => markers)
-        .map(({ token, markers, contentLines }) => [
+        .map(({ token, markers }) => [
           token.type,
           markers.filter(([a, b]) => a < b).map(([a, b]) => source.slice(a, b)),
-          contentLines ? source.slice(...contentLines) : null,
         ]),
       expected,
       source,
     );
   }
+});
+
+test("a list item records the indent its later lines stand at past its container's", async () => {
+  const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
+  await loadMarkdown();
+  for (const [source, expected] of [
+    ["- a", [2]],
+    ["10. a", [4]],
+    ["-   a", [4]],
+    ["-      a", [2]],
+    ["-", [2]],
+    ["  - a\n     - b", [4, 3]],
+    ["- a\n  1. b", [2, 3]],
+    ["- - a", [2, 2]],
+    ["> - a\n>   > 2) b", [2, 3]],
+  ])
+    assert.deepEqual(
+      placedMarkdownTokens(source)
+        .filter(({ token }) => token.type === "list_item_open")
+        .map(({ token }) => token.meta.indent),
+      expected,
+      source,
+    );
 });
 
 test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
@@ -294,17 +341,20 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   try {
     const source = new DOMParser()
       .parseFromString(
-        '<main><lf-source-contract id="source"><pre>    code\n\n**Words**  \n</pre></lf-source-contract></main>',
+        '<main><lf-source-contract id="source"><pre>```\n    code\n```\n\n**Words**  \n</pre></lf-source-contract></main>',
         "text/html",
       )
       .querySelector("main");
     const authored = source.innerHTML;
     await preloadWidgets(source);
     assert.equal(source.innerHTML, authored);
-    assert.equal(dataBody(source.firstElementChild), "    code\n\n**Words**  \n");
+    assert.equal(
+      dataBody(source.firstElementChild),
+      "```\n    code\n```\n\n**Words**  \n",
+    );
     const arrival = document.importNode(source.firstElementChild, true);
     formatDeclaredMarkdown(arrival);
-    assert.equal(arrival.querySelector("pre").textContent, "code\n");
+    assert.equal(arrival.querySelector("pre").textContent, "    code\n");
     assert.equal(arrival.querySelector("strong").textContent, "Words");
     assert.equal(
       source.innerHTML,

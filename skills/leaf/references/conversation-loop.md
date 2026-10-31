@@ -192,7 +192,8 @@ it until the user decides or you withdraw it. A question written in prose, a hea
 a status line or chat isn't on On me; only the routes in the table put it there.
 Information they may comment on but need not decide is not an obligation.
 
-In Claude Code, as each turn ends, Leaf checks the conversation for decisions,
+In Claude Code, as each turn ends, an experimental check of Leaf's reads the
+conversation for decisions,
 answers or steps you left to the user that On me doesn't hold, adds each to On me as
 your to-do on the user, and tells you at your next step. That catches what slips; it
 doesn't register your questions for you, so keep asking by the routes below. Each

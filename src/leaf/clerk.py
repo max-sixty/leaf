@@ -1,6 +1,6 @@
 """Leaf's clerk: a fork of the agent's conversation, made as each of its turns ends,
 that finds what the agent left to the user without putting it On me, and puts it
-there on the agent's behalf.
+there on the agent's behalf. It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left

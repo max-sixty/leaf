@@ -1569,21 +1569,25 @@ function reachableRoom(side, extent, boundary, scroller) {
 	};
 }
 function makeRoom(side, clear, extent, height, boundary, scroller) {
-	if (extent.height + 8 + height > boundary.height) return false;
+	const narrow = staysClear(extent, boundary) && !railStands();
+	if (!narrow && extent.height + 8 + height > boundary.height) return false;
 	const overflow = side === "top" ? boundary.top - (clear.top - 8 - height) : clear.bottom + 8 + height - boundary.bottom;
+	const edge = side === "top" ? boundary.bottom - clear.bottom : clear.top - boundary.top;
 	const { available: travel, projection, direction } = roomTravel(side, scroller);
-	const movement = Math.max(0, Math.min(overflow, travel));
+	const movement = Math.max(0, Math.min(overflow, travel, narrow ? edge : Infinity));
 	if (movement <= .5) return false;
 	const before = scroller.scrollTop;
 	moveScrollerBy(scroller, direction * movement / projection);
 	return Math.abs((scroller.scrollTop - before) * projection) > .5;
 }
-function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
+const staysClear = (extent, boundary) => !boundary.inRegion && extent.height + 8 + 96 <= boundary.height;
+function commentSide({ clear, extent, boundary, width, scroller, coarse, narrow = false }) {
 	const fits = (room) => Math.ceil(room) >= Math.ceil(width);
 	if (fits(boundary.right - clear.right - 8)) return "right";
 	if (fits(clear.left - boundary.left - 8)) return "left";
 	const below = reachableRoom("bottom", extent, boundary, scroller);
 	const above = reachableRoom("top", extent, boundary, scroller);
+	if (narrow && below.reachable >= 96) return "bottom";
 	const fitsBelow = below.shown >= 96;
 	if (fitsBelow !== above.shown >= 96) return fitsBelow ? "bottom" : "top";
 	if (coarse && below.reachable >= 96) return "bottom";
@@ -1592,7 +1596,7 @@ function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
 const rootLength = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 const cardMinimum = () => rootLength("--thread-card-min");
 const cardMeasure = () => rootLength("--thread-card");
-function commentPlacement() {
+function commentPlacement({ makesRoom = false } = {}) {
 	let side = null;
 	let inline = null;
 	let input = null;
@@ -1600,6 +1604,7 @@ function commentPlacement() {
 	let carriedInline = null;
 	let initialHold = null;
 	let moved = false;
+	let narrow = false;
 	let held = null;
 	let tallest = null;
 	const forget = () => {
@@ -1653,13 +1658,15 @@ function commentPlacement() {
 			input = key;
 			const fresh = side === null;
 			const opening = held === null && initialHold === null;
+			if (fresh) narrow = makesRoom && staysClear(extent, boundary) && !railStands();
 			side ??= unanchored ? "bottom" : commentSide({
 				clear,
 				extent,
 				boundary,
 				width: cardMinimum(),
 				scroller,
-				coarse
+				coarse,
+				narrow
 			});
 			return {
 				side,
@@ -1675,7 +1682,8 @@ function commentPlacement() {
 			clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
 			const past = (scale) => side === "right" && margin && margin.right > clear.right + .5 && boundary.right - margin.right - 8 >= cardMeasure() * scale.x ? margin.right : null;
 			const box = new DOMRect(clear.left, clear.top, (past({ x: 1 }) ?? clear.right) - clear.left, clear.height);
-			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(minimumWidth, boundary.width));
+			const reserved = narrow && across ? cardMeasure() : minimumWidth;
+			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(reserved, boundary.width));
 			let heldIn = false;
 			const attachment = ui.limitShift(() => ({
 				mainAxis: !across,
@@ -1750,10 +1758,11 @@ function commentPlacement() {
 					const { scale, line } = measure(state);
 					const stood = held ? Math.max(held.foot - held.top, tallest && Math.abs(tallest.line - line) < .5 ? tallest.height : 0) / scale.y : 0;
 					const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - 8 : clear.left - boundary.left - 8;
+					const below = narrow && side === "bottom" ? (shown.bottom - (box.top + (state.y - state.rects.reference.y) * scale.y)) / scale.y : null;
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: rises ? shown.height / scale.y : state.availableHeight,
+						height: rises ? shown.height / scale.y : below ?? state.availableHeight,
 						room: shown,
 						stood,
 						scale
@@ -1803,6 +1812,7 @@ function commentPlacement() {
 								x: state.x,
 								y: clamp(state.y, measure(state).line - state.rects.floating.height, measure(state).last)
 							};
+							if (narrow && side === "bottom") limited.y = Math.max(limited.y, state.rects.reference.y + state.rects.reference.height + 8 / measure(state).scale.y);
 							if (moved) for (const axis of ["x", "y"]) {
 								const own = state.middlewareData.hold.spot[axis];
 								limited[axis] = clamp(state[axis], Math.min(limited[axis], own), Math.max(limited[axis], own));

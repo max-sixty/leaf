@@ -52,6 +52,22 @@
    changes (a resize, a pane that narrows, a reflow), which chooses afresh; a scroll
    clipping `clear` does not.
 
+   On a narrow window, one with no room for the rail beside the column
+   (content-layout.js, `railStands`), a card, which asks the page for room
+   (`makesRoom`), stands under the words in the page's flow it is about wherever the
+   page can make it room there, keeps room for its whole measure
+   (`--thread-card`) from the column it starts at, standing in from it only as far as
+   the window makes it, so a phone's spans the window, and, where what it is about
+   leaves the least room a surface stands in below it (`LEAST_HEIGHT`), never slides up
+   over it: the page scrolls that to the boundary's top to give it room (`makeRoom`),
+   and past that it scrolls its own content. A subject taller than that, as a whole
+   decision can be, it covers as on a wide window. The user chose this on 31
+   October, after a phone's card stood 60px in from the window's edge, over a strip of
+   cut-off page words, and covered the passage it was about, and a long card on a
+   900px window covered its passage too. The comment box keeps the boundary's slide,
+   since it asks no scroll and its words must stay in the window; Send hands its frame
+   to the card where it stood (`adopt`).
+
    Beside, the surface's top stands level with `row`, and past its margin row where that
    reaches past `clear` and the room beyond it holds the card's full preferred measure
    (`--thread-card`). Message width takes priority over keeping the margin row clear:
@@ -74,8 +90,8 @@
    and departure use this same attachment limit, including the first placement:
    an offscreen target carries its surface into view as scrolling approaches it.
    Growing never scrolls the page. A surface that outgrows the room on its side slides
-   inside the boundary, over its passage or element if it must, and once it fills the
-   boundary scrolls its own content. Only a card opening under or over its target
+   inside the boundary, over its passage or element if it must but on a narrow window,
+   and once it fills the boundary scrolls its own content. Only a card opening under or over its target
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
 
@@ -141,6 +157,7 @@ import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
+import { railStands } from "../content-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
@@ -305,27 +322,46 @@ function reachableRoom(side, extent, boundary, scroller) {
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
 // and this surface cannot show together, no scroll makes that room. The boundary
 // then holds the surface over its subject instead of scrolling the subject away.
+// On a narrow window, where the surface never stands over what it is about, the scroll
+// goes as far as bringing that to the boundary's edge, and the surface takes the rest.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
+  const narrow = staysClear(extent, boundary) && !railStands();
+  if (!narrow && extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
       : clear.bottom + COMMENT_GAP + height - boundary.bottom;
+  const edge =
+    side === "top" ? boundary.bottom - clear.bottom : clear.top - boundary.top;
   const { available: travel, projection, direction } = roomTravel(side, scroller);
-  const movement = Math.max(0, Math.min(overflow, travel));
+  const movement = Math.max(0, Math.min(overflow, travel, narrow ? edge : Infinity));
   if (movement <= 0.5) return false;
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, (direction * movement) / projection);
   return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
 }
 
+// Whether a card on a narrow window can stand clear of what it is about: in the page's
+// flow, with the least room a surface stands in left beside it.
+const staysClear = (extent, boundary) =>
+  !boundary.inRegion && extent.height + COMMENT_GAP + LEAST_HEIGHT <= boundary.height;
+
 // The side a comment's surface takes, as a Floating UI side.
-export function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
+export function commentSide({
+  clear,
+  extent,
+  boundary,
+  width,
+  scroller,
+  coarse,
+  narrow = false,
+}) {
   const fits = (room) => Math.ceil(room) >= Math.ceil(width);
   if (fits(boundary.right - clear.right - COMMENT_GAP)) return "right";
   if (fits(clear.left - boundary.left - COMMENT_GAP)) return "left";
   const below = reachableRoom("bottom", extent, boundary, scroller);
   const above = reachableRoom("top", extent, boundary, scroller);
+  if (narrow && below.reachable >= LEAST_HEIGHT) return "bottom";
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -346,7 +382,8 @@ const rootLength = (name) =>
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
 
-/* One surface's placement: the side it holds and its inline attachment.
+/* One surface's placement: the side it holds and its inline attachment. A surface
+   that `makesRoom`, the card, takes the narrow window's rule (above).
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
    width has changed, and says whether it chose afresh, and whether the surface has
@@ -384,7 +421,7 @@ export const cardMeasure = () => rootLength("--thread-card");
    shift it. On the left, the surface instead holds its right edge clear of the
    target and grows toward the boundary; keeping its initial left edge would let
    a longer draft grow across the words it comments on. */
-export function commentPlacement() {
+export function commentPlacement({ makesRoom = false } = {}) {
   let side = null;
   let inline = null;
   let input = null;
@@ -393,6 +430,8 @@ export function commentPlacement() {
   let initialHold = null;
   // Whether the user carried the surface to where it stands (surface-grip.js).
   let moved = false;
+  // Whether the window has no room for the rail, as the side was chosen.
+  let narrow = false;
   // The last landed rectangle, in client pixels from the attachment line.
   let held = null;
   // The tallest the surface has stood since its line last moved, and that line.
@@ -474,6 +513,7 @@ export function commentPlacement() {
       // the first keeps what that one began, such as the transcript's reading.
       const fresh = side === null;
       const opening = held === null && initialHold === null;
+      if (fresh) narrow = makesRoom && staysClear(extent, boundary) && !railStands();
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -483,6 +523,7 @@ export function commentPlacement() {
             width: cardMinimum(),
             scroller,
             coarse,
+            narrow,
           });
       return {
         side,
@@ -529,12 +570,14 @@ export function commentPlacement() {
       // The compact editor and its sent card share one start. Reserve the declared
       // card footprint before a shorter editor's own width can put that start too far
       // toward the boundary, where later typing or reopening would have to move it.
+      // On a narrow window it keeps room for its whole measure instead.
+      const reserved = narrow && across ? cardMeasure() : minimumWidth;
       const inlineStart = unanchored
         ? boundary.left
         : clamp(
             column ?? box.right - minimumWidth,
             boundary.left,
-            boundary.right - Math.min(minimumWidth, boundary.width),
+            boundary.right - Math.min(reserved, boundary.width),
           );
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
@@ -639,13 +682,22 @@ export function commentPlacement() {
                 : side === "right"
                   ? boundary.right - box.right - COMMENT_GAP
                   : clear.left - boundary.left - COMMENT_GAP;
+          // Under what it is about on a narrow window, it has the room below where it
+          // stands, since it slides no higher (the shift's limiter, below), where
+          // Floating UI offers a sliding surface the whole boundary's height.
+          const below =
+            narrow && side === "bottom"
+              ? (shown.bottom -
+                  (box.top + (state.y - state.rects.reference.y) * scale.y)) /
+                scale.y
+              : null;
           fit({
             side,
             width: Math.max(
               Math.min(minimumWidth, boundary.width) / scale.x,
               Math.min(state.availableWidth, lane / scale.x),
             ),
-            height: rises ? shown.height / scale.y : state.availableHeight,
+            height: rises ? shown.height / scale.y : (below ?? state.availableHeight),
             room: shown,
             stood,
             scale,
@@ -726,6 +778,15 @@ export function commentPlacement() {
                       measure(state).last,
                     ),
                   };
+              // On a narrow window, a surface under what it is about never slides up
+              // over it.
+              if (narrow && side === "bottom")
+                limited.y = Math.max(
+                  limited.y,
+                  state.rects.reference.y +
+                    state.rects.reference.height +
+                    COMMENT_GAP / measure(state).scale.y,
+                );
               // A surface the user carried counts the spot they put it at as attached
               // too, so it stands there and still leaves with what it is about.
               if (moved)

@@ -286,6 +286,68 @@ AFTER_NAME = """card => [...card.querySelectorAll('.lf-msg-head')].flatMap((head
 })"""
 
 
+NARROW_PAGE = leaf_page(
+    "Narrow window",
+    "<h1>Narrow window</h1>"
+    + "".join(
+        f"<p id='lead-{n}'>Lead paragraph {n} sets out the plan in words enough "
+        "to wrap across several lines of a narrow window.</p>"
+        for n in range(6)
+    )
+    + "<p id='asked'>The rollout waits on the vendor's fix, which has no date yet.</p>"
+    + "".join(f"<p id='tail-{n}'>Tail paragraph {n}.</p>" for n in range(12)),
+)
+# Where the card stands against the window and the words it is about.
+CARD_AND_WORDS = """() => {
+  const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+  const words = document.getElementById('asked').getBoundingClientRect();
+  return {card: {left: card.left, top: card.top, right: card.right, bottom: card.bottom},
+    words: {top: words.top, bottom: words.bottom}, width: innerWidth, height: innerHeight};
+}"""
+
+
+@pytest.mark.parametrize("size", [(390, 844), (900, 900)], ids=["phone", "900"])
+def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, size):
+    """On a window with no room for the rail, a long thread's card stands under the
+    words it is about, which stay in view above it, and on a phone it spans the window.
+    It slid up over the words once it outgrew the room below them, and on a phone it
+    stood in from the window's edge at the words' column, over a strip of page."""
+    url = serve(
+        NARROW_PAGE,
+        events=[
+            {
+                **COMMENT_ON_OBLIGATION,
+                "text": "Can this wait?",
+                "anchor": {"section": "asked", "quote": "waits on the vendor's fix"},
+                "id": "b" * 32,
+            },
+            *(
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "agent": "Claude",
+                    "parent": "b" * 32,
+                    "revision": 1,
+                    "text": f"Point {n}: the fix has no date, so the workaround ships "
+                    "first and the vendor check runs monthly until it lands.",
+                }
+                for n in range(8)
+            ),
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, *size)
+    page.locator(".lf-margin-marker").first.click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    rendered(page)
+    stands = page.evaluate(CARD_AND_WORDS)
+    card, words = stands["card"], stands["words"]
+    assert 0 <= words["top"] and card["top"] >= words["bottom"], stands
+    assert card["bottom"] <= stands["height"], stands
+    if size[0] < 400:
+        assert card["left"] <= 8.5 and card["right"] >= stands["width"] - 8.5, stands
+
+
 def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(
     browser, serve
 ):
@@ -742,7 +804,9 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     page = open_page(
         browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
     )
-    resized(page, 741, 838)
+    # Short enough that the decision the thread is about leaves its card no room
+    # beneath it, so the card stands over the options (comment-placement.js).
+    resized(page, 741, 560)
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview .lf-page-thread")

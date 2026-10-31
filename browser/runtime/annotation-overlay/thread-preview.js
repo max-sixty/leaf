@@ -579,11 +579,17 @@ export function createThreadPreview({
             // window's foot, then scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
-            // scroll travel. A scroll supersedes this answer's attachment geometry.
+            // scroll travel, on the height it would stand at given the room: what it
+            // shows and what its transcript scrolls past. A scroll supersedes this
+            // answer's attachment geometry.
+            const transcript = session.transcript;
+            const wanted =
+              fitted +
+              (transcript ? transcript.scrollHeight - transcript.clientHeight : 0);
             if (
               opening &&
               (side === "top" || side === "bottom") &&
-              makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
+              makeRoom(side, place.clear, place.extent, wanted, boundary, scroller)
             ) {
               session.side.scrolled();
               placeThreadPreview();
@@ -718,7 +724,7 @@ export function createThreadPreview({
       transcript: null,
       place: null,
       stopRegion: null,
-      side: commentPlacement(),
+      side: commentPlacement({ makesRoom: true }),
       anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or

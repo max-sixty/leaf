@@ -14,6 +14,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                          | `parent`; `text` or `token`; `responds` on an agent's answer; `todo`, `markup` and a replacement or null `anchor` (CLI only)                                           | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                           | `message`, `text`; `base` (browser)                                                                                                                                    | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
+| <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                               | `revision`                                                                                                                                                             | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
 | <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)    | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                      | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                  | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
@@ -240,9 +241,14 @@ What each thread command does for the user, and when an agent uses it, is
 Reading is separate from whose turn it is, and answers nothing. Each agent content
 version, a message's own id and then each `edit` id, is unread until a `read` event
 names it or the user acts in the thread after it; `read_state.py` owns which acts
-count. The result is each thread's `unread`, in browser state and `page state`. Read
-records hold across tabs and revisions and never enter agent delivery. A page has one
-user for its lifetime, so a `read` names no account.
+count. The result is each thread's `unread`, in browser state and `page state`. A
+`seen` event does the same for the page: it names the newest live revision a tab showed
+the user while they were there (visible and focused), posted as they leave it, and the
+newest one named is the served state's `seen`, the revision the browser marks the
+page's changes since. A hosted copy serves no `seen`, since its reader is not the page's
+user. Read records hold across tabs
+and revisions and never enter agent delivery. A page has one user for its lifetime, so
+a `read` or `seen` names no account.
 
 ### Turns
 

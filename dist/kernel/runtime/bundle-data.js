@@ -5665,6 +5665,7 @@ function newsNotice(header = false) {
 	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
 	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
+	words.dataset.voice = "leaf";
 	node.append(words);
 	let total = 0;
 	const dropped = sizeObserver(() => {

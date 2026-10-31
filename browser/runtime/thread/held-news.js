@@ -456,6 +456,9 @@ export function newsNotice(header = false) {
   );
   keeps(node, "data-lf-news", "");
   const words = document.createElement("span");
+  // The news is Leaf's, every fact and count of it, so the words wear Leaf's voice
+  // whole, as the panel's field does a reading all Leaf says (voice.js).
+  words.dataset.voice = "leaf";
   node.append(words);
   // A dropped fact wraps onto a line below the first (components/surfaces.css). The
   // count stands just past the last fact shown, which a notice bounded wider than the

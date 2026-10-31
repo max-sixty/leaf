@@ -1267,11 +1267,6 @@
   .lf-fp-thread:not([data-unread]) .lf-fp-news-mark {
     visibility: hidden;
   }
-  /* A thread on the user's turn says so in the turn's green, the ink its margin entry
-     and Page Map row paint that turn in (base.css). */
-  .lf-fp-thread[data-yours] .lf-row-end {
-    color: var(--turn-ink);
-  }
   :is(.lf-fp-thread, .lf-fp-on-line)[data-resolved] .lf-fp-label {
     color: var(--muted);
   }

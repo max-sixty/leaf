@@ -1702,6 +1702,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--turn-ink);
 }
+/* A row that says the thread's word at its end, in Threads and the Page Map, says the
+   user's turn in the same green. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
+  color: var(--turn-ink);
+}
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);
 }

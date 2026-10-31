@@ -420,7 +420,9 @@ without scrolling sideways. Both engines count the bar of `overflow: scroll` and
 `scrollbar-gutter: stable` gutter, so the transcript holds a gutter once its turns
 overflow (`data-lf-overflows`, `annotation-chrome.css`; `thread-preview.js` says
 until when). WebKit is unrecorded,
-since Playwright's WebKit draws only overlay scrollbars on macOS and Linux.
+since Playwright's WebKit draws only overlay scrollbars on macOS and Linux. No
+Chromium or Firefox bug tracks the `auto` case (searched 2026-10-30), and Leaf
+has left it unreported, so only a recheck shows when a browser fixes it.
 
 Recheck with a two-column grid holding an 80px-tall `grid-template-columns:
 subgrid` child with `overflow-y: auto` and tall content, comparing its

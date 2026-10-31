@@ -2,6 +2,7 @@
 drafts, sending a choice, quoted playgrounds, and their layout in a workspace."""
 
 import io
+import itertools
 import re
 
 import pytest
@@ -791,6 +792,94 @@ def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
     boxes = [rich.nth(index).bounding_box() for index in range(2)]
     assert boxes[0]["x"] == boxes[1]["x"]
     assert boxes[0]["y"] < boxes[1]["y"]
+
+
+def test_shared_controls_above_the_stage_stand_in_a_band_of_columns(browser, serve):
+    """With `controls="above"` the preview keeps the playground's whole width and the
+    shared controls stand over it: each control's choices in one column with their
+    marks on its label's edge, and the controls side by side, each as wide as its
+    longest label, so no empty column opens between them however the labels compare."""
+
+    def group(name, labels):
+        choices = "".join(
+            f'<lf-playground-choice value="{index}" label="{label}"></lf-playground-choice>'
+            for index, label in enumerate(labels)
+        )
+        return (
+            f'<lf-playground-control name="{name}" label="{name.title()}" kind="choice"'
+            f' value="0">{choices}</lf-playground-control>'
+        )
+
+    source = leaf_page(
+        "Controls above",
+        f"""<h1>Which thread view?</h1>
+<lf-playground id="views" controls="above" data-width="available">
+  {group("controls", ["Today: a row at the foot", "Top right; the foot's row goes"])}
+  {
+            group(
+                "leaf",
+                [
+                    "Today: in the reply's row, 32px of words past it",
+                    "Outside the card; reply and thread share an edge",
+                ],
+            )
+        }
+  {
+            group(
+                "back",
+                [
+                    "Today: ‹ Threads, first in the presses",
+                    "‹ before the title",
+                    "Threads › before the title",
+                    "‹ hanging off the card, above the leaf",
+                    "None",
+                ],
+            )
+        }
+  <lf-playground-preview><p>Today's panel beside the candidate.</p></lf-playground-preview>
+  <lf-playground-output>Build the thread view.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1700, 1000)
+    seen = page.locator("#views").evaluate(
+        """playground => {
+          const box = node => node.getBoundingClientRect();
+          const controls = playground.querySelectorAll(
+            '.lf-playground-controls > lf-playground-control');
+          return {
+            width: box(playground).width,
+            band: box(playground.querySelector('.lf-playground-controls-region')),
+            preview: box(playground.querySelector('.lf-playground-preview-region')),
+            controls: [...controls].map(control => {
+              const faces = [...control.querySelectorAll('label.choice')].map(box);
+              return {
+                left: box(control).left, right: box(control).right,
+                top: box(control).top,
+                faceLefts: [...new Set(faces.map(face => Math.round(face.left)))],
+                faceTops: faces.map(face => Math.round(face.top)),
+                facesRight: Math.max(...faces.map(face => face.right)),
+                labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
+                markLeft: box(control.querySelector('label.choice > input')).left,
+              };
+            }),
+          };
+        }"""
+    )
+    assert seen["preview"]["width"] == pytest.approx(seen["width"], abs=1)
+    assert seen["band"]["bottom"] <= seen["preview"]["top"]
+    controls = seen["controls"]
+    assert len({round(control["top"]) for control in controls}) == 1
+    for control in controls:
+        assert len(control["faceLefts"]) == 1
+        assert control["faceTops"] == sorted(set(control["faceTops"]))
+        assert control["right"] - control["facesRight"] <= 1
+        assert control["markLeft"] == pytest.approx(control["labelLeft"], abs=1)
+    gaps = {
+        round(after["left"] - before["right"])
+        for before, after in itertools.pairwise(controls)
+    }
+    assert len(gaps) == 1 and gaps.pop() > 0
 
 
 def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(

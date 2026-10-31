@@ -3,10 +3,11 @@
  * of it stand above the bar of actions that sends the instruction they write, in a rail
  * beside it. A control written inside the preview stands there, beside the item it
  * changes, and the rail then holds only what is left. With all controls inline, presets
- * precede the full-width preview and the bar follows. Its regions are up to three generated panes
- * (data-lf-reading-role="pane", the kernel's base.css), whose bodies scroll where a
- * workspace Layout fills the window (layouts.css); here the playground only places the
- * panes and draws them.
+ * precede the full-width preview and the bar follows, and so do the shared controls,
+ * as a band, where the preview needs that width (`controls="above"`). Its regions are
+ * up to three generated panes (data-lf-reading-role="pane", the kernel's base.css),
+ * whose bodies scroll where a workspace Layout fills the window (layouts.css); here
+ * the playground only places the panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
@@ -124,13 +125,14 @@ lf-playground:has(> .lf-playground-split) {
 
     /* The outer scroller must include the stage's minimum and the whole action bar,
      * leaving its reserved panel room after both. Only scrolling bodies contribute
-     * no intrinsic size: presets and actions still set their tracks' minimum. */
+     * no intrinsic size: presets, a band of controls above the stage and actions still
+     * set their tracks' minimum. */
     lf-playground:has(> .lf-playground-split) {
       grid-template-rows: minmax(min-content, 1fr);
       scroll-padding-block-end: var(--lf-end-room);
     }
 
-    :is(.lf-playground-preview-body, .lf-playground-controls) {
+    :is(.lf-playground-preview-body, .lf-playground-rail .lf-playground-controls) {
       contain: size;
     }
 
@@ -218,6 +220,34 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   min-width: 0;
 }
 
+/* Above the stage (`controls="above"`), the shared controls form a band. Each control
+ * is a column with its choices one per line, as wide as its longest label, and the
+ * columns stand side by side; one that doesn't fit moves whole to the next line, and
+ * every label sits on one baseline. Rejected: choices in a row that wraps, as in the
+ * rail. A row that wraps stays as wide as the room it was given, not its longest
+ * line, so in a page's own band of three controls it left a 230px empty column, and
+ * five choices broke into rows that started at different places (2026-10-31). A label
+ * sits on its choices, closer than they stand to each other, and their marks stand on
+ * its edge. The rules reach only the band's own controls and plain choices, leaving a
+ * rich choice's candidates and anything nested in them as they are. */
+.lf-playground-split > .lf-playground-controls-region > .lf-playground-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-3) var(--sp-5);
+  > lf-playground-control {
+    row-gap: 0;
+  }
+  > lf-playground-control:not(.lf-playground-candidates) > .lf-playground-choices {
+    flex-flow: column;
+    align-items: start;
+    row-gap: 0;
+    > lf-playground-choice > .choice {
+      margin-inline-start: calc(-1 * var(--choice-pad));
+    }
+  }
+}
+
 lf-playground-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -272,8 +302,8 @@ lf-playground-control > input[type="range"] {
  * free; authors overrode the cells in page CSS to get the row back (2026-10-24 eval).
  * A label wider than the whole row still wraps, since a flex item shrinks to its
  * words' width only when it stands alone on its line. Columns the author sets replace
- * the row (below). The gap holds a focused face's ring, which stands outside its face,
- * so the next face would paint over any of the ring that reached it. */
+ * the row (below). A focused face draws its ring inside its own padding
+ * (`.choice`, controls.css), so the gap only spaces one choice from the next. */
 .lf-playground-choices {
   display: flex;
   flex-wrap: wrap;

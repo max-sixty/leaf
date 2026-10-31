@@ -16,6 +16,10 @@
         "type": "string",
         "minLength": 1
       },
+      "controls": {
+        "type": "string",
+        "enum": ["above"]
+      },
       "restated": {
         "type": "boolean"
       }

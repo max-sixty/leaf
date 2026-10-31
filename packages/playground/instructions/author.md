@@ -25,8 +25,10 @@ gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says. Shared controls stay in their rail on wide
 layouts and above the preview on narrow layouts, where their own contents scroll if
-needed to leave room for the candidates. Controls authored beside an individual
-candidate stay beside it.
+needed to leave room for the candidates. Where candidates side by side need the
+preview's whole width, set `controls="above"` on the playground to keep its shared
+controls above the preview at every width, in a band. Controls authored beside an
+individual candidate stay beside it.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.

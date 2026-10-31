@@ -4,46 +4,26 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
- * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif. The separate
- * lf-ui identity still marks custom-element apparatus, but its component owns its
- * face: an outer host declaration would outrank even its internal state rules.
+/* The default face of a native control: Leaf's ui voice (base.css, `--voice-ui`) and
+ * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
+ * `lf-ui-face` on each native control it builds, and a page may write `.button` or
+ * `.field` on its own. A native control the page writes with neither class takes the
+ * voice too, and keeps the browser's ink, which goes with the browser's ground for it.
+ * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
+ * host, keeps its component's face.
  *
- * It is a default, and three things make it behave like one. It stands at this sheet's
- * head, which composes ahead of base.css and every package sheet, so each component rule
- * that names the same property wins on ordinary cascade order; stated in base.css, after
- * this sheet, it beat them, and .lf-compose-submit drew near-black on Send and on Add
- * option instead of the accent. It keeps a class's specificity, so the element rules of the
- * layered sheets lose to it; the page's own rules are unlayered and win over it, as they
- * win over every layer. It applies under both the document root and a declared shadow
- * host, so native controls share one face in either tree. It does not select the
- * general `lf-ui` apparatus: lf-diff's line numbers and hunk separators retain their
- * component's type and ink.
+ * It is a default, so it weighs nothing and stands at the head of the shared sheet
+ * (`lf-base` in the document, `lf-shadow` in a declared tree): any other rule that
+ * names one of these properties outranks it, a component's, a package's or the page's
+ * own. Markup's reading face stands in a layer below it (reading.css), so a control
+ * standing in prose takes this face rather than the prose's. Stated in
+ * runtime/chrome.css, which is adopted after every component sheet, it would outrank
+ * them all.
  *
- * It cannot live in runtime/chrome.css, which is adopted and so cascades after all of
- * them: the same declarations there beat every component's own rule, and .lf-ref drew
- * ink at 14px where it asked for muted at 11.5px while a widget
- * asking for mono drew sans. Nothing catches that, because
- * no test and no browser gate reads a rule that never applied.
- *
- * The rest of the face is stated too, at no weight at all. Inheritance reaches a control
- * that no page rule selects: a page that set its body bold, italic, small-capped, spaced
- * or in capitals set every control standing in it so too. The `font` shorthand resets
- * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
- * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
- * sets these on purpose winning: at a class's weight it took the pane header's 600 off
- * each playground's presets.
- *
- * A native control the page writes without either class takes the type from that
- * weightless rule too, so a page that styles it anywhere still wins. Left to the
- * browser it drew 13.33px Arial beside the page's own type (#2559). */
-:where(:root, :host) :is(.lf-ui-face, .button, .field) {
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: var(--lf-ui-lh);
-  color: var(--ink);
-}
+ * The `font` shorthand states every font property, weight, slant, variants and stretch
+ * among them, and the properties it leaves out are stated beside it, since any declared
+ * value beats an inherited one: a page that sets its body bold, italic, small-capped,
+ * spaced or in capitals leaves its controls in the voice. */
 :where(
   :is(:root, :host) .lf-ui-face,
   :is(:root, :host) .button,
@@ -57,6 +37,9 @@
   letter-spacing: normal;
   word-spacing: normal;
   text-transform: none;
+}
+:where(.lf-ui-face, .button, .field) {
+  color: var(--ink);
 }
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says

@@ -19,12 +19,6 @@ OWN = {
     "line-height": lambda value: value in {"inherit", "0", "1", "var(--lf-ui-lh)"},
 }
 
-# The default face of a native control states the ui voice's parts at a class's
-# weight, so the element rules of the layered sheets lose to it, while its weight,
-# slant and variants are reset by a rule at no weight beside it, which names the voice
-# (surfaces.css, its header says why).
-CONTROL_DEFAULT = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
-
 
 def sheets():
     return [p for p in sorted(ASSETS.rglob("*.css")) if "vendor" not in p.parts]
@@ -104,8 +98,6 @@ def test_every_rule_of_the_interface_speaks_in_a_declared_voice():
         rules = tinycss2.parse_stylesheet(sheet.read_text())
         for context, item, siblings in declarations(rules):
             if item.lower_name not in OWN or not interface(context):
-                continue
-            if context[-1] == CONTROL_DEFAULT:
                 continue
             if names_a_voice(item):
                 continue

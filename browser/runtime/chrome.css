@@ -1046,8 +1046,8 @@ html[data-lf-region-capture] main * {
      names one value, a copyable text's or a list's (h3), is muted and small, as a
      metric's term is, so no value's name outranks its section's. A heading stands
      nearer what it names than what precedes it. A disclosure in a section is one of
-     its items, in the dialog's own voice rather than the reading theme's bold
-     summary. */
+     its items, in the dialog's own voice rather than markup's bold summary
+     (reading.css). */
   .lf-inspection-body h2 {
     margin-block: 22px 6px;
   }
@@ -1074,14 +1074,8 @@ html[data-lf-region-capture] main * {
     margin-block: 10px;
   }
   .lf-inspection-body summary {
-    cursor: pointer;
     padding-block: 4px;
     font: var(--voice-ui);
-  }
-  .lf-inspection-body pre {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font: var(--voice-code);
   }
   .lf-copyable-head {
     display: flex;
@@ -1093,7 +1087,6 @@ html[data-lf-region-capture] main * {
     margin-block: 0 10px;
     padding: 8px;
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font: var(--voice-code);

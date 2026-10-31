@@ -209,6 +209,7 @@ lf-call-diff {
  * must not answer the pointer as though it did. */
 .lf-call-location[href]:hover {
   color: var(--accent);
+  text-decoration-color: currentColor;
 }
 
 .lf-call-missing {

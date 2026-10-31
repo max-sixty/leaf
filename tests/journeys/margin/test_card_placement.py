@@ -298,6 +298,7 @@ SWEEP_READ = """async (id) => {
   let shown = meet(plain(row.getBoundingClientRect()), win);
   for (const box of boxes) shown = meet(shown, box);
   const card = document.querySelector('.lf-margin-preview:not([hidden])');
+  if (!card) return null;
   const box = plain(card.getBoundingClientRect());
   const cut = Object.fromEntries(['top', 'right', 'bottom', 'left'].map((edge) =>
     [edge, Math.max(0, parseFloat(card.style.getPropertyValue(`--lf-cut-${edge}`)) || 0)]));
@@ -394,34 +395,38 @@ def sweep_room(read):
 
 
 def sweep_motion(before, after):
-    """A card beside its row that moved by other than the row's step while clear of the
-    window's edges, which may hold it in."""
+    """A card beside its row that moved by other than the row's step. Where the window's
+    edge holds it in, it may stand still instead, but never move further than the row."""
     if after["side"] not in ("left", "right"):
         return []
     win, box = after["win"], after["box"]
-    if box["top"] < win["top"] + 12 or box["bottom"] > win["bottom"] - SWEEP_CHROME:
-        return []
     row = after["row"]["top"] - before["row"]["top"]
     card = box["top"] - before["box"]["top"]
-    return [("jumps", round(row, 1), round(card, 1))] if abs(card - row) > 1 else []
+    held = (
+        box["top"] <= win["top"] + 12 or box["bottom"] >= win["bottom"] - SWEEP_CHROME
+    )
+    moved = abs(card) > abs(row) + 1 if held else abs(card - row) > 1
+    return [("jumps", round(row, 1), round(card, 1))] if moved else []
 
 
 # The panel's row at the window's foot, which the room stops above.
 SWEEP_CHROME = 72
 
 
-# Scrolls the box that scrolls a row, or with `outer` the box around that one, so the
-# row stands where `where` names, or by `where` pixels; the id of the box it scrolled.
-SWEEP_SCROLL = """([id, where, outer]) => {
+# Where to turn the wheel, and by how much, to stand a row where `where` names, or to
+# move it by `where` pixels: over the box that scrolls the row, or with `outer` the box
+# around that one, at a spot where that box takes the wheel, or over the page's margin.
+# A reader's wheel, since Leaf puts back a scroll no input made while a card's thread
+# holds focus.
+SWEEP_AIM = """([id, where, outer]) => {
   const row = document.getElementById(id);
-  if (where === 'middle') row.scrollIntoView({block: 'center', behavior: 'instant'});
+  const scrolls = (node) => /auto|scroll/.test(getComputedStyle(node).overflowY);
   const boxes = [];
   for (let at = row.parentElement; at && at !== document.body; at = at.parentElement) {
-    if (/auto|scroll/.test(getComputedStyle(at).overflowY)) boxes.push(at);
+    if (scrolls(at)) boxes.push(at);
   }
   const box = boxes[outer ? 1 : 0] ?? null;
   if (outer && !box) return null;
-  const scroller = box ?? document.scrollingElement;
   const frame = box ? box.getBoundingClientRect()
     : {top: 0, bottom: document.documentElement.clientHeight};
   const r = row.getBoundingClientRect();
@@ -434,8 +439,19 @@ SWEEP_SCROLL = """([id, where, outer]) => {
     'top-near': r.top - frame.top - 14,
     'foot-near': r.top - frame.bottom + 14,
   }[where];
-  scroller.scrollTop += by;
-  return box?.id ?? null;
+  const takes = (x, y) => {
+    const hit = document.elementFromPoint(x, y);
+    if (!hit || hit.closest('.lf-margin-preview, .lf-chrome, .lf-margin-cluster')) return false;
+    let at = hit;
+    while (at && at !== document.body && !scrolls(at)) at = at.parentElement;
+    return box ? at === box : !at || at === document.body;
+  };
+  const area = box ? box.getBoundingClientRect()
+    : {left: 4, right: 40, top: 80, bottom: document.documentElement.clientHeight - 80};
+  for (let y = area.top + 6; y < area.bottom - 4; y += 10)
+    for (let x = area.left + 8; x < area.right - 4; x += 30)
+      if (takes(x, y)) return {box: box?.id ?? null, by, x, y};
+  return {box: box?.id ?? null, by, x: null, y: null};
 }"""
 
 
@@ -469,14 +485,23 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     findings = []
 
     def scrolled(target, where, outer=False):
-        box = page.evaluate(SWEEP_SCROLL, [target, where, outer])
-        scroll_settled(page)
-        if box:
-            scroll_settled(page, f"#{box}")
+        aim = page.evaluate(SWEEP_AIM, [target, where, outer])
+        if aim is None:
+            return None
+        assert aim["x"] is not None, f"no spot takes the wheel for {target}"
+        if abs(aim["by"]) >= 1:
+            page.mouse.move(aim["x"], aim["y"])
+            page.mouse.wheel(0, aim["by"])
+            scroll_settled(page, f"#{aim['box']}" if aim["box"] else None)
         rendered(page)
-        return box
+        return aim["box"]
 
     for target in targets:
+        page.evaluate(
+            "(id) => document.getElementById(id)"
+            ".scrollIntoView({block: 'center', behavior: 'instant'})",
+            target,
+        )
         scrolled(target, "middle")
         page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker').click()
         card = page.locator(".lf-margin-preview")
@@ -488,7 +513,8 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
         findings += [(*case, "open", *f) for f in sweep_room(opened)]
         boxed = scrolled(target, "middle")
         states = ["low"] + (["top-crossed", "top-gone", "foot-gone"] if boxed else [])
-        if page.evaluate(SWEEP_SCROLL, [target, 0, True]):
+        # The box around the row's own scroller, where the wheel can reach it.
+        if (page.evaluate(SWEEP_AIM, [target, 0, True]) or {}).get("x") is not None:
             states.append("outer-top-gone")
         for state in states:
             scrolled(target, "middle")
@@ -497,6 +523,9 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
             else:
                 scrolled(target, state)
             read = page.evaluate(SWEEP_READ, target)
+            if read is None:
+                findings.append((*case, state, "closed"))
+                break
             findings += [(*case, state, *f) for f in sweep_findings(read)]
             if read["side"] != opened["side"]:
                 findings.append(
@@ -511,8 +540,12 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
             for _ in range(7):
                 scrolled(target, step)
                 after = page.evaluate(SWEEP_READ, target)
+                if after is None or before is None:
+                    findings.append((*case, near, "closed"))
+                    break
                 findings += [(*case, near, *f) for f in sweep_motion(before, after)]
                 before = after
-        page.keyboard.press("Escape")
-        expect(card).to_be_hidden()
+        if page.evaluate(SWEEP_READ, target) is not None:
+            page.keyboard.press("Escape")
+            expect(card).to_be_hidden()
     assert not findings, "\n".join(map(str, findings))

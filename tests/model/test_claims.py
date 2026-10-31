@@ -1058,7 +1058,8 @@ def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
 ):
     """A Leaf updated across a protocol bump still reads the claims and session
     records written before it, so a session keeps watching its page through the
-    update. Each record's format numbers its own shape (`state.Record`)."""
+    update. Each record's format names the protocol its own shape last changed at
+    (`state.Record`)."""
     page = tmp_path / "page"
     page.mkdir()
     record_claim(page)

@@ -67,12 +67,12 @@ don't reload.
 The layer record's `protocol` numbers the contract between a page and any Leaf that
 serves it or writes its log. Since every Leaf composes a page's layer and supplies its
 runtime itself, the contract covers only what a page keeps across Leaf versions: the
-kernel event records in its log and their ownership. The records Leaf keeps outside a
-page number their own shapes (below). Every page server and the append door refuse a
-page at another number (`layer.incompatible_layer` says what each refusal names). A
-page at a lower number is taken to this Leaf's by the session holding it, at its first
-write command or hook naming the page (`vendoring.renew_layer`); read commands leave
-it and its server alone. No Leaf takes a page down.
+kernel event records in its log and their ownership, and the records Leaf keeps
+outside a page. Every page server and the append door refuse a page at another number
+(`layer.incompatible_layer` says what each refusal names). A page at a lower number is
+taken to this Leaf's by the session holding it, at its first write command or hook
+naming the page (`vendoring.renew_layer`); read commands leave it and its server
+alone. No Leaf takes a page down.
 
 Any Leaf at the page's number serves and writes it, so a plugin update leaves open
 pages working. Admission validates a kernel record against the running Leaf's own
@@ -94,7 +94,7 @@ names the older protocol it speaks, so a newer Leaf reads it as no watch and adm
 nudges the session (`leases.wait_is_live`).
 
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
-the log. A change to the bundled widgets, their
+the log, or a record another wrote outside it. A change to the bundled widgets, their
 registry entries, the theme or the public package API (`runtime/widget-api.js` and
 its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
 and an installed package's modules call that API across Leaf versions, and a bump
@@ -110,16 +110,18 @@ doesn't judge whether a bump chosen by hand was needed.
 `served_state/state.schema.json` declares the served state and the `/api/view` answer
 for the generated types and the producer's tests, outside the comparison.
 
-Each record Leaf keeps outside a page's log and document numbers its own shape: every
-JSON record in a page directory or the state home (`state.Record`), the layer record
-among them, and the composer's draft in browser storage (`$events.draft`). Each
-carries `leaf-<kind>/<since>` in its `format`, and a reader at another format treats
-the record as absent. So a bump leaves claims, deliveries and ports readable, and a
-record's shape changes without a bump. A new record kind starts at the current
-protocol. A shape change that a reader at the same format would misread raises
-`since` to the current protocol, or to the number after `since` where `since` is
-already at or past it. The build fails a change at the same `since` that a reader at
-either end would misread, and a `since` that falls.
+The number is also the only version of what Leaf keeps outside a page's log and
+document: every JSON record in a page directory or the state home (`state.Record`),
+the layer record among them, and the composer's draft in browser storage
+(`$events.draft`). Each carries `leaf-<kind>/<since>` in its `format`, where `since`
+is the protocol at which that record's own shape last changed, so a bump for another
+change leaves claims, deliveries and ports readable. A new record kind starts at the
+current protocol without a bump, since earlier Leaves have no reader for it. A shape
+change that a reader at the same format would misread sets `since` to the current
+protocol, bumping the protocol first where `since` already names it. The build fails
+a change at the same `since` that a reader at either end would misread, and a `since`
+moved anywhere but the current protocol. A reader at another format treats a record
+as absent.
 
 ## Composition stamps
 

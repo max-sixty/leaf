@@ -75,13 +75,14 @@ outside it.
 - **A protocol bump** changes the kernel registry's `$events.protocol`, and every
   page at another number is refused until the session holding it takes it to the
   new number, which it does itself on its first command or hook naming the page.
-  Bump it only for a change a Leaf at the same number would misread in the log. A
-  change to the runtime, the served state, the bundled widgets and their registry
-  entries, the theme or the public package API (`widget-api.js` and its portable
-  part `portable-api.js`) never bumps it, and nor does a change to a record kept
-  outside a page, such as a browser draft, which numbers its own shape
-  (`layer-registry.md`, "Page protocol", owns the rules). Bumps are rare, perhaps
-  one in five hundred commits. Once Leaf is released, only a bump may break an existing page.
+  Bump it only for a change a Leaf at the same number would misread in the log or
+  in a record kept outside a page. A change to the runtime, the served state, the
+  bundled widgets and their registry entries, the theme or the public package API
+  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
+  Leaf's only version, so a record kept outside a page, such as a browser draft,
+  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
+  commits. Once Leaf is released, only a bump may break an existing page.
 - **A page's own code**, its widgets and scripts, and an installed package's
   modules call the public package API across Leaf versions. While Leaf is in alpha
   an update may change that API without a bump, since a bump would not repair code

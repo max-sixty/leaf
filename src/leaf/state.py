@@ -312,10 +312,11 @@ class Record(Generic[_RecordValue]):
 
     Every installed Leaf on the machine shares the state home, any of them may serve
     a page, and the worktrees writing them are each on their own commit. So a record
-    carries `format`, `leaf-<kind>/<since>`, where `since` numbers this kind's
-    shape, so a protocol bump leaves the record readable (`layer-registry.md`,
-    "Page protocol", says when `since` moves, which the browser build checks
-    against every kind in `RECORDS`). `read` takes only a record at this format. A record at another format or with none
+    carries `format`, `leaf-<kind>/<since>`, where `since` is the page protocol at
+    which this kind's shape last changed, so a bump for anything else leaves the
+    record readable (`layer-registry.md`, "Page protocol", says when `since`
+    moves, which the browser build checks against every kind in `RECORDS`). `read`
+    takes only a record at this format. A record at another format or with none
     reads as absent, as a missing file does, and the next write replaces it.
     Every write replaces the file whole, so a file that is not JSON no Leaf
     wrote, and reading it raises, naming the file."""

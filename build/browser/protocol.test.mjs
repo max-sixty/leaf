@@ -116,20 +116,15 @@ test("a record changes shape only with its since", () => {
     }),
     none,
   );
-  // A record changed again at the same protocol takes the next number without a bump.
-  assert.deepEqual(
-    changed(
-      (s) => {
-        pid(s).type = "number";
-        s.records.claim.since = 5;
-      },
-      { ...baseline, records: { claim: { ...baseline.records.claim, since: 4 } } },
-    ),
-    none,
-  );
   assert.deepEqual(
     changed((s) => (s.records.claim.since = 2)),
-    refused("record claim: since 2 is below its last, 3"),
+    refused(
+      "record claim: since 2 names neither its last shape's protocol nor this one, 4",
+    ),
+  );
+  assert.deepEqual(
+    changed((s) => (s.records.claim.since = 5)),
+    refused("record claim: since 5 is past protocol 4"),
   );
 });
 

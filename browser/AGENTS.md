@@ -33,10 +33,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 - **Controls stay where the user aims.** A state change may repaint any box, but must not
   move the controls next to the gesture that caused it, and a scroll the gesture makes
   carries that control only to bring it whole into a scroller that showed part of it, or
-  where the gesture says it takes the user somewhere. Without
-  a gesture, a box may grow or shrink into free room, but reading content and controls
-  stay put; a change the user asked for may reflow what it replaces, with motion the eye
-  can follow. A reveal on hover, focus or a key never moves its ancestors or siblings,
+  where the gesture says it takes the user somewhere. Without a gesture, a box may grow or
+  shrink into free room, but reading content and controls stay put; a change the user
+  asked for may reflow what it replaces, with motion the eye can follow. A reveal on hover, focus or a key never moves its ancestors or siblings,
   and typing may grow a field but never moves it. Check: `tests/shift_watch.js`, whose
   header lists what it credits.
 - **News never moves what the reader is reading.** News from the server grows above the

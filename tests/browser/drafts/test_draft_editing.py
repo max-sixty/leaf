@@ -221,9 +221,9 @@ leaf page init ./workshop
 > ### Quoted
 >
 > Practice beats theory.
+>
 
-Setext
-------
+## Heading two
 
 ![Room layout](/media/051bee487bfb5d13.png)
 
@@ -299,7 +299,7 @@ def test_a_draft_edits_where_it_reads(browser, serve):
         "leaf",
         "Quoted",
         "Practice",
-        "Setext",
+        "Heading",
         "Tables",
     ]
     draft.locator(".lf-draft-body img").evaluate("image => image.decode()")
@@ -354,6 +354,36 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     assert len(pictures) == 1 and pictures[0][0] and pictures[0][1] == "Room layout", (
         pictures
     )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
+    """Up from a draft's last line visits every line on the way to its first. Blank
+    lines that share the gap the prose leaves between two blocks each stand shorter
+    than CodeMirror's vertical motion aims past, so the arrows skipped them."""
+    source = "Alpha\n\nBravo\n\n\nCharlie\n\n\n\nDelta"
+    url = serve(
+        leaf_page(
+            "Draft gaps",
+            f'<h1>Draft gaps</h1><lf-draft id="gaps"><pre>{source}</pre></lf-draft>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    draft_control(page, "edit", "gaps").click()
+    field = page.locator("#gaps leaf-text")
+    expect(field).to_be_focused()
+    rendered(page)
+    page.keyboard.press("ControlOrMeta+End")
+    last = source.count("\n")
+    visited = []
+    for _ in range(last):
+        page.keyboard.press("ArrowUp")
+        visited.append(
+            field.evaluate(
+                "f => f.value.slice(0, f.selectionStart).split('\\n').length - 1"
+            )
+        )
+    assert visited == list(range(last - 1, -1, -1))
 
 
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):

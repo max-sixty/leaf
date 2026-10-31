@@ -22,7 +22,7 @@ lf-shot {
   flex: none;
   min-inline-size: 0;
   anchor-scope: --lf-shot-options;
-  font: var(--t-working-label)/1.4 var(--sans);
+  font: var(--font-compact);
 }
 .lf-shot-actions,
 .lf-shot-views,
@@ -68,7 +68,7 @@ lf-shot {
   background: var(--paper);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font: var(--t-working-label)/1.4 var(--sans);
+  font: var(--font-compact);
 }
 @supports (position-area: bottom) {
   .lf-shotoptions {
@@ -228,7 +228,6 @@ lf-shot {
   align-items: center;
   block-size: var(--lf-shot-label-height);
   border-block-end: 1px solid var(--rule);
-  font: 600 var(--t-working-label)/1.4 var(--sans);
 }
 lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
@@ -239,6 +238,8 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   > .lf-shotcap {
   display: none;
 }
+/* A frame's name is a label (`.lf-label`, which it wears), so it takes the label font
+   from the class and states only where it stands. */
 .lf-shotcap {
   box-sizing: border-box;
   display: block;
@@ -246,7 +247,6 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   max-inline-size: 100%;
   padding: var(--sp-1) var(--sp-2);
   border-radius: var(--r);
-  font: 600 var(--t-working-label)/1.4 var(--sans);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

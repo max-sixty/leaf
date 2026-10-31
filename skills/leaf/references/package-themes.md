@@ -96,6 +96,10 @@ contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed
 wide content may take the page's width. The trim reaches through a plain wrapper at the
 edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
 the trim, which would otherwise take its first item's margin and not its neighbours'.
+A grid or flex box whose items stack, as the reading column's do, declares
+`--lf-items-keep-margins: 1`: each item keeps its children's margins inside its box, so
+Leaf gives an item opening with a heading the heading's gap as its own margin, and its
+box starts at the heading.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,

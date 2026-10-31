@@ -44,7 +44,14 @@
    `done`): the user's `todo_end`, which leaves On me in the turn it is pressed. The
    to-do is a stance (keyboard/touch-controls.js): while the user stands on it the
    panel's empty field names it, "To-do · <title>", and its row's end offers its Done,
-   a finger's route to Done wherever Show or `m` leaves them.
+   a finger's route to Done wherever Show leaves them.
+
+   The walk opens what answers each item it reaches: a thread opens, a widget's
+   controls stand at its place, and a to-do, whose place holds nothing that answers
+   it, opens On me (`showOnMe`), whose card holds its whole title and its Done, with
+   the user left on its place, where `x` still ends it and the field still names it.
+   The user chose that on 2026-10-31, after `m` left a to-do's long title cut to half
+   a line in the field.
 
    Page order is each obligation's place in the page as rendered: an obligation's own
    element, the element a to-do is on or the page's head for one on the whole page
@@ -177,6 +184,7 @@ export function createQueueWalk({
   prepareNavigationStep,
   arrive,
   readableDestination,
+  showOnMe,
   announce,
   actions,
 }) {
@@ -463,6 +471,8 @@ export function createQueueWalk({
             `${region ? WITHIN : QUALIFIER} · ${next.noun}`,
           ),
       );
+      if (next.kind === "obligation" && next.obligation.source.kind === "todo")
+        showOnMe();
       return true;
     });
     void ready.catch(() => {});

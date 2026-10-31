@@ -52,6 +52,12 @@ keeps the user's place in the box. Registering an id that another live region ho
 throws, so a widget whose parts scroll independently registers each with an id from
 `compoundReadingRegionId(owner, localName)`.
 
+Give `body` a scrolling overflow (`auto` or `scroll`) only on an axis where its
+content can outgrow it. A scrolling body bounds what stands in it, such as the card of
+a comment on its contents, so a body sized to show everything it holds, as a
+screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where it
+keeps a `scrollbar-gutter` across states.
+
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
 page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
 scrolls itself, and `"flow"` otherwise.

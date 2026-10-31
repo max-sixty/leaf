@@ -458,11 +458,27 @@ class LeafText extends HTMLElement {
   // height. Rejected: every row whose line box touches the square, since the action
   // is taller than a row, so a row above that ran to the edge hid it beside a short
   // last row, and a new empty line brought it back.
+  //
+  // The reading answers for the words where layout puts them. An edit that adds or
+  // removes a line sets an owner's tween carrying them there from where they were drawn
+  // (`--lf-field-carry`), and the reading the edit takes falls inside it, so the square
+  // is read where the carry draws it, beside the words it carries. Rejected: reading
+  // the words as drawn, which nothing reads again when the tween ends: a line removed
+  // left Send over the words the carry brought down to it, and a line added left the
+  // corner free with Send hidden.
   #cornerTaken(view, style) {
     const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
     if (!(size > 0)) return false;
     const { scaleX, scaleY } = view;
-    const box = this.getBoundingClientRect();
+    const carry = style.getPropertyValue("--lf-field-carry").trim();
+    const [dx = 0, dy = 0] =
+      carry === "none" ? [] : carry.split(/\s+/).map(Number.parseFloat);
+    const at = this.getBoundingClientRect();
+    const box = {
+      left: at.left + dx * scaleX,
+      right: at.right + dx * scaleX,
+      bottom: at.bottom + dy * scaleY,
+    };
     const rtl = style.direction === "rtl";
     const left = rtl ? box.left : box.right - size * scaleX;
     const right = rtl ? box.left + size * scaleX : box.right;

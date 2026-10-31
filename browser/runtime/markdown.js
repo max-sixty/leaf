@@ -10,13 +10,18 @@ const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const escapedSource = (text) => escapeHtml(text);
+/** @type {(text: string, breaks?: boolean) => string} */
 let render = escapedSource;
 /** @type {(text: string, breaks?: boolean) => string} */
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
 
-export const renderMarkdown = (text) => render(text);
+// `breaks` reads a soft line break as a hard one, since words written in Leaf, such as
+// a message or a draft, keep the breaks their writer typed. A Markdown file's soft
+// breaks are spaces, as CommonMark and GitHub render a file: its lines wrap for its
+// editor, not its reader.
+export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 export function renderedWords(html, imageAlt = false) {
@@ -35,7 +40,7 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-export const markdownWords = (text) => renderedWords(render(text));
+export const markdownWords = (text) => renderedWords(renderMarkdown(text));
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
 export function inlineMarkdownFragment(text, breaks = true) {
@@ -643,13 +648,12 @@ export function makeMarkdown(module, breaks) {
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
-    let singleLine;
+    let softBreaks;
     let positioned;
-    render = (text) => markdown.render(text);
-    renderInline = (text, breaks) =>
-      (breaks ? markdown : (singleLine ??= makeMarkdown(module, false))).renderInline(
-        text,
-      );
+    const dialect = (breaks) =>
+      breaks ? markdown : (softBreaks ??= makeMarkdown(module, false));
+    render = (text, breaks) => dialect(breaks).render(text);
+    renderInline = (text, breaks) => dialect(breaks).renderInline(text);
     tokenize = (text) => {
       if (!positioned) {
         positioned = makeMarkdown(module, true);

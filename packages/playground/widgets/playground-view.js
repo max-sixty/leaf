@@ -1,12 +1,7 @@
-/* The playground's retained Lit view reads native controls and tab-local values.
- * Its live widget owns commands, projection and delivery.
+/* The playground's retained Lit view reads native controls and draws their values.
+ * Its live widget owns commands, working state and delivery.
  */
-import {
-  offerElement,
-  offeredAction,
-  generatedElement,
-  tabStore,
-} from "/runtime/widget-api.js";
+import { offerElement, offeredAction, generatedElement } from "/runtime/widget-api.js";
 
 import { html, nothing, ref, render } from "/vendor/lit.js";
 
@@ -90,41 +85,6 @@ export function createPlayground(host) {
       ]),
     ),
   );
-  const key = `lf-playground:${host.id}`;
-  let storedCandidate = null;
-  try {
-    const stored = tabStore.get(key);
-    if (stored !== null) {
-      storedCandidate = JSON.parse(stored);
-      if (
-        !storedCandidate ||
-        typeof storedCandidate !== "object" ||
-        Array.isArray(storedCandidate)
-      )
-        throw new Error("invalid stored configuration");
-    }
-  } catch {
-    storedCandidate = null;
-    tabStore.set(key, null);
-  }
-  let values;
-  try {
-    values = Object.freeze(
-      Object.fromEntries(
-        controls.map((control) => {
-          const name = control.getAttribute("name");
-          const value = Object.hasOwn(storedCandidate ?? {}, name)
-            ? storedCandidate[name]
-            : defaults[name];
-          return [name, typed(control, value)];
-        }),
-      ),
-    );
-  } catch {
-    storedCandidate = null;
-    tabStore.set(key, null);
-    values = defaults;
-  }
   const interactive = !host.closest("[data-lf-exhibit]");
   const authored = [...host.childNodes];
   const railed = controls.filter((control) => control.parentElement === host);
@@ -274,8 +234,6 @@ export function createPlayground(host) {
     presets,
     presetSettings,
     defaults,
-    values,
-    storedCandidate,
     output,
     preview,
     parse,
@@ -348,7 +306,7 @@ export function createPlayground(host) {
       }
       return { attributes, properties };
     },
-    render({ values: next = values, instruction = null, chosen = () => false } = {}) {
+    render({ values: next = defaults, instruction = null, chosen = () => false } = {}) {
       if (instruction === null) {
         for (const slot of slots)
           render(
@@ -539,7 +497,7 @@ export function createPlayground(host) {
       </div>`;
     },
   };
-  const initialReflection = view.reflection(values);
+  const initialReflection = view.reflection(defaults);
   for (const [name, value] of Object.entries(initialReflection.properties))
     host.style.setProperty(name, value);
   for (const [name, value] of Object.entries(initialReflection.attributes))

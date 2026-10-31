@@ -251,6 +251,24 @@ CARET_ROOM = rf"""box => {{{CARET_AT}
   return clip - caret.getBoundingClientRect().right;
 }}"""
 
+# The words of the field's first line, as the browser wraps them.
+FIRST_LINE = """box => {
+  const line = window.__lfRoots.get(box).querySelector('.cm-line');
+  const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  const word = document.createRange();
+  const words = [];
+  let top = null;
+  for (let text; (text = texts.nextNode()); )
+    for (const { index, 0: found } of text.data.matchAll(/\\S+/g)) {
+      word.setStart(text, index);
+      word.setEnd(text, index + found.length);
+      top ??= word.getBoundingClientRect().top;
+      if (word.getBoundingClientRect().top > top + 1) return words.join(' ');
+      words.push(found);
+    }
+  return null;
+}"""
+
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
@@ -271,10 +289,32 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    hold_motion(page)
-    # The box grows with its words, so the caret after the last word ends its column.
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    least = box.bounding_box()
     page.keyboard.insert_text(
-        "it's not really a feed as much as a list? I see a feed as"
+        "it's not really a feed as much as a list? I see a feed as a stream of"
+        " things that keep arriving while a list is something you work down"
+    )
+    rendered(page)
+    wrapped = box.bounding_box()
+    hold_motion(page)
+    # The box grows with its words, so the caret after the last word ends its column,
+    # and the lines the words give up move the box. The first line's words are those
+    # each platform's fonts fit.
+    first_line = field.evaluate(FIRST_LINE)
+    assert first_line, wrapped
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(first_line)
+    page.wait_for_function(
+        "line => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height < line",
+        arg=least["height"] + 0.5,
+    )
+    one_line = box.bounding_box()
+    assert least["width"] < one_line["width"] < wrapped["width"], (
+        least,
+        one_line,
+        wrapped,
     )
     rendered(page)
     held_motion(page, ".lf-fab-ground")

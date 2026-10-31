@@ -2948,6 +2948,13 @@ export function createFloatingPanel({
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
   }
+  // On me standing open on the user's list, as the `m` walk asks where it arrives at a
+  // to-do (queue-walk.js), with focus left where the walk put it.
+  function showOnMe() {
+    const turned = chooseQueueTab("you");
+    if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+    else if (turned) paint();
+  }
   // The mark opens On me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
   // stands only while no view does, so it never closes one; the seat's ✕ does that.
@@ -4775,6 +4782,7 @@ export function createFloatingPanel({
     pageComment,
     searchPage,
     doors,
+    showOnMe,
     showForSample,
     openThread,
     captureCurrentLocation,

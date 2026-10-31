@@ -53,6 +53,6 @@ export const VERB_WRITERS = Object.fromEntries(
 // (`composing/drawing-record.js`).
 export const drawingSchema = kernel.$events.kinds.comment.record.properties.drawing;
 
-// The composer draft's format, named for the protocol at which its shape last
-// changed, as `state.Record` names a record's.
+// The composer draft's format, which numbers its shape as `state.Record` numbers a
+// record's.
 export const DRAFT_FORMAT = `leaf-draft/${kernel.$events.draft.since}`;

@@ -258,6 +258,8 @@ export function boxMotion({
   // first as far as the edges holding the root moved since (`rebase`), and a box held
   // by its foot that grows at its top reads as growing, not as moving.
   let frame = null;
+  // The root's size where its placement last stood it (`placed`).
+  let placedSize = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   let timing = null;
   // Each part moving, from the box it was drawn at to its rest, on one clock.
@@ -963,14 +965,28 @@ export function boxMotion({
           });
       }
     },
-    // The box's placement moves it, as a line it gained can shift it inside the
-    // window (`place`): unlike its plane carrying it (`rebase`), what that moves travels
-    // from where it was drawn, as any change of its layout does, so the edge the
-    // placement now holds it by doesn't jump.
+    // The box's placement stands it (`place`). Every placement goes through here, since
+    // one can change the edge that holds the box, as a line taking it past the window's
+    // foot holds it by that foot, and `rebase` measures the plane's carry by the edge
+    // that holds the box when it reads: read across that change, the move the line made
+    // read as the plane carrying the box whole, which drew it part of a line away for a
+    // frame before it travelled back. A placement answering a change of the box's size
+    // moves it as that change does, travelling from where it was drawn, so the next
+    // reading takes no carry; one at the size the last placement stood it at answers
+    // its plane, as a scroll re-solving a box held at the window's edge does, and the
+    // next reading carries it. Nothing reads the box once it stands: one stood in the
+    // page's plane can lay out where its anchor stood before the last scroll until the
+    // browser places it again (floating.js, `clientBox`).
     placed(place) {
       rebase();
+      const size = { width: width(frame), height: height(frame) };
+      const resized =
+        !placedSize ||
+        !near(size.width, placedSize.width) ||
+        !near(size.height, placedSize.height);
+      placedSize = size;
       place();
-      frame = boxOf(root.getBoundingClientRect());
+      if (resized) frame = null;
     },
     // The box's outline where it is drawn now, in the window: where its motion has
     // carried it, or its rest.

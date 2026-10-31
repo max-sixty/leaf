@@ -38,6 +38,7 @@ from browser.margin import (
     LONG_THREAD,
     LONG_THREAD_PAGE,
     LONG_THREAD_ROOT,
+    LOW_PASSAGE_PAGE,
     MARGIN_EDITOR_ROOTS,
     PANE_PIN_PAGE,
     _comment_on,
@@ -531,6 +532,71 @@ def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):
     close = preview.locator(".lf-margin-preview-close").bounding_box()
     page.mouse.click(close["x"] + close["width"] / 2, close["y"] + close["height"] / 2)
     expect(preview).to_be_hidden()
+
+
+# Every motion held at its first frame is finished, until the card rests.
+CARD_RELEASED = (
+    "() => { window.__lfHeld.splice(0).forEach(motion => motion.finish());"
+    " return (" + CARD_AT_REST + ")(); }"
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_line_that_changes_the_edge_holding_a_card_moves_it_from_where_it_stood(
+    engine, request, serve
+):
+    """A card whose foot stands within a line of where the window's foot holds a card
+    is held by that foot once its reply gains a line, and stands beside its passage
+    again once the line goes. Each change starts from where the card stood: at the
+    motion's first frame its outline, head row and turn are drawn where they were, and
+    at rest the card has moved. Read by the edge holding it after the change, the move
+    the line made read as the page carrying the card, which drew it part of a line lower
+    for a frame and travelled back (reported on 31 October 2026, toggling a new line in
+    Firefox)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT]),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
+    write(editor, "A first line.")
+
+    def foot_after_scrolling(by):
+        page.evaluate("by => document.scrollingElement.scrollBy(0, by)", by)
+        scroll_settled(page)
+        rendered(page)
+        page.wait_for_function(CARD_AT_REST)
+        box = preview.bounding_box()
+        return box["y"] + box["height"]
+
+    # The passage at the window's foot stands the card against it; scrolled well up,
+    # the card stands beside its passage, and a scroll back stands its foot half a line
+    # above where the window's holds it.
+    page.locator("#open").evaluate("node => node.scrollIntoView({block: 'end'})")
+    held = foot_after_scrolling(0)
+    beside = foot_after_scrolling(400)
+    assert beside < held - 100, (held, beside)
+    assert foot_after_scrolling(-(held - 10 - beside)) == pytest.approx(
+        held - 10, abs=1
+    )
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    for key, rises in (("Shift+Enter", True), ("Backspace", False)):
+        stood = preview.evaluate(CARD_DRAWN)
+        page.keyboard.press(key)
+        page.wait_for_function(
+            "() => window.__lfHeld.some(motion => motion.playState !== 'idle')"
+        )
+        drawn = preview.evaluate(CARD_DRAWN)
+        page.wait_for_function(CARD_RELEASED)
+        rest = preview.evaluate(CARD_DRAWN)
+        moved = rest[0] - stood[0]
+        assert (moved < -5) if rises else (moved > 5), f"{key} left the card: {moved}"
+        assert drawn == pytest.approx(stood, abs=1), f"{key}: {stood} -> {drawn}"
 
 
 def test_a_growing_margin_reply_keeps_its_whole_ring_from_the_first_frame(

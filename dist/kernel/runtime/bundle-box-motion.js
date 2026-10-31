@@ -278,6 +278,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
+	let placedSize = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -813,8 +814,14 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		},
 		placed(place) {
 			rebase();
+			const size = {
+				width: width(frame),
+				height: height(frame)
+			};
+			const resized = !placedSize || !near(size.width, placedSize.width) || !near(size.height, placedSize.height);
+			placedSize = size;
 			place();
-			frame = boxOf(root.getBoundingClientRect());
+			if (resized) frame = null;
 		},
 		outline() {
 			const moving = motions.get(box);

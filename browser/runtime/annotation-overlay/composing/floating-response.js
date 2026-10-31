@@ -138,8 +138,13 @@ export function createFloatingResponsePlacement({
   });
   function fabMotion() {
     const box = fabField();
+    // The composer, not the field's parent: the field stands in a rendered wrapper of
+    // no box of its own (`display: contents`), whose rectangle is empty, so the plane's
+    // carry read off it was always nothing and a scroll left the box's motion starting
+    // from where it stood before the scroll.
+    const composer = box.closest(".lf-composer");
     const motion = boxMotion({
-      root: box.parentElement,
+      root: composer,
       box,
       surface: "lf-fab-ground",
       lift: 1,
@@ -148,7 +153,7 @@ export function createFloatingResponsePlacement({
       held: () => heldEdges(fabBar),
     });
     fabBar.prepend(motion.ground);
-    followed.observe(box.parentElement);
+    followed.observe(composer);
     return motion;
   }
   // The browser's selected Range is a mechanical place even when its durable quote

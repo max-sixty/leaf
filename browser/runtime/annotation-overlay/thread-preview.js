@@ -609,7 +609,8 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         anchored.commit();
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        placementDriver.stand(position);
+        // The card's motion reads every spot it is stood at (box-motion.js, `placed`).
+        following.placed(() => placementDriver.stand(position));
         session.width ??= preview.getBoundingClientRect().width;
         carry.placed();
         preview.style.removeProperty("visibility");

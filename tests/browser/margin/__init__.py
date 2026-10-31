@@ -193,6 +193,16 @@ LONG_THREAD_PAGE = leaf_page(
 )
 
 
+# A passage low on a page that scrolls, so a scroll stands the card or comment box
+# beside it with its foot anywhere against the window's.
+LOW_PASSAGE_PAGE = leaf_page(
+    "A box at the window's foot",
+    '<div style="height: 100vh"></div>'
+    '<p id="open">Review the open questions.</p>'
+    '<div style="height: 200vh"></div>',
+)
+
+
 LONG_THREAD_ROOT = {
     "kind": "comment",
     "author": "user",

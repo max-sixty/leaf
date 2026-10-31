@@ -542,7 +542,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.arriving = false;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
-			placementDriver.stand(position);
+			following.placed(() => placementDriver.stand(position));
 			session.width ??= preview.getBoundingClientRect().width;
 			carry.placed();
 			preview.style.removeProperty("visibility");
@@ -2501,8 +2501,9 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 	});
 	function fabMotion() {
 		const box = fabField();
+		const composer = box.closest(".lf-composer");
 		const motion = boxMotion({
-			root: box.parentElement,
+			root: composer,
 			box,
 			surface: "lf-fab-ground",
 			lift: 1,
@@ -2511,7 +2512,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			held: () => heldEdges(fabBar)
 		});
 		fabBar.prepend(motion.ground);
-		followed.observe(box.parentElement);
+		followed.observe(composer);
 		return motion;
 	}
 	let selectedPassage = null;

@@ -38,8 +38,8 @@ export class SettledOptions {
     this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    // This row only names the row's keys, in the group's words, as a diff's file row
-    // does; it runs nothing. On a page the disclosure scope's `disclosure.toggle`
+    // The command row runs nothing: it names the settled row's keys in the group's
+    // words, as a diff's file row does. On a page the disclosure scope's `disclosure.toggle`
     // (keyboard/page.js) answers Enter, Space and the arrows; in a message, where that
     // scope does not reach, Enter and Space press the span as a button
     // (role-button-press.js).

@@ -619,7 +619,7 @@ export function boxMotion({
 
     // Its content carried by its start corner, where its layout sets it from, cut to its
     // outline growing from where it stood: a field losing a line or the room it was
-    // given carries its words down with its top edge, as one gaining a line carries
+    // given carries its words down with its top edge, as one given more room carries
     // them up. An emptied field is the exception, a send's included, and in a send the
     // frames around it: its words left, so nothing in it carries on. On an axis where
     // such a part shrank and its far edge stayed, it travels by that edge, so the

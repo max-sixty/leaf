@@ -41,7 +41,6 @@ const stageStyles = new WeakMap();
 
 // Both Lit roots and imperative stages receive the same sheets and watches.
 export function adoptShadowStage(root) {
-  document.documentElement.lfStorage.keepDisclosures(root);
   // The stages' one registry (arrivals.js), and the watch over what stands in them: no
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);

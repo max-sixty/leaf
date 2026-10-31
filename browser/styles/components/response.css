@@ -137,7 +137,11 @@ leaf-composition-field {
    input.js), with its tint and pointing hand at once, since a browser may not read a
    still pointer as over the newly shown Send until it moves; and it takes presses
    only once the pointer has rested there (`data-send-armed`), so a press aimed at
-   the words' end still places the caret. Focus shows it too. Words can stand above
+   the words' end still places the caret. Focus shows it too. Send hides at once, so a
+   letter just typed never shows under a fading Send, and shows at once for the
+   pointer or focus, since the user is reaching for it. When the row leaves the corner
+   free, Send fades back in over a disclosure's time (`--lf-motion-disclosure`), which
+   the user asked be short enough to go unnoticed (31 October). Words can stand above
    Send here, so Send is one line tall and its disc a square of that line (`--lf-field-row`, the aim floor
    at least), centred on the last row and clear of the row above, whether or not the
    corner is free; the box is as tall as its rows, so that row stands at the same
@@ -175,6 +179,7 @@ leaf-composition-field {
     inset-block-end: calc(
       var(--lf-compose-pad-block) + (var(--lf-field-row) - var(--lf-send-height)) / 2
     );
+    transition: opacity var(--lf-motion-disclosure);
   }
   .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit::before {
     /* An even number of pixels, so the arrow centres in it. */
@@ -210,6 +215,7 @@ leaf-composition-field {
      cut stroke beside its square. */
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit {
     background: var(--lf-field-ground);
+    transition: none;
   }
   .lf-compose-field:has(> leaf-text:state(corner-taken)) > .lf-compose-submit::after {
     content: "";

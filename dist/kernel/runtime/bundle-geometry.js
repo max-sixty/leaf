@@ -1,4 +1,4 @@
-import { cancelRender, elementBox, excludedByInert, isNativeLayer, nextRender, renderedParent, sizeObserver, under, upFrom, watchScrolls } from "./bundle-portable.js";
+import { cancelRender, elementBox, excludedByInert, isNativeLayer, nextRender, renderedParent, sizeObserver, under, watchScrolls } from "./bundle-portable.js";
 import { nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
 
 //#region runtime/rect.js
@@ -120,7 +120,7 @@ function scrollsContent(box) {
 }
 const slotHolder = (el, scroller) => {
 	let at = el;
-	for (let box = el; box && box !== scroller; box = upFrom(box)) if (box.nodeType === 1 && scrolls(box)) at = upFrom(box);
+	for (let box = el; box && box !== scroller; box = renderedParent(box)) if (box.nodeType === 1 && scrolls(box)) at = renderedParent(box);
 	return at;
 };
 const insetAt = (at, scroller, slot, padding) => {
@@ -372,7 +372,7 @@ const startsAt = (item, clips) => {
 	const fragments = item.getClientRects();
 	return (fragments.length ? [...fragments] : [shownBox(item)]).map((box) => clippedRect(box, item, clips)).find(Boolean);
 };
-const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+const clippedRect = (box, item, clips, stop) => clipped(box, item, clips, false, true, stop);
 function paintClips(item, box, clips, aboveSurfaces, held = false) {
 	const walk = clipWalk(item, clips, held);
 	const plane = walk.fixed ? "window" : "page";
@@ -425,11 +425,11 @@ function nearWindow(target, clips = /* @__PURE__ */ new Map()) {
 	const { right: width, bottom: height } = layoutWindow();
 	return Boolean(box) && box.bottom >= -height && box.top <= 2 * height && box.right >= -width && box.left <= 2 * width;
 }
-const clippedContents = (box, holder, clips) => clipped(box, holder, clips, true);
-function clipped(box, item, clips, held, inWindow = true) {
+const clippedContents = (box, holder, clips, stop) => clipped(box, holder, clips, true, true, stop);
+function clipped(box, item, clips, held, inWindow = true, stop) {
 	const root = item.ownerDocument.scrollingElement;
-	const shown = cutBy(box, clipWalk(item, clips, held).cuts, root, inWindow);
-	return shown && occluded(shown, item, clips);
+	const shown = cutBy(box, clipWalk(item, clips, held, stop).cuts, root, inWindow && !stop);
+	return stop ? shown : shown && occluded(shown, item, clips);
 }
 function cutBy(box, cuts, root, inWindow) {
 	let shown = inWindow ? intersect(box, layoutWindow()) : box;
@@ -451,11 +451,11 @@ function cutBy(box, cuts, root, inWindow) {
 		bottom
 	} : null;
 }
-function clipWalk(item, clips, held) {
+function clipWalk(item, clips, held, stop) {
 	let holder = item;
 	let escaped = false, containing = null;
 	const cuts = [];
-	for (let a = item; a; a = upFrom(a)) {
+	for (let a = item; a && a !== stop; a = renderedParent(a)) {
 		let c = clips.get(a);
 		if (c === void 0) clips.set(a, c = {
 			band: shownBand(a),
@@ -469,8 +469,8 @@ function clipWalk(item, clips, held) {
 		});
 		if (escaped && a === containing) escaped = false;
 		if (!escaped && (held || a !== item) && c.band) {
-			const covered = c.band.top + (c.scrolls ? insetAt(holder, a, ...TOP) : 0);
-			const footed = c.band.bottom - (c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
+			const covered = c.band.top + (!stop && c.scrolls ? insetAt(holder, a, ...TOP) : 0);
+			const footed = c.band.bottom - (!stop && c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
 			cuts.push({
 				box: a,
 				axes: c.axes,
@@ -484,7 +484,7 @@ function clipWalk(item, clips, held) {
 				} : c.band
 			});
 		}
-		if (c.scrolls) holder = upFrom(a);
+		if (c.scrolls) holder = renderedParent(a);
 		if (!escaped && c.positioned) {
 			escaped = true;
 			containing = c.block;
@@ -605,4 +605,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { clamp, clippedContents, clippedPlace, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };
+export { clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, watchRoom, whenNone, windowChromeBoxes };

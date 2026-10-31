@@ -988,10 +988,36 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
     held = []
+    parsing = []
+
+    def pause_in_second_view(route):
+        response = route.fetch()
+        body, count = re.subn(
+            r'(<lf-trace\b[^>]*\bid="paired-after")',
+            '<p class="arriving-caption">The later recording.</p>'
+            '<script src="/pause-parser.js"></script>\\1',
+            response.text(),
+        )
+        assert count == 1
+        route.fulfill(response=response, body=body)
+
+    user.route(url, pause_in_second_view)
+    user.route("**/pause-parser.js", lambda route: parsing.append(route))
     user.route("**/widgets/lf-trace-compare.js", lambda route: held.append(route))
-    with user.expect_request("**/widgets/lf-trace-compare.js"):
+    with user.expect_request("**/pause-parser.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
+    # The parser has the second wrapper and caption but not its recording. View
+    # membership must already hold, otherwise this caption flashes during delivery.
+    expect(user.locator(".arriving-caption")).to_have_count(1)
+    expect(user.locator("#paired-after")).to_have_count(0)
+    expect(user.locator(".arriving-caption")).to_be_hidden()
+    assert len(parsing) == 1
+    parsing[0].fulfill(status=200, content_type="text/javascript", body="")
+    expect(user.locator("#paired-after")).to_have_count(1)
+    holding(user, held, 1, "comparison module")
+    user.unroute(url)
+    user.unroute("**/pause-parser.js")
     expect(workspace.locator(":scope > figure")).to_have_count(2)
     expect(workspace.locator(":scope > figure").first).to_be_visible()
     expect(workspace.locator(":scope > figure").last).to_be_hidden()

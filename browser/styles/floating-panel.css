@@ -1365,7 +1365,10 @@
     display: none;
   }
   .lf-fp-version > .lf-fp-item > .lf-fp-label {
-    display: contents;
+    grid-column: name / end;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
   }
   .lf-fp-version-name {
     grid-column: name;
@@ -1591,6 +1594,11 @@
   }
   .lf-fp-show {
     margin-inline-start: auto;
+  }
+  /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
+     as tall as the answers beside it, inside its one-pixel contour. */
+  .lf-fp-answers > .lf-fp-commit {
+    padding-block: calc((var(--lf-fp-press) - 1lh) / 2 - 1px);
   }
   /* An answer as short as "A" stands as wide as the floor, so its reach, which meets
      the floor on each axis the face falls short (surfaces.css), lies over no answer

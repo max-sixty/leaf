@@ -479,7 +479,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		}
 		const boundary = commentBoundary({
 			scroller: place.scroller,
-			row: place.row
+			at: {
+				x: place.column ?? place.extent.left,
+				y: place.row
+			}
 		});
 		session.scroller = place.scroller;
 		if (!boundary.width || !boundary.height) {
@@ -2445,9 +2448,8 @@ function createVisualMarkPaint() {
 //#endregion
 //#region runtime/annotation-overlay/composing/floating-response.js
 function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, response, positioned, dismiss, scrollToElement, scrollToRange }) {
-	const floatBoundary = (scroller, row = null) => commentBoundary({
+	const floatBoundary = (scroller) => commentBoundary({
 		scroller,
-		row,
 		right: rightCover()
 	});
 	const fabPlacement = commentPlacement();
@@ -2680,7 +2682,7 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			}
 		}
 		if (response.open && nativeAttachment && geometry && !windowPosture) return true;
-		const boundary = place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller, place.row);
+		const boundary = place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
 		if (boundary.width <= 0 || boundary.height <= 0) return false;
 		fabScroller = place.scroller;
 		const setWidth = (available, scale) => {

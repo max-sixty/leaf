@@ -503,7 +503,10 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ scroller: place.scroller, row: place.row });
+    const boundary = commentBoundary({
+      scroller: place.scroller,
+      at: { x: place.column ?? place.extent.left, y: place.row },
+    });
     session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));

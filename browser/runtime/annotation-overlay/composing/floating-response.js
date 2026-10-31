@@ -65,8 +65,8 @@ export function createFloatingResponsePlacement({
   scrollToElement,
   scrollToRange,
 }) {
-  const floatBoundary = (scroller, row = null) =>
-    commentBoundary({ scroller, row, right: rightCover() });
+  const floatBoundary = (scroller) =>
+    commentBoundary({ scroller, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -428,9 +428,7 @@ export function createFloatingResponsePlacement({
     }
     if (response.open && nativeAttachment && geometry && !windowPosture) return true;
     const boundary =
-      place.scroller === pageScroller
-        ? windowBoundary
-        : floatBoundary(place.scroller, place.row);
+      place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabScroller = place.scroller;
     // Width before coordinates: the side is chosen from the card's minimum, then the size

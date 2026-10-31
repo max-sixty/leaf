@@ -26,6 +26,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
@@ -607,7 +608,8 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     )
     news = view.locator(".lf-fp-new-reply")
     expect(news).to_be_visible()
-    news.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
     expect(news).to_be_focused()
     page.keyboard.press("Enter")
     expect(news).to_have_count(0)
@@ -5514,3 +5516,65 @@ def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve, touch)
     page.keyboard.press("c")
     expect(page.locator(".lf-fp-response leaf-text")).to_be_focused()
     assert row.bounding_box()["height"] == pytest.approx(rest, abs=0.5)
+
+
+def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
+    browser, serve
+):
+    """An answer painted while its widget prepares is still arriving when another
+    publication supersedes that paint; accepting it must offer its overflowing words."""
+    url = serve(
+        LONG_PAGE,
+        page_files={
+            "registry.json": json.dumps(PAGE_DECLARATION),
+            "widgets/lf-local.js": PAGE_WIDGET,
+        },
+    )
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    page.evaluate("""async () => {
+      const presentation = await window.__lfCheckApi();
+      window.readLeafPresentation = presentation.readApplicationPresentation;
+      const pending = new Promise(resolve => { window.releaseAnswer = resolve; });
+      window.__heldLocalPresentations = new Map([['thread-local', pending]]);
+    }""")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": root,
+            "text": "The mounts come first.",
+            "markup": "<p>" + "The mounts come first. " * 300 + "</p>"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function("""() => {
+      const pending = readLeafPresentation().pending;
+      return document.querySelector('.lf-floating-panel #thread-local') &&
+        pending.includes('thread') && pending.includes('widget:thread-local:preparation');
+    }""")
+    # The answer is already drawn: its geometry must not wait on widget preparation.
+    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    # The feed waits for presentation before reading again, but a local gesture
+    # publishes immediately while this answer's widget is still preparing.
+    page.evaluate("""async () => {
+      const api = await window.__lfWidgetApi();
+      api.threadActions.create({attempt: crypto.randomUUID(), text: 'Another question.'});
+    }""")
+    page.evaluate("releaseAnswer()")
+    told(page)
+    press = view.locator(".lf-fp-new-reply")
+    expect(press).to_have_text("New reply")
+    settled(page)
+    press.click()
+    expect(press).to_have_count(0)
+    settled(page)
+    shown, box = view.locator(".lf-msg").last.bounding_box(), view.bounding_box()
+    assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)

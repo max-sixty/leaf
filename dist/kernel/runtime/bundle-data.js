@@ -5617,6 +5617,7 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 	const appendedAtEnd = news.appended && was.messages.filter(({ key }) => !retired.has(key)).every((message, index) => now.messages[index]?.key === message.key);
 	const turn = was.messages.findLastIndex((message) => message.author === "user" && !message.progress);
 	const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+	const currentTurn = now.messages.findIndex((message) => message.key === was.messages[turn]?.key);
 	return {
 		news,
 		changed,
@@ -5624,7 +5625,10 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 		folds,
 		appendedAtEnd,
 		footFold,
-		answers: turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key))
+		answers: currentTurn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key)) ? Object.freeze({
+			turn: was.messages[turn].key,
+			reply: now.messages.slice(currentTurn + 1).find((message) => !message.progress)?.key ?? null
+		}) : null
 	};
 }
 function withheld(was, now) {
@@ -5825,7 +5829,8 @@ var HeldNews = class {
 			const held = was && shown && !this.#released.has(thread.key) ? threadChange(was, thread, { progressOpen: this.#view(thread.key)?.progressOpen ?? false }) : null;
 			if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held)) return {
 				...thread,
-				news: null
+				news: null,
+				change: held
 			};
 			this.#holds.add(thread.key);
 			const { news } = held;
@@ -5833,7 +5838,8 @@ var HeldNews = class {
 				...thread.reread(withheld(was.source, thread.source)),
 				working: news.working ? was.working : thread.working,
 				...news.settled === "Reopened" && { settlement: null },
-				news
+				news,
+				change: null
 			};
 		});
 		const waiting = this.#threads.size;

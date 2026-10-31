@@ -385,7 +385,9 @@ leaf-composition-field {
 .lf-compose-dictate[data-dictation="failed"]:hover::before {
   background: var(--danger-tint);
 }
-.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash {
+/* The microphone's slash marks a dictation that failed, so any microphone not on a failed
+   press draws without it. */
+:not([data-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
   display: none;
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action {

@@ -256,20 +256,21 @@ export function createObligationView({
   };
   // The answers an obligation offers, for a surface that answers it away from where it stands,
   // as the floating panel's On view does: each Decision control's own words, whether
-  // the page advises it, and its own press, so the answer is the widget's, recorded as
-  // a press there would be.
+  // the page advises it, whether it commits the answer, and its own press, so the
+  // answer is the widget's, recorded as a press there would be.
   // Null while the obligation's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
   function choicesOf(item) {
     const source = sourceNode(item);
     if (!source) return null;
     return actionsFor(source, sourceOwner(item)).map(
-      ({ id, label, description, recommended, control }) =>
+      ({ id, label, description, recommended, commits, control }) =>
         Object.freeze({
           id,
           label,
           description,
           recommended,
+          commits,
           chosen:
             control.getAttribute("aria-pressed") === "true" ||
             control.getAttribute("aria-checked") === "true" ||

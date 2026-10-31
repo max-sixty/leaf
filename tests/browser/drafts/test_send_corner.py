@@ -13,6 +13,7 @@ from leaf.render_checks import rendered
 SEND_DWELL = 150
 
 # The field's shadow root is closed, so the reading keeps each one as it is attached.
+# Each fade Send starts is kept too, as whether the words held its corner then.
 KEEP_ROOTS = """(() => {
   const attach = Element.prototype.attachShadow;
   window.__lfRoots = new WeakMap();
@@ -21,6 +22,13 @@ KEEP_ROOTS = """(() => {
     if (this.localName === 'leaf-text') window.__lfRoots.set(this, root);
     return root;
   };
+  window.__lfSendFades = [];
+  addEventListener('transitionrun', event => {
+    const send = event.target;
+    if (!send.matches('.lf-compose-submit') || event.propertyName !== 'opacity') return;
+    const words = send.parentElement.querySelector(':scope > leaf-text');
+    window.__lfSendFades.push(words.matches(':state(corner-taken)'));
+  }, true);
 })()"""
 
 # Send as the user meets it, beside the last row of the field's words: whether it shows,
@@ -68,12 +76,13 @@ def _open_panel_field(page):
 
 
 def _type_to_the_corner(page, field):
-    """Type the sentence a character at a time until the last row reaches Send."""
+    """Type the sentence a character at a time until the last row reaches Send, and
+    return the character that reached it."""
     for character in SENTENCE * 3:
         page.keyboard.type(character)
         rendered(page)
         if field.evaluate(CORNER)["taken"]:
-            return
+            return character
     raise AssertionError("three sentences never reached Send's corner")
 
 
@@ -94,7 +103,8 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     composer, engine, request, serve
 ):
     """The words run under Send's column, and Send stands in the corner until the row
-    beside it reaches it. Then a press there is the words': a quick press places the
+    beside it reaches it, leaving at once and fading back as the row leaves it free.
+    Then a press there is the words': a quick press places the
     caret, so a click on the last letters never sends. Pointing at the corner shows
     Send over the words at once, in a square no taller than the row, and it takes a
     press once the pointer has rested there; typing puts it away again. The firefox case
@@ -110,10 +120,17 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     free = field.evaluate(CORNER)
     assert free["shown"] and free["presses"], free
 
-    _type_to_the_corner(page, field)
+    reached = _type_to_the_corner(page, field)
     taken = field.evaluate(CORNER)
     assert taken["rowEnd"] > taken["sendStart"], "the words stop short of Send's column"
     assert not taken["shown"] and not taken["presses"], taken
+
+    # The row leaves the corner free again, and Send fades back into it.
+    page.keyboard.press("Backspace")
+    page.wait_for_function("() => __lfSendFades.includes(false)")
+    page.keyboard.type(reached)
+    rendered(page)
+    assert field.evaluate(CORNER)["taken"]
 
     # A quick press: the pointer arrives and presses just short of the rest that arms
     # Send, on a paused clock, however slowly the driver delivers the moves.
@@ -145,6 +162,9 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
         page.mouse.down()
         page.mouse.up()
     expect(field.locator(":scope > leaf-text")).to_have_js_property("value", "")
+    # Only the corner coming free fades Send in: it leaves the words, and shows over
+    # them for the pointer, at once.
+    assert True not in page.evaluate("() => __lfSendFades")
 
 
 def _settled(page, field):

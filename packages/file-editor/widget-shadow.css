@@ -18,7 +18,7 @@
   min-width: 0;
   overflow: auto;
   white-space: nowrap;
-  font: var(--font-code);
+  font: var(--font-title);
 }
 :host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem;

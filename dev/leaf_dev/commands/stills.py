@@ -2395,24 +2395,30 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("contents-spine", "developer/feature-gallery", at_rest),
     State(
         "topic-contents",
         "developer/feature-gallery",
         topic_contents,
         region="#bg-topic-contents",
     ),
-    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
+    # example draws one, so these states read a fixture built that way.
+    State("contents-spine", "../tests/fixtures/pages/sidebar-contents", at_rest),
+    State(
+        "contents-spine-keyboard",
+        "../tests/fixtures/pages/sidebar-contents",
+        contents_by_keyboard,
+    ),
     State(
         "contents-over-reading",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         region=".lf-toc-start a",
     ),
     State(
         "contents-over-reading-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         scheme="dark",
@@ -2420,17 +2426,27 @@ STATES = (
     ),
     State(
         "contents-spine-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_by_keyboard,
         scheme="dark",
     ),
     # Where the margin has no room for the map, and where a coarse pointer keeps the
     # sidebar's contents in the flow, at a roomy width and on a phone.
-    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
-    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-narrow",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        viewport=(900, 900),
+    ),
+    State(
+        "contents-coarse",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        touch=True,
+    ),
     State(
         "contents-phone",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         at_rest,
         viewport=(390, 844),
         touch=True,

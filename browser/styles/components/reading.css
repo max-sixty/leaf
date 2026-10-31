@@ -262,14 +262,16 @@
      * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
      * 100 (base.css, --wide).
      *
-     * The face is one font (`--font-source`, base.css) because plain blocks, upgraded
-     * widgets, and the diff's shadow tree must keep one density through upgrade. */
+     * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
+     * shadow tree must keep one density through upgrade. */
     pre {
       background: var(--pre-bg);
       border: 1px solid var(--code-border);
       border-radius: var(--r);
       padding: 12px var(--pre-inset);
-      font: var(--font-source);
+      font-size: var(--code-size);
+      line-height: var(--code-line);
+      font-family: var(--mono);
       color: var(--code-ink);
       font-variant-ligatures: none;
     }
@@ -722,7 +724,9 @@ leaf-text.lf-fab-input,
   margin: 14px 0;
 }
 :where([data-lf-content="data"]:not([data-lf-verbatim]):not(.lf-rendered)) {
-  font: var(--font-source);
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
   font-variant-ligatures: none;
   color: var(--code-muted);
   overflow-x: auto;

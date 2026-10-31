@@ -720,10 +720,6 @@
   /* A tooltip's second line, a status under a drawing, or a chart's axes. */
   --font-fine: var(--t-7) / 1.25 var(--sans);
   --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or a path, verbatim */
-  /* Source shown as a block: a code block, a diff's lines, a data widget's text before
-     it draws. Its size and line are the code inputs (`--code-size`, `--code-line`),
-     so a plain block and the widget that upgrades it keep one density. */
-  --font-source: var(--code-size) / var(--code-line) var(--mono);
   /* An emoji set as a picture at an icon's size, as the reaction palette holds them. */
   --font-emoji: 16px / 1 var(--sans);
 }

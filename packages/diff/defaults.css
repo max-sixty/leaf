@@ -13,7 +13,9 @@ lf-diff {
   contain: inline-size;
 }
 lf-diff.lf-rendered {
-  font: var(--font-source);
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
   font-variant-ligatures: none;
 }
 
@@ -31,8 +33,10 @@ lf-call-diff {
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--code-ink);
-  font: var(--font-source);
+  font-family: var(--mono);
+  font-size: var(--code-size);
   font-variant-ligatures: none;
+  line-height: var(--code-line);
   container-type: inline-size;
 }
 

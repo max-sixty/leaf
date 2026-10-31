@@ -12,12 +12,20 @@ from leaf.state import PLUGIN_ROOT
 # holder's font, a box that holds no words, and the fonts' shared leading. Any other
 # line height, a length included, is a leading of the rule's own: a box centres its
 # words by layout rather than with a line as tall as itself.
+#
+# Source a widget shows, such as a diff's lines, takes the code inputs themselves
+# (`--mono`, `--code-size`, `--code-line`), which are a source face's own values rather
+# than a leading or size of the rule's. They are theme inputs a page may set on a
+# subtree, and they set the page's source rather than the interface's words, so no font
+# resolved at the root stands for them.
 OWN = {
     "font": lambda value: value == "inherit",
-    "font-family": lambda value: value == "inherit",
-    "font-size": lambda value: value in {"inherit", "0"},
+    "font-family": lambda value: value in {"inherit", "var(--mono)"},
+    "font-size": lambda value: value in {"inherit", "0", "var(--code-size)"},
     "font-weight": lambda value: value in {"inherit", "400", "500", "600"},
-    "line-height": lambda value: value in {"inherit", "0", "1", "var(--lf-ui-lh)"},
+    "line-height": lambda value: (
+        value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--code-line)"}
+    ),
 }
 
 

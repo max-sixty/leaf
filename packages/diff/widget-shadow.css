@@ -514,7 +514,9 @@
   overscroll-behavior-x: auto;
   container-type: inline-size;
   container-type: inline-size scroll-state;
-  font: var(--font-source);
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
   white-space: pre;
   padding: 0;
   border: 0;

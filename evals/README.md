@@ -9,6 +9,9 @@ They use Promptfoo's assertions and viewer with automatic evidence-aware grading
 Their exception to the usual suite scope, retained cases and grading workflow are
 in [UI review detection](ui-review-detection/README.md).
 
+[Control legibility](control-legibility/README.md) asks a model what each control in
+a view does from its picture alone, and runs with `pnpm run eval:legibility`.
+
 ```sh
 pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code

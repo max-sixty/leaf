@@ -83,7 +83,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     """A reply the log refuses leaves the thread at once and folds away where it
     stood, and the card gives its room back as it folds. The words come back to the
     reply box whole, grown as typing grows it, rather than into the room held from
-    before Send (browser/AGENTS.md, "Stability is owed to the common path")."""
+    before Send (browser/AGENTS.md, "The page holds still under the user's aim")."""
     if surface == "margin":
         url = serve(PANEL_PAGE)
         panel_comment(serve.page_dir, "Check the capacity.", {"section": "how-cap"})
@@ -206,6 +206,19 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
+    # The time and the status stand on the writer's name's baseline, though the name
+    # is set larger (surfaces.css, the name's strut).
+    baselines = workflow.evaluate(
+        """node => [...node.closest('.lf-msg-head').querySelectorAll(
+          ':scope > b, :scope > .lf-msg-meta > time, [data-voice]')].map(words => {
+          const mark = words.appendChild(document.createElement('span'));
+          mark.style.cssText = 'display: inline-block; block-size: 0';
+          const y = mark.getBoundingClientRect().top;
+          mark.remove();
+          return y;
+        })"""
+    )
+    assert len(baselines) == 3 and max(baselines) - min(baselines) < 0.1, baselines
     expect(thread_row(page, root).locator(".lf-row-end")).to_have_text("On it")
 
 

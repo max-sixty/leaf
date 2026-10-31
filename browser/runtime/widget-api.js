@@ -96,7 +96,7 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "Stability").
+// (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";

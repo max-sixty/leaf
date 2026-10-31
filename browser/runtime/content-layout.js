@@ -65,7 +65,9 @@ export function openDocumentLayout({ onRead }) {
 
 // Annotations read the browser's resolved prose track, never allocate it. A
 // sidebar's body may own that track; otherwise a custom page's actual box is its
-// reading region. Named lines keep this independent of Layout classes.
+// reading region. Named lines keep this independent of Layout classes. CSSOM
+// resolves standalone tracks to named lines and pixel sizes:
+// https://www.w3.org/TR/css-grid/#resolved-track-list
 export function proseRect(main = layoutBox()) {
   if (!main) return null;
   const grid = [main, ...main.children].find((node) =>

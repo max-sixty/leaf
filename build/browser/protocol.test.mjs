@@ -85,6 +85,12 @@ test("an event record, which a page sends and every Leaf reads, may change neith
     changed((s) => (s.events.kinds.other = s.events.kinds.note)),
     refused("event other: an older Leaf or page reads a kind it doesn't know"),
   );
+  assert.deepEqual(
+    changed(
+      (s) => (s.events.kinds.other = { ...s.events.kinds.note, skippable: true }),
+    ),
+    none,
+  );
 });
 
 test("a new protocol starts the comparison again", () => {

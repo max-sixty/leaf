@@ -302,10 +302,13 @@ export function protocolBreaks(baseline, current) {
     for (const kind of new Set([...Object.keys(kinds), ...Object.keys(now)])) {
       const where = `event ${kind}`;
       if (!now[kind]) refused.push([where, "the kind is gone"]);
-      // Another Leaf at this number reads the log this one writes.
-      else if (!kinds[kind])
-        refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
-      else {
+      // Another Leaf at this number reads the log this one writes, and skips a kind it
+      // doesn't know. Only the registry can say whether that misreads the log, so a
+      // new kind that no earlier reading consults declares `skippable`.
+      else if (!kinds[kind]) {
+        if (!now[kind].skippable)
+          refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
+      } else {
         compare(where, kinds[kind].record, now[kind].record, SENT, OLDER_READS);
       }
     }

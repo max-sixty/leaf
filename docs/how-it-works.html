@@ -774,13 +774,7 @@ flowchart TD
               skill, which the agent reads at the start and again after a compaction. A
               rule for one element or one kind of update travels with it, so the agent
               reads it when it acts. Problems the agent can't see for itself, such as an
-              update it hasn't answered, arrive from Leaf's hooks. Late in a long
-              session, an agent can leave a decision for the user in chat without
-              putting it On me. An experimental check catches these in Claude Code: as
-              each turn ends, it forks the conversation and adds each such decision to
-              On me as an ordinary to-do of the agent's. The agent is told each one at
-              its next step, and keeps or ends it as it would one it wrote. Nothing on
-              the page shows that the check added it.
+              update it hasn't answered, arrive from Leaf's hooks.
             </p>
             <table id="guidance-channels">
               <thead>
@@ -849,13 +843,12 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each to-do on the user it added for a decision, answer or step the
-                    agent left in chat, with the to-do's id and how to end it.
+                    Each to-do on the user it added for something the agent left to the
+                    user in chat, with the to-do's id and how to end it.
                   </td>
                   <td>
-                    In Claude Code, at the next prompt or tool call after a turn that
-                    ends while the session holds a page. If a new turn starts before the
-                    fork answers, it adds nothing.
+                    In Claude Code, at the next prompt or tool call after a turn ends
+                    (<a href="#turn-end-fork">Turn-end check in Claude Code</a>).
                   </td>
                 </tr>
                 <tr>
@@ -1137,6 +1130,47 @@ flowchart TD
                 the session through its socket, or resume a retired background session
                 with <code>claude --bg --resume</code>. The socket accepting a message
                 doesn't show that the agent read it.
+              </p>
+            </details>
+            <details id="turn-end-fork">
+              <summary>Turn-end check in Claude Code (experimental)</summary>
+              <p id="fork-purpose">
+                Late in a long session, an agent can leave something to the user in its
+                chat reply without putting it On me, so On me misses something the user
+                owes. In Claude Code, when the agent finishes a reply in a session
+                holding a page, Leaf's hooks module forks the conversation. The fork is
+                a copy of the conversation that answers one question without calling
+                tools, and the agent never sees the exchange. Leaf shows the fork each
+                page's On me and the to-dos on the user already ended, and asks it to
+                name each of the following that the agent left to the user:
+              </p>
+              <ul id="fork-checks">
+                <li>a decision, such as which of two designs to keep</li>
+                <li>an answer to a question the agent asked</li>
+                <li>permission for an action the agent proposed, such as a push</li>
+                <li>
+                  a step the user is to take, such as signing in or trying a build
+                </li>
+              </ul>
+              <p id="fork-excludes">
+                The fork leaves out what an On me item already holds, what the user has
+                answered since, and what the agent will settle itself. Leaf skips an ask
+                with the same title as a to-do on the user, open or ended.
+              </p>
+              <p id="fork-writes">
+                Leaf opens each remaining ask as a to-do on the user, authored by the
+                agent's session, so it appears On me like one the agent wrote and
+                nothing on the page marks where it came from. At its next prompt or tool
+                call, the agent reads a line naming each to-do and its id, and keeps it
+                or ends it with <code>leaf task end</code>.
+              </p>
+              <p id="fork-off-path">
+                The fork starts after the turn has ended, so neither the turn nor the
+                user's next message waits for it. It reads the conversation from the
+                session's prompt cache and answers in a few seconds. Leaf writes nothing
+                more once another turn has opened, since the fork's reading is then out
+                of date. When a fork fails or its answer isn't the JSON Leaf asked for,
+                Leaf writes nothing and records the failure in Claude Code's debug log.
               </p>
             </details>
             <details id="host-entry-points">

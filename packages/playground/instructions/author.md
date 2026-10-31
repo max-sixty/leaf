@@ -222,7 +222,7 @@ CSS in a `<style>` inside its template, keyed on the child's root, such as
 playground's properties and attributes from its first paint, including after Reset.
 
 The output is the instruction the agent receives. Write a complete task that names the
-object, where the change goes, and the evidence you want back. The user reads it only on
+object, where the change goes, and the evidence you want back. Unless the page draws the actions, the user reads it only on
 request, from a button beside the playground's Reset and submit, so whatever the user
 needs to see before submitting, such as the exact values the build will receive, belongs
 on the page where they tune. Use
@@ -297,6 +297,16 @@ structured data only subscribes; one without its own instruction keeps
   });
 </script>
 ```
+
+A preview that declares its configuration as contributor slices needs no
+`lf-playground-control`. Where the preview draws its own instrument, it can draw the
+submission and Reset too: set `actions="page"` on the playground, build two ordinary
+buttons, and pass them in `declare` with
+`playground.registerActions({submit, reset})`. Leaf then draws no rail or bar of
+actions, and the page's CSS styles the buttons. The playground answers their presses and its keys,
+writes the submission's words (`submit-label`, then **Undo choice**), and records the
+choice. The instruction stays where `lf-playground-output` is written, so place or
+style it as the page needs.
 
 Keep native editors mounted and avoid writing their value when it already matches.
 The playground owns recording the working values, presets, Reset, instruction copying

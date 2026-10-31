@@ -85,6 +85,31 @@ leaf-composition-field {
 .lf-compose-placeholder-lead:empty {
   display: none;
 }
+/* The new-line key a focused box that holds lines says after its send key
+   (composing/input.js, `lineHint`). Where room runs short the label shortens first,
+   down to a few letters, and the send key and the hint stay; only where even that
+   shortened label can't stand beside them does the hint go, whole, onto a line the
+   placeholder doesn't show, and the label takes its room back. The gap carries that
+   line clear of the badge's overhang. */
+.lf-compose-placeholder:has(> .lf-compose-placeholder-line) {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  row-gap: 2lh;
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+.lf-compose-placeholder:has(> .lf-compose-placeholder-line)
+  > .lf-compose-placeholder-words {
+  flex: 1 1 4em;
+  max-inline-size: max-content;
+}
+.lf-compose-placeholder > .lf-compose-placeholder-line {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+  overflow: visible;
+}
 .lf-compose-placeholder .lf-key-badge {
   background: transparent;
   color: var(--muted);
@@ -153,6 +178,10 @@ leaf-composition-field {
    would cover the words at the corner most of the time; and taking presses as soon
    as it shows, which sent a press meant to place the caret.
 
+   A one-line field (`aria-multiline="false"`), such as an option's title, has no
+   column above Send to give its words, so it keeps the room and the seat its owner
+   gives its action, as every field did before this.
+
    Experimental: the user chose on 29 October 2026 to try this although it departs
    from common practice, where a chat or comment box keeps Send drawn beside or below
    its words and gives up the column above it. Keeping Send's room on every line,
@@ -163,16 +192,35 @@ leaf-composition-field {
   initial-value: 0px;
 }
 @media (hover: hover) and (pointer: fine) {
-  .lf-compose-field:where(:has(> .lf-compose-submit)) > leaf-text:not(.lf-fab-input) {
+  .lf-compose-field:where(:has(> .lf-compose-submit)):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    )
+    > leaf-text:not(.lf-fab-input) {
     --lf-field-end-room: 0px;
     --lf-field-corner: calc(var(--lf-icon-action-hit) + var(--lf-compose-action-inset));
     min-height: 0;
   }
-  .lf-compose-field:has(> .lf-compose-submit) {
+  /* An empty field's actions stand in that corner with no words to give way to, so
+     its hint keeps their room and stops short of them, as the passage composer's does
+     (`.lf-response-trigger`, below); the first word takes the room back. */
+  .lf-compose-field:where(:not([data-words]):has(> .lf-compose-submit)):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    )
+    > leaf-text:not(.lf-fab-input) {
+    --lf-field-end-room: calc(
+      var(--lf-compose-send-end) - var(--lf-compose-pad-inline-start)
+    );
+  }
+  .lf-compose-field:has(> .lf-compose-submit):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    ) {
     --lf-field-row: 1lh;
     --lf-field-ground: var(--card);
   }
-  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit {
+  .lf-compose-field:has(> .lf-compose-submit):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    )
+    > .lf-compose-submit {
     --lf-send-height: max(var(--aim-floor), var(--lf-field-row));
     height: var(--lf-send-height);
     min-height: 0;
@@ -181,7 +229,10 @@ leaf-composition-field {
     );
     transition: opacity var(--lf-motion-disclosure);
   }
-  .lf-compose-field:has(> .lf-compose-submit) > .lf-compose-submit::before {
+  .lf-compose-field:has(> .lf-compose-submit):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    )
+    > .lf-compose-submit::before {
     /* An even number of pixels, so the arrow centres in it. */
     --lf-send-square: round(
       down,
@@ -193,10 +244,13 @@ leaf-composition-field {
   }
   /* Focus draws the hover disc with the ring inside its edge: a ring outside the
      square, which fills its line, reaches into the line above. */
-  .lf-compose-field > .lf-compose-submit[data-lf-focus-visible] {
+  .lf-compose-field:where(:not(:has(> leaf-text[aria-multiline="false"])))
+    > .lf-compose-submit[data-lf-focus-visible] {
     outline: none;
   }
-  .lf-compose-field:has(> .lf-compose-submit)
+  .lf-compose-field:has(> .lf-compose-submit):where(
+      :not(:has(> leaf-text[aria-multiline="false"]))
+    )
     > .lf-compose-submit[data-lf-focus-visible]::before {
     background: var(--accent-tint);
     outline: var(--focus-ring);
@@ -331,7 +385,9 @@ leaf-composition-field {
 .lf-compose-dictate[data-dictation="failed"]:hover::before {
   background: var(--danger-tint);
 }
-.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash {
+/* The microphone's slash marks a dictation that failed, so any microphone not on a failed
+   press draws without it. */
+:not([data-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
   display: none;
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
@@ -583,7 +639,7 @@ button.lf-media-open {
   --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
 }
 /* A message's rewrite is a comment box standing where the message stood (browser/
-   AGENTS.md, "Editing in place"): every line of its words keeps its place and its
+   AGENTS.md, "Typed words survive"): every line of its words keeps its place and its
    breaks, its pictures stand under them as the message draws them (`sentMedia`,
    input.js), and the field's frame goes around both, in the room around the message's
    content. The frame reaches back over the words' inset, and over the room after their

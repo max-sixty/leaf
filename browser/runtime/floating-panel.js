@@ -25,8 +25,8 @@
  *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
- *   goes, which a path this rare may do (browser/AGENTS.md, "Stability is owed to the
- *   common path"). Rejected: holding the seat for the draft until the next posture
+ *   goes, which a path this rare may do (browser/AGENTS.md, "The page holds still
+ *   under the user's aim"). Rejected: holding the seat for the draft until the next posture
  *   change. That kept On me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. A view with
  *   controls ends them with its ✕ instead (**Opened**).
@@ -152,11 +152,18 @@
  * mode-specific controls beside it. Content opens in a view; response choices
  * use a picker. Features contribute to those surfaces rather than adding strips.
  *
- * Nothing moves under the pointer: a view's controls stand at its foot, the leaf's
- * menu holds what it showed while it stands, and a control the user pressed in a
- * thread stays where it was. Every change of the box's layout takes effect in one step,
- * and what the user sees then travels from where it was drawn to where it stands, by
- * one model (box-motion.js): the surface behind the box, a separate layer, follows by a
+ * A view's controls stand at its foot, the leaf's menu holds what it showed while it
+ * stands, and a control the user pressed in a thread stays where it was
+ * (browser/AGENTS.md, "The page holds still under the user's aim"). Resolving a thread
+ * opened from Threads moves the
+ * user on to the next one (`resolveLanding`), whose Resolve then stands under the
+ * pointer. That Resolve is the press's own result and takes the next press at once, as
+ * the user chose on 31 October. Rejected: holding a control that arrives under the
+ * pointer inert until the pointer moves.
+ *
+ * Every change of the box's layout takes effect in one step, and what the user sees
+ * then travels from where it was drawn to where it stands, by one model
+ * (box-motion.js): the surface behind the box, a separate layer, follows by a
  * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
  * part that kept its size is carried by a transform; one that changed size grows from
  * where it stood, carrying its words by their start corner; one that is new is revealed
@@ -1605,7 +1612,7 @@ export function createFloatingPanel({
   // foot until a press on it, or the user scrolling there, shows it; the user's turn
   // stays wholly in sight above the press, its head included (`fitAnswer`). The user
   // chose this growth (2026-10-14), the one case where news may carry what a view shows
-  // without a gesture (`browser/AGENTS.md`, "Stability"), reversing the view
+  // without a gesture (`browser/AGENTS.md`, "The page holds still under the user's aim"), reversing the view
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
@@ -2081,7 +2088,7 @@ export function createFloatingPanel({
           disabled: entry.disabled,
           role: menuOpen.value ? "menuitem" : null,
           row: entry.key,
-          title: entry.value || null,
+          title: entry.title || entry.value || null,
         },
       ),
       copy,
@@ -2146,11 +2153,12 @@ export function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
-    // The state is said once: its one line, in its tone's ink, and under that only what
-    // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
-    // pointer, key and finger alike. Each line names the state itself ("Codex away"),
-    // so no word for the tone stands over it.
-    const { tone, summaryParts, adds, addsParts, publication } = status();
+    // The state is said once: its one line, and under that only what the status adds to
+    // the line (`statusModel`, `adds`), since the menu is reached by pointer, key and
+    // finger alike. Each line names the state itself ("Codex away"), so no word for the
+    // tone stands over it, and the line takes the ink the row's status does, its tone's
+    // only where it asks the user to act (floating-panel.css, `.lf-fp-summary`).
+    const { summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction follows, with its links.
     const said = adds ? statusParts(addsParts) : "";
     const explains = publication
@@ -2217,17 +2225,12 @@ export function createFloatingPanel({
             { opens: true, disabled: gone, row: `group:${group}` },
           ),
       })),
-      { key: "", draw: () => html`<hr />` },
+      { key: "", draw: () => html`<hr class="lf-fp-rule" />` },
       ...[keyboard, fold].filter(Boolean).map(seat),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
     seats = held?.seats ?? offered;
-    return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+    return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
@@ -2274,12 +2277,14 @@ export function createFloatingPanel({
               ${menuItem(
                 html`${entry.name}${
                   entry.note
-                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    ? html` <span class="lf-fp-note" title=${entry.note}
+                        >${entry.note}</span
+                      >`
                     : nothing
                 }`,
                 nothing,
                 () => showVersion(entry),
-                { title: entry.note, current: entry.current },
+                { current: entry.current },
               )}${
                 entry.current
                   ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`
@@ -2376,7 +2381,7 @@ export function createFloatingPanel({
         </div>`,
     )}${
       errors.length > 1
-        ? html`<hr />
+        ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}`
         : nothing
     }`;
@@ -2555,7 +2560,7 @@ export function createFloatingPanel({
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
+        data-lf-turn=${threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-row-lead"
@@ -2954,7 +2959,7 @@ export function createFloatingPanel({
 
   // ---------- choosing an arrangement ----------
   // A view's choice among its arrangements, at its foot: a symbol, as Leaf's controls
-  // are (browser/AGENTS.md, "Visual grammar"), over the platform's own select, which
+  // are (browser/AGENTS.md, "Controls are few and quiet"), over the platform's own select, which
   // a key, a pointer and a finger each open on its list of words, the chosen one
   // checked. The select stands unseen over the symbol, so it is what each of them
   // presses; its name and choice are the tooltip. The choice is kept for every page,
@@ -3281,20 +3286,36 @@ export function createFloatingPanel({
     } else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
-      // two lines at most, so the user can answer here without Show. Rejected: the
-      // option's whole card, whose tags and picture let one choice fill a phone's
-      // screen, and its name alone, which left the user picking blind on a phone.
+      // two lines at most, so the user can answer here without Show, and whole on
+      // hover, as a version's note is. The words carry the tooltip rather than the
+      // press, whose name already holds them: a title there is read again as its
+      // description. Rejected: the option's whole card, whose tags and picture let one
+      // choice fill a phone's screen, and its name alone, which left the user picking
+      // blind on a phone.
+      // The press that commits what the user composed, such as a group's Done, wears
+      // the commit face its widget gives it, so it never reads as one more choice, and
+      // what it does is its tooltip, as in the command reference.
       answers = html`${choices.map((choice) => {
+        const press = () => {
+          choice.press();
+          paint();
+        };
+        if (choice.commits)
+          return html`<button
+            ${offeredAction("commit", "lf-fp-commit")}
+            title=${choice.description || nothing}
+            aria-pressed=${String(choice.chosen)}
+            @click=${press}
+          >
+            ${capital(choice.label)}
+          </button>`;
         const told = Boolean(choice.description || choice.recommended);
         return html`<button
           type="button"
           class="lf-fp-face lf-fp-answer"
           ?data-told=${told}
           aria-pressed=${String(choice.chosen)}
-          @click=${() => {
-            choice.press();
-            paint();
-          }}
+          @click=${press}
         >
           ${
             told
@@ -3304,7 +3325,7 @@ export function createFloatingPanel({
                       : nothing
                   }${
                     choice.description
-                      ? html`<span class="lf-fp-choice-says"
+                      ? html`<span class="lf-fp-choice-says" title=${choice.description}
                           >${choice.description}</span
                         >`
                       : nothing
@@ -3491,7 +3512,7 @@ export function createFloatingPanel({
         (row) => row.key,
         (row) =>
           row.rule
-            ? html`<hr class="lf-fp-on-rule" />`
+            ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
               : html`<h3 class="lf-rows-head">

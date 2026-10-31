@@ -860,7 +860,7 @@ export class ThreadView {
   }
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
-  // done on a resolved thread (browser/AGENTS.md, "Visual grammar"), in one corner:
+  // done on a resolved thread (browser/AGENTS.md, "Controls are few and quiet"), in one corner:
   // settling moves nothing beside it. A margin card once said Reopen as a word.
   #settlement(model) {
     const state = model.settlement;

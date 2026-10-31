@@ -775,6 +775,7 @@ def card_after_interjection(page: Page) -> None:
     expect(card.locator(".lf-msg.user").last).to_contain_text(
         "Drafting a reply while the agent works"
     )
+    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
     settle(page)
     root = card.locator(".lf-page-thread").get_attribute("data-thread")
     assert root
@@ -784,6 +785,7 @@ def card_after_interjection(page: Page) -> None:
         root,
         "--text",
         "The answer continues with the detail requested in the interjection. " * 5,
+        "--ephemeral",
     )
     expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
 

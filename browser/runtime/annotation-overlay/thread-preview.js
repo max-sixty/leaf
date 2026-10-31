@@ -432,7 +432,7 @@ export function createThreadPreview({
     if (reading?.keepTop && transcript)
       cap = Math.min(
         cap,
-        preview.offsetHeight + scrollLimit(transcript) - reading.scroll,
+        preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
       );
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
@@ -570,7 +570,8 @@ export function createThreadPreview({
             reading ??= session.transcript && {
               end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
-              keepTop: stationary && !fresh && anchored.edge === "top" && !anchored.rises,
+              keepTop:
+                stationary && !fresh && anchored.edge === "top" && !anchored.writing,
               latest: session.arriving,
             };
             if (fresh) session.width = null;

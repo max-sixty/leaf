@@ -230,7 +230,14 @@ class CodexChild:
         env=None,
         model=None,
     ):
-        from leaf_dev.arms import MODELS, codex_home, environment, now, private_program
+        from leaf_dev.arms import (
+            MODELS,
+            authoring_sandbox_instructions,
+            codex_home,
+            environment,
+            now,
+            private_program,
+        )
 
         self.cwd, self.prompt = cwd, prompt
         self.stderr, self.timed_out = stderr, timed_out
@@ -289,6 +296,16 @@ class CodexChild:
             self.executable
             if self.sandbox == "read-only"
             else private_program(self.executable, home, cwd, *dirs)
+        )
+        self.instructions = "\n\n".join(
+            part
+            for part in (
+                self.options.get("--append-system-prompt"),
+                authoring_sandbox_instructions(cwd)
+                if isolated != self.executable
+                else None,
+            )
+            if part
         )
         self.server = private_app_server(str(isolated), env=self.env, cwd=str(cwd))
 
@@ -363,8 +380,8 @@ class CodexChild:
             }
             if session := self.options.get("--resume"):
                 params["threadId"] = session
-            if instructions := self.options.get("--append-system-prompt"):
-                params["developerInstructions"] = instructions
+            if self.instructions:
+                params["developerInstructions"] = self.instructions
             self.task.thread = self.task.request(
                 "thread/resume" if session else "thread/start", params
             )["thread"]["id"]

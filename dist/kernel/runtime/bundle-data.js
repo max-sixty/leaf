@@ -8103,7 +8103,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (typeof key !== "string" || !key) throw new TypeError("navigateToDatum key must be a non-empty string");
 		let source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const url = new URL(window.location.href);
@@ -8117,29 +8117,15 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (!mayArrive()) return false;
 		source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const destination = addressedElements(source, key)[0] ?? null;
-		departure.plan(destination);
 		if (!destination) {
-			await arrive(() => {
-				const where = referencedProjection(owner, attribute);
-				return where && {
-					where,
-					focus: null,
-					scroll: [{
-						at: where,
-						block: "start"
-					}]
-				};
-			}, {
-				intent: mayArrive,
-				departure
-			});
-			if (mayArrive() && missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
+		departure.plan(destination);
 		const arrived = await arrive(() => {
 			const source = referencedProjection(owner, attribute);
 			const where = source && addressedElements(source, key)[0];
@@ -8156,7 +8142,10 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent: mayArrive,
 			departure
 		});
-		if (mayArrive() && (arrived ? success : missing)) announce(arrived ? success : missing);
+		if (mayArrive()) {
+			if (arrived && success) announce(success);
+			else if (!arrived && missing) notice(missing);
+		}
 		return arrived;
 	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {

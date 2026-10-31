@@ -18,7 +18,7 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
     work = run / "samples" / "saved-document"
     work.mkdir(parents=True)
     (work / "prompt-1.txt").write_text("Original request")
-    comparison = comparison_inputs("document", ("phone",))
+    comparison = comparison_inputs("document-live-status", ("phone",))
     record = {
         "provider": {"label": "codex/candidate/workflow"},
         "response": {
@@ -30,7 +30,10 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
                     "payload": "/original/runtime",
                     "condition": "leaf",
                     "phases": {
-                        version: {"page": str(work / f"page-phase{version}")}
+                        version: {
+                            "page": str(work / f"page-phase{version}"),
+                            "trace": {"reply": f"Delivered phase {version}"},
+                        }
                         for version in comparison["phases"].values()
                     },
                 },
@@ -62,16 +65,21 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
         "metadata": {"trace": {"completed": True}},
     }
 
-    def model(pages, widths, prompt, schema, evidence):
-        assert set(pages) == {"page", "page_before_decision"}
+    def model(pages, widths, prompt, schema, evidence, *, handovers):
+        assert set(pages) == {"page", "page_before_decision", "page_before_revision"}
         assert pages["page_before_decision"]["page"] == work / "page-phase3"
-        assert pages["page"]["page"] == work / "page-phase4"
+        assert pages["page_before_revision"]["page"] == work / "page-phase4"
+        assert pages["page"]["page"] == work / "page-phase5"
         assert pages["page"]["payload"].as_posix() == "/original/runtime"
+        assert pages["page"]["author_reply"] == "Delivered phase 5"
+        assert pages["page_before_revision"]["author_reply"] == "Delivered phase 4"
+        assert pages["page_before_decision"]["author_reply"] == "Delivered phase 3"
         assert widths == comparison["widths"]
         assert json.dumps(comparison, indent=2) in prompt
         assert "Investigate long decision premises" in prompt
         assert "overall" not in schema["properties"]
         assert evidence.is_dir()
+        assert handovers == {"page": None}
         return response
 
     monkeypatch.setattr(eval_discover, "judge_pages", model)

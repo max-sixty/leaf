@@ -59,6 +59,8 @@ lists the faces it retired.
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
+Once the whole report is written, the command exits 1 if any state failed, so a
+caller that reads only the exit status still learns that a state went uncaptured.
 """
 
 import json
@@ -3584,3 +3586,5 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
             + f" -> {out / 'faces.txt'}"
         )
     click.echo(f"files in {out}")
+    if failed:
+        raise SystemExit(1)

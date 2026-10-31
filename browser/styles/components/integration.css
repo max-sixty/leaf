@@ -239,7 +239,7 @@ html[data-lf-draw-mode] main {
   accent-color: var(--accent);
 }
 .lf-msg-body a.detached {
-  color: var(--muted-2);
+  color: var(--muted);
   text-decoration: underline dashed;
   cursor: default;
 }
@@ -249,7 +249,7 @@ html[data-lf-draw-mode] main {
 }
 
 .lf-suggest-label {
-  color: var(--muted-2);
+  color: var(--muted);
 }
 
 .lf-react-said {

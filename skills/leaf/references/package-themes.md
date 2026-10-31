@@ -154,7 +154,7 @@ choice. The default palette is declared in `browser/base.css`:
 
 | Surface                  | Inputs                                                                                                                                                                                |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`, `--muted-2`; `--rule`, `--border-2`                                                                                    |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
 | Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |

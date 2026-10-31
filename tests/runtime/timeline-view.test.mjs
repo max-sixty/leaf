@@ -149,7 +149,13 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
   const drawing = timeline(
     run("Before", [
       ["A", [["before-write", 4000]]],
-      ["B", [["before-done", 5000]]],
+      [
+        "B",
+        [
+          ["before-start", 4000],
+          ["before-done", 5000],
+        ],
+      ],
     ]) +
       run("After", [
         ["A", [["after-write", 4000]]],
@@ -170,7 +176,7 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
   // One step holds every run's event at that moment.
   assert.deepEqual(
     drawing.model.steps.map((step) => step.events.map((event) => event.id)),
-    [["before-write", "after-write"], ["before-done"], ["after-done"]],
+    [["before-write", "before-start", "after-write"], ["before-done"], ["after-done"]],
   );
   // Each run's name takes the grid row just above its lanes.
   const rows = [
@@ -183,12 +189,30 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
     .toSorted((a, b) => a[0] - b[0])
     .map(([, text]) => text);
   assert.deepEqual(rows, ["Before", "A", "B", "After", "A", "B"]);
+  // A step's row names each run once, before the first of its events.
   assert.deepEqual(
     [...drawing.rows[0].querySelectorAll(".lf-timeline-step-event")].map(
       (event) => event.textContent,
     ),
-    ["Before · A: before-write", "After · A: after-write"],
+    ["Before · A: before-write", "B: before-start", "After · A: after-write"],
   );
+});
+
+test("A run with no lanes keeps its heading, and a lane beside runs is reported", () => {
+  const drawing = timeline(
+    run("Before", [["A", [["solo-write", 0]]]]) +
+      lanes([["Reference", [["solo-mark", 100]]]]) +
+      run("After", []),
+  );
+  assert.deepEqual(
+    [...drawing.chart.querySelectorAll(".lf-timeline-run")].map(
+      (heading) => heading.textContent,
+    ),
+    ["Before", "After"],
+  );
+  assert.deepEqual(drawing.model.problems, [
+    'lf-lane "Reference" stands beside lf-run elements; put it in a run',
+  ]);
 });
 
 test("A span that ends before it starts is reported and drawn as an instant", () => {

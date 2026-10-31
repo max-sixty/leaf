@@ -21,25 +21,21 @@ const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
  * run shares the one axis, scaled to the longest, and the one playhead, so a moment
- * lines up down all of them. A lane written directly in the timeline is in no run. */
+ * lines up down all of them. A timeline holds either runs or bare lanes: a bare lane
+ * beside runs would draw as part of the run above it, so it is reported. */
 export function timelineModel(host) {
   const problems = [];
-  const runs = new Map(
-    [...host.children]
-      .filter((child) => child.localName === "lf-run")
-      .map((run) => [run, { label: run.getAttribute("label") ?? "", row: null }]),
-  );
-  // Grid row 1 holds the ruler; a run's name takes the row above its first lane.
+  const runs = [];
+  const lanes = [];
+  // Grid row 1 holds the ruler; a run's name takes the row above its lanes.
   let row = 1;
-  const lanes = [
-    ...host.querySelectorAll(":scope > lf-lane, :scope > lf-run > lf-lane"),
-  ].map((lane, index) => {
-    const run = runs.get(lane.parentElement) ?? null;
-    if (run && run.row === null) run.row = ++row;
+  const readLane = (lane, run) => {
+    const index = lanes.length;
     const label = lane.getAttribute("label") ?? "";
-    return {
+    lanes.push({
       index,
       label,
+      run,
       name: run ? `${run.label} · ${label}` : label,
       row: ++row,
       events: [...lane.children]
@@ -62,8 +58,24 @@ export function timelineModel(host) {
             step: 0,
           };
         }),
-    };
-  });
+    });
+  };
+  let bare = null;
+  for (const child of host.children) {
+    if (child.localName === "lf-lane") {
+      readLane(child, null);
+      bare ??= child;
+    }
+    if (child.localName !== "lf-run") continue;
+    const run = { label: child.getAttribute("label") ?? "", row: ++row };
+    runs.push(run);
+    for (const lane of child.children)
+      if (lane.localName === "lf-lane") readLane(lane, run);
+  }
+  if (runs.length && bare)
+    problems.push(
+      `lf-lane "${bare.getAttribute("label")}" stands beside lf-run elements; put it in a run`,
+    );
   const events = lanes.flatMap((lane) => lane.events);
   const steps = [];
   for (const event of events.toSorted((a, b) => a.at - b.at || a.lane - b.lane)) {
@@ -74,7 +86,7 @@ export function timelineModel(host) {
     for (const event of step.events) event.step = index;
   });
   return {
-    runs: [...runs.values()].filter((run) => run.row !== null),
+    runs,
     lanes,
     bands: row - 1,
     events,
@@ -178,6 +190,17 @@ export function render(host, current, model, layout) {
             >`,
         )}
       </div>
+      <div class="lf-timeline-grid">
+        ${repeat(
+          (layout?.ticks ?? []).filter((tick) => tick.major),
+          (tick) => tick.time,
+          (tick) =>
+            html`<span
+              class="lf-timeline-gridline"
+              style="--lf-timeline-at: ${along(tick.time)}"
+            ></span>`,
+        )}
+      </div>
       ${model.lanes.map(
         (lane) =>
           html`<div
@@ -238,14 +261,17 @@ export function render(host, current, model, layout) {
               ?data-past=${index < current}
             >
               <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
-              ${step.events.map(
-                (event) =>
-                  html`<span class="lf-timeline-step-event lf-row-main"
-                    ><span class="lf-timeline-step-lane"
-                      >${model.lanes[event.lane].name}: </span
-                    >${event.label}</span
-                  >`,
-              )}
+              ${step.events.map((event, order) => {
+                // A row names each run once, before the first of its events.
+                const lane = model.lanes[event.lane];
+                const before = model.lanes[step.events[order - 1]?.lane];
+                const who =
+                  lane.run && lane.run !== before?.run ? lane.name : lane.label;
+                return html`<span class="lf-timeline-step-event lf-row-main"
+                  ><span class="lf-timeline-step-lane">${who}: </span
+                  >${event.label}</span
+                >`;
+              })}
             </span>
           </li>`,
       )}

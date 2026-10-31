@@ -63,6 +63,9 @@ lf-event::before {
   background: var(--lf-timeline-ground);
   white-space: nowrap;
 }
+.lf-timeline-run + .lf-timeline-run {
+  padding-block-start: var(--sp-4);
+}
 .lf-timeline-name {
   grid-column: 1;
   display: flex;
@@ -111,6 +114,23 @@ lf-event::before {
   padding-inline: 0 3px;
   border-inline-start: 0;
   border-inline-end: 1px solid var(--muted);
+}
+/* A faint line at each labelled time runs down every lane, so a mark far below the
+   ruler, in a later lane or run, still reads against it. */
+.lf-timeline-grid {
+  grid-row: 2 / -1;
+  grid-column: 2;
+  position: relative;
+  pointer-events: none;
+}
+.lf-timeline-gridline {
+  position: absolute;
+  left: calc(
+    var(--lf-timeline-edge) + var(--lf-timeline-at) *
+      (100% - 2 * var(--lf-timeline-edge))
+  );
+  inset-block: 0;
+  border-inline-start: 1px dotted var(--rule);
 }
 .lf-timeline-lane {
   grid-column: 2;
@@ -250,6 +270,10 @@ lf-event::before {
  * current row; a step still ahead of it stands in the muted ink. */
 .lf-timeline-step {
   cursor: pointer;
+}
+/* A step's events stay on one sheet of paper together. */
+.lf-timeline-steps > li {
+  break-inside: avoid;
 }
 .lf-timeline-step:not([data-past], [aria-current]) {
   color: var(--muted);

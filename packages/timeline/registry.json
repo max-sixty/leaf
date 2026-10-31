@@ -1,6 +1,6 @@
 {
   "lf-timeline": {
-    "description": "An authored sequence of events over time, one lane per actor, that the reader steps through with Previous and Next while a playhead and a step list follow. Use it to explain an order of events, such as a race between jobs, or to compare runs of one on a shared time axis, such as before and after a fix; use `lf-trace` for a recorded browser journey and `lf-motion` for continuous playback.",
+    "description": "An authored sequence of events over time, one lane per actor, that the reader steps through with Previous and Next while a playhead and a step list follow. Use it to explain an order of events, such as a race between jobs, or to compare several runs of the same sequence on one time axis, such as before and after a fix; use `lf-trace` for a recorded browser journey and `lf-motion` for continuous playback.",
     "x-instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. Keep each `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
     "type": "object",
     "properties": {
@@ -39,7 +39,7 @@
     "x-upgrade": false
   },
   "lf-run": {
-    "description": "One run of a compared sequence in an `lf-timeline`, such as the run before a fix, holding its lanes. Every run in a timeline shares its time axis and its playhead.",
+    "description": "One run of a compared sequence in an `lf-timeline`, such as the run before a fix, holding its lanes. Every run in a timeline shares its time axis and its playhead, and a timeline with runs keeps every lane in one.",
     "type": "object",
     "properties": {
       "label": {

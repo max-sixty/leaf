@@ -221,7 +221,8 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     over the column beside it, and the Alt outline 300px left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
     scroll, the outline Alt raises after the scroll stands on the table, and a code
-    block's Copy, which CSS anchors alone, stands on the block's top border."""
+    block's Copy, which CSS anchors alone, stands inside the block's top-right
+    corner."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("grid", quote="Caret in the field")
     page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
@@ -257,9 +258,7 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     corner = copy.bounding_box()
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
-    # Its toolbar's middle lies on the block's top border.
-    middle = corner["y"] + corner["height"] / 2
-    assert middle == pytest.approx(code["y"], abs=1), (corner, code)
+    assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

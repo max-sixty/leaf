@@ -49,8 +49,8 @@ export const motionPlays = () => !reducedMotion() && pagePresented();
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
 // state. Every motion this module plays shares one held-end-frame contract. A duration
-// a caller passes in is still a number this module has no reason for; see AGENTS.md's
-// "Motion". `motion` is the packages' door, and its signature is part of what an
+// a caller passes in is still a number this module has no reason for; see browser/AGENTS.md's
+// "Motion is brief and keeps the user oriented". `motion` is the packages' door, and its signature is part of what an
 // installed package calls, so it stays as pages know it.
 export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });

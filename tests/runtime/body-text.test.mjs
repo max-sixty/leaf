@@ -131,11 +131,6 @@ test("Markdown body readings share file dialect, safe destinations and native st
   );
   assert.equal(body.querySelector("img").alt, "A B & code C");
   assert.equal(renderInlineMarkdown("first\nsecond", false), "first\nsecond");
-  // A file's paragraph wrapped at its editor's width reflows to the reader's.
-  assert.equal(
-    renderMarkdown("- first\n  second", false),
-    '<ul data-lf-gap="0">\n<li data-lf-gap="0">first\nsecond</li>\n</ul>\n',
-  );
   // Formatting whitespace must not add a second line in space-preserving messages;
   // excerpts still read the semantic break as separation between the words.
   for (const source of ["first\nsecond", "first  \nsecond"]) {

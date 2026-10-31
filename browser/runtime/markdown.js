@@ -17,9 +17,10 @@ let renderInline = escapedSource;
 let tokenize = null;
 let ready;
 
-// A newline inside a paragraph is a line break where someone typed it, as in a
-// message or a draft. With `breaks` false it is a space, as in a Markdown file, whose
-// lines are wrapped to its editor's width rather than the reader's.
+// `breaks` reads a soft line break as a hard one, since words written in Leaf, such as
+// a message or a draft, keep the breaks their writer typed. A Markdown file's soft
+// breaks are spaces, as CommonMark and GitHub render a file: its lines wrap for its
+// editor, not its reader.
 export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
@@ -616,10 +617,10 @@ function makeMarkdown(module, breaks) {
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
-    let joined;
+    let softBreaks;
     let positioned;
     const dialect = (breaks) =>
-      breaks ? markdown : (joined ??= makeMarkdown(module, false));
+      breaks ? markdown : (softBreaks ??= makeMarkdown(module, false));
     render = (text, breaks) => dialect(breaks).render(text);
     renderInline = (text, breaks) => dialect(breaks).renderInline(text);
     tokenize = (text) => {

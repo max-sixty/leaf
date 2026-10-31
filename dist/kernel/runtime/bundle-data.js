@@ -974,6 +974,37 @@ function claimed$1(url) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+const memberSelector = (holder) => registry$1[holder.localName]?.["x-views"]?.members;
+function viewMembers(holder) {
+	return document.documentElement.lfViews.members(holder, memberSelector(holder));
+}
+function openingView(holder, fallback = void 0) {
+	return document.documentElement.lfViews.opening(holder, fallback, memberSelector(holder));
+}
+function markViews(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return;
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
+}
+function keepView(holder, member, leaving = null) {
+	markViews(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
@@ -1016,39 +1047,6 @@ async function highlightBlocks(root) {
 		}
 	}
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-function viewMembers(holder) {
-	const declaration = registry$1[holder.localName]?.["x-views"];
-	if (!declaration) return [];
-	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-	for (const child of holder.children) {
-		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
-		child.toggleAttribute("data-lf-view", member);
-	}
-	return document.documentElement.lfViews.members(holder);
-}
-function openingView(holder, ...fallback) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.opening(holder, ...fallback);
-}
-function keepView(holder, member, leaving = null) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.keep(holder, member, leaving);
-}
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/declared-words.js
@@ -1171,11 +1169,16 @@ function renderExternalLink(link) {
 	});
 	state.painted = linkAttributes(link);
 }
-function watchExternalLinks() {
-	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-		arrive: renderExternalLink,
+function watchNativeContent() {
+	const { keepDisclosure, finishEarlyContent } = document.documentElement.lfStorage;
+	watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: (element) => {
+			if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+			else renderExternalLink(element);
+		},
 		leave: leaveExternalLink
 	});
+	finishEarlyContent();
 }
 function paintDeclaredWords(root) {
 	renderSaid(root);
@@ -1196,7 +1199,7 @@ function markDeclared(root) {
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
 				if (key === "x-views") {
-					viewMembers(el);
+					markViews(el);
 					continue;
 				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
@@ -2654,9 +2657,9 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let joined;
+		let softBreaks;
 		let positioned;
-		const dialect = (breaks) => breaks ? markdown : joined ??= makeMarkdown(module, false);
+		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
 		render = (text, breaks) => dialect(breaks).render(text);
 		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
 		tokenize = (text) => {
@@ -2744,7 +2747,7 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		watchExternalLinks();
+		watchNativeContent();
 		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
@@ -5600,6 +5603,7 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 	const appendedAtEnd = news.appended && was.messages.filter(({ key }) => !retired.has(key)).every((message, index) => now.messages[index]?.key === message.key);
 	const turn = was.messages.findLastIndex((message) => message.author === "user" && !message.progress);
 	const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+	const currentTurn = now.messages.findIndex((message) => message.key === was.messages[turn]?.key);
 	return {
 		news,
 		changed,
@@ -5607,7 +5611,10 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 		folds,
 		appendedAtEnd,
 		footFold,
-		answers: turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key))
+		answers: currentTurn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key)) ? Object.freeze({
+			turn: was.messages[turn].key,
+			reply: now.messages.slice(currentTurn + 1).find((message) => !message.progress)?.key ?? null
+		}) : null
 	};
 }
 function withheld(was, now) {
@@ -5808,7 +5815,8 @@ var HeldNews = class {
 			const held = was && shown && !this.#released.has(thread.key) ? threadChange(was, thread, { progressOpen: this.#view(thread.key)?.progressOpen ?? false }) : null;
 			if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held)) return {
 				...thread,
-				news: null
+				news: null,
+				change: held
 			};
 			this.#holds.add(thread.key);
 			const { news } = held;
@@ -5816,7 +5824,8 @@ var HeldNews = class {
 				...thread.reread(withheld(was.source, thread.source)),
 				working: news.working ? was.working : thread.working,
 				...news.settled === "Reopened" && { settlement: null },
-				news
+				news,
+				change: null
 			};
 		});
 		const waiting = this.#threads.size;
@@ -8249,8 +8258,8 @@ function authoredAttributes(root) {
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
 const authoredMarkup = (root) => {
+	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
-	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
 	return root;
 };

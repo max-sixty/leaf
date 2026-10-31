@@ -55,6 +55,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPress,
   onPressAway,
   openLayer,
   openerOf,

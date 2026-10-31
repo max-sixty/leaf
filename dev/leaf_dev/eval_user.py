@@ -33,7 +33,7 @@ from playwright.sync_api import Page
 
 from leaf_dev.arms import (
     MODELS,
-    claude_child,
+    environment,
     run_agent,
     scratch,
     trace_result,
@@ -41,6 +41,10 @@ from leaf_dev.arms import (
 )
 from leaf_dev.browser import headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
+
+# A decision can leave the page through Copy. User and judge browsers accept that
+# permission alike; the headless shell otherwise refuses a normal clicked write.
+CLIPBOARD_PERMISSIONS = ["clipboard-read", "clipboard-write"]
 
 # Elements a reader clicks to open what a list or a disclosure holds.
 OPENERS = (
@@ -277,20 +281,21 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):
-        view.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        view.context.grant_permissions(CLIPBOARD_PERMISSIONS)
         view.context.add_init_script(COPY_SPY)
         view.goto(url, wait_until="load")
         session = f"leaf-user-{cwd.parent.name}"
-        # The daemon keeps its socket in `sockets`, whose path is short enough for
-        # one, under the user agent's own home, so it must run in the agent's
-        # environment.
-        env = claude_child(cwd, "", env={"PWTEST_SOCKETS_DIR": sockets})["env"]
+        # Both the harness and its user attach through the same private daemon.
+        variables = {
+            "PWTEST_SOCKETS_DIR": sockets,
+            "PWTEST_DAEMON_SESSION_DIR": str(cwd / "daemon"),
+        }
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
                 [*cli(), f"-s={session}", *args],
                 cwd=cwd,
-                env=env,
+                env=environment(**variables),
                 capture_output=True,
                 text=True,
                 check=False,
@@ -314,9 +319,10 @@ def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) ->
                 json.dumps(REPORT),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
-                env={"PWTEST_SOCKETS_DIR": sockets},
+                env=variables,
+                harness="codex",
+                dirs=[Path(sockets)],
                 model=MODELS["user"],
-                sandbox=False,
                 limit=DECIDING_LIMIT,
             )
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")

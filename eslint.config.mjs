@@ -40,6 +40,7 @@ const runtimePrimitives = [
 const browserGlobals = Object.fromEntries(
   [
     "AbortController",
+    "AbortSignal",
     "CSS",
     "CSSImportRule",
     "CSSKeyframesRule",

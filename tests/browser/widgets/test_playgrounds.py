@@ -54,8 +54,10 @@ CONTRIBUTOR_PAGE = leaf_page(
     <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
   </lf-playground-preset>
   <lf-playground-preview>
+    <div id="query-editor">
     <label for="region-filter">Region filter</label>
     <input id="region-filter" type="text" value="eu-west-1">
+    </div>
   </lf-playground-preview>
   <lf-playground-output>Implement the selected query.</lf-playground-output>
 </lf-playground></lf-ask>
@@ -66,7 +68,8 @@ document.addEventListener(PAGE_INTERFACE, event => {
     if (sessionStorage.getItem('delay-query-contributors')) return;
     const playground = document.querySelector('#query-config');
     const input = document.querySelector('#region-filter');
-    const filters = playground.registerContributor('filters', {region: input.value});
+    const filters = playground.registerContributor(
+      'filters', {region: input.value}, document.querySelector('#query-editor'));
     input.addEventListener('input', () => filters.set({region: input.value}));
     playground.subscribe(values => {
       if (input.value !== values.filters.region) input.value = values.filters.region;
@@ -129,6 +132,257 @@ def test_playground_contributor_needs_no_scalar_control(browser, serve):
     playground.get_by_role("button", name="Undo choice").click()
     expect(playground.get_by_role("button", name="Use these settings")).to_be_visible()
     expect(field).to_have_value("ap-south-1")
+
+
+def test_playground_controls_take_focus_from_editors_and_keep_candidate_focus(
+    browser, serve, subtests
+):
+    """Moving from a native preview editor to a slider leaves the next key on that
+    slider, rather than silently changing the contributor the user just left."""
+    source = CONTRIBUTOR_PAGE.replace(
+        "  <lf-playground-preview>",
+        """  <lf-playground-control name="limit" label="Maximum results"
+          kind="range" value="4" min="1" max="6" step="1"></lf-playground-control>
+  <lf-playground-preview>""",
+    ).replace(
+        '    <input id="region-filter" type="text" value="eu-west-1">',
+        """    <input id="region-filter" type="text" value="eu-west-1">
+    <label>Native range<input id="native-range" type="range"></label>
+    <label>Region choice<select id="native-select"><option>Europe</option><option>Asia</option></select></label>
+    <label>Include archived<input id="native-checkbox" type="checkbox"></label>
+    <label>All regions<input id="native-radio" type="radio"></label>
+    <label>Notes<textarea id="native-textarea">Keep the stable release.</textarea></label>
+    <div id="native-editable" contenteditable="true" aria-label="Description"><span>Release report</span></div>
+    <button id="editor-button" type="button">Add filter</button>
+    </div><div>
+    <label>Candidate input<input id="candidate-input" value="Compare this focus ring"></label>
+    <button id="candidate-button" type="button">Candidate button</button>
+    <input id="candidate-input-button" type="button" value="Candidate input button">
+    <input id="candidate-input-submit" type="submit" value="Candidate submit">
+    <input id="candidate-input-reset" type="reset" value="Candidate reset">
+    <input id="candidate-input-image" type="image" alt="Candidate image button">""",
+    )
+    source = source.replace(
+        "</head>",
+        "<style>#candidate-input:focus {outline: 4px solid violet}</style></head>",
+    )
+    context = browser.new_context(
+        viewport={"width": 1600, "height": 1000}, has_touch=True
+    )
+    page = open_page(browser, serve(source), context=context)
+    slider = page.get_by_role("slider", name="Maximum results")
+    field = page.get_by_role("textbox", name="Region filter")
+    for route in ("click", "tap"):
+        for selector in (
+            "#region-filter",
+            "#native-range",
+            "#native-select",
+            "#native-checkbox",
+            "#native-radio",
+            "#native-textarea",
+            "#native-editable span",
+            "#editor-button",
+        ):
+            with subtests.test(route=route, editor=selector):
+                getattr(page.locator(selector), route)()
+                if selector == "#native-select":
+                    page.keyboard.press("Escape")
+                if route == "tap":
+                    box = slider.bounding_box()
+                    slider.tap(position={"x": 2, "y": box["height"] / 2})
+                    expect(slider).to_have_value("1")
+                    slider.tap(position={"x": box["width"] - 2, "y": box["height"] / 2})
+                    expect(slider).to_have_value("6")
+                else:
+                    slider.click()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowRight")
+                    expect(slider).to_have_value("2")
+                    expect(slider).to_be_focused()
+                expect(field).to_have_value("eu-west-1")
+    # A keyboard arrival, rather than a pointer press, likewise operates the range.
+    page.get_by_role("button", name="Checkout stream", exact=True).click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(slider).to_be_focused()
+    page.keyboard.press("End")
+    expect(slider).to_have_value("6")
+    # Focus belongs to the candidate's purpose, including an input's focus treatment.
+    for selector in (
+        "#candidate-input",
+        "#candidate-button",
+        "#candidate-input-button",
+        "#candidate-input-submit",
+        "#candidate-input-reset",
+        "#candidate-input-image",
+    ):
+        with subtests.test(candidate=selector):
+            candidate = page.locator(selector)
+            candidate.click()
+            slider.click()
+            assert candidate.evaluate("button => button.matches(':focus')")
+            if selector == "#candidate-input":
+                assert (
+                    candidate.evaluate("input => getComputedStyle(input).outlineWidth")
+                    == "4px"
+                )
+
+
+@pytest.mark.parametrize(
+    "browser_fixture", ["browser", "firefox_browser", "webkit_browser"]
+)
+def test_playground_range_preserves_preview_focus_without_cancelling_native_drag(
+    request, browser_fixture, serve, subtests
+):
+    source = CONTRIBUTOR_PAGE.replace(
+        "  <lf-playground-preview>",
+        """  <lf-playground-control name="limit" label="Maximum results"
+          kind="range" value="1" min="1" max="6" step="1"></lf-playground-control>
+  <lf-playground-preview>""",
+    ).replace(
+        "  </lf-playground-preview>",
+        """  <label>Candidate<input id="candidate-input" value="Focus treatment"></label>
+  <lf-sample id="candidate-sample" label="Sample candidate">
+    <template id="candidate-document" data-sample>
+      <input id="sample-input" value="Sample focus treatment">
+    </template>
+  </lf-sample>
+  </lf-playground-preview>""",
+    )
+    page = open_page(request.getfixturevalue(browser_fixture), serve(source))
+
+    def expect_focused(target):
+        node = target.element_handle()
+        node.owner_frame().wait_for_function(
+            "element => element.matches(':focus')", arg=node
+        )
+
+    slider = page.get_by_role("slider", name="Maximum results")
+    editor = page.get_by_role("textbox", name="Region filter")
+    candidate = page.locator("#candidate-input")
+    sample = page.frame_locator("#candidate-sample iframe").locator("#sample-input")
+    # Operate the fresh sample before keyboard focus has visited any parent control.
+    sample.click()
+    page.wait_for_function("document.querySelector('#candidate-sample').focusedContent")
+    box = slider.bounding_box()
+    slider.click(position={"x": box["width"] - 2, "y": box["height"] / 2})
+    expect(slider).to_have_value("6")
+    expect_focused(sample)
+    sample.element_handle().owner_frame().wait_for_function("document.hasFocus()")
+    for target in (candidate, sample):
+        with subtests.test(candidate="sample" if target is sample else "input"):
+            slider.focus()
+            page.keyboard.press("Home")
+            target.click()
+            if target is sample:
+                page.wait_for_function(
+                    "document.querySelector('#candidate-sample').focusedContent",
+                )
+            expect_focused(target)
+            box = slider.bounding_box()
+            slider.click(position={"x": box["width"] - 2, "y": box["height"] / 2})
+            expect(slider).to_have_value("6")
+            expect_focused(target)
+            slider.focus()
+            page.keyboard.press("Home")
+            target.click()
+            if target is sample:
+                page.wait_for_function(
+                    "document.querySelector('#candidate-sample').focusedContent",
+                )
+            page.mouse.move(box["x"] + 8, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            expect_focused(target)
+            page.mouse.move(
+                box["x"] + box["width"] - 8, box["y"] + box["height"] / 2, steps=5
+            )
+            expect(slider).to_have_value("6")
+            expect_focused(target)
+            page.mouse.move(box["x"] + box["width"] + 20, box["y"] + box["height"] / 2)
+            page.mouse.up()
+            expect_focused(target)
+            if target is sample:
+                target.element_handle().owner_frame().wait_for_function(
+                    "document.hasFocus()"
+                )
+                for _ in range(10):
+                    page.keyboard.press("Shift+Tab")
+                    if editor.evaluate("e => e.matches(':focus')"):
+                        break
+            else:
+                editor.click()
+            edited = "sample-value" if target is sample else "native-value"
+            page.keyboard.press("ControlOrMeta+A")
+            page.keyboard.type(edited)
+            expect(editor).to_be_focused()
+            expect(editor).to_have_value(edited)
+            if target is sample:
+                # An already queued restore delivered after the user leaves cannot
+                # reactivate its child window or reclaim the editor's focus.
+                assert not page.locator("#candidate-sample").evaluate(
+                    "e => e.restoreCurrentLocation()"
+                )
+                expect(editor).to_be_focused()
+    # A cancelled native default can leave the preview in place. Neither a cancelled
+    # press nor replacing its candidate may claim a later deliberate editor arrival.
+    for ending in ("cancel", "replace"):
+        with subtests.test(ending=ending):
+            candidate.click()
+            slider.evaluate(
+                "e => e.addEventListener('mousedown', event => event.preventDefault(), {once:true})"
+            )
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            if ending == "cancel":
+                slider.dispatch_event("pointercancel")
+            else:
+                candidate.evaluate(
+                    "e => {const replacement=e.cloneNode(true);replacement.setAttribute('value','Second candidate');e.replaceWith(replacement)}"
+                )
+            page.mouse.up()
+            editor.click()
+            page.keyboard.press("ControlOrMeta+A")
+            page.keyboard.type(ending)
+            expect(editor).to_be_focused()
+            expect(editor).to_have_value(ending)
+
+
+def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Keyboard during a range press",
+                """
+<lf-ask id="ring-ask"><h1>Choose a ring</h1>
+<lf-playground id="ring">
+  <lf-playground-control name="width" label="Width" kind="range"
+    value="2" min="1" max="4" step="1"></lf-playground-control>
+  <lf-playground-preview>
+    <label>Candidate<input value="Focus treatment"></label>
+  </lf-playground-preview>
+  <lf-playground-output>Width <lf-playground-value for="width"></lf-playground-value></lf-playground-output>
+</lf-playground></lf-ask>
+""",
+            )
+        ),
+    )
+    candidate = page.get_by_role("textbox", name="Candidate")
+    slider = page.get_by_role("slider", name="Width")
+    candidate.click()
+    box = slider.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    expect(candidate).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(slider).to_be_focused()
+    page.mouse.up()
+    expect(slider).to_be_focused()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(slider).to_have_value("2")
 
 
 def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, serve):
@@ -466,22 +720,21 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     )
     field.press("ArrowLeft")
     playground.get_by_role("radio", name="Billing", exact=True).click()
-    expect(field).to_be_focused()
+    expect(playground.get_by_role("radio", name="Billing", exact=True)).to_be_focused()
     expect(field).to_have_value("us-east-1")
-    assert field.evaluate("input => input.selectionStart") == len("us-east-")
     assert playground.evaluate("root => root.values.filters.region") == "us-east-1"
 
     field.fill("ap-south-1")
     # A later component registers while another component owns an unfinished edit.
     playground.evaluate("""root => {
-      root.registerContributor('grouped', false);
+      root.registerContributor('grouped', false, root.querySelector('#query-editor'));
     }""")
     expect(field).to_have_value("ap-south-1")
     assert playground.evaluate("root => root.values.filters.region") == "ap-south-1"
 
     field.fill("eu-north-1")
     playground.get_by_role("button", name="Checkout stream").click()
-    expect(field).to_be_focused()
+    expect(playground.get_by_role("button", name="Checkout stream")).to_be_focused()
     expect(field).to_have_value("eu-north-1")
     assert playground.evaluate("root => root.values") == {
         "stream": "checkout",
@@ -599,14 +852,14 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     assert playground.evaluate("root => root.values") == {"stream": "checkout"}
     assert (
         playground.evaluate("""root => {
-      return root.registerContributor('grouped', true).get();
+      return root.registerContributor('grouped', true, root.querySelector('#query-editor')).get();
     }""")
         is False
     )
     undo(page)
     playground.evaluate("""root => {
       const input = document.querySelector('#region-filter');
-      root.registerContributor('filters', {region:'eu-west-1'});
+      root.registerContributor('filters', {region:'eu-west-1'}, root.querySelector('#query-editor'));
       root.subscribe(values => {
         if (input.value !== values.filters.region) input.value = values.filters.region;
       });

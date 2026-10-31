@@ -310,7 +310,7 @@ visible control sends. A box for one line, such as a name, carries
 `aria-multiline="false"` before it is wired: Enter then sends from every keyboard, a
 phone's included, Shift+Enter writes nothing, and a pasted line break becomes a space.
 The options are `sendClass`, placement classes for the generated send control (default
-empty); `sends`, its action in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
+empty); `sends`, its action in words; `hint`, the placeholder, after which a focused box on a physical keyboard names its send key and, where Enter sends a box that holds lines, the key for a new line; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
 and `hasContent(raw)`, which hold sending back. Write `.value` only to seed the box
 before wiring it.

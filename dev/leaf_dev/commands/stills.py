@@ -592,6 +592,37 @@ def card_reply_empty(page: Page) -> None:
     )
 
 
+def card_rewrite_empty(page: Page) -> None:
+    """The user's message in the first margin card, opened for a rewrite by ↑ from its
+    empty reply and emptied, so the editor says only its hint and keys."""
+    card_reply_empty(page)
+    page.keyboard.press("ArrowUp")
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-msg')"
+        " && !document.activeElement.closest('.lf-thread-reply')"
+    )
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Delete")
+
+
+def panel_reply_empty(page: Page) -> None:
+    """The last open thread, opened from Threads in the floating panel, with the caret
+    in its empty reply."""
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.locator(".lf-fp-field leaf-text").click()
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+
+
+def option_empty(page: Page) -> None:
+    """An option list's empty one-line add field, focused."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    expect(field).to_be_focused()
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_reply_empty(page)
@@ -2749,6 +2780,19 @@ STATES = (
         card_reply_empty,
         region=".lf-margin-preview .lf-thread-reply",
     ),
+    State(
+        "plan-card-rewrite-empty",
+        "review-a-plan",
+        card_rewrite_empty,
+        region=".lf-margin-preview .lf-msg:has(:focus)",
+    ),
+    State(
+        "plan-panel-reply-empty",
+        "review-a-plan",
+        panel_reply_empty,
+        region=".lf-fp-row",
+    ),
+    State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State(
         "plan-card-reply-resolved-elsewhere",

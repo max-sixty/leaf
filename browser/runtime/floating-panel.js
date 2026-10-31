@@ -2262,7 +2262,7 @@ export function createFloatingPanel({
             { opens: true, disabled: gone, row: `group:${group}` },
           ),
       })),
-      { key: "", draw: () => html`<hr />` },
+      { key: "", draw: () => html`<hr class="lf-fp-rule" />` },
       ...[keyboard, fold].filter(Boolean).map(seat),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
@@ -2421,7 +2421,7 @@ export function createFloatingPanel({
         </div>`,
     )}${
       errors.length > 1
-        ? html`<hr />
+        ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}`
         : nothing
     }`;
@@ -3537,7 +3537,7 @@ export function createFloatingPanel({
         (row) => row.key,
         (row) =>
           row.rule
-            ? html`<hr class="lf-fp-on-rule" />`
+            ? html`<hr class="lf-fp-rule lf-fp-on-rule" />`
             : row.item
               ? line(row.item, row.group)
               : html`<h3 class="lf-rows-head">

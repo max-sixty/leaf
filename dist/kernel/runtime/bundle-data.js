@@ -2278,7 +2278,9 @@ function paintMarkdown(element, source) {
 	if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 const characters = new Intl.Segmenter(void 0, { granularity: "grapheme" });
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+	const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+	if (!cell && start >= at && source.startsWith(raw, start)) return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
 	const positions = [at];
 	let sourceAt = at;
 	let inlineAt = 0;
@@ -2303,21 +2305,27 @@ function placedMarkdownTokens(source) {
 	starts.push(source.length);
 	const found = [];
 	let inlineAt = 0;
-	for (const [index, token] of tokens.entries()) {
+	let previous;
+	for (const token of tokens) {
+		const before = previous;
+		previous = token;
 		const from = token.map ? starts[token.map[0]] : 0;
 		const to = token.map ? starts[token.map[1]] : source.length;
 		if (token.type !== "inline") {
-			if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block")) found.push({
+			if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) found.push({
 				token,
 				from,
 				to,
 				markers: token.meta?.markers?.map(([line, a, b]) => [starts[line] + a, starts[line] + b]),
-				contentLines: token.type === "heading_open" ? tokens[index + 1].map.map((at) => starts[at]) : void 0,
 				words: token.nesting ? null : token.content
 			});
 			continue;
 		}
-		const positions = inlineSourcePositions(source, token.meta.sourceContent, Math.max(from, inlineAt), to);
+		let wordsAt = Math.max(from, inlineAt);
+		for (const { token: block, markers } of found) if (/^(blockquote|list_item)_open$/.test(block.type)) {
+			for (const [a, b] of markers) if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
+		}
+		const positions = inlineSourcePositions(source, token.meta.sourceContent, wordsAt, to, /^t[dh]_open$/.test(before?.type));
 		const stack = [];
 		for (const child of token.children) {
 			if (!child.meta?.source) continue;
@@ -2338,12 +2346,16 @@ function placedMarkdownTokens(source) {
 				if (child.markup && child.markup !== "linkify" && child.markup !== "autolink") b = a + child.markup.length;
 				placed.to = positions[b];
 				placed.contentTo = positions[a];
-			} else if (child.type !== "html_inline") found.push({
+			} else found.push({
 				token: child,
 				from: positions[a],
 				to: positions[b],
-				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? safeUrl(child.attrGet("src")) ? "" : renderedWords(renderInlineMarkdown(source.slice(positions[a], positions[b]))) : child.content,
-				escapes: (child.meta.escapes ?? []).map((at) => positions[at])
+				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? safeUrl(child.attrGet("src")) ? "" : renderedWords(renderInlineMarkdown(source.slice(positions[a], positions[b]))) : child.type === "html_inline" ? "" : child.content,
+				spelled: (child.meta.spelled ?? []).map(([from, to, shown]) => [
+					positions[from],
+					positions[to],
+					shown
+				])
 			});
 		}
 		inlineAt = positions.at(-1);
@@ -2448,13 +2460,17 @@ function sourcePositions(markdown) {
 				} else if (token.type === "link_open") span = [from, token.meta.sourceAt];
 				else if (token.type === "link_close") span = [token.meta.sourceAt, state.pos];
 				if (token.markup === "linkify" || emitted.some((item) => item.markup === "linkify") && token.type === "text") {
-					const start = pendingFrom + markdown.linkify.match(state.src.slice(pendingFrom, state.pos)).at(-1).index;
+					const start = state.tokens.slice(count).find((item) => !emitted.includes(item))?.meta.source[1] ?? pendingFrom;
 					span = token.type === "link_open" ? [start, start] : token.type === "link_close" ? [state.pos, state.pos] : [start, state.pos];
 				} else if (emitted.some((item) => item.markup === "autolink")) span = token.type === "link_open" ? [from, from + 1] : token.type === "link_close" ? [state.pos - 1, state.pos] : [from + 1, state.pos - 1];
 				token.meta = {
 					...token.meta,
 					source: span,
-					escapes: token.info === "escape" && token.content !== token.markup ? [span[0]] : []
+					spelled: token.type === "text_special" && token.content !== token.markup ? [[...span, token.content]] : token.type === "hardbreak" && state.src[span[0]] === "\\" ? [[
+						span[0],
+						span[0] + 1,
+						""
+					]] : []
 				};
 			}
 			return ok;
@@ -2464,22 +2480,22 @@ function sourcePositions(markdown) {
 	const keepJoined = (before, after) => {
 		const alive = new Set(after);
 		let first = null;
-		let escapes = [];
-		for (const { token, source, escaped } of before) {
-			escapes.push(...escaped);
+		let spelled = [];
+		for (const { token, source, spellings } of before) {
+			spelled.push(...spellings);
 			if (source && !first && (token.type !== "text" || token.content)) first = source;
 			if (alive.has(token)) {
 				if (source && first && token.type === "text") token.meta.source = [first[0], source[1]];
-				if (token.meta) token.meta.escapes = escapes;
+				if (token.meta) token.meta.spelled = spelled;
 				first = null;
-				escapes = [];
+				spelled = [];
 			}
 		}
 	};
 	const snapshot = (tokens) => tokens.map((token) => ({
 		token,
 		source: token.meta?.source,
-		escaped: token.meta?.escapes ?? []
+		spellings: token.meta?.spelled ?? []
 	}));
 	const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
 	markdown.inline.ruler2.getRules = (chain) => secondRules(chain).map((rule) => (state) => {
@@ -2497,13 +2513,15 @@ function sourcePositions(markdown) {
 		for (const token of state.tokens) if (token.type === "inline") {
 			token.meta ??= {};
 			let inLink = 0;
-			token.meta.beforeLinks = token.children.map((child) => {
+			token.meta.beforeLinks = token.children.map((child, index) => {
 				if (child.type === "link_open") inLink++;
 				else if (child.type === "link_close") inLink--;
 				let source = child.meta?.source;
 				if (!inLink && source && child.type === "text" && child.content) {
 					const at = token.meta.sourceContent.slice(source[0], source[1]).indexOf(child.content);
 					if (at < 0) throw new Error("leaf: Markdown text token lost its source");
+					const box = token.children[index - 1];
+					if (at && box?.type === "html_inline") box.meta = { source: [source[0], source[0] + at] };
 					source = [source[0] + at, source[0] + at + child.content.length];
 					child.meta.source = source;
 				}
@@ -2573,17 +2591,13 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set([
-	"fence",
-	"code_block",
-	"hr"
-]);
+const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
 function makeMarkdown(module, breaks) {
 	const markdown = new module.MarkdownIt({
 		html: false,
 		breaks,
 		linkify: true
-	}).use(module.taskLists, { enabled: false });
+	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");

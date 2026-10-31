@@ -3871,8 +3871,8 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode stands its ✕ at
     the row's end, where the On me mark ends, as close to the field as the leaf stands at
     the row's start, and names the mode in the field; the ✕ leaves the mode, and the
-    mark comes back. While a draft stands, the ✕ keeps the mark's room, so leaving the
-    mode moves none of the draft's words. Annotations also lists Comment on an element
+    mark comes back. Typing in the mode moves neither the field nor its ✕, since the
+    ✕ keeps its seat while the user writes. Annotations also lists Comment on an element
     for a mouse, with the `s` that reaches it from the keyboard, since selecting words
     picks no widget or picture."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
@@ -3905,19 +3905,19 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(field(page)).to_have_attribute("data-says", "status")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
-    write(field(page), "Keep these words where they stand")
-    page.locator("body").focus()
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu .lf-fp-item", has_text="Annotations").click()
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     expect(exit_step).to_be_visible()
+    field(page).click()
     settled(page)
-    assert exit_step.bounding_box() == mark
-    drafted = page.locator(".lf-fp-field").bounding_box()
-    exit_step.click()
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    stood = [page.locator(".lf-fp-field").bounding_box(), exit_step.bounding_box()]
+    page.keyboard.type("Keep these words where they stand")
     settled(page)
-    assert page.locator(".lf-fp-field").bounding_box() == drafted
+    assert [
+        page.locator(".lf-fp-field").bounding_box(),
+        exit_step.bounding_box(),
+    ] == stood
 
 
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(

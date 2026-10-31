@@ -504,8 +504,10 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
 ):
     """An edit the pause hadn't recorded when the page reloads records as the page
     leaves, so the reload keeps it; one made before the page could record anything,
-    while its state loads, records once it can."""
-    page = open_page(browser, serve(PLAYGROUND_PAGE))
+    while its state loads, records once it can. Leaving records nothing else, though
+    a recorded value the controls can't hold draws as their default."""
+    url = serve(PLAYGROUND_PAGE)
+    page = open_page(browser, url)
     title = page.locator('lf-playground-control[name="title"] input')
 
     def titles():
@@ -535,6 +537,38 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
         lambda recorded: recorded[-1:] == ["Loading note"],
         failure="the edit made while the state loaded was never recorded",
     )
+
+    values = {**playground_values(page), "radius": 40}
+    response = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": events_model.read_events(serve.page_dir)[-1]["revision"],
+            "widget": "card-playground",
+            "action": "tune",
+            "detail": {"values": values},
+        },
+    )
+    assert response.ok
+    radius = page.get_by_role("slider", name="Corner radius")
+    expect(radius).to_have_value("12")
+    for _ in range(2):
+        page.reload()
+        wait_until_ready(page)
+        expect(radius).to_have_value("12")
+    # The old document's post on leaving arrives on its own schedule; a round trip from
+    # this one doesn't order it, so give it the time a leave post takes.
+    page.wait_for_timeout(1000)
+    assert [
+        event["detail"]["values"]["radius"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("action") == "tune"
+    ][-1] == 40
+
+
+def playground_values(page):
+    return page.locator("#card-playground").evaluate("root => ({...root.values})")
 
 
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(

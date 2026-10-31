@@ -185,13 +185,15 @@ customElements.define(
           width = innerWidth;
         };
         window.addEventListener("resize", putAway, { signal });
-        // Leaving the page records what the pause hasn't yet.
+        // Leaving the page records edits the pause hasn't yet, and nothing else: a
+        // value the controls can't hold draws as its default without being an edit.
+        const leave = () => this.#unsent.size && this.#commit();
         document.addEventListener(
           "visibilitychange",
-          () => document.visibilityState === "hidden" && this.#commit(),
+          () => document.visibilityState === "hidden" && leave(),
           { signal },
         );
-        window.addEventListener("pagehide", () => this.#commit(), { signal });
+        window.addEventListener("pagehide", leave, { signal });
         this.#draw();
         // An edit left unrecorded across a disconnection records once input pauses.
         if (this.#unsent.size) this.#recordLater();

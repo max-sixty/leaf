@@ -66,6 +66,24 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     expect(door).to_be_focused()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
+    engine, request, serve
+):
+    """The chrome's foreground is an empty box holding the panel and the overlays, so a
+    Tab never stops on it. Firefox gave the open dialog a Tab stop of its own, which
+    drew nothing between the page's last control and the leaf."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
+    )
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("Tab")
+    expect(page.locator("#last")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+
+
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
     """A hold hands focus back only if the user has not moved on since it began. With no
     stop on body, a press on the page's words takes focus off the control and puts it

@@ -63,10 +63,16 @@
  *
  * Whose change it is decides what travels. The user's own change, a key, a press or
  * typing, owns what it sets going until that rendering settles, and carries what it
- * moved, so the eye follows it. News, such as an answer arriving, moves nothing the
- * reader reads (browser/AGENTS.md, "Stability"): each part it moved shows where it now
- * stands, revealed by the frame it stands in or growing from its own old box, while
- * the box's outline and ring still follow.
+ * moved, so the eye follows it. Typing sets the box's measure at once, though, as it
+ * sets a textarea's sized to its words: where a key widens or narrows the box, as
+ * each key past its least width does in a comment box, every part stands at its new
+ * inline edges in the frame the key lands, and only what a line the key adds or
+ * removes moves still travels. The user asked for this on 30 October: each key
+ * restarted a tween that never settled, its edge trailing the caret, and the field's
+ * cut hid most of the glyph just typed for its first frames. News, such as an answer
+ * arriving, moves nothing the reader reads (browser/AGENTS.md, "Stability"): each part
+ * it moved shows where it now stands, revealed by the frame it stands in or growing
+ * from its own old box, while the box's outline and ring still follow.
  *
  * A change arriving during the tween starts each part from where it is drawn then;
  * news arriving while the user's change still carries parts shows them where they now
@@ -506,8 +512,23 @@ export function boxMotion({
       return;
     }
     // The first reading, and any while motion does not play, is taken as it stands.
-    const was = motionPlays() && rests ? drawn(progress, carried) : null;
+    let was = motionPlays() && rests ? drawn(progress, carried) : null;
     const gesture = theirs();
+    // Typing sets the box's measure: every part stands at its new inline edges, so a key
+    // that changed only the measure moves nothing.
+    if (was && gesture === "typing") {
+      const typed = was;
+      for (const [element, at] of typed) {
+        const to = next.get(element);
+        if (to) typed.set(element, { ...at, left: to.left, right: to.right });
+      }
+      if (
+        [...next].every(
+          ([element, to]) => typed.has(element) && same(typed.get(element), to),
+        )
+      )
+        was = null;
+    }
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(

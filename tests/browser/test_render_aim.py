@@ -865,6 +865,64 @@ def test_a_side_comment_s_words_and_send_ride_its_edges_as_it_grows(browser, ser
         assert rest["top"] != pytest.approx(stood["top"], abs=1), (key, stood, rest)
 
 
+def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
+    """A comment box sizes to its words, so each key past its least width widens it;
+    the box stands at its new width in the frame the key lands, as a textarea sized to
+    its words does (box-motion.js, "Whose change it is"). Each key used to start a
+    tween that trailed the caret, and the field's cut hid most of the glyph just
+    typed until the tween caught up."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A passage with room",
+                '<p id="passage">This passage has room around it for a response.</p>',
+            )
+        ),
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1000, 800)
+    page.locator("#passage").click(modifiers=["Alt"])
+    open_compact_comment(page)
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    least = box.bounding_box()["width"]
+    # Words until the box has begun to widen past its least width.
+    for word in "the window is too short for what we see in practice".split():
+        page.keyboard.type(f"{word} ")
+        rendered(page)
+        if box.bounding_box()["width"] > least + 0.5:
+            break
+    else:
+        pytest.fail(f"the box never widened past {least}px")
+    wide = box.bounding_box()["width"]
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.type("m")
+    page.wait_for_function(
+        "wide => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().width > wide + 0.5",
+        arg=wide,
+    )
+    # A reading of the box follows its size change before the frame after it paints.
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
+    drawn = page.evaluate(
+        """() => {
+          const ground = document.querySelector('.lf-fab-ground');
+          const right = /inset\\(([^r)]*)/
+            .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
+            .trim().split(/\\s+/).map(Number.parseFloat)[1];
+          const host = document.querySelector('.lf-fab-input');
+          return {
+            right: ground.getBoundingClientRect().right - right + 1,
+            cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
+          };
+        }"""
+    )
+    assert drawn["right"] == pytest.approx(
+        box.bounding_box()["x"] + box.bounding_box()["width"], abs=0.5
+    )
+    assert drawn["cut"] in ("", "none"), drawn
+
+
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     """The attached side stays stable while vertical shift consumes free room."""
     page = open_page(

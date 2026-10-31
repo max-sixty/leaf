@@ -109,7 +109,8 @@ export function createFloatingResponsePlacement({
   // mounts: the box the user sees.
   const fabField = () => fabInput.parentElement;
   // The box follows every change of its layout as the panel and the card do
-  // (box-motion.js): a line the field gains or loses, the measure it widens into. The
+  // (box-motion.js): a line the field gains or loses, the measure it widens into, which
+  // typing sets at once (box-motion.js, "Whose change it is"). The
   // field's frame is the box, drawn by a surface behind it, and the composer holding
   // the field and the pictures hanging off it is what moves, so the grip beside it,
   // whose clip opens its middle to the field's presses, is never cut. It reads in the

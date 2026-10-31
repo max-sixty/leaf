@@ -267,13 +267,32 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
         ),
         init_script=KEEP_ROOTS,
     )
+    resized(page, 1440, 900)
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    hold_motion(page)
-    # The box grows with its words, so the caret after the last word ends its column.
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    least = box.bounding_box()
     page.keyboard.insert_text(
-        "it's not really a feed as much as a list? I see a feed as"
+        "it's not really a feed as much as a list? I see a feed as a stream"
+    )
+    rendered(page)
+    two_lines = box.bounding_box()
+    hold_motion(page)
+    # The box grows with its words, so the caret after the last word ends its column,
+    # and the line the words give up moves the box.
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("it's not really a feed as much as a list? I see")
+    page.wait_for_function(
+        "line => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height < line",
+        arg=two_lines["height"],
+    )
+    one_line = box.bounding_box()
+    assert least["width"] < one_line["width"] < two_lines["width"], (
+        least,
+        one_line,
+        two_lines,
     )
     rendered(page)
     held_motion(page, ".lf-fab-ground")

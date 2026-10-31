@@ -1202,6 +1202,15 @@ html[data-lf-region-capture] main * {
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
+  /* Where the agent is at work (at-work.js): a bar in the margin beside its target, in
+     the accent its margin entry wears while it works. It comes and goes with the work,
+     whose start the margin entry's pulse acknowledges. */
+  .lf-at-work-bar {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 1.5px;
+    background: var(--accent);
+  }
   .lf-page-search-match {
     position: absolute;
     box-sizing: border-box;

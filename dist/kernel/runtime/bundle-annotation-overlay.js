@@ -7,8 +7,8 @@ import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplie
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { retainUserIntent } from "./bundle-copy-control.js";
-import { activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
-import { SVG_NS, boxMotion, dropStand, paintGeometry, paintShape, paintStand, paintTrace, placement, standOver } from "./bundle-box-motion.js";
+import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionSource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
+import { boxMotion, paintTrace } from "./bundle-box-motion.js";
 import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
@@ -330,34 +330,43 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			items: ".lf-msg[data-event]",
 			identity: (message) => message.dataset.event
 		}) : null;
-		if (previewRegionMounted && transcript) previewSession.stopRegion = registerReadingRegion({
-			id: THREAD_CARD,
-			host: preview,
-			body: transcript,
-			paintContinuation: (above) => {
-				let edge = 0;
-				let height = above ? 12 : 0;
-				const room = slotTop(transcript);
-				const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
-				for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
-					const box = message.querySelector(":scope > .lf-msg-head")?.getBoundingClientRect();
-					keeps(message, "data-lf-beside-actions", above && box && box.top < top + box.height && box.bottom > top ? "" : null);
-				}
-				if (above) for (const head of transcript.querySelectorAll(".lf-msg-head")) {
-					const box = head.getBoundingClientRect();
-					if (!box.height || box.bottom <= top) continue;
-					if (box.top <= top) edge = box.bottom - top;
-					else {
-						height = Math.min(height, box.top - top - edge);
-						break;
+		if (previewRegionMounted && transcript) {
+			let decided = "";
+			previewSession.stopRegion = registerReadingRegion({
+				id: THREAD_CARD,
+				host: preview,
+				body: transcript,
+				paintContinuation: (above) => {
+					let edge = 0;
+					let height = above ? 12 : 0;
+					const messages = transcript.querySelectorAll(":scope > .lf-msg");
+					const overflows = transcript.scrollHeight > transcript.clientHeight;
+					const shown = [...messages].filter((message) => !message.hidden).length;
+					const shape = `${transcript.offsetWidth} ${shown}`;
+					const room = slotTop(transcript);
+					const top = transcript.getBoundingClientRect().top + transcript.clientTop + room;
+					for (const message of messages) {
+						const box = message.querySelector(":scope > .lf-msg-head")?.getBoundingClientRect();
+						keeps(message, "data-lf-beside-actions", above && box && box.top < top + box.height && box.bottom > top ? "" : null);
 					}
+					if (above) for (const head of transcript.querySelectorAll(".lf-msg-head")) {
+						const box = head.getBoundingClientRect();
+						if (!box.height || box.bottom <= top) continue;
+						if (box.top <= top) edge = box.bottom - top;
+						else {
+							height = Math.min(height, box.top - top - edge);
+							break;
+						}
+					}
+					const card = transcript.parentElement;
+					card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
+					card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+					keeps(card, "data-lf-scrolled", above ? "" : null);
+					if (overflows || shape !== decided) keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+					decided = shape;
 				}
-				const card = transcript.parentElement;
-				card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
-				card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
-				keeps(card, "data-lf-scrolled", above ? "" : null);
-			}
-		});
+			});
+		}
 	}
 	let previewSession = null;
 	const placementDriver = floatingPlacement({

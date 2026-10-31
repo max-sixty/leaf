@@ -334,7 +334,7 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     for command in (["page", "check"], ["page", "init"]):
         refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
         assert refused.exit_code != 0
-        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "Use a newer Leaf" in refused.output
         assert "leaf page init" not in refused.output
         layer_4 = registry_storage.layer_record(claimed)
         assert layer_4 is not None
@@ -352,7 +352,33 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     )
     assert stated.returncode == 0, stated.stderr
     error = json.loads(stated.stdout)["source"]["error"]
-    assert f"Use a Leaf at protocol {foreign} or later" in error
+    assert "Use a newer Leaf" in error
+
+
+def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
+    """A newer Leaf may change the layer record's shape without a protocol bump, and
+    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
+    page init` first", an agent would replace the page's packages and theme under
+    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
+    writers that ask first as by `page check` and `page init`."""
+    from leaf.event_contracts import write_refusal
+
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
+    assert record is not None
+    path.unlink()
+    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
+    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    recorded = path.read_bytes()
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None and refusal.code == "newer-layer"
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert "Use a newer Leaf" in refused.output
+        assert "leaf page init" not in refused.output
+        assert path.read_bytes() == recorded
 
 
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):

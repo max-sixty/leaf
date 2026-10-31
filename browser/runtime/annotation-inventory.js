@@ -31,6 +31,7 @@ import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
+  progressFace,
   strongestWorkflow,
   todoWord,
   workflowWord,
@@ -432,7 +433,7 @@ export function createAnnotationInventory({
 
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
-      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+      const account = `${addressableWord(target)} changed${base == null ? "" : ` since ${base.name}`}`;
       const inline = inlineComparison(target);
       const mapAccount = inline ? `${addressableWord(target)} changed` : account;
       add(groups, target, {
@@ -491,6 +492,8 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
+        // A start running on it is the agent at work there (at-work.js).
+        atWork: Boolean(running),
         text: labelWords(account),
         words: [
           ...(todo.agent ? [`${todo.agent} · `] : []),
@@ -576,6 +579,11 @@ export function createAnnotationInventory({
             offers: Object.freeze(group.offers.map((offered) => offered.model)),
             items: Object.freeze(group.items.map(captureItem)),
             workflowReceipt: workflowReceipt(group.items),
+            // Whether the agent is at work on this target, and not stalled: an update
+            // here it is working on or replying to, or a to-do with a start running.
+            atWork:
+              progressFace(workflowReceipt(group.items)) === "working" ||
+              group.items.some((item) => item.atWork),
           });
         }),
     );

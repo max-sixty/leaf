@@ -26,7 +26,7 @@ from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, page_vocabulary, served_layer
-from ..revision_artifact import read_revision
+from ..revision_artifact import RevisionReading, read_revision
 from ..state import now_iso
 
 
@@ -76,6 +76,22 @@ class PageRead:
     @cached_property
     def data(self) -> dict:
         return self.stored_data()
+
+    def descriptor(self, revision: int) -> dict:
+        """One immutable revision's descriptor, as `active` describes the live one."""
+        if self.active is not None and revision == self.active["revision"]:
+            return self.active
+        reading = self.revision(revision)
+        # Only a check's candidate is read without being stored, and it is never one
+        # the user was shown.
+        assert isinstance(reading, RevisionReading)
+        return document_descriptor(
+            revision,
+            self.events,
+            url=f"/revisions/{reading.marker.name}",
+            executable=reading.manifest["executable"],
+            activated_at=reading.activated_at,
+        )
 
     def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the

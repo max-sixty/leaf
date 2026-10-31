@@ -468,7 +468,9 @@ function shrunkLabels(floor) {
   for (const text of openRoots(document).flatMap((r) => [
     ...r.querySelectorAll("svg text"),
   ])) {
-    if (chrome(text)) continue;
+    // A local-name selector also matches HTML templates mounted inside SVG.
+    // Only native SVG text has the geometry this reading measures.
+    if (!(text instanceof SVGTextElement) || chrome(text)) continue;
     let svg = text.ownerSVGElement;
     while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
     const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);

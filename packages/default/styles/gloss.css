@@ -1,7 +1,9 @@
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
  * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
- * ink, and rule rather than inventing a tooltip palette. Paper puts the explanation
+ * ink, and rule rather than inventing a tooltip palette. The explanation is the
+ * page's words, so the card reads in the face of the prose around the phrase, upright
+ * and at regular weight even where the phrase is emphasised. Paper puts the explanation
  * after the phrase, where it can honour its words. */
 lf-gloss {
   display: inline;
@@ -69,9 +71,8 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font-family: var(--serif);
-  font-size: var(--t-5);
-  line-height: 1.45;
+  font-style: normal;
+  font-weight: 400;
   text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;

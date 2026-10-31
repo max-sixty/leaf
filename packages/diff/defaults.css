@@ -13,9 +13,7 @@ lf-diff {
   contain: inline-size;
 }
 lf-diff.lf-rendered {
-  font-family: var(--mono);
-  font-size: var(--code-size);
-  line-height: var(--code-line);
+  font: var(--font-source);
   font-variant-ligatures: none;
 }
 
@@ -33,10 +31,8 @@ lf-call-diff {
   border-radius: var(--r);
   background: var(--pre-bg);
   color: var(--code-ink);
-  font-family: var(--mono);
-  font-size: var(--code-size);
+  font: var(--font-source);
   font-variant-ligatures: none;
-  line-height: var(--code-line);
   container-type: inline-size;
 }
 
@@ -49,12 +45,12 @@ lf-call-diff {
   border-bottom: 1px solid var(--code-border);
   background: var(--code-chrome);
   color: var(--code-muted);
-  font-family: var(--sans);
+  font: var(--font-ui);
 }
 
 .lf-call-summary {
   margin: 0;
-  font-size: var(--t-6);
+  font: var(--font-small);
 }
 
 .lf-call-toggle {
@@ -89,7 +85,7 @@ lf-call-diff {
   min-width: 0;
   margin-inline-start: 0;
   overflow: hidden;
-  font-size: var(--t-6);
+  font: var(--font-code);
   text-overflow: ellipsis;
 }
 
@@ -142,8 +138,8 @@ lf-call-diff {
   grid-row: 1;
   margin-inline-start: var(--sp-4);
   color: var(--code-muted);
-  font-family: var(--sans);
-  font-size: var(--t-6);
+  font: var(--font-small);
+  font-variant-numeric: tabular-nums;
   text-align: end;
   white-space: nowrap;
 }
@@ -165,7 +161,7 @@ lf-call-diff {
 }
 
 .lf-call-line[data-root] .lf-call-body {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lf-call-line[data-meta] {
@@ -217,7 +213,7 @@ lf-call-diff {
   min-width: 0;
   padding: var(--sp-3);
   color: var(--code-muted);
-  font-family: var(--sans);
+  font: var(--font-ui);
   white-space: normal;
 }
 

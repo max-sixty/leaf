@@ -686,8 +686,9 @@
      the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* The interface's fonts. Each is a whole font (weight, size, line height and
-     family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
-     its words by naming one, `font: var(--font-small)`, or by inheriting its holder's.
+     family), and every rule of Leaf's interface, one that selects an `lf-` class in
+     the core's sheets or a bundled package's, sets its words by naming one,
+     `font: var(--font-small)`, or by inheriting its holder's.
      A rule that names a font takes its weight with it. Only a run that keeps its
      holder's font sets a weight (400, 500 or 600), to stand out from the words around
      it or back into them, as a pending thread name does inside a title. A box centres
@@ -716,9 +717,13 @@
   --font-tip: 500 var(--t-6) / 1.2 var(--sans);
   --font-chip: var(--t-6) / var(--chip-lh) var(--sans); /* a small fact (above) */
   --font-count: 600 var(--t-7) / 1 var(--sans); /* a number on a mark */
-  /* A tooltip's second line, or a status under a drawing. */
+  /* A tooltip's second line, a status under a drawing, or a chart's axes. */
   --font-fine: var(--t-7) / 1.25 var(--sans);
-  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or source, verbatim */
+  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or a path, verbatim */
+  /* Source shown as a block: a code block, a diff's lines, a data widget's text before
+     it draws. Its size and line are the code inputs (`--code-size`, `--code-line`),
+     so a plain block and the widget that upgrades it keep one density. */
+  --font-source: var(--code-size) / var(--code-line) var(--mono);
   /* An emoji set as a picture at an icon's size, as the reaction palette holds them. */
   --font-emoji: 16px / 1 var(--sans);
 }

@@ -137,7 +137,7 @@ lf-column {
     }
     .lf-board-destinations-label {
       color: var(--muted);
-      font-size: var(--t-6);
+      font: var(--font-small);
     }
     .lf-board-destination {
       min-height: var(--aim-floor);
@@ -159,9 +159,7 @@ lf-column {
 lf-column::before,
 lf-column > [data-lf-said="label"] {
   display: block;
-  font-size: var(--t-working-label);
-  font-weight: 600;
-  line-height: 1.5;
+  font: var(--font-name);
   color: var(--ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
@@ -197,7 +195,7 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: 600 var(--t-working-label)/1.5 var(--sans);
+  font: var(--font-name);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }

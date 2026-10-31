@@ -4,7 +4,8 @@ import re
 
 import tinycss2
 
-from leaf.schema import ASSETS
+from leaf.schema import ASSETS, BUNDLED_PACKAGES
+from leaf.state import PLUGIN_ROOT
 
 # Declarations that make a face, and what a rule of the interface may write for each
 # without naming a font: inheriting its holder's, a weight for a run that keeps its
@@ -21,7 +22,13 @@ OWN = {
 
 
 def sheets():
-    return [p for p in sorted(ASSETS.rglob("*.css")) if "vendor" not in p.parts]
+    """The core's sheets and the bundled packages', less what they vendor."""
+    return [
+        path
+        for root in (ASSETS, BUNDLED_PACKAGES)
+        for path in sorted(root.rglob("*.css"))
+        if "vendor" not in path.parts
+    ]
 
 
 def interface(context):
@@ -74,7 +81,8 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     base.css's one list of them, where it is seen beside the others.
 
     Asked of the source rather than of a rendered page, because that is where the face
-    is chosen, and every sheet is read whether or not a page draws its rules.
+    is chosen, and every sheet is read whether or not a page draws its rules: the
+    core's, and each bundled package's, whose widgets' own words are the interface too.
     """
     fonts = {
         item.name
@@ -107,7 +115,7 @@ def test_every_rule_of_the_interface_names_a_declared_font():
                 map(names_a_font, siblings)
             )
             if beside or not OWN[item.lower_name](said(item)):
-                where = f"{sheet.relative_to(ASSETS)}:{item.source_line}"
+                where = f"{sheet.relative_to(PLUGIN_ROOT)}:{item.source_line}"
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
         f"{len(own)} rules of the interface set a face of their own rather than naming "

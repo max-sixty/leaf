@@ -1417,8 +1417,10 @@
     flex: none;
     font: var(--font-small);
   }
+  /* A word space stands before the note, so a listener hears the name and the note as
+     two words; the margin adds the rest of the gap. */
   .lf-fp-note {
-    margin-inline-start: 8px;
+    margin-inline-start: 4px;
     color: var(--muted);
     font-weight: 400;
   }

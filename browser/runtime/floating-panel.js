@@ -2315,12 +2315,14 @@ export function createFloatingPanel({
               ${menuItem(
                 html`${entry.name}${
                   entry.note
-                    ? html`<span class="lf-fp-note">${entry.note}</span>`
+                    ? html` <span class="lf-fp-note" title=${entry.note}
+                        >${entry.note}</span
+                      >`
                     : nothing
                 }`,
                 nothing,
                 () => showVersion(entry),
-                { title: entry.note, current: entry.current },
+                { current: entry.current },
               )}${
                 entry.current
                   ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>`

@@ -5976,10 +5976,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </div>` : nothing}
       <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-              ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
-			title: entry.note,
-			current: entry.current
-		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
+              ${menuItem(html`${entry.name}${entry.note ? html` <span class="lf-fp-note" title=${entry.note}
+                        >${entry.note}</span
+                      >` : nothing}`, nothing, () => showVersion(entry), { current: entry.current })}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
                       type="button"
                       role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"

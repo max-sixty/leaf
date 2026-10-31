@@ -3700,11 +3700,13 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view).to_be_visible()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
-    # Each version says the note its stamp gave it after its name, whole on hover.
+    # Each version says the note its stamp gave it after its name, whole on hover, and a
+    # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
-        "title", "two"
-    )
+    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    first = view.locator(".lf-fp-version .lf-fp-item").first
+    expect(first).to_have_accessible_name("v2 (latest version) two")
+    expect(first).to_have_accessible_description("")
     # The list is one stop for Tab, which the arrows walk from the first version through
     # each version and its Compare to the way back at its foot.
     stops = view.locator("button:not(:disabled)")

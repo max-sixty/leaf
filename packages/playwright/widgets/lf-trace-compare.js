@@ -6,18 +6,24 @@
  * Each direct child is one recording view: a trace or any wrapper holding one,
  * including its caption. Membership is known from its start tag, so a partial
  * second wrapper stays hidden while the parser is still receiving its trace.
- * Shared introductory text belongs outside the comparison. */
+ * Shared introductory text belongs outside the comparison. The chooser's
+ * measured height clears focus and navigation inside those views. */
 import {
+  cancelRender,
   el,
   generatedElement,
   keepView,
   keeps,
   layoutChanged,
+  layoutPx,
+  nextRender,
   once,
   offer,
   openingView,
   viewMembers,
   quoted,
+  sizeObserver,
+  whileConnected,
 } from "/runtime/widget-api.js";
 import "./lf-trace.js";
 
@@ -85,6 +91,24 @@ customElements.define(
       });
       header.append(choices);
       this.prepend(header);
+      whileConnected(this, () => {
+        const paintHeight = (height) =>
+          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
+        paintHeight(header.getBoundingClientRect().height);
+        let paint;
+        const size = sizeObserver(([entry]) => {
+          cancelRender(paint);
+          // Clearance resizes the stage; publish outside size delivery.
+          paint = nextRender(() => {
+            paintHeight(entry.borderBoxSize[0].blockSize);
+          });
+        });
+        size.observe(header, { box: "border-box" });
+        return () => {
+          size.disconnect();
+          cancelRender(paint);
+        };
+      });
       this.#draw();
     }
 

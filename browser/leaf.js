@@ -87,11 +87,13 @@ import { currentLocationThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createChangeWalk } from "./runtime/change-walk.js";
 import {
   commandHintLayer,
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
+import { atWorkLayer } from "./runtime/at-work.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
@@ -455,6 +457,7 @@ async function boot() {
     readableDestination: anchorTravel.readableDestination,
     announce,
   });
+  const changeWalk = createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -493,8 +496,6 @@ async function boot() {
     landIn: landing.landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
-    replyThreadAtCurrentLocation: () =>
-      app.threadDestinations.replyThreadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
     currentTarget,
     markAt: anchorPaint?.markAt,
@@ -689,6 +690,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
+      atWorkLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
@@ -711,6 +713,7 @@ async function boot() {
     pageMapDialog.mount(chromeForeground);
     items.mount();
     queueWalk.mount();
+    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();

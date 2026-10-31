@@ -1,5 +1,5 @@
-import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionRecord, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x } from "./bundle-layer-stack.js";
+import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, ROLE_BUTTON_OFFER, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
 const setRuntimeRootAttribute = (...args) => document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
@@ -788,7 +788,7 @@ function nativeClaimAt(control) {
 const LINK = "a[href], area[href]";
 const ACTIVATION = [
 	[LINK, ["Enter"]],
-	["button, details > summary, input:is([type=\"button\"], [type=\"submit\"], [type=\"reset\"], [type=\"image\"])", PRESS],
+	[`button, ${ROLE_BUTTON_OFFER}, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])`, PRESS],
 	["input:is([type=\"checkbox\"], [type=\"radio\"])", [" "]]
 ];
 function nativeActivationAt(control) {
@@ -1608,6 +1608,7 @@ const noticePresentation = Z(Object.freeze({
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
+const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
 const presentNotice = (message, visible) => {
 	noticePresentation.value = Object.freeze({
 		message,
@@ -1618,7 +1619,7 @@ function announce(msg) {
 	if (liveEl.firstChild) liveEl.replaceChildren();
 	setTimeout(() => {
 		if (liveEl.firstChild) liveEl.replaceChildren();
-		liveEl.append(msg);
+		liveEl.append(wordsText(msg));
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
@@ -1635,7 +1636,7 @@ function showNotice(msg, background = null) {
 function showBackground(entry) {
 	while (entry) {
 		const message = entry.format(entry.value);
-		if (message) {
+		if (wordsText(message)) {
 			showNotice(message, entry);
 			return true;
 		}
@@ -1916,7 +1917,7 @@ const revealLayer = () => {
 	layerKnown = true;
 	layerRevealed();
 };
-const postEvent = async (event, held = runtime.data) => {
+const postEvent = async (event, held = runtime.data, { keepalive = false } = {}) => {
 	if (offlineInteractive) throw new Error("no agent or server is available in an interactive export");
 	if (!layerKnown) await layerReady;
 	countTraffic("sends");
@@ -1932,7 +1933,8 @@ const postEvent = async (event, held = runtime.data) => {
 				"Content-Type": "application/json",
 				...dataHeaders(held)
 			}),
-			body: JSON.stringify(event)
+			body: JSON.stringify(event),
+			keepalive
 		});
 		recordInteraction("event_response", {
 			kind: event.kind,
@@ -2001,11 +2003,11 @@ window.addEventListener("error", (e) => {
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
-	reportPageError(exceptionRecord(e.error).stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
+	reportPageError(e.error ?? e.message, e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "");
 });
 window.addEventListener("unhandledrejection", (e) => {
 	reportPageError(e.reason);
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

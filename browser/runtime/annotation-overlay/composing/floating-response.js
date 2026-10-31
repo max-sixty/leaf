@@ -65,8 +65,8 @@ export function createFloatingResponsePlacement({
   scrollToElement,
   scrollToRange,
 }) {
-  const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: rightCover() });
+  const floatBoundary = (scroller) =>
+    commentBoundary({ scroller, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -85,14 +85,14 @@ export function createFloatingResponsePlacement({
   let editingAttachment = null;
   // An explicit open on a hidden subject retains a window seat until it returns.
   let windowPosture = false;
-  // The reading region the last placement stood the box in, whose boundary holds a
+  // The box that scrolled the box's row at its last placement, whose boundary holds a
   // carry in.
-  let fabRegion = null;
+  let fabScroller = pageScroller;
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
     surface: fabBar,
-    bounds: () => floatBoundary(fabRegion),
+    bounds: () => floatBoundary(fabScroller),
     dropped(box) {
       if (!response.anchor || !response.floating) return;
       if (box && response.open)
@@ -427,9 +427,10 @@ export function createFloatingResponsePlacement({
       }
     }
     if (response.open && nativeAttachment && geometry && !windowPosture) return true;
-    const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
+    const boundary =
+      place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    fabRegion = place.region;
+    fabScroller = place.scroller;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap

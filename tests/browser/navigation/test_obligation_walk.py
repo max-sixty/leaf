@@ -1015,8 +1015,16 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     page.keyboard.press("c")
     expect(obligation_thread.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
+    expect(obligation_thread).to_be_focused()
+    expect(item).to_have_attribute("data-lf-obligation", "1")
+    # Leaving the card releases the target beside the ask; it does not focus the ask.
     page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    # A walk from beside a released target returns to it before advancing.
+    page.keyboard.press("m")
     expect(item).to_be_focused()
+    expect(obligation_thread).to_be_visible()
 
     # From an obligation with no thread, `t` goes to the next thread after it in the document,
     # which is the task's. Back from there is the obligation's own thread, where, in the card,

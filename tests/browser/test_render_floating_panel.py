@@ -134,9 +134,9 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
             return r.top >= v.top - 1 && r.bottom <= v.bottom + 1;
         }"""
     )
-    # The box empties as the reply leaves, and the view's ✕ holds the row's end.
+    # The box empties as the reply leaves, and the view's ✕ ends its controls.
     expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_hidden()
-    expect(page.locator(".lf-fp-quick .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
 
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
@@ -690,7 +690,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     # The On me tab turns the open view back to the user's list, and the ✕ closes it.
     panel_tab(page, "On me").click()
     expect(title).to_have_text("On me")
-    page.locator(".lf-fp-quick .lf-fp-close").click()
+    page.locator(".lf-fp-controls .lf-fp-close").click()
     expect(title).to_have_count(0)
 
 
@@ -771,7 +771,7 @@ SEATS = """() => {
     back: seat('.lf-fp-controls .lf-fp-back'),
     on: seat('.lf-fp-controls .lf-fp-on-page'),
     settle: seat('.lf-fp-controls .lf-fp-settle'),
-    close: seat('.lf-fp-row .lf-fp-close'),
+    close: seat('.lf-fp-controls .lf-fp-close'),
   };
 }"""
 
@@ -3638,8 +3638,12 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(chooser).to_have_value("list")
     chooser.select_option("summary")
     summary = view.locator(".lf-fp-work-summary")
+    # Leaf says the summary, and the agent's own line stands in its own face within it.
     expect(summary).to_contain_text(
-        "Working on 1; 1 up next. Now: “Drafting the note's first line”."
+        "Working on 1; 1 up next. Now: Drafting the note's first line."
+    )
+    expect(summary.locator('[data-voice="agent"]')).to_have_text(
+        ["Drafting the note's first line"]
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
     expect(view.locator(".lf-fp-on-line")).to_have_count(0)
@@ -4303,10 +4307,10 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
-def test_a_widened_field_takes_the_row_s_end_from_a_view_s_close(browser, serve):
-    """With a view open, the widened field reaches the row's end: the view's Close
-    stands at its controls' end instead, so no column beside the tall field stands
-    empty but for it, and folding the field back returns Close to the row."""
+def test_a_view_s_close_ends_its_controls_and_the_field_the_row(browser, serve):
+    """With a view open, its Close ends its controls and the field reaches the row's
+    end, at rest and widened alike, so widening the field leaves Close beside the
+    controls."""
     page = floating(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
@@ -4314,15 +4318,24 @@ def test_a_widened_field_takes_the_row_s_end_from_a_view_s_close(browser, serve)
     field(page).click()
     page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
     close = page.locator(".lf-fp-close")
-    expect(page.locator(".lf-fp-row .lf-fp-close")).to_be_visible()
+    expect(close).to_have_count(1)
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
+
+    def reaches_the_row_s_end():
+        settled(page)
+        row = page.locator(".lf-fp-row").bounding_box()
+        words = page.locator(".lf-fp-field").bounding_box()
+        assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (
+            row,
+            words,
+        )
+
+    reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
     expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
-    settled(page)
-    row = page.locator(".lf-fp-row").bounding_box()
-    words = page.locator(".lf-fp-field").bounding_box()
-    assert row["x"] + row["width"] - (words["x"] + words["width"]) < 12, (row, words)
+    reaches_the_row_s_end()
     page.locator(".lf-fp-expand").click()
-    expect(page.locator(".lf-fp-row .lf-fp-close")).to_be_visible()
+    expect(page.locator(".lf-fp-controls .lf-fp-close")).to_be_visible()
     close.click()
     expect(page.locator(panel_view("threads"))).to_be_hidden()
 

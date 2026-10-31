@@ -102,11 +102,20 @@ UNDER_POINTER = f"""([x, y, index]) => {{
   return atPoint(x, y).control?.dataset.lfPressCheck === String(index);
 }}"""
 
-# The tab's unresolved gestures by attempt and kind, read through the check entry.
+# The tab's unresolved gestures by attempt and kind, read through the check entry, and
+# whether each records only what the user hasn't sent (`$state.attention`), as a
+# playground's settings: a press that set them, pressed again while they stand, has
+# nothing new to record.
 UNRESOLVED = """async () => {
-  const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-  const api = await import(new URL('runtime/check-api.js', new URL(boot, location.href)));
-  return api.readApplication().unresolved.map(({ event }) => [event.attempt, event.kind]);
+  const boot = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry,
+    location.href);
+  const api = await import(new URL('runtime/check-api.js', boot));
+  const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
+  const unsent = (event) => event.kind === 'action' &&
+    declarationFor(document.getElementById(event.widget), 'x-state')?.[event.action]
+      ?.attention === false;
+  return api.readApplication().unresolved.map(({ event }) =>
+    [event.attempt, event.kind, unsent(event)]);
 }"""
 
 # Whether every send has its outcome, by the runtime's own traffic ledger
@@ -222,11 +231,8 @@ def press_each_control(page, within, restore=None):
         pressed = page.evaluate(UNRESOLVED)
         # A press that left no control under the pointer leaves nothing to flicker.
         if pressed != before and travelling:
-            sent += [
-                (name, kind)
-                for attempt, kind in pressed
-                if [attempt, kind] not in before
-            ]
+            new = [entry for entry in pressed if entry not in before]
+            sent += [(name, kind) for _attempt, kind, _unsent in new]
             if travelling != face:
                 failures.append(
                     f"{name}: {face} before the press, {travelling} while its "
@@ -234,7 +240,9 @@ def press_each_control(page, within, restore=None):
                 )
             # A control the press replaced, as Undo takes Accept's seat, is another
             # control, whose press may rightly send nothing.
-            elif page.evaluate(UNDER_POINTER, [*point, index]):
+            elif not all(unsent for *_, unsent in new) and page.evaluate(
+                UNDER_POINTER, [*point, index]
+            ):
                 page.mouse.click(*point)
                 rendered(page)
                 if page.evaluate(UNRESOLVED) == pressed:

@@ -74,8 +74,8 @@ ignores:
   which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
-- Working state in `tabStore`, which keeps nothing on a plain page: a read there
-  answers null.
+- State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
+  there answers null.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -97,8 +97,9 @@ script", lists.
 - Keep the widget's visible geometry stable as its state updates ("First paint").
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
-- Record the user's choices only through the widget controller, and keep working state
-  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
+- Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
+  puts it: record what the user makes through the widget controller, and keep how they
+  look at the widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
@@ -433,8 +434,11 @@ Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply t
 generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
-selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
-whose keyboard behavior the widget supplies. In a template, use
+selectable, so build it with `selectableOffer(role, className, label)`, a focusable
+span. Leaf presses any span it offers as a button as it does a button, so with the
+role `"button"` Enter and Space press it, on a page with Leaf or without it, and the
+widget declares no keys for that press; for another role, such as `"tab"`, the widget
+declares its keys. In a template, use
 `<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
 face, such as `"row"` for a list whose rows are the page's words, name the role last:
 `selectableOffer(role, className, label, "row")` or `selectableOffered(role,

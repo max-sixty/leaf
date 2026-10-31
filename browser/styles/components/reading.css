@@ -442,8 +442,7 @@
     hr {
       border: none;
       block-size: 1lh;
-      background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px
-        no-repeat;
+      background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
       margin: calc(var(--hr-margin-block) + 0.5px - 0.5lh) 0;
     }
     /* The headings are the body serif at weight, size and spacing — one face, four

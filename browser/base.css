@@ -383,7 +383,7 @@
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs, and
-     Leaf's interface sets its words in them through its voices (`--voice-*`, below). A size
+     Leaf's interface sets its words in them through its fonts (`--font-*`, below). A size
      that has to fit something states its own number where it is set, as a code block
      does against the characters it takes across. Rem units retain these sizes at
      the browser's default 16px while following a reader's chosen default font size.
@@ -411,13 +411,13 @@
      Its size is a token of its own, so a measure set in it, such as the floating
      panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
   --msg-size: max(var(--entry-floor), var(--t-5));
-  --voice-message: var(--msg-size) / 1.5 var(--sans);
+  --font-message: var(--msg-size) / 1.5 var(--sans);
   /* A name one rung larger than the small words beside it, such as a message's author
      over its time and status, or the page's state over the leaf's menu; it also
      resolves at the root, for the same reason. */
-  --voice-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
+  --font-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
   /* A plan's goal, over its steps: a message's words, strong. */
-  --voice-goal: 600 var(--msg-size) / 1.5 var(--sans);
+  --font-goal: 600 var(--msg-size) / 1.5 var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
      in the same faces (runtime/composing/text-field.js), inside a shadow root those
@@ -480,7 +480,7 @@
   /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
      --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
      or a package and on a pseudo-element no shared class reaches, so the face is
-     tokens they name; each keeps its own placement. --voice-tip is derived from the
+     tokens they name; each keeps its own placement. --font-tip is derived from the
      ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
@@ -685,42 +685,42 @@
      column was holding beside it. The badge centres its key in that box (surfaces.css), so
      the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  /* The interface's voices. Each is a whole face (weight, size, line height and
+  /* The interface's fonts. Each is a whole font (weight, size, line height and
      family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
-     its words by naming one, `font: var(--voice-small)`, or by inheriting its holder's.
-     A rule that names a voice takes its weight with it. Only a run that keeps its
-     holder's voice sets a weight (400, 500 or 600), to stand out from the words around
+     its words by naming one, `font: var(--font-small)`, or by inheriting its holder's.
+     A rule that names a font takes its weight with it. Only a run that keeps its
+     holder's font sets a weight (400, 500 or 600), to stand out from the words around
      it or back into them, as a pending thread name does inside a title. A box centres
      its words by layout, never with a line as tall as itself, so every leading is a
-     voice's. tests/model/test_interface_voices.py fails a rule that sets a face of its
+     font's. tests/model/test_interface_fonts.py fails a rule that sets a face of its
      own, so a new face is added here, beside the others. The faces a thread's words
-     take, `--voice-message`, `--voice-name` and `--voice-goal`, are declared on the
+     take, `--font-message`, `--font-name` and `--font-goal`, are declared on the
      root instead (above), so a density leaves them alone. */
-  --voice-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
+  --font-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
   /* The floating panel and its lists, a rung below the chrome's, since the panel
      stands over the page rather than in place of it. */
-  --voice-compact: var(--t-working-label) / var(--lf-ui-lh) var(--sans);
+  --font-compact: var(--t-working-label) / var(--lf-ui-lh) var(--sans);
   /* Whatever qualifies another line: a row's end, a status, a description, a time. */
-  --voice-small: var(--t-6) / var(--lf-ui-lh) var(--sans);
+  --font-small: var(--t-6) / var(--lf-ui-lh) var(--sans);
   /* A status or reference that names a state rather than qualifying a line: a
      passage's, a drawing's, a summary's. */
-  --voice-status: 500 var(--t-6) / var(--lf-ui-lh) var(--sans);
-  --voice-heading: 600 var(--t-6) / var(--lf-ui-lh) var(--sans); /* a group's name */
-  --voice-title: 600 var(--t-5) / var(--lf-ui-lh) var(--sans); /* a dialog's or pane's */
+  --font-status: 500 var(--t-6) / var(--lf-ui-lh) var(--sans);
+  --font-heading: 600 var(--t-6) / var(--lf-ui-lh) var(--sans); /* a group's name */
+  --font-title: 600 var(--t-5) / var(--lf-ui-lh) var(--sans); /* a dialog's or pane's */
   /* Why a box refused what was typed in it, stood over its words. */
-  --voice-error: 500 var(--t-5) / var(--lf-ui-lh) var(--sans);
+  --font-error: 500 var(--t-5) / var(--lf-ui-lh) var(--sans);
   /* A region's name in small capitals (`.lf-label` adds the capitals and their
      tracking), set close, since capitals have no descenders. */
-  --voice-label: 600 var(--t-6) / 1.3 var(--sans);
+  --font-label: 600 var(--t-6) / 1.3 var(--sans);
   /* A tooltip's words, a weight up to hold on its inked ground. */
-  --voice-tip: 500 var(--t-6) / 1.2 var(--sans);
-  --voice-chip: var(--t-6) / var(--chip-lh) var(--sans); /* a small fact (above) */
-  --voice-count: 600 var(--t-7) / 1 var(--sans); /* a number on a mark */
+  --font-tip: 500 var(--t-6) / 1.2 var(--sans);
+  --font-chip: var(--t-6) / var(--chip-lh) var(--sans); /* a small fact (above) */
+  --font-count: 600 var(--t-7) / 1 var(--sans); /* a number on a mark */
   /* A tooltip's second line, or a status under a drawing. */
-  --voice-fine: var(--t-7) / 1.25 var(--sans);
-  --voice-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or source, verbatim */
+  --font-fine: var(--t-7) / 1.25 var(--sans);
+  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or source, verbatim */
   /* An emoji set as a picture at an icon's size, as the reaction palette holds them. */
-  --voice-emoji: 16px / 1 var(--sans);
+  --font-emoji: 16px / 1 var(--sans);
 }
 /* A page that is not live draws no chrome, so what sticks below the head sticks to the
    top of the window, and the page ends at the window's foot. */
@@ -774,7 +774,8 @@ html:not([data-lf-live]) {
  * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
  * else a frame does (withholding the page's room, layouts.css) reads `1`.
  * `--lf-block-frame` inherits, so the reset inside holds the claim to the box's own
- * children; a nested frame outranks the reset by being a selector rather than `*`.
+ * children; a nested frame outranks the reset, which is `*` in the lowest layer of its
+ * tier (reading.css).
  *
  * Which child is at the edge is a question about the page's own blocks, and `:first-child`
  * is the DOM's answer to it. The two are the same only where no module has written
@@ -957,7 +958,8 @@ body {
  * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
  * these declarations outrank every later layer and every unlayered stylesheet
  * declaration without reserving a named layer custom CSS could append to. What ranks
- * higher is what comes earlier: lf-reset, which states nothing important; Web
+ * higher is what comes earlier: lf-reset and markup's reading face
+ * (lf-base.lf-reading-face, reading.css), which state nothing important; Web
  * Awesome's sheet (lf-base.lf-vendor, imported at the top of this file), whose one
  * important rule hides its own page frame's desktop or mobile parts; and inline
  * importance.
@@ -1014,7 +1016,7 @@ body {
   gap: 0.4em;
   align-items: center;
   color: var(--muted);
-  font: var(--voice-small);
+  font: var(--font-small);
   white-space: nowrap;
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -1321,7 +1323,7 @@ img {
  * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
  * id on 23 October 2026, reversing the earlier choice to show the id as "what it is". */
 .lf-ref {
-  font: var(--voice-small);
+  font: var(--font-small);
   color: var(--muted);
   text-decoration: none;
   white-space: nowrap;
@@ -1331,7 +1333,7 @@ img {
   text-decoration: underline;
 }
 
-/* The label voice: small capitals in the UI sans that name a region, ranking below every
+/* The label font: small capitals in the UI sans that name a region, ranking below every
    heading they stand among. A pane's name takes it, and so does each label a widget or
    the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
    label that can't wear the class, a generated or authored one, states these four
@@ -1339,7 +1341,7 @@ img {
    instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
 .lf-label,
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
-  font: var(--voice-label);
+  font: var(--font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1591,7 +1593,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   align-items: center;
   justify-content: center;
   gap: 0;
-  font: var(--voice-heading);
+  font: var(--font-heading);
   line-height: 1;
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-landing);
@@ -1765,7 +1767,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-radius: var(--tip-r);
   background: var(--tip-bg);
   color: var(--tip-ink);
-  font: var(--voice-tip);
+  font: var(--font-tip);
   white-space: normal;
   overflow-wrap: anywhere;
   box-shadow: var(--raise-1);
@@ -1794,7 +1796,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
-  font: var(--voice-fine);
+  font: var(--font-fine);
 }
 /* What the entry's title says beyond the label, such as an agent's work on it. */
 .lf-margin-entry-more:empty {
@@ -1858,7 +1860,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   color: var(--paper);
   display: grid;
   place-items: center;
-  font: var(--voice-count);
+  font: var(--font-count);
 }
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
@@ -1882,7 +1884,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
  * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
  * it. The look (frame, paper, padding, the
- * header's voice) is a default inside :where(), so a package that draws its generated
+ * header's font) is a default inside :where(), so a package that draws its generated
  * pane another way, the visual review framing its evidence with the review's own
  * border, does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
@@ -1928,10 +1930,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 :where([data-lf-reading-role="pane"]) > header {
   padding: var(--pane-bar-pad);
   border-bottom: 1px solid var(--rule);
-  font: var(--voice-title);
+  font: var(--font-title);
   --lf-block-frame: 1;
 }
-/* A pane is a region of a workspace, so its name takes the label voice (`.lf-label`):
+/* A pane is a region of a workspace, so its name takes the label font (`.lf-label`):
  * small capitals that rank below the page's title and the pane's own headings, where a
  * bare h2 drew the region's label larger than anything it held. */
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {

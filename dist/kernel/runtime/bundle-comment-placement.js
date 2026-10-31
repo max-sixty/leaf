@@ -1,6 +1,6 @@
 import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, elementBox, keeps, layoutPx, nextRender, renderedParent, renderedUnder, shadowHost, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
 import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, effectiveScroller, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, shownRegionBounds, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -1499,8 +1499,7 @@ function commentAttachment({ target, point = null, passage = null, boundary = nu
 			lastRow: extent.top,
 			column: null,
 			margin: null,
-			region: null,
-			scroller: effectiveScroller(element)
+			scroller: pageScroller
 		};
 	}
 	if (!visibleTargetParts(target).length) return null;
@@ -1512,20 +1511,17 @@ function commentAttachment({ target, point = null, passage = null, boundary = nu
 	const shown = union(shownParts(target).map((part) => shownRect(part, clips)).filter(Boolean));
 	const whole = shownExtent(target) ?? target.getBoundingClientRect();
 	const extent = point ? pointBand(whole, point) : whole;
-	const clear = point ? extent : shown ?? whole;
-	const region = containingReadingRegionFor(element);
 	return {
 		element,
 		contextNode: context,
 		geometry,
-		clear,
+		clear: point ? extent : shown ?? whole,
 		extent,
 		row: (passage?.attachment ?? extent).top,
 		lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
 		column: passage?.attachment?.left ?? null,
 		margin,
-		region,
-		scroller: effectiveScroller(region ?? element)
+		scroller: scrollerFor(element)
 	};
 }
 function commentReference(place, reference) {
@@ -1538,7 +1534,7 @@ function commentReference(place, reference) {
 }
 const COMMENT_GAP = 8;
 const LEAST_HEIGHT = 96;
-function commentBoundary({ region = null, right = Infinity } = {}) {
+function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
 	const room = (within) => {
 		const across = (columns) => shownWindow({
 			within,
@@ -1547,10 +1543,10 @@ function commentBoundary({ region = null, right = Infinity } = {}) {
 		});
 		return Object.assign(across(null), { across });
 	};
-	const bounds = region && shownRegionBounds(region);
+	const bounds = scroller !== pageScroller && shownRect(scroller, /* @__PURE__ */ new Map());
 	const inRegion = bounds && room(bounds);
 	if (inRegion && Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) && inRegion.height >= 96) {
-		const whole = region.body.getBoundingClientRect();
+		const whole = scroller.getBoundingClientRect();
 		return Object.assign(inRegion, {
 			inRegion: bounds,
 			key: [

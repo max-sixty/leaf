@@ -33,8 +33,8 @@
  *   what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is
- *   the seat's ✕; in a thread it says whose turn it is beside the leaf, in the
- *   agent's voice and face, with a walk's position after it, and Reply with the key
+ *   the seat's ✕; in a thread it says the thread's word beside the leaf, in its
+ *   speaker's face (voice.js), with a walk's position after it, and Reply with the key
  *   that enters the field at the field's end, in ink as the press it offers
  *   (`turnLead`). The user chose this on 27 October so the next action reads apart
  *   from the agent's words, over three others: the key beside Reply with the turn at
@@ -183,12 +183,13 @@ import { readThreads } from "./thread/state.js";
 import { isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import {
+  RESOLVED,
   threadAttention,
-  todoLabel,
-  workflowLabel,
+  todoWord,
   workflowStep,
-  workflowVoice,
+  workflowWord,
 } from "./thread/workflow.js";
+import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
 import {
   messageReading,
   messageText,
@@ -229,7 +230,7 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { noticeReading, noticeText } from "./notifications.js";
+import { noticeReading, noticeWords } from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -742,29 +743,26 @@ export function createFloatingPanel({
   const CONNECTING = {
     tone: "",
     summary: "Connecting…",
-    summaryParts: [{ text: "Connecting…", source: null }],
+    summaryParts: [leafSays("Connecting…")],
     explanation: "Connecting…",
-    explanationParts: [{ text: "Connecting…", source: null }],
+    explanationParts: [leafSays("Connecting…")],
     adds: "",
     addsParts: [],
     asks: false,
-    voice: "leaf",
     publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
-  // Only the authored runs carry response identity. Their renderer refs register
-  // and retire those exact nodes with the shared exposure owner, wherever status
-  // stands: the field's native placeholder slot, the menu, or the folded leaf's peek.
-  // Every other run is Leaf's, and says so in its face (`data-voice`).
-  const statusParts = (parts) =>
-    parts.map((part) => {
-      if (!part.source)
-        return part.voice === "agent"
-          ? part.text
-          : html`<span data-voice="leaf">${part.text}</span>`;
+  // Words drawn in their speakers' faces (voice.js), where the agent's sentence alone
+  // carries response identity. Its renderer ref registers and retires that exact node
+  // with the shared exposure owner, wherever status stands: the field's placeholder
+  // slot, the menu, or the folded leaf's peek.
+  const statusParts = (words) =>
+    [words].flat().map((part) => {
+      if (typeof part === "string" || !part.source) return voiced(part);
       let stop = null;
       return html`<span
         class="lf-fp-status-feedback"
+        data-voice=${part.voice}
         ${ref((node) => {
           stop?.();
           stop = node
@@ -882,13 +880,15 @@ export function createFloatingPanel({
   // reading.
   //
   // A reading that offers a press (`offers`), the reply or the selected words, reads in
-  // ink with the key that makes it; every other reading, and the words standing before
-  // the reply, are the agent's or Leaf's, and read dim (floating-panel.css).
+  // ink with the key that makes it, in the interface's own words; every other reading,
+  // and the words standing before the reply, are said by the agent or by Leaf, each in
+  // its face (voice.js), and read dim (floating-panel.css). A stance's name is the
+  // interface's.
   const HIDDEN = "Annotations hidden";
-  const hiddenLead = () => (annotationsHidden() ? `${HIDDEN} · ` : "");
+  const hiddenLead = () => (annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : []);
   function fieldReading(key, input) {
     const [error] = sayable();
-    if (error) return { says: "error", words: error.message, voice: "leaf" };
+    if (error) return { says: "error", words: leafSays(error.message) };
     const thread = key ? threadByKey(key) : null;
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
@@ -912,49 +912,23 @@ export function createFloatingPanel({
     if (notice.visible)
       return {
         says: "notice",
-        words: (stance ? `${stance} · ` : "") + noticeText(notice.message),
-        // Drawn as parts only where Leaf says some of it; the plain hint draws the rest.
-        parts:
-          typeof notice.message !== "string" &&
-          notice.message.some((part) => part.voice === "leaf")
-            ? [stance ? `${stance} · ` : "", noticeWords(notice.message)]
-            : null,
+        words: [...(stance ? [`${stance} · `] : []), ...noticeWords(notice.message)],
       };
     if (stance)
       return {
         says: "stance",
-        words: annotationsHidden() ? `${stance} · ${HIDDEN}` : stance,
+        words: annotationsHidden() ? [`${stance} · `, leafSays(HIDDEN)] : stance,
       };
     if (!key)
-      return {
-        says: "status",
-        words: hiddenLead() + status().summary,
-        voice: status().voice,
-      };
+      return { says: "status", words: [...hiddenLead(), ...status().summaryParts] };
     return { says: "turn", words: "Reply", offers: true };
   }
-  // A thread's word as whoever says it says it: Leaf's own in italic (`data-voice`,
-  // thread/workflow.js, `workflowVoice`).
-  const spoken = ({ label, voice }) =>
-    html`<span data-voice=${voice ?? "agent"}>${label}</span>`;
-  // A notice's words, Leaf's own runs in italic as everywhere else
-  // (notifications.js, `noticeText`).
-  const noticeWords = (message) =>
-    typeof message === "string"
-      ? message
-      : message.map((part) =>
-          part.voice === "leaf"
-            ? html`<span data-voice="leaf">${part.text}</span>`
-            : part.text,
-        );
   // What stands before an open thread's reply while the field says it, beside the leaf
-  // (composing/input.js, `hintLead`): whose turn it is, in the agent's voice, then a
+  // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
   // walk's position. The thread walk standing on this thread says only its place,
   // "11 of 11", since the view names the thread. The agent's own line, a to-do's title
   // or a start's, stays in the thread, where the working message says it. A notice or
-  // the Go-to word, which pass in a moment, take the reply's place. Leaf's own word for
-  // an update the agent doesn't have yet is set apart, as Threads sets it
-  // (`workflowVoice`).
+  // the Go-to word, which pass in a moment, take the reply's place.
   function turnLead(key, input) {
     if (fieldReading(key, input).says !== "turn") return "";
     const thread = threadByKey(key);
@@ -968,13 +942,13 @@ export function createFloatingPanel({
     // reached (`clearFor`), names that stop alone: the user is at it now, not at this
     // thread's turn.
     const away = Boolean(position) && !currentLocationIn(host);
-    const attention = away
+    const word = away
       ? null
       : thread.resolved
-        ? { label: "Resolved", voice: "leaf" }
-        : threadAttention(thread, agentName());
-    if (!attention) return position;
-    return html`${spoken(attention)}${position ? ` · ${position}` : ""}`;
+        ? RESOLVED
+        : threadAttention(thread, agentName())?.word;
+    if (!word) return position;
+    return voiced([word, ...(position ? [` · ${position}`] : [])]);
   }
   // Where the words go, as the focused field's placeholder says it; the thread's own
   // name already heads its view. A reply to a resolved thread reopens it (events.md).
@@ -986,17 +960,28 @@ export function createFloatingPanel({
         : "Reply in this thread";
   // An editor's empty words, as its own paint draws them (composing/input.js, `hint`),
   // which marks the editor with whose reading they are, so the face the theme gives that
-  // reading changes in the same paint as the words (floating-panel.css). Words the agent
-  // can't be saying, an error or Leaf's own state, are marked Leaf's (`pageStatus`,
-  // `voice`).
+  // reading changes in the same paint as the words (floating-panel.css). Words all one
+  // speaker says, such as an error or Leaf's own state, mark the editor with that voice,
+  // which its native placeholder wears whole (`voiceOf`).
   function saying(key, input) {
-    const reading = fieldReading(key, input);
+    const { says, words, offers } = fieldReading(key, input);
     if (input) {
-      keeps(input, "data-says", reading.says);
-      keeps(input, "data-voice", reading.voice === "leaf" ? "leaf" : null);
-      keeps(input, "data-offers", reading.offers ? "" : null);
+      keeps(input, "data-says", says);
+      keeps(input, "data-voice", voiceOf(words));
+      keeps(input, "data-offers", offers ? "" : null);
     }
-    return reading.words;
+    return wordsText(words);
+  }
+  // The empty words drawn as parts, where the native placeholder's one face can't say
+  // them: words whose speakers differ, and the agent's sentence, whose node the
+  // status's exposure registers (`statusParts`). Null leaves the native placeholder.
+  function fieldHint(key, input) {
+    const { words } = fieldReading(key, input);
+    const parts = [words].flat();
+    return wordsText(words) &&
+      (!voiceOf(words) || parts.some((part) => typeof part !== "string" && part.source))
+      ? statusParts(words)
+      : null;
   }
   // The page's own editor: the field where no thread is open.
   let general = null;
@@ -1011,14 +996,7 @@ export function createFloatingPanel({
     general = { box, input, sync: null };
     const sync = wireInput(input, {
       hint: () => saying(null, input),
-      hintParts: () => {
-        const reading = fieldReading(null, input);
-        if (reading.says === "notice") return reading.parts;
-        const parts = status().summaryParts;
-        return reading.says === "status" && parts?.some((part) => part.source)
-          ? [hiddenLead(), ...statusParts(parts)]
-          : null;
-      },
+      hintParts: () => fieldHint(null, input),
       // Named for what a press there does, as the field's reading says it, once the
       // editor this builds is the one the reading reads.
       accessibleName: () =>
@@ -1086,7 +1064,7 @@ export function createFloatingPanel({
     if (!replyOptions.has(key))
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
-        hintParts: () => fieldReading(key, replyInput()).parts ?? null,
+        hintParts: () => fieldHint(key, replyInput()),
         hintLead: () => turnLead(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sending: streamSend,
@@ -1207,11 +1185,12 @@ export function createFloatingPanel({
   // reply says nothing new. Rows name attention and drafts, and a resolved thread says
   // so with how long ago, as a Done line says its outcome and age.
   const threadStatus = (thread) => {
-    const attention = thread.resolved ? null : threadAttention(thread, agentName());
-    const word = thread.resolved ? "Resolved" : attention?.label;
+    const word = thread.resolved
+      ? RESOLVED
+      : threadAttention(thread, agentName())?.word;
     const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? spoken({ label: word, voice: attention?.voice }) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
   };
   const rows = () => pageControls();
 
@@ -2213,11 +2192,11 @@ export function createFloatingPanel({
     // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
     // pointer, key and finger alike. Each line names the state itself ("Codex away"),
     // so no word for the tone stands over it.
-    const { tone, summary, summaryParts, adds, addsParts, publication } = status();
+    const { tone, summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction follows, with its links.
-    const said = adds && addsParts ? statusParts(addsParts) : adds;
+    const said = adds ? statusParts(addsParts) : "";
     const explains = publication
-      ? html`${said}${adds ? " " : nothing}${publication.copy}${
+      ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${
             publication.examplesUrl
               ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
                   >${publication.examples}</a
@@ -2291,10 +2270,7 @@ export function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part(
-          "explain",
-          explains,
-        )}
+        ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -2357,7 +2333,7 @@ export function createFloatingPanel({
                       role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"
                       aria-pressed=${String(
-                        selection.on && selection.base === entry.version,
+                        selection.on && selection.base === entry.revision,
                       )}
                       aria-label=${`Compare with ${entry.name}`}
                       @click=${() =>
@@ -3152,17 +3128,17 @@ export function createFloatingPanel({
   const agentNoun = (item) =>
     item.kind === "todo" ? "To-do" : capital(itemNoun(item));
   // What the agent is doing about an item on its list: the word for the stage it
-  // stands at, the line its last step wrote, and since when.
+  // stands at, the line its last step wrote, each said by whoever says it, and since
+  // when.
   const workOn = (item) =>
     item.kind === "todo"
       ? {
-          word: todoLabel(item.todo.running),
-          line: item.todo.running?.text ?? "",
+          word: todoWord(item.todo.running),
+          line: item.todo.running ? agentSays(item.todo.running.text) : null,
           since: item.todo.running?.ts ?? item.todo.ts,
         }
       : {
-          word: workflowLabel(item.workflow, agentName()),
-          voice: workflowVoice(item.workflow),
+          word: workflowWord(item.workflow, agentName()),
           line: workflowStep(item.workflow, agentName()),
           since: item.workflow?.ts ?? null,
         };
@@ -3311,18 +3287,22 @@ export function createFloatingPanel({
     if (list === "done" && !record)
       answers = card
         ? html`<span class="lf-fp-said"
-            >${[itemOutcome(item), shortAgo(item.ended)]
-              .filter(Boolean)
-              .join(" ")}</span
+            >${voiced([
+              itemOutcome(item),
+              ...(item.ended ? [` ${shortAgo(item.ended)}`] : []),
+            ])}</span
           >`
         : nothing;
     // What the agent is doing about it: the line its last step wrote, as the status
     // says it of the whole page, else the stage it stands at.
     else if (list !== "you" && !answered)
-      answers = html`<span class="lf-fp-said">${workOn(item).line}</span>`;
+      answers = html`<span class="lf-fp-said"
+        >${voiced(workOn(item).line ?? "")}</span
+      >`;
     else if (answered) {
       discussHere = false;
-      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
+      answers = html`<span class="lf-fp-said">${voiced(obligationEnding(record))}</span
+        >${
           gesture
             ? html`<button
                 type="button"
@@ -3462,7 +3442,7 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        ><span data-voice=${work.voice ?? "agent"}>${work.word}</span>${
+        >${voiced(work.word ?? "")}${
           work.since
             ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
             : nothing
@@ -3470,14 +3450,14 @@ export function createFloatingPanel({
       >`;
     } else if (list === "done" && !record)
       end = html`<span class="lf-fp-value"
-        >${itemOutcome(item)}${
+        >${voiced(itemOutcome(item))}${
           item.ended
             ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>`
             : nothing
         }</span
       >`;
     else if (answered && !opened)
-      end = html`<span class="lf-fp-value">${obligationEnding(record)}</span>`;
+      end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
     else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section
@@ -3706,7 +3686,7 @@ export function createFloatingPanel({
   }
   // The work said in a few sentences: how much the agent has in hand and for how long,
   // what is queued, what its newest step says, how far the plan has come, and what it
-  // finished last.
+  // finished last. Leaf says them, around the agent's own line and an item's name.
   function workSummary(inHand, queued, done) {
     const work = inHand.map(workOn);
     const since = work
@@ -3728,22 +3708,29 @@ export function createFloatingPanel({
           : waiting
             ? `${waiting[0].toUpperCase()}${waiting.slice(1)}.`
             : "Nothing to do right now.";
-    const now = work.find((each) => each.line && each.line !== each.word)?.line;
+    const now = work.find(
+      (each) => each.line && each.line.text !== each.word?.text,
+    )?.line;
     const progress = planProgress();
     const [last] = done;
     return html`<div class="lf-fp-work-summary">
-      <p>${first}${now ? ` Now: “${now}”.` : ""}</p>
+      <p>
+        ${voiced([leafSays(first), ...(now ? [leafSays(" Now: "), now, leafSays(".")] : [])])}
+      </p>
       ${
         progress
-          ? html`<p>Plan: ${progress.done} of ${progress.total} steps.</p>`
+          ? html`<p>
+              ${voiced(leafSays(`Plan: ${progress.done} of ${progress.total} steps.`))}
+            </p>`
           : nothing
       }${
         last
           ? html`<p>
-              Last done:
-              ${excerptWords(queueTitle(last), 60)}${
-                last.ended ? `, ${ago(last.ended)}` : ""
-              }.
+              ${voiced([
+                leafSays("Last done: "),
+                excerptWords(queueTitle(last), 60),
+                leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`),
+              ])}
             </p>`
           : nothing
       }
@@ -3769,14 +3756,7 @@ export function createFloatingPanel({
             ></span
             ><span class="lf-fp-label">${row.title}</span
             ><span class="lf-fp-value"
-              >${
-                row.self
-                  ? "This page"
-                  : row.parts.map(
-                      (part) =>
-                        html`<span data-voice=${part.voice}>${part.text}</span>`,
-                    )
-              }</span
+              >${row.self ? "This page" : voiced(row.parts)}</span
             >`;
           return row.self
             ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
@@ -4297,16 +4277,14 @@ export function createFloatingPanel({
     const notice = passing();
     const telling = notice.visible && folded;
     const reading = status();
-    const parts = reading.explanationParts ?? [
-      { text: reading.explanation || reading.summary },
-    ];
+    const parts = reading.explanationParts;
     const asked = peekAsks();
     // Keep words still through one exposure, even as the live status ages.
     if (!asked || !readingIsContinuous()) peekReading = null;
     if (asked && !telling && pagePresented()) peekReading ??= parts;
     return {
       content: telling
-        ? noticeWords(notice.message)
+        ? voiced(noticeWords(notice.message))
         : statusParts(peekReading ?? parts),
       shown: telling || asked,
     };

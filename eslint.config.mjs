@@ -83,6 +83,7 @@ const browserGlobals = Object.fromEntries(
     "SVGGeometryElement",
     "SVGImageElement",
     "SVGSVGElement",
+    "SVGTextElement",
     "SVGUseElement",
     "ShadowRoot",
     "URL",

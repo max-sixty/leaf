@@ -263,45 +263,31 @@ def cmd_pages(payload: dict) -> None:
     session holds no page. Leaf's Claude Code hooks module draws it beside the
     prompt.
 
-    Rows and the session's claim locators wake the reading. A server that dies
-    leaves its row until a reader finds its lease unheld, so the list is read
-    again every presence interval too."""
+    Read every presence interval: a dead server leaves its row behind, so native
+    notifications cannot replace this timer. The prompt band needs no subscription
+    of its own in addition to the session's between-turn delivery watch."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
-    from .file_changes import FileChanges
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .state import session_claims, state_home
 
-    rows, claims = state_home().resolve() / "rows", session_claims(sid)
-    # A root above rows/ would hear its creation, not the rows written into it.
-    rows.mkdir(exist_ok=True)
-    roots = {rows: False, claims: False}
-    changes = FileChanges(
-        roots,
-        lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),
-    )
     shown = None
-    try:
-        while True:
-            mark = changes.mark()
-            held = {page.resolve() for page in owned_pages(sid)}
-            listed = json.dumps(
-                [
-                    {field: leaf[field] for field in SHOWN_FIELDS}
-                    for _page, leaf in (live_leaves(held) if held else [])
-                ]
-            )
-            if listed != shown:
-                print(listed, flush=True)
-                shown = listed
-            if not held:
-                return
-            changes.wait(mark, PRESENCE_CACHE_S)
-    finally:
-        changes.close()
+    while True:
+        held = {page.resolve() for page in owned_pages(sid)}
+        listed = json.dumps(
+            [
+                {field: leaf[field] for field in SHOWN_FIELDS}
+                for _page, leaf in (live_leaves(held) if held else [])
+            ]
+        )
+        if listed != shown:
+            print(listed, flush=True)
+            shown = listed
+        if not held:
+            return
+        time.sleep(PRESENCE_CACHE_S)
 
 
 def main(

@@ -334,7 +334,7 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     for command in (["page", "check"], ["page", "init"]):
         refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
         assert refused.exit_code != 0
-        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "Use a newer Leaf" in refused.output
         assert "leaf page init" not in refused.output
         layer_4 = registry_storage.layer_record(claimed)
         assert layer_4 is not None
@@ -352,7 +352,33 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     )
     assert stated.returncode == 0, stated.stderr
     error = json.loads(stated.stdout)["source"]["error"]
-    assert f"Use a Leaf at protocol {foreign} or later" in error
+    assert "Use a newer Leaf" in error
+
+
+def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
+    """A newer Leaf may change the layer record's shape without a protocol bump, and
+    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
+    page init` first", an agent would replace the page's packages and theme under
+    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
+    writers that ask first as by `page check` and `page init`."""
+    from leaf.event_contracts import write_refusal
+
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
+    assert record is not None
+    path.unlink()
+    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
+    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    recorded = path.read_bytes()
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None and refusal.code == "newer-layer"
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert "Use a newer Leaf" in refused.output
+        assert "leaf page init" not in refused.output
+        assert path.read_bytes() == recorded
 
 
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
@@ -1776,9 +1802,10 @@ _LAYER_SHEET_ORDER = [
 def test_the_injected_control_face_is_one_default_in_both_trees():
     """Document and declared-shadow controls share one default before component rules.
 
-    Class specificity protects the face from layered element rules. Only controls
-    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as
-    diff line numbers, retains the component's own typography.
+    It weighs nothing and comes first, so every component rule outranks it, and
+    markup's reading face, a layer below, loses to it. Only native controls and those
+    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as diff
+    line numbers, retains the component's own typography.
     """
     faces = [
         (sheet, selector)
@@ -1790,8 +1817,15 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Both delivery trees use the same face classes and cascade order.
-    control_face = ":where(:root, :host) :is(.lf-ui-face, .button, .field)"
-    assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
+    shadow = schema_model.ASSETS / "shadow.css"
+    control_face = (
+        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
+        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":host :is(button, input, select, textarea) )"
+    )
+    control_ink = ":where(.lf-ui-face, .button, .field)"
+    default = [(shadow, control_face), (shadow, control_ink)]
+    assert faces[:2] == default, faces[:2]
     defaults = [
         face
         for face in faces
@@ -1801,9 +1835,10 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
             ":where(.lf-ui-face)",
             ":where(:root) .lf-ui-face",
             control_face,
+            control_ink,
         }
     ]
-    assert defaults == [faces[0]], defaults
+    assert defaults == default, defaults
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():

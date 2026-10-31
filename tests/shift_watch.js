@@ -1,4 +1,5 @@
-// Checks the Stability contract using protected reading/control landmarks.
+// Checks that the page holds still under the user's aim (browser/AGENTS.md), using
+// protected reading/control landmarks.
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
@@ -6,7 +7,7 @@
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
-// Beside those, it credits only what the Stability contract itself declares:
+// Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit

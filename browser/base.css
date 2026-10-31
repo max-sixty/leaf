@@ -1545,7 +1545,8 @@ lf-suggestion:has(
  * transition tells no observer, so the pin was seated mid-fold and the next unrelated
  * layout pass, such as an agent's comment arriving, moved it a few pixels with no
  * input. The other route, following the transition frame by frame, slid the pin beside
- * the control just pressed, which Stability forbids. Settling at once moves the words
+ * the control just pressed, which browser/AGENTS.md, "The page holds still under the
+ * user's aim", forbids. Settling at once moves the words
  * by the padding as part of the gesture, and the pin takes its final seat once.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a

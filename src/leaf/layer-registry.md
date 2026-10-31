@@ -121,7 +121,9 @@ change that a reader at the same format would misread sets `since` to the curren
 protocol, bumping the protocol first where `since` already names it. The build fails
 a change at the same `since` that a reader at either end would misread, and a `since`
 moved anywhere but the current protocol. A reader at another format treats a record
-as absent.
+as absent, except a layer record at a later shape than its own, which refuses the page
+as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would have
+`page init` replace the page's selection.
 
 ## Composition stamps
 

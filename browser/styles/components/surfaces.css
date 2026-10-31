@@ -51,7 +51,7 @@
   :root main :is(button, input, select, textarea),
   :host :is(button, input, select, textarea)
 ) {
-  font: var(--voice-ui);
+  font: var(--font-ui);
   font-feature-settings: normal;
   font-variation-settings: normal;
   letter-spacing: normal;
@@ -142,7 +142,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   color: var(--danger-ink);
   border-radius: var(--r);
   padding: 8px 12px;
-  font: var(--voice-ui);
+  font: var(--font-ui);
   font-variant-numeric: tabular-nums;
   white-space: normal;
   --lf-block-frame: 1;
@@ -172,7 +172,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   border-radius: var(--r-s);
   background: var(--chip);
   color: var(--ink-2);
-  font: var(--voice-code);
+  font: var(--font-code);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -480,7 +480,7 @@ summary {
   min-width: 0;
   position: relative;
   padding: var(--sp-1);
-  font: var(--voice-ui);
+  font: var(--font-ui);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -648,7 +648,7 @@ summary {
   box-sizing: border-box;
   min-width: 0;
   white-space: nowrap;
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-working-head {
   overflow: hidden;
@@ -699,7 +699,7 @@ summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: var(--voice-name);
+  font: var(--font-name);
   color: var(--ink);
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
@@ -753,11 +753,11 @@ summary {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: var(--voice-status);
+  font: var(--font-status);
 }
 .lf-summary-text {
   color: var(--ink-2);
-  font: var(--voice-ui);
+  font: var(--font-ui);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -797,7 +797,7 @@ summary {
 .lf-summary-required {
   margin-top: 6px;
   color: var(--turn-ink);
-  font: var(--voice-heading);
+  font: var(--font-heading);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -813,7 +813,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: var(--voice-message);
+  font: var(--font-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);
@@ -894,7 +894,7 @@ summary {
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -990,7 +990,7 @@ summary {
   white-space: nowrap;
 }
 button.lf-thread-news {
-  font: var(--voice-heading);
+  font: var(--font-heading);
 }
 /* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
    notice is narrower than all of them, as when its room holds the news it first said,
@@ -1087,15 +1087,14 @@ button.lf-primary-news {
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
   color: var(--muted);
 }
-/* A thread projected inline uses the same receipt emphasis as the panel. */
+/* A thread projected inline uses the same receipt emphasis as the panel. Its words take
+   their speaker's face (controls.css), so the colour alone sets them apart. */
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
-  font-weight: 600;
 }
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--ink-2);
-  font-weight: 600;
 }
 /* A to-do on the user stands over the conversation about it: its title, then its Done
    (thread-card.js). */
@@ -1108,7 +1107,7 @@ button.lf-primary-news {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font: var(--voice-small);
+  font: var(--font-small);
 }
 .lf-thread-todo-title {
   flex: 1 1 auto;

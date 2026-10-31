@@ -6,6 +6,7 @@
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
 import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
+import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
 
 /** @type {Record<import("../types/contract.js").ServedActivity["kind"], string>} */
 const TONE = {
@@ -18,7 +19,8 @@ const TONE = {
 };
 // Every step the server may report (`ServedWorkKind`) has its words here, in Leaf's
 // voice, since the harness observed the step and the agent said none of them
-// (glossary.md, "Reader-facing words").
+// (glossary.md, "Reader-facing words"), but for a reply being written, the agent's own
+// act, which Threads says as Replying in its voice too (thread/workflow.js).
 /** @type {Record<import("../types/contract.js").ServedWorkKind, string>} */
 const WORK_WORDS = {
   working: "Working",
@@ -49,18 +51,20 @@ const phrased = (counts, kinds) =>
 // - `left` says the turn's ending retired the belief, and `silentSince` dates the
 //   silence by the reading's own `ts`, which the server already sets to that ending
 //   for a dropped claim.
-// - `work` names the step, and where a dialog in the agent's own window holds it
-//   (`awaiting`), that the user answers it in the terminal, since nothing on the page
-//   does.
+// - `work` names the step, said by whoever says it, and where a dialog in the agent's
+//   own window holds it (`awaiting`), that the user answers it in the terminal, since
+//   nothing on the page does.
 // - `waiting` phrases the queued and pending updates, in that order, and `owed` the
 //   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work:
+    work: saidBy(
+      activity.observed_kind === "replying" ? "agent" : "leaf",
       WORK_WORDS[activity.observed_kind ?? "working"] +
-      (activity.awaiting ? " in the terminal" : ""),
+        (activity.awaiting ? " in the terminal" : ""),
+    ),
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
@@ -101,26 +105,26 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// Rendered strings derive from structured parts, so an authored detail keeps its
-// exact source without recovering its position from a combined status sentence. A
-// part with a `source`, or in the agent's `voice`, such as a to-do's title, is the
-// agent's own words; every other part is Leaf's, which the seats set apart in italic
-// (glossary.md, "Reader-facing words").
+// Rendered strings derive from structured parts, each said by the agent or by Leaf
+// (voice.js), so an authored detail keeps its exact source without recovering its
+// position from a combined status sentence. The agent's sentence carries its `source`;
+// a to-do's title is the agent's too. The wordings below write Leaf's own words as
+// strings, which become Leaf's parts here.
+const agentLine = (text, source) => Object.freeze({ ...agentSays(text), source });
 const textParts = (words) =>
   (Array.isArray(words) ? words : [words])
     .filter(Boolean)
-    .map((part) => (typeof part === "string" ? { text: part } : part));
-const textOf = (parts) => parts.map((part) => part.text).join("");
+    .map((part) => (typeof part === "string" ? leafSays(part) : part));
 const appendWords = (parts, words, step = false) => {
-  const head = textOf(parts);
-  parts.push({ text: after(head, words, step).slice(head.length) });
+  const head = wordsText(parts);
+  parts.push(leafSays(after(head, words, step).slice(head.length)));
 };
 // Parts following a status sentence as `after` joins words, each keeping its voice.
 const appendParts = (parts, more) => {
-  const head = textOf(parts);
-  const joined = textOf(more);
+  const head = wordsText(parts);
+  const joined = wordsText(more);
   const lead = after(head, joined).slice(head.length, -joined.length);
-  parts.push(...(lead ? [{ text: lead }] : []), ...more);
+  parts.push(...(lead ? [leafSays(lead)] : []), ...more);
 };
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
@@ -164,7 +168,7 @@ function statusWords({
   // it"), which put Leaf's words in the agent's mouth; the update's own label already
   // says it was Delivered. The step the harness observed stays in the disclosure.
   if (kind === "working") {
-    const sentence = detail ? [{ text: detail, source: detailSource }] : [];
+    const sentence = detail ? [agentLine(detail, detailSource)] : [];
     // A wait the user answers in the terminal leads, ahead of the sentence it
     // interrupts, since it is the one thing on the line the user must act on.
     if (waits) {
@@ -181,15 +185,9 @@ function statusWords({
   if (kind === "stalled")
     return [
       dated,
+      [dated, ...(detail ? [": ", agentLine(detail, detailSource)] : []), `. ${saved}`],
       [
-        dated,
-        ...(detail ? [": ", { text: detail, source: detailSource }] : []),
-        `. ${saved}`,
-      ],
-      [
-        ...(detail
-          ? ["Last said: ", { text: detail, source: detailSource }, ". "]
-          : []),
+        ...(detail ? ["Last said: ", agentLine(detail, detailSource), ". "] : []),
         saved,
       ],
     ];
@@ -220,10 +218,9 @@ function statusWords({
 // that explanation `adds` to the summary for a seat that shows both (the floating
 // panel's menu), whether it `asks` the user to act, such as to nudge the agent, answer
 // what it declared it waits for, approve in its own session, or reload, which a seat
-// can draw louder than a status that only reports, its `voice`, `agent` where the
-// row holds the agent's own words and `leaf` where all of it is Leaf's, and the
-// `actionableWork` whose
-// change is announced. Each reading the user acts on differently
+// can draw louder than a status that only reports, and the `actionableWork` whose
+// change is announced. Each wording also comes as parts, each said by the agent or by
+// Leaf (`summaryParts`, `explanationParts`, `addsParts`). Each reading the user acts on differently
 // has its own `kind`, since a change of kind is what the status announces
 // (page-status.js): a server that went away and then starts refusing this tab's key
 // asks something new of the user.
@@ -233,7 +230,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "broken",
       tone: "blocked",
       summary: BROKEN_LINE,
-      voice: "leaf",
       explanation: BROKEN_LINE,
       adds: "",
       asks: true,
@@ -243,7 +239,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "refused",
       tone: "blocked",
       summary: "This tab lost access — open the link again",
-      voice: "leaf",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so changes made here go through.",
       asks: true,
@@ -257,7 +252,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "faulted",
       tone: "blocked",
       summary: "Hit a problem — trying again",
-      voice: "leaf",
       explanation: `Hit a problem: ${said}. Trying again.`,
       adds: `${said}. Trying again.`,
     };
@@ -271,7 +265,6 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
       kind: "unreachable",
       tone: "blocked",
       summary: "Lost the connection — reconnecting",
-      voice: "leaf",
       explanation: OFFLINE_LINE,
       adds: "",
     };
@@ -308,7 +301,7 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   });
   const summaryParts = textParts(summaryWords);
   const explanationParts = textParts(explanationWords);
-  if (age) explanationParts.push({ text: ` (${age})` });
+  if (age) explanationParts.push(leafSays(` (${age})`));
   const addsParts = textParts(beyond);
   const append = (words, step = false) => {
     appendWords(explanationParts, words, step);
@@ -329,14 +322,13 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   return {
     kind,
     tone: TONE[kind],
-    summary: textOf(summaryParts),
+    summary: wordsText(summaryParts),
     summaryParts,
-    explanation: textOf(explanationParts),
+    explanation: wordsText(explanationParts),
     explanationParts,
-    adds: textOf(addsParts),
+    adds: wordsText(addsParts),
     addsParts,
     asks: asked || waitsThere,
-    voice: summaryParts.some((part) => part.source) ? "agent" : "leaf",
     actionableWork,
     publication,
   };
@@ -365,35 +357,35 @@ function queueKinds(items) {
     byWords.set(nouns, [...(byWords.get(nouns) ?? []), item]);
   }
   return [...byWords].map(([nouns, all]) => {
-    const words = { text: `${all.length} ${nouns[all.length === 1 ? 0 : 1]}` };
-    if (nouns !== TODO) return [words];
+    const count = `${all.length} ${nouns[all.length === 1 ? 0 : 1]}`;
+    if (nouns !== TODO) return [leafSays(count)];
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved, in the
     // words the agent gave it.
     const titles = all.flatMap((row, index) => [
-      ...(index ? [{ text: " · " }] : []),
-      { text: row.obligation?.prompt.text ?? row.todo.title, voice: "agent" },
+      ...(index ? [leafSays(" · ")] : []),
+      agentSays(row.obligation?.prompt.text ?? row.todo.title),
     ]);
-    return [{ ...words, text: `${words.text} (` }, ...titles, { text: ")" }];
+    return [leafSays(`${count} (`), ...titles, leafSays(")")];
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const named = (items, whom) =>
     items.length
       ? [
-          { text: `Waiting on ${whom}: ` },
+          leafSays(`Waiting on ${whom}: `),
           ...queueKinds(items).flatMap((kind, index) => [
-            ...(index ? [{ text: ", " }] : []),
+            ...(index ? [leafSays(", ")] : []),
             ...kind,
           ]),
-          { text: "." },
+          leafSays("."),
         ]
       : [];
   const onMe = named(onUser, "me");
   const onAgentParts = named(onAgent, agent);
   return [
     ...onMe,
-    ...(onMe.length && onAgentParts.length ? [{ text: " " }] : []),
+    ...(onMe.length && onAgentParts.length ? [leafSays(" ")] : []),
     ...onAgentParts,
   ];
 }
@@ -405,14 +397,7 @@ const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
 // what it `adds` to the summary, whether the status `asks` the user to act, and a
 // publication's introduction and links, with which the explanation ends.
 export function statusModel(status, queues, agent) {
-  const {
-    kind,
-    tone,
-    summary,
-    asks = false,
-    voice = "agent",
-    publication = null,
-  } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   const explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   const addsParts = [...(status.addsParts ?? textParts(adds))];
@@ -420,15 +405,15 @@ export function statusModel(status, queues, agent) {
   if (counted.length) {
     appendParts(explanationParts, counted);
     appendParts(addsParts, counted);
-    explanation = textOf(explanationParts);
-    adds = textOf(addsParts);
+    explanation = wordsText(explanationParts);
+    adds = wordsText(addsParts);
   }
   let publicationModel = null;
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const examples = publication.kind === "example" ? "Other examples" : null;
     appendWords(explanationParts, said + (examples ? `${examples} ` : "") + installs);
-    explanation = textOf(explanationParts);
+    explanation = wordsText(explanationParts);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -444,7 +429,6 @@ export function statusModel(status, queues, agent) {
     explanationParts,
     addsParts,
     asks,
-    voice,
     explanation,
     adds,
     publication: publicationModel,
@@ -464,9 +448,8 @@ export function leafRow(entry) {
   // rendered as three identical rows said least about the one row they are here to
   // act on. A working page whose agent has said nothing yet shows its tone alone, as
   // the status does.
-  const own = detail ? [{ text: detail, voice: "agent" }] : [];
-  const leaf = (text) => ({ text, voice: "leaf" });
-  const stated = (word) => [leaf(word), ...(detail ? [leaf(" — "), ...own] : [])];
+  const own = detail ? [agentSays(detail)] : [];
+  const stated = (said) => [said, ...(detail ? [leafSays(" — "), ...own] : [])];
   // The status's two silences in the status's own words.
   const since = facts.silentSince ? ` ${facts.silentSince}` : "";
   const silence = facts.left
@@ -482,13 +465,13 @@ export function leafRow(entry) {
         ? stated(facts.work)
         : own
       : kind === "listening"
-        ? [leaf("Ready")]
+        ? [leafSays("Ready")]
         : kind === "stalled"
-          ? stated(silence)
+          ? stated(leafSays(silence))
           : kind === "away"
-            ? [leaf(counts.overdue ? silence : "Away")]
+            ? [leafSays(counts.overdue ? silence : "Away")]
             : [
-                leaf(
+                leafSays(
                   kind === "unheld"
                     ? "Not on this page right now"
                     : "Done with this page",
@@ -496,11 +479,11 @@ export function leafRow(entry) {
               ];
   const waiting = facts.waiting.join(" · ");
   const parts = waiting
-    ? [...primary, leaf(primary.length ? ` · ${waiting}` : waiting)]
+    ? [...primary, leafSays(primary.length ? ` · ${waiting}` : waiting)]
     : primary;
   return {
     tone: facts.tone,
-    line: parts.map((part) => part.text).join(""),
+    line: wordsText(parts),
     parts: Object.freeze(parts),
   };
 }

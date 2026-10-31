@@ -59,7 +59,7 @@ test("authored activity detail retains its exact source only in the words that s
   assert.equal(model.summary, "checking the roof");
   assert.deepEqual(
     model.summaryParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   const stalled = statusModel(
     pageStatus(state({ ...activity, kind: "stalled" })),
@@ -72,11 +72,11 @@ test("authored activity detail retains its exact source only in the words that s
   );
   assert.deepEqual(
     stalled.explanationParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   assert.deepEqual(
     stalled.addsParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   const generic = statusModel(
     pageStatus(state({ ...activity, detail_source: null })),
@@ -96,7 +96,7 @@ test("working with no sentence of the agent's leaves the row's words to it", () 
   for (const handling of [1, 3, 0])
     assert.deepEqual(picked(handling), ["", "Working (just now)"]);
   const status = pageStatus(state({ kind: "working", detail: "" }));
-  assert.equal(status.voice, "leaf");
+  assert.ok(status.explanationParts.every((part) => part.voice === "leaf"));
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -202,13 +202,42 @@ test("only words the agent wrote are in its voice", () => {
   const source = { event_id: "progress-1", item: "question-1" };
   const status = (activity) => pageStatus(state(activity));
   const line = { detail: "revising the plan", detail_source: source };
-  assert.equal(status({ kind: "working", ...line }).voice, "agent");
+  // Who says each part of each wording.
+  const voices = (reading) =>
+    [reading.summaryParts, reading.explanationParts, reading.addsParts].map((parts) =>
+      parts.map((part) => [part.text, part.voice]),
+    );
+  assert.deepEqual(voices(status({ kind: "working", ...line, ts: minutesAgo(0) })), [
+    [["revising the plan", "agent"]],
+    [
+      ["revising the plan", "agent"],
+      [" (just now)", "leaf"],
+    ],
+    [],
+  ]);
   // Everything Leaf composes is Leaf's, the agent's last line beside it or not.
   for (const kind of ["working", "listening", "stalled", "away", "unheld", "closed"])
-    assert.equal(status({ kind, detail: "" }).voice, "leaf", kind);
-  assert.equal(status({ kind: "stalled", ts: minutesAgo(5), ...line }).voice, "leaf");
-  assert.equal(status({ kind: "away", counts: { overdue: 1 } }).voice, "leaf");
-  assert.equal(pageStatus(null, { reach: "unreachable" }).voice, "leaf");
+    assert.ok(
+      voices(status({ kind, detail: "" }))
+        .flat()
+        .every(([, voice]) => voice === "leaf"),
+      kind,
+    );
+  assert.deepEqual(voices(status({ kind: "stalled", ts: minutesAgo(5), ...line })), [
+    [["Last checked in 5m ago", "leaf"]],
+    [
+      ["Last checked in 5m ago", "leaf"],
+      [": ", "leaf"],
+      ["revising the plan", "agent"],
+      [". Updates are saved.", "leaf"],
+    ],
+    [
+      ["Last said: ", "leaf"],
+      ["revising the plan", "agent"],
+      [". ", "leaf"],
+      ["Updates are saved.", "leaf"],
+    ],
+  ]);
   // A wait in the terminal leads the agent's line in Leaf's words: only the line's
   // part carries its source, which the seats draw in the agent's voice.
   const waiting = status({
@@ -218,11 +247,11 @@ test("only words the agent wrote are in its voice", () => {
     awaiting: true,
   });
   assert.deepEqual(
-    waiting.summaryParts.map((part) => [part.text, Boolean(part.source)]),
+    waiting.summaryParts.map((part) => [part.text, part.voice, Boolean(part.source)]),
     [
-      ["Approval needed in the terminal", false],
-      [" — ", false],
-      ["revising the plan", true],
+      ["Approval needed in the terminal", "leaf", false],
+      [" — ", "leaf", false],
+      ["revising the plan", "agent", true],
     ],
   );
 });
@@ -232,7 +261,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "unreachable",
     tone: "blocked",
     summary: "Lost the connection — reconnecting",
-    voice: "leaf",
     explanation:
       "Lost the connection — reconnecting. Keep this page open so changes made here go through.",
     adds: "",
@@ -241,7 +269,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "refused",
     tone: "blocked",
     summary: "This tab lost access — open the link again",
-    voice: "leaf",
     explanation:
       "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.",
     adds: "Keep this tab open so changes made here go through.",
@@ -251,7 +278,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "faulted",
     tone: "blocked",
     summary: "Hit a problem — trying again",
-    voice: "leaf",
     explanation: "Hit a problem: KeyError: 'x'. Trying again.",
     adds: "KeyError: 'x'. Trying again.",
   });
@@ -259,7 +285,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "broken",
     tone: "blocked",
     summary: "Couldn't show the latest — reload",
-    voice: "leaf",
     explanation: "Couldn't show the latest — reload",
     adds: "",
     asks: true,

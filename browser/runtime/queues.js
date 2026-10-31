@@ -3,6 +3,7 @@
  * against them; an obligation is answered through its source, and only a to-do on the
  * user, one the agent opened on them, offers Done. Every row but an agent to-do's names an
  * obligation record and carries it (`obligation`). */
+import { agentSays, saidBy } from "./voice.js";
 
 export const queueOffers = (item, ready, onUser) => ({
   open: ready,
@@ -31,7 +32,14 @@ export const itemNoun = (item) =>
 
 // How a finished list item other than an obligation the page asked ended, in the words its
 // row says: a reply the agent sent, or a to-do's outcome. A widget's
-// obligation says its own ending (obligations/answer.js).
+// obligation says its own ending (obligations/answer.js). The agent's own reply and
+// the end it gave its own to-do are its acts, in its voice; Leaf says how the user's
+// to-do ended (voice.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 export const itemOutcome = (item) =>
-  item.kind === "update" ? "Answered" : (OUTCOMES[item.state] ?? item.state);
+  item.kind === "update"
+    ? agentSays("Answered")
+    : saidBy(
+        item.owner === "agent" ? "agent" : "leaf",
+        OUTCOMES[item.state] ?? item.state,
+      );

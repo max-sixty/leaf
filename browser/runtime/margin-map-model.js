@@ -6,6 +6,7 @@ import { spokenSubject, visibleContributionEntryLabel } from "./contribution-mod
 
 import { contributionItemKey } from "./contribution-model.js";
 import { annotationItems, entryControls } from "./margin-model.js";
+import { wordsText } from "./voice.js";
 
 const dialogItemKey = (entry, item) =>
   JSON.stringify(["item", entry.key, contributionItemKey(item)]);
@@ -34,10 +35,11 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             icon: face.icon,
             label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
             visibleLabel,
+            // The name as the row draws it, where someone says part of it (voice.js).
+            visibleWords: item.words ?? visibleLabel,
             // Producers add context only when it carries another fact. Version
             // comparisons do: their pair is provenance, separate from the account.
             context: item.mapContext,
-            contextVoice: item.contextVoice ?? null,
             receipt: item.workflowReceipt,
             awaitsUser: Boolean(item.userAttention),
           };
@@ -60,7 +62,10 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
       ];
       const search = [
         entry.title,
-        ...actions.flatMap(({ visibleLabel, context }) => [visibleLabel, context]),
+        ...actions.flatMap(({ visibleLabel, context }) => [
+          visibleLabel,
+          wordsText(context ?? ""),
+        ]),
         searchTextByKey.get(entry.key),
       ]
         .filter(Boolean)

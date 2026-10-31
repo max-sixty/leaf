@@ -209,7 +209,7 @@ STYLES = """(properties) => {
   walk(document, "");
   return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
-# The computed properties that make a face, the voice a run of words is set in, which
+# The computed properties that make a face, the font a run of words is set in, which
 # `face_changes` compares across a run.
 FACE = [
     "font-family",
@@ -539,7 +539,7 @@ def motion_controls(page: Page) -> None:
 
 def timeline_steps(page: Page) -> None:
     """A timeline's Previous and Next beside its position, above its lanes."""
-    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+    page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -1839,7 +1839,7 @@ def trace_timeline_by_keyboard(page: Page) -> None:
 
 def authored_timeline_step(page: Page) -> None:
     """A step reached by Tab, with the timeline's playhead on it."""
-    page.locator("#race-before .lf-timeline-step").first.click()
+    page.locator("#race .lf-timeline-step").first.click()
     page.keyboard.press("Tab")
     page.keyboard.press("Space")
 
@@ -1872,19 +1872,19 @@ STATES = (
         touch=True,
         region=".lf-inspection-dialog",
     ),
-    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State("authored-timeline", "lost-update", at_rest, region="#race"),
     State(
         "authored-timeline-keyboard",
         "lost-update",
         authored_timeline_step,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-dark",
         "lost-update",
         authored_timeline_step,
         scheme="dark",
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-phone",
@@ -1892,7 +1892,7 @@ STATES = (
         at_rest,
         viewport=(390, 900),
         touch=True,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "native-code",
@@ -2364,7 +2364,7 @@ STATES = (
         "timeline-steps",
         "lost-update",
         timeline_steps,
-        region="#race-before .lf-timeline-controls",
+        region="#race .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",

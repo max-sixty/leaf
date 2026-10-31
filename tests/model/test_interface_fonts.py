@@ -4,24 +4,39 @@ import re
 
 import tinycss2
 
-from leaf.schema import ASSETS
+from leaf.schema import ASSETS, BUNDLED_PACKAGES
+from leaf.state import PLUGIN_ROOT
 
 # Declarations that make a face, and what a rule of the interface may write for each
 # without naming a font: inheriting its holder's, a weight for a run that keeps its
 # holder's font, a box that holds no words, and the fonts' shared leading. Any other
 # line height, a length included, is a leading of the rule's own: a box centres its
 # words by layout rather than with a line as tall as itself.
+#
+# Source a widget shows, such as a diff's lines, takes the code inputs themselves
+# (`--mono`, `--code-size`, `--code-line`), which are a source face's own values rather
+# than a leading or size of the rule's. They are theme inputs a page may set on a
+# subtree, and they set the page's source rather than the interface's words, so no font
+# resolved at the root stands for them.
 OWN = {
     "font": lambda value: value == "inherit",
-    "font-family": lambda value: value == "inherit",
-    "font-size": lambda value: value in {"inherit", "0"},
+    "font-family": lambda value: value in {"inherit", "var(--mono)"},
+    "font-size": lambda value: value in {"inherit", "0", "var(--code-size)"},
     "font-weight": lambda value: value in {"inherit", "400", "500", "600"},
-    "line-height": lambda value: value in {"inherit", "0", "1", "var(--lf-ui-lh)"},
+    "line-height": lambda value: (
+        value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--code-line)"}
+    ),
 }
 
 
 def sheets():
-    return [p for p in sorted(ASSETS.rglob("*.css")) if "vendor" not in p.parts]
+    """The core's sheets and the bundled packages', less what they vendor."""
+    return [
+        path
+        for root in (ASSETS, BUNDLED_PACKAGES)
+        for path in sorted(root.rglob("*.css"))
+        if "vendor" not in path.parts
+    ]
 
 
 def interface(context):
@@ -74,7 +89,8 @@ def test_every_rule_of_the_interface_names_a_declared_font():
     base.css's one list of them, where it is seen beside the others.
 
     Asked of the source rather than of a rendered page, because that is where the face
-    is chosen, and every sheet is read whether or not a page draws its rules.
+    is chosen, and every sheet is read whether or not a page draws its rules: the
+    core's, and each bundled package's, whose widgets' own words are the interface too.
     """
     fonts = {
         item.name
@@ -107,7 +123,7 @@ def test_every_rule_of_the_interface_names_a_declared_font():
                 map(names_a_font, siblings)
             )
             if beside or not OWN[item.lower_name](said(item)):
-                where = f"{sheet.relative_to(ASSETS)}:{item.source_line}"
+                where = f"{sheet.relative_to(PLUGIN_ROOT)}:{item.source_line}"
                 own.append(f"{where} {' { '.join(context)} — {item.name}: {said(item)}")
     assert not own, (
         f"{len(own)} rules of the interface set a face of their own rather than naming "

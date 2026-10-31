@@ -19,14 +19,29 @@ const time = (value) => (value == null || value === "" ? null : Number(value));
 export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
-/** Authored lane/event records become the timeline's one ordered reading. */
+/** Authored runs, lanes and events become the timeline's one ordered reading. Every
+ * run shares the one axis, scaled to the longest, and the one playhead, so a moment
+ * lines up down all of them. A lane written directly in the timeline is in no run. */
 export function timelineModel(host) {
   const problems = [];
-  const lanes = [...host.children]
-    .filter((child) => child.localName === "lf-lane")
-    .map((lane, index) => ({
+  const runs = new Map(
+    [...host.children]
+      .filter((child) => child.localName === "lf-run")
+      .map((run) => [run, { label: run.getAttribute("label") ?? "", row: null }]),
+  );
+  // Grid row 1 holds the ruler; a run's name takes the row above its first lane.
+  let row = 1;
+  const lanes = [
+    ...host.querySelectorAll(":scope > lf-lane, :scope > lf-run > lf-lane"),
+  ].map((lane, index) => {
+    const run = runs.get(lane.parentElement) ?? null;
+    if (run && run.row === null) run.row = ++row;
+    const label = lane.getAttribute("label") ?? "";
+    return {
       index,
-      label: lane.getAttribute("label") ?? "",
+      label,
+      name: run ? `${run.label} · ${label}` : label,
+      row: ++row,
       events: [...lane.children]
         .filter((child) => child.localName === "lf-event")
         .map((event) => {
@@ -47,7 +62,8 @@ export function timelineModel(host) {
             step: 0,
           };
         }),
-    }));
+    };
+  });
   const events = lanes.flatMap((lane) => lane.events);
   const steps = [];
   for (const event of events.toSorted((a, b) => a.at - b.at || a.lane - b.lane)) {
@@ -58,7 +74,9 @@ export function timelineModel(host) {
     for (const event of step.events) event.step = index;
   });
   return {
+    runs: [...runs.values()].filter((run) => run.row !== null),
     lanes,
+    bands: row - 1,
     events,
     steps,
     problems,
@@ -130,13 +148,19 @@ export function render(host, current, model, layout) {
       class="lf-timeline-chart"
       aria-hidden="true"
       ${generated({ says: "echo" })}
-      style="--lf-timeline-lanes: ${model.lanes.length}; --lf-timeline-edge: ${EDGE}px"
+      style="--lf-timeline-bands: ${model.bands}; --lf-timeline-edge: ${EDGE}px"
     >
+      ${model.runs.map(
+        (run) =>
+          html`<span class="lf-timeline-run lf-label" style="grid-row: ${run.row}"
+            >${run.label}</span
+          >`,
+      )}
       ${model.lanes.map(
         (lane) =>
           html`<span
             class="lf-timeline-name"
-            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
+            style="grid-row: ${lane.row}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
             >${lane.label}</span
           >`,
       )}
@@ -158,7 +182,7 @@ export function render(host, current, model, layout) {
         (lane) =>
           html`<div
             class="lf-timeline-lane"
-            style="grid-row: ${lane.index + 2}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
+            style="grid-row: ${lane.row}; --lf-timeline-rows: ${layout?.rows[lane.index] ?? 1}"
           >
             ${repeat(
               lane.events,
@@ -218,7 +242,7 @@ export function render(host, current, model, layout) {
                 (event) =>
                   html`<span class="lf-timeline-step-event lf-row-main"
                     ><span class="lf-timeline-step-lane"
-                      >${model.lanes[event.lane].label}: </span
+                      >${model.lanes[event.lane].name}: </span
                     >${event.label}</span
                   >`,
               )}

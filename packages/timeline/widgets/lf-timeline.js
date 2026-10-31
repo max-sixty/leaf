@@ -101,8 +101,8 @@ class Timeline extends HTMLElement {
     drawing.next = this.querySelector(".lf-timeline-next");
     drawing.eventElement = (id) =>
       this.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
-    for (const lane of this.querySelectorAll(":scope > lf-lane"))
-      lane.setAttribute("hidden", "");
+    for (const authored of this.querySelectorAll(":scope > :is(lf-lane, lf-run)"))
+      authored.setAttribute("hidden", "");
     for (const problem of model.problems) reportFailure(this, new Error(problem));
     const steps = model.steps.length;
     // A key pressed on a row of the step list carries the user to the step's row.
@@ -168,7 +168,7 @@ class Timeline extends HTMLElement {
       commandsChanged(row);
     }
     const events = new Map(model.events.map((event) => [event.id, event]));
-    const describe = (event) => `${model.lanes[event.lane].label}: ${event.label}`;
+    const describe = (event) => `${model.lanes[event.lane].name}: ${event.label}`;
     this.#parts = registerVisualParts(
       this,
       () =>
@@ -227,7 +227,7 @@ class Timeline extends HTMLElement {
     if (!keyed) return;
     const { model } = drawing;
     const events = model.steps[step].events
-      .map((event) => `${model.lanes[event.lane].label}: ${event.label}`)
+      .map((event) => `${model.lanes[event.lane].name}: ${event.label}`)
       .join("; ");
     announce(`Step ${step + 1} of ${model.steps.length}. ${events}`);
   }

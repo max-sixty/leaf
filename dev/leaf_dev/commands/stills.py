@@ -771,7 +771,7 @@ def card_after_interjection(page: Page) -> None:
     """An arriving answer grows a card after Send has fitted its reply against the window."""
     card_held_step(page)
     card = page.locator(".lf-margin-preview")
-    card.locator(".lf-thread-reply .lf-compose-submit").click()
+    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
     expect(card.locator(".lf-msg.user").last).to_contain_text(
         "Drafting a reply while the agent works"
     )

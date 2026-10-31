@@ -90,8 +90,9 @@ acceptance decisions, use the
 This section describes the commands that execute a selected experiment.
 
 `evals/workflows/eval.yaml` owns viewport presets and the default. Case definitions
-do not select resolutions. Use `--viewport short` or `--viewport phone` to choose
-an alternative; repeat the option to inspect several sizes within each sample.
+do not select resolutions. Use `--viewport large`, `--viewport short` or
+`--viewport phone` to choose an alternative; repeat the option to inspect several
+sizes within each sample.
 The first selected size drives the comment and decision journey. All selected
 sizes reach the author's window preference, report captures and final judge.
 Full workflows introduce that preference after the first draft; short authoring

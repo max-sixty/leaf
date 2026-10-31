@@ -4,6 +4,7 @@
 import { registry } from "./registry.js";
 import { keeps } from "./keeps.js";
 import { marks } from "./kernel-facts.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 // ---------- which page the stores are scoped to ----------
 // Prepaint declares the page scope once; widget state and chrome use that same prefix.
@@ -43,32 +44,28 @@ const { stored } = document.documentElement.lfStorage;
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for. tab-store.js owns the portable widget store.
-// Delivery marks authored views before modules load. A package can also construct
-// a view while rendering: resolve the same declaration at this capability boundary,
-// before prepaint's shared selection owner reads its marks.
+// Delivery carries the member selector into prepaint; generated holders use the
+// registry's same declaration. Only the browser evaluates it. Reading members or
+// the opening choice changes no DOM; keeping a choice owns its presentation.
+const memberSelector = (holder) => registry[holder.localName]?.["x-views"]?.members;
 export function viewMembers(holder) {
-  const declaration = registry[holder.localName]?.["x-views"];
-  if (!declaration) return [];
-  keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-  for (const child of holder.children) {
-    const member =
-      !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-    if (
-      !member &&
-      child.hasAttribute("data-lf-view") &&
-      child.getAttribute("hidden") === "until-found"
-    )
-      child.removeAttribute("hidden");
-    child.toggleAttribute("data-lf-view", member);
-  }
-  return document.documentElement.lfViews.members(holder);
+  return document.documentElement.lfViews.members(holder, memberSelector(holder));
 }
-export function openingView(holder, ...fallback) {
-  viewMembers(holder);
-  return document.documentElement.lfViews.opening(holder, ...fallback);
+export function openingView(holder, fallback = undefined) {
+  return document.documentElement.lfViews.opening(
+    holder,
+    fallback,
+    memberSelector(holder),
+  );
+}
+export function markViews(holder) {
+  const declaration = registry[holder.localName]?.["x-views"];
+  if (!declaration) return;
+  keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+  keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
 }
 export function keepView(holder, member, leaving = null) {
-  viewMembers(holder);
+  markViews(holder);
   return document.documentElement.lfViews.keep(holder, member, leaving);
 }
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);

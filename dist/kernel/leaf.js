@@ -4796,7 +4796,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
 		const closeAbove = exit?.press === close && viewControls !== nothing;
-		const quickHidden = initial || closeAbove || (search ? !exit : (writing || drafted) && !seatHeld);
+		const quickHidden = initial || closeAbove || !exit && (search || writing || drafted);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
 		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${pageSearch?.open ? "page" : "threads"}</span>` : selection ? "Selection" : nothing;
@@ -5075,7 +5075,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	let writing = false;
 	let drafted = false;
-	let seatHeld = false;
 	let postureMoved = true;
 	let landing = null;
 	const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg[data-message]").length ?? 0;
@@ -7132,13 +7131,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const input = fieldInput();
 		if (input) syncInput(input);
 		keeps(host, "data-writing", writing ? "" : null);
-		const exit = fieldExit(search, top);
 		const words = Boolean(draftOf(input));
-		if (postureMoved || !words) {
-			drafted = words;
-			seatHeld = Boolean(exit);
-		}
-		if (exit) seatHeld = true;
+		if (postureMoved || !words) drafted = words;
 		postureMoved = false;
 		keeps(host, "data-drafted", drafted ? "" : null);
 		if (!words) expanded = false;

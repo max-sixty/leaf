@@ -30,7 +30,7 @@ tag in its values:
   drawings may change size; the bundled suite records those explicitly.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside it,
   where a widget in ordinary flow grows with what it holds (`../../../browser/AGENTS.md`,
-  "Space and scrolling"). A box that needs a scroll of its own says so with
+  "The page holds still under the user's aim"). A box that needs a scroll of its own says so with
   `--lf-holds-height: 1`, as a bounded block does. Its reading is `heldScrollers` in
   `render-checks/widgets.js`, which names a box that scrolls vertically now, or that
   asks to and overflows once a tall block is added to it. It writes the page, so it is

@@ -1639,6 +1639,14 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def breakout_captions_scrolled(page: Page) -> None:
+    """Keep the captions visible after scrolling both tables to their far ends."""
+    page.locator("table").evaluate_all("""tables => tables.forEach(table => {
+      table.scrollLeft = table.dir === 'rtl' ? -table.scrollWidth : table.scrollWidth;
+    })""")
+    settle(page)
+
+
 def table_scrolled_sideways(page: Page) -> None:
     """A table whose rows open with their names, scrolled to its far end on a phone."""
     page.locator("#security-deep-record > summary").click()
@@ -3096,6 +3104,21 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
+    ),
+    State(
+        "breakout-captions", "../tests/fixtures/pages/breakout-table-caption", at_rest
+    ),
+    State(
+        "breakout-captions-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        at_rest,
+        viewport=(390, 844),
+    ),
+    State(
+        "breakout-captions-scrolled-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        breakout_captions_scrolled,
+        viewport=(390, 844),
     ),
     State(
         "table-scrolled-phone",

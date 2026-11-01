@@ -1729,16 +1729,18 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
-    browser, serve, subtests, direction
+    request, serve, subtests, direction, engine
 ):
     """A table granted room sizes its box to its columns, so it is no longer the
-    container its caption reads its width from; the caption is held to the box instead.
+    container its caption reads its width from; the block caption is held to the box.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
     and in a list item and a quotation, which hold it to their own width. Each holder's
     table scrolls alone, so one page holds all three."""
+    browser = request.getfixturevalue(engine)
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
 

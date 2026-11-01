@@ -343,3 +343,42 @@ try {{
         assert first_keys.isdisjoint(mark["key"] for mark in drawn["marks"])
         assert all("first value" not in mark["text"] for mark in drawn["marks"])
         assert page.evaluate("!window.lfRootState")
+
+
+def test_a_host_builds_named_controls_without_leaf(browser):
+    """Control construction and generated labels need no page services."""
+    markup = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Host controls</title>
+<style>svg {{ width: 1em; height: 1em; }}</style>
+<script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
+</head><body><main></main><pre id="failure"></pre>
+<script type="module">
+try {{
+  const {{offer, nameAction, relabel, searchField}} =
+    await import("/runtime/portable-api.js");
+  await import("/vendor/webawesome.esm.js");
+  const button = offer("button");
+  nameAction(button, "close", {{label: "Close evidence"}});
+  const label = offer("span");
+  relabel(label, "Evidence", {{says: "echo"}});
+  const search = searchField("host-search", {{name: "files", label: "Find files"}});
+  document.querySelector("main").append(button, label, search);
+}} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
+finally {{ window.hostReady = true; }}
+</script></body></html>"""
+    with host_page(markup, install()) as url:
+        page = browser.new_page()
+        page.goto(url)
+        page.wait_for_function("window.hostReady")
+        assert page.locator("#failure").inner_text() == ""
+        button = page.get_by_role("button", name="Close evidence")
+        expect(button.locator("svg")).to_be_visible()
+        expect(button).to_have_attribute("title", "Close evidence")
+        expect(page.locator("span[data-lf-echo]")).to_have_text("Evidence")
+        search = page.get_by_role("searchbox", name="Find files")
+        search.fill("patch")
+        expect(search).to_have_value("patch")
+        button.focus()
+        page.keyboard.press("Tab")
+        expect(search).to_be_focused()
+        assert page.evaluate("!window.lfRootState && !window.lfInputs")

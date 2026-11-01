@@ -89,3 +89,5 @@ export { loadDeferred } from "./deferred-value.js";
 
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
+
+export { nameAction, namedAction, relabel, searchField } from "./control-labels.js";

@@ -201,11 +201,7 @@ export {
   dragging,
   el,
   motionPreview,
-  nameAction,
-  namedAction,
   reachedForWords,
-  relabel,
-  searchField,
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

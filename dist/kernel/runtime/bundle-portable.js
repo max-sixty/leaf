@@ -1337,13 +1337,13 @@ const ACTIONS = {
 		icon: "subtract"
 	}
 };
-const namedAction = (action) => {
+const namedAction$1 = (action) => {
 	const named = ACTIONS[action];
 	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
 	return named;
 };
-const actionIcon = (action) => namedAction(action).icon;
-const actionName = (action) => namedAction(action).name;
+const actionIcon = (action) => namedAction$1(action).icon;
+const actionName = (action) => namedAction$1(action).name;
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
 function actionFace(role, label, action) {
@@ -1493,6 +1493,34 @@ const { offerAction, offerActionElement: offeredActionElement } = actionOffers({
 const offeredAction = elementDirective("offeredAction", offeredActionElement);
 const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const generated = elementDirective("generated", generatedElement);
+
+//#endregion
+//#region runtime/control-labels.js
+function searchField(cls, { name, label, placeholder = label }) {
+	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
+	field.type = "search";
+	field.value = "";
+	field.size = "s";
+	field.withClear = true;
+	field.tabIndex = 0;
+	field.name = name;
+	field.label = label;
+	field.placeholder = placeholder;
+	field.autocomplete = "off";
+	field.spellcheck = false;
+	return field;
+}
+function nameAction(control, action, { label, title, className } = {}) {
+	const name = label ?? actionName(action);
+	keeps(control, "aria-label", name);
+	keeps(control, "title", title ?? name);
+	showAction(control, action, className);
+}
+const namedAction = elementDirective("namedAction", nameAction);
+function relabel(node, label, options = {}) {
+	generatedElement(node, options);
+	keepsText(node, label);
+}
 
 //#endregion
 //#region runtime/widget-upgrade.js
@@ -2656,4 +2684,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, installElementIntegration, installMoveFocus, installStageIntegration, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };
+export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, installElementIntegration, installMoveFocus, installStageIntegration, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nameAction, namedAction, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, searchField, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };

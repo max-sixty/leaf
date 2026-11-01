@@ -496,7 +496,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
           };
           const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
             .find(button => button.checkVisibility());
-          const pose = {action: rect(action),
+          const actionBox = rect(action);
+          // Send fits the draft's last text line; Dictate fills the panel row.
+          // They share an aim at the row's centre, rather than a box height.
+          const pose = {action: node.matches('.lf-fp-card')
+            ? {left: actionBox.left, center: (actionBox.top + actionBox.bottom) / 2}
+            : actionBox,
             tail: rect(document.querySelector('#continuity-tail'))};
           const close = document.querySelector('.lf-margin-preview-close');
           if (close?.checkVisibility()) pose.close = rect(close);
@@ -513,7 +518,10 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         }""")
 
     pending = pose()
-    assert 0 < pending["action"]["top"] < pending["action"]["bottom"] < 900
+    if place == "panel":
+        assert 0 < pending["action"]["center"] < 900
+    else:
+        assert 0 < pending["action"]["top"] < pending["action"]["bottom"] < 900
     # The refusal arrives as news, past the browser's window for the user's last
     # input, so the shift watch reads whatever it moves as moved without input.
     page.wait_for_timeout(600)

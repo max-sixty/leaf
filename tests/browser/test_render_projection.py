@@ -778,9 +778,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         serve.page_dir, source(restored, restored_executable), "Restore a destination"
     )
     if fresh:
+        # Generated history is drawn by the runtime, after the authored destination
+        # has parsed. Holding that runtime must not wait for its own drawing.
         page.wait_for_function("""() => document.readyState === 'interactive' &&
-          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
-        assert blocked, "startup module must remain pending during the parsed drawing"
+          document.getElementById('route') !== null""")
+        assert blocked, "startup module must remain pending after parsing"
         assert page.locator("body").get_attribute("data-lf-presented") is None
         page.unroute("**/leaf.js")
         for route in blocked:

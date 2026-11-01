@@ -154,6 +154,10 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
             f"<pre>{code}</pre></lf-tab>"
             '<lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         )
+        if reading == "page-tab":
+            content = content.replace(
+                '<lf-tabs id="readings">', '<lf-tabs id="readings" class="layout-flow">'
+            )
         if reading == "boxed-tab":
             content = f"<section>{content}</section>"
         ident = "log"
@@ -171,7 +175,57 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     )
     scroll_settled(page, f"#{ident}")
     accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
-    edges = mark_edges(page, ident, accent)
+    # A page's tabs hang their panel's ring from the strip's rule and stand it a region's
+    # room out on its other three sides (tabs.css), clear of the text's first letter; a
+    # boxed set's panel is padded inside its frame, and its ring stays inside.
+    room = page.evaluate(
+        """() => ['--focus-region-gap', '--focus-ring-w'].reduce((sum, name) =>
+          sum + parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue(name)), 0)"""
+    )
+    outset = (
+        dict.fromkeys(("left", "right", "bottom"), room)
+        if reading == "page-tab"
+        else {}
+    )
+    edges = mark_edges(page, ident, accent, outset)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
+
+
+def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
+    """A list taller than the open panel leaves the panel its whole cell, so the ring
+    the set draws round the panel meets the frame on every side, where it stopped under
+    the panel's last line. The closed panels in that cell stay flat, so the open
+    panel's words still take the pointer."""
+    tabs = "".join(
+        f'<lf-tab id="item-{i}" label="Item {i}"><p id="words-{i}">Item {i}.</p></lf-tab>'
+        for i in range(6)
+    )
+    url = serve(
+        leaf_page(
+            "Queue", f'<h1>Queue</h1><lf-tabs id="queue" list="side">{tabs}</lf-tabs>'
+        )
+    )
+    page = open_page(browser, url)
+    page.get_by_role("tab").first.click()
+    page.keyboard.press("Tab")
+    expect(page.locator("#item-0")).to_be_focused()
+    rendered(page)
+    reach = page.evaluate(
+        """() => {
+          const strip = document.querySelector('#queue > .lf-tabstrip');
+          const words = document.getElementById('words-0').getBoundingClientRect();
+          return {
+            panel: document.getElementById('item-0').getBoundingClientRect().bottom,
+            list: strip.getBoundingClientRect().bottom,
+            hit: document.elementFromPoint(words.left + 2, words.top + 2)?.id,
+          };
+        }"""
+    )
+    assert reach["hit"] == "words-0", reach
+    assert reach["panel"] == pytest.approx(reach["list"], abs=1), reach
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    edges = mark_edges(page, "item-0", accent)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
@@ -326,6 +380,20 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         drawn = rings_drawn(page)
         assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
+
+    # A neighbour under the shadow button's ring is clean above. A real cover at
+    # the same point must still be reported when the screenshot confirms its paint.
+    shadow_button.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      const band = document.body.appendChild(document.createElement('div'));
+      band.id = 'shadow-ring-cover';
+      band.style.cssText = `position: fixed; z-index: 99999; background: red;
+        left: ${b.left}px; top: ${b.top - parseFloat(s.outlineOffset) - parseFloat(s.outlineWidth)}px;
+        width: ${b.width}px; height: ${s.outlineWidth};`;
+    }""")
+    assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
+    page.locator("#shadow-ring-cover").evaluate("el => el.remove()")
 
     assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
         "retargeting focus to the widget host drew a second ring around its button"

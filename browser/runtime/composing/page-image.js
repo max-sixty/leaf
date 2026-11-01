@@ -35,6 +35,9 @@
  * a shadow host and never descends into SVG or an element with no content of its own,
  * such as an image or a frame.
  */
+import { canvas2D } from "../canvas.js";
+import { describeFailure } from "../exception.js";
+/** @param {Blob} blob */
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
@@ -45,18 +48,22 @@ const asDataUrl = async (blob) =>
 // to its first paint.
 export const pageRenderer = async () => {
   const [{ snapdom }, { isSampleFrame, sampleFrameImage }] = await Promise.all([
-    import("../../vendor/snapdom.esm.js"),
+    import("/vendor/snapdom.esm.js"),
     import("../sample.js"),
   ]);
   return { snapdom, isSampleFrame, sampleFrameImage };
 };
 
+/** @typedef {{left: number, right: number, top: number, bottom: number}} Bounds */
+/** @param {Bounds} a @param {Bounds} b */
 const meets = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+/** @param {Bounds} a @param {Bounds} b */
 const holds = (a, b) =>
   a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 
 // Paint of a parent's own that lies over or around its children's.
+/** @param {Element} parent @param {CSSStyleDeclaration} style */
 const paintsOverChildren = (parent, style) =>
   style.backgroundImage !== "none" ||
   style.overflowX !== "visible" ||
@@ -68,6 +75,7 @@ const paintsOverChildren = (parent, style) =>
   });
 
 // An element that draws its subtree through an effect, which only its own capture keeps.
+/** @param {CSSStyleDeclaration} style */
 const drawsThroughEffect = (style) =>
   style.opacity !== "1" ||
   style.mixBlendMode !== "normal" ||
@@ -77,12 +85,13 @@ const drawsThroughEffect = (style) =>
     "rotate",
     "scale",
     "filter",
-    "backdropFilter",
-    "clipPath",
-    "maskImage",
-  ].some((property) => style[property] !== "none");
+    "backdrop-filter",
+    "clip-path",
+    "mask-image",
+  ].some((property) => style.getPropertyValue(property) !== "none");
 
 // The boxes a parent lays out, through any child that generates none of its own.
+/** @param {Element} parent @param {string} skip @returns {Generator<Element>} */
 function* laidOut(parent, skip) {
   for (const child of parent.children) {
     if (skip && child.matches(skip)) continue;
@@ -92,6 +101,7 @@ function* laidOut(parent, skip) {
   }
 }
 
+/** @param {Bounds} region @param {string} skip */
 function captureRoot(region, skip) {
   let root = document.body;
   const ground = [getComputedStyle(document.documentElement).backgroundColor];
@@ -118,20 +128,26 @@ function captureRoot(region, skip) {
     root = holder;
   }
   const canvas = new OffscreenCanvas(1, 1);
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas2D(canvas);
   for (const color of ground) {
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, 1, 1);
   }
-  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-  return { root, ground: `rgba(${r}, ${g}, ${b}, ${a / 255})` };
+  const channels = Array.from(ctx.getImageData(0, 0, 1, 1).data, (channel, index) =>
+    index === 3 ? channel / 255 : channel,
+  );
+  return { root, ground: `rgba(${channels.join(", ")})` };
 }
 
+/** @typedef {{blob: Blob, warnings: string[]}} PageImage */
+/** @param {{x: number, y: number, width: number, height: number}} clip @param {{exclude?: string[]}} [options] @returns {Promise<PageImage>} */
 export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
+  /** @type {Set<string>} */
   const warnings = new Set();
   // The crop meets the frame's content box in this viewport's coordinates; the
   // child and the substitute's own box read it in the frame's, unscaled.
+  /** @param {HTMLIFrameElement} frame */
   async function sampleContent(frame) {
     // SnapDOM applies the frame's box to the returned node, border included.
     const box = document.createElement("div");
@@ -149,12 +165,15 @@ export async function pageImage(clip, { exclude = [] } = {}) {
       top + frame.clientHeight * scaleY,
       clip.y - scrollY + clip.height,
     );
-    const crop = {
+    const start = {
       x: (Math.max(left, clip.x - scrollX) - left) / scaleX,
       y: (Math.max(top, clip.y - scrollY) - top) / scaleY,
     };
-    crop.width = (right - left) / scaleX - crop.x;
-    crop.height = (bottom - top) / scaleY - crop.y;
+    const crop = {
+      ...start,
+      width: (right - left) / scaleX - start.x,
+      height: (bottom - top) / scaleY - start.y,
+    };
     if (crop.width <= 0 || crop.height <= 0) return box;
     try {
       const child = await sampleFrameImage(frame, crop);
@@ -168,7 +187,9 @@ export async function pageImage(clip, { exclude = [] } = {}) {
       img.style.cssText = `display:block;position:relative;left:${crop.x}px;top:${crop.y}px;width:${crop.width}px;height:${crop.height}px`;
       box.append(img);
     } catch (error) {
-      warnings.add(`A live sample in this area could not be drawn: ${error.message}`);
+      warnings.add(
+        `A live sample in this area could not be drawn: ${describeFailure(error)}`,
+      );
     }
     return box;
   }
@@ -200,7 +221,7 @@ export async function pageImage(clip, { exclude = [] } = {}) {
         // root its grid centred, as the column Layout centres `main`, drew off its crop.
         name: "leaf-root-in-place",
         afterClone: ({ clone }) => {
-          clone.style.justifySelf = "normal";
+          if (clone) clone.style.justifySelf = "normal";
         },
       },
     ],

@@ -2514,7 +2514,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, indentless=False):  # noqa: F841 -- override keyword names
+    def increase_indent(self, flow=False, indentless=False):  # noqa: F841, RUF100 - Vulture: preserve PyYAML keyword parameters.
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2632,7 +2632,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):  # noqa: F841 -- override keyword names
+    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):  # noqa: F841, RUF100 - Vulture: preserve regtest keyword parameters.
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),

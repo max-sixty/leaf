@@ -108,10 +108,7 @@
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-}
-:is(.lf-mark-note, .lf-visual-action)[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-mark-note[data-lf-focus] {
   opacity: 1;
@@ -180,7 +177,6 @@ html[data-lf-region-capture] main * {
 }
 .lf-version-inline-deletion {
   font: inherit;
-  line-height: inherit;
 }
 .lf-version-inline-deletion del {
   margin-inline-end: 0.28em;
@@ -198,7 +194,7 @@ html[data-lf-region-capture] main * {
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-obligation] {
   outline: var(--lf-obligation-ring, var(--focus-ring));
-  outline-offset: var(--focus-ring-gap);
+  outline-offset: var(--focus-region-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
@@ -326,7 +322,7 @@ html[data-lf-region-capture] main * {
     user-select: none;
     -webkit-user-select: none;
     --lf-mark-w: 16px;
-    font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+    font: var(--font-ui);
     color: var(--ink);
     letter-spacing: normal;
     word-spacing: normal;
@@ -369,11 +365,16 @@ html[data-lf-region-capture] main * {
     --lf-shape-stroke: var(--target-trace-w);
     --lf-shape-dash: none;
   }
-  /* Flush outside: brackets are two 8px end strips of the same 2px outline
-     keyboard focus draws whole. Neither state changes bounds, radius or offset.
-     The placement owner supplies the target rectangle and its corner shape.
+  /* On the target's perimeter, where its focus ring and location ring stand too
+     (base.css, "Where it stands"): brackets are two 8px end strips of the outline
+     keyboard focus draws whole there. No state changes bounds, radius or offset, and
+     an outline drawn at the gap rounds its corners as the location ring's does. The
+     placement owner (target-paint-geometry.js, `standOver`) supplies the target
+     rectangle, its corner shape and the gap, `--lf-mark-offset`. `--lf-mark-room` is
+     how far the band reaches outside the target, which each strip's clip starts from.
      Keep this in shared chrome so Aim and an optional annotation painter agree. */
   :is(.lf-aim, .lf-target-trace, .lf-visual-mark):not(.lf-shaped) {
+    --lf-mark-room: calc(var(--focus-ring-w) + var(--lf-mark-offset));
     &::before,
     &::after {
       content: "";
@@ -381,32 +382,26 @@ html[data-lf-region-capture] main * {
       inset: 0;
       border-radius: inherit;
       outline: var(--lf-target-outline, var(--focus-ring));
-      outline-offset: 0;
+      outline-offset: var(--lf-mark-offset);
       pointer-events: none;
     }
     &::before {
       clip-path: inset(
-        calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
-          calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
+        calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
+          calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
       );
     }
-    /* A clip that leaves no room outside the target (visual-mark-paint.js) takes the
-       perimeter just inside its edge, as a control packed into a list does (base.css). */
-    &.lf-visual-mark-inset::before,
-    &.lf-visual-mark-inset::after {
-      outline-offset: calc(-1 * var(--focus-ring-w));
+    &::after {
+      clip-path: inset(
+        calc(-1 * var(--lf-mark-room)) calc(-1 * var(--lf-mark-room))
+          calc(-1 * var(--lf-mark-room)) calc(100% + var(--lf-mark-room) - 8px)
+      );
     }
     &.lf-visual-mark-focus::after {
       clip-path: none;
     }
     &.lf-visual-mark-focus::before {
       content: none;
-    }
-    &::after {
-      clip-path: inset(
-        calc(-1 * var(--focus-ring-w)) calc(-1 * var(--focus-ring-w))
-          calc(-1 * var(--focus-ring-w)) calc(100% + var(--focus-ring-w) - 8px)
-      );
     }
   }
   .lf-target-trace-shape {
@@ -433,7 +428,7 @@ html[data-lf-region-capture] main * {
   :is(.lf-dot, svg[data-lf-icon="leaf"]) {
     -webkit-mask: url("/icon.svg") center / contain no-repeat;
     mask: url("/icon.svg") center / contain no-repeat;
-    color: var(--muted-2);
+    color: var(--muted);
   }
   :is(.lf-dot.working, [data-tone="working"] > svg[data-lf-icon="leaf"]) {
     color: var(--accent);
@@ -469,8 +464,8 @@ html[data-lf-region-capture] main * {
   }
   .lf-anchor-status {
     margin-inline-start: 7px;
-    color: var(--muted-2);
-    font: 500 var(--t-6)/1.25 var(--sans);
+    color: var(--muted);
+    font: var(--font-status);
   }
 
   .lf-quote {
@@ -478,22 +473,17 @@ html[data-lf-region-capture] main * {
     padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2);
     color: var(--muted);
-    font-size: 13px;
-    font-style: normal;
+    font: var(--font-compact);
     cursor: pointer;
     overflow-wrap: anywhere;
   }
   .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
   }
-  .lf-quote[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
-  }
 
   .lf-quote.detached {
     border-inline-start-color: var(--border-2);
-    color: var(--muted-2);
+    color: var(--muted);
     cursor: default;
   }
   .lf-quote-expand {
@@ -528,6 +518,13 @@ html[data-lf-region-capture] main * {
       var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
     );
   }
+  /* Under a mouse the empty reply box is its one row tall (response.css), which comes
+     to the response line with its frame, so the row reserves no frame beyond it. */
+  @media (hover: hover) and (pointer: fine) {
+    :is(.lf-fab-bar, .lf-margin-preview) {
+      --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
+    }
+  }
   /* The ⌥ aim's promise: the item a press would take, whole, drawn in the chrome's layer
      rather than on the element, since no band of a page element is reliably the
      runtime's to paint (a scroller clips outside, a group's cells paint over inside, and
@@ -543,7 +540,10 @@ html[data-lf-region-capture] main * {
     --lf-shape-ink: var(--accent);
     --lf-shape-stroke: 2px;
     --lf-shape-dash: none;
-    background: color-mix(in srgb, var(--accent) 4%, transparent);
+    /* The veil fills the perimeter its brackets stand on, so the two read as one box. */
+    --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
+    background: var(--lf-aim-veil);
+    box-shadow: 0 0 0 var(--lf-mark-offset) var(--lf-aim-veil);
   }
   .lf-aim-shape {
     display: block;
@@ -556,6 +556,7 @@ html[data-lf-region-capture] main * {
      the same specificity, and its placement writes no corner (`standOver` is given 0). */
   .lf-shaped {
     background: none;
+    box-shadow: none;
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
      anchored to it, so a stroke crosses content boundaries without becoming part of the
@@ -748,21 +749,14 @@ html[data-lf-region-capture] main * {
     padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2))
       max(10px, var(--lf-safe-bottom))
       max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
-    font-size: var(--t-5);
+    font: var(--font-ui);
     color: var(--muted);
     border-top: 1px solid var(--rule);
     max-height: 20dvh;
     overflow: auto;
   }
   .lf-command-reference-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
     margin-bottom: 8px;
-  }
-  .lf-command-reference-title {
-    font-weight: 600;
   }
   .lf-command-reference-close {
     flex: none;
@@ -787,7 +781,7 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-preference small {
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -821,7 +815,7 @@ html[data-lf-region-capture] main * {
     margin: 6px 0;
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
@@ -833,23 +827,26 @@ html[data-lf-region-capture] main * {
     margin-inline: -10px;
     padding-inline: 10px;
   }
-  .lf-command-reference-empty {
-    padding: 20px 0 8px;
-    color: var(--muted);
-    text-align: center;
-  }
+  /* The reference's rows reach past its words by their wash's room, so its heading and
+     its empty line, standing where the rows' words start, keep no inset of their own. */
   .lf-command-reference h3 {
     margin: 16px 0 4px;
+    padding: 0;
+  }
+  .lf-command-reference .lf-rows-empty {
+    padding-inline: 0;
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
-     each key sits beside the words it runs, as a menu or Gmail's `?` sets it: the
-     command, then its keys 10px after, then its description. Two layouts were
-     rejected. In a table whose key column was a fixed 104px, a lone key stood some 80px
-     from its command, the longest lists still wrapped, and the table wore the
-     document's data-table rule, a hairline under every cell. Keys at the row's end, as
-     a wide command palette sets them, stood 300px away. Rows share no column, so one long
-     binding list (`⇥ / ⇧⇥ / ← / → / ↑ / ↓`) widens only its own row. Rows part by
-     their own room, and a section by the space above its heading.
+     each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
+     the command 10px after them, then the command, then its description. The keys
+     share one column, as wide as `g letters`, so every command starts on one edge;
+     a step's alternatives stand as keys of their own, two to a line, so Move's six
+     take three. The user chose this on 28 October over three others: each key 10px after
+     its command, which zigzagged down the list; keys at the row's end, a dialog's
+     width from their words; and one column after the widest command. Before those, a
+     table whose key column was a fixed 104px stood a lone key some 80px from its
+     command and wore the document's data-table rule, a hairline under every cell.
+     Rows part by their own room, and a section by the space above its heading.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -868,10 +865,12 @@ html[data-lf-region-capture] main * {
     box-sizing: border-box;
     width: calc(100% + 12px);
     display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, 1fr);
-    grid-template-areas: "action key desc";
-    align-items: center;
+    grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
+    grid-template-areas: "key action desc";
+    align-items: baseline;
+    align-content: center;
     column-gap: 10px;
+    min-height: var(--aim-floor);
     margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
     padding-inline: 4px 6px;
@@ -890,16 +889,9 @@ html[data-lf-region-capture] main * {
     align-items: baseline;
     gap: 8px;
   }
-  /* A command's words stand the aim floor tall, as the button they were stood, so a
-     row is as tall as it was and a finger's description rises into the slack
-     (below). */
-  .lf-command-reference-command > .lf-command-reference-action {
-    box-sizing: content-box;
-    min-height: var(--aim-floor);
-    align-content: center;
-  }
   .lf-command-reference-key {
     grid-area: key;
+    justify-self: end;
   }
   /* A walk lands a command's row (command-reference.js), which keeps the ring's
      landing room around it as a margin. */
@@ -910,7 +902,7 @@ html[data-lf-region-capture] main * {
     grid-area: desc;
     overflow: hidden;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -921,77 +913,62 @@ html[data-lf-region-capture] main * {
   }
   @media (hover: none) {
     .lf-command-reference-row:not([hidden]) {
-      grid-template-areas: "action key ." "desc desc desc";
+      grid-template-areas: "key action ." ". desc desc";
     }
     .lf-command-reference-description {
       padding-top: 0;
       opacity: 1;
       white-space: normal;
     }
-    /* Up into the slack of its command's aim floor, which centers one line in 44px. */
-    .lf-command-reference-command .lf-command-reference-description {
-      margin-top: calc((1lh - var(--aim-floor)) / 2);
-    }
   }
-  .lf-command-reference .lf-binding-sequence {
+  /* A step's alternatives stand two to a line, so Move's arrows pair as ← → and ↑ ↓. */
+  .lf-command-reference .lf-binding-sequence:has(> [data-lf-key-or]) {
     flex-wrap: wrap;
-    max-width: 100%;
+    justify-content: flex-end;
+    row-gap: 4px;
+    max-width: calc(2 * var(--lf-key-badge-size) + 14px);
   }
   .lf-command-reference .lf-binding-sequence > kbd {
     max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
-    padding-block: 1px;
-    line-height: 1.3;
     white-space: normal;
   }
   .lf-command-reference-scope {
     flex: none;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
   }
-  .lf-page-map-head,
-  .lf-inspection-head {
+  /* A dialog's head holds its title, then its other controls, with Close last. Every
+     dialog the chrome opens sets its title in one face, the chrome's sans at weight
+     600, as a list's group heading and the floating panel's view title are. Three
+     dialogs set their titles in the browser's bold until they shared this. */
+  .lf-dialog-head {
     display: flex;
     align-items: center;
     gap: 8px;
   }
-  .lf-page-map-head > strong,
-  .lf-inspection-head > strong {
+  .lf-dialog-title {
     flex: 1;
+    font: var(--font-title);
   }
+  /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
+     as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
+     the row's ground as it paints its margin entry, in one rule set in base.css, and
+     the row's wash under the pointer lies over it. */
   .lf-page-map-action {
-    width: 100%;
-    min-width: 0;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-    /* A press here is a row (controls.css, `.lf-row`), and a status beside it keeps
-       the row's stripe room too, so their words share one edge. The user's turn
-       paints the row's ground as it paints its margin entry, in one rule set in
-       base.css, and the row's wash under the pointer lies over it. */
-    border: 0;
-    border-inline-start: 2px solid transparent;
     background-color: var(--lf-entry-tint, transparent);
     color: inherit;
-    padding: 7px 8px 7px 6px;
-    font: inherit;
-    text-align: left;
     cursor: default;
+  }
+  /* Each group is a list of its own, so a kind's symbol, an icon, a glyph or an emoji,
+     stands centred in a square a line tall, and every group's names start on one edge. */
+  .lf-page-map-action > .lf-row-lead {
+    width: 1lh;
+    justify-items: center;
   }
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
-  }
-  .lf-page-map-action .lf-margin-kind {
-    align-self: center;
-  }
-  .lf-page-map-action-label {
-    min-width: 0;
-  }
-  .lf-page-map-action-label-word,
-  .lf-page-map-action-context {
-    display: block;
   }
   .lf-page-map-action-label-word,
   .lf-page-map-group h3 {
@@ -1000,21 +977,6 @@ html[data-lf-region-capture] main * {
     -webkit-line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
-  }
-  .lf-page-map-action-context {
-    margin-block-start: 2px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    line-height: 1.25;
-  }
-  /* Inset, because a row here fills the list to its own edge and the list is a
-     scroller: there is nothing outside the row for a ring to be drawn in, and an
-     outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints. The ring's width is the inset,
-     so the band lands just inside the row's own edge. */
-  .lf-page-map-action[data-lf-focus-visible] {
-    outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
   }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
      search or Close under the user's aim. The same top bounds its scrolling room. */
@@ -1057,24 +1019,41 @@ html[data-lf-region-capture] main * {
     padding: var(--focus-ring-room);
     scroll-padding: var(--focus-ring-room);
   }
+  /* Each section of the report is a region of the dialog, named in the label font
+     (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title. What
+     names one value, a copyable text's or a list's (h3), is muted and small, as a
+     metric's term is, so no value's name outranks its section's. A heading stands
+     nearer what it names than what precedes it. A disclosure in a section is one of
+     its items, in the dialog's own font rather than markup's bold summary
+     (reading.css). */
   .lf-inspection-body h2 {
-    font-size: var(--t-4);
-    margin-block: 18px 8px;
+    margin-block: 22px 6px;
+  }
+  .lf-inspection-body section:first-child > h2:first-child {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body :is(h2, h3) + * {
+    margin-block-start: 0;
+  }
+  .lf-inspection-body h3,
+  .lf-copyable-head > span {
+    font: var(--font-small);
+    color: var(--muted);
   }
   .lf-inspection-body h3 {
-    font-size: var(--t-5);
+    margin-block: 10px 2px;
+  }
+  /* The title starts where the report's words do, inside the room the report keeps
+     for a focus ring. */
+  .lf-inspection-dialog > .lf-dialog-head {
+    padding-inline-start: var(--focus-ring-room);
   }
   .lf-inspection-body details {
     margin-block: 10px;
   }
   .lf-inspection-body summary {
-    cursor: pointer;
     padding-block: 4px;
-  }
-  .lf-inspection-body pre {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: var(--t-6);
+    font: var(--font-ui);
   }
   .lf-copyable-head {
     display: flex;
@@ -1082,14 +1061,21 @@ html[data-lf-region-capture] main * {
     justify-content: space-between;
     gap: 8px;
   }
+  /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
+     wraps rather than scrolling sideways, so it keeps no room under its last line for a
+     scrollbar's track, as a code block does (reading.css). A value too long for the
+     rest of its line, such as a fingerprint, moves whole to the next, so the reader can
+     compare it at a glance. */
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font: var(--t-6) / 1.5 var(--mono);
+    font: var(--font-code);
+  }
+  .lf-copyable-text pre::after {
+    content: none;
   }
   .lf-inspection-metrics {
     display: flex;
@@ -1098,7 +1084,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-inspection-metrics dt {
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
   }
   .lf-inspection-metrics dd {
     margin: 0;
@@ -1108,31 +1094,22 @@ html[data-lf-region-capture] main * {
     width: 100%;
     margin-top: 10px;
   }
+  /* The list, and the line standing in its rows' place, reach into the sheet's padding
+     by the rows' inset (controls.css, `.lf-row`), so the rows' marks and their group
+     headings start where the title and the search do, and the rows' ends stop where
+     the search does, as the command reference sets its rows; each row's wash keeps
+     that room past its words. */
+  .lf-page-map-list,
+  .lf-page-map-dialog > .lf-rows-empty {
+    margin-inline: -8px;
+  }
   .lf-page-map-list {
     margin-top: 6px;
     overflow: auto;
     min-height: 0;
   }
-  .lf-page-map-empty {
-    margin: 18px 8px 8px;
-    color: var(--muted);
-    text-align: center;
-  }
-  .lf-page-map-group {
-    padding: 10px 0;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-page-map-group:first-child {
-    border-top: 0;
-  }
-  .lf-page-map-group h3 {
-    margin: 0 8px 4px;
-    font-size: var(--t-5);
-    line-height: 1.35;
-  }
   .lf-page-map-actions {
-    display: grid;
-    gap: 2px;
+    row-gap: 2px;
   }
 
   @media (forced-colors: active) {
@@ -1147,6 +1124,11 @@ html[data-lf-region-capture] main * {
     align-items: center;
     gap: 1px;
     white-space: nowrap;
+  }
+  /* A step's keys are alternatives, as `z` and `⌘z` both undo a stroke: each stands
+     apart from the next, where a sequence's steps stand together. */
+  .lf-binding-sequence > kbd[data-lf-key-or] {
+    margin-inline-start: 4px;
   }
   .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] {
     border-color: var(--accent);
@@ -1208,13 +1190,22 @@ html[data-lf-region-capture] main * {
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current {
-    font-weight: 700;
+    font-weight: 600;
     box-shadow: var(--focus-shadow);
   }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
+  /* Where the agent is at work (at-work.js): a bar in the margin beside its target, in
+     the accent its margin entry wears while it works. It comes and goes with the work,
+     whose start the margin entry's pulse acknowledges. */
+  .lf-at-work-bar {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 1.5px;
+    background: var(--accent);
+  }
   .lf-page-search-match {
     position: absolute;
     box-sizing: border-box;
@@ -1222,13 +1213,14 @@ html[data-lf-region-capture] main * {
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
+  /* As wide as "99 of 99", so the field keeps its width as the count changes. */
   .lf-page-search-status {
-    inline-size: 5ch;
+    inline-size: 7ch;
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
-    font-size: var(--t-6);
+    font: var(--font-small);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
@@ -1253,8 +1245,7 @@ html[data-lf-region-capture] main * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 0 5px;
-    font-size: var(--t-6);
-    line-height: 1.5;
+    font: var(--font-small);
     background: color-mix(in srgb, var(--accent) 12%, var(--card));
     color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
@@ -1279,8 +1270,7 @@ html[data-lf-region-capture] main * {
     white-space: nowrap;
     padding: 1px 6px;
     border-radius: var(--r-s);
-    font-size: var(--t-6);
-    line-height: 1.5;
+    font: var(--font-small);
     background: var(--accent);
     color: var(--paper);
   }

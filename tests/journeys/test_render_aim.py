@@ -561,7 +561,6 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
             "disclosure",
             "#detail-word",
             "document.getElementById('disclosure').open=false",
-            "document.getElementById('disclosure').open=true",
         ),
         (
             "inactive-tab",
@@ -571,21 +570,15 @@ def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, s
               const {retainUserIntent} = await window.__lfWidgetApi();
               reveal(document.getElementById('other-view'), retainUserIntent());
             }""",
-            """async () => {
-              const {reveal} = await window.__lfCheckApi();
-              const {retainUserIntent} = await window.__lfWidgetApi();
-              reveal(document.getElementById('active-view'), retainUserIntent());
-            }""",
         ),
         (
             "offscreen",
             "#offscreen-word",
             "scrollTo(0,document.documentElement.scrollHeight)",
-            "document.getElementById('offscreen-word').scrollIntoView({block:'center'})",
         ),
     )
     results = []
-    for name, target, hide, show in cases:
+    for name, target, hide in cases:
         page, words = _open_attachment_draft(browser, url, target)
         page.evaluate(hide)
         rendered(page)

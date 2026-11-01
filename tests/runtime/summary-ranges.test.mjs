@@ -38,6 +38,9 @@ test("progress no fold covers is gathered per run, named for its first message",
   ];
   const folded = { id: "s1", covers: ["f"], text: "Checkpoint" };
   const ranges = withPendingProgress(summaryRanges(thread, [folded]));
+  assert.equal(ranges[1].last, thread[2]);
+  assert.equal(ranges[3].last, thread[4]);
+  assert.equal(ranges[4].last, thread[5]);
   assert.deepEqual(
     ranges.map(({ kind, message, summary }) =>
       kind === "message" ? message.id : [summary.id, summary.covers, summary.pending],
@@ -76,13 +79,13 @@ test("the working message stands after the range holding the last message said b
     { id: "c", key: "c" },
     { id: "d", key: "d", progress: true },
     { id: "e", key: "e" },
-  ];
+  ].map((message, index) => ({ ...message, sequence: (index + 1) * 10 }));
   const folded = { id: "s1", covers: ["c", "d"], protected: [], text: "Checkpoint" };
   const ranges = withPendingProgress(summaryRanges(thread, [folded]));
   // A step's run, a summary holding the message, and a message of its own.
   assert.deepEqual(
-    ["b", "d", "e"].map((after) => workingPlace(ranges, after)),
+    [25, 35, 55].map((position) => workingPlace(ranges, position)),
     [1, 2, 3],
   );
-  assert.throws(() => workingPlace(ranges, "z"));
+  assert.throws(() => workingPlace(ranges, 0));
 });

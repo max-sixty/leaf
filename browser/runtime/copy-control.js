@@ -19,6 +19,7 @@ import { nativeLayerHolding } from "./shadow-tree.js";
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
 // clipboard, so a frame never bypasses its own permission path.
+/** @param {string} value @param {Element} trigger */
 function copyThroughSelection(value, trigger) {
   if (!value) return false;
   const selection = document.getSelection();
@@ -50,7 +51,9 @@ function copyThroughSelection(value, trigger) {
  * takes from its slot as it names the control from `copyLabel`; or it is pressed
  * through `trigger`, a press its caller built by role, which Web Awesome shows in its
  * button's place. The caller may render the trigger itself, as the floating panel's
- * rows are, and passes `trigger: true` to say it will. */
+ * rows are, and passes `trigger: true` to say it will.
+ * @param {string} className
+ * @param {{label?: string, success: string, error: string, action?: string, role?: LeafActionRole, trigger?: Element | boolean | null}} options */
 export function copyControl(
   className,
   { label = "", success, error, action = "copy", role = undefined, trigger = null },
@@ -71,12 +74,13 @@ export function copyControl(
   const symbol =
     copy.querySelector(":scope > svg[data-lf-icon]") ??
     actionElement(action, "lf-copy-icon");
-  for (const [icon, slot] of [
+  /** @type {[Element, string][]} */
+  const icons = [
     [symbol, "copy-icon"],
     [iconElement("check", "lf-copy-icon"), "success-icon"],
     [iconElement("cross", "lf-copy-icon"), "error-icon"],
-  ])
-    copy.append(Object.assign(icon, { slot }));
+  ];
+  for (const [icon, slot] of icons) copy.append(Object.assign(icon, { slot }));
   if (trigger instanceof Element) copy.append(trigger);
   if (label) copy.copyLabel = label;
   copy.successLabel = success;
@@ -91,11 +95,7 @@ export function copyControl(
     copy.addEventListener(
       "click",
       (event) => {
-        if (
-          window.isSecureContext ||
-          window !== window.top ||
-          navigator.clipboard?.writeText
-        )
+        if (window.isSecureContext || window !== window.top || navigator.clipboard)
           return;
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
@@ -117,4 +117,11 @@ export function copyControl(
     ),
   );
   return copy;
+}
+
+/** The native default trigger, once Web Awesome has rendered the copy control.
+ * @param {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} copy
+ * @returns {HTMLButtonElement | null} */
+export function copyTrigger(copy) {
+  return copy?.shadowRoot?.querySelector("button") ?? null;
 }

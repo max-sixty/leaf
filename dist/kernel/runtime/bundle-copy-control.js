@@ -1,6 +1,6 @@
-import { actionElement, iconElement, nativeLayerHolding, nextRender, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
+import { actionElement, iconElement, nativeLayerHolding, nextRender, offer, offeredActionElement, renderedParent, renderedUnder, setScroll } from "./bundle-portable.js";
 import { carriedFrom, deepFocus, focusDestination, focused, inputCount, onCurrentLocation, ringBox } from "./bundle-layer-stack.js";
-import { notice, offer, offerActionElement, raiseError } from "./bundle-layer-client.js";
+import { notice, raiseError } from "./bundle-layer-client.js";
 import { localScrollBy, pageScroller, reachable, scrollAxes, scrollersOf, startScroll } from "./bundle-content-layout.js";
 import { clippingAxes, landingBand, nearestScrollBy, placeBox, placeHolder, seenRect, shownWindow, visibleBand } from "./bundle-geometry.js";
 
@@ -23,7 +23,7 @@ function retainUserIntent({ source = focused(), available = () => true, fallback
 		const at = focused();
 		const from = held?.deref();
 		const withinSource = from === document.body ? at === document.body : from?.contains(at);
-		return available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at));
+		return Boolean(available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at)));
 	};
 	current.available = available;
 	current.handoff = (move) => {
@@ -46,7 +46,7 @@ function restrictUserIntent(retained, available) {
 //#endregion
 //#region runtime/landing-scroll.js
 const land = (box, by, behavior) => {
-	if (behavior !== "instant") startScroll(box);
+	startScroll(box);
 	setScroll(box, {
 		top: box.scrollTop + (by.top ?? 0),
 		left: box.scrollLeft + (by.left ?? 0),
@@ -54,7 +54,7 @@ const land = (box, by, behavior) => {
 	});
 };
 function scrollMargin(where, side = "Top") {
-	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where).getPropertyValue(`scroll-margin-${side.toLowerCase()}`)) || 0;
 	const edges = [where.startContainer.childNodes[where.startOffset], where.endContainer.childNodes[where.endOffset - 1]].filter((edge) => edge instanceof Element);
 	return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
 }
@@ -67,25 +67,29 @@ function shownFor(where) {
 }
 const destinationBox = (where) => placeBox(shownFor(where));
 const holderOf = (where) => placeHolder(shownFor(where));
-const readingTop = (holder, box) => visibleBand(box, holder)?.top ?? landingBand(box).top;
-function topMargin(where, box, holder = holderOf(where)) {
-	const band = landingBand(box);
-	return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
+const readingTop = (holder, box, band) => visibleBand(box, holder)?.top ?? band.top;
+function topMargin(where, box, band, holder = holderOf(where)) {
+	return Math.max(scrollMargin(where), readingTop(holder, box, band) - band.top);
 }
-const landingRoom = (where, until = where) => roomAround(shownFor(where), where, until);
-function roomAround(shown, where, until = where) {
+const landingRoom = (where, until) => roomAround(shownFor(where), where, until);
+function roomAround(shown, where, until) {
 	const holder = placeHolder(shown);
-	const regions = [...scrollersOf(holder)];
+	const regions = /* @__PURE__ */ new Map();
+	let previous = null;
+	for (const box of scrollersOf(holder)) {
+		regions.set(box, previous);
+		previous = box;
+	}
 	let { width, height } = shownWindow();
 	for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
-		const band = (until === where || renderedUnder(until, box)) && landingBand(box);
+		const band = (!until || until === where || renderedUnder(until, box)) && landingBand(box);
 		if (band) {
 			const axes = box === pageScroller ? {
 				x: true,
 				y: true
 			} : clippingAxes(getComputedStyle(box));
-			const at = regions.indexOf(box);
-			const clearance = at === 0 ? topMargin(where, box, holder) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
+			const inner = regions.get(box);
+			const clearance = inner === null ? topMargin(where, box, band, holder) + scrollMargin(until ?? where, "Bottom") : inner ? Math.max(0, readingTop(inner, box, band) - band.top) : 0;
 			if (axes.x) width = Math.min(width, band.right - band.left);
 			if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
 		}
@@ -113,17 +117,14 @@ function alreadyShown(where) {
 }
 function ringShown(where) {
 	const box = destinationBox(where);
-	const [top, right, bottom, left] = [
-		"Top",
-		"Right",
-		"Bottom",
-		"Left"
-	].map((side) => scrollMargin(where, side));
+	const top = scrollMargin(where, "Top");
+	const right = scrollMargin(where, "Right");
+	const bottom = scrollMargin(where, "Bottom");
+	const left = scrollMargin(where, "Left");
 	return seesWhole(where, box, new DOMRect(box.left - left, box.top - top, box.width + left + right, box.height + top + bottom));
 }
-function placementBy(where, block, box, margin) {
+function placementBy(where, block, band, margin) {
 	const rect = destinationBox(where);
-	const band = landingBand(box);
 	const room = band.bottom - band.top;
 	const place = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
 	return block === "nearest" ? nearestScrollBy(rect.top - margin, rect.bottom + scrollMargin(where, "Bottom"), band.top, band.bottom) : rect.top - band.top - place;
@@ -142,15 +143,20 @@ function readingBandMoves(where, holder, block) {
 		moves: [],
 		moved: 0
 	};
+	const band = landingBand(box);
+	if (!band) return {
+		moves: [],
+		moved: 0
+	};
 	const rect = destinationBox(where);
-	const margin = topMargin(where, box);
+	const margin = topMargin(where, box, band);
 	let { top, bottom } = rect;
 	if (block === "start") top -= margin;
 	else if (block === "end") {
 		top = bottom - 1;
 		bottom += scrollMargin(where, "Bottom");
 	}
-	let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
+	let { local, moved } = verticalTravel(box, placementBy(where, block, band, margin));
 	const moves = [{
 		box,
 		local,
@@ -162,7 +168,7 @@ function readingBandMoves(where, holder, block) {
 		bottom -= moved;
 		const band = landingBand(outer);
 		if (!band) break;
-		band.top = Math.max(band.top, readingTop(inner, outer));
+		band.top = Math.max(band.top, readingTop(inner, outer, band));
 		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
 		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
 		moves.push({
@@ -185,9 +191,10 @@ function landedBox(where) {
 function scrollIntoReadingBand(where, holder, block, behavior) {
 	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
-function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within = null } = {}) {
+function scrollIntoView(where, { alignment, behavior = "auto", block = "start", within = null } = {}) {
 	if (!where) return;
-	const holder = holderOf(alignment);
+	const aligned = alignment ?? where;
+	const holder = holderOf(aligned);
 	if (!holder) return;
 	const targetScroller = within ? null : scrollersOf(holder).next().value;
 	let inside = true;
@@ -199,7 +206,7 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const { left, right } = band;
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
-			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
+			const byY = inside ? placementBy(where, "nearest", band, topMargin(where, box, band, start)) : 0;
 			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
@@ -208,14 +215,15 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
-	if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
+	if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
 }
 onCurrentLocation((node, cause) => {
 	if (cause !== "step" || !node) return;
 	nextRender(() => {
 		if (deepFocus() !== node) return;
 		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
-		for (let box = node; box instanceof Element; box = renderedParent(box)) {
+		let box = node;
+		for (; box; box = renderedParent(box)) {
 			if (!box.matches("[data-lf-obligation]")) continue;
 			if (getComputedStyle(box).outlineStyle === "none") continue;
 			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
@@ -250,13 +258,13 @@ function copyThroughSelection(value, trigger) {
 }
 function copyControl(className, { label = "", success, error, action = "copy", role = void 0, trigger = null }) {
 	if (Boolean(role) === Boolean(trigger)) throw new TypeError("A copy control wears a role's face or wraps a trigger");
-	const copy = role ? offerActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
-	const symbol = copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon");
-	for (const [icon, slot] of [
-		[symbol, "copy-icon"],
+	const copy = role ? offeredActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
+	const icons = [
+		[copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon"), "copy-icon"],
 		[iconElement("check", "lf-copy-icon"), "success-icon"],
 		[iconElement("cross", "lf-copy-icon"), "error-icon"]
-	]) copy.append(Object.assign(icon, { slot }));
+	];
+	for (const [icon, slot] of icons) copy.append(Object.assign(icon, { slot }));
 	if (trigger instanceof Element) copy.append(trigger);
 	if (label) copy.copyLabel = label;
 	copy.successLabel = success;
@@ -265,7 +273,7 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 	copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
 	copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
 	queueMicrotask(() => copy.addEventListener("click", (event) => {
-		if (window.isSecureContext || window !== window.top || navigator.clipboard?.writeText) return;
+		if (window.isSecureContext || window !== window.top || navigator.clipboard) return;
 		event.stopPropagation();
 		if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
 		copy.isCopying = true;
@@ -282,6 +290,9 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 	}, { capture: true }));
 	return copy;
 }
+function copyTrigger(copy) {
+	return copy?.shadowRoot?.querySelector("button") ?? null;
+}
 
 //#endregion
-export { alreadyShown, copyControl, fitsWhole, landedBox, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };
+export { alreadyShown, copyControl, copyTrigger, fitsWhole, landedBox, landingRoom, passOn, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView };

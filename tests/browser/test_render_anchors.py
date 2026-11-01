@@ -433,24 +433,25 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
 SIDEBAR_TRACK_PAGE = leaf_page(
     "sidebar track quotes",
     """<header><h1>Release review</h1></header>
-<aside id="track">
+<aside id="track"><div class="layout-track">
   <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
   <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
-</aside>
+</div></aside>
 <div id="body"><p>The canary held its error rate at every step.</p></div>""",
     layout="sidebar",
 )
 
 
 def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
-    """The runtime gathers a sidebar page's track's blocks into a box the file doesn't
-    have (prepaint.js, `holdTrack`), and a quote from those blocks still reads the same
-    in the browser as in the file: inside one block, and across two, sectioned by the
-    track. Where the box changed the reading, a comment written in the browser would
-    detach in `leaf thread create`'s reading, or the reverse."""
+    """Quotes inside one sidebar block and across two agree between the browser
+    and authored file. Native layout keeps the original track children in place;
+    comments still resolve to the same section and passage on either reading."""
     page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
     resized(page, 1440, 900)
-    expect(page.locator("#track > [data-lf-track-body] > #owners")).to_have_count(1)
+    expect(page.locator("#track > .layout-track > #owners")).to_have_count(1)
+    track = page.locator("#track").bounding_box()
+    body = page.locator("#body").bounding_box()
+    assert track["x"] + track["width"] <= body["x"], (track, body)
     registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
@@ -841,7 +842,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         )
     )
     assert "system-ui" in raised["font"], (
-        f"the response bar speaks in the document's voice: {raised['font']}"
+        f"the response bar is set in the document's font: {raised['font']}"
     )
     assert (
         page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
@@ -1970,7 +1971,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["block"] == [255, 255, 255], appearance
     assert all(
         channel > page_channel
-        for channel, page_channel in zip(appearance["block"], appearance["page"])
+        for channel, page_channel in zip(
+            appearance["block"], appearance["page"], strict=True
+        )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
     assert appearance["note"] == appearance["block"], appearance
@@ -2912,11 +2915,13 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
           background: getComputedStyle(node).backgroundImage,
           outline: [style.outlineStyle, style.outlineWidth],
           offset: parseFloat(style.outlineOffset),
+          region: parseFloat(getComputedStyle(document.documentElement)
+            .getPropertyValue('--focus-region-gap')),
         }; }"""
     )
     assert look["background"] == "none", look
     assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] == 0, look
+    assert look["offset"] == look["region"], look
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -4390,7 +4395,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     authored = leaf_page(
         "file comment",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -4569,7 +4574,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
         leaf_page(
             "Back from a diff thread",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            f"<pre></pre></lf-diff><section id=far>{filler}</section>",
+            f"</lf-diff><section id=far>{filler}</section>",
         )
     )
     data_model.cmd_data_set(
@@ -4608,6 +4613,10 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
     expect(
         page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     ).to_be_focused()
+    # Card focus precedes the smooth scroll; observe arrival before settling it.
+    expect(
+        page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    ).to_be_in_viewport()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
     assert page.evaluate("history.length") == entries + 1
@@ -4632,7 +4641,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 <lf-tabs id="views">
   <lf-tab id="overview" label="Overview"><p>Start here.</p></lf-tab>
   <lf-tab id="patch-tab" label="Patch">
-    <lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+    <lf-diff id="patch" source="review-patch"></lf-diff>
   </lf-tab>
 </lf-tabs>
 """,
@@ -4743,7 +4752,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     authored = leaf_page(
         "deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -4841,7 +4850,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
         leaf_page(
             "deferred diff",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed><pre></pre></lf-diff>",
+            "collapsed></lf-diff>",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
@@ -4879,7 +4888,7 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     authored = leaf_page(
         "changing deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
 
@@ -4940,7 +4949,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         leaf_page(
             "deferred provenance",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed><pre></pre></lf-diff>",
+            "collapsed></lf-diff>",
         )
     )
     original = """diff --git a/app.py b/app.py
@@ -4997,7 +5006,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     authored = leaf_page(
         "failed deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(

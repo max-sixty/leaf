@@ -46,19 +46,29 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { under } from "./shadow-tree.js";
+import { isElement, under } from "./shadow-tree.js";
 import { cancelRender, nextRender } from "./rendering.js";
 
+/** @typedef {{selector: string, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
+ * @typedef {{connect(): void, disconnect(): void}} Connection */
+/** @type {Set<ArrivalWatch>} */
 const watches = new Set();
+/** @type {WeakSet<Node>} */
 const stages = new WeakSet();
+/** @type {Set<WeakRef<ShadowRoot>>} */
 const stageRefs = new Set();
+/** @type {WeakMap<Element, Set<Connection>>} */
 const owners = new WeakMap();
+/** @type {((element: Element) => void) | undefined} */
 let offerOwner;
 
 // Independent subscriptions share their element's connection lifetime. The arrival
 // batch decides whether it actually left, so an in-document move retains them.
+/** @param {Element} owner @param {Partial<Connection>} lifecycle */
 export function watchOwner(owner, lifecycle) {
   let connected = false;
+  const subscriptions = owners.get(owner) ?? new Set();
+  owners.set(owner, subscriptions);
   const subscription = {
     connect() {
       if (connected || !owner.isConnected) return;
@@ -77,9 +87,8 @@ export function watchOwner(owner, lifecycle) {
       lifecycle.disconnect?.();
     },
   };
-  let subscriptions = owners.get(owner);
-  if (!subscriptions) owners.set(owner, (subscriptions = new Set()));
   if (!offerOwner) {
+    /** @param {Element} element @param {keyof Connection} method */
     const notify = (element, method) => {
       for (const subscription of owners.get(element) ?? []) {
         try {
@@ -113,20 +122,23 @@ export function watchOwner(owner, lifecycle) {
 /** Start mechanical resources for each connection, abort their listeners and run
  * the optional returned cleanup when the owner leaves. Register once: moves within
  * an arrival batch retain the same scope, and the returned stop retires it. */
+/** @param {Element} owner @param {(signal: AbortSignal) => (() => void) | void} start */
 export function whileConnected(owner, start) {
-  let held;
+  let disconnect = () => {};
   return watchOwner(owner, {
     connect() {
       const controller = new AbortController();
-      held = { controller, cleanup: null };
-      // Hold the signal before setup: watchOwner also disconnects a failed start.
-      held.cleanup = start(controller.signal);
+      /** @type {(() => void) | void} */
+      let cleanup;
+      // Install disposal before setup, so a failed start releases its signal too.
+      disconnect = () => {
+        controller.abort();
+        cleanup?.();
+      };
+      cleanup = start(controller.signal);
     },
     disconnect() {
-      const current = held;
-      held = null;
-      current.controller.abort();
-      current.cleanup?.();
+      disconnect();
     },
   });
 }
@@ -134,6 +146,7 @@ export function whileConnected(owner, start) {
 /** One coalesced nextRender callback while the owner stands. A departure cancels
  * pending work; the callback also checks connection before the arrival batch runs.
  * A return permits fresh scheduling, without replaying the cancelled callback. */
+/** @param {Element} owner @param {() => void} run */
 export function frameFor(owner, run) {
   let frame = 0;
   watchOwner(owner, {
@@ -161,18 +174,21 @@ export function liveStages() {
   return live;
 }
 
+/** @param {Node} root @returns {root is ShadowRoot} */
 export const isStage = (root) => stages.has(root);
 
+/** @param {Element} el */
 const stands = (el) => {
   const root = el.getRootNode();
   return root === document
     ? document.body.contains(el)
-    : stages.has(root) && root.host.isConnected;
+    : isStage(root) && root.host.isConnected;
 };
 
 // Every match in what a record names, the stages inside it included.
+/** @param {Node | null} node @param {string} selector @returns {Generator<Element>} */
 function* matching(node, selector) {
-  if (node?.nodeType !== Node.ELEMENT_NODE) return;
+  if (!isElement(node)) return;
   if (node.matches(selector)) yield node;
   yield* node.querySelectorAll(selector);
   for (const stage of liveStages())
@@ -183,14 +199,14 @@ function* matching(node, selector) {
  * @param {string} selector
  * @param {string[]} attributes
  * @param {{
- *   arrive?: (element: Element) => void,
- *   arriveBatch?: (elements: Element[]) => void,
  *   leave: (element: Element) => void,
- * }} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ * } & ({arrive: (element: Element) => void, arriveBatch?: never}
+ * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
  */
 export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.
+  /** @param {Iterable<Element>} elements */
   const offerMany = (elements) => {
     const present = [];
     for (const el of elements) {
@@ -203,6 +219,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
       arriveBatch(present);
     }
   };
+  /** @param {Element} el */
   const offer = (el) => {
     if (stands(el) && el.matches(selector)) {
       arrived.add(el);
@@ -210,16 +227,16 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
       else arrive(el);
     } else if (arrived.delete(el)) leave(el);
   };
+  /** @param {Node | null} node */
   const beside = (node) =>
-    node?.nodeType === Node.ELEMENT_NODE &&
-    (arrived.has(node) || node.matches(selector))
-      ? [node]
-      : [];
+    isElement(node) && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+  /** @param {MutationRecord[]} records */
   const read = (records) => {
+    /** @type {Set<Element>} */
     const offered = new Set();
     for (const record of records) {
       if (record.type === "attributes") {
-        offered.add(record.target);
+        if (isElement(record.target)) offered.add(record.target);
         continue;
       }
       for (const el of [
@@ -239,12 +256,13 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   const watch = { selector, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.body, ...liveStages()]) enroll(watch, root);
-  return (el) => {
+  return (/** @type {Element} */ el) => {
     read(observer.takeRecords());
     offer(el);
   };
 }
 
+/** @param {ArrivalWatch} watch @param {Element | ShadowRoot} root */
 function enroll({ selector, attributes, observer, offerMany }, root) {
   observer.observe(root, {
     childList: true,
@@ -255,6 +273,7 @@ function enroll({ selector, attributes, observer, offerMany }, root) {
   offerMany(root.querySelectorAll(selector));
 }
 
+/** @param {ShadowRoot} stage */
 export function watchArrivalsIn(stage) {
   if (stages.has(stage)) return;
   stages.add(stage);
@@ -270,8 +289,10 @@ export function watchArrivalsIn(stage) {
 // document too. Listeners receive the scroller itself. Leaf's instant scroll writes
 // announce their completed position here too: a write in resize delivery paints before
 // the browser sends its scroll event, so dependent paint cannot wait on that event.
+/** @type {Set<(box: Element | null) => void>} */
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
+/** @param {Element | null} box */
 function announceScroll(box) {
   for (const listener of scrollListeners) listener(box);
 }
@@ -288,11 +309,16 @@ export function setScroll(box, options) {
   )
     announceScroll(box);
 }
-const heardIn = (stage) => (event) => {
-  if (event.target.getRootNode() !== stage) return;
-  announceScroll(event.target === document ? document.scrollingElement : event.target);
+/** @param {Document | ShadowRoot} stage */
+const heardIn = (stage) => /** @param {Event} event */ (event) => {
+  const target = event.target;
+  if (target === document) {
+    if (stage === document) announceScroll(document.scrollingElement);
+  } else if (isElement(target) && target.getRootNode() === stage)
+    announceScroll(target);
 };
 document.addEventListener("scroll", heardIn(document), SCROLL);
+/** @param {(box: Element | null) => void} listener */
 export function watchScrolls(listener) {
   scrollListeners.add(listener);
   return () => scrollListeners.delete(listener);
@@ -307,6 +333,7 @@ export function watchScrolls(listener) {
 // it settles rather than on its frames, where a placement would trail the scroll a
 // frame behind.
 const SETTLE_MS = 80;
+/** @type {Set<() => void>} */
 const settleListeners = new Set();
 let inFlight = false;
 let gliding = false;
@@ -328,6 +355,7 @@ function trackScrolls() {
   });
   document.addEventListener("scrollend", settle, SCROLL);
 }
+/** @param {boolean} on */
 export function scrollGlides(on) {
   trackScrolls();
   gliding = on;
@@ -342,6 +370,7 @@ export function scrolling() {
   trackScrolls();
   return inFlight;
 }
+/** @param {() => void} listener */
 export function watchScrollEnds(listener) {
   trackScrolls();
   settleListeners.add(listener);

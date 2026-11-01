@@ -1,10 +1,6 @@
-// `syncLayout` places what floats over the page against the room the page has now, and
-// asks which margin elements stand in the page's margin (`scheduleMarginContentLayout`,
-// content-layout.js), the one posture JavaScript decides for the document: it reads the
-// room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
-// `body` is the named `lf-shell` inline-size container, and a query on it may answer a
-// narrow column's facts. Nothing Leaf draws changes the shell: the floating panel stands
-// over the page.
+// `syncLayout` places floating controls against the native document geometry. CSS
+// owns the reading column, sidebars, notes and wide content; JavaScript reads their
+// boxes to position annotations and shared headers without rearranging the document.
 //
 // `layoutSizes` watches `document.body`'s content-box size without deriving a posture
 // from it. A width change schedules `syncLayout` and page repaint in the following
@@ -20,21 +16,20 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the view that
-// draws it. `--lf-room` and `--lf-sidebar-placement` are CSS-owned readings resolved on
-// the box the page's Layout arranges (`main` or a child of it; layouts.css), which is
-// the named `lf-content-frame` style container whose values margin content reads.
+// draws it. Layout tracks and sidebar slots are defined by layouts.css.
 
 // Application composition supplies feature-local geometry. This owner cannot open
 // surfaces, send commands, or reconcile thread DOM.
 import { afterScript, sizeObserver } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
-import { scheduleMarginContentLayout } from "./content-layout.js";
+import { scheduleDocumentLayout } from "./content-layout.js";
 
 // Packages declare the headers they place over the document; this owner alone writes
 // the root landing inset. CSS cannot sum heights across independent header owners.
 // Read the actual border boxes so typography and theme changes need no second height
 // declaration. Positioning and local sticky-content offsets remain the package's.
+/** @type {Set<Element>} */
 const rootHeaders = new Set();
 const paintRootHeaders = () => {
   const height = [...rootHeaders]
@@ -49,6 +44,7 @@ const syncRootHeaders = () => afterScript(paintRootHeaders);
 /** Reserve a header's height in document landings while it is connected. Independent
  * headers add their heights. Call the returned stop when a header changes to local
  * navigation; removing and reconnecting the node otherwise withdraws and restores it. */
+/** @param {Element} header */
 export function registerRootHeader(header) {
   return whileConnected(header, () => {
     rootHeaders.add(header);
@@ -63,6 +59,9 @@ export function registerRootHeader(header) {
   });
 }
 
+/** @param {{scheduleThreadPreviewPosition?: (() => unknown) | undefined,
+ * syncReactLayout: () => boolean, refreshFab: () => unknown,
+ * pageShifted: () => unknown, repaintPage: () => unknown}} dependencies */
 export function createPageLayout({
   scheduleThreadPreviewPosition,
   syncReactLayout,
@@ -74,7 +73,7 @@ export function createPageLayout({
   // boundary changes shape: a resize moves every rect. It is re-placed against its
   // durable anchor so it cannot overhang the shell.
   function syncLayout() {
-    scheduleMarginContentLayout();
+    scheduleDocumentLayout();
     scheduleThreadPreviewPosition?.();
     if (syncReactLayout()) return;
     refreshFab();
@@ -90,13 +89,15 @@ export function createPageLayout({
   // watched box cannot create an undelivered-notification loop.
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
-  const layoutSizes = sizeObserver(([{ contentRect }]) => {
-    const widthChanged = contentRect.width !== bodyContentWidth;
-    const moved = widthChanged || contentRect.height !== bodyContentHeight;
-    bodyContentWidth = contentRect.width;
-    bodyContentHeight = contentRect.height;
-    if (widthChanged) repaintPage();
-    else if (moved) pageShifted();
+  const layoutSizes = sizeObserver((entries) => {
+    for (const { contentRect } of entries) {
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const moved = widthChanged || contentRect.height !== bodyContentHeight;
+      bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
+      if (widthChanged) repaintPage();
+      else if (moved) pageShifted();
+    }
   });
   // Mount only after the chrome is attached. Constructors perform no observation or
   // listener installation, so importing the public widget API cannot start layout.

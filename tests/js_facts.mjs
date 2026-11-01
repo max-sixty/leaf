@@ -151,6 +151,10 @@ const spelled = (node) =>
 
 // A JSDoc type names an export as `import("…").Name`, or a whole module without a name.
 const COMMENT_TYPE = /import\(\s*["'`]([^"'`]+)["'`]\s*\)(?:\.([A-Za-z_$][\w$]*))?/g;
+// A JSDoc `@import` tag names exports as an import declaration does: by a braced list,
+// whose lines may carry the comment's leading `*`, a namespace, or a default.
+const COMMENT_IMPORT =
+  /@import\s+(?:\{([^}]*)\}|(\*)\s+as\s+[\w$]+|[\w$]+)\s+from\s+["'`]([^"'`]+)["'`]/g;
 
 // Whether an identifier reads a binding, rather than declaring one, naming a property,
 // key or type member, or labelling a statement.
@@ -320,9 +324,18 @@ function imports() {
       while (name?.type === "TSQualifiedName") name = name.left;
       take(spelled(source), name?.name ?? "*");
     }
-    for (const comment of comments)
+    for (const comment of comments) {
       for (const [, specifier, name] of comment.value.matchAll(COMMENT_TYPE))
         take(specifier, name ?? "*");
+      for (const [, names, star, specifier] of comment.value.matchAll(COMMENT_IMPORT)) {
+        if (names === undefined) take(specifier, star ? "*" : "default");
+        else
+          for (const entry of names.replaceAll("*", " ").split(",")) {
+            const name = entry.trim().split(/\s+as\s+/)[0];
+            if (name) take(specifier, name);
+          }
+      }
+    }
     read[file] = { reads: found, stars };
   }
   return JSON.stringify(read);
@@ -395,17 +408,23 @@ const CLASS_ARGUMENT = {
   offeredAction: 1,
   offerActionElement: 2,
   offerContentElement: 2,
+  roleElement: 2,
+  actionClass: 1,
   selectableOffer: 1,
   selectableOffered: 1,
   copyControl: 0,
 };
 // The builders that give an element a role's face (prepaint.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
+// `roleElement` is element-markers.js's own writer behind them, and `actionClass` the
+// role's face a pure template writes into its `class` (control-faces.js).
 const ROLE_BUILDERS = new Set([
   "offerAction",
   "offeredAction",
   "offerActionElement",
   "offerContentElement",
+  "roleElement",
+  "actionClass",
 ]);
 const MAKERS = new Set(["offer", "el", "createElement"]);
 
@@ -757,9 +776,10 @@ function templatePresses(node, parents, press) {
     const role = attrs.find((attr) => attr.name === "role");
     const asButton = valueWords(role?.value ?? "").includes("button");
     if (tagName !== "button" && !asButton) return;
-    const classes = valueWords(
-      attrs.find((attr) => attr.name === "class")?.value ?? "",
-    );
+    const classValue = attrs.find((attr) => attr.name === "class")?.value ?? "";
+    const classes = valueWords(classValue);
+    // A pure template writes a role's face into its class (`actionClass`).
+    const facedClass = marked(classValue).some((part) => dressing(part, parents, 0).role);
     // The element part: an expression standing in the tag as an attribute name.
     const parts = attrs.flatMap((attr) => marked(attr.name));
     const handed = parts.flatMap((part) => {
@@ -775,7 +795,7 @@ function templatePresses(node, parents, press) {
       inSource(location.startOffset),
       inSource(location.endOffset - 1) + 1,
       "template",
-      direct.some((d) => d.role)
+      direct.some((d) => d.role) || facedClass
         ? "role in its tag"
         : named.some((d) => d.role) && "role through a name",
       [...classes, ...[...direct, ...named].flatMap((d) => d.classes)],

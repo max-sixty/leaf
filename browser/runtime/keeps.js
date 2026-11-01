@@ -29,26 +29,41 @@
    property keeps its text verbatim instead, so the same drift there is a write of
    different text; a measured length written to one goes through `layoutPx` too. */
 
-// Attribute writes also exist before modules run. Adopt that initial writer, whose
-// null/string comparison governs both initial producers and later renderers.
-/** @type {LeafInitial["keepsAttribute"]} */
-export const keeps = (...args) =>
-  document.documentElement.lfInitial.keepsAttribute(...args);
+import { isStyledElement } from "./shadow-tree.js";
 
+/** @type {LeafRootState["keeps"]} */
+export const keeps = (node, name, value) => {
+  const next = value == null ? null : String(value);
+  if (!node || node.getAttribute(name) === next) return;
+  if (next === null) node.removeAttribute(name);
+  else node.setAttribute(name, next);
+};
+
+/** @param {HTMLElement | null | undefined} node @param {HTMLElement["hidden"]} hidden */
 export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
 // Null clears the words, as the `textContent` setter reads it.
+/** @param {Node | null | undefined} node @param {unknown} text */
 export function keepsText(node, text) {
   const said = String(text ?? "");
   if (node && node.textContent !== said) node.textContent = said;
 }
 
+/** @param {number} length */
 export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 
+/** @param {number} length */
 export const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
 
 // A room a box must fit in, at layout precision and never past it: rounding a room
 // up would leave its box a fraction too large for the space it was measured from.
+/** @param {number} length */
 export const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+
+/** @param {Element} element */
+export function inlineStyle(element) {
+  if (isStyledElement(element)) return element.style;
+  throw new TypeError("This element has no native inline style");
+}

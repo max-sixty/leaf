@@ -8,24 +8,28 @@ import { Window } from "happy-dom";
 import { bundleSite } from "../bundle-runtime.mjs";
 import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
 
-it("an arriving widget scope requires its own initializer and upgrade while template contents stay inert", async () => {
+it("an arriving widget scope requires its own upgrade while template contents stay inert", async () => {
   const window = new Window();
   try {
     const scope = window.document.createElement("lf-arrival");
     scope.innerHTML =
       "<p>Prose</p><table></table><lf-unregistered></lf-unregistered><template><lf-unused></lf-unused></template>";
-    const registry = {
-      "lf-arrival": { "x-upgrade": true, "x-initial": "/widgets/initial.js" },
-      "lf-unused": { "x-upgrade": true },
-      table: { description: "A native table idiom.", "x-example": "<table></table>" },
+    const registry: import("../../browser/runtime/widget-imports.js").Registry = {
+      "lf-arrival": { "x-upgrade": true, "x-content": "empty" },
+      "lf-unused": { "x-upgrade": true, "x-content": "empty" },
+      table: {
+        "x-upgrade": false,
+        "x-content": "markup",
+        "x-example": "<table></table>",
+      },
       "lf-arrival.selected": {
-        description: "A selected widget idiom.",
+        "x-upgrade": false,
+        "x-content": "markup",
         "x-example": '<lf-arrival class="selected"></lf-arrival>',
       },
     };
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
     expect(widgetImports(scope, registry)).toMatchObject({
-      initializers: [{ tag: "lf-arrival", path: "/widgets/initial.js" }],
       modules: ["lf-arrival"],
     });
   } finally {
@@ -58,8 +62,8 @@ it("bundles each document's static graph without fetching optional modules or ch
       await writeFile(
         join(layer, "registry.json"),
         JSON.stringify({
-          "lf-used": { "x-upgrade": true, "x-initial": "/vendor/initial.js" },
-          "lf-unused": { "x-upgrade": true },
+          "lf-used": { "x-upgrade": true, "x-content": "empty" },
+          "lf-unused": { "x-upgrade": true, "x-content": "empty" },
         }),
       );
       const sources = {

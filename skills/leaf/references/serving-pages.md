@@ -7,16 +7,20 @@ Leaf updates and resuming a page.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Publish and review" section), since
-only a stamped version exports, then
-run:
+skill's "Publish and review" section), then run:
 
 ```bash
 leaf page export <page> -o <file>
 ```
 
+By default export writes the latest stamped version; `--version N` selects an older
+stamp. The result names its `version` and captured `revision`. To inspect work in
+progress without adding a checkpoint, use `leaf page export <page> --draft -o <file>`;
+it checks and captures current source and reports `version: null`. `--draft` and
+`--version` cannot be combined.
+
 Hand back the `file://` URL; don't start a server or wait. The file opens offline with
-the stamped content and recorded decisions. Reading controls and the page's own code
+the selected content and recorded decisions. Reading controls and the page's own code
 work, but recording new Leaf choices or updates, Undo and threads require the served
 page and its server; an active agent is not required to record a choice. A page with a
 live sample can't be exported. Write the file where the project keeps files for the
@@ -81,17 +85,19 @@ log, write the current page into a new page directory and hand over its URL.
 
 ## Page lifetime
 
-`server start` from an agent session claims the page for that session and connects
-the harness's delivery, even when the server is already running. The first serve sets
-the page's lifetime, and later serves keep it. To make a session page persistent, stop
-it and start it with `--lifetime persistent`, or start it from the user's shell.
+With its default `--lifetime session`, `server start` from an agent session claims
+the page and connects the harness's delivery, even when the server is already running.
+The first serve sets the page's lifetime, and later serves keep it. To make a session page
+persistent, stop it and start it with `--lifetime persistent`, or start it from the
+user's shell.
 
 A session page stops when no live session holds it: when a terminal harness exits, or
 when a desktop Codex chat is archived or deleted.
 
-A persistent page keeps running between sessions; starting it prepares no agent
-delivery. Tell the user
-when you start one: they now own a process that only `leaf server stop <page>` ends.
+A persistent page keeps running between sessions. Starting it with
+`--lifetime persistent` claims no page and prepares no agent delivery; only
+`leaf server stop <page>` ends it.
+Tell the user about that lifetime when handing the page over.
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
 stop <page>` disables the server; a watcher keeps watching a stopped page until it is

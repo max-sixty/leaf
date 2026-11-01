@@ -248,7 +248,9 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         (
             {
                 "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
-                "lf-eps": _faulty("lf-eps", **{"x-initial": "/early.js"}),
+                "lf-eps": _faulty(
+                    "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
+                ),
             },
             [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
         ),

@@ -38,7 +38,7 @@ label with CSS anchors. Playwright Firefox 155.0, build 1543, moved directly to
 the new anchor on 2026-10-26, without a transition or `transitionrun` event;
 Chromium 153.0.8010.12 interpolated its position and width. Instant selection
 is an accepted visual difference: the selected label, panel, keyboard routes
-and nested strips remain usable. Recheck by opening `lost-update` with
+and nested strips remain usable. Recheck by opening `code-comparison` with
 `leaf-dev probe --firefox --motion no-preference`, selecting the adjacent tab
 with the pointer and inspecting `.lf-tab-selection` across animation frames.
 The Chromium behavior and interruption contract are covered by
@@ -208,6 +208,23 @@ whether WebKit reveals those across a frame is unverified. Recheck
 `test_sample_editor_focus_preserves_outer_scroll_and_the_caret[webkit_browser]`
 in `tests/journeys/test_render_controls.py` with the focus listener writing the
 selection on every arrival (`#focusing` never set).
+
+### Selecting words inside a button in WebKit
+
+WebKit begins no text selection inside a form control, whatever its
+`user-select`: `HTMLFormControlElement::canStartSelection` is final and returns
+false. On 2026-10-30, a `<button>` in a paragraph styled `user-select: text;
+-webkit-user-select: text` selected nothing in Playwright WebKit 27.2, build
+2370, under a drag, a double click or a triple click inside it, nor with
+`appearance: none`, `display: inline` or `contents`, or an inner span of its
+own; `user-select: all` selected the whole label at once. Chromium 156.0.8078.4
+and Firefox 157.0, build 1555, selected part of the label, a word and the
+paragraph. A drag beginning outside still extends into the button in all three.
+So a control whose label is the page's own words is a span with a role
+(`selectableOffer`, `browser/runtime/widget-elements.js`), and one with a
+button's role takes Enter and Space from `browser/runtime/role-button-press.js`,
+on a page with Leaf or without it. Recheck with that button and a double click
+on one of its words, reading `getSelection().toString()`.
 
 ### Sample document admission and native navigation
 
@@ -389,3 +406,48 @@ evidence and cannot establish all-frame visibility. Recheck the same
 fold/unfold journey with a stationary fixed marker, native screenshots and a
 native-window recording when available; filtering missing frames would conceal
 the unresolved gap.
+
+### A short body's colour stops above the window's foot in Firefox
+
+A live page with no Layout whose body the page coloured, and which is shorter
+than the window, ends above a band of the root's colour in Firefox: the body is
+a size container (`lf-shell`), containment keeps its background off the canvas,
+and base.css fills the window with `min-height: stretch`, which subtracts the
+body's own margins. Playwright Firefox 157 (build 1555) rejected `stretch`
+and treated `-moz-available` as `auto` in the block axis on 2026-10-29;
+Chromium 156 (build 1248) and WebKit 27.2 (build 2370) filled the window less
+the default 8px margin with no scroll. A
+Layout's body has no margin, so its `min-height: 100%` (layouts.css) fills the
+window there too; 100% would make a body that keeps the browser's margin scroll
+by it. Recheck with `leaf-dev probe --browser firefox` on a short page that
+colours `body` and keeps its margin, reading the body's bottom against
+`innerHeight` and the root's scroll height; once Firefox fills it, the Layout
+rule can go.
+
+### A subgrid scroller's `auto` scrollbar
+
+Chromium (156 on macOS, 153 on Linux) and Firefox 155 on Linux lay a subgrid's
+items on its parent's tracks without the room an `overflow: auto` scrollbar takes,
+against css-grid-2's rule that the subgrid's scrollbar gutter is extra margin on
+its edge items. Where the bar takes room (Linux, Windows, macOS with a mouse), a
+margin card's transcript, a subgrid, ran its words under the bar. On 2026-10-30
+Linux Chromium's 10px bar left the transcript 10px of sideways travel; Firefox's
+6px bar fit within the transcript's 6px of room, so its words reached the bar
+without scrolling sideways. Both engines count the bar of `overflow: scroll` and a
+`scrollbar-gutter: stable` gutter, so the transcript holds a gutter once its turns
+overflow (`data-lf-overflows`, `annotation-chrome.css`; `thread-preview.js` says
+until when). WebKit is unrecorded,
+since Playwright's WebKit draws only overlay scrollbars on macOS and Linux. No
+Chromium or Firefox bug tracks the `auto` case (searched 2026-10-30), and Leaf
+has left it unreported, so only a recheck shows when a browser fixes it.
+
+Recheck with a two-column grid holding an 80px-tall `grid-template-columns:
+subgrid` child with `overflow-y: auto` and tall content, comparing its
+`scrollWidth` with its `clientWidth` where bars take room: in the Playwright Linux
+image (`mcr.microsoft.com/playwright/python`, arm64 on this Mac), Chromium
+launched without `--hide-scrollbars`, and Firefox launched headed under
+`xvfb-run` with `GTK_OVERLAY_SCROLLING=0` and
+`widget.gtk.overlay-scrollbars.enabled` false (headless Firefox draws overlay
+bars). Once they match in both, the attribute and its rule can go.
+`test_a_card_that_scrolls_gives_its_scrollbar_room` in
+`tests/browser/margin/test_card_reply.py` covers the card in Chromium.

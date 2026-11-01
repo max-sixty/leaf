@@ -81,18 +81,19 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
 tiles, and pages with tabs or parts.
 
-For a dashboard glance or a tuning action, keep the relevant setting or status,
-its evidence and the reader's next action together in the window. Keep the title
-and premise to a line or two,
-and give `main` `density-working` (`page-layout.md`, "A workspace"). A workspace
-fills the window from the title's left edge; a dashboard whose detail the reader may
-read on down uses `layout-sidebar` with its regions side by side. Let the working
-surface lead, with supporting reading below it or in later parts.
+A dashboard the reader glances at, or settings they tune against their evidence, keeps
+its working state in the first window, since a glance or a tuning pass doesn't scroll.
+Keep each relevant setting or status, its evidence and the reader's next action together
+in that window, and spend as little of it as the page allows on the title, the premise
+and supporting reading. By default that means a title and premise of a line or two,
+`density-working` on `main` (`page-layout.md`, "A workspace"), and the working surface
+first, with supporting reading below it or in later parts. A workspace fills the window
+from the title's left edge; a dashboard whose detail the reader may read on down is
+usually a `layout-sidebar` page with its regions side by side, so they share the window
+rather than stacking past it.
 
 Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Let the content supply the hierarchy; give a card surface a grouping or interaction to
-express.
 
 ## Contents navigation
 
@@ -100,19 +101,24 @@ Give a long scrolling document a contents outline so the reader can move between
 sections and see where they are; a document short enough to take in at a glance needs
 none.
 
-Write an empty `lf-toc` with a stable id. On a column page, put it in an
-`aside.sidebar` directly inside the box carrying `layout-column`, near the top:
+Write an empty `lf-toc` with a stable id in the authored sidebar track. A reading
+page composes the route and its document as siblings:
 
 ```html
-<aside class="sidebar" id="contents-sidebar">
-  <lf-toc id="contents"></lf-toc>
-</aside>
+<main class="layout-sidebar">
+  <aside id="contents-sidebar">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
+  </aside>
+  <article id="document" class="layout-column">…</article>
+</main>
 ```
 
-On a sidebar page, put the
-contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
-to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. Workspaces and root page tabs have their own navigation, and so does a
+The browser places that route before JavaScript runs and wraps it with the document
+when narrow. Keep contents and a short verdict or status in the track, and put detailed
+evidence and history in the body or behind a disclosure. See `page-layout.md`,
+"A sidebar page", for the shared composition and width contract.
+
+Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
 
 ## Style the page
@@ -136,7 +142,7 @@ interaction to express.
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
-ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the type voices
+ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces
 `--serif` for prose, `--sans` for labels and controls and `--mono` for code
 (`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
 also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that
@@ -237,6 +243,12 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
+
+Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
+from a doc or a pull request's description, in `lf-text-document preview="markdown"`
+with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
+Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
+itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and

@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import PLUGIN_ROOT, append_carried_log_record
 from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -140,9 +140,9 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     first = card.locator(".lf-msg.user")
     first.hover()
     first.locator(".lf-msg-copy").click()
-    shown = """message => [getComputedStyle(message, '::after').opacity,
-      ...[...message.querySelectorAll(':scope > .lf-msg-control')]
-        .map(control => getComputedStyle(control).opacity)]"""
+    shown = """message => { const controls = message.querySelector('.lf-msg-controls');
+      return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
+        ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
     assert first.evaluate(shown) == ["1", "1", "1"]
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
@@ -167,6 +167,58 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     page.keyboard.press("ControlOrMeta+c")
     expect(reply.locator(".lf-msg-copy")).to_have_js_property("status", "success")
     assert page.evaluate("navigator.clipboard.readText()") == source
+
+
+# A head's delivery receipt beside its message's controls: whether it shows whole, its
+# box, the first showing control's start, and whether the receipt is what the user
+# sees just before that start.
+RECEIPT_BESIDE_CONTROLS = """message => {
+  const receipt = message.querySelector(':scope > .lf-msg-head .lf-msg-sending');
+  const box = receipt.getBoundingClientRect();
+  const shown = [...message.querySelectorAll(':scope > .lf-msg-head .lf-msg-controls > *')]
+    .filter((control) => getComputedStyle(control).opacity === '1')
+    .map((control) => control.getBoundingClientRect().left);
+  const controls = shown.length ? Math.min(...shown) : null;
+  const seen = controls === null ? null : document.elementFromPoint(
+    controls + 2, box.top + box.height / 2);
+  return {
+    whole: receipt.scrollWidth <= receipt.clientWidth,
+    left: box.left,
+    end: box.right,
+    controls,
+    receiptSeen: seen === null ? null : receipt.contains(seen),
+  };
+}"""
+
+
+def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    lends their room to its words while they hide: a card's head that held it read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
+    # The margin at this width caps the card short of the head's words and controls.
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-margin-marker").first.click()
+    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    page.mouse.move(0, 0)
+    rendered(page)
+    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert rest["whole"] and rest["controls"] is None, rest
+    message.locator(".lf-msg-text").hover()
+    rendered(page)
+    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+    assert offered["whole"], offered
+    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+        rest,
+        offered,
+    )
+    assert offered["controls"] < offered["end"], offered
+    assert offered["receiptSeen"] is False, offered
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
@@ -394,7 +446,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
                     ":root { --page-token: teal; }"
                     "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
                     "p > a::before { content: 'Kept'; }"
-                    "::placeholder { font-style: italic; }"
                     "p { border-top: 7px solid red; }</style>",
                 )
             )
@@ -409,9 +460,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
         return {
             controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
             chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
-            placeholders: [...document.querySelectorAll(
-                '.lf-chrome :is(input, textarea)[placeholder]')].map(
-                el => getComputedStyle(el, '::placeholder').fontStyle),
             prose: face(document.querySelector('main p > a')),
             chromeToken: getComputedStyle(document.querySelector('.lf-chrome'))
                 .getPropertyValue('--page-token').trim(),
@@ -429,8 +477,6 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     ]
     assert faces["controls"], "the board built no control to read"
     assert faces["chrome"], "the chrome built no button to read"
-    assert faces["placeholders"], "the chrome built no field to read"
-    assert "italic" not in faces["placeholders"], faces["placeholders"]
     assert {tuple(face[1:3]) for face in faces["controls"]} == {
         ("cursive", "rgb(255, 0, 0)")
     }, faces["controls"]
@@ -587,6 +633,75 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, engine):
+    """A theme restyles Leaf's chrome on purpose from its chrome.css, naming surfaces
+    by part (`layer.chrome_restyle`). Its rules beat the chrome's own whatever either's
+    selector, inside a condition too, and reach nothing outside the chrome, even by a
+    selector naming the page around it. A page's
+    own rule naming a part sets the tokens there and nothing else, which the guard
+    rolls back as it does any light page rule (styles/chrome-guard.css). A face set on a
+    part reaches the words there, since each part resolves the fonts again (base.css).
+    A rule keyed on the page around the chrome reaches a part through `&`, and the
+    parts the chrome carries are the ones package-themes.md documents."""
+    package = tmp_path / "chrome-look"
+    package.mkdir()
+    (package / "chrome.css").write_text(
+        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
+        'html & [part~="card"] { --r-l: 5px; }'
+        '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
+        "p { color: rgb(255, 0, 0); }"
+        "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    "<h1>t</h1><p>Words.</p>",
+                    head='<style>[part~="panel"] { font-family: fantasy;'
+                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --sans: monospace; }</style>',
+                ),
+                packages=(package,),
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const panel = document.querySelector('[part~="panel"].lf-floating-panel');
+        const cs = el => getComputedStyle(el);
+        return {
+            family: cs(panel).fontFamily,
+            color: cs(panel).color,
+            corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
+            composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
+            font: cs(document.querySelector('[part~="composer"]'))
+                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+            card: cs(document.querySelector('.lf-chrome [part~="card"]'))
+                .getPropertyValue('--r-l').trim(),
+            parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
+                .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
+            prose: cs(document.querySelector('main p')).color,
+            body: cs(document.body).borderTopWidth,
+        };
+    }""")
+    section = (PLUGIN_ROOT / "skills/leaf/references/package-themes.md").read_text()
+    section = section.split("## Leaf's chrome", 1)[1].split("\n## ", 1)[0]
+    assert faces == {
+        "family": "cursive",
+        "color": "rgb(1, 2, 3)",
+        "corner": "0px",
+        "composer": "3px",
+        "font": "monospace",
+        "card": "5px",
+        "parts": sorted(re.findall(r"^\| `([a-z-]+)` ", section, re.M)),
+        "prose": faces["prose"],
+        "body": "0px",
+    }, faces
+    assert faces["prose"] != "rgb(255, 0, 0)", faces
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):

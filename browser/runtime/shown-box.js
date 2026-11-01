@@ -24,11 +24,23 @@ import { sizeObserver } from "./rendering.js";
 // own style is not skipped either. A disclosure skips through a pseudo-element of its
 // own, so it is asked by its state rather than by its style.
 //
-// The reading is prepaint.js's, which needs it before any module runs. A document Leaf
-// did not compose has no prepaint, and nothing there is left out on its word: a reading
-// asks the browser about every box and pays the passes this saves.
-export const skipped = (el) =>
-  document.documentElement.lfInitial?.skipped(el, renderedParent) ?? false;
+/** @param {Element} element */
+export const skipped = (element) => {
+  if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
+  // A boxed descendant can retain layout while its auto container skips drawing.
+  // Ask the native skip state before any geometry forces that content back.
+  if (element.checkVisibility()) return true;
+  let child = element;
+  let box = renderedParent(element);
+  while (box && !box.checkVisibility()) {
+    child = box;
+    box = renderedParent(box);
+  }
+  if (!box) return false;
+  if (box.localName === "details")
+    return !box.hasAttribute("open") && child.localName !== "summary";
+  return getComputedStyle(box).contentVisibility === "hidden";
+};
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
@@ -41,6 +53,7 @@ export const skipped = (el) =>
 // this way in a line. So the answer is a fact about elements, kept here rather than in
 // one reader, and every reader asks this one function, or geometry.js's `shownBox`
 // built on it, where an element is.
+/** @param {Element} el */
 export function elementBox(el) {
   const r = el.getBoundingClientRect();
   // A zero-sized box still belongs to its element. Only a boxless wrapper takes
@@ -75,8 +88,16 @@ export function elementBox(el) {
 // The observation ends at the reading it was waiting for, so what a measurement writes
 // cannot return through what triggered it: after the unobserve there is no second
 // delivery to the element that was just written.
+//
+// Skipped content, a shut tab's panel or a closed disclosure, has no box either, though
+// asking for its rect would lay it out and answer with one (`skipped`). A widget there
+// waits until the user opens the panel, whichever of its module and the panel's upgraded
+// first, and a chart's bundle waits with it.
+/** @type {WeakMap<Element, () => void>} */
 const measurements = new WeakMap();
+/** @param {Element} el */
 const drawn = (el) => {
+  if (skipped(el)) return false;
   const box = elementBox(el);
   return Boolean(box.width || box.height);
 };
@@ -85,7 +106,8 @@ const unmeasured = sizeObserver((entries) => {
   for (const { target } of entries) {
     if (!drawn(target)) continue;
     unmeasured.unobserve(target);
-    taking.push(measurements.get(target));
+    const take = measurements.get(target);
+    if (take) taking.push(take);
     measurements.delete(target);
   }
   // Every one released before any of them is taken: a measurement writes room its own
@@ -93,6 +115,7 @@ const unmeasured = sizeObserver((entries) => {
   // second delivery inside the round that wrote it.
   for (const take of taking) take();
 });
+/** @param {Element} el @param {() => void} take */
 export function measure(el, take) {
   // The box it shows as, not this element's own rect: a `display: contents` wrapper
   // draws no box of its own and never will, and its contents are what the measurement

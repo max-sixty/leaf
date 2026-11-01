@@ -13,9 +13,11 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
+import { isElement } from "./shadow-tree.js";
 import { holdFocus, watchCurrentLocationIn } from "./focus.js";
 
-export function move(parent, node, before) {
+/** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
+export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
@@ -27,15 +29,12 @@ export function move(parent, node, before) {
   )
     parent.moveBefore(node, before);
   else {
-    const restore = node.nodeType === Node.ELEMENT_NODE ? holdFocus(node) : null;
+    const restore = isElement(node) ? holdFocus(node) : null;
     parent.insertBefore(node, before);
     restore?.();
   }
   return node;
 }
 
-// Leaf's Lit asks the root for its mover at every insertion and inserts natively where
-// there is none, as in a document Leaf did not compose. The runtime installs this one
-// (framework.js imports it), so once modules run every keyed move uses the same
-// focus-preserving implementation as the rest of the runtime.
-document.documentElement.lfInitial.move = move;
+// Lit inserts natively off Leaf; the runtime installs its focus-preserving mover.
+window.lfMove = move;

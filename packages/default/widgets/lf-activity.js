@@ -1,3 +1,5 @@
+import { render } from "/vendor/lit.js";
+import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
@@ -31,12 +33,10 @@
  * Targets stay live: a held row keeps its historical words and geometry, but its
  * fragment link follows only a destination in the current document. A departed
  * destination leaves historical text in the same node, without an active link.
- * Tab memory retains the drawn presentation through a fresh document. Its initial
- * producer draws it before first paint, then the ready authoritative reading is
- * compared through HeldReading. This never folds events or records a decision. */
+ * Tab memory retains the drawn presentation through a fresh document. The ready
+ * authoritative reading is compared through HeldReading. This never folds events or records a decision. */
 import {
   HeldReading,
-  initialRender,
   tabStore,
   addressableLabel,
   addressableWord,
@@ -60,6 +60,7 @@ import {
 const NAME = 60;
 
 // Where something happened, as the chrome names it, else its word.
+/** @param {string | null | undefined} id */
 function nameOf(id) {
   const element = id ? elementById(id) : null;
   if (!element) return id || "the page";
@@ -70,6 +71,8 @@ function nameOf(id) {
 
 // A comment's place: a passage, a drawing's part, a datum, or a design subject as
 // Threads names it; a whole element by where it is.
+/** @param {import("../../../browser/types/contract.js").CompleteUnion<NonNullable<import("../../../browser/types/contract.js").ServedHistoryRow["anchor"]>> | null | undefined} anchor
+ * @param {import("../../../browser/types/contract.js").ServedHistoryRow["about"]} about */
 function placeName(anchor, about) {
   // A bare quote is cut inside its marks, so a long one still reads as a quote.
   if (anchor?.quote && !anchor.datum && about !== "design")
@@ -79,8 +82,10 @@ function placeName(anchor, about) {
   return nameOf(anchor?.section ?? null);
 }
 
+/** @param {string} token */
 const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? token;
 
+/** @param {import("../../../browser/types/contract.js").ServedHistoryRow} row */
 const actorOf = (row) =>
   row.author === "user"
     ? "Me"
@@ -88,17 +93,21 @@ const actorOf = (row) =>
       ? "Page"
       : (row.agent ?? row.author);
 
+/** @param {unknown} words */
 const quoted = (words) => `“${words}”`;
+/** @param {string} words */
 const named = (words) => quoted(excerptWords(words, NAME));
 
 // The thread's name in words (`threadSummary`), read from the thread as
 // it stands now, as every way there is. A thread Threads does not list, a bare
 // reaction, has no name there and no way to it, so it goes as a thread.
+/** @param {import("../../../browser/types/contract.js").ServedHistoryRow["thread"]} served */
 const topicOf = (served) => {
   const thread = served && readThreads().threads.find(({ id }) => id === served.id);
   return thread ? excerptWords(threadSummary(thread).topic, 48) : "a thread";
 };
 
+/** @param {import("../../../browser/types/contract.js").ServedGesture} gesture */
 function gesturePhrase(gesture) {
   switch (gesture.form) {
     case "choice":
@@ -115,8 +124,13 @@ function gesturePhrase(gesture) {
 }
 
 // One served row as the words and the way there it is drawn with.
+/** @param {import("../../../browser/types/contract.js").ServedHistoryRow} row
+ * @returns {Pick<import("./activity-view.js").ActivityRow, "what" | "widget" | "thread" | "label">} */
 function describe(row) {
-  const thread = (what, label) => ({
+  const thread = (
+    /** @type {string} */ what,
+    /** @type {string | undefined} */ label = undefined,
+  ) => ({
     what,
     thread: row.thread?.id,
     label: label ?? quoted(topicOf(row.thread)),
@@ -148,53 +162,58 @@ function describe(row) {
       return { what: `reported ${quoted(row.value)} on`, widget: row.widget };
     case "note":
       return { what: `published v${row.version}` };
-    default:
-      return { what: `approved v${row.version}` };
   }
 }
 
 customElements.define(
   "lf-activity",
   class extends LeafElement {
-    #list = null;
-    #empty = null;
-    #template = null;
-    #storageKey = null;
-    #notice = null;
+    /** @type {ReturnType<typeof createActivity> | undefined} */
+    #view;
+    get #drawing() {
+      return (this.#view ??= createActivity(this));
+    }
+    get #storageKey() {
+      return this.#drawing.storageKey;
+    }
+    /** @param {import("./activity-view.js").ActivityReading | undefined} [reading] */
+    #template(reading = undefined) {
+      return this.#drawing.render(reading, {
+        printing: this.#printing,
+        names: fragmentTarget,
+        age: ago,
+        openThread: (id) => {
+          const thread = readThreads().threads.find((thread) => thread.id === id);
+          if (thread) void threadActions.open(thread.key, { part: "thread" });
+        },
+      });
+    }
     #opened = false;
-    #reading = null;
+    #reading = new HeldReading(
+      this,
+      () =>
+        [this.#drawing.notice, this.#drawing.list, this.#drawing.empty].filter(
+          (node) => node !== null,
+        ),
+      () => this.requestUpdate(),
+    );
     #printing = false;
+    /** @type {string | null} */
     #closedReading = null;
+    /** @type {string | null} */
     #restored = null;
     #ready = false;
 
     setup() {
-      const drawing = initialRender(this);
-      this.#storageKey = drawing.storageKey;
-      this.#list = drawing.list;
-      this.#empty = drawing.empty;
-      this.#notice = drawing.notice;
-      this.#template = (reading) =>
-        drawing.render(reading, {
-          printing: this.#printing,
-          names: fragmentTarget,
-          age: ago,
-          openThread: (id) =>
-            void threadActions.open(
-              readThreads().threads.find((thread) => thread.id === id)?.key,
-              { part: "thread" },
-            ),
-        });
+      const drawing = this.#drawing;
+      render(drawing.render(), this, { host: this });
+      const notice = drawing.notice;
+      if (!notice) throw new Error("Activity did not draw its disclosure");
       this.#opened = drawing.reading.open;
       this.#closedReading = drawing.restored ? drawing.reading.shown : null;
       this.#restored = drawing.restored ? drawing.reading.shown : null;
-      this.#reading = new HeldReading(
-        this,
-        () => [this.#notice, this.#list, this.#empty],
-        () => this.requestUpdate(),
-      );
-      this.#notice.addEventListener("click", () => {
-        if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
+      notice.addEventListener("click", () => {
+        if (notice.hasAttribute("data-lf-news")) this.#opened = true;
         else this.#opened = !this.#opened;
         this.#reading.release();
         this.requestUpdate();
@@ -224,6 +243,7 @@ customElements.define(
       return view;
     }
 
+    /** @param {readonly import("../../../browser/types/contract.js").ServedHistoryRow[]} history */
     #render(history) {
       if (!this.#ready && !this.#printing) return this.#template(undefined);
       if (this.#restored !== null) {
@@ -254,6 +274,7 @@ customElements.define(
         : this.#opened
           ? this.#reading.hold(wanted)
           : this.#closedReading;
+      /** @type {import("./activity-view.js").ActivityRow[]} */
       const rows = JSON.parse(shown);
       const news = shown !== wanted;
       const known = new Set(rows.map(({ id }) => id));

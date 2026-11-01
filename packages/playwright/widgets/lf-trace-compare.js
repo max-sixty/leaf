@@ -3,51 +3,68 @@
  * elapsed times and labels never establish correspondence. A chosen key also
  * reaches recordings whose data arrives later. Source switches share the image
  * inspection view and pause hidden recordings without moving their playheads.
- * Each direct child that holds a trace is one view, including its caption. */
+ * Each direct child is one recording view: a trace or any wrapper holding one,
+ * including its caption. Membership is known from its start tag, so a partial
+ * second wrapper stays hidden while the parser is still receiving its trace.
+ * Shared introductory text belongs outside the comparison. The chooser's
+ * measured height clears focus and navigation inside those views. */
 import {
+  cancelRender,
   el,
   generatedElement,
   keepView,
   keeps,
   layoutChanged,
+  layoutPx,
+  nextRender,
   once,
   offer,
   openingView,
+  viewMembers,
   quoted,
+  sizeObserver,
+  whileConnected,
 } from "/runtime/widget-api.js";
 import "./lf-trace.js";
+
+/** @typedef {{index: number, view: Element, recording: import("./lf-trace.js").Trace}} TraceMember */
 
 customElements.define(
   "lf-trace-compare",
   class extends HTMLElement {
-    #views = [];
-    #recordings = [];
-    #selected = 0;
+    /** @type {TraceMember[]} */
+    #members = [];
+    /** @type {TraceMember | null} */
+    #selected = null;
+    /** @type {string | null} */
     #moment = null;
 
     connectedCallback() {
       if (!once(this)) return;
-      for (const child of this.children) {
-        const recording = child.matches("lf-trace")
-          ? child
-          : child.querySelector("lf-trace");
-        if (!recording) continue;
-        this.#views.push(child);
-        this.#recordings.push(recording);
+      const recordings = [...this.querySelectorAll("lf-trace")];
+      for (const child of viewMembers(this)) {
+        const recording = recordings.find(
+          (trace) => trace === child || child.contains(trace),
+        );
+        if (!recording)
+          throw new Error(
+            "Each lf-trace-compare child must be an lf-trace or contain one; put shared introductory text outside the comparison.",
+          );
+        this.#members.push({ index: this.#members.length, view: child, recording });
       }
-      this.#selected = this.#views.indexOf(openingView(this, this.#views));
+      const opening = openingView(this);
+      this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
       generatedElement(header, { says: false });
-      /** @type {any} Web Awesome's radio group exposes form properties. */
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;
       choices.size = "s";
       choices.orientation = "horizontal";
-      for (const [index, recording] of this.#recordings.entries()) {
-        const view = this.#views[index];
+      for (const member of this.#members) {
+        const { index, recording, view } = member;
         view.addEventListener("beforematch", () => {
-          this.#selected = index;
+          this.#selected = member;
           choices.value = String(index);
           this.#draw();
         });
@@ -56,8 +73,8 @@ customElements.define(
         });
         recording.addEventListener("lf-trace-moment", (event) => {
           this.#moment = event.detail.key;
-          for (const peer of this.#recordings)
-            if (peer !== recording) peer.selectMoment(this.#moment);
+          for (const peer of this.#members)
+            if (peer.recording !== recording) peer.recording.selectMoment(this.#moment);
         });
         const choice = offer(
           "wa-radio",
@@ -69,32 +86,50 @@ customElements.define(
         choice.disabled = quoted(this);
         choices.append(choice);
       }
-      choices.value = String(this.#selected);
+      choices.value = String(this.#selected?.index ?? -1);
       choices.addEventListener("change", () => {
-        const view = this.#recordings[this.#selected].inspectionView;
-        this.#selected = Number(choices.value);
+        const selected = this.#members.find(
+          (member) => String(member.index) === choices.value,
+        );
+        if (!selected) return;
+        const view = this.#selected?.recording.inspectionView ?? null;
+        this.#selected = selected;
         this.#draw();
-        this.#recordings[this.#selected].inspectionView = view;
+        selected.recording.inspectionView = view;
       });
       header.append(choices);
       this.prepend(header);
+      whileConnected(this, () => {
+        const paintHeight = (/** @type {number} */ height) =>
+          this.style.setProperty("--lf-trace-compare-head-h", layoutPx(height));
+        paintHeight(header.getBoundingClientRect().height);
+        let paint = 0;
+        const size = sizeObserver((entries) => {
+          cancelRender(paint);
+          // Clearance resizes the stage; publish outside size delivery.
+          paint = nextRender(() => {
+            for (const entry of entries)
+              for (const box of entry.borderBoxSize) paintHeight(box.blockSize);
+          });
+        });
+        size.observe(header, { box: "border-box" });
+        return () => {
+          size.disconnect();
+          cancelRender(paint);
+        };
+      });
       this.#draw();
     }
 
     #draw() {
       // Reveal first, so a synchronous layout read never observes an empty
       // workspace and clamps the document's scroll position to its shorter end.
-      keeps(this.#views[this.#selected], "hidden", null);
-      for (const [index, recording] of this.#recordings.entries()) {
-        if (index !== this.#selected) recording.pause();
-        keeps(
-          this.#views[index],
-          "hidden",
-          index === this.#selected ? null : "until-found",
-        );
+      keepView(this, this.#selected?.view ?? null);
+      for (const member of this.#members) {
+        const { recording } = member;
+        if (member !== this.#selected) recording.pause();
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
       layoutChanged(this);
     }
   },

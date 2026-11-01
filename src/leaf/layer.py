@@ -240,8 +240,8 @@ def _stylesheet(source: Path, root: Path, opened: tuple[Path, ...]) -> str:
     opened = (*opened, source.resolve())
     try:
         css = source.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise Refused(f"{source} must be UTF-8")
+    except UnicodeDecodeError as error:
+        raise Refused(f"{source} must be UTF-8") from error
     # A layer's sheet is a package's maintained code, so a declaration a browser
     # drops refuses it here, though a page's own sheets only hear it as advice.
     if errors := css_syntax_errors(css, str(source)):
@@ -316,9 +316,92 @@ def _import(
     return path, layer
 
 
+# Where each style rule of a package's chrome.css stands: in the chrome's scope, so it
+# matches only what the chrome holds, and under its root at two ids' weight, which no
+# rule of Leaf's chrome carries.
+CHROME_RESTYLE = "@scope (.lf-chrome) {{ :scope:not(#\\#):not(#\\#) {{ {} }} }}"
+# The group rules whose own rules are rewritten too. Every other at-rule, such as
+# @font-face, @keyframes or a @layer statement, stays as written where it stands.
+CHROME_RESTYLE_GROUPS = frozenset(
+    {"media", "supports", "container", "layer", "starting-style"}
+)
+
+
+def _holds_scope(nodes) -> bool:
+    """Whether any rule among `nodes`, at any depth, is an @scope."""
+    for node in nodes:
+        keyword = getattr(node, "lower_at_keyword", None) or (
+            node.lower_value if node.type == "at-keyword" else None
+        )
+        if keyword == "scope":
+            return True
+        for child in ("prelude", "content", "arguments"):
+            if (tokens := getattr(node, child, None)) and _holds_scope(tokens):
+                return True
+    return False
+
+
+def chrome_restyle(sheet: str, source: Path) -> str:
+    """A package's chrome.css as the chrome's sheet takes it, above Leaf's own rules.
+
+    The chrome's rules stand outside every layer, so they beat the page and every
+    package; a theme restyles the chrome on purpose only from here. Each style rule,
+    in its place and inside whatever conditions hold it, is nested in
+    `CHROME_RESTYLE`, so it reaches only what the chrome holds and wins over Leaf's
+    chrome rules whatever selector either writes. Nested, its selector is relative to
+    the chrome's root, so one keyed on the page around the chrome places `&` for that
+    root (`:root.dark & [part~="panel"]`). A rule inside a @layer stays layered, and so
+    loses to every unlayered chrome rule. Any other at-rule is global, as anywhere in
+    CSS. A package names what it restyles by part (`[part~="panel"]`), the chrome's
+    public names for its surfaces; its other classes are private and change without
+    notice. What the browser would drop as invalid is dropped here too, a rule whose
+    selector holds `;` included, which nesting would read as a declaration and a rule.
+
+    A sheet holding @scope is refused: at its top it would set a scope of its own
+    beside the chrome's, reaching the page, and nested in a rule Chromium matches
+    nothing in it.
+    """
+    import tinycss2
+
+    from .styles import css_stylesheet
+
+    if _holds_scope(css_stylesheet(sheet)):
+        raise Refused(
+            f"{source} holds @scope; Leaf already scopes chrome.css to its chrome, "
+            "so write its rules without one"
+        )
+
+    def restyled(nodes):
+        parts = []
+        for node in nodes:
+            # A `;` in a selector makes it invalid where it stands, but once nested
+            # it would end a declaration and leave the rest a rule of its own.
+            if node.type == "error" or (
+                node.type == "qualified-rule"
+                and any(token == ";" for token in node.prelude)
+            ):
+                continue
+            if node.type == "qualified-rule":
+                parts.append(CHROME_RESTYLE.format(tinycss2.serialize([node])))
+            elif (
+                node.type == "at-rule"
+                and node.content is not None
+                and node.lower_at_keyword in CHROME_RESTYLE_GROUPS
+            ):
+                inner = restyled(tinycss2.parse_rule_list(node.content))
+                prelude = tinycss2.serialize(node.prelude)
+                parts.append(f"@{node.at_keyword}{prelude}{{{inner}}}")
+            else:
+                parts.append(tinycss2.serialize([node]))
+        return "".join(parts)
+
+    return restyled(css_stylesheet(sheet))
+
+
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's two stylesheets: each contribution in its role's cascade tier,
-    in input order. Leaf places sheets and rewrites none of their rules.
+    """The layer's three stylesheets: each contribution in its role's cascade tier,
+    in input order. Leaf places sheets and rewrites none of their rules but
+    chrome.css's, which it nests in the chrome (`chrome_restyle`).
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
@@ -329,7 +412,9 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     including core views placed there, such as a diff's threads. overrides.css
     holds rules meant to win over every package's defaults and the Layouts, in
     lf-overrides. A theme reaches shadow trees through the custom properties they
-    inherit. Each sheet is read with its relative imports (`stylesheet`).
+    inherit. chrome.css restyles Leaf's chrome, which takes it above its own rules
+    (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
+    is read with its relative imports (`stylesheet`).
 
     The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
     state retain their own tiers. Page CSS remains unlayered.
@@ -340,12 +425,15 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
+    chrome = []
 
     def place(sheets, tier, root, name):
         source = root / name
         if source.is_file():
             sheets.append(f"@layer {tier} {{\n{stylesheet(source, root)}}}\n")
 
+    if (leading := kernel / "styles/shadow-leading.css").is_file():
+        shadow.insert(0, stylesheet(leading, kernel))
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "base.css")
@@ -354,6 +442,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(shadow, "lf-shadow", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
         place(theme, "lf-overrides", root, "overrides.css")
+        if (source := root / "chrome.css").is_file():
+            chrome.append(chrome_restyle(stylesheet(source, root), source))
     for name in ("layouts.css", "state.css"):
         if (source := kernel / name).is_file():
             sheet = stylesheet(source, kernel)
@@ -363,6 +453,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     return {
         "theme.css": "".join(theme).encode(),
         "shadow.css": "".join(shadow).encode(),
+        "chrome.css": "".join(chrome).encode(),
     }
 
 
@@ -383,8 +474,8 @@ def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
                 continue
             try:
                 instructions = path.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                raise Refused(f"{path} must be UTF-8")
+            except UnicodeDecodeError as error:
+                raise Refused(f"{path} must be UTF-8") from error
             if instructions.strip():
                 parts.setdefault(path.name, []).append(
                     f"# Package `{root.name}`\n\n{instructions.strip()}\n"
@@ -549,8 +640,10 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     The page's layer is composed by whichever Leaf reads it (`selected_layer`), so
     the protocol covers only what a page keeps across Leaf versions: its event log
     and the records kept outside it (`layer-registry.md`, "Page protocol"). A page
-    at a higher number is refused as `newer-layer`, since its repair is a newer
-    Leaf: this one does not take it down (`vendoring._plan_page`). For a page at an
+    at a higher number is refused as `newer-layer` (`newer_layer`), as is one whose
+    layer record a newer Leaf wrote at a later shape, before this reading
+    (`registry.storage.layer_record`), since its repair is a newer Leaf: this one
+    does not take it down (`vendoring._plan_page`). For a page at an
     older number, the holding session's prompt and Stop hooks, and each of its
     commands that names the page, take it to this Leaf's number first
     (`vendoring.renew_layer`). Every server of the page's files, the website's
@@ -560,15 +653,31 @@ def incompatible_layer(page_dir: Path, record: dict) -> Finding | None:
     recorded = record.get("protocol")
     if type(recorded) is int and recorded == kernel_protocol():
         return None
-    values = {
-        "page": str(page_dir),
-        "recorded": recorded if recorded is not None else "none",
-        "leaf": str(PLUGIN_ROOT),
-        "protocol": kernel_protocol(),
-    }
     if type(recorded) is int and recorded > kernel_protocol():
-        return Finding("newer-layer", values=values)
-    return Finding("foreign-layer", values=values)
+        return newer_layer(page_dir)
+    return Finding(
+        "foreign-layer",
+        values={
+            "page": str(page_dir),
+            "recorded": recorded if recorded is not None else "none",
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
+    )
+
+
+def newer_layer(page_dir: Path) -> Finding:
+    """The refusal of a page a newer Leaf initialized, at a higher page protocol or
+    a later shape of its layer record (`registry.storage.layer_record`). Its repair
+    is that newer Leaf, since this one does not take the page down."""
+    return Finding(
+        "newer-layer",
+        values={
+            "page": str(page_dir),
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
+    )
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

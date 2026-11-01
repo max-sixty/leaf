@@ -5,8 +5,8 @@
 `findings.Finding.json` gives it, the markup checks' first; and `browser`, the browser
 gates `asked` for and those that `ran` (failing page code ends the check before the
 render gate reads anything), in which browser or why none could, with the render
-gate's margin widths and saved screens where it passed. `browser` is null where no
-gate needed one.
+gate's margin widths and saved screens even when it reports findings. `browser` is
+null where no gate needed one.
 """
 
 from pathlib import Path

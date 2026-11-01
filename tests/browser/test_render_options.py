@@ -144,7 +144,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     rails = [
         page.locator(f"#{i} > dl.facts").bounding_box() for i in ("st-sd", "st-pi")
     ]
-    for rail, card in zip(rails, (sd, pi)):
+    for rail, card in zip(rails, (sd, pi), strict=True):
         assert rail["x"] > card["x"] + card["width"] / 2, "the facts rail docks right"
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
@@ -2520,7 +2520,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
-    expect(status).to_have_text("Got it")
+    expect(status).to_have_text("Delivered")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 

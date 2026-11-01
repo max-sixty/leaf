@@ -334,7 +334,7 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     for command in (["page", "check"], ["page", "init"]):
         refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
         assert refused.exit_code != 0
-        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "Use a newer Leaf" in refused.output
         assert "leaf page init" not in refused.output
         layer_4 = registry_storage.layer_record(claimed)
         assert layer_4 is not None
@@ -352,7 +352,33 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     )
     assert stated.returncode == 0, stated.stderr
     error = json.loads(stated.stdout)["source"]["error"]
-    assert f"Use a Leaf at protocol {foreign} or later" in error
+    assert "Use a newer Leaf" in error
+
+
+def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
+    """A newer Leaf may change the layer record's shape without a protocol bump, and
+    this Leaf reads that format as no record at all. Told "no layer.json; run `leaf
+    page init` first", an agent would replace the page's packages and theme under
+    this Leaf, so the page is refused as a newer Leaf's instead, by the hooks and
+    writers that ask first as by `page check` and `page init`."""
+    from leaf.event_contracts import write_refusal
+
+    path = claimed / schema_model.LAYER_FILE
+    record = registry_storage.layer_record(claimed)
+    assert record is not None
+    path.unlink()
+    later = f"leaf-layer/{registry_storage.LAYER.since + 1}"
+    path.write_text(json.dumps({"format": later, **record}), encoding="utf-8")
+    recorded = path.read_bytes()
+
+    refusal = write_refusal(claimed)
+    assert refusal is not None and refusal.code == "newer-layer"
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert "Use a newer Leaf" in refused.output
+        assert "leaf page init" not in refused.output
+        assert path.read_bytes() == recorded
 
 
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed):
@@ -1390,7 +1416,7 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
 
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
-    mark delivery paints such as `data-lf-margin-content`, never by its tag: a rule naming
+    mark delivery paints such as `data-lf-space`, never by its tag: a rule naming
     lf-toc serves lf-toc and no other contents map, and binds the kernel to one
     package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
     selectors the runtime hands a DOM query, use no tag a bundled package declares as
@@ -1455,14 +1481,12 @@ def test_kernel_selectors_name_no_package_tag():
 
 
 def test_layout_style_and_widgets_never_read_each_other():
-    """A Layout places boxes, a style sets type and spacing, and a widget reads its own
-    box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout
-    class is named only in layouts.css and a style class only in the kernel theme, and
-    layouts.css sets no type: where one has to answer another, the owner sets a token
-    saying what the box is, as `--lf-full-height` does, and the reader keys on that.
+    """Layouts own placement, styles own type, and widgets consume their own box.
 
-    A Layout class is one layouts.css styles; a style class is one the kernel theme
-    gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
+    Margin placement reads authored notes to keep annotations clear of them.
+    Packages do not depend on Layout containers, and no other sheet
+    restates a Layout's rules. Style classes remain private to the kernel theme.
+    """
     layouts = schema_model.ASSETS / "layouts.css"
     theme = schema_model.ASSETS / "base.css"
     owned = {
@@ -1487,7 +1511,16 @@ def test_layout_style_and_widgets_never_read_each_other():
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
             continue
-        foreign = [names for home, names in owned.items() if home != source]
+        foreign = [
+            names
+            for home, names in owned.items()
+            if home != source
+            and not (
+                home == layouts
+                and source
+                == schema_model.ASSETS / "runtime/annotation-overlay/margin-layout.js"
+            )
+        ]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
         where = source.relative_to(schema_model.ASSETS.parent)
         if source.suffix == ".css":
@@ -1522,12 +1555,12 @@ def test_layout_style_and_widgets_never_read_each_other():
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
-    spelled only in prepaint.js's `ACTION_FACES`, which `offerAction` reads; any other
+    spelled only in control-faces.js's `ACTION_FACES`, which `offerAction` reads; any other
     bundled module that spells one, in a string or a comment, has chosen a face itself.
     module-authoring.md lists the roles for package authors, in the table's order.
     `primary` and the authored `button` face are ordinary words too, so they count
     where a string lists classes or a template's `class` attribute names them."""
-    owner = schema_model.ASSETS / "runtime" / "prepaint.js"
+    owner = schema_model.ASSETS / "runtime" / "control-faces.js"
     table = re.search(r"const ACTION_FACES = \{(.*?)\};", owner.read_text(), re.DOTALL)
     assert table is not None
     roles = dict(re.findall(r"(\w+): \"([^\"]+)\"", table[1]))
@@ -1568,6 +1601,32 @@ def test_controls_are_built_by_role_and_never_by_face():
         "build these controls with offerAction or offeredAction by role:\n"
         + "\n".join(spelled)
     )
+
+
+def test_every_ring_stands_at_a_kind_of_box():
+    """Where a box's marks stand is one of the kinds base.css names ("Where it
+    stands"): a region's gap, a control's, the box's edge, or one band inside it. Every
+    `outline-offset` in Leaf's sheets names its kind's token rather than a length, so
+    a change to a kind reaches every box of it and the overlay marks, which read the
+    gap a box states, stand where its rings do. The overlay's own boxes take the gap
+    their placement writes (`--lf-mark-offset`)."""
+    kinds = {
+        "0",
+        "var(--focus-region-gap)",
+        "var(--focus-ring-gap)",
+        "var(--focus-ring-inset)",
+        "var(--lf-mark-offset)",
+    }
+    stated = [
+        f"{sheet.relative_to(ROOT)}: {selector} {{ outline-offset: {value} }}"
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        for name, value in declarations
+        if name == "outline-offset" and value not in kinds
+    ]
+    assert not stated, "a ring stands at a length of its own:\n" + "\n".join(stated)
 
 
 def _bundled_modules():
@@ -1656,8 +1715,8 @@ def test_every_press_is_built_by_role_or_family():
 
 
 def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
-    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
-    "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
+    """A box marked by a thick edge on one side is not also rounded (browser/AGENTS.md,
+    "Visual treatment carries meaning"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
     `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
@@ -1678,12 +1737,13 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
     def edged(declarations):
         return any(
-            sides.fullmatch(name)
-            and thick(value)
-            or name == "box-shadow"
-            and any(
-                (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
-                for x, y in inset.findall(value)
+            (sides.fullmatch(name) and thick(value))
+            or (
+                name == "box-shadow"
+                and any(
+                    (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
+                    for x, y in inset.findall(value)
+                )
             )
             for name, value in declarations
         )
@@ -1823,22 +1883,14 @@ _LAYER_SHEET_ORDER = [
 ]
 
 
-def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
-    component that states the same property overrides it, so the face stands first in
-    the layer's page-side order and loses on position. It keeps a class's specificity,
-    so the page's own element rules lose to it. And a declared tree copies shadow.css,
-    where lf-diff marks its line numbers `lf-ui`, so the selector reaches only elements
-    under the document's root.
+def test_the_injected_control_face_is_one_default_in_both_trees():
+    """Document and declared-shadow controls share one default before component rules.
 
-    Each of the three has broken once: stated in base.css after shadow.css, Send drew
-    near-black instead of the accent; at the head of shadow.css as a plain `.lf-ui`, the
-    diff's line numbers took the control's size and ink; as `:where(.lf-ui)`, a page's
-    `button, a` rule took the family of half corpus.html's widget controls. The browser
-    cases that read those faces are `test_a_single_space_is_message_content_in_every_
-    composer`, `test_a_diff_is_colored_by_each_files_own_path` and
-    `test_a_pages_own_element_rules_leave_the_layers_controls_alone`; this one names the
-    single rule all three depend on."""
+    It weighs nothing and comes first, so every component rule outranks it, and
+    markup's reading face, a layer below, loses to it. Only native controls and those
+    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as diff
+    line numbers, retains the component's own typography.
+    """
     faces = [
         (sheet, selector)
         for sheet in _LAYER_SHEET_ORDER
@@ -1848,10 +1900,16 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # Public controls and injected controls share this one default; its root boundary
-    # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
-    assert faces[0] == (schema_model.ASSETS / "shadow.css", control_face), faces[0]
+    # Both delivery trees use the same face classes and cascade order.
+    shadow = schema_model.ASSETS / "shadow.css"
+    control_face = (
+        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
+        ":is(:root, :host) .field, :root main :is(button, input, select, textarea), "
+        ":host :is(button, input, select, textarea) )"
+    )
+    control_ink = ":where(.lf-ui-face, .button, .field)"
+    default = [(shadow, control_face), (shadow, control_ink)]
+    assert faces[:2] == default, faces[:2]
     defaults = [
         face
         for face in faces
@@ -1861,9 +1919,10 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
             ":where(.lf-ui-face)",
             ":where(:root) .lf-ui-face",
             control_face,
+            control_ink,
         }
     ]
-    assert defaults == [faces[0]], defaults
+    assert defaults == default, defaults
 
 
 def test_layer_style_sources_consume_the_runtime_layout_names():
@@ -1877,7 +1936,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
 
     spelling = (
         "["
-        + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.obligation"]
+        + read[str(page_paint)]["constants"]["RUNTIME_PAINT_ATTRIBUTE.obligation"]
         + "]"
     )
     assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -2235,6 +2294,69 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     assert tinycss2.serialize(later[0].prelude).strip() == ".y"
 
 
+def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
+    """Each style rule of a package's chrome.css is wrapped in the chrome's scope at a
+    weight the chrome's own rules don't reach, inside the conditions and layers that
+    hold it. Every other at-rule stays as written where it stood, so a @font-face under
+    @media keeps its condition and a @layer statement keeps its place in the order.
+    What a browser would drop, such as a stray `;` or a loose declaration, is
+    dropped rather than failing composition or, once nested, coming back as a
+    declaration on the chrome's root. A layer whose packages restyle nothing adds no
+    rule."""
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    for root in (kernel, package):
+        root.mkdir()
+    (kernel / "base.css").write_text("")
+    assert layer_model.composed_sheets([kernel, package])["chrome.css"] == b""
+    (package / "chrome.css").write_text(
+        '[part~="panel"] { animation: turn 1s; }\n'
+        "@keyframes turn { to { rotate: 1turn; } }\n"
+        "@layer one { .a { color: blue; } }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        '[part~="card"] { display: none; } }\n'
+        '@media print { [part~="card"] { color: red }; }\n'
+        "@supports (display: grid) { color: red; }\n"
+        '@media screen { color: red; [part~="card"] { color: blue; } }\n'
+        'a { color: red; }; [part~="card"] { color: blue; }\n'
+    )
+
+    scoped = layer_model.CHROME_RESTYLE.format
+    assert layer_model.composed_sheets([kernel, package])["chrome.css"].decode() == (
+        scoped('[part~="panel"] { animation: turn 1s; }') + "\n"
+        "@keyframes turn { to { rotate: 1turn; } }\n"
+        "@layer one { " + scoped(".a { color: blue; }") + " }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        + scoped('[part~="card"] { display: none; }')
+        + " }\n"
+        "@media print { " + scoped('[part~="card"] { color: red }') + "}\n"
+        "@supports (display: grid) { }\n"
+        "@media screen {  }\n" + scoped("a { color: red; }") + "\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "css",
+    [
+        "@scope (body) { #outside { color: red; } }",
+        "@media screen { @scope (body) { p { color: red; } } }",
+        '[part~="card"] { @scope (&) { :scope > p { color: red; } } }',
+    ],
+)
+def test_a_chrome_sheet_holding_scope_is_refused(tmp_path, css):
+    """An @scope of the theme's own would stand beside the chrome's and reach the page,
+    or, nested in a rule, match nothing in Chromium, so composition refuses it by
+    name rather than serving either."""
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    for root in (kernel, package):
+        root.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "chrome.css").write_text(css)
+    with pytest.raises(Refused, match=r"chrome\.css holds @scope"):
+        layer_model.composed_sheets([kernel, package])
+
+
 def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     """A package splits its sheet into files with `@import` and needs no build: each
     file's rules stand where its import stood, in the layer it asks for, and each file
@@ -2336,7 +2458,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("defaults.css", "widget-shadow.css"):
+    for name in ("defaults.css", "widget-shadow.css", "chrome.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()
@@ -2644,7 +2766,7 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
     def initialize():
         try:
             vendoring_model.cmd_init(page)
-        except BaseException as error:  # noqa: BLE001 - carried to the assertion
+        except BaseException as error:
             errors.append(error)
 
     monkeypatch.setattr(vendoring_model, "_init_page", paused_init)
@@ -4264,7 +4386,11 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. Another is how every
+    interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
+    a button takes a button's Enter and Space as their default action
+    (role-button-press.js), on any page; the register names that press as native
+    activation (keyboard/text-entry.js), as it does a <button>'s, so no surface promises
+    a key it misses. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
@@ -4287,6 +4413,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "focus.js": 2,
         "interaction-log.js": 1,
         "block-controls.js": 1,
+        "role-button-press.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

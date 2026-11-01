@@ -1,4 +1,5 @@
-// Checks the Stability contract using protected reading/control landmarks.
+// Checks that the page holds still under the user's aim (browser/AGENTS.md), using
+// protected reading/control landmarks.
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
@@ -6,7 +7,7 @@
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
-// Beside those, it credits only what the Stability contract itself declares:
+// Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
@@ -58,7 +59,7 @@
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
 // gesture's rendering would credit itself, though it carries the control the user
-// just pressed out from under their aim (browser/AGENTS.md, "Stability"). So the
+// just pressed out from under their aim (browser/AGENTS.md, "The page holds still under the user's aim"). So the
 // gesture's aim, the control a press lands on or the one holding focus for a key,
 // keeps its place on screen through that rendering, read fresh in viewport pixels
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
@@ -494,8 +495,21 @@
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);
+    if (candidates.every((value) => anchorInset(value, axis)))
+      return candidates.length > 0;
+    if (!candidates.some((value) => value.trim() === "revert-layer")) return false;
+    // A rollback can expose a lower tier. Prove every declared alternative,
+    // including normal rules under an important rollback, before allowing it.
+    // With none left, an inset is auto: Typed OM preserves that keyword where
+    // CSSOM's resolved style hides it as a used pixel position.
+    const rules = declaredRules(node, property, false);
+    const values = [...rules.normal, ...rules.important, inline].filter(
+      (value) => value && value.trim() !== "revert-layer",
+    );
     return (
-      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+      values.length > 0 &&
+      values.every((value) => anchorInset(value, axis)) &&
+      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") !== "auto"
     );
   };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
@@ -541,7 +555,7 @@
         style.visibility === "visible" &&
         style.opacity !== "0" &&
         !["none", "normal"].includes(style.content) &&
-        (style.content !== '\"\"' || paintsBox(style))
+        (style.content !== '""' || paintsBox(style))
       );
     });
   // Whether anything that can change a node's reading has happened since the last
@@ -778,8 +792,21 @@
   };
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
+    // The HTML parser creates declarative roots without calling attachShadow.
+    // Discover them in the same traversal that records their rendered ancestors.
+    const discover = (node) => {
+      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
+        roots.add(node.shadowRoot);
+        watchTree(node.shadowRoot);
+      }
+    };
+    nodes.forEach(discover);
     for (const root of roots)
-      if (root.host.isConnected) nodes.push(...root.querySelectorAll("*"));
+      if (root.host.isConnected) {
+        const children = [...root.querySelectorAll("*")];
+        children.forEach(discover);
+        nodes.push(...children);
+      }
     const words = nodes.flatMap((node) =>
       [...node.childNodes].filter(
         (child) =>
@@ -860,6 +887,20 @@
         top: property.endsWith("Top") || property === "top" ? parseFloat(value) : 0,
       };
     return null;
+  };
+  // Cleanup may remove a zero-valued translate binding: `none` and `0px`
+  // are the same underlying endpoint, despite their different computed strings.
+  const sameTranslation = (property, before, after) => {
+    if (before === after) return true;
+    if (before === undefined || after === undefined) return false;
+    const first = animationTranslation(property, before);
+    const last = animationTranslation(property, after);
+    return (
+      first !== null &&
+      last !== null &&
+      first.left === last.left &&
+      first.top === last.top
+    );
   };
   const translationAxes = (target) => {
     const parent = elementAxes(up(target));
@@ -1064,7 +1105,11 @@
                 effect.target.style.translate === binding ||
                 returning) &&
               (!returning ||
-                origin?.[property] === animatedValue(effect.target, style, property)),
+                sameTranslation(
+                  property,
+                  origin?.[property],
+                  animatedValue(effect.target, style, property),
+                )),
           )
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
@@ -1827,8 +1872,7 @@
     if (
       aim.event.type === "keydown" &&
       (!aim.event.defaultPrevented ||
-        (caretKeys.includes(aim.event.key) &&
-          document.documentElement.lfInputs?.typesText(aim.node)))
+        (caretKeys.includes(aim.event.key) && window.lfInputs?.typesText(aim.node)))
     ) {
       rendering.aim = null;
       return;
@@ -2160,8 +2204,8 @@
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
   // more. This is the one place news may carry what is read without a gesture
-  // (`browser/AGENTS.md`, "Stability": an answer the user waits for grows the
-  // panel's thread view).
+  // (the user's choice, recorded at `fitAnswer` in `floating-panel.js`: an answer the
+  // user waits for grows the panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -3083,6 +3127,9 @@
   // these exact terms until paint admission; reporting never re-runs the solver.
   // Keep the sampled endpoints even when no term was accepted: otherwise zero
   // credit cannot distinguish a missing owner from a missing or ineligible sample.
+  // Size effects can reflow siblings, including after their target leaves that
+  // flow. Keep those candidates even when they are not the receiver's ancestors;
+  // filtering by successful propagation would hide the rejected proof we need.
   const motionEvidence = (node, from, to, selected) => {
     const ancestors = new Set([
       ...ancestryAt(node, from),
@@ -3096,7 +3143,11 @@
     const endpoint = (sample) =>
       sample ? { at: sample.at, values: sample.values } : null;
     return [...candidates]
-      .filter((animation) => ancestors.has(animation.effect?.target))
+      .filter(
+        (animation) =>
+          ancestors.has(animation.effect?.target) ||
+          effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
+      )
       .map((animation) => {
         const samples = animated.get(animation) ?? [];
         return {

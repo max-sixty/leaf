@@ -842,9 +842,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.type(entries.first.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    page.keyboard.press("Escape")  # onto the element the thread is about
-    expect(page.locator("#p1")).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -1097,15 +1094,16 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         serve(
             leaf_page(
                 "Seated sidebar",
-                f'<aside class="sidebar" id="side"><ul>{entries}</ul></aside>'
-                "<h1>Seated sidebar</h1>" + "<p>Filler.</p>" * 30,
+                f'<aside><div class="layout-track" id="side"><ul>{entries}</ul></div></aside>'
+                '<div class="layout-column"><h1>Seated sidebar</h1>'
+                + "<p>Filler.</p>" * 30
+                + "</div>",
+                layout="sidebar",
             )
         ),
         context=browser.new_context(viewport={"width": 1600, "height": 900}),
     )
-    expect(page.locator("main")).to_have_attribute(
-        "data-lf-margin", re.compile("sidebar")
-    )
+    expect(page.locator("#side")).to_have_css("position", "sticky")
     expect(page.locator("#side")).to_have_attribute("tabindex", "0")
 
 

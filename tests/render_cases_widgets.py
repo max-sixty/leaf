@@ -15,6 +15,82 @@ from leaf.registry import storage as registry_storage
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
+# A page-owned widget whose drawing, delivery and asynchronous preparation can be
+# controlled independently, for page and frozen-message presentation journeys.
+PAGE_WIDGET = """\
+import {
+  html, keeps, layerFact, LeafElement, live,
+} from "/runtime/widget-api.js";
+
+customElements.define("lf-local", class extends LeafElement {
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
+  }
+
+  setup() {
+    layerFact("$tones");
+    keeps(this, "data-page-widget", "ready");
+    const held = globalThis.__heldLocalPresentations?.get(this.id);
+    if (held) this.controller.present(held);
+  }
+
+  // The gesture writes its own result into the output, which a deferral holds the
+  // widget's drawing over.
+  choose() {
+    this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
+    const sent = this.controller.dispatch({
+      kind: "action",
+      verb: "choose",
+      detail: { value: "chosen" },
+    });
+    if (!sent) return;
+    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
+    keeps(this, "data-delivery", "pending");
+    sent.delivery.then(accepted => {
+      keeps(this, "data-delivery", accepted ? "accepted" : "refused");
+    });
+  }
+
+  render() {
+    if (globalThis.__failLocalRender) {
+      globalThis.__failedLocalRenders =
+        Number(globalThis.__failedLocalRenders || 0) + 1;
+      throw new Error("deliberate render failure");
+    }
+    const {state, actions} = this.reading;
+    keeps(this, "data-rendered-choice", state.choose.value);
+    this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
+    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+      <output .value=${live(state.choose.value)}></output>`;
+  }
+});
+"""
+
+
+PAGE_DECLARATION = {
+    "lf-local": {
+        "description": "A page-owned local widget.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "choice": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-state": {
+            "choose": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice"},
+            }
+        },
+        "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
+    }
+}
+
+
 # ---------- anchors written without a browser ----------
 # `leaf thread create` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
@@ -355,12 +431,7 @@ DIAGRAM_ROOM = """() => {
     const svg = holder.querySelector('svg');
     const board = document.getElementById('plan');
     const main = document.querySelector('main'), ms = getComputedStyle(main);
-    const mb = main.getBoundingClientRect();
-    const probe = document.createElement('i');
-    probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)';
-    main.append(probe);
-    const room = probe.getBoundingClientRect().width;
-    probe.remove();
+    const room = main.clientWidth - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight);
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,
@@ -368,7 +439,7 @@ DIAGRAM_ROOM = """() => {
              wide: parseFloat(getComputedStyle(document.body)
                        .getPropertyValue('--wide')),
              board: board.getBoundingClientRect().width,
-             column: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
+             column: main.querySelector('h1').getBoundingClientRect().width,
              scrolls: holder.scrollWidth > holder.clientWidth };
 }"""
 # A diagram whose renderer rejects the type, which is the shape of every soft failure: the
@@ -590,10 +661,8 @@ graph LR
 # reach. The axis is the column's, because that is the line the prose is centred on and
 # the one an exhibit off it reads as having slipped.
 DRAWING_PLACEMENT = """() => {
-    const main = document.querySelector('main'), ms = getComputedStyle(main);
-    const mb = main.getBoundingClientRect();
-    const col = { left: mb.left + parseFloat(ms.paddingLeft),
-                  right: mb.right - parseFloat(ms.paddingRight) };
+    const prose = document.querySelector('main h1').getBoundingClientRect();
+    const col = { left: prose.left, right: prose.right };
     col.axis = (col.left + col.right) / 2;
     const acts = document.querySelector('[data-lf-margin-for="sug-copy"]');
     // The drawing's own rect and the box's. A drawing wider than its box keeps a rect
@@ -704,7 +773,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch"></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -714,7 +783,7 @@ PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
     '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff></lf-pane>',
+    '<lf-diff id="patch" source="review-patch"></lf-diff></lf-pane>',
     layout="workspace",
 )
 
@@ -726,7 +795,7 @@ PANE_DIFF_PAGE = leaf_page(
 MANIFEST_DIFF_PAGE = leaf_page(
     "manifest",
     "<h1 id='t'>Review</h1>"
-    + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
+    + '<lf-diff id="patch" source="review-patch" collapsed></lf-diff>',
 )
 
 # Which of a diff's source lines run past what the user can see. A row is one line of
@@ -863,7 +932,7 @@ ROOM_GEOMETRY = (
     // reserves a stable gutter.
     // `room` above is the body's content box; this reading includes the full shell so
     // the test can tell which edge that room came out of.
-    return { column: span(document.querySelector('main')),
+    return { column: span(document.getElementById('prose') || document.querySelector('main h1')),
              room: span(document.body), pageBox: """
     + SHELL_BOX
     + """,
@@ -882,7 +951,7 @@ FRAMED_WIDE_PAGE = leaf_page(
     "framed",
     """
 <h1 id="t">Framed</h1>
-<section id="loose">
+<section id="loose" class="layout-flow">
   <lf-board id="in-section">
     <lf-column id="s1" label="Todo"><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
     <lf-column id="s2" label="Done"></lf-column>
@@ -993,28 +1062,6 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# How far the exhibit stands into the room margin content states it takes
-# (`--lf-taken-l`, `--lf-taken-r`, layouts.css), on both edges, since a room read too
-# wide spends itself on whichever side is free. The room the page states comes with it,
-# so a test waiting for the box to be read again has the reading it is waiting to see
-# changed.
-RAIL_FIT = """() => {
-    const box = document.body.getBoundingClientRect();
-    const main = document.querySelector('main');
-    const length = (name) => {
-      const probe = document.createElement('i');
-      probe.style.cssText = `position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(${name}, 0px)`;
-      main.append(probe);
-      const width = probe.getBoundingClientRect().width;
-      probe.remove();
-      return width;
-    };
-    const left = length('--lf-taken-l'), right = length('--lf-taken-r');
-    const r = document.getElementById('plan').getBoundingClientRect();
-    return { taken: `${right}px`, widget: r.width, room: length('--lf-room'),
-             right: r.right,
-             past: Math.max(r.right - (box.right - right), box.left + left - r.left) };
-}"""
 # The room the document leaves at each end for chrome standing over it, beside the
 # floating panel's footprint at the window's foot: from its row's top edge down. The
 # room is in the flow, so the reading is the flow's own: what stands above the page's
@@ -1027,32 +1074,6 @@ CHROME_ROOM = """() => {
              foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
              panel: row.height ? innerHeight - row.top : 0 };
 }"""
-# The same reading taken at the stamp, which is the one moment nothing out here can
-# reach: a MutationObserver's callback is a microtask off the stamp's own write.
-AT_THE_HANDOVER = (
-    "window.__handover = null;\n"
-    "new MutationObserver(() => { window.__handover ??= (" + RAIL_FIT + ")(); })\n"
-    '  .observe(document, { subtree: true, attributeFilter: ["data-lf-upgraded"] });'
-)
-LATE_MARGIN_PAGE = leaf_page(
-    "late margin",
-    """
-<h1 id="t">Release</h1>
-<lf-callout id="marginal"><strong>Note</strong> Its controls hang in the margin.</lf-callout>
-<lf-board id="plan">
-  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong></lf-card></lf-column>
-  <lf-column id="r2" label="Doing"></lf-column>
-  <lf-column id="r3" label="Done"></lf-column>
-</lf-board>
-""",
-)
-
-# A project widget that stands in the page's right margin and states the room it takes
-# there, and can only say how wide once it has heard what its controls will say — so the
-# statement rides an answer rather than the upgrade that asked for it. The request is
-# answered by the test, which is what puts it after the handover on every machine rather
-# than on a fast one.
-LATE_MARGIN_WIDGET = browser_source("widgets/late-margin.js")
 # Where the two things in the right margin stand, and how much of the board is over the
 # controls. The controls stand in the rail, and they hang off the column rather than out
 # of the rail's strip, so the strip's own edge says nothing about where they are.
@@ -1101,8 +1122,7 @@ RAIL_BANDS = """() => {
                    (box(r).left + box(r).right) / 2, (box(r).top + box(r).bottom) / 2)) })),
              plan: box(document.getElementById('plan')),
              later: box(document.getElementById('later')),
-             column: { left: mb.left + parseFloat(ms.paddingLeft),
-                       right: mb.right - parseFloat(ms.paddingRight) },
+             column: box(document.querySelector("main h1")),
              pageLeft: bb.left + parseFloat(bs.paddingLeft),
              pageGutter: parseFloat(ms.paddingLeft),
              pageRight: bb.right - parseFloat(bs.paddingRight) };
@@ -1215,9 +1235,9 @@ NOTE_AND_WIDE_PAGE = leaf_page(
     "room and margin",
     """
 <h1 id="t">Feeders</h1>
-<p id="prose">The board is as wide as its columns are; this sentence is not.</p>
-<aside class="sidenote" id="note">Counts are the warden's own, taken at dawn from the
-south hide, and the perch numbers are the ones she disputes.</aside>
+<div class="layout-note"><p id="prose">The board is as wide as its columns are; this sentence is not.</p>
+<aside class="note" id="note">Counts are the warden's own, taken at dawn from the
+south hide, and the perch numbers are the ones she disputes.</aside></div>
 <lf-board id="sprint">
   <lf-column id="col-todo" label="Todo">
     <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
@@ -1237,7 +1257,7 @@ it reaches this part of the page.</p>
   <lf-column id="late-done" label="Done"></lf-column>
 </lf-board>
 """,
-)
+).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 
 # Wide enough for a note to hang in the margin with the column centred, the room
 # either side of it holding the note's 384px, with an exhibit growing past prose into

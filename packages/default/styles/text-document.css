@@ -18,7 +18,7 @@ lf-text-document > .lf-text-document-view {
    under the reading measure its rule stopped 53px short of a 795px frame. Before the
    document draws, the host stands in for its frame and caption (below). */
 lf-text-document figcaption,
-html[data-lf-interactive] lf-text-document:not(:has(> *))::before {
+html[data-lf-interactive] lf-text-document:not(:has(> :not(pre)))::before {
   max-inline-size: none;
   padding: 7px 11px;
   border-bottom: 1px solid var(--rule);
@@ -78,8 +78,10 @@ lf-text-document code[data-code] {
    inside the box rather than at full length in the page.
 
    The module draws the figure once it loads, after first paint, so until then the
-   empty host wears the figure's frame, draws its label as the caption, wrapping as the
-   caption will, and keeps the room the tab strip and the box will take. */
+   host wears the figure's frame in place of its written `<pre>`, draws its label as the
+   caption, wrapping as the caption will, and keeps the room the tab strip and the box
+   will take. Without the runtime, as in a page read with scripts off, the `<pre>`
+   shows its text. */
 @media screen {
   lf-text-document[data-lf-bound] {
     max-block-size: none;
@@ -95,7 +97,7 @@ lf-text-document code[data-code] {
   lf-text-document:not([preview])[data-lf-bound] {
     --lf-bound-box: .lf-text-document-listing > pre;
   }
-  html[data-lf-interactive] lf-text-document:not(:has(> *)) {
+  html[data-lf-interactive] lf-text-document:not(:has(> :not(pre))) {
     border: 1px solid var(--code-border);
     border-radius: var(--r);
     background: var(--pre-bg);
@@ -105,6 +107,9 @@ lf-text-document code[data-code] {
     }
     &:not([label])::before {
       content: attr(source);
+    }
+    & > pre {
+      display: none;
     }
     &::after {
       content: "";
@@ -139,7 +144,7 @@ lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible])::af
   z-index: 1;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
+  outline-offset: var(--focus-ring-inset);
 }
 lf-text-document .lf-text-document-listing:has(> pre[data-lf-focus-visible]) {
   --lf-wears-ring: 1;

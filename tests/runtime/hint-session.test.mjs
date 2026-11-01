@@ -11,13 +11,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createHintSession, hintCodes } from "/runtime/keyboard/hints.js";
+import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
 import { html } from "/runtime/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
 const KEYS = ["a", "s", "d"];
+
+test("generated addresses retain members and expand the last shortest leaf", () => {
+  const members = Array.from({ length: 5 }, (_, id) => ({ id }));
+  assert.deepEqual(codedHints(members, "ad"), [
+    { id: 0, code: "aa" },
+    { id: 1, code: "ad" },
+    { id: 2, code: "da" },
+    { id: 3, code: "dda" },
+    { id: 4, code: "ddd" },
+  ]);
+});
 
 let sessions = 0;
 
@@ -45,8 +56,10 @@ function hintMap(t, names) {
     layer,
     walk: `hint-session-${++sessions}`,
     read: () => {
-      const codes = hintCodes(inView.length, KEYS);
-      return inView.map((name, at) => ({ name, member: link(name), code: codes[at] }));
+      return codedHints(
+        inView.map((name) => ({ name, member: link(name) })),
+        KEYS.join(""),
+      );
     },
     identity: (candidate) => candidate.member,
     scene: () => ({}),
@@ -91,8 +104,8 @@ function hintMap(t, names) {
     taken,
     links,
     show: (names) => (inView = names),
-    tab: () => walk.run("Tab"),
-    shiftTab: () => walk.run("Shift+Tab"),
+    tab: () => walk.runKey("Tab"),
+    shiftTab: () => walk.runKey("Shift+Tab"),
     enter: () => choose.run(),
     canChoose: () => choose.when(),
     // The codes of the chips on screen, and the one the walk stands on.

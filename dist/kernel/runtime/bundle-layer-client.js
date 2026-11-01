@@ -1,13 +1,13 @@
-import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, actionIcon, actionName, actionOffers, commandsChangedOn, failureContext, failureOf, iconMarkup, isNativeLayer, nextRender, refuseCommands, renderedParent, showAction, under } from "./bundle-portable.js";
-import { AsyncDirective, CARET_KEYS, DELIVERY, Directive, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, describeFailure, directive, focusDestination, focusRevision, focused, html, keeps, keepsText, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, x } from "./bundle-layer-stack.js";
+import { ANNOUNCE, COMMANDS, PAGE_PAINT_ATTRIBUTE, ROLE_BUTTON_OFFER, actionName, actionTemplate, commandsChangedOn, elementDirective, exceptionText, failureContext, failureOf, generatedElement, isNativeLayer, keeps, keepsText, nextRender, offer, offerAction, refuseCommands, renderedParent, renderedUnder, showAction, under } from "./bundle-portable.js";
+import { AsyncDirective, CARET_KEYS, DELIVERY, PAGE_ROOT, PRESSES, PartType, TEXT_BOX, WORKS, Z, coarsePointer, controlNavigationKeys, directive, focusDestination, focusRevision, focused, html, leafSays, move, nothing, offlineInteractive, onCurrentLocation, onFocusVisibility, pageShadowRoots, pageUrl, pressIsKeyboardActivation, render, runtime, showNativeLayer, tagsDeclaring, takesLetters, wordsText, x } from "./bundle-layer-stack.js";
 
 //#region runtime/root-state.js
-const setRuntimeRootAttribute = (...args) => document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
-const setRuntimeRootStyle = (...args) => document.documentElement.lfInitial.setRuntimeRootStyle(...args);
-const removeRuntimeRootStyle = (...args) => document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
+const setRuntimeRootAttribute = (...args) => window.lfRootState.setRuntimeRootAttribute(...args);
+const setRuntimeRootStyle = (...args) => window.lfRootState.setRuntimeRootStyle(...args);
+const removeRuntimeRootStyle = (...args) => window.lfRootState.removeRuntimeRootStyle(...args);
 const runtimeRootState = (root) => ({
-	attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),
-	styles: document.documentElement.lfInitial.runtimeRootStyles(root)
+	attributes: window.lfRootState.attributes(root),
+	styles: window.lfRootState.styles(root)
 });
 
 //#endregion
@@ -43,9 +43,8 @@ const randomId = () => Array.from(crypto.getRandomValues(/* @__PURE__ */ new Uin
 
 //#endregion
 //#region runtime/interaction-log.js
-const enabled = PAGE_ROOT !== null;
-const url = enabled ? new URL("api/interaction", PAGE_ROOT).href : null;
-const root = enabled ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
+const url = PAGE_ROOT !== null ? new URL("api/interaction", PAGE_ROOT).href : null;
+const root = PAGE_ROOT !== null ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = randomId();
 const queue = [];
 const MAX_PENDING_ENTRIES = 512;
@@ -80,8 +79,11 @@ function locator(node) {
 	return `${node.localName}${id}${named}`;
 }
 function nodeIdentity(node) {
-	if (!nodeIds.has(node)) nodeIds.set(node, ++nextNodeId);
-	return nodeIds.get(node);
+	const previous = nodeIds.get(node);
+	if (previous !== void 0) return previous;
+	const id = ++nextNodeId;
+	nodeIds.set(node, id);
+	return id;
 }
 function targetValue(target) {
 	if (target instanceof window.HTMLInputElement) {
@@ -91,7 +93,7 @@ function targetValue(target) {
 		};
 		return { value: target.value };
 	}
-	if (target instanceof Element && target.matches(`${TEXT_BOX}, select`)) return { value: target.value };
+	if (target instanceof Element && "value" in target && target.matches(`${TEXT_BOX}, select`)) return { value: target.value };
 	if (target instanceof HTMLElement && target.isContentEditable) return { value: target.textContent };
 	return {};
 }
@@ -178,7 +180,7 @@ function describe(event) {
 	].includes(event.type)) entry.location = `${pagePath(location.pathname)}${location.hash}`;
 	if (event.type === "resize") entry.viewport = [window.innerWidth, window.innerHeight];
 	if (event.type === "visibilitychange") entry.visibility = document.visibilityState;
-	if (["beforetoggle", "toggle"].includes(event.type) && target instanceof Element) entry.open = target.open === true || isNativeLayer(target);
+	if (["beforetoggle", "toggle"].includes(event.type) && target instanceof Element) entry.open = "open" in target && target.open === true || isNativeLayer(target);
 	if (event.type === "fullscreenchange") entry.fullscreen = document.fullscreenElement ? {
 		target: locator(document.fullscreenElement),
 		node: nodeIdentity(document.fullscreenElement)
@@ -205,7 +207,7 @@ function append(row) {
 	queue.push(row);
 }
 function enqueue(entry) {
-	if (!enabled) return;
+	if (url === null) return;
 	const common = {
 		observed_at: timestamp(),
 		monotonic_ms: performance.now(),
@@ -238,8 +240,8 @@ function batch(start, maxBytes) {
 	const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
 	let bytes = encoder.encode(prefix).length + 2;
 	let count = 0;
-	while (start + count < queue.length && count < 100) {
-		const size = queue[start + count].bytes + (count ? 1 : 0);
+	for (const row of queue.slice(start, start + 100)) {
+		const size = row.bytes + (count ? 1 : 0);
 		if (count && bytes + size > maxBytes) break;
 		bytes += size;
 		count++;
@@ -249,8 +251,8 @@ function batch(start, maxBytes) {
 		body: `${prefix}${queue.slice(start, start + count).map((row) => row.body).join(",")}]}`
 	};
 }
-function post(body) {
-	return fetch(url, {
+function post(body, destination) {
+	return fetch(destination, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body,
@@ -259,13 +261,13 @@ function post(body) {
 	});
 }
 async function flush() {
-	if (sending || !queue.length) return;
+	if (url === null || sending || !queue.length) return;
 	sending = true;
 	const { count, body } = batch(0, 1e5);
 	inFlightCount = count;
 	let delay = 250;
 	try {
-		const response = await post(body);
+		const response = await post(body, url);
 		if (response.status >= 400 && response.status < 500) {
 			console.error(`Leaf interaction log rejected ${count} records: ${response.status}`);
 			queue.splice(0, count);
@@ -287,7 +289,7 @@ function recordInteraction(type, detail = {}) {
 		...detail
 	});
 }
-if (enabled) {
+if (url !== null) {
 	for (const type of [
 		"pointerdown",
 		"pointerup",
@@ -361,6 +363,7 @@ if (enabled) {
 	});
 	new window.PerformanceObserver((list) => {
 		for (const resource of list.getEntries()) {
+			if (!(resource instanceof PerformanceResourceTiming)) continue;
 			if (resource.name.startsWith(url)) continue;
 			const resourceUrl = new URL(resource.name);
 			if (pagePath(resourceUrl.pathname) === "/api/news") continue;
@@ -387,9 +390,69 @@ if (enabled) {
 		for (let start = 0; start < queue.length;) {
 			const { count, body } = batch(start, 48e3);
 			start += count;
-			post(body).catch(() => {});
+			post(body, url).catch(() => {});
 		}
 	}, true);
+}
+
+//#endregion
+//#region runtime/native-selection.js
+function pageRange(sel) {
+	const plain = sel.getRangeAt(0);
+	const shadowRoots = pageShadowRoots();
+	if (!shadowRoots.length) return plain;
+	const [composed] = sel.getComposedRanges({ shadowRoots });
+	if (!composed) return plain;
+	const { startContainer, startOffset, endContainer, endOffset } = composed;
+	if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
+	const range = document.createRange();
+	range.setStart(startContainer, startOffset);
+	range.setEnd(endContainer, endOffset);
+	return range;
+}
+let writtenSelection = null;
+let writtenBackward = false;
+function selectEnds(anchor, focus) {
+	const selection = getSelection();
+	if (!selection) return;
+	const from = document.createRange(), to = document.createRange();
+	from.setStart(...anchor);
+	to.setStart(...focus);
+	writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
+	selection.setBaseAndExtent(...anchor, ...focus);
+	writtenSelection = selectionEnds(selection);
+}
+const selectionEnds = (selection) => {
+	const range = selection.rangeCount ? pageRange(selection) : null;
+	return [
+		selection.anchorNode,
+		selection.anchorOffset,
+		selection.focusNode,
+		selection.focusOffset,
+		range?.startContainer,
+		range?.startOffset,
+		range?.endContainer,
+		range?.endOffset
+	];
+};
+function programmaticSelection(selection) {
+	if (!selection) {
+		writtenSelection = null;
+		return false;
+	}
+	const written = writtenSelection;
+	if (!written) return false;
+	if (selectionEnds(selection).every((end, i) => end === written[i])) return true;
+	writtenSelection = null;
+	return false;
+}
+function selectionBackward(selection, range = pageRange(selection)) {
+	const anchor = selection.anchorNode;
+	if (!anchor) return false;
+	if (anchor.getRootNode() !== range.commonAncestorContainer.getRootNode()) return programmaticSelection(selection) ? writtenBackward : selection.direction === "backward";
+	const probe = document.createRange();
+	probe.setStart(anchor, selection.anchorOffset);
+	return probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
 }
 
 //#endregion
@@ -416,10 +479,10 @@ const MODIFIERS = [
 	"Shift"
 ];
 const parsed = (binding) => {
-	const mods = binding.split("+");
+	const separator = binding.lastIndexOf("+");
 	return {
-		key: mods.pop(),
-		mods
+		key: binding.slice(separator + 1),
+		mods: separator < 0 ? [] : binding.slice(0, separator).split("+")
 	};
 };
 const spell = (binding) => {
@@ -464,8 +527,8 @@ const contextualRoute = (route, command) => ({
 	[ROUTED_COMMAND]: command
 });
 const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
-const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
-const setQuickShortcuts = (on) => document.documentElement.lfKeyboard.setQuick(on);
+const quickShortcuts = () => window.lfKeyboard.quick;
+const setQuickShortcuts = (on) => window.lfKeyboard.setQuick(on);
 const bindingEnabledFor = (binding, quick) => {
 	const { key, mods } = parsed(binding);
 	return quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
@@ -479,7 +542,7 @@ const commandEntries = (row, active = bindings(row), { includeUnavailable = fals
 		binding: active[0],
 		route: null
 	}] : [];
-	return routes.filter((route) => (includeUnavailable || commandAvailable(row, route)) && (active.includes(route.binding) || contextBindings(route).some((binding) => active.includes(binding)))).map((route) => ({
+	return routes.filter((route) => (includeUnavailable || commandAvailable(row, route)) && (route.binding !== void 0 && active.includes(route.binding) || contextBindings(route).some((binding) => active.includes(binding)))).map((route) => ({
 		id: route.id,
 		binding: route.binding ?? active.find((binding) => contextBindings(route).includes(binding)),
 		route
@@ -509,7 +572,7 @@ function controlAvailabilityOutput(control, owner, fields = null) {
 }
 function disabledByFieldset(control) {
 	for (let parent = control.parentElement; parent; parent = parent.parentElement) {
-		if (parent.localName !== "fieldset" || !parent.disabled) continue;
+		if (!(parent instanceof HTMLFieldSetElement) || !parent.disabled) continue;
 		if (![...parent.children].find((child) => child.localName === "legend")?.contains(control)) return true;
 	}
 	return false;
@@ -616,6 +679,7 @@ function decisionControls(commands, where = "an obligation") {
 				label,
 				description,
 				recommended: Boolean(contribution.recommended ?? row.recommended),
+				commits: Boolean(contribution.commits ?? row.commits),
 				bindingBadge,
 				intrinsicBindings: active,
 				command: Object.freeze({
@@ -650,6 +714,7 @@ function answers(binding, ev) {
 	if (key.length === 1 && key.toLowerCase() !== key.toUpperCase()) return ev.key.toLowerCase() === key.toLowerCase() && ev.shiftKey === shift;
 	return key === " " || key.length > 1 ? ev.key === key && ev.shiftKey === shift : ev.key === key && (!shift || ev.shiftKey);
 }
+const declaresCommandHandler = (row, handler) => Boolean(Object.getOwnPropertyDescriptor(row, handler)?.get) || typeof row[handler] === "function";
 function checked(rows, where, ready) {
 	declareCommandReadiness(rows, ready);
 	const ids = /* @__PURE__ */ new Map();
@@ -666,11 +731,13 @@ function checked(rows, where, ready) {
 	rows.forEach((row, i) => {
 		if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
 		named(row);
+		const declaresRun = declaresCommandHandler(row, "run");
+		const declaresRunKey = declaresCommandHandler(row, "runKey");
 		if (row.decision && row.control == null) throw new Error(`leaf: ${row.id} is a Decision command with no control`);
 		if (row.lands !== void 0 && typeof row.lands !== "function") throw new TypeError(`leaf: ${row.id} lands must be a function`);
-		if (row.native && !row.run) throw new Error(`leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`);
-		if (row.exit && (!row.run || row.touch || row.routes)) throw new Error(`leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`);
-		if (row.touch && (!row.run || row.routes)) throw new Error(`leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`);
+		if (row.native && !declaresRun && !declaresRunKey) throw new Error(`leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`);
+		if (row.exit && (!declaresRun || row.touch || row.routes)) throw new Error(`leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`);
+		if (row.touch && (!declaresRun || row.routes)) throw new Error(`leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`);
 		const routes = commandRoutes(row);
 		if (routes.length && contextBindings(row).length) throw new Error(`leaf: ${row.id} owns distinct routes; declare contextKeys on each route`);
 		const declared = declaredBindings(row);
@@ -679,8 +746,9 @@ function checked(rows, where, ready) {
 		for (const route of routes) {
 			named(route);
 			if (route.decision && route.control == null && row.control == null) throw new Error(`leaf: route ${route.id} of ${row.id} is a Decision command with no control`);
-			if (!declared.includes(route.binding) && !contextBindings(route).length) throw new Error(`leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`);
-			for (const [bindings, owners] of [[[route.binding].filter(Boolean), routed], [contextBindings(route), contextual]]) for (const binding of bindings) {
+			if ((route.binding === void 0 || !declared.includes(route.binding)) && !contextBindings(route).length) throw new Error(`leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`);
+			const routeBindings = [[route.binding === void 0 ? [] : [route.binding], routed], [contextBindings(route), contextual]];
+			for (const [bindings, owners] of routeBindings) for (const binding of bindings) {
 				const prior = owners.get(binding);
 				if (prior && prior !== route) throw new Error(`leaf: ${row.id} routes ${binding} twice`);
 				owners.set(binding, route);
@@ -700,17 +768,27 @@ function checked(rows, where, ready) {
 }
 const PRESS = ["Enter", " "];
 const rowArrows = (node) => node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
-const clampedRow = (rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) => {
+function clampedRow(rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) {
 	if (!rows.length) return void 0;
-	const at = rows.indexOf(current);
+	const at = rows.findIndex((row) => row === current);
 	const next = at < 0 ? entry : at + dir;
 	return rows[Math.max(0, Math.min(rows.length - 1, next))];
-};
-const cycledRow = (rows, current, dir) => {
+}
+const hasRows = (rows) => rows.length > 0;
+function cycledRow(rows, current, dir) {
 	if (!rows.length) return void 0;
-	const at = rows.indexOf(current);
+	const at = rows.findIndex((row) => row === current);
 	return rows[((at < 0 ? dir > 0 ? 0 : rows.length - 1 : at + dir) + rows.length) % rows.length];
-};
+}
+function nativePress(control) {
+	return control instanceof HTMLElement && control.isConnected ? () => control.click() : null;
+}
+function commandRun(row, binding, control = word(row.control)) {
+	const keyed = row.runKey;
+	const action = row.run;
+	if (keyed && binding != null) return () => keyed(binding);
+	return action ?? nativePress(control);
+}
 
 //#endregion
 //#region runtime/keyboard/text-entry.js
@@ -737,7 +815,7 @@ function nativeClaimAt(control) {
 const LINK = "a[href], area[href]";
 const ACTIVATION = [
 	[LINK, ["Enter"]],
-	["button, details > summary, input:is([type=\"button\"], [type=\"submit\"], [type=\"reset\"], [type=\"image\"])", PRESS],
+	[`button, ${ROLE_BUTTON_OFFER}, details > summary, input:is([type="button"], [type="submit"], [type="reset"], [type="image"])`, PRESS],
 	["input:is([type=\"checkbox\"], [type=\"radio\"])", [" "]]
 ];
 function nativeActivationAt(control) {
@@ -757,12 +835,12 @@ function mountRepaint(slots) {
 	requestFrame();
 }
 function requestFrame() {
-	if (!painters || frame) return;
+	const p = painters;
+	if (!p || frame) return;
 	frame = nextRender(() => {
 		frame = 0;
 		const shiftPage = movePage;
 		movePage = false;
-		const p = painters;
 		p.reflectFirstScopes?.();
 		p.markHere?.();
 		p.paintCurrentLocation?.();
@@ -791,7 +869,7 @@ function repaintPage() {
 
 //#endregion
 //#region runtime/keyboard/scopes.js
-const unpainted = /* @__PURE__ */ new Set();
+const unpainted = /* @__PURE__ */ new Map();
 let buttonsDirty = true;
 const wiredButtons = /* @__PURE__ */ new WeakSet();
 const buttonReadings = /* @__PURE__ */ new WeakMap();
@@ -832,29 +910,33 @@ function buttonDeclarations() {
 	for (const { source, scope } of nativeCommandScopes()) {
 		if (scope.contextual || scope.sequence) continue;
 		for (const row of scope.rows) {
-			if (!row.run) continue;
+			if (!row.run && !row.runKey) continue;
 			const routes = commandRoutes(row);
 			for (const entry of routes.length ? routes : [row]) {
 				const control = word(entry.control ?? row.control);
 				if (!(control instanceof HTMLButtonElement) || !control.isConnected) continue;
 				if (projectedOnto(control, scope)) continue;
-				if (!declarations.has(control)) declarations.set(control, []);
-				const candidates = declarations.get(control);
-				if (!candidates.some((candidate) => candidate.row === row && candidate.entry.id === entry.id)) candidates.push({
+				const run = commandRun(row, commandBinding(row, entry === row ? null : entry), null);
+				if (!run) continue;
+				const candidate = {
 					source,
 					scope,
 					row,
+					run,
 					entry
-				});
+				};
+				const candidates = declarations.get(control);
+				if (!candidates) declarations.set(control, [candidate]);
+				else if (!candidates.some((candidate) => candidate.row === row && candidate.entry.id === entry.id)) candidates.push(candidate);
 			}
 		}
 	}
 	return declarations;
 }
 function chosenCommand(candidates) {
-	const available = candidates.filter(({ scope, row, entry }) => (!scope.when || scope.when()) && declaredCommandAvailable(row, entry === row ? null : entry));
-	if (available.length > 1) throw new TypeError(`leaf: ${available[1].entry.id} shares a button with ${available[0].entry.id}`);
-	return available[0] ?? candidates[0];
+	const [first, second] = candidates.filter(({ scope, row, entry }) => (!scope.when || scope.when()) && declaredCommandAvailable(row, entry === row ? null : entry));
+	if (first && second) throw new TypeError(`leaf: ${second.entry.id} shares a button with ${first.entry.id}`);
+	return first ?? candidates[0];
 }
 function buttonCommands() {
 	return new Map([...buttonDeclarations()].map(([control, candidates]) => [control, chosenCommand(candidates)]));
@@ -862,11 +944,13 @@ function buttonCommands() {
 function releaseButtons(declarations) {
 	for (const ref of scopeRefs) {
 		const control = ref.deref();
-		if (!control || !buttonBaselines.has(control) || declarations.has(control)) continue;
+		if (!(control instanceof HTMLButtonElement) || declarations.has(control)) continue;
+		const baseline = buttonBaselines.get(control);
+		if (!baseline) continue;
 		buttonReadings.delete(control);
 		buttonAvailability.get(control)?.();
 		buttonAvailability.delete(control);
-		const { disabled, ariaDisabled } = buttonBaselines.get(control);
+		const { disabled, ariaDisabled } = baseline;
 		if (control.disabled !== disabled) control.disabled = disabled;
 		keeps(control, "aria-disabled", ariaDisabled);
 		buttonBaselines.delete(control);
@@ -877,12 +961,15 @@ function releaseButtons(declarations) {
 }
 const buttonAvailability = /* @__PURE__ */ new WeakMap();
 const buttonCandidates = /* @__PURE__ */ new WeakMap();
-const sameCandidates = (left, right) => left?.length === right.length && right.every((candidate, index) => candidate.scope === left[index].scope && candidate.row === left[index].row && candidate.entry === left[index].entry);
+const sameCandidates = (left, right) => left?.length === right.length && right.every((candidate, index) => candidate.scope === left?.[index]?.scope && candidate.row === left?.[index]?.row && candidate.entry === left?.[index]?.entry);
 function reflectButton(control, candidates) {
 	buttonAvailability.get(control)?.();
 	buttonCandidates.set(control, candidates);
 	const ref = new WeakRef(control);
-	let reading = candidates;
+	let reading = {
+		control,
+		candidates
+	};
 	let failure = null;
 	const dispose = x(() => {
 		if (reading) {
@@ -890,11 +977,11 @@ function reflectButton(control, candidates) {
 			reading = null;
 			try {
 				focusRevision();
-				const command = chosenCommand(read);
+				const command = chosenCommand(read.candidates);
 				const { scope, row, entry } = command;
 				const disabled = Boolean(scope.when && !scope.when() || !commandAvailable(row, entry === row ? null : entry));
-				keeps(ref.deref(), "aria-disabled", disabled ? "true" : null);
-				buttonReadings.set(ref.deref(), command);
+				keeps(read.control, "aria-disabled", disabled ? "true" : null);
+				buttonReadings.set(read.control, command);
 			} catch (error) {
 				failure = error;
 			}
@@ -936,25 +1023,24 @@ function wireButton(control) {
 		if (!command) return;
 		event.preventDefault();
 		if (command.scope.when && !command.scope.when() || !commandAvailable(command.row, command.entry === command.row ? null : command.entry)) return;
-		runLanding(command.row, () => command.row.run(commandBinding(command.row, command.entry === command.row ? null : command.entry)), control);
+		runLanding(command.row, command.run, control);
 	});
 }
 function wireDeclaredButtons(scope) {
 	if (scope.contextual || scope.sequence) return;
 	for (const row of scope.rows) {
-		if (!row.run || typeof row.routes === "function") continue;
+		if (!declaresCommandHandler(row, "run") && !declaresCommandHandler(row, "runKey") || typeof row.routes === "function") continue;
 		for (const entry of row.routes?.length ? row.routes : [row]) {
 			const control = entry.control ?? row.control;
 			if (control instanceof HTMLButtonElement && !projectedOnto(control, scope)) wireButton(control);
 		}
 	}
 }
-const either = (a, b) => a && b ? () => a() || b() : void 0;
 const elementScopes = /* @__PURE__ */ new WeakMap();
 const projectedScopes = /* @__PURE__ */ new WeakMap();
 const commandScopeCapabilities = /* @__PURE__ */ new WeakSet();
 const scopeIdentity = (scope) => scope.identity ?? scope;
-const isCommandScope = (capability) => capability != null && commandScopeCapabilities.has(capability);
+const isCommandScope = (capability) => capability != null && (typeof capability === "object" || typeof capability === "function") && commandScopeCapabilities.has(capability);
 const localContexts = /* @__PURE__ */ new WeakMap();
 function localContext(source, scope) {
 	let contexts = localContexts.get(source);
@@ -980,7 +1066,7 @@ function localContext(source, scope) {
 	return contextual;
 }
 const scopesAt = (element) => {
-	return [elementScopes.get(element), ...projectedScopes.get(element)?.values() ?? []].filter(Boolean).flatMap((scope) => scope.contextual ? [scope] : [scope, localContext(element, scope)]);
+	return [elementScopes.get(element), ...projectedScopes.get(element)?.values() ?? []].filter((scope) => scope !== void 0).flatMap((scope) => scope.contextual ? [scope] : [scope, localContext(element, scope)]);
 };
 const contextRowsBySource = /* @__PURE__ */ new WeakMap();
 function contextRows(declarations) {
@@ -999,7 +1085,7 @@ function contextRows(declarations) {
 					title: () => titleOf(row),
 					description: () => descriptionOf(row),
 					get keys() {
-						return this.routes.map(({ binding }) => binding);
+						return commandRoutes(this).flatMap(({ binding }) => binding === void 0 ? [] : [binding]);
 					},
 					get routes() {
 						return contributions().flatMap((contribution) => {
@@ -1009,7 +1095,7 @@ function contextRows(declarations) {
 								source,
 								scope,
 								row,
-								binding: commandBinding(row, contribution === row ? null : contribution),
+								binding: commandBinding(row, contribution === row ? null : contribution) ?? null,
 								get control() {
 									return word(contribution.control ?? row.control);
 								}
@@ -1069,33 +1155,15 @@ function forgetScopedElement(el) {
 	if (ref) scopeRefs.delete(ref);
 	scopeRefFor.delete(el);
 }
-function merge(sections, { title, when, at, liveInCommandReference, rows }) {
-	if (when && !when()) return;
-	const seen = sections.get(title);
-	if (!seen) {
-		sections.set(title, {
-			title,
-			when,
-			at,
-			liveInCommandReference,
-			rows: new Map(rows)
-		});
-		return;
-	}
-	for (const [key, row] of rows) seen.rows.set(key, row);
-	seen.when = either(seen.when, when);
-	seen.at = either(seen.at, at);
-	seen.liveInCommandReference ||= liveInCommandReference;
-}
 function attachScope(where, declaration) {
 	const scope = {
 		...declaration,
 		el: where,
 		validated: false
 	};
-	unpainted.delete(elementScopes.get(where));
+	unpainted.delete(where);
 	elementScopes.set(where, scope);
-	unpainted.add(scope);
+	unpainted.set(where, scope);
 	wireDeclaredButtons(scope);
 	rememberScopedElement(where);
 	buttonsDirty = true;
@@ -1104,7 +1172,7 @@ function attachScope(where, declaration) {
 }
 function detachScope(element, scope) {
 	if (elementScopes.get(element) !== scope) return false;
-	unpainted.delete(scope);
+	unpainted.delete(element);
 	elementScopes.delete(element);
 	forgetScopedElement(element);
 	buttonsDirty = true;
@@ -1113,7 +1181,7 @@ function detachScope(element, scope) {
 }
 function declaredScope(title, rows, options) {
 	const { when, escape, ready, claims } = typeof options === "function" ? { when: options } : options ?? {};
-	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be \"inner\", got ${String(escape)}`);
+	if (escape !== void 0 && escape !== "inner") throw new TypeError(`A command scope's Escape ownership must be "inner", got ${String(escape)}`);
 	return {
 		title,
 		rows: checked(rows, title ?? "a scope", ready),
@@ -1123,32 +1191,39 @@ function declaredScope(title, rows, options) {
 		claims
 	};
 }
-function keys(where, title, rows, options) {
-	if (rows === void 0 && isCommandScope(title)) return attachScope(where, title.scope).rows;
+function keys(where, ...declaration) {
+	if (declaration[1] === void 0) return attachScope(where, declaration[0].scope).rows;
+	const [title, rows, options] = declaration;
 	return attachScope(where, declaredScope(title, rows, options)).rows;
 }
 const commandsOn = directive(class extends AsyncDirective {
-	#element;
-	#declaration;
-	#scope = null;
+	#reconnect = () => {};
+	#disconnect = () => {};
 	constructor(part) {
 		super(part);
 		if (part.type !== PartType.ELEMENT) throw new TypeError("commandsOn belongs in a template's element part");
 	}
-	render(title, rows, options) {
+	render(_title, _rows, _options) {
 		return nothing;
 	}
-	update(part, [title, rows, options]) {
-		this.#element = part.element;
-		this.#declaration = rows === void 0 && isCommandScope(title) ? title.scope : declaredScope(title, typeof rows === "function" ? rows(part.element) : rows, options);
+	update(part, values) {
+		const element = part.element;
+		const declaration = values[1] === void 0 ? values[0].scope : declaredScope(values[0], typeof values[1] === "function" ? values[1](element) : values[1], values[2]);
+		let scope = null;
+		this.#reconnect = () => {
+			scope = attachScope(element, declaration);
+		};
+		this.#disconnect = () => {
+			if (detachScope(element, scope)) repaint();
+		};
 		if (this.isConnected) this.reconnected();
 		return nothing;
 	}
 	reconnected() {
-		this.#scope = attachScope(this.#element, this.#declaration);
+		this.#reconnect();
 	}
 	disconnected() {
-		if (detachScope(this.#element, this.#scope)) repaint();
+		this.#disconnect();
 	}
 });
 const declared = /* @__PURE__ */ new WeakMap();
@@ -1211,7 +1286,8 @@ function scopesWithin(root, activeOnly) {
 		const scoped = ref.deref();
 		if (!scoped?.isConnected) continue;
 		let inside = false;
-		for (let node = scoped; node; node = renderedParent(node)) if (node === root) {
+		let node = scoped;
+		for (; node; node = renderedParent(node)) if (node === root) {
 			inside = true;
 			break;
 		}
@@ -1261,8 +1337,8 @@ function reflectElementShortcuts(element) {
 }
 function reflectFirstScopes() {
 	reflectButtonsTracked();
-	for (const scope of [...unpainted]) {
-		unpainted.delete(scope);
+	for (const [element, scope] of unpainted) {
+		unpainted.delete(element);
 		reflectTracked(scope.el);
 	}
 }
@@ -1324,14 +1400,15 @@ function reflectButtonsTracked() {
 function reflectTracked(element) {
 	tracked.get(element)?.();
 	const ref = new WeakRef(element);
-	let first = true;
+	let initial = element;
 	let failure = null;
 	const dispose = x(() => {
-		if (first) {
-			first = false;
+		if (initial) {
+			const current = initial;
+			initial = null;
 			try {
 				focusRevision();
-				reflectElementShortcuts(ref.deref());
+				reflectElementShortcuts(current);
 			} catch (error) {
 				failure = error;
 			}
@@ -1386,7 +1463,7 @@ const spoken = (row) => {
 	return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
 function scopesFor(node) {
-	const contexts = [...contextScopeReaders].map((read) => read(node)).filter(Boolean);
+	const contexts = [...contextScopeReaders].map((read) => read(node)).filter((scope) => scope !== null);
 	const found = [];
 	const seen = /* @__PURE__ */ new Set();
 	const collect = (start) => {
@@ -1409,20 +1486,6 @@ function scopesFor(node) {
 const claimsEsc = (node) => scopesFor(node).some((scope) => scope.rows.some((row) => live(row) && bindings(row).includes("Escape")));
 
 //#endregion
-//#region runtime/icons.js
-function iconTemplate(icon, className = "lf-margin-entry-icon") {
-	return html`<svg
-    viewBox="0 0 16 16"
-    focusable="false"
-    aria-hidden="true"
-    class=${className}
-    data-lf-icon=${icon}
-    .innerHTML=${iconMarkup(icon)}
-  ></svg>`;
-}
-const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
-
-//#endregion
 //#region runtime/widget-elements.js
 function reveal(el, mayReveal) {
 	const chain = [];
@@ -1432,13 +1495,13 @@ function reveal(el, mayReveal) {
 	chain.reverse();
 	for (const [at, a] of chain.entries()) {
 		if (!mayReveal()) break;
-		if (a.tagName === "DETAILS" && !a.open) a.open = true;
-		if (a.hasAttribute?.("popover") && !isNativeLayer(a)) showNativeLayer(a, { modal: false });
+		if (a instanceof HTMLDetailsElement && !a.open) a.open = true;
+		if (a instanceof HTMLElement && a.hasAttribute("popover") && !isNativeLayer(a)) showNativeLayer(a, { modal: false });
 		if (a.getAttribute?.("hidden") !== "until-found") continue;
-		const shown = [...a.parentNode?.children ?? []].filter((s) => !s.hidden);
+		const shown = [...a.parentNode?.children ?? []].filter((s) => !("hidden" in s && s.hidden));
 		a.dispatchEvent(new Event("beforematch", { bubbles: true }));
 		a.removeAttribute("hidden");
-		if (shown.some((sibling) => sibling.hidden)) replacedView = true;
+		if (shown.some((sibling) => "hidden" in sibling && sibling.hidden)) replacedView = true;
 		for (const owner of chain.slice(0, at + 1)) if (owner.updateComplete?.then) settling.add(owner.updateComplete);
 	}
 	const ready = Promise.all(settling);
@@ -1481,8 +1544,6 @@ function worksInside(node, container) {
 	].join(","));
 	return inner && inner !== container && container.contains(inner) ? inner : null;
 }
-const offer = (...args) => document.documentElement.lfInitial.offer(...args);
-const offerElement = (...args) => document.documentElement.lfInitial.offerElement(...args);
 function searchField(cls, { name, label, placeholder = label }) {
 	const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
 	field.type = "search";
@@ -1497,28 +1558,6 @@ function searchField(cls, { name, label, placeholder = label }) {
 	field.spellcheck = false;
 	return field;
 }
-function elementDirective(name, write) {
-	return directive(class extends Directive {
-		constructor(part) {
-			super(part);
-			if (part.type !== PartType.ELEMENT) throw new TypeError(`${name} belongs in a template's element part`);
-		}
-		render(...args) {
-			return nothing;
-		}
-		update(part, args) {
-			write(part.element, ...args);
-			return nothing;
-		}
-	});
-}
-const offered = elementDirective("offered", offerElement);
-const { offerAction, offerActionElement } = actionOffers({
-	offerAction: (...args) => document.documentElement.lfInitial.offerAction(...args),
-	offerActionElement: (...args) => document.documentElement.lfInitial.offerActionElement(...args)
-});
-const offeredAction = elementDirective("offeredAction", offerActionElement);
-const offerContentElement = (...args) => document.documentElement.lfInitial.offerContentElement(...args);
 function nameAction(control, action, { label, title, className } = {}) {
 	const name = label ?? actionName(action);
 	keeps(control, "aria-label", name);
@@ -1526,26 +1565,24 @@ function nameAction(control, action, { label, title, className } = {}) {
 	showAction(control, action, className);
 }
 const namedAction = elementDirective("namedAction", nameAction);
-const selectableOfferElement = (node, role, cls, face) => document.documentElement.lfInitial.selectableOfferElement(node, role, cls, face);
-const selectableOffer = (role, cls, label, face) => document.documentElement.lfInitial.selectableOffer(role, cls, label, face);
-const selectableOffered = elementDirective("selectableOffered", selectableOfferElement);
 const PRESSABLE = "[data-lf-offer]:not([data-lf-offer=\"\"])";
 function reachedForWords(el) {
 	const sel = getSelection();
-	return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
+	if (!sel?.rangeCount) return false;
+	const range = pageRange(sel);
+	const focus = selectionBackward(sel, range) ? range.startContainer : range.endContainer;
+	return !range.collapsed && renderedUnder(focus, el);
 }
 document.addEventListener("click", (ev) => {
 	if (pressIsKeyboardActivation(ev)) return;
-	const control = ev.target.closest?.(`${PRESSES},[data-lf-offer]`);
+	const control = ev.composedPath().find((node) => node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`));
 	if (control && reachedForWords(control)) {
 		ev.stopPropagation();
 		ev.preventDefault();
 	}
 }, true);
-const generatedElement = (...args) => document.documentElement.lfInitial.generatedElement(...args);
-const generated = elementDirective("generated", generatedElement);
-function relabel(node, label, { says } = {}) {
-	generatedElement(node, { says });
+function relabel(node, label, options = {}) {
+	generatedElement(node, options);
 	keepsText(node, label);
 }
 const closeControl = ({ name, title = name, className = "" }) => offerAction("symbol", className, name, {
@@ -1573,6 +1610,13 @@ function motionPreview(label) {
 	preview.setAttribute("aria-hidden", "true");
 	return preview;
 }
+const authoredBodies = /* @__PURE__ */ new WeakMap();
+const authoredBody = (host) => authoredBodies.get(host) ?? null;
+function holdAuthoredBody(host, body) {
+	for (const node of [...host.childNodes]) move(body, node, null);
+	authoredBodies.set(host, body);
+	return body;
+}
 
 //#endregion
 //#region runtime/notifications.js
@@ -1590,6 +1634,7 @@ const noticePresentation = Z(Object.freeze({
 }));
 const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
+const noticeWords = (message) => typeof message === "string" ? [leafSays(message)] : message;
 const presentNotice = (message, visible) => {
 	noticePresentation.value = Object.freeze({
 		message,
@@ -1600,7 +1645,7 @@ function announce(msg) {
 	if (liveEl.firstChild) liveEl.replaceChildren();
 	setTimeout(() => {
 		if (liveEl.firstChild) liveEl.replaceChildren();
-		liveEl.append(msg);
+		liveEl.append(wordsText(msg));
 	}, 30);
 }
 addEventListener(ANNOUNCE, (event) => announce(event.detail));
@@ -1616,8 +1661,8 @@ function showNotice(msg, background = null) {
 }
 function showBackground(entry) {
 	while (entry) {
-		const message = entry.format(entry.value);
-		if (message) {
+		const message = entry.key === "text" ? entry.value : entry.format(entry.value);
+		if (wordsText(message)) {
 			showNotice(message, entry);
 			return true;
 		}
@@ -1627,18 +1672,17 @@ function showBackground(entry) {
 }
 const textBackground = (message) => ({
 	key: "text",
-	value: message,
-	combine: (_older, newer) => newer,
-	format: (value) => value
+	value: message
 });
 function queueBackground(entry, front = false) {
-	const index = waitingBackground.findIndex((waiting) => waiting.key === entry.key);
-	if (index >= 0) {
-		const [waiting] = waitingBackground.splice(index, 1);
-		entry = {
+	const waiting = waitingBackground.find((waiting) => waiting.key === entry.key);
+	if (waiting) {
+		waitingBackground.splice(waitingBackground.indexOf(waiting), 1);
+		if (entry.key === "semantic-news" && waiting.key === "semantic-news") entry = {
 			...entry,
 			value: front ? entry.combine(entry.value, waiting.value) : entry.combine(waiting.value, entry.value)
 		};
+		else if (front) entry = waiting;
 	}
 	if (front) waitingBackground.unshift(entry);
 	else waitingBackground.push(entry);
@@ -1791,21 +1835,34 @@ const sameRuntime = (response) => {
 	const served = response.headers.get("Leaf-Runtime");
 	return !runtimeIdentity || !served || served === runtimeIdentity;
 };
-function layerHeaders(headers = {}) {
-	return {
-		"Leaf-Layer": layerGeneration,
+function layerHeaders(headers) {
+	const result = new Headers({
+		...layerGeneration && { "Leaf-Layer": layerGeneration },
 		...runtimeIdentity && { "Leaf-Runtime": runtimeIdentity },
 		...runtime.currentRevision && { "Leaf-View-Revision": String(runtime.currentRevision) },
-		...release && { "Leaf-Release": release },
-		...headers
-	};
+		...release && { "Leaf-Release": release }
+	});
+	new Headers(headers).forEach((value, name) => result.set(name, value));
+	return result;
 }
 const dataHeaders = (held) => held.version === null ? {} : { "Leaf-Data-Version": held.version };
-const completeData = (state, held) => state && !state.data.sources ? {
+const completeData = (state, held) => ({
 	...state,
-	data: held
-} : state;
+	data: {
+		...state.data,
+		sources: state.data.sources ?? held.sources
+	}
+});
 var LayerRefused = class extends Error {};
+var RequestError = class extends Error {
+	constructor(message, { status, body, cause, current, said }) {
+		super(message, { cause });
+		this.status = status;
+		this.body = body;
+		this.current = current;
+		this.said = said;
+	}
+};
 async function requestJson(url, init, what) {
 	const response = await fetch(url, {
 		...init,
@@ -1813,19 +1870,21 @@ async function requestJson(url, init, what) {
 	});
 	if (!admitResponse(response)) throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
 	const text = await response.text();
-	const failed = (message, cause) => Object.assign(new Error(message, { cause }), {
+	const failed = (message, cause, details = {}) => new RequestError(message, {
 		status: response.status,
-		body: text
+		body: text,
+		cause,
+		...details
 	});
 	let answer = null;
-	if (response.ok || response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json") try {
+	if (response.ok || response.headers.get("Content-Type")?.split(";").at(0)?.trim() === "application/json") try {
 		answer = JSON.parse(text);
 	} catch (error) {
 		throw failed(`${what}: HTTP ${response.status}`, error);
 	}
 	if (!response.ok) {
 		const refusal = answer;
-		throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+		throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, void 0, {
 			current: refusal && "current" in refusal ? refusal.current : void 0,
 			said: refusal?.error
 		});
@@ -1871,7 +1930,7 @@ sessionChannel?.addEventListener("message", (event) => {
 });
 function observeSession(response) {
 	const reference = response.headers.get("Leaf-Session-Reference");
-	if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
+	if (reference !== null && /^\d{12}$/.test(reference)) runtime.sessionReference = reference;
 	const mode = response.headers.get("Leaf-Session");
 	if (mode === "active") activateSession(true);
 	else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
@@ -1887,7 +1946,7 @@ const revealLayer = () => {
 	layerKnown = true;
 	layerRevealed();
 };
-const postEvent = async (event, held = runtime.data) => {
+const postEvent = async (event, held = runtime.data, { keepalive = false } = {}) => {
 	if (offlineInteractive) throw new Error("no agent or server is available in an interactive export");
 	if (!layerKnown) await layerReady;
 	countTraffic("sends");
@@ -1903,7 +1962,8 @@ const postEvent = async (event, held = runtime.data) => {
 				"Content-Type": "application/json",
 				...dataHeaders(held)
 			}),
-			body: JSON.stringify(event)
+			body: JSON.stringify(event),
+			keepalive
 		});
 		recordInteraction("event_response", {
 			kind: event.kind,
@@ -1950,7 +2010,7 @@ function reportPageError(reason, context = "") {
 	if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
 	else reportedPrimitives.add(String(reason));
 	const text = exceptionText(reason, context);
-	document.documentElement.lfDocumentLifetime.whenActive(`report ${text}`, () => {
+	window.lfDocumentLifetime.whenActive(`report ${text}`, () => {
 		console.error(`leaf: ${text}`);
 		if (offlineInteractive) return;
 		if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
@@ -1965,16 +2025,6 @@ function reportPageError(reason, context = "") {
 function reportCarried(reason, context = "") {
 	if (!(typeof reason === "object" && reason !== null ? reportedReasons.has(reason) : reportedPrimitives.has(String(reason)))) reportPageError(reason, context);
 }
-function exceptionText(reason, context = "") {
-	const message = reason?.message;
-	const text = message === void 0 ? String(reason) : `${reason.name || "Error"}: ${message}`;
-	const stack = reason?.stack;
-	let evidence = !stack ? text : stack.includes(text) ? stack : `${text}\n${stack}`;
-	if (reason instanceof AggregateError) evidence += reason.errors.map((error) => `\n${exceptionText(error)}`).join("");
-	if (reason?.cause !== void 0) evidence += `\nCaused by: ${exceptionText(reason.cause)}`;
-	if (!context) return evidence;
-	return `${context}: ${reason instanceof Error ? describeFailure(reason) : message ?? String(reason)}${message === void 0 ? "" : `\n${evidence}`}`;
-}
 window.addEventListener("error", (e) => {
 	const failure = failureOf(e);
 	if (failure) {
@@ -1982,11 +2032,11 @@ window.addEventListener("error", (e) => {
 		return;
 	}
 	if (e.message?.startsWith("ResizeObserver loop")) return;
-	reportPageError(e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`);
+	reportPageError(e.error ?? e.message, e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "");
 });
 window.addEventListener("unhandledrejection", (e) => {
 	reportPageError(e.reason);
 });
 
 //#endregion
-export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, TEXT_ENTRY, actionTemplate, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, elementDirective, errorsReading, exceptionText, generated, generatedElement, holdStatus, holdingError, iconTemplate, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, merge, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, notice, noticeReading, offer, offerAction, offerActionElement, offerContentElement, offered, offeredAction, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectableOffer, selectableOffered, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };
+export { EVERYTHING, LINK, LayerRefused, PRESS, PRESSABLE, RequestError, TEXT_ENTRY, admitReading, admitResponse, advertisesKeys, allBindings, announce, answers, ariaShortcuts, authoredBody, bindingEnabled, bindingEnabledFor, bindings, buttonCommand, checked, claimsEsc, clampedRow, closeControl, commandAvailable, commandBinding, commandDeclarationsWithin, commandEntries, commandPresentations, commandReady, commandRoutes, commandRun, commandScope, commandsOn, commandsWithin, completeData, contextBindings, contextScopes, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, decisionControls, declareCommandReadiness, declaredBindings, declaresCommandHandler, descriptionOf, dismissError, dismissErrors, dragHeld, dragging, el, errorsReading, hasRows, holdAuthoredBody, holdStatus, holdingError, isCommandScope, keys, labelOf, layerHeaders, live, liveEl, motionPreview, mountRepaint, nameAction, namedAction, nativeActivationAt, nativeClaimAt, nativePress, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, postEvent, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, randomId, reachedForWords, recordInteraction, referencedCommandEntry, reflectFirstScopes, reflectKeys, relabel, removeRuntimeRootStyle, repaint, repaintPage, reportCarried, reportPageError, requestJson, responseAction, reveal, revealLayer, routedCommand, rowArrows, runLanding, runtimeRootState, sameLayer, savedReadingSettled, saying, scopeAvailable, scopeIdentity, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, sessionIsActive, setNoticeContext, setQuickShortcuts, setRuntimeRootAttribute, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, touchPresses, uploadMedia, watchCommandAvailability, watchCommandScopes, watchPendingTraffic, word, worksInside };

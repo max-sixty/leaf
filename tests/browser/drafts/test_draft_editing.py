@@ -221,9 +221,9 @@ leaf page init ./workshop
 > ### Quoted
 >
 > Practice beats theory.
+>
 
-Setext
-------
+## Heading two
 
 ![Room layout](/media/051bee487bfb5d13.png)
 
@@ -237,9 +237,9 @@ layout](/media/051bee487bfb5d13.png)
 
 [room]: /media/051bee487bfb5d13.png"""
 
-# Where a draft's words and picture stand, from its top: the first rendered glyph of each
-# word, the picture, and the mark after the link, in its prose or in its editor's
-# closed root, whose source syntax is skipped where the editor leaves it unseen.
+# Where a draft's words and picture stand, from its top: the first rendered glyph of
+# each word and the picture, in its prose or its editor's closed root, skipping source
+# syntax where the editor leaves it unseen.
 DRAFT_AS_DRAWN = """(draft, words) => {
   const box = draft.getBoundingClientRect();
   const editor = draft.querySelector(':scope > leaf-text');
@@ -261,8 +261,8 @@ DRAFT_AS_DRAWN = """(draft, words) => {
       found[word] = at(range);
     }
   }
-  found.picture = at(root.querySelector('img:not(.cm-widgetBuffer)'));
-  found.mark = at(root.querySelector('.lf-external-mark'));
+  const picture = root.querySelector('img:not(.cm-widgetBuffer)');
+  if (picture) found.picture = at(picture);
   found.height = Math.round(box.height);
   return found;
 }"""
@@ -272,9 +272,9 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     """A draft's editor drew its Markdown in a sent message's face: a heading at the
     words' size, a blank line for each gap between blocks, a picture as its source, a
     fence's lines at a code line each and no mark after a link that leaves the page.
-    Opening a draft holding them moved the words below its first block. Each word, the
-    picture and the link's mark now stay where the prose showed them, the editor
-    taking each block's face and gaps from where it stands."""
+    Opening a draft holding them moved the words below its first block. The words and
+    picture now stay where the prose showed them, the editor taking each block's face
+    and gaps from where it stands."""
     url = serve(
         leaf_page(
             "Draft faces",
@@ -293,13 +293,14 @@ def test_a_draft_edits_where_it_reads(browser, serve):
         "Workshop",
         "morning",
         "guide",
+        "first",  # The word after the link also catches room taken by its mark.
         "Two",
         "bold",
         "inline",
         "leaf",
         "Quoted",
         "Practice",
-        "Setext",
+        "Heading",
         "Tables",
     ]
     draft.locator(".lf-draft-body img").evaluate("image => image.decode()")
@@ -354,6 +355,81 @@ def test_a_draft_edits_where_it_reads(browser, serve):
     assert len(pictures) == 1 and pictures[0][0] and pictures[0][1] == "Room layout", (
         pictures
     )
+
+
+# Wrapped for an editor wider than the draft, as a passage copied from a hard-wrapped
+# file is: a paragraph, a list item and a quote, each across two source lines.
+WRAPPED = """A paragraph a file wraps for a wider editor than this box reads here as one, its line
+alpha break a space, so each word after one stands where the prose puts it, in `a code
+delta span` too.
+
+- An item wrapped the same way keeps its words in the item's column after its line
+  bravo break, and its marker where the list draws it.
+
+> A quoted passage wrapped across two of its source lines joins as well, the quote's
+> charlie marker hidden with the break before it."""
+
+
+def test_a_wrapped_draft_reads_and_edits_as_one_paragraph(browser, serve):
+    """A draft drew a line break at each of its source's, so one wrapped for a wider
+    editor showed a short line after each long one. It reads as a Markdown file now,
+    a line break inside a paragraph a space, and its editor joins those lines too, so
+    each word stays where the prose showed it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Wrapped draft",
+                f'<h1>Wrapped draft</h1><lf-draft id="wrapped"><pre>{WRAPPED}</pre></lf-draft>',
+            )
+        ),
+        init_script=MARGIN_EDITOR_ROOTS,
+    )
+    draft = page.locator("#wrapped")
+    expect(draft.locator(".lf-draft-body blockquote")).to_be_visible()
+    expect(draft.locator(".lf-draft-body br")).to_have_count(0)
+    words = ["alpha", "stands", "delta", "bravo", "marker", "charlie", "hidden"]
+    shown = draft.evaluate(DRAFT_AS_DRAWN, words)
+    draft_control(page, "edit", "wrapped").click()
+    expect(draft.locator("leaf-text")).to_be_focused()
+    rendered(page)
+    editing = draft.evaluate(DRAFT_AS_DRAWN, words)
+    for word in words:
+        assert editing[word] == pytest.approx(shown[word], abs=1), (
+            word,
+            shown,
+            editing,
+        )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_visit_every_blank_line_of_a_draft(engine, request, serve):
+    """Up from a draft's last line visits every line on the way to its first. Blank
+    lines that share the gap the prose leaves between two blocks each stand shorter
+    than CodeMirror's vertical motion aims past, so the arrows skipped them."""
+    source = "Alpha\n\nBravo\n\n\nCharlie\n\n\n\nDelta"
+    url = serve(
+        leaf_page(
+            "Draft gaps",
+            f'<h1>Draft gaps</h1><lf-draft id="gaps"><pre>{source}</pre></lf-draft>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    draft_control(page, "edit", "gaps").click()
+    field = page.locator("#gaps leaf-text")
+    expect(field).to_be_focused()
+    rendered(page)
+    page.keyboard.press("ControlOrMeta+End")
+    last = source.count("\n")
+    visited = []
+    for _ in range(last):
+        page.keyboard.press("ArrowUp")
+        visited.append(
+            field.evaluate(
+                "f => f.value.slice(0, f.selectionStart).split('\\n').length - 1"
+            )
+        )
+    assert visited == list(range(last - 1, -1, -1))
 
 
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
@@ -835,12 +911,22 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     editor = draft.locator("leaf-text")
     write(editor, "First **paragraph**.")
     editor.press("End")
-    editor.press("Enter")
-    expect(editor).to_have_js_property("value", "First **paragraph**.\n")
+    # After a paragraph's last words, Return begins a new paragraph.
     editor.press("Enter")
     expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
-    exact = "First **paragraph**.\n\nSecond `paragraph`."
+    # Between its words, Return writes a hard break in place of the space, which the
+    # draft shows as a line.
+    editor.evaluate("field => field.setSelectionRange(29, 29)")
+    editor.press("Enter")
+    expect(editor).to_have_js_property(
+        "value", "First **paragraph**.\n\nSecond\\\n`paragraph`."
+    )
+    # At a hard break, between its backslash and its line's end, Return begins the
+    # line after it.
+    editor.evaluate("field => field.setSelectionRange(29, 29)")
+    editor.press("Enter")
+    exact = "First **paragraph**.\n\nSecond\\\n\\\n`paragraph`."
     expect(editor).to_have_js_property("value", exact)
     assert not [
         e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
@@ -849,6 +935,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
         editor.press("ControlOrMeta+Enter")
     expect(editor).to_have_count(0)
     expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
+    expect(draft.locator(".lf-draft-body > p br")).to_have_count(2)
     expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")
     expect(draft.locator(".lf-draft-body code")).to_have_text("paragraph")
     edits = [

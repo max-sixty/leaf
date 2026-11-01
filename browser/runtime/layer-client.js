@@ -35,7 +35,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "/runtime/framework.js";
+import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -74,6 +74,7 @@ async function sourceMovedOn() {
 }
 
 let layerReloading = false;
+/** @param {string} message */
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -89,6 +90,7 @@ function reloadNow(message) {
 // notice: raised once, it stands until an answer from this delivery is admitted.
 let asking = false;
 const holdWaiting = holdingError();
+/** @param {string} message */
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -112,21 +114,24 @@ function reloadDelivery(message) {
 
 // Whether an answer comes from a server running this document's runtime. A website
 // release names its runtime, so neither side names one there.
+/** @param {Response} response */
 const sameRuntime = (response) => {
   const served = response.headers.get("Leaf-Runtime");
   return !runtimeIdentity || !served || served === runtimeIdentity;
 };
 
-export function layerHeaders(headers = {}) {
-  return {
-    "Leaf-Layer": layerGeneration,
+/** @param {HeadersInit} [headers] */
+export function layerHeaders(headers) {
+  const result = new Headers({
+    ...(layerGeneration && { "Leaf-Layer": layerGeneration }),
     ...(runtimeIdentity && { "Leaf-Runtime": runtimeIdentity }),
     ...(runtime.currentRevision && {
       "Leaf-View-Revision": String(runtime.currentRevision),
     }),
     ...(release && { "Leaf-Release": release }),
-    ...headers,
-  };
+  });
+  new Headers(headers).forEach((value, name) => result.set(name, value));
+  return result;
 }
 
 // A state request names the data reading the tab holds, and an answer whose data is
@@ -136,33 +141,64 @@ export function layerHeaders(headers = {}) {
 /** @param {{version: string | null}} held */
 export const dataHeaders = (held) =>
   held.version === null ? {} : { "Leaf-Data-Version": held.version };
-/** @param {{version: string | null}} held */
-export const completeData = (state, held) =>
-  state && !state.data.sources ? { ...state, data: held } : state;
+/** @typedef {import("../types/contract.js").ServedState & {
+ * active: NonNullable<import("../types/contract.js").ServedState["active"]>,
+ * browser: NonNullable<import("../types/contract.js").ServedState["browser"]>
+ * }} StateAnswer
+ * @typedef {ReturnType<typeof completeData<StateAnswer>>} CompletedState */
+/** @template {{data: {version: string, sources?: Record<string, import("./data.js").SourceReading>}}} S
+ * @param {S} state @param {{sources: Record<string, import("./data.js").SourceReading>}} held */
+export const completeData = (state, held) => ({
+  ...state,
+  data: { ...state.data, sources: state.data.sources ?? held.sources },
+});
 
 // An answer `admitResponse` refused: it came from another delivery, and whether the page
 // reloads is already settled there. Each caller says what that means for its request.
 export class LayerRefused extends Error {}
+
+/** The structured HTTP failure produced by requestJson, including a file conflict. */
+export class RequestError extends Error {
+  /** @param {string} message
+   * @param {{status: number; body: string; cause?: unknown;
+   *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
+   *   said?: string | undefined}} details */
+  constructor(message, { status, body, cause, current, said }) {
+    super(message, { cause });
+    this.status = status;
+    this.body = body;
+    this.current = current;
+    this.said = said;
+  }
+}
 
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
 // `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
 // file the server holds newer than the draft, its `current`.
+/** The server owns the response contract named by each endpoint caller.
+ * @template T @param {string} url @param {RequestInit} init @param {string} what
+ * @returns {Promise<T>} */
 export async function requestJson(url, init, what) {
   const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  const failed = (message, cause) =>
-    Object.assign(new Error(message, { cause }), {
+  /** @param {string} message @param {unknown} cause
+   * @param {Pick<ConstructorParameters<typeof RequestError>[1], "current" | "said">} [details] */
+  const failed = (message, cause, details = {}) =>
+    new RequestError(message, {
       status: response.status,
       body: text,
+      cause,
+      ...details,
     });
   let answer = null;
   if (
     response.ok ||
-    response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+    response.headers.get("Content-Type")?.split(";").at(0)?.trim() ===
+      "application/json"
   )
     try {
       answer = JSON.parse(text);
@@ -173,7 +209,7 @@ export async function requestJson(url, init, what) {
   if (!response.ok) {
     /** @type {import("../types/contract.js").ServedRefusal | import("../types/contract.js").ServedStaleFile | null} */
     const refusal = answer;
-    throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+    throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, undefined, {
       current: refusal && "current" in refusal ? refusal.current : undefined,
       said: refusal?.error,
     });
@@ -181,6 +217,7 @@ export async function requestJson(url, init, what) {
   return answer;
 }
 
+/** @param {string} generation */
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
   // Say what is about to happen before it happens. The user is looking at a page
@@ -190,13 +227,16 @@ export function sameLayer(generation) {
   return false;
 }
 
+/** @param {Response} response */
 export const admitResponse = (response) => admitted(response, true);
 
 // An answer about another revision than the document's, such as the reading of an
 // older version a comparison asks `/api/view` for, speaks that revision's layer. Only
 // the runtime and release of the server answering are held to the document's.
+/** @param {Response} response */
 export const admitReading = (response) => admitted(response, false);
 
+/** @param {Response} response @param {boolean} ofThisLayer */
 function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
@@ -227,6 +267,7 @@ const sessionChannel =
     ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
+/** @param {boolean} broadcast */
 function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
@@ -238,9 +279,11 @@ sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false);
 });
 
+/** @param {Response} response */
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
-  if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
+  if (reference !== null && /^\d{12}$/.test(reference))
+    runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
   if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
@@ -254,6 +297,7 @@ export const sessionIsActive = () => sessionMode === "active";
 // the printed link is opened in any tab of this browser, since that sets the cookie its
 // next request carries.
 const KEY_REFUSED = 401;
+/** @param {Response} response */
 function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
@@ -274,8 +318,14 @@ export const revealLayer = () => {
 // orders the user's own gestures through it, and the error report below, which
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller.
-export const postEvent = async (event, held = runtime.data) => {
+// for both. Whether a send waits on the one before it belongs to the caller, and so
+// whether it must outlive the document (`keepalive`), as a tab's last word does.
+/** @param {import("../types/contract.js").BrowserCommand} event */
+export const postEvent = async (
+  event,
+  held = runtime.data,
+  { keepalive = false } = {},
+) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   if (!layerKnown) await layerReady;
@@ -290,6 +340,7 @@ export const postEvent = async (event, held = runtime.data) => {
         ...dataHeaders(held),
       }),
       body: JSON.stringify(event),
+      keepalive,
     });
     recordInteraction("event_response", {
       kind: event.kind,
@@ -319,6 +370,7 @@ export const postEvent = async (event, held = runtime.data) => {
 // The raw body keeps binary data out of JSON and the append-only log; the server
 // derives the served extension and returns the canonical page-relative path. Like an
 // event POST, this request waits for a known layer and accounts for its whole trip.
+/** @param {Blob} file */
 export const uploadMedia = async (file) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -357,11 +409,12 @@ export const uploadMedia = async (file) => {
 const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
+/** @param {unknown} reason @param {string} [context] */
 export function reportPageError(reason, context = "") {
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);
-  document.documentElement.lfDocumentLifetime.whenActive(`report ${text}`, () => {
+  window.lfDocumentLifetime.whenActive(`report ${text}`, () => {
     console.error(`leaf: ${text}`);
     if (offlineInteractive) return;
     if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
@@ -382,32 +435,13 @@ export function reportPageError(reason, context = "") {
 // shares one exception among owners, as a cached rejected load does among its widgets,
 // reports through reportPageError, once per owner. A primitive reason has no identity,
 // so its text stands for it.
+/** @param {unknown} reason @param {string} [context] */
 export function reportCarried(reason, context = "") {
   const reported =
     typeof reason === "object" && reason !== null
       ? reportedReasons.has(reason)
       : reportedPrimitives.has(String(reason));
   if (!reported) reportPageError(reason, context);
-}
-
-// This is the only exception formatter. Callers pass the original exception (or
-// its name/message/stack record across a realm boundary) and the operation's context.
-// A diagnostic with no exception remains a string; no synthetic Error invents a site.
-export function exceptionText(reason, context = "") {
-  const message = reason?.message;
-  const text =
-    message === undefined ? String(reason) : `${reason.name || "Error"}: ${message}`;
-  // Chrome includes the message in a stack; Firefox can supply frames alone.
-  const stack = reason?.stack;
-  let evidence = !stack ? text : stack.includes(text) ? stack : `${text}\n${stack}`;
-  if (reason instanceof AggregateError)
-    evidence += reason.errors.map((error) => `\n${exceptionText(error)}`).join("");
-  if (reason?.cause !== undefined)
-    evidence += `\nCaused by: ${exceptionText(reason.cause)}`;
-  if (!context) return evidence;
-  const summary =
-    reason instanceof Error ? describeFailure(reason) : (message ?? String(reason));
-  return `${context}: ${summary}${message === undefined ? "" : `\n${evidence}`}`;
 }
 
 window.addEventListener("error", (e) => {
@@ -424,8 +458,11 @@ window.addEventListener("error", (e) => {
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
   reportPageError(
-    e.error?.stack ? e.error : `${e.message} (${e.filename}:${e.lineno})`,
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
   );
 });
 window.addEventListener("unhandledrejection", (e) => {

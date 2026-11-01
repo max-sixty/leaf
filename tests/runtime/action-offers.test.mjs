@@ -1,5 +1,5 @@
 /* A press that shows a symbol names its action, so one action shows one symbol on
- * every surface (browser/AGENTS.md, "Visual grammar"). */
+ * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { namedAction, offerAction, offeredAction } from "/runtime/widget-elements.js";
@@ -18,10 +18,10 @@ test("a symbol shows its action's symbol and says its name unless its label says
   });
   assert.equal(named.getAttribute("aria-label"), "Retry loading the file");
   assert.deepEqual(symbolOf(named), ["retry"]);
-  // Close and Discard share ✕; the action, not the icon, is what a press names.
+  // Undo and Discard share the U-turn; the action, not the icon, is what a press names.
   assert.deepEqual(
     symbolOf(offerAction("mark", "", undefined, { action: "discard" })),
-    ["cross"],
+    ["undo"],
   );
 });
 

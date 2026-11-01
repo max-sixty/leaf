@@ -20,7 +20,7 @@ const box = (left, top, width, height) => ({
 });
 const chip = (left, top) => box(left, top, 20, 16);
 const seat = (faces, over = {}) =>
-  seatHints(faces, { band: 2, viewport, ...over }).map(({ left, top }) => ({
+  seatHints(faces, { band: 2, viewport, ...over }).map(({ box: { left, top } }) => ({
     left,
     top,
   }));

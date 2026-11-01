@@ -3,6 +3,7 @@
  * Draw or Design mode. The passive overlay leaves current target hit tests intact. Captures
  * enter the same anchored draft and media admission path as other attached images.
  */
+import { describeFailure } from "../exception.js";
 import {
   pageCommand,
   pageScope,
@@ -17,6 +18,8 @@ import { pressIsKeyboardActivation } from "../pointer.js";
 import { onCurrentLocation, pressHolds, pressRecords } from "../focus.js";
 import { raiseError } from "../errors.js";
 
+/** @param {Omit<import("./region-selector.js").RegionSelectorOptions, "returnTo"> & {
+ * closeTargetPicker: () => void, closeReactionMode: () => void}} options */
 export function createRegionCapture({
   parent,
   visibleTargets,
@@ -25,13 +28,16 @@ export function createRegionCapture({
   closeReactionMode,
 }) {
   let opening = false;
+  /** @type {ReturnType<typeof import("./region-selector.js").createRegionSelector> | null} */
   let selector = null;
   // A claimed drag owns its compatibility mouse events, even after release, for as long
   // as the press lasts (focus.js, `pressRecords`), and the next primary press starts a
   // new gesture, including on a chrome control. A timer cannot delimit that ownership:
   // its work may outlive the next tap.
+  /** @type {import("../focus.js").PressRecords<true>} */
   const claimed = pressRecords();
   const active = () => opening;
+  /** @param {Event} event */
   const claim = (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -39,6 +45,7 @@ export function createRegionCapture({
   // Preventing pointer defaults and touch-action stop page input, but Chromium can
   // still recognize a fling that consumes the next tap. Consume the native touch
   // gesture at its start; Leaf's controls keep their own native activation.
+  /** @param {TouchEvent} event */
   const claimTouch = (event) => {
     if (!leafSurface(event.composedPath()[0])) claim(event);
   };
@@ -65,7 +72,9 @@ export function createRegionCapture({
       },
       { capture: true },
     );
-  for (const type of ["mousedown", "mouseup", "click", "dblclick", "auxclick"])
+  /** @type {readonly ("mousedown" | "mouseup" | "click" | "dblclick" | "auxclick")[]} */
+  const mouseEvents = ["mousedown", "mouseup", "click", "dblclick", "auxclick"];
+  for (const type of mouseEvents)
     document.addEventListener(
       type,
       (event) => {
@@ -79,18 +88,20 @@ export function createRegionCapture({
     );
 
   // Native editing elsewhere is a new task. Keep the focus the user just chose.
-  onCurrentLocation((node) => {
-    if (
-      selector &&
-      node &&
-      node !== document.body &&
-      !closestAcross(
-        node,
-        ".lf-floating-panel, .lf-command-reference, .lf-region-capture",
+  onCurrentLocation(
+    /** @param {Element | null} node */ (node) => {
+      if (
+        selector &&
+        node &&
+        node !== document.body &&
+        !closestAcross(
+          node,
+          ".lf-floating-panel, .lf-command-reference, .lf-region-capture",
+        )
       )
-    )
-      selector.cancel({ restore: false });
-  });
+        selector.cancel({ restore: false });
+    },
+  );
 
   // A different command starts a new interaction. Let it take over before it runs,
   // while the universal command reference can inspect this interaction and return.
@@ -111,6 +122,7 @@ export function createRegionCapture({
       const intent = retainUserIntent();
       opening = true;
       paintKeys();
+      /** @type {(() => void) | undefined} */
       let removeScope;
       try {
         const { createRegionSelector } = await import("./region-selector.js");
@@ -137,7 +149,7 @@ export function createRegionCapture({
         await selector.done;
       } catch (error) {
         selector?.cancel();
-        raiseError(`Could not open area capture — ${error.message}`);
+        raiseError(`Could not open area capture — ${describeFailure(error)}`);
       } finally {
         document.removeEventListener("touchstart", claimTouch, true);
         selector = null;

@@ -1,5 +1,5 @@
-import { nextRender } from "./bundle-portable.js";
-import { closeLayer, focusDestination, focused, handBack, keeps, keepsHidden, keepsText, runtime } from "./bundle-layer-stack.js";
+import { describeFailure, keeps, keepsHidden, keepsText, nextRender } from "./bundle-portable.js";
+import { closeLayer, focusDestination, focused, handBack, runtime } from "./bundle-layer-stack.js";
 import { el, notice, paintKeys, raiseError } from "./bundle-layer-client.js";
 import { clamp, layoutWindow } from "./bundle-geometry.js";
 import { pageImage } from "./bundle-page-image.js";
@@ -90,9 +90,9 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 		}
 		fit();
 	}
-	function anchorForBox() {
-		const x = box.x + box.width / 2;
-		const y = box.y + box.height / 2;
+	function anchorForBox(selected) {
+		const x = selected.x + selected.width / 2;
+		const y = selected.y + selected.height / 2;
 		const winner = visibleTargets().filter(({ rect }) => rect && rect.width && rect.height).map((target) => ({
 			...target,
 			distance: Math.hypot(Math.max(target.rect.left - x, 0, x - target.rect.right), Math.max(target.rect.top - y, 0, y - target.rect.bottom))
@@ -100,10 +100,10 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 		return (winner?.capture ? winner.capture() : winner)?.anchor ?? null;
 	}
 	async function capture() {
-		if (ended || busy || drag) return;
+		if (ended || busy || drag || !box) return;
 		const ticket = ++attempt;
 		const revision = runtime.currentRevision;
-		const anchor = anchorForBox();
+		const anchor = anchorForBox(box);
 		const clip = {
 			...box,
 			x: box.x + scrollX,
@@ -131,18 +131,18 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			if (ended || ticket !== attempt) return;
 			busy = false;
 			keeps(overlay, "aria-busy", null);
-			const message = `Could not capture — ${error.message}`;
+			const message = `Could not capture — ${describeFailure(error)}`;
 			keepsText(status, message);
 			raiseError(message);
 			paintKeys();
 		}
 	}
-	function dragTo(event) {
+	function dragTo(event, origin) {
 		box = {
-			x: Math.round(Math.min(drag.x, event.clientX)),
-			y: Math.round(Math.min(drag.y, event.clientY)),
-			width: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientX - drag.x))),
-			height: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientY - drag.y)))
+			x: Math.round(Math.min(origin.x, event.clientX)),
+			y: Math.round(Math.min(origin.y, event.clientY)),
+			width: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientX - origin.x))),
+			height: Math.max(MIN_SIZE, Math.round(Math.abs(event.clientY - origin.y)))
 		};
 		fit();
 	}
@@ -166,10 +166,10 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			return true;
 		}
 		if (!drag || drag.id !== event.pointerId) return false;
-		if (event.type === "pointermove") dragTo(event);
+		if (event.type === "pointermove") dragTo(event, drag);
 		else if (event.type === "pointerup" || event.type === "pointercancel") {
 			const drew = event.type === "pointerup" && (Math.abs(event.clientX - drag.x) >= MIN_SIZE || Math.abs(event.clientY - drag.y) >= MIN_SIZE);
-			if (drew) dragTo(event);
+			if (drew) dragTo(event, drag);
 			else box = drag.from;
 			drag = null;
 			if (drew) capture();
@@ -199,7 +199,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			title: "move area",
 			repeat: true,
 			when: () => !ended && !busy && !drag,
-			run: move
+			runKey: move
 		},
 		{
 			id: "capture.region.resize",
@@ -213,7 +213,7 @@ function createRegionSelector({ parent, visibleTargets, openComposerWithMedia, r
 			title: "resize area",
 			repeat: true,
 			when: () => !ended && !busy && !drag,
-			run: move
+			runKey: move
 		},
 		{
 			id: "capture.region.cancel",

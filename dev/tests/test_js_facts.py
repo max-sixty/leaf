@@ -37,9 +37,40 @@ def test_dynamic_import_with_rejection_handler(tmp_path, handlers):
         f'const namespace = ready ? await import("./target.js"){handlers} : null;'
         "if (namespace) namespace.used;"
     )
-    assert facts("imports", reader)["reads"] == [
-        [str(target.relative_to(ROOT, walk_up=True)), "used"]
-    ]
+    result = subprocess.run(
+        ["node", "tests/js_facts.mjs", "imports", str(reader)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    facts = json.loads(result.stdout)[str(reader)]
+    assert facts["reads"] == [[str(target.relative_to(ROOT, walk_up=True)), "used"]]
+
+
+@pytest.mark.parametrize(
+    ("tag", "names"),
+    [
+        ("{ Used } from", ["Used"]),
+        ("{\n *   Used, Other as Alias\n * } from", ["Other", "Used"]),
+        ("* as types from", ["*"]),
+    ],
+)
+def test_jsdoc_import_tag_reads_its_names(tmp_path, tag, names):
+    target = tmp_path / "types.d.ts"
+    target.write_text("export type Used = 1; export type Other = 2;")
+    reader = tmp_path / "reader.js"
+    reader.write_text(f'/** @import {tag} "./types.js" */\nexport const value = 1;\n')
+    result = subprocess.run(
+        ["node", "tests/js_facts.mjs", "imports", str(reader)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    facts = json.loads(result.stdout)[str(reader)]
+    assert sorted(name for _, name in facts["reads"]) == names
+
 
 
 # One press a line, each in a block of its own. The first eight, and the five after
@@ -51,7 +82,8 @@ def test_dynamic_import_with_rejection_handler(tmp_path, handlers):
 # named after `copyControl` taken for it. Then a copy control around a trigger, a
 # made button dressed by role through the name it is bound to, one never dressed, and
 # a name dressed and then given another button, over two lines of one block, whose
-# buttons neither reads as dressed.
+# buttons neither reads as dressed; and a pure template that writes a role's face
+# into its class.
 PRESSES = """\
 { html`<button class="own-face" title="lf-react">`; }
 { offer("button", "own-face", "lf-react"); }
@@ -77,6 +109,7 @@ PRESSES = """\
 { const button = document.createElement("button"); button.className = "lf-x"; }
 { let button = document.createElement("button"); offerActionElement(button, "word", "lf-old");
   button = document.createElement("button"); }
+{ html`<button class=${`${actionClass("word", "lf-x")} lf-ui`}>`; }
 """
 # Each line's press: the kind it is read as, how a role dresses it, and its classes.
 READ = [
@@ -104,6 +137,7 @@ READ = [
     ("made", None, ["lf-x"]),
     ("made", None, []),
     ("made", None, []),
+    ("template", "role in its tag", ["lf-ui"]),
 ]
 
 

@@ -11,6 +11,7 @@ import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 
+/** @type {Record<string, string>} */
 const HTML_WORDS = {
   input: "control",
   select: "control",
@@ -39,6 +40,7 @@ const HTML_WORDS = {
   h6: "heading",
 };
 
+/** @param {Element | null | undefined} addressable */
 export function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
@@ -51,6 +53,7 @@ export function addressableWord(addressable) {
 
 // A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
 // where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+/** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
   const declared = registry[tag]?.["x-word"];
   const own = declared === "module" ? element?.lfWord?.() : declared;
@@ -60,6 +63,7 @@ export function widgetWord(tag, element = null) {
 // The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution. Display
 // surfaces constrain these complete words to their available space.
+/** @param {Element | null | undefined} addressable */
 export function addressableSays(addressable) {
   if (!addressable) return "";
   const own =
@@ -84,10 +88,11 @@ export function addressableSays(addressable) {
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
 /** The element whose words name `container` by that rule, or null. */
+/** @param {Element} container @returns {Element | null} */
 export function leadingTitle(container) {
   for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return null;
-    if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
+    if (!(node instanceof Element) || uiInside(node, container)) continue;
     if (node.matches(TITLES)) return node;
     if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
@@ -95,10 +100,12 @@ export function leadingTitle(container) {
 }
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
+/** @param {Element} element */
 export function declaredName(element) {
   const attribute = registry[element.localName]?.["x-name"];
   return (attribute && element.getAttribute(attribute)?.trim()) || "";
 }
+/** @param {Element | null | undefined} element */
 export function addressableName(element) {
   if (!element) return "";
   const declared = declaredName(element);
@@ -120,6 +127,7 @@ export function addressableName(element) {
 // nothing: empty, and the caller says the element's word (`addressableWord`), which it
 // usually shows beside this anyway.
 const LABEL_WORDS = 60;
+/** @param {Element} element */
 const captionOf = (element) => {
   const caption = [...element.children].find(
     (child) => child.matches("figcaption, caption") && !uiInside(child, element),
@@ -127,20 +135,24 @@ const captionOf = (element) => {
   return caption ? elementReading(caption) : "";
 };
 // A form control's caption is its <label>.
+/** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element */
 export const accessibleName = (element) =>
   element.getAttribute("aria-label")?.trim() ||
   (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
   element.alt?.trim() ||
   "";
 // The name an element has itself, before any holder lends it one.
+/** @param {Element} element */
 export const ownName = (element) =>
   addressableName(element) || captionOf(element) || accessibleName(element);
+/** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
   (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
   [...element.childNodes].some(
-    (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
+    (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );
+/** @param {Element | null | undefined} element */
 export function addressableLabel(element) {
   if (!element) return "";
   const own = ownName(element);
@@ -163,6 +175,7 @@ export function addressableLabel(element) {
 }
 
 // A thread's § coordinate and the visual-action picker both show it.
+/** @param {Element | null | undefined} addressable */
 export const sectionLabel = (addressable) =>
   [addressableWord(addressable), addressableLabel(addressable)]
     .filter(Boolean)

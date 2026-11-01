@@ -14,8 +14,8 @@ from leaf_dev.commands import stills
 def stills_catalogue(tmp_path, monkeypatch):
     """Replace build/server/browser boundaries, retaining the command, capture,
     drivers, screenshots, crops and style comparison. Image comparison stands in for
-    its browser module, and each arm's page computes its name as the root's colour,
-    so this tests catalogue orchestration without launching a browser.
+    its browser module, and each arm's page computes and declares its name as the
+    root's colour, so this tests catalogue orchestration without launching a browser.
     """
     visited = []
 
@@ -53,10 +53,17 @@ def stills_catalogue(tmp_path, monkeypatch):
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
         )
-        page.evaluate = lambda script, properties: {
-            "faces": [[page.url, *[""] * (len(properties) - 1)]],
-            "elements": {"html": 0},
-        }
+
+        def evaluate(script, argument):
+            if script == stills.BASELINES:
+                return catalogue.splits.get(page.url, [])
+            return {
+                "faces": [[page.url, *[""] * (len(argument) - 1)]],
+                "elements": {"html": 0},
+                "texts": [],
+            }
+
+        page.evaluate = evaluate
         yield page
 
     compared = []
@@ -66,6 +73,7 @@ def stills_catalogue(tmp_path, monkeypatch):
         visited=visited,
         compared=compared,
         compare=lambda name: {"changed": 1, "regions": []},
+        splits={},
     )
 
     @contextmanager
@@ -80,12 +88,19 @@ def stills_catalogue(tmp_path, monkeypatch):
     monkeypatch.setattr(stills, "run_directory", lambda path: out)
     monkeypatch.setattr(stills, "build_pair", lambda base_ref, scratch: (arms, commits))
     monkeypatch.setattr(stills, "serving_source", serving_source)
-    monkeypatch.setattr(stills, "headless_shell", lambda: nullcontext("browser"))
+    monkeypatch.setattr(
+        stills, "headless_shell", lambda **options: nullcontext("browser")
+    )
     monkeypatch.setattr(stills, "tab", tab)
     monkeypatch.setattr(
         stills, "load", lambda page, address: setattr(page, "url", address)
     )
     monkeypatch.setattr(stills, "settle", lambda page: None)
+    monkeypatch.setattr(
+        stills,
+        "declarations",
+        lambda page: lambda key: [f"{key} {{ color: {page.url}; }}"],
+    )
     monkeypatch.setattr(stills, "differences", differences)
     return catalogue
 
@@ -100,7 +115,7 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
 
     result = CliRunner().invoke(stills.stills)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert visited == [
         (state.name, arm) for state in states for arm in ("base", "head")
     ]
@@ -134,7 +149,12 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         )
     )
     assert (out / "healthy" / "styles.txt").read_text() == (
-        "color: base -> head  x1\n    html\n"
+        "color: base -> head  x1\n"
+        "    html\n"
+        "declarations that differ, on each group's first element\n"
+        "    html\n"
+        "        - html { color: base; }\n"
+        "        + html { color: head; }\n"
     )
     assert result.output.replace(str(out), "<stills>") == (
         "base bbbbbbbbbb vs head aaaaaaaaaa\n"
@@ -144,6 +164,12 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         "0 of 3 states unchanged\n"
         "files in <stills>\n"
     )
+
+    monkeypatch.setattr(
+        stills, "STATES", (stills.State("clean", "fixture", stills.at_rest),)
+    )
+    result = CliRunner().invoke(stills.stills)
+    assert result.exit_code == 0, result.output
 
     def interrupted(page):
         raise KeyboardInterrupt
@@ -192,7 +218,7 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
 
     result = CliRunner().invoke(stills.stills)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert stills_catalogue.compared == ["broken", "healthy"]
     assert cropped == (["healthy"] if phase == "comparison" else ["broken", "healthy"])
     assert (out / "healthy" / "head-crop.png").is_file()
@@ -213,3 +239,60 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
         "0 of 2 states unchanged\n"
         "files in <stills>\n"
     )
+
+
+def test_the_run_lists_lines_whose_words_split_their_baseline(
+    stills_catalogue, monkeypatch
+):
+    out = stills_catalogue.out
+    monkeypatch.setattr(stills, "STATES", stills_catalogue.states[-1:])
+
+    def line(row, offset, boxed=False, nth=0):
+        return {
+            "row": row,
+            "nth": nth,
+            "spread": abs(offset),
+            "items": [
+                {"text": "Me", "face": "600 13px/18.85px", "boxed": False, "offset": 0},
+                {
+                    "text": "now",
+                    "face": "11.5px/16.675px",
+                    "boxed": boxed,
+                    "offset": offset,
+                },
+            ],
+        }
+
+    stills_catalogue.splits.update(
+        base=[line("div.head", -0.92), line("div.count", 0.3, boxed=True)],
+        head=[
+            line("div.count", 0.5, boxed=True),
+            line("div.seat", -1.2),
+            line("div.seat", -0.5, nth=1),
+        ],
+    )
+
+    result = CliRunner().invoke(stills.stills)
+
+    assert result.exit_code == 0, result.output
+    assert (out / "baselines.txt").read_text() == (
+        "lines only head splits  x2\n"
+        "  healthy: div.seat  1.2px apart\n"
+        "      'Me' 600 13px/18.85px +0.00\n"
+        "      'now' 11.5px/16.675px -1.20\n"
+        "  healthy: div.seat  0.5px apart\n"
+        "      'Me' 600 13px/18.85px +0.00\n"
+        "      'now' 11.5px/16.675px -0.50\n"
+        "lines both arms split  x1\n"
+        "  healthy: div.count  0.3 -> 0.5px apart\n"
+        "      'Me' 600 13px/18.85px +0.00\n"
+        "      'now' 11.5px/16.675px on a box +0.50\n"
+        "lines only base splits  x1\n"
+        "  healthy: div.head  0.92px apart\n"
+        "      'Me' 600 13px/18.85px +0.00\n"
+        "      'now' 11.5px/16.675px -0.92\n"
+    )
+    assert (
+        "lines whose words split their baseline: lines only head splits  x2,"
+        " lines both arms split  x1, lines only base splits  x1 ->"
+    ) in result.output

@@ -23,7 +23,13 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
-from leaf.render_checks import evaluate_probe, one_frame, rendered, wait_for_probe
+from leaf.render_checks import (
+    evaluate_probe,
+    observe_probe,
+    one_frame,
+    rendered,
+    wait_for_probe,
+)
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
@@ -492,37 +498,14 @@ def arrangement_changes(readings) -> list[tuple[int, str, str]]:
     return changes
 
 
-def margin_changes(page, readings, height: int) -> list[int]:
-    """The widths at which the page's margin content changes, narrowest first.
-
-    For each sweep step across which what stands in the margin differs, the narrowest
-    width at which the wider reading holds, found by halving the step on the loaded
-    page. That is where each element first appears in the margin, with the least room it
-    will ever have there, so the gate renders the page at each."""
-    stepped = sorted((width, reading["margin"]) for width, reading in readings)
-    changes = []
-    for (low, below), (high, above) in pairwise(stepped):
-        if below == above:
-            continue
-        while high - low > 1:
-            middle = (low + high) // 2
-            settle_at(page, middle, height)
-            if evaluate_probe(page, "marginContent") == above:
-                high = middle
-            else:
-                low = middle
-        changes.append(high)
-    return changes
-
-
 def swept_faults(samples) -> list[Finding]:
     """Sideways overflow, misplaced boxes and clipped content, scrollbar collisions,
     clipped controls and covered words across the gate's geometry samples, with the
     widths each run spans and what it reads at the narrowest. Each refuses the version,
     since a control cut off at 400px is as far out of reach as one cut off at 540px,
-    except a scrollbar collision, which is advice: the overlay bar covers the row's
-    last line only while the pointer is on it, the same page shows it outside Leaf,
-    and how much room to leave is the author's call.
+    except scrollbar clearance, a broken flow track chain and a declared breakout's
+    containment, which are advice: the author decides how much clearance to leave and whether a holder
+    should share the document's wider tracks.
 
     `samples` are (width, `geometryReading`) pairs, several at a width where the gate
     read it more than once (`version._render_version_attempt` says where). A fault any
@@ -533,6 +516,7 @@ def swept_faults(samples) -> list[Finding]:
         return (
             _overflow(reading["overflow"], reading["misplaced"])
             | _keyed(reading["scrollbars"], severity="advice")
+            | _keyed(reading["contained"], severity="advice")
             | _keyed(reading["clipped"])
             | _keyed(reading["covered"])
         )
@@ -611,16 +595,23 @@ def shrunk_label_advice(readings) -> list[Finding]:
     )
 
 
-def unreserved_height_advice(page, declarations: dict) -> list[Finding]:
-    """Advice naming each widget whose module drew it at a height its first paint did
-    not reserve (x-height), with the data-height that would have.
+# One passive reading on the loaded desktop, rather than a wait in every scheme and
+# sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
+# slowing plain page check or message admission. It promises only this observation.
+PASSIVE_OBSERVATION_MS = 3000
 
-    Read at the desktop viewport the page first painted at, before the sweep resizes
-    it: the reading compares each box with its first paint, and at another width a
-    box's height moves with its reflow whatever its first paint reserved. Advice
-    rather than a failure: the page reads the same once the drawing lands, and only
-    the moment it lands moves what follows it."""
+
+def passive_layout_shift_advice(page) -> list[Finding]:
+    """Painted movement while no gate action changes the page, as author advice."""
+    rendered(page)
+    with observe_probe(page, "passiveLayoutShifts") as records:
+        # This is an observation interval, not a readiness wait: let real timers and
+        # Chrome's compositor run, with Playwright still dispatching page events.
+        page.wait_for_timeout(PASSIVE_OBSERVATION_MS)
+        one_frame(page)
     return [
-        Finding.read(reading, severity="advice")
-        for reading in evaluate_probe(page, "unreservedHeights", declarations)
+        Finding.read(record, severity="advice").but(
+            values={"observed_ms": PASSIVE_OBSERVATION_MS}
+        )
+        for record in records
     ]

@@ -25,7 +25,10 @@ def enclosing_section(owner: list, lo: int, hi: int):
 
 def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> list:
     """Where `quote` sits in text[lo:hi], as absolute indices. A match that runs across a
-    fence is not one: the page has words there that this text doesn't."""
+    fence is not one: the page has words there that this text doesn't. An empty quote
+    names no passage, as in the browser's `findQuote`."""
+    if not quote:
+        return []
     found = []
     at = text.find(quote, lo, hi)
     while at != -1:

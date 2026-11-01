@@ -13,6 +13,7 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_PAGE,
     live_url,
 )
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     PANEL,
     PANEL_THREAD,
@@ -46,7 +47,6 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
 
 THREAD_READER = r"""
 import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
@@ -426,55 +426,6 @@ def activation_page(source):
     ).replace(f'<p id="live-reading">{LIVE_READING}</p>', ACTIVATION_READING)
 
 
-PAGE_WIDGET = """\
-import {
-  html, keeps, layerFact, LeafElement, live,
-} from "/runtime/widget-api.js";
-
-customElements.define("lf-local", class extends LeafElement {
-  createRenderRoot() {
-    return this.attachShadow({mode: "open"});
-  }
-
-  setup() {
-    layerFact("$tones");
-    keeps(this, "data-page-widget", "ready");
-    const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) this.controller.present(held);
-  }
-
-  // The gesture writes its own result into the output, which a deferral holds the
-  // widget's drawing over.
-  choose() {
-    this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
-    const sent = this.controller.dispatch({
-      kind: "action",
-      verb: "choose",
-      detail: { value: "chosen" },
-    });
-    if (!sent) return;
-    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
-    keeps(this, "data-delivery", "pending");
-    sent.delivery.then(accepted => {
-      keeps(this, "data-delivery", accepted ? "accepted" : "refused");
-    });
-  }
-
-  render() {
-    if (globalThis.__failLocalRender) {
-      globalThis.__failedLocalRenders =
-        Number(globalThis.__failedLocalRenders || 0) + 1;
-      throw new Error("deliberate render failure");
-    }
-    const {state, actions} = this.reading;
-    keeps(this, "data-rendered-choice", state.choose.value);
-    this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
-      <output .value=${live(state.choose.value)}></output>`;
-  }
-});
-"""
-
 STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     "    const held = globalThis.__heldLocalPresentations?.get(this.id);",
     """\
@@ -654,30 +605,6 @@ def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
     page.unroute("**/api/event")
     round_trip(page)
     expect_obligations_answered(page, "1/1")
-
-
-PAGE_DECLARATION = {
-    "lf-local": {
-        "description": "A page-owned local widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
-        },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": {
-            "choose": {
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "choice"},
-            }
-        },
-        "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
-    }
-}
 
 
 def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
@@ -2080,7 +2007,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
         page.locator(".lf-fp-field .lf-compose-submit").click()
     expect(second.locator("li")).to_have_text("Cedar")
     expect(first.locator("li")).to_have_text("Alpine")
-    for widget, count in zip((first, second), before):
+    for widget, count in zip((first, second), before, strict=True):
         assert widget.evaluate("node => node.updates") > count
         assert widget.evaluate(
             "node => node.collection.threads.some(thread => thread.root.body.text.trim() === 'Cedar')"

@@ -58,7 +58,7 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose>
+    <lf-options id="{id}-choice" choose{across}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested" choose>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
@@ -75,14 +75,16 @@ ACROSS_OBLIGATION = """
 
 ACROSS_OBLIGATION_PAGE = leaf_page(
     "options laid across",
-    "<h1>Retention</h1>" + ACROSS_OBLIGATION.format(id="across", width=""),
+    "<h1>Retention</h1>"
+    + ACROSS_OBLIGATION.format(id="across", width="", across=" across")
+    + ACROSS_OBLIGATION.format(id="down", width="", across=""),
 )
 
 
 ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
     "options laid across a widened obligation",
     "<div>"
-    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"')
+    + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"', across=" across")
     + "</div>",
     layout="sidebar",
 )
@@ -134,11 +136,20 @@ CAPTURED_OPTION = """
       </lf-option>"""
 
 
+ROWED_OPTION = """
+      <lf-option id="rowed-{side}">{title}
+        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+          height="60" role="img" aria-label="{title}">
+          <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
+    + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
     + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
@@ -146,16 +157,30 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + ROWED_OPTION.format(side="yes", title="Along the fence")
+    + ROWED_OPTION.format(side="no", title="Under the lawn")
+    + "</lf-options></lf-ask>"
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
+    + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
 )
 
 
-def test_options_holding_pictures_read_down(browser, serve):
-    """An obligation whose options each hold a picture of what choosing it gives keeps
-    its cards reading down, so each picture stands at the size its author gave it,
-    rather than shrunk to a card's share of a row: a drawing, a capture, and a widget
-    whose entry declares it draws a picture (`x-visual`), each wrapped in the link that
-    opens it or not, in the reading column or a group given `data-width`."""
+def test_options_holding_pictures_stand_apart(browser, serve):
+    """Joined into one control, a hairline was the only boundary between one option's
+    picture and the next option's title, so a live group whose options hold a picture
+    draws them as standalone cards a gap apart, each framed, bare rows and the add field
+    as well as titled cards, while a group of words stays one control with hairlines
+    between its cells. A
+    picture is a drawing, a capture or a widget whose entry declares it draws one
+    (`x-visual`), wrapped in the link that opens it or not.
+
+    The cards read down unless the author asks for `across`, so each picture stands at
+    the size its author gave it, in the reading column or a group given `data-width`;
+    laid across, the cards keep the same gap between them."""
     media = {SHOT_SRC[name]: data for name, data in SHOTS.items()}
     page = open_page(
         browser,
@@ -165,21 +190,48 @@ def test_options_holding_pictures_read_down(browser, serve):
     page.wait_for_function("[...document.images].every((i) => i.complete)")
     at = page.evaluate(
         """() => Object.fromEntries(
-          ['pictured', 'widened', 'plated', 'captured'].map((id) => {
-            const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
+          ['pictured', 'widened', 'across', 'plated', 'captured', 'rowed', 'worded'].map((id) => {
+            const el = (s) => document.getElementById(`${id}-${s}`);
+            const edge = (node) => parseFloat(getComputedStyle(node).borderTopWidth);
+            const [yes, no] = ['yes', 'no'].map((s) => el(s).getBoundingClientRect());
+            const group = el('choice');
             return [id, {
-              tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
-              lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
-              pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
+              tops: [yes, no].map((r) => Math.round(r.top)),
+              lefts: [yes, no].map((r) => Math.round(r.left)),
+              gap: Math.round(
+                no.top >= yes.bottom ? no.top - yes.bottom : no.left - yes.right),
+              spacing: parseFloat(getComputedStyle(group).getPropertyValue('--sp-3')),
+              edges: {group: edge(group), options: ['yes', 'no'].map((s) => edge(el(s))),
+                      add: edge(group.querySelector(':scope > .lf-another'))},
+              pictures: ['yes', 'no'].map((s) =>
+                Math.round(el(`${s}-picture`)?.getBoundingClientRect().width ?? 0)),
             }];
           }))"""
     )
-    for id in ("pictured", "widened", "plated", "captured"):
-        assert at[id]["tops"][0] < at[id]["tops"][1], at
-        assert at[id]["lefts"][0] == at[id]["lefts"][1], at
+    pictured = ("pictured", "widened", "across", "plated", "captured", "rowed")
+    for id in pictured:
+        assert at[id]["edges"] == {"group": 0, "options": [1, 1], "add": 1}, (id, at)
+        assert at[id]["gap"] == at[id]["spacing"], (id, at)
+    assert at["worded"]["edges"] == {"group": 1, "options": [0, 0], "add": 0}, at
+    assert at["worded"]["gap"] == 1, at
+    for id in ("pictured", "widened", "plated", "captured", "rowed", "worded"):
+        assert at[id]["tops"][0] < at[id]["tops"][1], (id, at)
+        assert at[id]["lefts"][0] == at[id]["lefts"][1], (id, at)
+    assert at["across"]["tops"][0] == at["across"]["tops"][1], at
     for id in ("pictured", "widened"):
         assert at[id]["pictures"] == [480, 480], at
     assert at["captured"]["pictures"] == [600, 600], at
+    # Apart or joined changes only the frame: a pick fills and rings a card as it does
+    # a cell, so it reads among pictures as plainly as among words.
+    for id in ("pictured", "worded"):
+        page.locator(f"#{id}-yes > strong").click()
+        expect(page.locator(f"#{id}-yes")).to_have_attribute("chosen", "")
+    page.mouse.move(0, 0)
+    face = """el => { const s = getComputedStyle(el);
+                      return [s.backgroundColor, s.boxShadow]; }"""
+    picked = page.locator("#pictured-yes").evaluate(face)
+    assert picked == page.locator("#worded-yes").evaluate(face), picked
+    assert picked != page.locator("#pictured-no").evaluate(face), picked
 
 
 ACROSS_GEOMETRY = """(id) => {
@@ -197,14 +249,15 @@ ACROSS_GEOMETRY = """(id) => {
 }"""
 
 
-def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
-    """An obligation holding a figure before its option list sets the titled options side by
-    side under the figure in columns of one width, so the question, its figure and every
+def test_options_marked_across_lay_across(browser, serve):
+    """A group the author marks `across` sets its titled options side by side in columns
+    of one width, under the figure before it, so the question, its figure and every
     option share a window. Where the row can't hold them all, they stack one to a row
     rather than leaving a card alone on a second. Where the heading sits, in an hgroup
     after an eyebrow, and a paragraph after the list change nothing. The arrangement
-    belongs to that obligation's own list: a group nested in one of its options keeps
-    its options one to a row."""
+    belongs to the group marked: a group nested in one of its options keeps its options
+    one to a row, and the same obligation, figure and all, keeps its cards reading down
+    without `across`."""
     page = open_page(browser, serve(ACROSS_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     wide = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -212,6 +265,9 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
     assert wide["tops"][0] >= wide["figureBottom"], wide
     assert wide["lefts"] == sorted(set(wide["lefts"])), wide
     assert wide["nested"][0] < wide["nested"][1], wide
+    down = page.evaluate(ACROSS_GEOMETRY, "down")
+    assert down["tops"] == sorted(set(down["tops"])), down
+    assert len(set(down["lefts"])) == 1, down
     # Two of the three would fit across at this width.
     resized(page, 700, 900)
     middle = page.evaluate(ACROSS_GEOMETRY, "across")
@@ -220,7 +276,7 @@ def test_an_obligation_framing_a_figure_lays_its_options_across(browser, serve):
 
 
 def chipped_obligation(id, cards):
-    """An obligation framing a drawing, so its titled cards lay across; each card is
+    """An obligation framing a drawing, its titled cards laid across; each card is
     (chips, title, attributes)."""
     options = "".join(
         f'<lf-option id="{id}-{n}"{attributes}>'
@@ -232,7 +288,7 @@ def chipped_obligation(id, cards):
         f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" choose>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
     )
 
 

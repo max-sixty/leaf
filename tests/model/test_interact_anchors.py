@@ -82,6 +82,17 @@ def test_an_empty_quote_neighbour_is_an_exact_boundary():
     assert resolve_quote(revised, anchor) is None
 
 
+def test_a_whitespace_quote_refuses_instead_of_searching_forever(page_dir):
+    result = comment(
+        published(page_dir), "--quote", " \t\n ", "--text", "Which passage?"
+    )
+    assert result.exit_code != 0, result.output
+    assert refused_on(result.output).code == "unanchorable"
+    assert not any(
+        event["kind"] == "comment" for event in events_model.read_events(page_dir)
+    )
+
+
 def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
     """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
     from leaf.anchor_capture import resolve_quote
@@ -1838,7 +1849,7 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     ):
         refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
         assert refused.exit_code != 0, declaration
-        assert "declares something about the whole document" in refused.output
+        assert "document-declaration" in refused.output, refused.output
     handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
     assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
 
@@ -1893,3 +1904,25 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ],
     )
     assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output
+
+
+def test_data_widget_prose_members_are_quotable_without_admitting_source():
+    registry = {
+        "lf-source": {"x-content": "data", "x-upgrade": True},
+        "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
+    }
+    document = structure_model.SourceDocument(
+        '<p>Before.</p><lf-source id="source"><pre>Hidden source '
+        "<lf-remark>Still source.</lf-remark></pre>"
+        '<lf-remark id="remark">A <em>readable</em> remark.</lf-remark>'
+        "<aside>Undeclared body.</aside></lf-source><p>After.</p>"
+    )
+    assert passages_model.page_passages(document, registry).text == (
+        "Before. A readable remark. After."
+    )
+    # A member declaration does not reopen an excluded subtree.
+    hidden = structure_model.SourceDocument(
+        '<div class="lf-ui"><lf-source><lf-remark>Hidden remark.</lf-remark>'
+        "</lf-source></div>"
+    )
+    assert passages_model.page_passages(hidden, registry).text == ""

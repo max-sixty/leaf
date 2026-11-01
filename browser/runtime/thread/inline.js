@@ -27,6 +27,7 @@ import { holdFocus, focused, focusDestination, currentLocationIn } from "../focu
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
+import { leafSays, voiced } from "../voice.js";
 import { HeldNews, newsCount, seatNotice } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
@@ -74,7 +75,8 @@ class ResolvedThreads {
   }
 
   // The summary says what its threads hold back as one count, as every notice of held
-  // news does (held-news.js, `newsCount`), its title each fact.
+  // news does (held-news.js, `newsCount`), its title each fact. The news is Leaf's, as
+  // a held-news notice's is, so it wears Leaf's voice.
   /** @param {readonly ThreadViewModel[]} threads @param {readonly Node[]} nodes */
   present(threads, nodes) {
     this.#threads = threads;
@@ -87,7 +89,7 @@ class ResolvedThreads {
         notice
           ? html` ·
               <span data-lf-news title=${held.map(({ label }) => label).join(" · ")}
-                >${notice}</span
+                >${voiced(leafSays(notice))}</span
               >`
           : ""
       }`,

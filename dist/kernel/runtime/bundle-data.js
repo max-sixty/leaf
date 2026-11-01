@@ -7551,7 +7551,7 @@ var ResolvedThreads = class {
 		render$1(html`Resolved ·
       ${threads.length}${notice ? html` ·
               <span data-lf-news title=${held.map(({ label }) => label).join(" · ")}
-                >${notice}</span
+                >${voiced(leafSays(notice))}</span
               >` : ""}`, this.summary);
 		setChildren(this.node, [this.summary, ...nodes]);
 	}

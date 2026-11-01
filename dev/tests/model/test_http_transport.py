@@ -10,27 +10,40 @@ import pytest
 from playwright.sync_api import Error, sync_playwright
 
 from leaf_dev import ROOT
+from leaf_dev.commands.verify_site import read_state
 
 
-def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
-    monkeypatch, capfd
+@pytest.mark.parametrize("failure", ["single_reset", "repeated_reset", "http500"])
+def test_state_transport_recovers_only_one_reset_and_records_it_without_secrets(
+    monkeypatch, capfd, failure
 ):
+    state_attempts = 0
+
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def do_GET(self):
-            if self.path.startswith("/reset"):
+            nonlocal state_attempts
+            if self.path == "/state":
+                state_attempts += 1
+            if self.path == "/state" and (
+                failure == "repeated_reset"
+                or (failure == "single_reset" and state_attempts == 1)
+            ):
                 self.connection.setsockopt(
                     socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
                 )
                 self.close_connection = True
                 return
-            self.send_response(200)
-            self.send_header("Content-Length", "2")
+            body = b'{"revision":"current"}'
+            self.send_response(
+                500 if self.path == "/state" and failure == "http500" else 200
+            )
+            self.send_header("Content-Length", str(len(body)))
             self.send_header("cf-ray", "a5154cdb1f254a77-LHR")
             self.send_header("Set-Cookie", "credential=secret-response-cookie")
             self.end_headers()
-            self.wfile.write(b"ok")
+            self.wfile.write(body)
 
         def log_message(self, format, *args):
             pass
@@ -50,9 +63,18 @@ def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
                 response = context.get(
                     origin + "/secret-path?token=secret-query", headers=headers
                 )
-                assert response.text() == "ok"
-            with pytest.raises(Error, match="ECONNRESET"):
-                context.get(origin + "/reset", headers=headers, max_retries=0)
+                assert response.json() == {"revision": "current"}
+            if failure == "single_reset":
+                assert read_state(
+                    context, origin + "/state", headers=headers
+                ).json() == {"revision": "current"}
+            elif failure == "repeated_reset":
+                with pytest.raises(Error, match="Failed after 2 attempt"):
+                    read_state(context, origin + "/state", headers=headers)
+            else:
+                with pytest.raises(RuntimeError, match="returned 500"):
+                    read_state(context, origin + "/state", headers=headers)
+            assert state_attempts == (1 if failure == "http500" else 2)
             context.dispose()
     finally:
         server.shutdown()
@@ -67,7 +89,7 @@ def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
     ]
     assert any(row["event"] == "enabled" for row in records)
     responses = [row for row in records if row["event"] == "response"]
-    assert len(responses) == 2
+    assert len(responses) == (2 if failure == "repeated_reset" else 3)
     assert responses[1]["socket"] == responses[0]["socket"]
     assert responses[1]["reused"]
     assert responses[1]["ray"] == "a5154cdb1f254a77-LHR"
@@ -75,7 +97,10 @@ def test_playwright_transport_records_reuse_reset_and_ray_without_secrets(
         row["event"] == "connect" and row["remotePort"] == server.server_port
         for row in records
     )
-    assert any(
-        row["event"] == "request-error" and row["code"] == "ECONNRESET"
-        for row in records
+    assert (
+        sum(
+            row["event"] == "request-error" and row["code"] == "ECONNRESET"
+            for row in records
+        )
+        == {"single_reset": 1, "repeated_reset": 2, "http500": 0}[failure]
     )

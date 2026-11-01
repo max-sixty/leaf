@@ -1,6 +1,6 @@
 import { PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, actionTemplate, afterScript, backgroundFlash, bindQueuedWork, cancelRender, dataBody, describeFailure, flashDuration, foldBlock, frameFor, generatedElement, inlineStyle, isElement, isHTML, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
-import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, agentSays, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, blurFocused, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, eventSource, exhibits, focusDestination, focused, foldWidgetStates, hasObligationSource, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, leafSays, live, loadShadowRules, marks, messageKey, move, nativeFocusTarget, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, voiced, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, declaresCommandHandler, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
+import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, agentSays, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, blurFocused, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, eventSource, exhibits, focusDestination, focused, foldWidgetStates, hasObligationSource, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, leafSays, live, loadShadowRules, marks, messageKey, move, nativeFocusTarget, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, voiced, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { LayerRefused, PRESS, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, declaresCommandHandler, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, elementReading, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
@@ -343,11 +343,6 @@ function passageBlock(node) {
 	const blocks = pageBlocks();
 	for (let at = node instanceof Element ? node : node.parentElement; at; at = upFrom(at)) if (blocks.includes(at)) return at;
 	return null;
-}
-function openingPassage(where) {
-	if (where instanceof Range) return passageBlock(where.startContainer);
-	if (!where) return null;
-	return renderedBlocks(pageBlocks().filter((block) => under(block, where))).next().value?.[0] ?? null;
 }
 function readingBounds(region) {
 	const shown = region ? shownRegionBounds(region) : shownWindow();
@@ -953,11 +948,7 @@ function prepareEntry() {
 	const offset = place.offset;
 	const sourceUrl = window.location.href;
 	const sourceState = history.state;
-	return (url, state, replace) => {
-		if (replace) {
-			replaceEntry(url, state);
-			return;
-		}
+	return (url) => {
 		const arrival = {
 			left: scrollX,
 			top: scrollY
@@ -968,7 +959,7 @@ function prepareEntry() {
 			top: offset[1],
 			behavior: "instant"
 		});
-		pushEntry(url, state);
+		pushEntry(url);
 		setScroll(pageScroller, {
 			...arrival,
 			behavior: "instant"
@@ -8332,19 +8323,6 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const intent = ++travelIntent;
 		return restrictUserIntent(retained, () => intent === travelIntent);
 	};
-	const navigationGroupPrefix = `${performance.timeOrigin}:`;
-	let navigationSteps = 0;
-	let navigationGroup = null;
-	onReadingInput((node) => {
-		if (!navigationGroup || closestAcross(node, `${PRESSES},${"[data-lf-offer]:not([data-lf-offer=\"\"])"}`) || typesText(node)) return;
-		const passage = passageBlock(node);
-		if (!passage) return;
-		if (passage !== navigationGroup.passage()) navigationGroup = null;
-	});
-	function stillLanded() {
-		const where = navigationGroup && history.state?.lfNavigationGroup === navigationGroup.token && navigationGroup.landing();
-		return Boolean(where && seenOf(where));
-	}
 	async function arrive(resolve, { intent, present = null, departure = null }) {
 		if (!intent()) return false;
 		const initial = resolve();
@@ -8406,10 +8384,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const datum = anchor.datum;
 		const source = datum ? sectionOf(anchor) : null;
 		if (!destination && !source) return false;
-		const departure = prepareNavigationStep({
-			intent: mayArrive,
-			landing: () => resolve()?.where
-		});
+		const departure = prepareNavigationStep();
 		departure.plan(destination?.where ?? source, { there: (readable) => Boolean(destination && readable(destination.where)) });
 		if (source && datum) {
 			const hydration = revealAddressed(source, datum);
@@ -8425,10 +8400,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		const mayArrive = retainTravel(intent);
 		const destination = resolve();
 		if (!destination?.where) return null;
-		const departure = prepareNavigationStep({
-			intent: mayArrive,
-			landing: () => resolve()?.where
-		});
+		const departure = prepareNavigationStep();
 		departure.plan(destination.where);
 		let release = () => {};
 		await arrive(() => {
@@ -8468,16 +8440,8 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		release();
 		return mayArrive() ? resolve()?.input() ?? null : void 0;
 	}
-	function prepareNavigationStep({ landing = null, url, intent }) {
+	function prepareNavigationStep(url) {
 		const write = prepareEntry();
-		const continuing = landing && stillLanded() ? navigationGroup : null;
-		const arrival = landing ? {
-			landing,
-			passage: () => {
-				const where = landing();
-				return where ? openingPassage(where) : null;
-			}
-		} : null;
 		let moving;
 		return {
 			plan(where, { there } = {}) {
@@ -8485,16 +8449,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 				return moving;
 			},
 			commit() {
-				if (moving === void 0) return;
-				if (!moving) {
-					if (continuing && arrival) Object.assign(continuing, arrival);
-					return;
-				}
-				navigationGroup = arrival && {
-					token: navigationGroupPrefix + ++navigationSteps,
-					...arrival
-				};
-				write(url ?? window.location.href, navigationGroup && { lfNavigationGroup: navigationGroup.token }, Boolean(continuing));
+				if (moving) write(url ?? window.location.href);
 			}
 		};
 	}
@@ -8530,10 +8485,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		}
 		const url = new URL(window.location.href);
 		url.hash = source.id;
-		const departure = prepareNavigationStep({
-			url,
-			intent: mayArrive
-		});
+		const departure = prepareNavigationStep(url);
 		const hydration = revealAddressed(source, key);
 		if (hydration?.then) await hydration;
 		if (!mayArrive()) return false;
@@ -8636,11 +8588,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			key: anchor.datum
 		} : null;
 		const destination = threadDestination(id);
-		const landing = () => threadDestination(id);
-		const departure = history ? prepareNavigationStep({
-			landing,
-			intent: mayArrive
-		}) : null;
+		const departure = history ? prepareNavigationStep() : null;
 		if (destination || hydrationTarget) departure?.plan(destination);
 		if (hydrationTarget) {
 			const source = sectionOf(hydrationTarget.anchor);

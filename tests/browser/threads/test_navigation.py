@@ -16,10 +16,9 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
-    """A journey of trips to threads somewhere else leaves one history entry however
-    far it goes, so Back returns to the place the user was reading before it and
-    Forward to where it ended. Reading somewhere else ends the journey: the next trip
-    records that place."""
+    """Each trip to a thread somewhere else adds a history entry where the user stood,
+    so Back retraces the walk one thread at a time, back to where the user was reading,
+    and Forward replays it."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -70,34 +69,22 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
     assert walked < landed - 1000
-    assert page.evaluate("history.length") == entries + 1
-
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
-    )
-    page.go_forward()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
-        arg=walked,
-    )
-
-    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
-    elsewhere = page.evaluate("document.scrollingElement.scrollTop")
-    assert elsewhere > walked + 1000
-    # Either thread is somewhere else from here; which one Shift+t lands on depends
-    # on whether the walk's card survived the traversal, and the claim does not.
-    page.keyboard.press("Shift+t")
-    page.wait_for_function(
-        "top => document.scrollingElement.scrollTop < top - 1000", arg=elsewhere
-    )
-    scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
-        arg=elsewhere,
-    )
+
+    for back, top in [
+        (True, landed),
+        (True, reading),
+        (False, landed),
+        (False, walked),
+    ]:
+        page.wait_for_function("navigation.transition === null")
+        if back:
+            page.go_back()
+        else:
+            page.go_forward()
+        page.wait_for_function(
+            "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=top
+        )
 
 
 def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):

@@ -474,7 +474,7 @@ export function createQueueWalk({
     const intent = retainUserIntent({ available: () => Boolean(find()) });
     const where = find();
     if (!where) return Promise.resolve(false);
-    const departure = prepareNavigationStep({ landing: find, intent });
+    const departure = prepareNavigationStep();
     departure.plan(where);
     return arrive(
       () => {

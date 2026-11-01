@@ -163,22 +163,14 @@ export function prepareEntry() {
   const offset = place.offset;
   const sourceUrl = window.location.href;
   const sourceState = history.state;
-  return /** @param {string | URL} url @param {unknown} state @param {boolean} replace */ (
-    url,
-    state,
-    replace,
-  ) => {
-    if (replace) {
-      replaceEntry(url, state);
-      return;
-    }
+  return /** @param {string | URL} url */ (url) => {
     const arrival = { left: scrollX, top: scrollY };
     // Exposing another view renames this entry. Its original URL and state belong to
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
       replaceEntry(sourceUrl, sourceState);
     setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
-    pushEntry(url, state);
+    pushEntry(url);
     setScroll(pageScroller, { ...arrival, behavior: "instant" });
     if (key) places.set(key, place);
   };

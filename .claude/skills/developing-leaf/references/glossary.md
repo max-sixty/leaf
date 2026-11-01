@@ -221,7 +221,6 @@ the headings over the document's height.
 | **Done** | The control with which the user ends a to-do the agent gave them (`todo_end`). A widget may also call its own submit control Done |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |
-| **Navigation group** | Consecutive navigation steps, each starting where the last landed, that share one history entry, so Back returns to where the first began |
 | **Current location** | The destination the user is at, directly or through a control inside it: a thread on the page or in the panel, an obligation, or authored page content. A panel thread's title and its messages are one destination; chrome controls, margin rows, comment notes and contents links are not destinations |
 | **Current target** | The addressable element the user is at, whether focus is on the element, inside it, on its margin cluster, on a note it names on the details shelf, or on the thread card showing its threads (`current-target.js`) |
 | **Floor** | The place in a layer where the user is at nothing: the page's body, or an open view of Leaf's panel as a whole |

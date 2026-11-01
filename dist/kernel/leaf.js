@@ -4681,10 +4681,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		const intent = retainUserIntent({ available: () => Boolean(find()) });
 		const where = find();
 		if (!where) return Promise.resolve(false);
-		const departure = prepareNavigationStep({
-			landing: find,
-			intent
-		});
+		const departure = prepareNavigationStep();
 		departure.plan(where);
 		return arrive(() => {
 			const at = find();
@@ -8344,10 +8341,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 		};
 		const initial = destination();
 		if (!initial) return false;
-		const departure = prepareNavigationStep({
-			landing: () => obligationNode(next),
-			intent: mayArrive
-		});
+		const departure = prepareNavigationStep();
 		const { box: initialBox, region: initialRegion } = initial;
 		const moving = Boolean(initialBox && departure.plan(initial.target, { there: (readable) => framed(next, initialRegion, initial.target, initialBox, readable) }));
 		return await arriveAtRecord(() => {

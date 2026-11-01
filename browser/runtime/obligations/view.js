@@ -650,10 +650,7 @@ export function createObligationView({
     };
     const initial = destination();
     if (!initial) return false;
-    const departure = prepareNavigationStep({
-      landing: () => obligationNode(next),
-      intent: mayArrive,
-    });
+    const departure = prepareNavigationStep();
     const { box: initialBox, region: initialRegion } = initial;
     const moving = Boolean(
       initialBox &&

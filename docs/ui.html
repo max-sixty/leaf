@@ -2048,10 +2048,9 @@ flowchart TD
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
               A successful navigation step to a destination that is not fully readable
-              adds a return stop. Consecutive navigation steps form a navigation group
-              and share that stop while part of the preceding landing remains visible
-              and the user has not clicked or Tabbed onto another passage. Back returns
-              to the navigation group’s start. A fully readable destination adds no
+              adds a return stop where the user stood, so Back returns to the item they
+              were on: after t then m, Back returns to the thread, and Back again to
+              where they were reading before t. A fully readable destination adds no
               stop.
             </p>
             <details id="navigation-history-cases">
@@ -2070,27 +2069,9 @@ flowchart TD
                       destination
                     </td>
                     <td>
-                      A successful navigation step pushes an entry, or replaces the
-                      current navigation group's entry. Changing focus alone adds none.
+                      A successful navigation step pushes an entry. Changing focus alone
+                      adds none.
                     </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Click or Tab onto a different passage, then take another
-                      navigation step
-                    </td>
-                    <td>
-                      The reading choice ends the navigation group; the next offscreen
-                      navigation step saves that passage. Controls and runtime focus
-                      handoffs do not end it.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      Scroll completely away from the last landing, then take another
-                      navigation step
-                    </td>
-                    <td>The new navigation step adds a separate return stop.</td>
                   </tr>
                   <tr>
                     <td>Follow a #fragment link</td>

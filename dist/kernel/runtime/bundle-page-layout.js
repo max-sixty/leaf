@@ -5338,10 +5338,7 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 			};
 			const mayPresent = () => !abort.signal.aborted && presentation === selected && selected.owner.isConnected && (focus === false ? intent.available() : intent());
 			const arriving = restrictUserIntent(intent, mayPresent);
-			const departure = focus !== false && navigationStep && history ? prepareNavigationStep({
-				landing: () => selected.reader.destination(thread.key, request),
-				intent: arriving
-			}) : null;
+			const departure = focus !== false && navigationStep && history ? prepareNavigationStep() : null;
 			if (last) lastResort.add(thread.key);
 			else lastResort.delete(thread.key);
 			const result = selected.open(thread.key, request);

@@ -1,5 +1,5 @@
-"""The reader's place: Back and Forward, travel groups, reading landmarks, aligning the
-current item, and restoring a remembered selection."""
+"""The reader's place: Back and Forward, reading landmarks, aligning the current item,
+and restoring a remembered selection."""
 
 import re
 
@@ -16,7 +16,6 @@ from render_harness import (
     open_page,
     panel_control,
     panel_field,
-    panel_menu,
     panel_settled,
     panel_view,
     press_visible,
@@ -230,12 +229,13 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     ("route", "large", "focusable"),
     [("click", False, True), ("Tab", False, True), ("click", True, False)],
 )
-def test_a_new_reading_passage_ends_a_travel_group(
+def test_back_returns_the_passage_chosen_between_trips(
     browser, serve, route, large, focusable
 ):
-    """Visible remnants of an old landing cannot swallow a deliberate reading move.
-    Back returns the newly chosen passage; another Back reaches the original reading.
-    Clicks on unfocusable words count too, independently of browser focus arrival."""
+    """A passage the user chose after one trip, by click or Tab, is where the next trip
+    departs from, even while the first landing still shows: Back returns to it, and
+    another Back to the original reading. A click on words that take no focus is
+    returned as the selection it left."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
@@ -248,7 +248,7 @@ def test_a_new_reading_passage_ends_a_travel_group(
         leaf_page(
             "A fresh reading stop",
             "<h1>Reading before the conversations</h1>"
-            '<p id="origin" tabindex="0">The reading before the thread navigation group.</p>'
+            '<p id="origin" tabindex="0">The reading before the thread walk.</p>'
             f'<div style="height:1800px"></div>{first}'
             '<div style="height:1800px"></div>'
             '<p id="second">The second discussion concerns the rollout.</p>'
@@ -339,88 +339,6 @@ def test_a_new_reading_passage_ends_a_travel_group(
     page.go_back()
     page.wait_for_function("top => Math.abs(scrollY-top) <= 2", arg=chosen_top)
     page.wait_for_function("navigation.transition === null")
-    page.go_back()
-    expect(page.locator("#origin")).to_be_focused()
-    page.wait_for_function("scrollY < 100")
-
-
-@pytest.mark.parametrize(
-    "concealment",
-    # One of each way words can be absent from what is drawn: not rendered (`hidden`
-    # and a closed `details` are `display: none`'s case), rendered unseen, skipped
-    # (`until-found` is `content-visibility`'s), and boxless.
-    [
-        "none",
-        "display",
-        "visibility",
-        "opacity",
-        "content",
-        "contents",
-    ],
-)
-def test_same_passage_and_controls_keep_a_mixed_travel_group(
-    browser, serve, concealment
-):
-    """Reading choices have passage grain: touching the current words or operating
-    controls does not turn consecutive thread/obligation travel into separate Back stops."""
-    concealed = {
-        "none": "",
-        "hidden": "<div hidden><p>Concealed source background.</p></div>",
-        "until-found": '<div hidden="until-found"><p>Concealed source background.</p></div>',
-        "display": '<div style="display:none"><p>Concealed source background.</p></div>',
-        "visibility": '<div style="visibility:hidden"><p>Concealed source background.</p></div>',
-        "opacity": '<div style="opacity:0"><p>Concealed source background.</p></div>',
-        "content": '<div style="content-visibility:hidden"><p>Concealed source background.</p></div>',
-        "details": "<details><summary hidden>Background</summary><p>Concealed source background.</p></details>",
-        "contents": "",
-    }[concealment]
-    style = ' style="display:contents"' if concealment == "contents" else ""
-    url = serve(
-        leaf_page(
-            "One continuing navigation group",
-            "<h1>One continuing navigation group</h1>"
-            '<p id="origin" tabindex="0">The original reading place.</p>'
-            '<div style="height:1800px"></div>'
-            f'<section id="first">{concealed}'
-            f'<p id="first-reading"{style}><span>The passage the first thread concerns.</span></p></section>'
-            '<p><button id="reading-control">A nearby control</button></p>'
-            '<div style="height:1800px"></div>'
-            '<lf-ask id="second"><h2>Choose the next step</h2>'
-            '<lf-options id="choice" choose><lf-option id="yes">Yes</lf-option>'
-            '<lf-option id="no">No</lf-option></lf-options></lf-ask>'
-            '<div style="height:900px"></div>',
-        )
-    )
-    root = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "first"},
-            "text": "A question about this passage.",
-        },
-    )["id"]
-    page = open_page(browser, url)
-    page.locator("#origin").click()
-    entries = page.evaluate("history.length")
-    page.keyboard.press("t")
-    expect(page.locator(f'.lf-margin-preview [data-thread="{root}"]')).to_be_focused()
-    # Card focus precedes the passage's smooth scroll; observe its arrival first.
-    expect(page.locator("#first-reading span")).to_be_in_viewport()
-    scroll_settled(page)
-    expect(page.locator("#first-reading span")).to_be_visible()
-    assert page.locator("#first-reading span").evaluate(
-        "el => {const r=el.getBoundingClientRect(); return r.bottom > 60 && r.top < innerHeight-60}"
-    ), "the words checked must be the actual rendered landing"
-    page.locator("#first-reading span").click()
-    page.locator("#reading-control").click()
-    panel_menu(page)
-    page.keyboard.press("Escape")
-    page.keyboard.press("m")
-    expect(page.locator("#second")).to_be_focused()
-    scroll_settled(page)
-    assert page.evaluate("history.length") == entries + 1
     page.go_back()
     expect(page.locator("#origin")).to_be_focused()
     page.wait_for_function("scrollY < 100")
@@ -669,10 +587,10 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 
 
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
-    """The obligation walk records the same history the thread walk does: one entry for a
-    navigation group visiting obligations somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a navigation group that crosses from threads to obligations is
-    still one navigation group."""
+    """Each step of the obligation walk somewhere else adds a history entry where the user
+    stood, as each trip to a thread does, so Back returns to the obligation the user was
+    on, though answering it took it out of On me, and then to where they were reading.
+    `m` from a thread `t` reached comes back to the thread."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -709,8 +627,36 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     reading = page.evaluate("document.scrollingElement.scrollTop")
     assert reading > 2000
-    entries = page.evaluate("history.length")
 
+    def entry():
+        return page.evaluate("navigation.currentEntry.index")
+
+    def back_to(top):
+        page.wait_for_function("navigation.transition === null")
+        page.go_back()
+        page.wait_for_function(
+            "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=top
+        )
+
+    # `t` travels to the thread just below the first obligation, and `m` from there to
+    # the second leaves that thread, so it adds an entry of its own: Back returns to the
+    # thread's landing, and Back again to the bottom.
+    start = entry()
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    scroll_settled(page)
+    thread = page.evaluate("document.scrollingElement.scrollTop")
+    assert thread < reading - 1000
+    page.keyboard.press("m")
+    expect(page.locator("#second-decision")).to_be_focused()
+    scroll_settled(page)
+    assert entry() == start + 2
+    back_to(thread)
+    expect(page.locator("#above")).to_be_in_viewport()
+    back_to(reading)
+
+    # From the bottom again, the obligation walk upward.
+    start = entry()
     page.keyboard.press("Shift+m")
     expect(page.locator("#second-decision")).to_be_focused()
     # Focus precedes the outer scroll, so observe movement before waiting for rest.
@@ -720,8 +666,11 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
     assert landed < reading - 1000
-    assert page.evaluate("history.length") == entries + 1
+    assert entry() == start + 1
 
+    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    page.keyboard.press("1")
+    expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
     page.wait_for_function(
@@ -730,27 +679,10 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
     assert walked < landed - 1000
-    assert page.evaluate("history.length") == entries + 1
-
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
-    )
-
-    # From the bottom again: `t` travels to the thread just below the first obligation, and
-    # `m` from there to the second continues that navigation group rather than starting another,
-    # so one Back skips the thread's landing and returns to the bottom.
-    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
-    page.keyboard.press("t")
-    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
-    scroll_settled(page)
-    page.keyboard.press("m")
-    expect(page.locator("#second-decision")).to_be_focused()
-    scroll_settled(page)
-    page.go_back()
-    page.wait_for_function(
-        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
-    )
+    assert entry() == start + 2
+    back_to(landed)
+    page.wait_for_function("() => document.activeElement?.closest('#second-decision')")
+    back_to(reading)
 
 
 def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(

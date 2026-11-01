@@ -513,8 +513,8 @@ registerPageControl({
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
-// isn't present in the base version get a tinted marker, so re-reading a
-// revision is cheap. Block-level and additions-only — deleted text has no home
+// isn't present in the base version are marked, each with a bar beside it
+// (margin-bars.js), so re-reading a revision is cheap. Block-level and additions-only — deleted text has no home
 // to mark — and a widget that renders its own body is opaque to it. The base is
 // any version older than the one being read, offered by its own row in the
 // picker's menu, where the note saying what changed in words sits beside the
@@ -1044,23 +1044,18 @@ function openInlineComparison(target, base, words) {
   const additions = [];
   const insertions = [{ offset: 0, node: label }];
   let afterOffset = 0;
-  let hasTextChange = false;
   for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
     if (run.kind === "delete") {
       const dropped = el("span", "lf-ui lf-version-inline-deletion");
       dropped.append(el("del", "", run.text));
       nodes.push(dropped);
       insertions.push({ offset: afterOffset, node: dropped });
-      hasTextChange = true;
     } else {
       // The passage reading indexes characters by code point while DOM Range offsets
       // are UTF-16. Keep the alignment cursor in the reading's units; an astral
       // character must advance it once, not by the two code units String.length sees.
       const length = [...run.text].length;
-      if (run.kind === "insert") {
-        additions.push([afterOffset, afterOffset + length]);
-        hasTextChange = true;
-      }
+      if (run.kind === "insert") additions.push([afterOffset, afterOffset + length]);
       afterOffset += length;
     }
   }
@@ -1072,7 +1067,6 @@ function openInlineComparison(target, base, words) {
   const ranges = additions.flatMap(([start, end]) =>
     rangesAt(currentReading, start, end),
   );
-  target.classList.toggle("lf-version-inline", hasTextChange);
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
   layoutChanged(target);
@@ -1085,7 +1079,6 @@ function openInlineComparison(target, base, words) {
 function closeInlineComparison(target) {
   const entry = inlineOpen.get(target);
   inlineOpen.delete(target);
-  target.classList.remove("lf-version-inline");
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);

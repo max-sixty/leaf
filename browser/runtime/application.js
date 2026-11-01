@@ -39,7 +39,7 @@ import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
-import { createAtWork } from "./at-work.js";
+import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
@@ -315,7 +315,7 @@ function createApplication(dependencies) {
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
-  createAtWork(annotations);
+  createMarginBars(annotations);
   // Print hides contributed controls and cannot supply their visibility reading.
   // Refuse the annotation pass whole until the document returns to screen media.
   const onPaper = matchMedia("print");

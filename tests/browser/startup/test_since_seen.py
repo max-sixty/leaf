@@ -1,6 +1,6 @@
 """Changes in place: what changed since the version the user last saw, marked when they
 come back to the page and walked with `h`, and where the agent is at work while it
-works (since-seen.js, change-walk.js, at-work.js).
+works (since-seen.js, change-walk.js, margin-bars.js).
 
 A revision is seen when it is on the page while the user is there: the tab visible and
 the window holding focus, and the marks count from the newest version stamped at or
@@ -127,16 +127,39 @@ def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
+    # Each change's mark is a bar beside it, and the block keeps its own paint.
+    bars = page.locator(".lf-change-bar")
+    expect(bars).to_have_count(2)
+    assert sorted(bars.evaluate_all("bars => bars.map(b => b.dataset.for)")) == [
+        "b",
+        "d",
+    ]
+    clear = "rgba(0, 0, 0, 0)"
+    expect(page.locator("#b")).to_have_css("background-color", clear)
     # The marks are annotations: Escape lets go of the change and leaves them, and `o`
     # hides them with the rest.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
-    clear = "rgba(0, 0, 0, 0)"
+    beta = page.locator('.lf-change-bar[data-for="b"]')
     page.keyboard.press("o")
-    expect(page.locator("#b")).to_have_css("background-color", clear)
+    expect(beta).to_have_css("background-color", clear)
     page.keyboard.press("o")
-    expect(page.locator("#b")).not_to_have_css("background-color", clear)
+    expect(beta).not_to_have_css("background-color", clear)
+    # A changed block the agent is at work on shows both bars, the change's nearer it.
+    _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")
+    expect(page.locator(".lf-at-work-bar")).to_have_count(1)
+    lanes = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const [block, change, work] = [
+            box('#b'), box('.lf-change-bar[data-for="b"]'), box('.lf-at-work-bar'),
+          ];
+          return change.right <= block.left && work.right <= change.left
+            && change.top < block.bottom && change.bottom > block.top;
+        }"""
+    )
+    assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
 def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
@@ -263,13 +286,13 @@ def test_a_revision_that_reloads_the_page_is_marked_in_the_new_document(browser,
     assert marked_ids(page) == ["b"]
 
 
-def _comment_on(d, section, words):
+def _comment_on(d, section, words, revision=1):
     return append_command(
         d,
         {
             "kind": "comment",
             "author": "user",
-            "revision": 1,
+            "revision": revision,
             "text": "Say which way?",
             "anchor": {"section": section, "quote": words},
         },

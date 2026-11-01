@@ -383,7 +383,7 @@ const kinds = {
 	}
 };
 for (const face of Object.values(kinds)) Object.freeze(face);
-const KINDS = Object.freeze(kinds);
+const KINDS$1 = Object.freeze(kinds);
 const READING_OPTIONS = /* @__PURE__ */ new Set([
 	"kind",
 	"subject",
@@ -478,7 +478,7 @@ function normalizeContributionReading(reading, owner) {
 	unknownOptions(reading, READING_OPTIONS, "contribution");
 	const { kind = null, subject = null, state = "idle", side = "before", notice = null, entries = [], readings = [] } = reading;
 	if (!Object.hasOwn(STATE_PRIORITY, state)) throw new TypeError(`Unknown contribution state: ${state}`);
-	if (kind != null && !Object.hasOwn(KINDS, kind)) throw new TypeError(`Unknown contribution kind "${kind}" in contribution "${owner}"`);
+	if (kind != null && !Object.hasOwn(KINDS$1, kind)) throw new TypeError(`Unknown contribution kind "${kind}" in contribution "${owner}"`);
 	if (side !== "before" && side !== "after") throw new TypeError(`Unknown contribution side: ${side}`);
 	const keys = /* @__PURE__ */ new Set();
 	const normalizedEntries = entries.map((entry) => {
@@ -1465,7 +1465,7 @@ const FACE_ELEMENTS = {
 	li: () => document.createElement("li")
 };
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
-const GAP$1 = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
+const GAP = "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + min(var(--lf-gap-end), var(--lf-gap-start), 0px))";
 function readFaces(field, display) {
 	const probe = display.cloneNode(false);
 	probe.removeAttribute("id");
@@ -1515,7 +1515,7 @@ function readFaces(field, display) {
 		const list = tag === "ul" || tag === "ol";
 		rules.push(`.lf-face-${tag} { ${type} }`, `.lf-starts-${tag} { --lf-gap-start: ${list ? collapsed(start, li.start) : start}px }`, `.lf-ends-${tag} { --lf-gap-end: ${list ? collapsed(end, li.end) : end}px }`);
 	}
-	rules.push(`.lf-face-gap { line-height: ${GAP$1} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP$1} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP$1} / 3) }`, `.lf-face-gap-above { padding-block-start: ${GAP$1} }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP$1} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
+	rules.push(`.lf-face-gap { line-height: ${GAP} }`, `.lf-face-gap.lf-face-share-2 { line-height: calc(${GAP} / 2) }`, `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`, `.lf-face-gap-above { padding-block-start: ${GAP} }`, `.lf-face-code { padding-inline: ${pre.inset} }`, `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`, `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`, `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`, `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`, `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`, `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`, `.lf-face-list-tail { padding-block-end: ${collapsed(0, li.end)}px }`);
 	return rules.join("\n");
 }
 const blockTag = (token) => token.type === "fence" ? "pre" : token.tag;
@@ -3595,7 +3595,7 @@ const deriveReadingChoices = (items) => {
 	return Object.freeze(choices.map((choice) => {
 		Object.freeze(choice.items);
 		return Object.freeze(choice);
-	}).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || left.items[0].id.localeCompare(right.items[0].id) || left.key.localeCompare(right.key)));
+	}).sort((left, right) => KINDS$1[left.kind].priority - KINDS$1[right.kind].priority || left.items[0].id.localeCompare(right.items[0].id) || left.key.localeCompare(right.key)));
 };
 const readingChoices = (entry) => entry.choices;
 const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
@@ -3622,7 +3622,7 @@ function markerFace(entry) {
 	};
 }
 function readingFace(choice) {
-	return choice?.items.length === 1 && choice.items[0].workflowFace || choice && KINDS[choice.kind] || KINDS.action;
+	return choice?.items.length === 1 && choice.items[0].workflowFace || choice && KINDS$1[choice.kind] || KINDS$1.action;
 }
 function readingState(choice) {
 	return (choice?.items ?? []).map((item) => item.state ?? item.workflowFace?.state ?? "idle").sort((left, right) => contributionEntryStateRank(left) - contributionEntryStateRank(right))[0] ?? "idle";
@@ -3675,7 +3675,7 @@ function kindsIn(entry, { markerOnly = false } = {}) {
 	return [...counts].map(([kind, count]) => ({
 		kind,
 		count,
-		...KINDS[kind]
+		...KINDS$1[kind]
 	}));
 }
 const readingItem = (entry, choice) => Object.freeze({
@@ -3752,8 +3752,8 @@ function clusterProjection(entry, { expandedKey = null, expandedOwner = null, fo
 		entry,
 		kind: "page",
 		label: `Page actions for ${subject}`,
-		toggle: kind ? KINDS[kind] : TOGGLE,
-		moreLabel: kind ? `${KINDS[kind].label}, ${subject}` : `More options for ${subject}`,
+		toggle: kind ? KINDS$1[kind] : TOGGLE,
+		moreLabel: kind ? `${KINDS$1[kind].label}, ${subject}` : `More options for ${subject}`,
 		offers: entry.offers,
 		hasPrimary: Boolean(shown),
 		state: entryState(entry),
@@ -3763,7 +3763,7 @@ function clusterProjection(entry, { expandedKey = null, expandedOwner = null, fo
 function marginInventory(groups) {
 	return Object.freeze(groups.map((group) => {
 		const represented = new Set(group.items.filter((item) => item.marker === false && item.represents).map((item) => item.kind));
-		let items = group.items.filter((item) => item.marker === false || item.workflowFace || !represented.has(item.kind)).sort((left, right) => KINDS[left.kind].priority - KINDS[right.kind].priority || (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)));
+		let items = group.items.filter((item) => item.marker === false || item.workflowFace || !represented.has(item.kind)).sort((left, right) => KINDS$1[left.kind].priority - KINDS$1[right.kind].priority || (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)));
 		const direct = group.offers.filter((offered) => offered.reading.side === "before" || offered.reading.hasReadings);
 		const after = group.offers.filter((offered) => offered.reading.side === "after" && !offered.reading.hasReadings).sort(compareContributions);
 		const directRecords = visibleRecords(direct).sort(compareContributionEntryRecords);
@@ -4076,7 +4076,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				text: labelWords(`${face.word.text} · ${account}`),
 				words: [face.word, ` · ${labelWords(account)}`],
 				workflowFace: Object.freeze({
-					...KINDS[face.kind],
+					...KINDS$1[face.kind],
 					label: face.word.text,
 					voice: face.word.voice
 				}),
@@ -4089,7 +4089,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			const target = elementById(origin.unit);
 			if (!target) continue;
 			if (origin.origin === "user" && acknowledged.has(target)) continue;
-			const face = KINDS[origin.origin];
+			const face = KINDS$1[origin.origin];
 			add(groups, target, {
 				kind: origin.origin,
 				id: `state-origin:${origin.origin}:${origin.unit}`,
@@ -4137,7 +4137,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 				text: labelWords(account),
 				words: [...todo.agent ? [`${todo.agent} · `] : [], agentSays(labelWords(running?.text ?? todo.title))],
 				workflowFace: Object.freeze({
-					...KINDS.activity,
+					...KINDS$1.activity,
 					label: word.text,
 					voice: word.voice
 				}),
@@ -4158,7 +4158,7 @@ function createAnnotationInventory({ readObligations, placedAt, openThread, goTo
 			}
 			for (const item of offered.reading.readings) {
 				const kind = item.kind ?? "action";
-				if (!KINDS[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
+				if (!KINDS$1[kind]) throw new TypeError(`Unknown margin reading kind: ${kind}`);
 				group.items.push({
 					marker: false,
 					...item,
@@ -6976,23 +6976,41 @@ function placement(surface, shaped, aboveSurfaces, clips = /* @__PURE__ */ new M
 }
 
 //#endregion
-//#region runtime/at-work.js
+//#region runtime/margin-bars.js
 const BAR = 3;
-const GAP = 10;
-const atWorkLayer = el("div", "lf-ui lf-at-work");
-function createAtWork(inventory) {
-	const bars = paintSet(atWorkLayer);
-	const drawn = /* @__PURE__ */ new Map();
+const KINDS = {
+	change: {
+		gap: 4,
+		className: "lf-change-bar"
+	},
+	work: {
+		gap: 10,
+		className: "lf-at-work-bar"
+	}
+};
+const marginBarLayer = el("div", "lf-ui lf-margin-bars");
+function createMarginBars(inventory) {
+	const bars = paintSet(marginBarLayer);
+	const drawn = {
+		change: /* @__PURE__ */ new Map(),
+		work: /* @__PURE__ */ new Map()
+	};
+	const all = () => Object.entries(drawn).flatMap(([kind, targets]) => [...targets].map(([target, node]) => ({
+		kind,
+		target,
+		node
+	})));
 	let frame = 0;
 	function place() {
 		frame = 0;
-		bars.place([...drawn].map(([target, node]) => ({
+		bars.place(all().map(({ kind, target, node }) => ({
 			node,
 			target,
 			cut: false,
 			rect: ({ rect }) => {
+				const { gap } = KINDS[kind];
 				const edge = (target.closest("table") ?? target).getBoundingClientRect();
-				const left = target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + GAP : Math.min(rect.left, edge.left) - GAP - BAR;
+				const left = target.matches(":dir(rtl)") ? Math.max(rect.right, edge.right) + gap : Math.min(rect.left, edge.left) - gap - BAR;
 				return {
 					left,
 					right: left + BAR,
@@ -7003,36 +7021,41 @@ function createAtWork(inventory) {
 		})));
 	}
 	const schedule = () => {
-		if (drawn.size && !frame) frame = nextRender(place);
+		if (!frame && all().length) frame = nextRender(place);
 	};
 	const sizes = sizeObserver(schedule, { counted: false });
+	function show(kind, places) {
+		const targets = drawn[kind];
+		let changed = false;
+		for (const target of targets.keys()) if (!places.has(target)) {
+			targets.delete(target);
+			if (!all().some((bar) => bar.target === target)) sizes.unobserve(target);
+			changed = true;
+		}
+		for (const target of places) if (!targets.has(target)) {
+			const node = el("span", KINDS[kind].className);
+			keeps(node, "data-for", target.id || null);
+			targets.set(target, node);
+			sizes.observe(target);
+			changed = true;
+		}
+		if (!changed) return;
+		if (all().length) schedule();
+		else {
+			cancelRender(frame);
+			frame = 0;
+			bars.clear();
+		}
+	}
 	inventory.watch((entries) => {
 		const places = /* @__PURE__ */ new Set();
 		for (const entry of entries) {
 			const target = entry.atWork ? inventory.targetFor(entry) : null;
 			if (target?.isConnected) places.add(target);
 		}
-		let changed = false;
-		for (const target of drawn.keys()) if (!places.has(target)) {
-			drawn.delete(target);
-			sizes.unobserve(target);
-			changed = true;
-		}
-		for (const target of places) if (!drawn.has(target)) {
-			const node = el("span", "lf-at-work-bar");
-			keeps(node, "data-for", target.id || null);
-			drawn.set(target, node);
-			sizes.observe(target);
-			changed = true;
-		}
-		if (!changed) return;
-		if (drawn.size) schedule();
-		else {
-			cancelRender(frame);
-			frame = 0;
-			bars.clear();
-		}
+		show("work", places);
 	});
+	x(() => show("change", new Set(comparisonChanges())));
 	document.addEventListener(LAYOUT, schedule);
 	addEventListener("resize", schedule, { passive: true });
 }
@@ -7779,7 +7802,7 @@ function createApplication(dependencies) {
 		scrollToElement: dependencies.anchorTravel.scrollToElement
 	});
 	const inlineContributions = createInlineContributions(annotations);
-	createAtWork(annotations);
+	createMarginBars(annotations);
 	const onPaper = matchMedia("print");
 	function refreshAnnotationInventory() {
 		if (onPaper.matches) return annotations.read();
@@ -8881,4 +8904,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, atWorkLayer, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosureAt, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS$1 as KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosureAt, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, marginBarLayer, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, shadowStage, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };

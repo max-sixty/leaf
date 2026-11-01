@@ -9190,7 +9190,6 @@ function openInlineComparison(target, base, words) {
 		node: label
 	}];
 	let afterOffset = 0;
-	let hasTextChange = false;
 	for (const run of before === null ? [] : alignInlineText(before, reading.text)) if (run.kind === "delete") {
 		const dropped = el("span", "lf-ui lf-version-inline-deletion");
 		dropped.append(el("del", "", run.text));
@@ -9199,19 +9198,14 @@ function openInlineComparison(target, base, words) {
 			offset: afterOffset,
 			node: dropped
 		});
-		hasTextChange = true;
 	} else {
 		const length = [...run.text].length;
-		if (run.kind === "insert") {
-			additions.push([afterOffset, afterOffset + length]);
-			hasTextChange = true;
-		}
+		if (run.kind === "insert") additions.push([afterOffset, afterOffset + length]);
 		afterOffset += length;
 	}
 	insertions.sort((left, right) => right.offset - left.offset).forEach(({ offset, node }) => insertAt(target, reading, offset, node));
 	const currentReading = authoredReading(target);
 	const ranges = additions.flatMap(([start, end]) => rangesAt(currentReading, start, end));
-	target.classList.toggle("lf-version-inline", hasTextChange);
 	inlineOpen.set(target, {
 		nodes,
 		ranges
@@ -9223,7 +9217,6 @@ function openInlineComparison(target, base, words) {
 function closeInlineComparison(target) {
 	const entry = inlineOpen.get(target);
 	inlineOpen.delete(target);
-	target.classList.remove("lf-version-inline");
 	for (const node of entry?.nodes ?? []) node.remove();
 	paintInlineInsertions();
 	layoutChanged(target);

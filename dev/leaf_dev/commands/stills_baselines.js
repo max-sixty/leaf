@@ -13,8 +13,10 @@
  * the row, to its neighbour's baseline: in the stills catalogue, words read together,
  * as a name and its time or a legend and the radio choice after it, stood three ems
  * apart or less, and words at a row's two ends, as the floating panel's field and its
- * count, thirty or more. Words in a box fixed over the page, or in the top layer, share
- * no line with words outside it, which it may cover. For each
+ * count, thirty or more. Words in two rows share a line only where one row stands in
+ * the other, as a head's time row in the head, so two cards side by side are two lines;
+ * and words in a box fixed over the page, or in the top layer, share no line with words
+ * outside it, which it may cover. For each
  * run whose words stand at least `threshold` CSS px apart it returns each box's words,
  * face, baseline against the run's first, and whether they sit on a fill, border or
  * shadow of their own, as a pill's do, whose box the eye reads rather than their
@@ -183,6 +185,7 @@
         items.set(words.node, {
           ...words,
           owner,
+          row: item === box ? null : box,
           layer: layer(owner),
           face,
           size: parseFloat(face.fontSize),
@@ -191,6 +194,25 @@
         });
       }
     }
+  // Words in two rows share a line only where one row stands inside the other, as a
+  // head's time row inside the head; two cards side by side are two lines. Words in a
+  // box placed out of flow, such as a notice anchored beside a head, join the line they
+  // stand beside.
+  const within = (outer, inner) => {
+    for (let e = inner; e; e = up(e)) if (e === outer) return true;
+    return false;
+  };
+  const placedAround = (el) => {
+    for (let e = el; e; e = up(e))
+      if (getComputedStyle(e).position === "absolute") return e;
+    return null;
+  };
+  const beside = (a, b) => {
+    const placed = placedAround(a);
+    return placed !== null && !within(placed, b);
+  };
+  const related = (a, b) =>
+    !a || !b || within(a, b) || within(b, a) || beside(a, b) || beside(b, a);
   const shared = [];
   for (const it of [...items.values()].sort((a, b) => a.box.top - b.box.top)) {
     const line = shared.find(
@@ -208,7 +230,12 @@
     for (const it of [...line.slice(1), null]) {
       const last = run.at(-1);
       const gap = it && it.edge.left - last.edge.right;
-      if (it && gap > -1 && gap <= 8 * Math.max(it.size, last.size)) {
+      if (
+        it &&
+        gap > -1 &&
+        gap <= 8 * Math.max(it.size, last.size) &&
+        related(it.row, last.row)
+      ) {
         run.push(it);
         continue;
       }

@@ -314,11 +314,12 @@ export const revealLayer = () => {
   layerRevealed();
 };
 
-// The page's one door to the log, spelled once. Two callers reach it — `post`, which
-// orders the user's own gestures through it, and the error report below, which
-// deliberately doesn't — and what they share is the request rather than anything about
-// the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller.
+// The page's one door to the log, spelled once. Its callers — delivery.js, which
+// orders the user's own gestures through it and sends bookkeeping beside them, and the
+// error report below, which deliberately doesn't — share the request rather than
+// anything about the sending: same path, same method, same encoding, so a door that
+// moved would move for all of them. Whether a send waits on the one before it belongs
+// to the caller.
 /** @param {import("../types/contract.js").BrowserCommand} event */
 export const postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)

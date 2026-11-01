@@ -34,7 +34,9 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules.
+that no Layout fits writes its own grid or flex rules. For a row of side-by-side blocks
+inside a card or a playground's preview, follow `package-themes.md`, "A theme change",
+so its items keep their top margins level.
 
 ## A page of parts
 

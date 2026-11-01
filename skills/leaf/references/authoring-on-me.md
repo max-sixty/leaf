@@ -57,7 +57,10 @@ How to build an alternative waits for the user's pick.
 ## Asking and retiring
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer.
+an edit, and a thread message with `--obligation` for a conversational answer. Put the
+widget where the question arises: a question a thread raises, such as which way to do
+what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
+pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.

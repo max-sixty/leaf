@@ -264,7 +264,7 @@ def test_the_run_lists_lines_whose_words_split_their_baseline(
         }
 
     stills_catalogue.splits.update(
-        base=[line("div.head", -0.92), line("div.count", 0.5, boxed=True)],
+        base=[line("div.head", -0.92), line("div.count", 0.3, boxed=True)],
         head=[
             line("div.count", 0.5, boxed=True),
             line("div.seat", -1.2),
@@ -284,7 +284,7 @@ def test_the_run_lists_lines_whose_words_split_their_baseline(
         "      'Me' 600 13px/18.85px +0.00\n"
         "      'now' 11.5px/16.675px -0.50\n"
         "lines both arms split  x1\n"
-        "  healthy: div.count  0.5px apart\n"
+        "  healthy: div.count  0.3 -> 0.5px apart\n"
         "      'Me' 600 13px/18.85px +0.00\n"
         "      'now' 11.5px/16.675px on a box +0.50\n"
         "lines only base splits  x1\n"

@@ -3320,9 +3320,9 @@ def face_changes(drawn: dict[str, dict[tuple[str, ...], list[str]]]) -> list[str
 
 def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
     """The lines whose words stand on baselines `SPLIT` apart in `split` (each arm's,
-    by state, from `BASELINES`): those only head splits, those both arms split and
-    those only base splits, each with its words' faces and where each stands against
-    the line's first."""
+    by state, from `BASELINES`): those only head splits, those both arms split, with
+    how far apart each arm stands them, and those only base splits, each with its
+    words' faces and where each stands against the line's first."""
 
     def keyed(arm: str) -> dict[tuple, tuple[str, dict]]:
         # A line is known by its state, row and words, and by which of the lines alike
@@ -3351,7 +3351,10 @@ def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
         lines.append(f"lines {title}  x{len(keys)}")
         for key in sorted(keys):
             state, line = read[key]
-            lines.append(f"  {state}: {line['row']}  {line['spread']}px apart")
+            spread = f"{line['spread']}px"
+            if key in base and key in head:
+                spread = f"{base[key][1]['spread']} -> {spread}"
+            lines.append(f"  {state}: {line['row']}  {spread} apart")
             lines.extend(
                 f"      {item['text']!r} {item['face']}"
                 f"{' on a box' if item['boxed'] else ''} {item['offset']:+.2f}"

@@ -152,36 +152,34 @@
         cursor: default;
       }
       /* The inputs follow the player as a row that wraps. A floated legend is laid
-         out at the row's start as its label rather than drawn on a border. */
+         out at the row's start as its label rather than drawn on a border. The
+         legend, set smaller, and each choice's words stand on one baseline, and each
+         radio is centred on its choice. Centred on a line of its own, the legend
+         stood half a pixel above the choices, a whole one in Firefox. */
       lf-sort-film .sort-inputs {
         display: flex;
         flex-wrap: wrap;
-        align-items: center;
+        align-items: baseline;
         gap: 6px 16px;
         margin: 0;
         padding: 0;
         border: 0;
       }
-      /* The legend, set smaller, stands on its choices' baseline: its line is a strut
-         in their size, so it is centred as their words are. Centred on a line of its
-         own, it stood half a pixel above them, a whole one in Firefox. */
       lf-sort-film .sort-inputs legend {
         float: left;
         padding: 0;
         color: var(--muted);
         font-size: var(--t-6);
-        line-height: 0;
-      }
-      lf-sort-film .sort-inputs legend::before {
-        content: "\200b" / "";
-        font: var(--font-ui);
       }
       lf-sort-film .sort-inputs label {
         display: inline-flex;
         gap: 6px;
-        align-items: center;
+        align-items: baseline;
         cursor: pointer;
         font-size: var(--t-5);
+      }
+      lf-sort-film .sort-inputs input {
+        align-self: center;
       }
       lf-sort-film .sort-stats {
         margin: 0;

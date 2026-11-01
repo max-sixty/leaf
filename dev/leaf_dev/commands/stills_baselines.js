@@ -9,18 +9,19 @@
  * words, by its first words a screen reader alone doesn't read, outside SVG; an item
  * that is itself a row stands by its own items. Boxes whose words share a line, each
  * one's words reaching the middle of the other's, and stand within eight ems of each
- * other, read as one run. The eye doesn't hold a pane of many lines, or a word across
- * the row, to its neighbour's baseline: in the stills catalogue, words read together,
- * as a name and its time or a legend and the radio choice after it, stood three ems
- * apart or less, and words at a row's two ends, as the floating panel's field and its
- * count, thirty or more. Words share a line only where every box between them and the
- * box holding both holds one line, or one stands in a box placed beside the other, so
- * two cards side by side are two lines; and words in a box fixed over the page, or in
- * the top layer, share no line with words outside it, which it may cover. For each
- * run it returns each box's words, face, baseline against the run's first, and whether
- * they sit on a fill, border or shadow of their own, as a key's letter on its badge
- * does, when two or more words on no such box stand at least `threshold` CSS px apart:
- * the eye reads a box, not the baseline of the words on it.
+ * other, read as one run. In the stills catalogue, words read together, as a name and
+ * its time or a legend and the radio choice after it, stood three ems apart or less,
+ * and words at a row's two ends, as the floating panel's field and its count, thirty
+ * or more. The distance leaves out the second kind, and with them a split a reader may
+ * still see, as a trace's saved moment had between its name and its time at its row's
+ * two ends. Words share a line only where every box between them and the box holding
+ * both holds one line, or one stands in a box placed beside the other, so two cards
+ * side by side are two lines; and words in a box fixed over the page, or in the top
+ * layer, share no line with words outside it, which it may cover. For each run it
+ * returns each box's words, face, baseline against the run's first, and whether a box
+ * of their own shows a fill, border or shadow, as a key's letter's badge does, when two
+ * or more words on no such box stand at least `threshold` CSS px apart: beside a box,
+ * the eye reads where the box stands rather than the baseline of the words on it.
  *
  * A run of words' box stands a fixed ascent above its baseline, scaled as the page
  * scales the words. That ascent is read from a zero-size inline-block on the baseline
@@ -110,14 +111,20 @@
     }
     return { ...words, edge };
   };
-  // A fill, border or shadow drawn by a box between the words and their item, or by
-  // one of its ::before and ::after, as a trace's call bar draws its fill.
+  // A fill, border or shadow drawn in a colour that shows, by a box between the words
+  // and their item, or by one of its ::before and ::after, as a trace's call bar draws
+  // its fill. A transparent border, as a list row keeps for its stripe, draws no box.
+  const clear = (color) => /rgba\([^)]*,\s*0\)|\/\s*0\)/.test(color);
   const paints = (s) =>
-    s.backgroundColor !== "rgba(0, 0, 0, 0)" ||
-    s.boxShadow !== "none" ||
+    !clear(s.backgroundColor) ||
+    s.boxShadow
+      .split(/,(?![^(]*\))/)
+      .some((shadow) => shadow !== "none" && !clear(shadow)) ||
     ["Top", "Right", "Bottom", "Left"].some(
       (side) =>
-        parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== "none",
+        parseFloat(s[`border${side}Width`]) > 0 &&
+        s[`border${side}Style`] !== "none" &&
+        !clear(s[`border${side}Color`]),
     );
   const boxed = (item, node) => {
     for (let e = node.parentElement; e && item.contains(e); e = e.parentElement) {

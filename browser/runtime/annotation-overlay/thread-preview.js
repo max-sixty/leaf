@@ -555,7 +555,7 @@ export function createThreadPreview({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale, measure }) {
+          fit({ width, height, stood, scale }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
@@ -566,21 +566,15 @@ export function createThreadPreview({
             };
             if (fresh) session.width = null;
             // A card that has stood keeps its width (`session.width`): its floor and
-            // cap are that width, or the room where the room is narrower. Under or
-            // over a block on a narrow window it takes the width the placement gives it
-            // (`measure`, comment-placement.js) from the start, short or long.
+            // cap are that width, or the room where the room is narrower.
             const room = Math.min(
-              measure ?? cardMeasure(),
+              cardMeasure(),
               width,
               (session.width ?? Infinity) / scale.x,
             );
             preview.style.setProperty(
               "--lf-thread-min-width",
-              layoutPx(
-                session.width === null && measure === null
-                  ? Math.min(cardMinimum(), room)
-                  : room,
-              ),
+              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
@@ -590,17 +584,11 @@ export function createThreadPreview({
             // answer lifts it from the window's foot, then it scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
-            // scroll travel, on the height it would stand at given the room: what it
-            // shows and what its transcript scrolls past. A scroll supersedes this
-            // answer's attachment geometry.
-            const transcript = session.transcript;
-            const wanted =
-              fitted +
-              (transcript ? transcript.scrollHeight - transcript.clientHeight : 0);
+            // scroll travel. A scroll supersedes this answer's attachment geometry.
             if (
               opening &&
               (side === "top" || side === "bottom") &&
-              makeRoom(side, place.clear, place.extent, wanted, boundary, scroller)
+              makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)
             ) {
               session.side.scrolled();
               placeThreadPreview();
@@ -736,7 +724,7 @@ export function createThreadPreview({
       transcript: null,
       place: null,
       stopRegion: null,
-      side: commentPlacement({ makesRoom: true }),
+      side: commentPlacement(),
       anchor: new CardAnchor(preview),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or

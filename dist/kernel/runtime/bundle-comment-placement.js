@@ -1592,25 +1592,21 @@ function reachableRoom(side, extent, boundary, scroller) {
 	};
 }
 function makeRoom(side, clear, extent, height, boundary, scroller) {
-	const clearOf = staysClear(extent, boundary) && !railStands();
-	if (!clearOf && extent.height + 8 + height > boundary.height) return false;
+	if (extent.height + 8 + height > boundary.height) return false;
 	const overflow = side === "top" ? boundary.top - (clear.top - 8 - height) : clear.bottom + 8 + height - boundary.bottom;
-	const edge = side === "top" ? boundary.bottom - clear.bottom : clear.top - boundary.top;
 	const { available: travel, projection, direction } = roomTravel(side, scroller);
-	const movement = Math.max(0, Math.min(overflow, travel, clearOf ? edge : Infinity));
+	const movement = Math.max(0, Math.min(overflow, travel));
 	if (movement <= .5) return false;
 	const before = scroller.scrollTop;
 	moveScrollerBy(scroller, direction * movement / projection);
 	return Math.abs((scroller.scrollTop - before) * projection) > .5;
 }
-const staysClear = (extent, boundary) => boundary.scroller === pageScroller && extent.height + 8 + 96 <= boundary.height;
-function commentSide({ clear, extent, boundary, width, scroller, coarse, clearOf = false }) {
+function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
 	const fits = (room) => Math.ceil(room) >= Math.ceil(width);
 	if (fits(boundary.right - clear.right - 8)) return "right";
 	if (fits(clear.left - boundary.left - 8)) return "left";
 	const below = reachableRoom("bottom", extent, boundary, scroller);
 	const above = reachableRoom("top", extent, boundary, scroller);
-	if (clearOf && below.reachable >= 96) return "bottom";
 	const fitsBelow = below.shown >= 96;
 	if (fitsBelow !== above.shown >= 96) return fitsBelow ? "bottom" : "top";
 	if (coarse && below.reachable >= 96) return "bottom";
@@ -1619,7 +1615,7 @@ function commentSide({ clear, extent, boundary, width, scroller, coarse, clearOf
 const rootLength = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 const cardMinimum = () => rootLength("--thread-card-min");
 const cardMeasure = () => rootLength("--thread-card");
-function commentPlacement({ makesRoom = false } = {}) {
+function commentPlacement() {
 	let side = null;
 	let inline = null;
 	let input = null;
@@ -1627,8 +1623,6 @@ function commentPlacement({ makesRoom = false } = {}) {
 	let carriedInline = null;
 	let initialHold = null;
 	let moved = false;
-	let clearOf = false;
-	let spans = false;
 	let held = null;
 	let tallest = null;
 	const forget = () => {
@@ -1639,7 +1633,6 @@ function commentPlacement({ makesRoom = false } = {}) {
 		carriedInline = null;
 		initialHold = null;
 		moved = false;
-		spans = false;
 		held = null;
 		tallest = null;
 	};
@@ -1683,16 +1676,13 @@ function commentPlacement({ makesRoom = false } = {}) {
 			input = key;
 			const fresh = side === null;
 			const opening = held === null && initialHold === null;
-			clearOf = makesRoom && staysClear(extent, boundary) && !railStands();
-			if (fresh) spans = clearOf;
 			side ??= unanchored ? "bottom" : commentSide({
 				clear,
 				extent,
 				boundary,
 				width: cardMinimum(),
 				scroller,
-				coarse,
-				clearOf
+				coarse
 			});
 			return {
 				side,
@@ -1708,11 +1698,7 @@ function commentPlacement({ makesRoom = false } = {}) {
 			clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
 			const past = (scale) => side === "right" && margin && margin.right > clear.right + .5 && boundary.right - margin.right - 8 >= cardMeasure() * scale.x ? margin.right : null;
 			const box = new DOMRect(clear.left, clear.top, (past({ x: 1 }) ?? clear.right) - clear.left, clear.height);
-			const spanning = spans && across;
-			const reading = spanning ? proseRect() ?? clear : null;
-			const start = spanning ? Math.min(clear.left, reading.left) : column ?? box.right - minimumWidth;
-			const spanned = spanning && Math.max(cardMeasure(), Math.max(clear.right, reading.right) - start);
-			const inlineStart = unanchored ? boundary.left : clamp(start, boundary.left, boundary.right - Math.min(spanned || minimumWidth, boundary.width));
+			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(minimumWidth, boundary.width));
 			let heldIn = false;
 			const attachment = ui.limitShift(() => ({
 				mainAxis: !across,
@@ -1787,15 +1773,13 @@ function commentPlacement({ makesRoom = false } = {}) {
 					const { scale, line } = measure(state);
 					const stood = held ? Math.max(held.foot - held.top, tallest && Math.abs(tallest.line - line) < .5 ? tallest.height : 0) / scale.y : 0;
 					const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - 8 : clear.left - boundary.left - 8;
-					const below = clearOf && side === "bottom" ? (shown.bottom - (box.top + (state.y - state.rects.reference.y) * scale.y)) / scale.y : null;
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
+						height: rises ? shown.height / scale.y : state.availableHeight,
 						room: shown,
-						stood: below === null ? stood : Math.min(stood, below),
-						scale,
-						measure: spanned ? Math.min(spanned, boundary.right - inlineStart) / scale.x : null
+						stood,
+						scale
 					});
 				}
 			}));
@@ -1842,7 +1826,6 @@ function commentPlacement({ makesRoom = false } = {}) {
 								x: state.x,
 								y: clamp(state.y, measure(state).line - state.rects.floating.height, measure(state).last)
 							};
-							if (clearOf && side === "bottom") limited.y = Math.max(limited.y, state.rects.reference.y + state.rects.reference.height + 8 / measure(state).scale.y);
 							if (moved) for (const axis of ["x", "y"]) {
 								const own = state.middlewareData.hold.spot[axis];
 								limited[axis] = clamp(state[axis], Math.min(limited[axis], own), Math.max(limited[axis], own));

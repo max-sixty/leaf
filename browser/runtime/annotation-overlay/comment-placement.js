@@ -59,30 +59,6 @@
    changes (a resize, a pane that narrows, a reflow), which chooses afresh; a scroll
    clipping `clear` does not.
 
-   On a narrow window, one with no room for the rail beside the column
-   (content-layout.js, `railStands`), a card, which asks the page for room
-   (`makesRoom`), stands under the words in the page's flow it is about wherever the
-   page can make it room there (the page is the region whose flow holds them, above,
-   for a row in a log the page scrolls too; words in a pane, which scrolls itself, it
-   covers as on a wide window), covers the reading column (content-layout.js,
-   `proseRect`) and any wider block it stands under or over, and keeps room for its
-   whole measure (`--thread-card`), standing in from the column's start only as far
-   as the window makes it, so a phone's spans the window and no page words stand cut
-   off beside it, as they did beside a 900px window's card that started at its passage
-   and stopped at its measure, and, where what it is about
-   leaves the least room a surface stands in below it (`LEAST_HEIGHT`), never slides up
-   over it: the page scrolls that to the boundary's top to give it room (`makeRoom`),
-   and past that it scrolls its own content. A subject taller than that, as a whole
-   decision can be, it covers as on a wide window, keeping its width; the rule follows
-   the geometry the card stands in now, so a subject that grows past the window while
-   the card stands by it is covered too, and a card Send makes from the comment box
-   takes the rule as an opened one does. The user chose this on 31
-   October, after a phone's card stood 60px in from the window's edge, over a strip of
-   cut-off page words, and covered the passage it was about, and a long card on a
-   900px window covered its passage too. The comment box keeps the boundary's slide,
-   since it asks no scroll and its words must stay in the window; Send hands its frame
-   to the card where it stood (`adopt`).
-
    Beside, the surface's top stands level with `row`, and past its margin row where that
    reaches past `clear` and the room beyond it holds the card's full preferred measure
    (`--thread-card`). Message width takes priority over keeping the margin row clear:
@@ -90,8 +66,7 @@
    card carries its own close and step controls, and the row shows again once it closes.
    Neither choice reads the surface's own width or height, so the box
    and the card make the same one. Under or over, its inline start follows `column`,
-   independently of the block it keeps clear, but for a card on a narrow window, which
-   starts at the reading column (above), and it keeps that start as it widens.
+   independently of the block it keeps clear, and it keeps that start as it widens.
    That clearance chooses the initial seat. Once seated, quoted words carry both
    coordinates through scrolling, including out of view, even when the containing
    scrollport stays still. Held offsets use the passage's line and column, so renewing
@@ -106,8 +81,8 @@
    and departure use this same attachment limit, including the first placement:
    an offscreen target carries its surface into view as scrolling approaches it.
    Growing never scrolls the page. A surface that outgrows the room on its side slides
-   inside the boundary, over its passage or element if it must but on a narrow window,
-   and once it fills the boundary scrolls its own content. Only a card opening under or over its target
+   inside the boundary, over its passage or element if it must, and once it fills the
+   boundary scrolls its own content. Only a card opening under or over its target
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
 
@@ -120,10 +95,7 @@
    it has stood since its line last moved (`fit`'s `stood`), whichever is more. One
    that `rises` holds its top but has the boundary's whole height, so the boundary
    lifts it as it outgrows the room below; its held top is the spot before that lift,
-   so shrinking brings it back down to where it stood. A card under its words on a
-   narrow window never rises, since that lift would carry it over them: it has only
-   the room below where it stands, however tall it stood before a scroll carried it
-   lower. Against
+   so shrinking brings it back down to where it stood. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
    rewrite opening over long words, a fold, an edit, lowers its top, and growing back
    raises it again to where it stood. A scroll moves the line and keeps only the
@@ -176,7 +148,6 @@ import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
 import { flowOf, marginSpot } from "./margin-layout.js";
-import { proseRect, railStands } from "../content-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
@@ -360,48 +331,27 @@ function reachableRoom(side, extent, boundary, scroller) {
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
 // and this surface cannot show together, no scroll makes that room. The boundary
 // then holds the surface over its subject instead of scrolling the subject away.
-// On a narrow window, where the surface never stands over what it is about, the scroll
-// goes as far as bringing that to the boundary's edge, and the surface takes the rest.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  const clearOf = staysClear(extent, boundary) && !railStands();
-  if (!clearOf && extent.height + COMMENT_GAP + height > boundary.height) return false;
+  if (extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
       : clear.bottom + COMMENT_GAP + height - boundary.bottom;
-  const edge =
-    side === "top" ? boundary.bottom - clear.bottom : clear.top - boundary.top;
   const { available: travel, projection, direction } = roomTravel(side, scroller);
-  const movement = Math.max(0, Math.min(overflow, travel, clearOf ? edge : Infinity));
+  const movement = Math.max(0, Math.min(overflow, travel));
   if (movement <= 0.5) return false;
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, (direction * movement) / projection);
   return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
 }
 
-// Whether a card on a narrow window can stand clear of what it is about: in the page's
-// flow (`commentBoundary`'s `scroller`), with the least room a surface stands in left
-// beside it.
-const staysClear = (extent, boundary) =>
-  boundary.scroller === pageScroller &&
-  extent.height + COMMENT_GAP + LEAST_HEIGHT <= boundary.height;
-
 // The side a comment's surface takes, as a Floating UI side.
-export function commentSide({
-  clear,
-  extent,
-  boundary,
-  width,
-  scroller,
-  coarse,
-  clearOf = false,
-}) {
+export function commentSide({ clear, extent, boundary, width, scroller, coarse }) {
   const fits = (room) => Math.ceil(room) >= Math.ceil(width);
   if (fits(boundary.right - clear.right - COMMENT_GAP)) return "right";
   if (fits(clear.left - boundary.left - COMMENT_GAP)) return "left";
   const below = reachableRoom("bottom", extent, boundary, scroller);
   const above = reachableRoom("top", extent, boundary, scroller);
-  if (clearOf && below.reachable >= LEAST_HEIGHT) return "bottom";
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -422,8 +372,7 @@ const rootLength = (name) =>
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
 
-/* One surface's placement: the side it holds and its inline attachment. A surface
-   that `makesRoom`, the card, takes the narrow window's rule (above).
+/* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
    width has changed, and says whether it chose afresh, and whether the surface has
@@ -452,17 +401,16 @@ export const cardMeasure = () => rootLength("--thread-card");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, measure })` sizes the surface for the
-   room its side gives, in its positioning space; `room` is the client rectangle that
-   room stands in, the boundary across the surface's columns (`commentBoundary`,
-   `across`); `stood` is the height a held surface caps no lower than, or 0; `measure`
-   is the width a card on a narrow window takes, short or long, or null. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, room, stood, scale })` sizes the surface for the room its
+   side gives, in its positioning space; `room` is the client rectangle that room stands
+   in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
+   is the height a held surface caps no lower than, or 0. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
    target and grows toward the boundary; keeping its initial left edge would let
    a longer draft grow across the words it comments on. */
-export function commentPlacement({ makesRoom = false } = {}) {
+export function commentPlacement() {
   let side = null;
   let inline = null;
   let input = null;
@@ -471,14 +419,6 @@ export function commentPlacement({ makesRoom = false } = {}) {
   let initialHold = null;
   // Whether the user carried the surface to where it stands (surface-grip.js).
   let moved = false;
-  // Whether the surface stands clear of what it is about by the narrow window's rule
-  // (above). Each placement reads it from the geometry it stands in rather than the
-  // side's choice, so a subject that grows past the window, or a card Send hands the
-  // box's frame to, takes the rule as it stands now.
-  let clearOf = false;
-  // Whether its inline start keeps room for its whole measure, chosen with the side
-  // where it stood clear, so a subject growing past the window moves it no way across.
-  let spans = false;
   // The last landed rectangle, in client pixels from the attachment line.
   let held = null;
   // The tallest the surface has stood since its line last moved, and that line.
@@ -491,7 +431,6 @@ export function commentPlacement({ makesRoom = false } = {}) {
     carriedInline = null;
     initialHold = null;
     moved = false;
-    spans = false;
     held = null;
     tallest = null;
   };
@@ -561,8 +500,6 @@ export function commentPlacement({ makesRoom = false } = {}) {
       // the first keeps what that one began, such as the transcript's reading.
       const fresh = side === null;
       const opening = held === null && initialHold === null;
-      clearOf = makesRoom && staysClear(extent, boundary) && !railStands();
-      if (fresh) spans = clearOf;
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -572,7 +509,6 @@ export function commentPlacement({ makesRoom = false } = {}) {
             width: cardMinimum(),
             scroller,
             coarse,
-            clearOf,
           });
       return {
         side,
@@ -619,23 +555,12 @@ export function commentPlacement({ makesRoom = false } = {}) {
       // The compact editor and its sent card share one start. Reserve the declared
       // card footprint before a shorter editor's own width can put that start too far
       // toward the boundary, where later typing or reopening would have to move it.
-      // On a narrow window it covers the reading column, and any wider block it
-      // stands under or over, from its start (`spanned`), and keeps room for its
-      // whole measure, so no page words stand cut off beside it.
-      const spanning = spans && across;
-      const reading = spanning ? (proseRect() ?? clear) : null;
-      const start = spanning
-        ? Math.min(clear.left, reading.left)
-        : (column ?? box.right - minimumWidth);
-      const spanned =
-        spanning &&
-        Math.max(cardMeasure(), Math.max(clear.right, reading.right) - start);
       const inlineStart = unanchored
         ? boundary.left
         : clamp(
-            start,
+            column ?? box.right - minimumWidth,
             boundary.left,
-            boundary.right - Math.min(spanned || minimumWidth, boundary.width),
+            boundary.right - Math.min(minimumWidth, boundary.width),
           );
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
@@ -740,30 +665,16 @@ export function commentPlacement({ makesRoom = false } = {}) {
                 : side === "right"
                   ? boundary.right - box.right - COMMENT_GAP
                   : clear.left - boundary.left - COMMENT_GAP;
-          // Under what it is about on a narrow window, it has the room below where it
-          // stands, since it slides no higher (the shift's limiter, below), where
-          // Floating UI offers a sliding surface the whole boundary's height. That
-          // room caps the height it has stood at too, so a scroll that carries it
-          // lower makes it scroll its own content rather than hang past the window.
-          const below =
-            clearOf && side === "bottom"
-              ? (shown.bottom -
-                  (box.top + (state.y - state.rects.reference.y) * scale.y)) /
-                scale.y
-              : null;
           fit({
             side,
             width: Math.max(
               Math.min(minimumWidth, boundary.width) / scale.x,
               Math.min(state.availableWidth, lane / scale.x),
             ),
-            height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
+            height: rises ? shown.height / scale.y : state.availableHeight,
             room: shown,
-            stood: below === null ? stood : Math.min(stood, below),
+            stood,
             scale,
-            measure: spanned
-              ? Math.min(spanned, boundary.right - inlineStart) / scale.x
-              : null,
           });
         },
       }));
@@ -841,15 +752,6 @@ export function commentPlacement({ makesRoom = false } = {}) {
                       measure(state).last,
                     ),
                   };
-              // On a narrow window, a surface under what it is about never slides up
-              // over it.
-              if (clearOf && side === "bottom")
-                limited.y = Math.max(
-                  limited.y,
-                  state.rects.reference.y +
-                    state.rects.reference.height +
-                    COMMENT_GAP / measure(state).scale.y,
-                );
               // A surface the user carried counts the spot they put it at as attached
               // too, so it stands there and still leaves with what it is about.
               if (moved)

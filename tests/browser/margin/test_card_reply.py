@@ -1519,40 +1519,20 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(preview.locator(f'[data-event="{answer["id"]}"]')).to_be_attached()
     reading_edge = "foot" if accepted["side"] == "above" else "top"
     answered = finish(accepted, reading_edge)
-    # The answer shows. At 800x520 the card stands under its words (the narrow
-    # window's rule) and already fills the room below them, so it scrolls its
-    # transcript to the answer; beside its words at 1200x900 it grows down to it.
-    assert preview.evaluate(
-        """(card, id) => {
-          const list = card.querySelector('.lf-thread-transcript').getBoundingClientRect();
-          const turn = card.querySelector(`[data-event="${id}"]`).getBoundingClientRect();
-          return turn.top >= list.top - 0.5 && turn.bottom <= list.bottom + 0.5;
-        }""",
-        answer["id"],
-    )
-    room = page.evaluate(CARD_AND_REPLY)["foot"]
-    fills = size == (800, 520)
-    assert (accepted["foot"] >= room - 10) == fills, (accepted, room)
-    if reading_edge == "top" and not fills:
+    if reading_edge == "top":
         assert answered["editorFoot"] > accepted["editorFoot"] + 10, (
             accepted,
             answered,
         )
 
-    # A fresh draft grows down from its first line where the card has room below, and
-    # up from its foot, the transcript giving way, where it fills that room; then it
-    # scrolls within the card.
+    # A fresh draft grows down from its first line, then scrolls within the card.
     editor.click()
     rendered(page)
     drafting = observe()
     begin()
     page.keyboard.insert_text("The next point.\nAnother line.")
-    if fills:
-        grown = finish(drafting, "top", "foot", "editorFoot")
-        assert grown["editorTop"] < drafting["editorTop"] - 10, (drafting, grown)
-    else:
-        grown = finish(drafting, "top", "editorTop")
-        assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
+    grown = finish(drafting, "top", "editorTop")
+    assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
     write(editor, "\n".join(f"More detail {line}." for line in range(60)))
     rendered(page)
     bounded = observe()

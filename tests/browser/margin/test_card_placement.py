@@ -286,101 +286,6 @@ AFTER_NAME = """card => [...card.querySelectorAll('.lf-msg-head')].flatMap((head
 })"""
 
 
-NARROW_PAGE = leaf_page(
-    "Narrow window",
-    "<h1>Narrow window</h1>"
-    + "".join(
-        f"<p id='lead-{n}'>Lead paragraph {n} sets out the plan in words enough "
-        "to wrap across several lines of a narrow window.</p>"
-        for n in range(6)
-    )
-    + "<p id='asked'>The rollout waits on the vendor's fix, which has no date yet.</p>"
-    + "".join(f"<p id='tail-{n}'>Tail paragraph {n}.</p>" for n in range(12)),
-)
-# Where the card stands against the window and the words it is about.
-CARD_AND_WORDS = """() => {
-  const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-  const words = document.getElementById('asked').getBoundingClientRect();
-  return {card: {left: card.left, top: card.top, right: card.right, bottom: card.bottom},
-    words: {top: words.top, bottom: words.bottom, left: words.left, right: words.right},
-    width: innerWidth, height: innerHeight};
-}"""
-
-
-@pytest.mark.parametrize("size", [(390, 844), (900, 900)], ids=["phone", "900"])
-def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, size):
-    """On a window with no room for the rail, a long thread's card stands under the
-    words it is about, which stay in view above it, covering their paragraph's width,
-    and on a phone it spans the window. It slid up over the words once it outgrew the
-    room below them, on a phone it stood in from the window's edge at the words'
-    column, over a strip of page, and at 900px it started at the words and stopped
-    short of the paragraph's end, beside strips of cut-off words. Once
-    what it is about grows past the window, the card covers it as on a wide window,
-    where it kept to under it, off the window's foot, and keeps its width."""
-    url = serve(
-        NARROW_PAGE,
-        events=[
-            {
-                **COMMENT_ON_OBLIGATION,
-                "text": "Can this wait?",
-                "anchor": {"section": "asked", "quote": "waits on the vendor's fix"},
-                "id": "b" * 32,
-            },
-            *(
-                {
-                    "kind": "reply",
-                    "author": "agent",
-                    "agent": "Claude",
-                    "parent": "b" * 32,
-                    "revision": 1,
-                    "text": f"Point {n}: the fix has no date, so the workaround ships "
-                    "first and the vendor check runs monthly until it lands.",
-                }
-                for n in range(8)
-            ),
-        ],
-    )
-    page = open_page(browser, url)
-    resized(page, *size)
-    page.locator(".lf-margin-marker").first.click()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    rendered(page)
-    stands = page.evaluate(CARD_AND_WORDS)
-    card, words = stands["card"], stands["words"]
-    assert 0 <= words["top"] and card["top"] >= words["bottom"], stands
-    assert card["bottom"] <= stands["height"], stands
-    assert card["left"] <= words["left"] + 0.5, stands
-    assert card["right"] >= words["right"] - 0.5, stands
-    if size[0] < 400:
-        assert card["left"] <= 8.5 and card["right"] >= stands["width"] - 8.5, stands
-
-    # A scroll that carries the words lower leaves the card less room under them, and
-    # it takes that room, scrolling its own content, rather than hanging past the
-    # window's foot.
-    page.mouse.move(words["left"] + 4, (words["top"] + words["bottom"]) / 2)
-    page.mouse.wheel(0, -size[1] / 4)
-    scroll_settled(page)
-    rendered(page)
-    lowered = page.evaluate(CARD_AND_WORDS)
-    assert lowered["words"]["top"] > words["top"] + size[1] / 8, (stands, lowered)
-    assert lowered["card"]["top"] >= lowered["words"]["bottom"], lowered
-    assert lowered["card"]["bottom"] <= lowered["height"], lowered
-    page.mouse.wheel(0, size[1] / 4)
-    scroll_settled(page)
-    rendered(page)
-
-    page.evaluate(
-        "() => { document.getElementById('asked').style.minHeight ="
-        " `${innerHeight + 56}px`; }"
-    )
-    rendered(page)
-    grown = page.evaluate(CARD_AND_WORDS)
-    assert 0 <= grown["card"]["top"], grown
-    assert grown["card"]["bottom"] <= grown["height"], grown
-    assert abs(grown["card"]["left"] - card["left"]) < 0.5, (stands, grown)
-    assert abs(grown["card"]["right"] - card["right"]) < 0.5, (stands, grown)
-
-
 def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(
     browser, serve
 ):
@@ -420,11 +325,11 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
 def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     """A card holding news while the user writes: the notice takes only the room the
     head of the user's message leaves beside its name and time, and stands clear of
-    it. The head keeps "Me" and its time whole: on a desktop card, with Previous and
-    Next for its target's two threads, and on a phone's, whose three controls, the
-    notice and the head's Edit each take a finger's width, since a phone's card spans
-    the window (comment-placement.js). The notice says one count, "2 new", on either.
-    Drawn whole, the notice stood over the head."""
+    it. On a desktop card, with Previous and Next for its target's two threads, the
+    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
+    notice and the head's Edit each take a finger's width, the head keeps "Me" whole and
+    gives up its time, as any narrow head does before its name. The notice says one
+    count, "2 new", on either. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -463,7 +368,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     assert stands["notice"] >= stands["head"] - 0.5, stands
     assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] for time in times), times
+    assert times and all(time["whole"] != phone for time in times), times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -837,9 +742,7 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     page = open_page(
         browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
     )
-    # Short enough that the decision the thread is about leaves its card no room
-    # beneath it, so the card stands over the options (comment-placement.js).
-    resized(page, 741, 560)
+    resized(page, 741, 838)
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview .lf-page-thread")

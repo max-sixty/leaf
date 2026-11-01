@@ -56,7 +56,6 @@ customElements.define(
       this.#selected = this.#members.find((member) => member.view === opening) ?? null;
       const header = el("div", "lf-trace-compare-controls");
       generatedElement(header, { says: false });
-      /** @type {import("@awesome.me/webawesome/dist/components/radio-group/radio-group.js").default} */
       const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
       choices.label = "Recording";
       choices.name = `${this.id}-recording`;

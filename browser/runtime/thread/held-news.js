@@ -430,7 +430,7 @@ const newsParts = ({
 export const newsCount = (total) => `${total} new`;
 
 // What a notice says: the count (`text`), and each fact of the news, most telling
-// first, as the line its title and accessible name read (`label`).
+// first, as the line its title, and so its accessible description, reads (`label`).
 const said = (news) => {
   const { settled, replies, messages, edits, reactions, summaries, threads } = news;
   const counts = [replies, messages, edits, reactions, summaries, threads];
@@ -447,8 +447,10 @@ const said = (news) => {
  *  `r` keep their meaning and press it to show the thread reopened. A `header` notice
  *  stands in a resolved panel card's title as a node of its own, since the notice in
  *  the card's rows may have stood elsewhere a moment before. It says one count of all
- *  that waits, "2 new", in every placement; its title and accessible name say each
- *  fact, "1 new reply · 1 new message". The user chose this on 31 October over a line
+ *  that waits, "2 new", in every placement, which is its accessible name too, so a
+ *  voice user saying the words they see reaches it; its title, and so its accessible
+ *  description, says each fact, "1 new reply · 1 new message". A name of the facts
+ *  alone matched nothing the user saw. The user chose this on 31 October over a line
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
  *  news read three ways, in the danger ink an error wears. The words have a span of
@@ -490,7 +492,6 @@ export function newsNotice(header = false) {
     set(news) {
       keepsText(words, news.text);
       keeps(node, "title", news.label);
-      keeps(node, "aria-label", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open = news.open;
     },

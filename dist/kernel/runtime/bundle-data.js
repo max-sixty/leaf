@@ -5719,7 +5719,6 @@ function newsNotice(header = false) {
 		set(news) {
 			keepsText(words, news.text);
 			keeps(node, "title", news.label);
-			keeps(node, "aria-label", news.label);
 			node.classList.toggle("lf-reopen", news.reopened);
 			open = news.open;
 		}

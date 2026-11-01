@@ -390,7 +390,7 @@ def test_ephemeral_progress_hides_when_its_held_completion_is_revealed(
         serve.page_dir, {"responds": owed}, "The schedule works."
     )
     told(page)
-    card.get_by_role("button", name="1 new reply", exact=True).click()
+    card.get_by_role("button", name="1 new", exact=True).click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(".lf-thread-working")).to_have_count(0)
@@ -782,10 +782,8 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
 
     edit_root("Start with the corrected measured constraint.")
     expect(
-        card.get_by_role(
-            "button", name="1 message edited · 1 summary changed", exact=True
-        )
-    ).to_be_visible()
+        card.get_by_role("button", name="2 new", exact=True)
+    ).to_have_accessible_description("1 message edited · 1 summary changed")
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()
 
@@ -837,8 +835,8 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "All three constraints now form one decision.",
     )
     told(page)
-    notice = card.get_by_role("button", name="1 summary changed", exact=True)
-    expect(notice).to_be_visible()
+    notice = card.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_accessible_description("1 summary changed")
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
     notice.click()
@@ -865,9 +863,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     expect(checkpoint).to_be_visible()
-    card.get_by_role(
-        "button", name="1 message edited · 1 summary changed", exact=True
-    ).click()
+    card.get_by_role("button", name="2 new", exact=True).click()
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-event="{first["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-event="{second["id"]}"]')).to_contain_text(

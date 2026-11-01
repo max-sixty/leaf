@@ -308,7 +308,7 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
     told(page)
 
     thread = page.locator(card_of(root))
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
     expect(drafted).to_have_text("Checking the deployment.")
     notice.click()
@@ -796,9 +796,10 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
 
 def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
-    width it first stood at, and its name says each fact. It said the facts and, past
-    its room, dropped the later ones behind a "+1", so one piece of news read three
-    ways on three surfaces."""
+    width it first stood at. Its name is the count it shows, so a voice user saying it
+    finds it, and its description says each fact. It said the facts and, past its room,
+    dropped the later ones behind a "+1", so one piece of news read three ways on three
+    surfaces; then its name said only the facts, which the words shown never said."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -813,18 +814,15 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
 
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_have_text("1 new")
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_accessible_description("1 new reply")
     rendered(page)
     width = notice.bounding_box()["width"]
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
-    notice = thread.get_by_role(
-        "button", name="1 new reply · 1 new message", exact=True
-    )
-    expect(notice).to_have_text("2 new")
-    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    notice = thread.get_by_role("button", name="2 new", exact=True)
+    expect(notice).to_have_accessible_description("1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
 
@@ -873,7 +871,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
     told(page)
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
     expect(thread.locator(".lf-thread-working")).to_have_count(0)
-    thread.get_by_role("button", name="1 new reply", exact=True).click()
+    thread.get_by_role("button", name="1 new", exact=True).click()
     expect(
         thread.locator(f'.lf-msg[data-event="{failure["id"]}"] .lf-msg-failure')
     ).to_have_text("Not answered")
@@ -1325,8 +1323,8 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
         },
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 message edited", exact=True)
-    expect(notice).to_be_visible()
+    notice = thread.get_by_role("button", name="1 new", exact=True)
+    expect(notice).to_have_accessible_description("1 message edited")
     rendered(page)
     assert message.bounding_box() == pytest.approx(box, abs=0.5)
     notice.click()

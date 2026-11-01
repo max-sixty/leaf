@@ -954,9 +954,13 @@ summary {
   min-height: var(--lf-thread-action-room);
 }
 /* The notice's start and the visible end of the header's line are the runtime's
-   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). */
+   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). It
+   stands over the message head whose line it shares, as its place after the head in
+   the tree already paints it; stating that (`z-index`) lets a reader that orders boxes
+   itself, as axe does reading contrast, find its words on top. */
 .lf-thread-content > .lf-thread-news {
   position: absolute;
+  z-index: 1;
   position-anchor: --lf-thread-headline;
   inset-inline-start: calc(
     anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)

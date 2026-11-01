@@ -260,7 +260,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     )
     told(page)
     # The reply lands in view, so the healthy thread holds it behind its notice.
-    expect(healthy.get_by_role("button", name="1 new reply")).to_be_visible()
+    expect(healthy.get_by_role("button", name="1 new", exact=True)).to_be_visible()
     assert (
         broken_element.evaluate(
             "widget => widget.querySelectorAll('.lf-page-thread').length"
@@ -328,7 +328,9 @@ customElements.define('lf-test-surface', class extends LeafElement {
         )
         told(page)
         # The notice holding the first reply counts this one too.
-        expect(healthy.get_by_role("button", name="2 new replies")).to_be_visible()
+        expect(
+            healthy.get_by_role("button", name="2 new", exact=True)
+        ).to_have_accessible_description("2 new replies")
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."
@@ -879,8 +881,8 @@ customElements.define('lf-test-seat',class extends LeafElement{
       document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
       releasePage();
     }""")
-    news = page.locator("#rail").get_by_role("button", name="1 new thread", exact=True)
-    expect(news).to_be_visible()
+    news = page.locator("#rail").get_by_role("button", name="1 new", exact=True)
+    expect(news).to_have_accessible_description("1 new thread")
     page.wait_for_function(
         "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
     )

@@ -323,8 +323,8 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
         if beside == "box"
         else threads.first.locator(":scope > .lf-thread-content")
     )
-    news = row.get_by_role("button", name="1 new thread")
-    expect(news).to_be_visible()
+    news = row.get_by_role("button", name="1 new", exact=True)
+    expect(news).to_have_accessible_description("1 new thread")
     expect(threads).to_have_count(1 if earlier else 0)
     assert _box_height(seat) == pytest.approx(height, abs=0.5)
 
@@ -698,9 +698,9 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     )
     told(page)
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
-        "button", name="1 new reply"
+        "button", name="1 new", exact=True
     )
-    expect(news).to_be_visible()
+    expect(news).to_have_accessible_description("1 new reply")
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert not _read_events(serve.page_dir)
@@ -790,9 +790,10 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         )
         told(page)
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
-        "button", name="2 new replies"
+        "button", name="2 new", exact=True
     )
     expect(news).to_be_visible()
+    expect(news).to_have_accessible_description("2 new replies")
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     # The notice stands after the header's words, in a box of its own, so axe still
@@ -861,9 +862,9 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
     )["id"]
     told(page)
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
-        "button", name="1 new thread"
+        "button", name="1 new", exact=True
     )
-    expect(news).to_be_visible()
+    expect(news).to_have_accessible_description("1 new thread")
     landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
     expect(landed).to_have_count(0)
     page.keyboard.press("t")

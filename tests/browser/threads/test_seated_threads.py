@@ -168,7 +168,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
     )
     told(page)
     rendered(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     messages = thread.locator(".lf-msg")
     if foot == "above the window":
         expect(messages).to_have_count(2)
@@ -476,7 +476,7 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
         },
     )
     told(page)
-    expect(thread.get_by_role("button", name="1 new reply")).to_be_visible()
+    expect(thread.get_by_role("button", name="1 new", exact=True)).to_be_visible()
     rendered(page)
     expect(thread.locator(".lf-msg")).to_have_count(messages)
     expect(box).to_be_focused()

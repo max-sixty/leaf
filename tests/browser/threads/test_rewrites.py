@@ -1245,7 +1245,7 @@ def test_opening_a_rewrite_keeps_room_the_thread_holds(browser, serve):
         },
     )
     told(page)
-    thread.get_by_role("button", name="1 message edited", exact=True).click()
+    thread.get_by_role("button", name="1 new", exact=True).click()
     reply.click()
     rendered(page)
     latest = thread.locator(".lf-msg").last

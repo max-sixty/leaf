@@ -284,6 +284,13 @@ finishes later starts there and extends `getUpdateComplete`. `this.controller` i
 controller. Call `requestUpdate()` after a change Leaf can't see, such as revealing held
 news, and `performUpdate()` to draw at once.
 
+`LeafElement` is also exported from `portable-api.js`. On a plain host it draws
+reactive properties with Lit's schedule, runs `setup()` once, pauses drawing while
+away and draws the current properties on return. The host supplies its properties
+and chooses its render root through `createRenderRoot()`; no registry creates a
+shadow root there. Leaf supplies page readings, controllers, presentation readiness
+and bound-data delivery only on a Leaf page.
+
 ### Retained nodes
 
 To place nodes the module keeps, use `setChildren(parent, nodes)`, which moves only what

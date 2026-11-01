@@ -10,11 +10,9 @@ import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { move } from "./dom-move.js";
 import { watchPassageRoot } from "./passages.js";
-import { watchArrivalsIn } from "./arrivals.js";
 
 const styles = new WeakMap();
 installStageIntegration((root) => {
-  watchArrivalsIn(root);
   root.adoptedStyleSheets = [
     ...new Set([...root.adoptedStyleSheets, ...annotationMarkSheets, marksSheet]),
   ];

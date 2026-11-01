@@ -50,20 +50,17 @@
    what dependent DOM readers wait for (`#committed`).
    `setup()` runs once, on the first connection, before the first render.
 
+   The element loads in an ordinary document without Leaf's page owners. Leaf installs
+   its presentation, command and data capabilities through element-integration.js;
+   outside that host updates use Lit's schedule, with no page claims or bound delivery.
+
    Leaf's bound-value integration lives in element-data.js. It initializes authored
    inputs before setup, delivers values before the update gate, and stamps the marks
    a widget reports through its ordinary `drawn` event. Objects and primitives keep
    the snapshot that supplied the drawing, including one completed after a newer
    delivery. This lifecycle owns when those operations run, not their data meaning. */
-import { LitElement, SignalWatcher, render, untracked } from "/runtime/framework.js";
-import {
-  attachApplicationPresentation,
-  attachWidgetPresentation,
-  queueWidgetUpdate,
-  watchPresentation,
-} from "./semantic-state.js";
-import { widgetDescriptor } from "./widget-descriptors.js";
-import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
+import { LitElement, render } from "/vendor/lit.js";
+import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
   failSoft,
   failSoftUnreported,
@@ -72,10 +69,15 @@ import {
   reportFailure,
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
-import { paintKeysWithin } from "./keyboard/scopes.js";
-import { ElementData } from "./element-data.js";
-import { registry } from "./registry.js";
 import { adoptShadowStage } from "./shadow-stage.js";
+
+// Leaf installs its page capabilities before widgets upgrade. Without a page host,
+// the same lifecycle follows Lit's native schedule and reports ordinary drawn events;
+// there is no page presentation region or data delivery to join.
+let integration = null;
+export function installElementIntegration(host) {
+  integration = host;
+}
 
 let regions = 0;
 
@@ -116,11 +118,12 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   /** Finish this render when its presentation prerequisites are ready. Readiness
-   * does not claim another presentation, which would invalidate its own proof. */
+   * does not claim another presentation, which would invalidate its own proof. A plain
+   * host has no page presentation prerequisites to wait for. */
   whenReady(read) {
-    if (untracked(read)) return true;
+    if (!integration || untracked(read)) return true;
     if (!this.#stopReadiness) {
-      this.#stopReadiness = watchPresentation(() => {
+      this.#stopReadiness = integration.watchPresentation(() => {
         if (!untracked(read)) return;
         this.#stopReadiness?.();
         this.#stopReadiness = null;
@@ -152,7 +155,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #data = null;
 
   createRenderRoot() {
-    return registry[this.localName]?.["x-shadow"]
+    return integration?.shadows(this)
       ? adoptShadowStage(super.createRenderRoot())
       : this;
   }
@@ -170,7 +173,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   #queueUpdate() {
     if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(
+    const scheduled = integration.queueWidgetUpdate(
       this.#descriptor.id,
       () => {
         if (this.#scheduled !== scheduled) return;
@@ -189,10 +192,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   #setup() {
-    this.#descriptor = widgetDescriptor(this);
+    this.#descriptor = integration?.widgetDescriptor(this);
     if (this.#descriptor) {
-      this.#controller = widgetController(this);
-      drawsItself(this, {
+      this.#controller = integration.widgetController(this);
+      integration.drawsItself(this, {
         hold: () => this.#hold(),
         refresh: () => this.#refresh(),
       });
@@ -201,7 +204,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#regionName = this.#descriptor
       ? null
       : `element:${this.localName}#${this.id}:${++regions}`;
-    this.#data = new ElementData(this, () => this.#stage());
+    this.#data = integration?.data(this, () => this.#stage());
     placesFailure(this, (box) => {
       const root = this.renderRoot ?? this;
       // A widget showing a shadow stage over its host shows the box as that stage,
@@ -217,7 +220,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       return true;
     });
     try {
-      this.#data.initialize();
+      this.#data?.initialize();
       this.setup();
     } catch (error) {
       this.#broken = true;
@@ -281,14 +284,14 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#drawing = this.#ticket ?? this.#claim();
     this.#ticket = null;
     if (!this.#draws()) return false;
-    this.#data.deliver();
+    this.#data?.deliver();
     return super.shouldUpdate(changed);
   }
 
   // Whether the element has a reading to draw: none after a `setup()` that threw,
   // while its reading lacks a declared verb, or while its data is undelivered.
   #draws() {
-    return !this.#broken && this.#complete() && !this.#data.awaitsDelivery();
+    return !this.#broken && this.#complete() && !this.#data?.awaitsDelivery();
   }
 
   update(changed) {
@@ -347,7 +350,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   updated(changed) {
     super.updated(changed);
     // The render may have changed what this widget's commands read from its nodes.
-    untracked(() => paintKeysWithin(this));
+    untracked(() => integration?.paintKeysWithin(this));
   }
 
   // Every failure is reported here, naming the widget; a claim's rejection then shows
@@ -361,7 +364,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // A claim on the region for the reading as it stands, which a failure settles with
   // the fail-soft box.
   #claim() {
-    return this.#region.present((reason) => failSoftUnreported(this, reason));
+    return this.#region?.present((reason) => failSoftUnreported(this, reason));
   }
 
   // Claim the region for a reading that draws later, leaving the claim open.
@@ -373,7 +376,6 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   // Claim the region for the reading as it stands, and draw it on the next update; a
   // claim the next update cannot draw stays open until one does.
   #present({ now = false } = {}) {
-    if (!this.#region) return;
     this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
@@ -390,15 +392,16 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #connect() {
     this.#connected = true;
     this.#region = this.#descriptor
-      ? attachWidgetPresentation(this.#descriptor.id, "render")
-      : attachApplicationPresentation(this.#regionName);
+      ? integration.attachWidgetPresentation(this.#descriptor.id, "render")
+      : integration?.attachApplicationPresentation(this.#regionName);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
-    this.#leaveData = this.#data.connect(
+    this.#leaveData = this.#data?.connect(
       this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
     );
     this.#present();
-    if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
+    if (this.#descriptor)
+      integration.widgetMounted(this, this.#descriptor, parentChanged);
   }
 
   #disconnect() {

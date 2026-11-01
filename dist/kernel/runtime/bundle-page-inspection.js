@@ -2,7 +2,7 @@ import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./b
 import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
 import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
-import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
+import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-data.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js

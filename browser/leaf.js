@@ -2,6 +2,7 @@
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "/runtime/framework.js";
 import "./runtime/stage-integration.js";
+import "./runtime/element-integration.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.

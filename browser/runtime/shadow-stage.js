@@ -8,6 +8,7 @@
    without discarding a renderer's own. The host returns its retained style nodes so
    imperative staging keeps them alongside the rendering. */
 import { setChildren } from "./dom-children.js";
+import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "./widget-upgrade.js";
 
 let integration = null;
@@ -15,12 +16,14 @@ export const installStageIntegration = (adopt) => {
   integration = adopt;
 };
 export function adoptShadowStage(root) {
+  watchArrivalsIn(root);
   integration?.(root);
   return root;
 }
 
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? stageFor(host);
+  watchArrivalsIn(root);
   const styles = integration?.(root) ?? [];
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [...styles, ...nodes]);

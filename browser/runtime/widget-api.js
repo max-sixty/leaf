@@ -13,12 +13,12 @@
    The helpers that load in any document are portable-api.js's, re-exported here whole,
    so a widget that must also run off a Leaf page imports from there and every other
    widget keeps importing from here. */
+import "./element-integration.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
-export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
 export { holdAuthoredBody } from "./widget-elements.js";
 export { aborted } from "./abort.js";

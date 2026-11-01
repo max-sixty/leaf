@@ -1,4 +1,4 @@
-import { Directive, PartType, directive, html, nothing, unsafeSVG } from "/vendor/lit.js";
+import { Directive, LitElement, PartType, directive, html, nothing, render, unsafeSVG } from "/vendor/lit.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/queued-work.js
@@ -323,6 +323,301 @@ onFrameVisibility((visibility) => {
 	if (visibility.visible) unsettle();
 });
 unsettle();
+
+//#endregion
+//#region vendor/signals-core.js
+var j = Symbol.for("preact-signals");
+function S() {
+	if (h > 1) h--;
+	else {
+		var t, i = !1;
+		for ((function() {
+			var e = p;
+			for (p = void 0; e !== void 0;) {
+				var w = e.S;
+				if (w.v === e.v) for (var u = w.t; u !== void 0; u = u.x) u.i === e.i && (u.i = w.i);
+				e = e.o;
+			}
+		})(); c !== void 0;) {
+			var o = c;
+			for (c = void 0, l++; o !== void 0;) {
+				var n = o.u;
+				if (o.u = void 0, o.f &= -3, !(8 & o.f) && U(o)) try {
+					o.c();
+				} catch (e) {
+					i || (t = e, i = !0);
+				}
+				o = n;
+			}
+		}
+		if (l = 0, h--, i) throw t;
+	}
+}
+function W(t) {
+	if (h > 0) return t();
+	m = ++_, h++;
+	try {
+		return t();
+	} finally {
+		S();
+	}
+}
+var s;
+var r = void 0;
+function d(t) {
+	var i = r, o = s;
+	r = void 0, s = void 0;
+	try {
+		return t();
+	} finally {
+		r = i, s = o;
+	}
+}
+var c = void 0;
+var h = 0;
+var l = 0;
+var _ = 0;
+var m = 0;
+var p = void 0;
+var y = 0;
+function g(t) {
+	if (r !== void 0) {
+		var i = t.n;
+		if (i === void 0 || i.t !== r) return i = {
+			i: 0,
+			S: t,
+			p: r.s,
+			n: void 0,
+			t: r,
+			e: void 0,
+			x: void 0,
+			r: i
+		}, r.s !== void 0 && (r.s.n = i), r.s = i, t.n = i, 32 & r.f && t.S(i), i;
+		if (i.i === -1) return i.i = 0, i.n !== void 0 && (i.n.p = i.p, i.p !== void 0 && (i.p.n = i.n), i.p = r.s, i.n = void 0, r.s.n = i, r.s = i), i;
+	}
+}
+function f(t, i) {
+	this.v = t, this.i = 0, this.n = void 0, this.t = void 0, this.l = 0, this.W = i?.watched, this.Z = i?.unwatched, this.name = i?.name;
+}
+f.prototype.brand = j;
+f.prototype.h = function() {
+	return !0;
+};
+f.prototype.S = function(t) {
+	var i = this, o = this.t;
+	o !== t && t.e === void 0 && (t.x = o, this.t = t, o !== void 0 ? o.e = t : d(function() {
+		var n;
+		(n = i.W) == null || n.call(i);
+	}));
+};
+f.prototype.U = function(t) {
+	var i = this;
+	if (this.t !== void 0) {
+		var o = t.e, n = t.x;
+		o !== void 0 && (o.x = n, t.e = void 0), n !== void 0 && (n.e = o, t.x = void 0), t === this.t && (this.t = n, n === void 0 && d(function() {
+			var e;
+			(e = i.Z) == null || e.call(i);
+		}));
+	}
+};
+f.prototype.subscribe = function(t) {
+	var i = this;
+	return x(function() {
+		var o = i.value;
+		d(function() {
+			return t(o);
+		});
+	}, { name: "sub" });
+};
+f.prototype.valueOf = function() {
+	return this.value;
+};
+f.prototype.toString = function() {
+	return this.value + "";
+};
+f.prototype.toJSON = function() {
+	return this.value;
+};
+f.prototype.peek = function() {
+	var t = this;
+	return d(function() {
+		return t.value;
+	});
+};
+Object.defineProperty(f.prototype, "value", {
+	get: function() {
+		var t = g(this);
+		return t !== void 0 && (t.i = this.i), this.v;
+	},
+	set: function(t) {
+		if (t !== this.v) {
+			if (l > 100) throw new Error("Cycle detected");
+			(function(o) {
+				h !== 0 && l === 0 && o.l !== m && (o.l = m, p = {
+					S: o,
+					v: o.v,
+					i: o.i,
+					o: p
+				});
+			})(this), this.v = t, this.i++, y++, h++;
+			try {
+				for (var i = this.t; i !== void 0; i = i.x) i.t.N();
+			} finally {
+				S();
+			}
+		}
+	}
+});
+function Z(t, i) {
+	return new f(t, i);
+}
+function U(t) {
+	for (var i = t.s; i !== void 0; i = i.n) if (i.S.i !== i.i || !i.S.h() || i.S.i !== i.i) return !0;
+	return !1;
+}
+function C(t) {
+	for (var i = t.s; i !== void 0; i = i.n) {
+		var o = i.S.n;
+		if (o !== void 0 && (i.r = o), i.S.n = i, i.i = -1, i.n === void 0) {
+			t.s = i;
+			break;
+		}
+	}
+}
+function O(t) {
+	for (var i = t.s, o = void 0; i !== void 0;) {
+		var n = i.p;
+		i.i === -1 ? (i.S.U(i), n !== void 0 && (n.n = i.n), i.n !== void 0 && (i.n.p = n)) : o = i, i.S.n = i.r, i.r !== void 0 && (i.r = void 0), i = n;
+	}
+	t.s = o;
+}
+function v(t, i) {
+	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
+}
+v.prototype = new f();
+v.prototype.h = function() {
+	if (this.f &= -3, 1 & this.f) return !1;
+	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y)) return !0;
+	if (this.g = y, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
+	var t = r;
+	try {
+		C(this), r = this;
+		var i = this.x();
+		(16 & this.f || this.v !== i || this.i === 0) && (this.v = i, this.f &= -17, this.i++);
+	} catch (o) {
+		this.v = o, this.f |= 16, this.i++;
+	}
+	return r = t, O(this), this.f &= -2, !0;
+};
+v.prototype.S = function(t) {
+	if (this.t === void 0) {
+		this.f |= 36;
+		for (var i = this.s; i !== void 0; i = i.n) i.S.S(i);
+	}
+	f.prototype.S.call(this, t);
+};
+v.prototype.U = function(t) {
+	if (this.t !== void 0 && (f.prototype.U.call(this, t), this.t === void 0)) {
+		this.f &= -33;
+		for (var i = this.s; i !== void 0; i = i.n) i.S.U(i);
+	}
+};
+v.prototype.N = function() {
+	if (!(2 & this.f)) {
+		this.f |= 6;
+		for (var t = this.t; t !== void 0; t = t.x) t.t.N();
+	}
+};
+Object.defineProperty(v.prototype, "value", { get: function() {
+	if (1 & this.f) throw new Error("Cycle detected");
+	var t = g(this);
+	if (this.h(), t !== void 0 && (t.i = this.i), 16 & this.f) throw this.v;
+	return this.v;
+} });
+function J(t, i) {
+	return new v(t, i);
+}
+function k(t) {
+	var i = t.m;
+	if (t.m = void 0, typeof i == "function") {
+		h++;
+		var o = r;
+		r = void 0;
+		try {
+			i();
+		} catch (n) {
+			throw t.f &= -2, t.f |= 8, b(t), n;
+		} finally {
+			r = o, S();
+		}
+	}
+}
+function b(t) {
+	for (var i = t.s; i !== void 0; i = i.n) i.S.U(i);
+	t.x = void 0, t.s = void 0, k(t);
+}
+function P(t) {
+	if (r !== this) throw new Error("Out-of-order effect");
+	O(this), r = t, this.f &= -2, 8 & this.f && b(this), S();
+}
+function a(t, i) {
+	this.x = t, this.m = void 0, this.s = void 0, this.u = void 0, this.f = 32, this.name = i?.name, s && s.push(this);
+}
+a.prototype.c = function() {
+	var t = this.S();
+	try {
+		if (8 & this.f || this.x === void 0) return;
+		var i = this.x();
+		typeof i == "function" && (this.m = i);
+	} finally {
+		t();
+	}
+};
+a.prototype.S = function() {
+	if (1 & this.f) throw new Error("Cycle detected");
+	this.f |= 1, this.f &= -9, k(this), C(this), h++;
+	var t = r;
+	return r = this, P.bind(this, t);
+};
+a.prototype.N = function() {
+	2 & this.f || (this.f |= 2, this.u = c, c = this);
+};
+a.prototype.d = function() {
+	this.f |= 8, 1 & this.f || b(this);
+};
+a.prototype.dispose = function() {
+	this.d();
+};
+function x(t, i) {
+	var o = new a(t, i);
+	try {
+		o.c();
+	} catch (e) {
+		throw o.d(), e;
+	}
+	var n = o.d.bind(o);
+	return n[Symbol.dispose] = n, n;
+}
+function q(t) {
+	return class extends t {
+		performUpdate() {
+			var i;
+			if (this.isUpdatePending === !1) return;
+			(i = this._$Oo) === null || i === void 0 || i.call(this);
+			let o = !0;
+			this._$Oo = x((() => {
+				o ? (o = !1, super.performUpdate()) : this.requestUpdate();
+			}));
+		}
+		connectedCallback() {
+			super.connectedCallback(), this.requestUpdate();
+		}
+		disconnectedCallback() {
+			var i;
+			super.disconnectedCallback(), (i = this._$Oo) === null || i === void 0 || i.call(this);
+		}
+	};
+}
 
 //#endregion
 //#region runtime/keeps.js
@@ -1534,17 +1829,19 @@ const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (
 
 //#endregion
 //#region runtime/shadow-stage.js
-let integration = null;
+let integration$1 = null;
 const installStageIntegration = (adopt) => {
-	integration = adopt;
+	integration$1 = adopt;
 };
 function adoptShadowStage(root) {
-	integration?.(root);
+	watchArrivalsIn(root);
+	integration$1?.(root);
 	return root;
 }
 function shadowStage(host, nodes) {
 	const root = host.shadowRoot ?? stageFor(host);
-	const styles = integration?.(root) ?? [];
+	watchArrivalsIn(root);
+	const styles = integration$1?.(root) ?? [];
 	setChildren(root, [...styles, ...nodes]);
 	for (const child of [...host.childNodes]) child.remove();
 	return root;
@@ -1555,6 +1852,321 @@ function stageFor(host) {
 		return true;
 	});
 	return host.attachShadow({ mode: "open" });
+}
+
+//#endregion
+//#region runtime/leaf-element.js
+let integration = null;
+function installElementIntegration(host) {
+	integration = host;
+}
+let regions = 0;
+var UpdateBoundary = class extends LitElement {
+	signalUpdateFailed(error) {
+		throw error;
+	}
+	performUpdate() {
+		try {
+			super.performUpdate();
+		} catch (error) {
+			this.signalUpdateFailed(error);
+		}
+	}
+};
+var LeafElement = class extends q(UpdateBoundary) {
+	#signalError = null;
+	#stopReadiness = null;
+	signalUpdateFailed(error) {
+		this.#signalError = { error };
+	}
+	requestUpdate(...args) {
+		const wasPending = this.isUpdatePending;
+		const result = super.requestUpdate(...args);
+		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
+			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim();
+		});
+		return result;
+	}
+	whenReady(read) {
+		if (!integration || d(read)) return true;
+		if (!this.#stopReadiness) this.#stopReadiness = integration.watchPresentation(() => {
+			if (!d(read)) return;
+			this.#stopReadiness?.();
+			this.#stopReadiness = null;
+			super.requestUpdate();
+		});
+		return false;
+	}
+	#descriptor = null;
+	#controller = null;
+	#verbs = [];
+	#region = null;
+	#regionName = null;
+	#connected = false;
+	#connectedParent = null;
+	#ticket = null;
+	#held = false;
+	#box = null;
+	#broken = false;
+	#drawing = null;
+	#updating = false;
+	#leaveData = null;
+	#scheduled = null;
+	#data = null;
+	createRenderRoot() {
+		return integration?.shadows(this) ? adoptShadowStage(super.createRenderRoot()) : this;
+	}
+	scheduleUpdate() {
+		return this.#scheduled ?? this.#queueUpdate();
+	}
+	#committed() {
+		return super.getUpdateComplete();
+	}
+	#queueUpdate() {
+		if (!this.#descriptor) return super.scheduleUpdate();
+		const scheduled = integration.queueWidgetUpdate(this.#descriptor.id, () => {
+			if (this.#scheduled !== scheduled) return;
+			this.#scheduled = null;
+			return super.scheduleUpdate();
+		}, () => this.#committed());
+		this.#scheduled = scheduled;
+		return scheduled;
+	}
+	connectedCallback() {
+		if (once(this)) this.#setup();
+		super.connectedCallback();
+	}
+	#setup() {
+		this.#descriptor = integration?.widgetDescriptor(this);
+		if (this.#descriptor) {
+			this.#controller = integration.widgetController(this);
+			integration.drawsItself(this, {
+				hold: () => this.#hold(),
+				refresh: () => this.#refresh()
+			});
+			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
+		}
+		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
+		this.#data = integration?.data(this, () => this.#stage());
+		placesFailure(this, (box) => {
+			const root = this.renderRoot ?? this;
+			if (root === this && this.shadowRoot) return false;
+			if (this.#box?.parentNode === root && this.#box.textContent === box.textContent) return true;
+			this.#box?.remove();
+			this.#box = box;
+			root.append(box);
+			return true;
+		});
+		try {
+			this.#data?.initialize();
+			this.setup();
+		} catch (error) {
+			this.#broken = true;
+			failSoft(this, error);
+		}
+		watchOwner(this, {
+			connect: () => d(() => this.#connect()),
+			disconnect: () => this.#disconnect()
+		});
+	}
+	setup() {}
+	get reading() {
+		return this.#controller?.read() ?? null;
+	}
+	get state() {
+		return this.reading.state;
+	}
+	get controller() {
+		return this.#controller;
+	}
+	#hold() {
+		this.#held = true;
+		return () => {
+			this.#held = false;
+			this.#refresh();
+		};
+	}
+	#complete() {
+		if (!this.#controller) return true;
+		const { state } = this.#controller.read();
+		return this.#verbs.every((verb) => verb in state);
+	}
+	shouldUpdate(changed) {
+		if (!this.#connected || !this.isConnected) return false;
+		if (this.#held) return false;
+		this.#drawing = this.#ticket ?? this.#claim();
+		this.#ticket = null;
+		if (!this.#draws()) return false;
+		this.#data?.deliver();
+		return super.shouldUpdate(changed);
+	}
+	#draws() {
+		return !this.#broken && this.#complete() && !this.#data?.awaitsDelivery();
+	}
+	update(changed) {
+		super.update(changed);
+		this.#box?.remove();
+		this.#box = null;
+	}
+	performUpdate() {
+		const outer = this.#drawing;
+		const updating = this.#updating;
+		this.#drawing = null;
+		this.#updating = true;
+		try {
+			this.#signalError = null;
+			super.performUpdate();
+			if (this.#signalError) throw this.#signalError.error;
+			if (this.#drawing) this.#drawing.resolve(this.updateComplete.then(() => void 0, (error) => {
+				reportFailure(this, error);
+				throw error;
+			}));
+		} catch (error) {
+			if (outer && !this.#drawing) throw error;
+			this.#failed(error, this.#drawing);
+		} finally {
+			this.#drawing = outer;
+			this.#updating = updating;
+		}
+	}
+	redraw() {
+		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
+	}
+	updated(changed) {
+		super.updated(changed);
+		d(() => integration?.paintKeysWithin(this));
+	}
+	#failed(error, ticket) {
+		if (!ticket) return failSoft(this, error);
+		reportFailure(this, error);
+		ticket.reject(error);
+	}
+	#claim() {
+		return this.#region?.present((reason) => failSoftUnreported(this, reason));
+	}
+	#stage() {
+		if (!this.#connected || this.#ticket || !this.#region) return;
+		this.#ticket = this.#claim();
+	}
+	#present({ now = false } = {}) {
+		this.#ticket = this.#claim();
+		if (this.#held) return;
+		this.requestUpdate();
+		if (now) {
+			this.#scheduled = null;
+			this.performUpdate();
+		} else if (this.#descriptor) this.#queueUpdate();
+	}
+	#refresh() {
+		if (this.#connected) this.#present({ now: true });
+	}
+	#connect() {
+		this.#connected = true;
+		this.#region = this.#descriptor ? integration.attachWidgetPresentation(this.#descriptor.id, "render") : integration?.attachApplicationPresentation(this.#regionName);
+		const parentChanged = this.#connectedParent !== this.parentElement;
+		this.#connectedParent = this.parentElement;
+		this.#leaveData = this.#data?.connect(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
+		this.#present();
+		if (this.#descriptor) integration.widgetMounted(this, this.#descriptor, parentChanged);
+	}
+	#disconnect() {
+		this.#connected = false;
+		this.#stopReadiness?.();
+		this.#stopReadiness = null;
+		this.#leaveData?.();
+		this.#leaveData = null;
+		this.#ticket = null;
+		this.#region?.disconnect();
+		this.#region = null;
+	}
+};
+
+//#endregion
+//#region runtime/base-layer.js
+const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
+
+//#endregion
+//#region runtime/motion.js
+const preference = matchMedia("(prefers-reduced-motion: reduce)");
+const active = /* @__PURE__ */ new Set();
+const reducedMotion = () => preference.matches;
+const scrollBehavior = () => preference.matches ? "instant" : "smooth";
+function onMotionPreferenceChange(listener) {
+	const changed = (event) => listener(event.matches);
+	preference.addEventListener("change", changed);
+	return () => preference.removeEventListener("change", changed);
+}
+preference.addEventListener("change", (event) => {
+	if (event.matches) for (const played of [...active]) played.finish();
+});
+const motionPlays = () => !reducedMotion() && pagePresented();
+const motion = (el, keyframes, ms, pseudoElement = null) => playMotion(el, keyframes, {
+	duration: ms,
+	pseudoElement
+});
+function playMotion(el, keyframes, { duration, easing = "ease", delay = 0, pseudoElement = null }) {
+	if (!motionPlays()) return null;
+	const played = el.animate(keyframes, {
+		duration,
+		delay,
+		pseudoElement,
+		easing,
+		fill: "both"
+	});
+	active.add(played);
+	played.finished.then(() => queueMicrotask(() => {
+		active.delete(played);
+		played.cancel();
+	}), () => active.delete(played));
+	return played;
+}
+const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
+const motionTime = (property, on = document.documentElement) => {
+	const value = token(property, on);
+	return parseFloat(value) * (value.endsWith("ms") ? 1 : 1e3);
+};
+const motionEasing = (property, on = document.documentElement) => token(property, on);
+const flashDuration = () => motionTime("--lf-motion-flash");
+const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
+function backgroundFlash(el, ms) {
+	return motion(el, [{
+		backgroundColor: "var(--hi-tint)",
+		offset: 0
+	}], ms);
+}
+const foldDuration = () => motionTime("--lf-motion-fold");
+const returnDuration = () => motionTime("--lf-motion-return");
+function foldBlock(el, allocation = null) {
+	const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
+	const native = CSS.supports("block-size", "calc-size(auto, size)");
+	const frames = (blockSize) => [{
+		blockSize,
+		display: "block",
+		overflow: "clip",
+		opacity: 1
+	}, {
+		blockSize: "0px",
+		minBlockSize: "0px",
+		marginBlockStart: "0px",
+		marginBlockEnd: "0px",
+		paddingBlockStart: "0px",
+		paddingBlockEnd: "0px",
+		borderBlockStartWidth: "0px",
+		borderBlockEndWidth: "0px",
+		display: "block",
+		overflow: "clip",
+		opacity: 0
+	}];
+	const played = motion(el, frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"), foldDuration());
+	if (!played || native) return played;
+	if (getComputedStyle(el).display === "none") {
+		el.style.display = "block";
+		const release = () => el.style.removeProperty("display");
+		played.finished.then(release, release);
+	}
+	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
+	played.effect.setKeyframes(frames(`${size}px`));
+	return played;
 }
 
 //#endregion
@@ -1602,88 +2214,6 @@ function measure(el, take) {
 	}
 	measurements.set(el, take);
 	unmeasured.observe(el);
-}
-
-//#endregion
-//#region runtime/visual-parts.js
-const registrations = /* @__PURE__ */ new WeakMap();
-const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
-function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
-	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
-	registrations.set(source, {
-		read,
-		reveal,
-		label
-	});
-	return { update: () => layoutChanged(source) };
-}
-function visualPartAdmission(visual, declaration) {
-	if (!declaration || typeof declaration !== "object") return null;
-	const { prefixes } = declaration;
-	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
-	return visual.hasAttribute(declaration.parts) ? () => true : null;
-}
-const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
-function revealRegisteredVisualPart(source, id) {
-	const reveal = registrations.get(source)?.reveal;
-	if (reveal) reveal(id);
-	return registeredVisualPart(source, id);
-}
-function visualPartProblems(source, declaration) {
-	if (!declaration || typeof declaration !== "object") return [];
-	if (!registrations.has(source)) return [{ kind: "unregistered" }];
-	const parts = registeredVisualParts(source);
-	const admission = visualPartAdmission(source, declaration);
-	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
-	return outside.length ? [{
-		kind: "unadmitted-parts",
-		parts: outside
-	}] : [];
-}
-function registeredVisualParts(source) {
-	const read = registrations.get(source)?.read;
-	if (!read) return [];
-	const seenIds = /* @__PURE__ */ new Set();
-	const seenElements = /* @__PURE__ */ new Set();
-	const seenSurfaces = /* @__PURE__ */ new Set();
-	return [...read()].map((part, index) => {
-		const number = index + 1;
-		const id = part.id;
-		const element = part.element;
-		const label = words(part.label);
-		const surface = part.surface ?? element;
-		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
-		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
-		if (!label) throw new TypeError(`Visual part ${id} has no label`);
-		if (!(surface instanceof Element) || !under(surface, element)) throw new TypeError(`Visual part ${id} has no descendant Element surface`);
-		if (seenIds.has(id)) throw new TypeError(`A visual source registered part ${id} twice`);
-		if (seenElements.has(element)) throw new TypeError("A visual source registered one element as two parts");
-		if (seenSurfaces.has(surface)) throw new TypeError("A visual source registered one surface for two parts");
-		seenIds.add(id);
-		seenElements.add(element);
-		seenSurfaces.add(surface);
-		return {
-			id,
-			element,
-			label,
-			surface
-		};
-	});
-}
-const registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
-const registeredVisualPartLabel = (source, id) => {
-	const current = registeredVisualPart(source, id)?.label;
-	if (current) return current;
-	const label = registrations.get(source)?.label?.(id);
-	return words(label) || null;
-};
-function registeredVisualPartAt(source, target, admits = () => true) {
-	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
-	for (let current = target; current && current !== source; current = upFrom(current)) {
-		const part = byElement.get(current);
-		if (part) return part;
-	}
-	return null;
 }
 
 //#endregion
@@ -1780,91 +2310,85 @@ function tokenLines(tokens) {
 }
 
 //#endregion
-//#region runtime/base-layer.js
-const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
-
-//#endregion
-//#region runtime/motion.js
-const preference = matchMedia("(prefers-reduced-motion: reduce)");
-const active = /* @__PURE__ */ new Set();
-const reducedMotion = () => preference.matches;
-const scrollBehavior = () => preference.matches ? "instant" : "smooth";
-function onMotionPreferenceChange(listener) {
-	const changed = (event) => listener(event.matches);
-	preference.addEventListener("change", changed);
-	return () => preference.removeEventListener("change", changed);
-}
-preference.addEventListener("change", (event) => {
-	if (event.matches) for (const played of [...active]) played.finish();
-});
-const motionPlays = () => !reducedMotion() && pagePresented();
-const motion = (el, keyframes, ms, pseudoElement = null) => playMotion(el, keyframes, {
-	duration: ms,
-	pseudoElement
-});
-function playMotion(el, keyframes, { duration, easing = "ease", delay = 0, pseudoElement = null }) {
-	if (!motionPlays()) return null;
-	const played = el.animate(keyframes, {
-		duration,
-		delay,
-		pseudoElement,
-		easing,
-		fill: "both"
+//#region runtime/visual-parts.js
+const registrations = /* @__PURE__ */ new WeakMap();
+const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
+	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
+	registrations.set(source, {
+		read,
+		reveal,
+		label
 	});
-	active.add(played);
-	played.finished.then(() => queueMicrotask(() => {
-		active.delete(played);
-		played.cancel();
-	}), () => active.delete(played));
-	return played;
+	return { update: () => layoutChanged(source) };
 }
-const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
-const motionTime = (property, on = document.documentElement) => {
-	const value = token(property, on);
-	return parseFloat(value) * (value.endsWith("ms") ? 1 : 1e3);
+function visualPartAdmission(visual, declaration) {
+	if (!declaration || typeof declaration !== "object") return null;
+	const { prefixes } = declaration;
+	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+	return visual.hasAttribute(declaration.parts) ? () => true : null;
+}
+const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
+function revealRegisteredVisualPart(source, id) {
+	const reveal = registrations.get(source)?.reveal;
+	if (reveal) reveal(id);
+	return registeredVisualPart(source, id);
+}
+function visualPartProblems(source, declaration) {
+	if (!declaration || typeof declaration !== "object") return [];
+	if (!registrations.has(source)) return [{ kind: "unregistered" }];
+	const parts = registeredVisualParts(source);
+	const admission = visualPartAdmission(source, declaration);
+	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+	return outside.length ? [{
+		kind: "unadmitted-parts",
+		parts: outside
+	}] : [];
+}
+function registeredVisualParts(source) {
+	const read = registrations.get(source)?.read;
+	if (!read) return [];
+	const seenIds = /* @__PURE__ */ new Set();
+	const seenElements = /* @__PURE__ */ new Set();
+	const seenSurfaces = /* @__PURE__ */ new Set();
+	return [...read()].map((part, index) => {
+		const number = index + 1;
+		const id = part.id;
+		const element = part.element;
+		const label = words(part.label);
+		const surface = part.surface ?? element;
+		if (typeof id !== "string" || !id || /\s/.test(id)) throw new TypeError(`Visual part ${number} has no single-token id`);
+		if (!(element instanceof Element) || element === source || !under(element, source)) throw new TypeError(`Visual part ${id} has no descendant Element`);
+		if (!label) throw new TypeError(`Visual part ${id} has no label`);
+		if (!(surface instanceof Element) || !under(surface, element)) throw new TypeError(`Visual part ${id} has no descendant Element surface`);
+		if (seenIds.has(id)) throw new TypeError(`A visual source registered part ${id} twice`);
+		if (seenElements.has(element)) throw new TypeError("A visual source registered one element as two parts");
+		if (seenSurfaces.has(surface)) throw new TypeError("A visual source registered one surface for two parts");
+		seenIds.add(id);
+		seenElements.add(element);
+		seenSurfaces.add(surface);
+		return {
+			id,
+			element,
+			label,
+			surface
+		};
+	});
+}
+const registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
+const registeredVisualPartLabel = (source, id) => {
+	const current = registeredVisualPart(source, id)?.label;
+	if (current) return current;
+	const label = registrations.get(source)?.label?.(id);
+	return words(label) || null;
 };
-const motionEasing = (property, on = document.documentElement) => token(property, on);
-const flashDuration = () => motionTime("--lf-motion-flash");
-const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival");
-function backgroundFlash(el, ms) {
-	return motion(el, [{
-		backgroundColor: "var(--hi-tint)",
-		offset: 0
-	}], ms);
-}
-const foldDuration = () => motionTime("--lf-motion-fold");
-const returnDuration = () => motionTime("--lf-motion-return");
-function foldBlock(el, allocation = null) {
-	const adjustment = allocation ? allocation.priorSize - allocation.container.getBoundingClientRect().height : 0;
-	const native = CSS.supports("block-size", "calc-size(auto, size)");
-	const frames = (blockSize) => [{
-		blockSize,
-		display: "block",
-		overflow: "clip",
-		opacity: 1
-	}, {
-		blockSize: "0px",
-		minBlockSize: "0px",
-		marginBlockStart: "0px",
-		marginBlockEnd: "0px",
-		paddingBlockStart: "0px",
-		paddingBlockEnd: "0px",
-		borderBlockStartWidth: "0px",
-		borderBlockEndWidth: "0px",
-		display: "block",
-		overflow: "clip",
-		opacity: 0
-	}];
-	const played = motion(el, frames(native ? `calc-size(auto, size + ${adjustment}px)` : "auto"), foldDuration());
-	if (!played || native) return played;
-	if (getComputedStyle(el).display === "none") {
-		el.style.display = "block";
-		const release = () => el.style.removeProperty("display");
-		played.finished.then(release, release);
+function registeredVisualPartAt(source, target, admits = () => true) {
+	const byElement = new Map(registeredVisualParts(source).filter(admits).map((part) => [part.element, part]));
+	for (let current = target; current && current !== source; current = upFrom(current)) {
+		const part = byElement.get(current);
+		if (part) return part;
 	}
-	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
-	played.effect.setKeyframes(frames(`${size}px`));
-	return played;
+	return null;
 }
 
 //#endregion
@@ -1936,4 +2460,4 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, adoptShadowStage, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, q, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };

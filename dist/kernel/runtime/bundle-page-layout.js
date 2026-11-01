@@ -1,12 +1,12 @@
-import { LAYOUT, PENDING_TASK, actionIcon, adoptShadowStage, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, dataBody, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, layoutPx, move, nextRender, offer, offerAction, onFrameVisibility, once, orderChildren, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setChildren, setScroll, shadowHost, sizeObserver, tabStore, under, upFrom, watchOwner, whileConnected } from "./bundle-portable.js";
-import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, matchesWhen, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
+import { LAYOUT, PENDING_TASK, Z, actionIcon, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, d, dataBody, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, installElementIntegration, isNativeLayer, keeps, keepsHidden, layoutPx, move, nextRender, offer, offerAction, onFrameVisibility, orderChildren, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, scrollBehavior, setChildren, setScroll, shadowHost, sizeObserver, tabStore, under, upFrom, watchOwner, whileConnected, x } from "./bundle-portable.js";
+import { DRAFT_FORMAT, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, actionForWidget, agentName, agentSays, anchorKey, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, matchesWhen, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, holdingError, isCommandScope, keys, layerHeaders, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
 import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder } from "./bundle-passages.js";
-import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
-import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
-import { alreadyShown, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
+import { aborted, authoredStates, commitWidgetDescriptors, descriptorStillMatches, quoted as quoted$1, widgetDescriptor } from "./bundle-abort.js";
+import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, authoredHolder, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, dismissReplyAt, draftContexts, drawnThreadId, externalMark, fitsWhole, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, restrictUserIntent, retainThreadSeats, retainUserIntent, revealHeld, revisionBase, saveDraft, scrollIntoReadingBand, scrollIntoView, sendLanding, sendMessage, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, workflowWord } from "./bundle-data.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
 
 //#region runtime/keyboard/disclosure.js
@@ -7759,158 +7759,6 @@ const queueActions = Object.freeze({
 const wireInput = (...args) => app().wireInput(...args);
 
 //#endregion
-//#region runtime/thread/landing.js
-const threadReturns = /* @__PURE__ */ new WeakMap();
-function threadInput(node) {
-	const held = node && closestAcross(node, ".lf-page-thread, [data-lf-thread-view], .lf-thread-seat");
-	return threadReplyInput(held);
-}
-const heldThreadOrSeat = () => focused() && closestAcross(focused(), ".lf-page-thread, [data-lf-thread-view], .lf-thread-seat");
-const currentLocationThread = () => {
-	const held = heldThreadOrSeat();
-	const box = threadReplyInput(held);
-	return box ? {
-		held: wholeThread(held),
-		box
-	} : null;
-};
-const backFromThread = (box) => threadReturns.get(box) ?? null;
-function backFromBox() {
-	const held = heldThreadOrSeat();
-	if (held?.matches(".lf-page-thread, [data-lf-thread-view]")) return {
-		target: wholeThread(held),
-		line: "back to thread"
-	};
-	const route = backFromThread(focused());
-	return route?.target?.isConnected ? route : null;
-}
-const boxHandsBack = () => Boolean(backFromBox());
-const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
-const leavesBox = () => inBox() && boxHandsBack();
-pageScope("text entry", {
-	title: "In a text box",
-	root: focused,
-	at: inBox,
-	claims: (binding) => takesLetters(focused()) && TEXT_ENTRY(binding),
-	rows: [{
-		id: "text.leave",
-		touch: false,
-		keys: ["Escape"],
-		description: "Keeps what is typed",
-		title: () => backFromBox()?.line ?? "back",
-		when: leavesBox,
-		run: () => {
-			const back = backFromBox();
-			dismissReplyAt(focused());
-			deepFocus()?.blur();
-			const target = back?.target;
-			if (!target) return;
-			if (!target.matches?.(".lf-page-thread, [data-lf-thread-view]")) {
-				focusDestination(target, "return");
-				scrollIntoView(target, { block: "nearest" });
-				return;
-			}
-			returnToThread(target);
-		}
-	}]
-});
-function returnToThread(thread) {
-	const shown = alreadyShown(thread);
-	if (!fitsWhole(thread) && shown) {
-		focusThread(thread, "return");
-		return;
-	}
-	focusThread(thread, "move");
-	const box = threadReplyInput(thread);
-	if (!shown && !(box && seenRect(box, /* @__PURE__ */ new Map()))) scrollIntoView(thread, { block: "nearest" });
-}
-const cardThread = () => focusedThreadTarget();
-const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;
-const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
-function messageCopy(thread) {
-	if (!thread) return null;
-	const caret = getSelection().anchorNode;
-	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
-}
-function prepareLanding({ held = null, box, route = null }) {
-	if (!box) return false;
-	held ??= closestAcross(box, SAYS_IN);
-	if (route && held && !held.hasAttribute("tabindex")) {
-		threadReturns.set(box, route);
-		whenLeft(box, () => threadReturns.delete(box));
-	}
-	return {
-		held,
-		box
-	};
-}
-function createThreadLanding() {
-	const landIn = (destination) => {
-		const prepared = prepareLanding(destination);
-		if (!prepared) return false;
-		const { box } = prepared;
-		bringBackSurfaceOf(box);
-		focusDestination(box, "move");
-		if (!alreadyShown(box)) scrollIntoView(box, {
-			block: "nearest",
-			behavior: "instant"
-		});
-		return true;
-	};
-	const landInThread = (box, route = null) => landIn({
-		box,
-		route
-	});
-	return {
-		landIn,
-		landInThread,
-		landSent: returnToThread
-	};
-}
-function declareThreadKeys(landIn, threadHere) {
-	pageScope("thread", {
-		title: "In a thread",
-		root: focused,
-		when: () => threadList().length > 0,
-		at: () => Boolean(threadHere()),
-		rows: [
-			{
-				id: "thread.primary",
-				touch: false,
-				keys: ["Enter"],
-				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
-				run: () => {
-					const thread = cardThread();
-					const box = threadInput(thread);
-					if (box) landIn({
-						held: thread,
-						box
-					});
-					else resolutionControl(thread).click();
-				}
-			},
-			{
-				id: "thread.resolution.toggle",
-				touch: false,
-				keys: ["r"],
-				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
-				run: () => resolutionControl(threadHere()).click()
-			},
-			{
-				id: "message.copy",
-				touch: false,
-				keys: ["Mod+c"],
-				title: "copy message as Markdown",
-				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
-				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
-			}
-		]
-	});
-}
-
-//#endregion
 //#region runtime/widget-controller.js
 const controllers = /* @__PURE__ */ new WeakMap();
 const ancestorRefreshes = /* @__PURE__ */ new Set();
@@ -8144,228 +7992,172 @@ var ElementData = class {
 };
 
 //#endregion
-//#region runtime/leaf-element.js
-let regions = 0;
-var UpdateBoundary = class extends LitElement {
-	signalUpdateFailed(error) {
-		throw error;
-	}
-	performUpdate() {
-		try {
-			super.performUpdate();
-		} catch (error) {
-			this.signalUpdateFailed(error);
-		}
-	}
+//#region runtime/element-integration.js
+installElementIntegration({
+	attachApplicationPresentation,
+	attachWidgetPresentation,
+	queueWidgetUpdate,
+	watchPresentation,
+	widgetDescriptor,
+	drawsItself,
+	widgetController,
+	widgetMounted,
+	paintKeysWithin,
+	data: (element, stage) => new ElementData(element, stage),
+	shadows: (element) => registry[element.localName]?.["x-shadow"]
+});
+
+//#endregion
+//#region runtime/thread/landing.js
+const threadReturns = /* @__PURE__ */ new WeakMap();
+function threadInput(node) {
+	const held = node && closestAcross(node, ".lf-page-thread, [data-lf-thread-view], .lf-thread-seat");
+	return threadReplyInput(held);
+}
+const heldThreadOrSeat = () => focused() && closestAcross(focused(), ".lf-page-thread, [data-lf-thread-view], .lf-thread-seat");
+const currentLocationThread = () => {
+	const held = heldThreadOrSeat();
+	const box = threadReplyInput(held);
+	return box ? {
+		held: wholeThread(held),
+		box
+	} : null;
 };
-var LeafElement = class extends q(UpdateBoundary) {
-	#signalError = null;
-	#stopReadiness = null;
-	signalUpdateFailed(error) {
-		this.#signalError = { error };
-	}
-	requestUpdate(...args) {
-		const wasPending = this.isUpdatePending;
-		const result = super.requestUpdate(...args);
-		if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating)) d(() => {
-			if (this.#connected && this.#region && !this.#ticket) this.#ticket = this.#claim();
-		});
-		return result;
-	}
-	whenReady(read) {
-		if (d(read)) return true;
-		if (!this.#stopReadiness) this.#stopReadiness = watchPresentation(() => {
-			if (!d(read)) return;
-			this.#stopReadiness?.();
-			this.#stopReadiness = null;
-			super.requestUpdate();
-		});
-		return false;
-	}
-	#descriptor = null;
-	#controller = null;
-	#verbs = [];
-	#region = null;
-	#regionName = null;
-	#connected = false;
-	#connectedParent = null;
-	#ticket = null;
-	#held = false;
-	#box = null;
-	#broken = false;
-	#drawing = null;
-	#updating = false;
-	#leaveData = null;
-	#scheduled = null;
-	#data = null;
-	createRenderRoot() {
-		return registry[this.localName]?.["x-shadow"] ? adoptShadowStage(super.createRenderRoot()) : this;
-	}
-	scheduleUpdate() {
-		return this.#scheduled ?? this.#queueUpdate();
-	}
-	#committed() {
-		return super.getUpdateComplete();
-	}
-	#queueUpdate() {
-		if (!this.#descriptor) return super.scheduleUpdate();
-		const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-			if (this.#scheduled !== scheduled) return;
-			this.#scheduled = null;
-			return super.scheduleUpdate();
-		}, () => this.#committed());
-		this.#scheduled = scheduled;
-		return scheduled;
-	}
-	connectedCallback() {
-		if (once(this)) this.#setup();
-		super.connectedCallback();
-	}
-	#setup() {
-		this.#descriptor = widgetDescriptor(this);
-		if (this.#descriptor) {
-			this.#controller = widgetController(this);
-			drawsItself(this, {
-				hold: () => this.#hold(),
-				refresh: () => this.#refresh()
-			});
-			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
+const backFromThread = (box) => threadReturns.get(box) ?? null;
+function backFromBox() {
+	const held = heldThreadOrSeat();
+	if (held?.matches(".lf-page-thread, [data-lf-thread-view]")) return {
+		target: wholeThread(held),
+		line: "back to thread"
+	};
+	const route = backFromThread(focused());
+	return route?.target?.isConnected ? route : null;
+}
+const boxHandsBack = () => Boolean(backFromBox());
+const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
+const leavesBox = () => inBox() && boxHandsBack();
+pageScope("text entry", {
+	title: "In a text box",
+	root: focused,
+	at: inBox,
+	claims: (binding) => takesLetters(focused()) && TEXT_ENTRY(binding),
+	rows: [{
+		id: "text.leave",
+		touch: false,
+		keys: ["Escape"],
+		description: "Keeps what is typed",
+		title: () => backFromBox()?.line ?? "back",
+		when: leavesBox,
+		run: () => {
+			const back = backFromBox();
+			dismissReplyAt(focused());
+			deepFocus()?.blur();
+			const target = back?.target;
+			if (!target) return;
+			if (!target.matches?.(".lf-page-thread, [data-lf-thread-view]")) {
+				focusDestination(target, "return");
+				scrollIntoView(target, { block: "nearest" });
+				return;
+			}
+			returnToThread(target);
 		}
-		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-		this.#data = new ElementData(this, () => this.#stage());
-		placesFailure(this, (box) => {
-			const root = this.renderRoot ?? this;
-			if (root === this && this.shadowRoot) return false;
-			if (this.#box?.parentNode === root && this.#box.textContent === box.textContent) return true;
-			this.#box?.remove();
-			this.#box = box;
-			root.append(box);
-			return true;
+	}]
+});
+function returnToThread(thread) {
+	const shown = alreadyShown(thread);
+	if (!fitsWhole(thread) && shown) {
+		focusThread(thread, "return");
+		return;
+	}
+	focusThread(thread, "move");
+	const box = threadReplyInput(thread);
+	if (!shown && !(box && seenRect(box, /* @__PURE__ */ new Map()))) scrollIntoView(thread, { block: "nearest" });
+}
+const cardThread = () => focusedThreadTarget();
+const resolutionControl = (thread) => thread ? threadPart(thread, "settlement") : null;
+const messageAt = (node) => (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+function messageCopy(thread) {
+	if (!thread) return null;
+	const caret = getSelection().anchorNode;
+	return (messageAt(focused()) ?? (thread.contains(caret) ? messageAt(caret) : null) ?? [...thread.querySelectorAll(".lf-msg")].at(-1))?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
+}
+function prepareLanding({ held = null, box, route = null }) {
+	if (!box) return false;
+	held ??= closestAcross(box, SAYS_IN);
+	if (route && held && !held.hasAttribute("tabindex")) {
+		threadReturns.set(box, route);
+		whenLeft(box, () => threadReturns.delete(box));
+	}
+	return {
+		held,
+		box
+	};
+}
+function createThreadLanding() {
+	const landIn = (destination) => {
+		const prepared = prepareLanding(destination);
+		if (!prepared) return false;
+		const { box } = prepared;
+		bringBackSurfaceOf(box);
+		focusDestination(box, "move");
+		if (!alreadyShown(box)) scrollIntoView(box, {
+			block: "nearest",
+			behavior: "instant"
 		});
-		try {
-			this.#data.initialize();
-			this.setup();
-		} catch (error) {
-			this.#broken = true;
-			failSoft(this, error);
-		}
-		watchOwner(this, {
-			connect: () => d(() => this.#connect()),
-			disconnect: () => this.#disconnect()
-		});
-	}
-	setup() {}
-	get reading() {
-		return this.#controller?.read() ?? null;
-	}
-	get state() {
-		return this.reading.state;
-	}
-	get controller() {
-		return this.#controller;
-	}
-	#hold() {
-		this.#held = true;
-		return () => {
-			this.#held = false;
-			this.#refresh();
-		};
-	}
-	#complete() {
-		if (!this.#controller) return true;
-		const { state } = this.#controller.read();
-		return this.#verbs.every((verb) => verb in state);
-	}
-	shouldUpdate(changed) {
-		if (!this.#connected || !this.isConnected) return false;
-		if (this.#held) return false;
-		this.#drawing = this.#ticket ?? this.#claim();
-		this.#ticket = null;
-		if (!this.#draws()) return false;
-		this.#data.deliver();
-		return super.shouldUpdate(changed);
-	}
-	#draws() {
-		return !this.#broken && this.#complete() && !this.#data.awaitsDelivery();
-	}
-	update(changed) {
-		super.update(changed);
-		this.#box?.remove();
-		this.#box = null;
-	}
-	performUpdate() {
-		const outer = this.#drawing;
-		const updating = this.#updating;
-		this.#drawing = null;
-		this.#updating = true;
-		try {
-			this.#signalError = null;
-			super.performUpdate();
-			if (this.#signalError) throw this.#signalError.error;
-			if (this.#drawing) this.#drawing.resolve(this.updateComplete.then(() => void 0, (error) => {
-				reportFailure(this, error);
-				throw error;
-			}));
-		} catch (error) {
-			if (outer && !this.#drawing) throw error;
-			this.#failed(error, this.#drawing);
-		} finally {
-			this.#drawing = outer;
-			this.#updating = updating;
-		}
-	}
-	redraw() {
-		if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
-	}
-	updated(changed) {
-		super.updated(changed);
-		d(() => paintKeysWithin(this));
-	}
-	#failed(error, ticket) {
-		if (!ticket) return failSoft(this, error);
-		reportFailure(this, error);
-		ticket.reject(error);
-	}
-	#claim() {
-		return this.#region.present((reason) => failSoftUnreported(this, reason));
-	}
-	#stage() {
-		if (!this.#connected || this.#ticket || !this.#region) return;
-		this.#ticket = this.#claim();
-	}
-	#present({ now = false } = {}) {
-		if (!this.#region) return;
-		this.#ticket = this.#claim();
-		if (this.#held) return;
-		this.requestUpdate();
-		if (now) {
-			this.#scheduled = null;
-			this.performUpdate();
-		} else if (this.#descriptor) this.#queueUpdate();
-	}
-	#refresh() {
-		if (this.#connected) this.#present({ now: true });
-	}
-	#connect() {
-		this.#connected = true;
-		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(this.#regionName);
-		const parentChanged = this.#connectedParent !== this.parentElement;
-		this.#connectedParent = this.parentElement;
-		this.#leaveData = this.#data.connect(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
-		this.#present();
-		if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
-	}
-	#disconnect() {
-		this.#connected = false;
-		this.#stopReadiness?.();
-		this.#stopReadiness = null;
-		this.#leaveData?.();
-		this.#leaveData = null;
-		this.#ticket = null;
-		this.#region?.disconnect();
-		this.#region = null;
-	}
-};
+		return true;
+	};
+	const landInThread = (box, route = null) => landIn({
+		box,
+		route
+	});
+	return {
+		landIn,
+		landInThread,
+		landSent: returnToThread
+	};
+}
+function declareThreadKeys(landIn, threadHere) {
+	pageScope("thread", {
+		title: "In a thread",
+		root: focused,
+		when: () => threadList().length > 0,
+		at: () => Boolean(threadHere()),
+		rows: [
+			{
+				id: "thread.primary",
+				touch: false,
+				keys: ["Enter"],
+				title: () => !threadInput(cardThread()) && resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
+				when: () => Boolean(threadInput(cardThread())) || resolutionControl(cardThread())?.matches(".lf-reopen:not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => {
+					const thread = cardThread();
+					const box = threadInput(thread);
+					if (box) landIn({
+						held: thread,
+						box
+					});
+					else resolutionControl(thread).click();
+				}
+			},
+			{
+				id: "thread.resolution.toggle",
+				touch: false,
+				keys: ["r"],
+				title: () => resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
+				when: () => resolutionControl(threadHere())?.matches(":not(:disabled, [aria-disabled=\"true\"])"),
+				run: () => resolutionControl(threadHere()).click()
+			},
+			{
+				id: "message.copy",
+				touch: false,
+				keys: ["Mod+c"],
+				title: "copy message as Markdown",
+				when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
+				run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click()
+			}
+		]
+	});
+}
 
 //#endregion
 //#region runtime/queue-title.js
@@ -8463,4 +8255,4 @@ function createPageLayout({ scheduleThreadPreviewPosition, syncReactLayout, refr
 }
 
 //#endregion
-export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, LeafElement, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, atWorkLayer, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosed, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };
+export { CONTRIBUTION_ENTRY_SCHEMA, DISCLOSE, DISCLOSURE_SELECTOR, DRAWING_COORDINATE_LIMIT, KINDS, MAX_DRAWING_FRAME_DEPTH, MAX_DRAWING_POINTS, MAX_DRAWING_SAYS_LENGTH, MAX_DRAWING_STROKES, SVG_NS, activateContributionControl, annotationItems, answerWords, atWorkLayer, awaitingUser, beginRead, canFold, choosePrimary, clearContributionControls, clusterProjection, composerOpen, composerQuote, consumeAnnotations, contributionEntry, contributionEntryRecord, contributionEntrySource, contributionHost, contributionItemKey, contributionReceipts, contributionSource, createPageLayout, createReactionController, createSelectionComposer, createThreadLanding, currentLocationThread, currentProjection, declareThreadKeys, disclosed, dropStand, entryControls, entryEngaged, entryHasMarginHost, fabBar, fabInput, fabOptionsTrigger, focusedOfferOf, inPageOrder, landInThread, leafEditorView, leavesBox, markerFace, materializeContributionControls, mountApplication, navigateToDatum, obligationActions, obligationEnding, obligationWord, optionsOffered, ownedObligationControl, paintBarReactions, paintGeometry, paintSet, paintShape, paintStand, partOver, pendingAbout, pendingAnchor, pendingDrawing, placePageThreads, placement, presentContributionEntry, presentContributionReceipts, primaryReading, queueActions, queueItemKey, queueTitle, reactionAvailable, reactionTokens, readPlan, readQueues, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, registerContribution, registerRootHeader, registerThreadPresentation, sendReaction, spokenContext, spokenSubject, standBox, standOver, syncContributionSelection, syncContributionUnread, textField, threadActions, threadBox, threadInput, threadReading, unreadIn, vacate, visibleContributionEntryLabel, watchDisclosures, widgetController, wireInput };

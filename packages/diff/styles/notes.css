@@ -1,4 +1,9 @@
 /* Authored remarks keep their prose face before and after shadow staging. */
+/* Source rows sit inside the file's one-pixel inline borders. Reserve that
+   inset while notes still stand beside the authored patch. */
+lf-diff > lf-diff-note {
+  margin-inline: 1px;
+}
 lf-diff-note {
   display: block;
   box-sizing: border-box;

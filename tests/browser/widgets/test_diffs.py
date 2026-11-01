@@ -238,6 +238,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
             expect(source).to_be_visible()
             expect(source).to_contain_text("diff --git")
         expect(page.locator("#single > lf-diff-note")).to_be_visible()
+        note_width = page.locator("#single > lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        )
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
@@ -245,6 +248,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         )
         expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
         expect(page.locator("#single lf-diff-note")).to_be_visible()
+        assert page.locator("#single lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        ) == pytest.approx(note_width)
         expect(page.locator("#folded details[open]")).to_have_count(0)
         expect(page.locator("#file-view [data-line]").last).to_contain_text(
             "The first file remains readable."

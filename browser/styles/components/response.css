@@ -334,6 +334,16 @@ leaf-composition-field {
   background: transparent;
   box-shadow: none;
 }
+/* A glyph action shows a pressed state, Dictate listening, on its disc (below), so
+   its box stays clear of the selected face a toggled symbol wears (controls.css):
+   the same state, drawn on the part of the face this variant draws it on. */
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):is(
+  [aria-pressed="true"],
+  [aria-checked="true"]
+) {
+  border-color: transparent;
+  background: transparent;
+}
 :is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
@@ -821,7 +831,7 @@ leaf-text.lf-fab-input {
   > leaf-text.lf-fab-input {
   padding-inline-end: calc(var(--lf-compose-send-end) + var(--lf-icon-action-hit));
 }
-/* The response face (prepaint.js, `ACTION_FACES`): a choice of the response bar,
+/* The response face (control-faces.js, `ACTION_FACES`): a choice of the response bar,
    which shares the field's frame, height and lift (`.lf-response-control`, above)
    and lays out its symbol or glyph with its word (widget-elements.js,
    `responseAction`). A reaction among them wears a reaction's states (controls.css)

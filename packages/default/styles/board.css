@@ -284,15 +284,6 @@ lf-card .lf-grip {
      any scroll position. */
   outline-offset: var(--focus-ring-inset);
 }
-/* The ring is inset rather than offset a pixel out, as the layer's other small controls
-   have theirs, because this one is flush with its card's edge inside lf-board, which
-   scrolls sideways. At the width where three columns reach their 10rem floor the board
-   clips a pixel outside the last column's cards, so the ring's right run and both
-   corners on that side fell outside the clip while the grip itself stayed whole. An
-   inset ring cannot leave the box it names, at any scroll position. */
-lf-card .lf-grip[data-lf-focus-visible] {
-  outline-offset: var(--focus-ring-inset);
-}
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 lf-card.lf-ghost {
   opacity: 0.4;

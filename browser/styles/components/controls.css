@@ -622,7 +622,7 @@ summary,
  * control, and a chip that stayed would set it apart from its unpressed neighbours. A
  * word once also came framed on the card ground, a second look for the same press,
  * until the user chose the quiet one on 25 October. A toggle's `aria-pressed` keeps
- * its own selected face (integration.css), so the chosen mode still shows. Authored
+ * its own selected face (below), so the chosen mode still shows. Authored
  * .button controls wear the word face too, and `.button.primary` the commit face, so
  * a page's own controls match Leaf's (page-layout.md). Labels wrap within their
  * available width; controls that require one line declare it locally. The block
@@ -774,7 +774,7 @@ wa-copy-button.lf-icon-action {
 }
 /* The committing action carries the accent as ink on the card ground, under a
    softened accent hairline, with the tint rising on hover: the one framed word on a
-   surface. The selected face (integration.css) is its neighbour — a full accent border
+   surface. The selected face (below) is its neighbour — a full accent border
    on the chip ground — so a toggle and a commitment never read as one. */
 :is(.lf-btn, .button).primary {
   color: var(--accent);
@@ -798,6 +798,19 @@ wa-copy-button.lf-icon-action {
   color: var(--muted);
   background: var(--paper);
   border-color: var(--border-2);
+}
+/* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
+   ground. It is the faces' own state, so it stands here beside them, ahead of every
+   component that dresses a face further: a glyph action, a symbol whose state its own
+   disc shows, such as Dictate listening (response.css), restates the state on its
+   disc and keeps its box clear, which a later sheet holding this rule overrode. */
+:is(.lf-btn, .button, .lf-icon-action):is(
+  [aria-pressed="true"],
+  [aria-checked="true"]
+) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--chip);
 }
 /* The answer face: one of the answers a question offers, as On me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
@@ -1145,11 +1158,6 @@ wa-copy-button.lf-icon-action {
   .lf-row:where(:not(:disabled, [aria-disabled="true"])):hover {
     background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
   }
-}
-/* A row's ring lies inside it, since its neighbours meet it edge to edge and a list
-   that scrolls cuts what passes its edge. */
-.lf-row[data-lf-focus-visible] {
-  outline-offset: var(--focus-ring-inset);
 }
 .lf-row[aria-current]:not([aria-current="false"]) {
   border-inline-start-color: var(--accent);

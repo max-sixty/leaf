@@ -6,15 +6,6 @@
   max-width: 100%;
   max-height: min(60vh, 480px);
 }
-/* A toggle's selected face, a word's or a symbol's. */
-:is(.lf-btn, .button, .lf-icon-action):is(
-  [aria-pressed="true"],
-  [aria-checked="true"]
-) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--chip);
-}
 /* Draw mode takes presses on the document plane, page-widget controls included, while
    Leaf surfaces keep their gestures. The crosshair is important: it covers whatever
    cursor the page or a widget states for its own controls. Runtime surfaces keep

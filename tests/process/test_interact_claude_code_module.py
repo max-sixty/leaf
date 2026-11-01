@@ -403,7 +403,6 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
                 }
             ],
             "findings": [],
-            "status": [],
         }
     )
     driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})

@@ -1,8 +1,7 @@
 """Leaf's clerk: a fork of the agent's conversation, made as each of its turns ends,
 that checks the pages the session holds against the conversation. It puts On me what
-the agent left to the user without putting it there, restates a status line that no
-longer says what the agent is doing, and passes the agent what else it finds out of
-date. It is experimental, and runs only in Claude Code.
+the agent left to the user without putting it there, and passes the agent what else
+it finds out of date. It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left
@@ -12,8 +11,8 @@ conversation reads what the agent said, so Leaf asks one. The user chose this sh
 2026-10-29 over a digest of the final reply, an advisor that prompts the agent, and a
 clerk agent that also rewrites the page. On 2026-10-31 they split its results by who
 can act on them: Leaf writes a result only where the fork's answer settles it and the
-record is one Leaf keeps for that purpose, an ask On me or the status line, and
-everything else reaches the agent as a message, which it acts on or forks off. That
+record is one Leaf keeps for that purpose, an ask On me, and everything else reaches
+the agent as a message, which it acts on or forks off. That
 reverses the advisor's rejection for those findings alone. Only the agent opens a
 to-do on its own list, since that list holds work the user wants done.
 
@@ -37,18 +36,28 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
 the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
-and the answer's form. It asks for three things. Asks: decisions, answers, permissions
+and the answer's form. It asks for two things. Asks: decisions, answers, permissions
 or steps the agent left to the user that no On me item holds. Findings for the agent:
 a page that still says what the work or the conversation has since changed, an On me
-item already settled elsewhere, and work promised or set running that no page shows.
-Status lines: a started item whose line no longer says what the agent is doing. A
-first version also wrote the status line and named missed page steps; the user
-narrowed it on 2026-10-29 to the asks alone, in Leaf's own words rather than any one
-user's markers, then on 2026-10-31 added back the findings and the status line. They
-left out an open-ended question about the agent's instructions, which drew 12 noise
-findings of 63 in the first version's replay and loses what it checks against once
-compaction drops the skill. What the page state alone settles, such as input not yet
-delivered, is code's to report rather than a model's.
+item already settled elsewhere, and work promised or set running that no page shows,
+for which the fork sees the items the page shows started. A first version also wrote
+the status line and named missed page steps; the user narrowed it on 2026-10-29 to
+the asks alone, in Leaf's own words rather than any one user's markers, then on
+2026-10-31 added back the findings. They left out an open-ended question about the
+agent's instructions, which drew 12 noise findings of 63 in the first version's replay
+and loses what it checks against once compaction drops the skill. What the page state
+alone settles, such as input not yet delivered, is code's to report rather than a
+model's.
+
+The same day they left status lines out until a session shows a started item's line
+going stale while its work runs in the background. The fork is good at them: replayed
+with each started line swapped for one the conversation shows is over (`fork6.py`), it
+restated 15 of 15, and it left all 9 runs with current lines alone. But none of the
+21 recorded turn ends held a stale line, and Leaf can't yet write one truthfully: a
+start written after the turn closed keeps the page reading working for the working
+grace after the background work stops, since `activity._start_age` dates a start's
+hold by when it was written rather than by the turn it names. Restating lines needs
+that changed first.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On me and started items as `page_facts` reads them),
@@ -78,13 +87,6 @@ pick a to-do for a step once `m` opened On me on a to-do, where its title reads 
 (queue-walk.js). A step asked as a thread question had a cost: a clarifying reply
 such as "where do I run it?" answers it, and the agent has to ask again.
 
-Leaf restates a status line as the agent's start of the same item (`todos.take_in_hand`),
-and only where the turn's end hasn't already retired the line, which is while the
-harness says the session works on in the background (`activity._start_age`). After a
-turn that left nothing running, the panel already reads the item as stalled, and a
-start written then would read as the agent at work for the working grace with nothing
-running.
-
 Leaf queues one line for each record and finding (`QUEUED`) under the same locks as
 its page's write, so a later page's failure loses no earlier page's lines. The next
 prompt or tool-boundary hook adds the lines to the agent's context
@@ -105,8 +107,8 @@ ends named anything. Warm, a fork cost $0.08 (median). The same replay of the
 reference on 2026-10-31 (`fork4.py`, `score4.py`, `REPORT4.md`) found 63 of the 63
 asks, named one at 1 of 39 clean turn ends, and named 87 out-of-date passages, 81 of
 them real and 1 false, and 7 pieces of unshown work, 6 real and none false; the
-sample held no settled item, and one case added for it found both in 3 of 3 runs. Its
-3 status lines were all false. Warm, a fork cost $0.125 and wrote about seven times
+sample held no settled item, and one case added for it found both in 3 of 3 runs.
+Warm, a fork cost $0.125 and wrote about seven times
 the output. Rewording what failed, measured on those cases (`fork5.py`), cleared the
 false and chat-reply findings at the cost of one hedged but true one. Claude Code's
 fork reuses the
@@ -182,21 +184,8 @@ ANSWER = {
                 "additionalProperties": False,
             },
         },
-        "status": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "page": {"type": "string", "minLength": 1},
-                    "item": {"type": "string", "minLength": 1},
-                    "line": _WORDS,
-                },
-                "required": ["page", "item", "line"],
-                "additionalProperties": False,
-            },
-        },
     },
-    "required": ["asks", "findings", "status"],
+    "required": ["asks", "findings"],
     "additionalProperties": False,
 }
 
@@ -208,8 +197,7 @@ FORM = (
     '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
     'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
     '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
-    '"<summary>", "quote": "<the words it rests on>"}], "status": [{"page": "<page '
-    'path>", "item": "<item id>", "line": "<line>"}]}'
+    '"<summary>", "quote": "<the words it rests on>"}]}'
 )
 
 # What each kind of finding is, as the agent's line names it.
@@ -314,7 +302,7 @@ def _block(facts: dict) -> str:
             + lines(facts["settled"])
         )
     parts.append(
-        "Started items, each with the line the panel's status shows for it:\n"
+        "Started items, which the page shows as under way, each with its line:\n"
         + lines(
             [
                 f'{item["item"]}, {item["about"]}: "{item["line"]}"'
@@ -412,8 +400,8 @@ def _title(words: str) -> str:
 
 def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     """Act on `answer` for each page `session_id` holds: put its asks On me
-    (`_ask`) and restate its status lines (`_restate`) while the session's turn is
-    still the one `asked` names, and pass each finding to the agent whatever turn has
+    (`_ask`) while the session's turn is still the one `asked` names, and pass each
+    finding to the agent whatever turn has
     opened since, queueing a line for each for the agent's next step; what it wrote
     and told, and why it wrote no records if it didn't."""
     from .leases import page_locked
@@ -426,7 +414,7 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
         path = str(page_dir)
         mine = {
             part: [item for item in answer[part] if item["page"] == path]
-            for part in ("asks", "status", "findings")
+            for part in ("asks", "findings")
         }
         if not any(mine.values()):
             continue
@@ -448,13 +436,12 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 # A record refused partway leaves those before it on the page, so the
                 # agent hears of each record written, whatever stops the rest.
                 try:
-                    if (mine["asks"] or mine["status"]) and not current:
+                    if mine["asks"] and not current:
                         dropped = "another turn opened since the fork was made"
-                    elif mine["asks"] or mine["status"]:
-                        for record, line in [
-                            *_ask(page_dir, page, mine["asks"], identity),
-                            *_restate(page_dir, page, mine["status"], identity),
-                        ]:
+                    elif mine["asks"]:
+                        for record, line in _ask(
+                            page_dir, page, mine["asks"], identity
+                        ):
                             wrote.append(record)
                             lines.append(line)
                     lines.extend(
@@ -518,36 +505,6 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
                 raise
             record = _put(*ask, "")
         yield record, _told(str(page_dir), kind, title, text, passage, record)
-
-
-def _restate(page_dir: Path, page, status: list[dict], identity: dict):
-    """Each of `status` written as the agent's start of the item it names in `page`,
-    an open transaction, with the line telling the agent: only an item still started,
-    in new words, and only while the turn's end hasn't retired its line."""
-    from .agent_state import page_state
-    from .todos import take_in_hand
-
-    state = page_state(page_dir, page.events)
-    if state["activity"]["dropped"]:
-        return
-    started = {
-        item["item"]: item["line"] for item in page_facts(state, page.events)["started"]
-    }
-    for item in status:
-        line = " ".join(item["line"].split())
-        if started.get(item["item"]) in (None, line):
-            continue
-        started[item["item"]] = line
-        record = take_in_hand(page, item["item"], line, identity)
-        path = str(page_dir)
-        yield (
-            record,
-            f"From your last turn, Leaf restated your status line for {item['item']} "
-            f'on {path} as "{line}", which the panel shows while your work runs on in '
-            f"the background. It is yours like any start you write: restate it with "
-            f'`leaf task start {path} {item["item"]} --text "<what you are doing>"` if '
-            "it doesn't say what you are doing.",
-        )
 
 
 def _found(path: str, item: dict, session_id: str, current: bool) -> str:

@@ -9,7 +9,6 @@ from interact_support import append_carried_log_record
 from leaf import clerk as clerk_model
 from leaf import event_log as events_model
 from leaf import hooks as hooks_model
-from leaf import state as state_model
 from leaf import todos as todos_model
 from leaf.agent_state import cmd_page_state
 from leaf.refusals import Refused
@@ -45,7 +44,6 @@ def reply(page, *titles: str, passage: str = "") -> str:
                 for title in titles
             ],
             "findings": [],
-            "status": [],
         }
     )
 
@@ -188,7 +186,6 @@ def test_a_step_goes_on_me_as_a_todo_titled_as_the_action(claimed, capsys):
             step("Run /reload-plugins in this Claude session"),
         ],
         "findings": [],
-        "status": [],
     }
     wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
     assert [
@@ -226,14 +223,15 @@ def test_a_step_goes_on_me_as_a_todo_titled_as_the_action(claimed, capsys):
 
 def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     """The fork reads the check as the skill ships it, then each page's facts, among
-    them each item the agent has started with the line the panel shows for it."""
+    them each item the agent has started with its line, which tells the fork what the
+    page shows under way."""
     hook(capsys, "UserPromptSubmit")
     todo = todos_model.cmd_create(claimed, "page", "Revise the plan", "agent")
     todos_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
     assert (
-        "Started items, each with the line the panel's status shows for it:\n"
+        "Started items, which the page shows as under way, each with its line:\n"
         f'- {todo["id"]}, the agent\'s to-do "Revise the plan": "revising the plan"'
     ) in prompt
     assert f"each title under {clerk_model.TITLE_LIMIT} characters" in prompt
@@ -271,45 +269,6 @@ def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys)
     assert "Pick one?" not in context
 
 
-def test_a_status_line_is_restated_while_it_still_stands(claimed, capsys):
-    """Leaf restates a started item's line as the agent's own start, and the agent
-    hears it. Once the turn's end has retired the line, the panel already reads the
-    item as stalled, so Leaf writes nothing that would read as the agent at work."""
-    page = claimed.resolve()
-    hook(capsys, "UserPromptSubmit")
-    todo = todos_model.cmd_create(claimed, "page", "Revise the plan", "agent")
-    todos_model.cmd_start(claimed, todo["id"], "drafting the plan")
-
-    def restate(line):
-        return json.dumps(
-            {
-                "asks": [],
-                "findings": [],
-                "status": [{"page": str(page), "item": todo["id"], "line": line}],
-            }
-        )
-
-    done = clerk_model.take_answer(
-        "s1", restate("waiting on the replay"), asked()["basis"]
-    )
-    assert [(record["kind"], record["text"]) for record in done["wrote"]] == [
-        ("start", "waiting on the replay")
-    ]
-    assert done["wrote"][0]["session"] == "s1"
-    assert cmd_page_state(claimed)["activity"]["detail"] == "waiting on the replay"
-    assert (
-        f'Leaf restated your status line for {todo["id"]} on {page} as "waiting on '
-        'the replay"' in hook(capsys, "PostToolBatch")
-    )
-
-    state_model.close_session_turn("s1")
-    assert cmd_page_state(claimed)["activity"]["dropped"]
-    before = len(events_model.read_events(claimed))
-    again = clerk_model.take_answer("s1", restate("checking it"), asked()["basis"])
-    assert again["wrote"] == []
-    assert len(events_model.read_events(claimed)) == before
-
-
 def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):
     """A message is checked as `thread create` checks one, and every message before
     the first is written, so a refused one leaves the page as the fork found it."""
@@ -341,9 +300,9 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
     "text",
     [
         "Nothing to report.",
-        '{"asks": [], "findings": [], "status": [], "extra": 1}',
-        '{"asks": [], "findings": [], "status": [{"page": "p", "item": "i", '
-        '"line": " "}]}',
+        '{"asks": [], "findings": [], "extra": 1}',
+        '{"asks": [], "findings": [{"kind": "stale", "page": "p", "summary": " ", '
+        '"quote": ""}]}',
         '{"asks": [{"page": "p", "title": "x"}]}',
         '{"asks": [{"page": "p", "kind": "question", "title": "x", "text": "", '
         '"passage": "", "quote": ""}]}',
@@ -364,5 +323,5 @@ def test_a_long_title_is_cut_at_a_word_to_fit_a_thread():
 
 
 def test_a_fenced_answer_is_read():
-    answer = {"asks": [], "findings": [], "status": []}
+    answer = {"asks": [], "findings": []}
     assert clerk_model.read_answer(f"```json\n{json.dumps(answer)}\n```") == answer

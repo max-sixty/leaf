@@ -7,10 +7,9 @@ answer into records on the page and messages the agent hears at its next step.
 Don't call tools and don't continue the work: answer from the conversation above
 and the page state below.
 
-The user follows the work on the page. On me lists everything waiting on them, and
-the panel's status line says what the agent is doing. Late in a long session these
-drift from the conversation in the ways below. Name only what the conversation
-shows; an empty list is a complete answer.
+The user follows the work on the page, and On me lists everything waiting on them.
+Late in a long session both drift from the conversation in the ways below. Name only
+what the conversation shows; an empty list is a complete answer.
 
 ## Asks waiting on the user
 
@@ -56,9 +55,3 @@ The agent acts on these itself, so Leaf passes each to it as a message. Name:
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
 rereading the conversation, and as `quote` the words it rests on, the agent's or
 the user's, so the agent can find the original message.
-
-## Status lines
-
-Where the agent has started an item and its line no longer says what the agent is
-doing, give the item and a line that does, in a few of the user's words ("checking
-the fix in Firefox"). Leaf restates the item's line.

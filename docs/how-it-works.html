@@ -843,10 +843,9 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each question it asked in a thread, step it put On me as a to-do and
-                    status line it restated, with its words, its id and how to withdraw
-                    it, and what else the fork found out of date, with the words it
-                    rests on.
+                    Each question it asked in a thread and step it put On me as a to-do,
+                    with its words, its id and how to withdraw it, and what else the
+                    fork found out of date, with the words it rests on.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1139,19 +1138,18 @@ flowchart TD
               <p id="fork-purpose">
                 Late in a long session, the page can drift from the conversation: the
                 agent leaves something to the user only in its chat reply, so On me
-                misses it, or a page or status line goes on saying what the work has
-                since changed. In Claude Code, when the agent finishes a reply in a
-                session holding a page, Leaf's hooks module forks the conversation. The
-                fork is a copy of the conversation that answers one question without
-                calling tools, and the agent never sees the exchange. Leaf sends it the
-                skill's
+                misses it, or a page goes on saying what the work has since changed. In
+                Claude Code, when the agent finishes a reply in a session holding a
+                page, Leaf's hooks module forks the conversation. The fork is a copy of
+                the conversation that answers one question without calling tools, and
+                the agent never sees the exchange. Leaf sends it the skill's
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/turn-end-check.md"
                   >turn-end check</a
                 >
                 with each page's On me, the questions and to-dos on the user already
-                answered, ended or withdrawn, and the items the agent has started with
-                their status lines. The fork names:
+                answered, ended or withdrawn, and the items the page shows under way.
+                The fork names:
               </p>
               <ul id="fork-checks">
                 <li>
@@ -1169,10 +1167,6 @@ flowchart TD
                 <li>
                   work the agent promised or set running, such as a background job, that
                   no page shows
-                </li>
-                <li>
-                  a started item whose status line no longer says what the agent is
-                  doing
                 </li>
               </ul>
               <p id="fork-excludes">
@@ -1195,20 +1189,14 @@ flowchart TD
                 doesn't show its words once. It stays On me until the user replies or
                 presses Done, and nothing on the page marks where it came from.
               </p>
-              <p id="fork-status">
-                Leaf restates a status line as the agent's own start of the item, as
-                <code>leaf task start</code> writes one, while the agent's work runs on
-                in the background. Once a turn that left nothing running has ended, the
-                panel already shows the item as stalled, and Leaf leaves the line as it
-                is.
-              </p>
               <p id="fork-findings">
                 Only the agent revises a page, settles an On me item or adds to its own
                 list, so the other findings reach it as messages. Each gives the fork's
                 summary and the words from the conversation it rests on, which lead the
                 agent to the original message even after a compaction. At its next
                 prompt or tool call, the agent reads these and each record Leaf wrote
-                with its id, and withdraws any record with <code>leaf task end</code>.
+                with its id, and withdraws a question or step it disagrees with as it
+                would its own.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the

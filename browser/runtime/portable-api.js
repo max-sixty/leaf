@@ -84,3 +84,5 @@ export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
 export { publishOutput } from "./widget-output.js";
+
+export { loadDeferred } from "./deferred-value.js";

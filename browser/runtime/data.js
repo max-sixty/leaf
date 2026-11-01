@@ -27,6 +27,8 @@ import { reportPageError, requestJson } from "./layer-client.js";
 import { tick } from "./version-signal.js";
 import { OUTPUT, outputProducer, refuseOutput } from "./widget-output.js";
 export { publishOutput } from "./widget-output.js";
+import { attachDeferredLoader } from "./deferred-value.js";
+export { loadDeferred } from "./deferred-value.js";
 
 window.addEventListener(OUTPUT, (event) => {
   const element = outputProducer(event);
@@ -258,8 +260,10 @@ export function dataReader(element, input, accepted) {
         value: structuredClone(snapshot(sourceStore, input)),
       };
       const { value } = copied.value;
-      if (value !== null && typeof value === "object")
+      if (value !== null && typeof value === "object") {
         supplied.set(value, copied.value);
+        if (source) attachDeferredLoader(value, readDeferred.bind(null, copied.value));
+      }
     }
     return copied.value;
   };
@@ -277,10 +281,7 @@ export function joinDataDelivery(region) {
 // by the value it drew. A replacement can be accepted before its subscriber renders;
 // loading through that older manifest must not fetch a same-key deferred value from the
 // replacement.
-export async function loadDeferred(value, key) {
-  const manifest = supplied.get(value);
-  if (!manifest?.source)
-    throw new Error(`loadDeferred(${key}) needs a source value Leaf delivered`);
+async function readDeferred(manifest, key) {
   const { source, revision } = manifest;
   const current = () => {
     const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (

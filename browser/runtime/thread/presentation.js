@@ -36,7 +36,9 @@ import { runtime } from "../context.js";
 
 // Each held element names the thread holding it, decided whole before any is written, so
 // an element that stays held is not cleared and marked again.
+/** @param {ReturnType<typeof threadState>["all"]} threads */
 function renderHolds(threads) {
+  /** @type {Map<Element, string>} */
   const held = new Map();
   for (const thread of threads) {
     if (thread.resolved || !thread.root.holds || thread.root.pending) continue;
@@ -48,6 +50,25 @@ function renderHolds(threads) {
   for (const [target, id] of held) keeps(target, "data-lf-held", id);
 }
 
+/** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
+/** @typedef {import("../semantic-state.js").Resume} Resume */
+/** @param {{available?: boolean, inlineView: import("./thread-card.js").ThreadCommands,
+ * surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
+ * finishPlacement: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["finishPlacement"]}},
+ * anchorPlacement: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>,
+ * anchorPaint: Pick<ReturnType<typeof import("../annotation-overlay/anchor-paint.js").createAnchorPaint>, "paint"> | null,
+ * anchorControls: Pick<ReturnType<typeof import("../anchor-controls.js").createAnchorControls>, "render" | "withholdVisualActions">,
+ * drawingPaint: Pick<ReturnType<typeof import("../composing/drawing-ink.js").createDrawingInk>, "paint">,
+ * pageGeometry: Pick<ReturnType<typeof import("../page-geometry.js").createPageGeometry>, "pageShifted">,
+ * readDraft: () => import("../anchor-placement.js").ThreadDraft,
+ * activeActionAnchor: () => import("../../types/domain.js").Anchor | null,
+ * renderSurfaces: typeof import("./surfaces.js").renderSurfaces,
+ * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
+ * continueThread: Parameters<typeof holdReplyCompositions>[1],
+ * returnToPage: ReturnType<typeof import("./destination.js").createThreadDestinations>["returnToPage"],
+ * threadAt: ReturnType<typeof import("./destination.js").createThreadDestinations>["threadAtCurrentLocation"],
+ * marginCommitted: () => unknown,
+ * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({
   available = true,
   inlineView,
@@ -67,6 +88,7 @@ export function createThreadPresentation({
   marginCommitted,
   read,
 }) {
+  /** @type {PrimaryReader | null} */
   let primary = null;
 
   // The paint follows what it reads, before it waits for preparation and in the
@@ -101,6 +123,7 @@ export function createThreadPresentation({
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
+  /** @param {() => boolean} presenting @param {Resume} [resume] */
   const startRender = (presenting, resume = (run) => run) => {
     cancelCurrentRender();
     /** @type {PromiseWithResolvers<void>} */
@@ -110,6 +133,7 @@ export function createThreadPresentation({
   };
 
   // A continuation the pass resumes joins its reads, of the publication and the clock.
+  /** @param {Promise<void>} cancelled @param {() => boolean} presenting @param {Resume} resume */
   async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
     read.begin();
@@ -121,6 +145,7 @@ export function createThreadPresentation({
       threadAt,
       seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
     });
+    /** @type {ReturnType<typeof renderSurfaces> | null} */
     let surfaces = null;
     try {
       const { all: threads } = threadState();
@@ -141,11 +166,13 @@ export function createThreadPresentation({
         drawingPaint.paint();
       };
       readTargets();
-      surfaces = renderSurfaces(collection, anchorPlacement, surfaceView);
-      void surfaces.completion.catch(() => {});
+      const surface = renderSurfaces(collection, anchorPlacement, surfaceView);
+      surfaces = surface;
+      void surface.completion.catch(() => {});
       const primaryPreparation = primary?.owner.isConnected
         ? primary.prepare(collection, cancelled)
         : null;
+      /** @param {Awaited<ReturnType<PrimaryReader["prepare"]>>} primaryCandidate */
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
         renderSeats(listed, inlineView);
@@ -155,7 +182,7 @@ export function createThreadPresentation({
         // to this requested reading, while preparation and continuity remain separate.
         return Promise.race([
           Promise.all([
-            surfaces.completion,
+            surface.completion,
             // The reader paints after this stretch, so what it reads is its own.
             Promise.resolve().then(() =>
               current() && primaryCandidate?.current()
@@ -171,7 +198,7 @@ export function createThreadPresentation({
             // Preserve immediate semantic paint, then refresh the same directory and its
             // retained decoration before any nominated surface actually moves.
             readTargets();
-            surfaces.commit();
+            surface.commit();
             commitThreadSeats(batch);
             surfaceView.composition.finishPlacement();
             pageGeometry.pageShifted();
@@ -195,7 +222,7 @@ export function createThreadPresentation({
           }),
         );
       };
-      await (primaryPreparation?.then
+      await (primaryPreparation && "then" in primaryPreparation
         ? primaryPreparation.then(resume(paintPrepared))
         : paintPrepared(primaryPreparation));
     } catch (error) {
@@ -212,6 +239,7 @@ export function createThreadPresentation({
     }
   }
 
+  /** @param {PrimaryReader} reader */
   function registerPrimary(reader) {
     if (primary) throw new Error("The page already has a primary Thread presentation");
     primary = reader;

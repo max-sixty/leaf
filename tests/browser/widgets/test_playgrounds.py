@@ -1802,6 +1802,53 @@ def test_a_playground_whose_page_never_hands_over_its_actions_fails(browser, ser
     consume_browser_errors(page, report)
 
 
+def test_a_page_drawn_preset_sets_its_whole_slice_as_one_gesture(browser, serve):
+    """The shadow scale's presets are the page's own buttons over its contributor
+    slice. A press, by pointer or key, sets all three elevations at once and shows
+    pressed; the playground records it as one gesture, so Undo restores the scale the
+    preset replaced."""
+    page = open_page(browser, serve(ROOT / "examples" / "shadow-scale.html"))
+    playground = page.locator("#shadow-playground")
+    presets = playground.get_by_role("group", name="Start from")
+    soft, deep, flat = (
+        presets.get_by_role("button", name=name, exact=True)
+        for name in ("Soft", "Deep", "Flat")
+    )
+    layers = playground.locator(".ws-row span")
+    expect(soft).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("3 of 4")
+    soft_scale = playground.evaluate("root => root.values.scale")
+
+    def tunes():
+        return [
+            event["detail"]["values"]["scale"]
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("action") == "tune"
+        ]
+
+    deep.click()
+    expect(deep).to_have_attribute("aria-pressed", "true")
+    expect(soft).to_have_attribute("aria-pressed", "false")
+    expect(layers).to_have_text("2 of 4")
+    deep_scale = playground.evaluate("root => root.values.scale")
+    assert len(deep_scale["overlay"]) == 4 and deep_scale != soft_scale
+    wait_for(tunes, lambda found: found == [deep_scale], failure="Deep never recorded")
+
+    flat.focus()
+    page.keyboard.press("Enter")
+    expect(flat).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("1 of 4")
+    wait_for(tunes, lambda found: len(found) == 2, failure="Flat never recorded")
+
+    undo(page)
+    expect(deep).to_have_attribute("aria-pressed", "true")
+    assert playground.evaluate("root => root.values.scale") == deep_scale
+    undo(page)
+    expect(soft).to_have_attribute("aria-pressed", "true")
+    expect(layers).to_have_text("3 of 4")
+    assert playground.evaluate("root => root.values.scale") == soft_scale
+
+
 def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     """The alert playground's stage, an alert per section with its controls beside it,
     runs past the window. While the user works down it, the rail beside it, the page

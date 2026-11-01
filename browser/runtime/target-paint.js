@@ -39,10 +39,13 @@ targetTraceShape.classList.add("lf-target-trace-shape");
 targetTraceShape.setAttribute("aria-hidden", "true");
 // The aim's last placement and how its box stood, which a label at its corner is
 // written from (`labelAim`).
-let aimPlaced = null;
-let aimStood = null;
+/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("./rect.js").Box}, stood: ReturnType<typeof standOver>} | null} */
+let aimed = null;
+/** @type {Element | null} */
 let traceElement = null;
+/** @type {Element | null} */
 let traceSurface = null;
+/** @type {ReturnType<typeof paintGeometry>} */
 let traceGeometry = null;
 let traceShapeKey = "";
 let placementFrame = 0;
@@ -50,7 +53,7 @@ let geometryFrame = 0;
 let geometryDirty = false;
 
 export function clearAim() {
-  aimPlaced = aimStood = null;
+  aimed = null;
   vacate(aimStand);
   aimBox.style.display = "none";
   aimBox.classList.toggle("lf-shaped", false);
@@ -62,7 +65,12 @@ export function clearAim() {
 // The aim stands over `surface`, the element itself where nothing draws it for it, as a
 // comment's mark does (anchor-paint.js), so an SVG element's aim and its comment both
 // take its contour.
+/** @param {Element | null} element @param {Element | null} [surface] */
 export function paintAim(element, surface) {
+  if (!element) {
+    clearAim();
+    return null;
+  }
   surface ??= element;
   const geometry = surface && paintGeometry(surface);
   const placed = element && placement(surface, Boolean(geometry), inChrome(element));
@@ -78,12 +86,12 @@ export function paintAim(element, surface) {
   if (!shaped) aimShape.replaceChildren();
   keeps(aimBox, "data-for", element.id);
   keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  aimStood = standOver(
+  const stood = standOver(
     aimStand,
     placed,
     shaped ? "0" : getComputedStyle(surface).borderRadius,
   );
-  aimPlaced = placed;
+  aimed = { placed: { ...placed, shown: placed.shown }, stood };
   return placed.shown;
 }
 
@@ -94,10 +102,14 @@ export function paintAim(element, surface) {
 // box is, or where a cut hides the box's corner, in the frame of the box that cuts it,
 // which the scroll that cuts the box does not carry. So a scroll carries it with what
 // it names, and it moves only when a placement crosses a cut.
+/** @param {HTMLElement} node */
 export function labelAim(node) {
-  if (!aimPlaced) return;
-  const { rect, shown, levels } = aimPlaced;
-  const above = shown.top - node.offsetHeight - aimStood.room;
+  if (!aimed) return;
+  const {
+    placed: { rect, shown, levels },
+    stood,
+  } = aimed;
+  const above = shown.top - node.offsetHeight - stood.room;
   // The frames cut the label too, so the room above is what every band leaves.
   const room = Math.max(
     0,
@@ -109,20 +121,26 @@ export function labelAim(node) {
     top: !cutTop && above >= room ? above : shown.top + 2,
   };
   // The level whose band is the edge that cut the corner, the top's before the left's.
-  const index = cutTop
-    ? levels.findLastIndex(({ axes, band }) => axes.y && band.top === shown.top)
+  const cut = cutTop
+    ? aimStand.frames.findLast(
+        ({ level: { axes, band } }) => axes.y && band.top === shown.top,
+      )
     : shown.left > rect.left
-      ? levels.findLastIndex(({ axes, band }) => axes.x && band.left === shown.left)
-      : -1;
-  if (index >= 0) {
-    const home = aimStand.frames[index];
-    if (node.parentElement !== home) move(home, node, null);
-    const { band } = levels[index];
+      ? aimStand.frames.findLast(
+          ({ level: { axes, band } }) => axes.x && band.left === shown.left,
+        )
+      : undefined;
+  if (cut) {
+    const {
+      frame,
+      level: { band },
+    } = cut;
+    if (node.parentElement !== frame) move(frame, node, null);
     standBox(node, at, { anchored: false, origin: { x: band.left, y: band.top } });
     return;
   }
   if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
-  standBox(node, at, aimStood, aimStood.anchor, aimStood.at);
+  standBox(node, at, stood, stood.anchor, stood.at);
 }
 
 function clearTrace() {
@@ -174,6 +192,7 @@ function drawTrace(
   standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
 }
 
+/** @param {Element | null} element @param {Element | null} [surface] */
 export function paintTrace(element, surface = element) {
   if (!element) {
     clearTrace();

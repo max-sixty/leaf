@@ -1,29 +1,54 @@
 // One safe Markdown reading for every runtime and package surface. The parser stays
 // lazy because most pages contain no Markdown supplied at runtime; callers can paint
 // escaped source immediately and await this only when their own rendering needs it.
+import { describeFailure } from "./exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { elementsDeclaring, declarationFor } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
+import { isElement } from "./shadow-tree.js";
 
+/** @typedef {import("markdown-it").Token} NativeToken
+ * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
+ * @typedef {NonNullable<ReturnType<MarkdownIt["linkify"]["match"]>>[number]} LinkMatch
+ * @typedef {{token: NativeToken, source: [number, number] | undefined, spellings: [number, number, string][]}} TokenSnapshot
+ * @typedef {{token: NativeToken, content: string, source: [number, number] | undefined, links: LinkMatch[]}} BeforeLink
+ * @typedef {Object} TokenSource
+ * @property {[number, number]} [source]
+ * @property {number} [sourceAt]
+ * @property {number} [indent]
+ * @property {[number, number, string][]} [spelled]
+ * @property {[number, number, number][]} [markers]
+ * @property {string} [sourceContent]
+ * @property {string | null} [url]
+ * @property {TokenSnapshot[]} [beforeJoin]
+ * @property {BeforeLink[]} [beforeLinks]
+ */
+
+/** @param {string} text */
 const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** @param {string} text */
 const escapedSource = (text) => escapeHtml(text);
 /** @type {(text: string, breaks?: boolean) => string} */
 let render = escapedSource;
 /** @type {(text: string, breaks?: boolean) => string} */
 let renderInline = escapedSource;
+/** @type {((source: string) => NativeToken[]) | null} */
 let tokenize = null;
+/** @type {Promise<void> | undefined} */
 let ready;
 
 // `breaks` reads a soft line break as a hard one, since a message keeps the breaks its
 // writer typed. A Markdown file's soft breaks are spaces, as CommonMark and GitHub
 // render a file: its lines wrap for its editor, not its reader. A Markdown body
 // (`paintMarkdown`), such as a draft, reads as a file.
+/** @param {string} text @param {boolean} [breaks] */
 export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
+/** @param {string} html @param {boolean} [imageAlt] */
 export function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
   parsed.innerHTML = html;
@@ -32,6 +57,7 @@ export function renderedWords(html, imageAlt = false) {
 
 // Read a disposable fragment so excerpts and caret coordinates count the same
 // semantic breaks, including a break with no formatting text node after it.
+/** @param {DocumentFragment | HTMLElement} fragment @param {boolean} [imageAlt] */
 function fragmentWords(fragment, imageAlt = false) {
   for (const br of fragment.querySelectorAll("br"))
     br.replaceWith(document.createTextNode("\n"));
@@ -40,9 +66,12 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
+/** @param {string} text */
 export const markdownWords = (text) => renderedWords(renderMarkdown(text));
+/** @param {string} text @param {boolean} [breaks] */
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
+/** @param {string} text @param {boolean} [breaks] */
 export function inlineMarkdownFragment(text, breaks = true) {
   const parsed = document.createElement("template");
   parsed.innerHTML = renderInlineMarkdown(text, breaks);
@@ -51,25 +80,29 @@ export function inlineMarkdownFragment(text, breaks = true) {
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
+/** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
-    !declarationFor(scope, "x-text-format") &&
+    !(isElement(scope) && declarationFor(scope, "x-text-format")) &&
     !elementsDeclaring(scope, "x-text-format").length
   )
     return;
+  /** @type {unknown} */
   let failure;
   if (!(await loadMarkdown((error) => (failure = error))))
     throw new Error(
-      `leaf: Markdown renderer failed to load: ${failure?.message ?? failure}`,
+      `leaf: Markdown renderer failed to load: ${describeFailure(failure)}`,
     );
 }
 
 // Only presentation nodes are formatted. Source documents stay intact for typed state,
 // revision patching and provenance; arrivals call this after capture, before connection.
 // Their import preparation has already made the parser ready, so this step is synchronous.
+/** @param {Element | Document | DocumentFragment} scope */
 export function formatDeclaredMarkdown(scope) {
   const elements = elementsDeclaring(scope, "x-text-format");
-  if (declarationFor(scope, "x-text-format")) elements.unshift(scope);
+  if (isElement(scope) && declarationFor(scope, "x-text-format"))
+    elements.unshift(scope);
   if (!elements.length) return;
   if (!tokenize)
     throw new Error("leaf: Markdown formatting requires its loaded renderer");
@@ -88,7 +121,7 @@ export function formatDeclaredMarkdown(scope) {
       continue;
     }
     for (const node of [...element.childNodes]) {
-      if (node.nodeType !== Node.TEXT_NODE || !node.data.trim()) continue;
+      if (!(node instanceof Text) || !node.data.trim()) continue;
       const parsed = inlineMarkdownFragment(node.data, false);
       if (!parsed.firstElementChild && parsed.textContent === node.data) continue;
       const words = document.createElement("span");
@@ -105,14 +138,16 @@ export function formatDeclaredMarkdown(scope) {
 // body reads as a Markdown file, its soft line breaks spaces, as the server's prepaint
 // draws it (`leaf.passages.markdown_markup`) and the field editing it in place draws
 // them (composing/field-editor.js, `joints`).
+/** @param {Element} element @param {string} source */
 export function paintMarkdown(element, source) {
   if (
-    element.dataset.lfSourceWords === source &&
+    element.getAttribute("data-lf-source-words") === source &&
     !element.hasAttribute("data-lf-prepaint")
   )
     return;
   const markup = renderMarkdown(source, false);
-  if (element.dataset.lfSourceWords !== source) element.dataset.lfSourceWords = source;
+  if (element.getAttribute("data-lf-source-words") !== source)
+    element.setAttribute("data-lf-source-words", source);
   if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 
@@ -120,9 +155,9 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // Align within the parser's declared block span, rather than reimplement its block
 // normalization. That normalization can both remove prefixes and expand a tab into
 // spaces. The shared lossless aligner maps either transformation back to source.
+/** @param {string} source @param {string} raw @param {number} at @param {number} limit @param {boolean} cell */
 function inlineSourcePositions(source, raw, at, limit, cell) {
-  // A block whose words the parser kept verbatim ends with them, so each sits where it
-  // was typed, after whatever markers opened the block. A table cell shares its line.
+  // A verbatim block ends with its words, past the opening markers. A cell shares its line.
   const start = at + source.slice(at, limit).trimEnd().length - raw.length;
   if (!cell && start >= at && source.startsWith(raw, start))
     return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
@@ -143,13 +178,49 @@ function inlineSourcePositions(source, raw, at, limit, cell) {
   return positions;
 }
 
+/** Native parser offsets become editor coordinates only through this boundary. An
+ * invalid offset must fail here rather than reach a caret as undefined or NaN.
+ * @template T @param {readonly T[]} values @param {number} index @returns {T} */
+function parserItem(values, index) {
+  const value = values[index];
+  if (value === undefined)
+    throw new Error(
+      `leaf: Markdown parser index ${index} is outside its ${values.length} source positions`,
+    );
+  return value;
+}
+
+/** @param {NativeToken} token @returns {token is NativeToken & {type: "inline", children: NativeToken[], map: [number, number]}} */
+const isInlineToken = (token) => token.type === "inline";
+/** After source_content, inline tokens carry their original words through the remaining core passes.
+ * @param {NativeToken} token @returns {token is NativeToken & {type: "inline", children: NativeToken[], map: [number, number], lfSource: TokenSource & {sourceContent: string}}} */
+const isPositionedInline = (token) => token.type === "inline";
+/** @param {NativeToken} token @returns {token is NativeToken & {lfSource: TokenSource & {source: [number, number]}}} */
+const hasSourceSpan = (token) => token.lfSource?.source !== undefined;
+
+/** @param {NativeToken} token @returns {token is NativeToken & {type: "inline", children: NativeToken[], lfSource: TokenSource & {beforeLinks: BeforeLink[]}}} */
+const isBeforeLinkifiedInline = (token) => token.type === "inline";
+/** @param {NativeToken} token @returns {token is NativeToken & {type: "inline", children: NativeToken[], lfSource: TokenSource & {beforeJoin: TokenSnapshot[]}}} */
+const isBeforeJoinedInline = (token) => token.type === "inline";
+
 // Native parser tokens, each located in the exact source. Opening inline tokens carry
 // the paired construct's whole span and the span of its words for editor decoration.
 // Native block rules record markers before container prefixes are restored. Their
 // line-relative spans survive newline normalization when mapped onto the source.
-// A token's `spelled` lists the spans of its source that the message shows as other
-// characters, each `[from, to, shown]`: an escape or an entity, which the message shows
-// as the character it names, and a break's backslash, which it shows as nothing.
+/** @typedef {{token: import("markdown-it").Token,
+ * from: number, to: number, markers?: [number, number][] | undefined,
+ * content?: [number, number],
+ * words?: string | null, spelled?: [number, number, string][]}} PlacedToken */
+/** Source metadata supplied by the native block producers and the completed placement pass.
+ * @typedef {{heading_open: {markers: [number, number][]},
+ * fence: {markers: [number, number][]}, blockquote_open: {markers: [number, number][]},
+ * list_item_open: {markers: [[number, number], ...[number, number][]], token: NativeToken & {lfSource: TokenSource & {indent: number}}}}} BlockPlacement
+ */
+/** @template {keyof BlockPlacement} K @param {PlacedToken} placed @param {K} type
+ * @returns {placed is PlacedToken & BlockPlacement[K] & {token: NativeToken & {type: K}}} */
+export const isBlockPlacement = (placed, type) => placed.token.type === type;
+
+/** @param {string} source @returns {PlacedToken[]} */
 export function placedMarkdownTokens(source) {
   const tokens = markdownTokens(source);
   if (!tokens) return [];
@@ -159,54 +230,64 @@ export function placedMarkdownTokens(source) {
     if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
   }
   starts.push(source.length);
+  /** @type {PlacedToken[]} */
   const found = [];
   let inlineAt = 0;
+  /** @type {NativeToken | undefined} */
   let previous;
   for (const token of tokens) {
     const before = previous;
     previous = token;
-    const from = token.map ? starts[token.map[0]] : 0;
-    const to = token.map ? starts[token.map[1]] : source.length;
-    if (token.type !== "inline") {
-      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
-        found.push({
+    const from = token.map ? parserItem(starts, token.map[0]) : 0;
+    const to = token.map ? parserItem(starts, token.map[1]) : source.length;
+    if (!isPositionedInline(token)) {
+      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) {
+        /** @type {PlacedToken} */
+        const placed = {
           token,
           from,
           to,
-          markers: token.meta?.markers?.map(([line, a, b]) => [
-            starts[line] + a,
-            starts[line] + b,
+          markers: token.lfSource?.markers?.map(([line, a, b]) => [
+            parserItem(starts, line) + a,
+            parserItem(starts, line) + b,
           ]),
           words: token.nesting ? null : token.content,
-        });
+        };
+        found.push(placed);
+      }
       continue;
     }
-    // The words start past the container markers on their first line, so a list
-    // item's `*` is never read as the emphasis after it.
+    // Container prefixes precede the inline words; a list marker is not emphasis.
     let wordsAt = Math.max(from, inlineAt);
-    for (const { token: block, markers } of found)
-      if (/^(blockquote|list_item)_open$/.test(block.type))
-        for (const [a, b] of markers)
-          if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
+    for (const block of found)
+      if (
+        isBlockPlacement(block, "blockquote_open") ||
+        isBlockPlacement(block, "list_item_open")
+      )
+        for (const [a, b] of block.markers)
+          if (a >= wordsAt && a < parserItem(starts, token.map[0] + 1) && b > wordsAt)
+            wordsAt = b;
     const positions = inlineSourcePositions(
       source,
-      token.meta.sourceContent,
+      token.lfSource.sourceContent,
       wordsAt,
       to,
-      /^t[dh]_open$/.test(before?.type),
+      before?.type === "td_open" || before?.type === "th_open",
     );
+    /** @type {(PlacedToken & {content: [number, number]})[]} */
     const stack = [];
     for (const child of token.children) {
-      if (!child.meta?.source) continue;
-      let [a, b] = child.meta.source;
+      if (!hasSourceSpan(child)) continue;
+      let [a, b] = child.lfSource.source;
       if (child.nesting === 1) {
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           a = b - child.markup.length;
+        /** @type {PlacedToken & {content: [number, number]}} */
         const placed = {
           token: child,
-          from: positions[a],
-          to: positions[b],
-          contentFrom: positions[b],
+          from: parserItem(positions, a),
+          to: parserItem(positions, b),
+          content: [parserItem(positions, b), parserItem(positions, b)],
         };
         found.push(placed);
         stack.push(placed);
@@ -215,34 +296,39 @@ export function placedMarkdownTokens(source) {
         if (!placed) continue;
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           b = a + child.markup.length;
-        placed.to = positions[b];
-        placed.contentTo = positions[a];
+        placed.to = parserItem(positions, b);
+        placed.content[1] = parserItem(positions, a);
       } else {
         found.push({
           token: child,
-          from: positions[a],
-          to: positions[b],
+          from: parserItem(positions, a),
+          to: parserItem(positions, b),
           words:
             child.type === "softbreak" || child.type === "hardbreak"
               ? "\n"
               : child.type === "image"
-                ? safeUrl(child.attrGet("src"))
+                ? admittedUrl(child.attrGet("src")) !== null
                   ? ""
                   : renderedWords(
-                      renderInlineMarkdown(source.slice(positions[a], positions[b])),
+                      renderInlineMarkdown(
+                        source.slice(
+                          parserItem(positions, a),
+                          parserItem(positions, b),
+                        ),
+                      ),
                     )
                 : child.type === "html_inline"
                   ? ""
                   : child.content,
-          spelled: (child.meta.spelled ?? []).map(([from, to, shown]) => [
-            positions[from],
-            positions[to],
+          spelled: (child.lfSource.spelled ?? []).map(([from, to, shown]) => [
+            parserItem(positions, from),
+            parserItem(positions, to),
             shown,
           ]),
         });
       }
     }
-    inlineAt = positions.at(-1);
+    inlineAt = parserItem(positions, positions.length - 1);
   }
   return found;
 }
@@ -252,14 +338,16 @@ export function placedMarkdownTokens(source) {
 // is unsuitable here: its deliberate coarse replacement must never send a caret to
 // the end of a long formatted document. Token placement gives an ordered source span;
 // the local exact alignment handles omitted delimiters, entities and escapes.
+/** @param {HTMLElement} body @param {Node} node @param {number} offset */
 export function markdownSourceOffset(body, node, offset) {
   if (!body.contains(node)) return null;
   const range = document.createRange();
   range.selectNodeContents(body);
+  const shown = fragmentWords(range.cloneContents());
   range.setEnd(node, offset);
   const aim = fragmentWords(range.cloneContents()).length;
   const source = body.dataset.lfSourceWords;
-  const shown = fragmentWords(body.cloneNode(true));
+  if (source === undefined) return null;
   let shownAt = 0;
   let sourceEnd = 0;
   for (const placed of placedMarkdownTokens(source)) {
@@ -302,121 +390,139 @@ export const markdownReady = () => render !== escapedSource;
 
 const WEB_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
-function safeUrl(href) {
-  if (href.startsWith("#")) return true;
+/** @param {string | number | null} href */
+function admittedUrl(href) {
+  if (href === null) return null;
+  href = String(href);
+  if (href.startsWith("#")) return href;
   try {
-    return WEB_PROTOCOLS.has(new URL(href, location.href).protocol);
+    return WEB_PROTOCOLS.has(new URL(href, location.href).protocol) ? href : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 const probe = document.createElement("template");
+/** @param {string} markup @param {string} tag */
 function renderedElement(markup, tag) {
   probe.innerHTML = markup;
   const element = probe.content.firstElementChild;
-  return element?.localName === tag ? element : null;
+  if (!element || element.localName !== tag)
+    throw new Error(`leaf: Markdown renderer did not produce its ${tag} element`);
+  return element;
 }
 
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
+/** @param {string} text */
 const markdownTokens = (text) => tokenize?.(text) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives
 // here: the same native rules decide the renderer's constructs and the editor's.
+/** @param {MarkdownIt} markdown */
 function sourcePositions(markdown) {
   const NativeState = markdown.inline.State;
   markdown.inline.State = class extends NativeState {
+    /** @type {number | null} */
+    sourcePendingFrom = null;
     pushPending() {
       const from = this.sourcePendingFrom ?? this.pos - this.pending.length;
       const to = from + this.pending.length;
       const token = super.pushPending();
-      token.meta = { ...token.meta, source: [from, to] };
+      token.lfSource = { ...token.lfSource, source: [from, to] };
       this.sourcePendingFrom = null;
       return token;
     }
+    /** @param {Parameters<import("markdown-it").StateInline["push"]>} args */
     push(...args) {
       const token = super.push(...args);
-      token.meta = { ...token.meta, sourceAt: this.pos };
+      token.lfSource = { ...token.lfSource, sourceAt: this.pos };
       return token;
     }
   };
   const nativeRules = markdown.inline.ruler.getRules.bind(markdown.inline.ruler);
+  /** @typedef {(state: import("markdown-it").StateInline, silent: boolean) => boolean} InlineRule */
+  /** @type {WeakMap<InlineRule, InlineRule>} */
   const wrapped = new WeakMap();
   markdown.inline.ruler.getRules = (chain) =>
     nativeRules(chain).map((rule) => {
-      if (!wrapped.has(rule))
-        wrapped.set(rule, (state, silent) => {
-          const from = state.pos;
-          const pendingFrom = from - state.pending.length;
-          if (!silent && !state.pending) state.sourcePendingFrom = from;
-          const count = state.tokens.length;
-          const ok = rule(state, silent);
-          if (!ok || silent) return ok;
-          const emitted = state.tokens
-            .slice(count)
-            .filter((token) => !token.meta?.source);
-          let delimiterAt = from;
-          for (const token of emitted) {
-            let span = [from, state.pos];
-            if (
-              token.type === "text" &&
-              emitted.every((item) => item.type === "text")
-            ) {
-              span = [delimiterAt, delimiterAt + token.content.length];
-              delimiterAt = span[1];
-            } else if (token.type === "link_open") {
-              span = [from, token.meta.sourceAt];
-            } else if (token.type === "link_close") {
-              span = [token.meta.sourceAt, state.pos];
-            }
-            // A bare URL's inline rule starts at its colon, with the scheme still pending.
-            // The rule takes the scheme off the pending words and pushes the rest, which
-            // end where the link starts.
-            if (
-              token.markup === "linkify" ||
-              (emitted.some((item) => item.markup === "linkify") &&
-                token.type === "text")
-            ) {
-              const kept = state.tokens
-                .slice(count)
-                .find((item) => !emitted.includes(item));
-              const start = kept?.meta.source[1] ?? pendingFrom;
-              span =
-                token.type === "link_open"
-                  ? [start, start]
-                  : token.type === "link_close"
-                    ? [state.pos, state.pos]
-                    : [start, state.pos];
-            } else if (emitted.some((item) => item.markup === "autolink")) {
-              span =
-                token.type === "link_open"
-                  ? [from, from + 1]
-                  : token.type === "link_close"
-                    ? [state.pos - 1, state.pos]
-                    : [from + 1, state.pos - 1];
-            }
-            token.meta = {
-              ...token.meta,
-              source: span,
-              spelled:
-                token.type === "text_special" && token.content !== token.markup
-                  ? [[...span, token.content]]
-                  : token.type === "hardbreak" && state.src[span[0]] === "\\"
-                    ? [[span[0], span[0] + 1, ""]]
-                    : [],
-            };
+      const known = wrapped.get(rule);
+      if (known) return known;
+      /** @type {InlineRule} */
+      const instrumented = (state, silent) => {
+        const from = state.pos;
+        const pendingFrom = from - state.pending.length;
+        if (!silent && !state.pending) state.sourcePendingFrom = from;
+        const count = state.tokens.length;
+        const ok = rule(state, silent);
+        if (!ok || silent) return ok;
+        const emitted = state.tokens
+          .slice(count)
+          .filter(
+            /** @returns {token is NativeToken & {lfSource: TokenSource & {sourceAt: number}}} */ (
+              token,
+            ) => !token.lfSource?.source,
+          );
+        let delimiterAt = from;
+        for (const token of emitted) {
+          /** @type {[number, number]} */
+          let span = [from, state.pos];
+          if (token.type === "text" && emitted.every((item) => item.type === "text")) {
+            span = [delimiterAt, delimiterAt + token.content.length];
+            delimiterAt = span[1];
+          } else if (token.type === "link_open") {
+            span = [from, token.lfSource.sourceAt];
+          } else if (token.type === "link_close") {
+            span = [token.lfSource.sourceAt, state.pos];
           }
-          return ok;
-        });
-      return wrapped.get(rule);
+          // A bare URL's inline rule starts at its colon, with the scheme still pending.
+          if (
+            token.markup === "linkify" ||
+            (emitted.some((item) => item.markup === "linkify") && token.type === "text")
+          ) {
+            const kept = state.tokens
+              .slice(count)
+              .find((item) => !emitted.some((emitted) => emitted === item));
+            const start = kept?.lfSource?.source?.[1] ?? pendingFrom;
+            span =
+              token.type === "link_open"
+                ? [start, start]
+                : token.type === "link_close"
+                  ? [state.pos, state.pos]
+                  : [start, state.pos];
+          } else if (emitted.some((item) => item.markup === "autolink")) {
+            span =
+              token.type === "link_open"
+                ? [from, from + 1]
+                : token.type === "link_close"
+                  ? [state.pos - 1, state.pos]
+                  : [from + 1, state.pos - 1];
+          }
+          token.lfSource = {
+            ...token.lfSource,
+            source: span,
+            spelled:
+              token.type === "text_special" && token.content !== token.markup
+                ? [[...span, token.content]]
+                : token.type === "hardbreak" && state.src[span[0]] === "\\"
+                  ? [[span[0], span[0] + 1, ""]]
+                  : [],
+          };
+        }
+        return ok;
+      };
+      wrapped.set(rule, instrumented);
+      return instrumented;
     });
   // Joining is a parser optimization. Preserve the first source coordinate when it
   // merges several native text tokens into their final survivor.
+  /** @param {TokenSnapshot[]} before @param {NativeToken[]} after */
   const keepJoined = (before, after) => {
     const alive = new Set(after);
+    /** @type {[number, number] | null} */
     let first = null;
+    /** @type {[number, number, string][]} */
     let spelled = [];
     for (const { token, source, spellings } of before) {
       spelled.push(...spellings);
@@ -425,18 +531,19 @@ function sourcePositions(markdown) {
       if (source && !first && (token.type !== "text" || token.content)) first = source;
       if (alive.has(token)) {
         if (source && first && token.type === "text")
-          token.meta.source = [first[0], source[1]];
-        if (token.meta) token.meta.spelled = spelled;
+          token.lfSource = { ...token.lfSource, source: [first[0], source[1]] };
+        if (token.lfSource) token.lfSource.spelled = spelled;
         first = null;
         spelled = [];
       }
     }
   };
+  /** @param {NativeToken[]} tokens @returns {TokenSnapshot[]} */
   const snapshot = (tokens) =>
     tokens.map((token) => ({
       token,
-      source: token.meta?.source,
-      spellings: token.meta?.spelled ?? [],
+      source: token.lfSource?.source,
+      spellings: token.lfSource?.spelled ?? [],
     }));
   const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
   markdown.inline.ruler2.getRules = (chain) =>
@@ -447,31 +554,28 @@ function sourcePositions(markdown) {
     });
   markdown.core.ruler.after("inline", "source_content", (state) => {
     for (const token of state.tokens)
-      if (token.type === "inline")
-        token.meta = { ...token.meta, sourceContent: token.content };
+      if (isInlineToken(token))
+        token.lfSource = { ...token.lfSource, sourceContent: token.content };
   });
   markdown.core.ruler.before("linkify", "source_before_linkify", (state) => {
     for (const token of state.tokens)
-      if (token.type === "inline") {
-        token.meta ??= {};
+      if (isPositionedInline(token)) {
         let inLink = 0;
-        token.meta.beforeLinks = token.children.map((child, index) => {
+        token.lfSource.beforeLinks = token.children.map((child, index) => {
           if (child.type === "link_open") inLink++;
           else if (child.type === "link_close") inLink--;
-          let source = child.meta?.source;
+          let source = child.lfSource?.source;
           if (!inLink && source && child.type === "text" && child.content) {
             // Task-list presentation removes its checkbox prefix from the text token.
             // Retain the exact words' source, before linkify splits or normalizes them.
-            // The prefix is the source of the checkbox the presentation put before the
-            // words, the one inline markup the renderer passes (html is off).
-            const raw = token.meta.sourceContent.slice(source[0], source[1]);
+            const raw = token.lfSource.sourceContent.slice(source[0], source[1]);
             const at = raw.indexOf(child.content);
             if (at < 0) throw new Error("leaf: Markdown text token lost its source");
             const box = token.children[index - 1];
             if (at && box?.type === "html_inline")
-              box.meta = { source: [source[0], source[0] + at] };
+              box.lfSource = { source: [source[0], source[0] + at] };
             source = [source[0] + at, source[0] + at + child.content.length];
-            child.meta.source = source;
+            child.lfSource = { ...child.lfSource, source };
           }
           return {
             token: child,
@@ -487,14 +591,15 @@ function sourcePositions(markdown) {
   });
   markdown.core.ruler.after("linkify", "source_after_linkify", (state) => {
     for (const inline of state.tokens)
-      if (inline.type === "inline") {
-        const before = inline.meta.beforeLinks;
+      if (isBeforeLinkifiedInline(inline)) {
+        const before = inline.lfSource.beforeLinks;
         let at = 0;
         let textAt = 0;
+        /** @type {LinkMatch | null} */
         let link = null;
         for (const token of inline.children) {
-          if (token.meta?.source || before[at]?.token === token) {
-            while (at < before.length && before[at].token !== token) at++;
+          if (token.lfSource?.source || before[at]?.token === token) {
+            while (at < before.length && parserItem(before, at).token !== token) at++;
             at++;
             textAt = 0;
             link = null;
@@ -506,17 +611,21 @@ function sourcePositions(markdown) {
           }
           const original = before[at];
           if (!original?.source) continue;
+          /** @type {[number, number]} */
           let span;
           if (token.type === "link_open") {
-            link = original.links.find(
-              (match) =>
-                match.index >= textAt &&
-                markdown.normalizeLink(match.url) === token.attrGet("href"),
-            );
+            link =
+              original.links.find(
+                (match) =>
+                  match.index >= textAt &&
+                  markdown.normalizeLink(match.url) === token.attrGet("href"),
+              ) ?? null;
             if (!link) throw new Error("leaf: Markdown autolink lost its source");
             textAt = link.index;
             span = [textAt, textAt];
           } else if (token.type === "link_close") {
+            if (!link)
+              throw new Error("leaf: Markdown autolink closed without its source");
             textAt = link.lastIndex;
             span = [textAt, textAt];
             link = null;
@@ -530,23 +639,24 @@ function sourcePositions(markdown) {
             textAt = from + token.content.length;
             span = [from, textAt];
           }
-          token.meta = {
-            ...token.meta,
-            source: span.map((offset) => original.source[0] + offset),
+          token.lfSource = {
+            ...token.lfSource,
+            source: [original.source[0] + span[0], original.source[0] + span[1]],
           };
         }
-        delete inline.meta.beforeLinks;
+        Reflect.deleteProperty(inline.lfSource, "beforeLinks");
       }
   });
   markdown.core.ruler.before("text_join", "source_before_join", (state) => {
     for (const token of state.tokens)
-      if (token.type === "inline") token.meta.beforeJoin = snapshot(token.children);
+      if (isPositionedInline(token))
+        token.lfSource.beforeJoin = snapshot(token.children);
   });
   markdown.core.ruler.after("text_join", "source_after_join", (state) => {
     for (const token of state.tokens)
-      if (token.type === "inline") {
-        keepJoined(token.meta.beforeJoin, token.children);
-        delete token.meta.beforeJoin;
+      if (isBeforeJoinedInline(token)) {
+        keepJoined(token.lfSource.beforeJoin, token.children);
+        Reflect.deleteProperty(token.lfSource, "beforeJoin");
       }
   });
 }
@@ -554,13 +664,8 @@ function sourcePositions(markdown) {
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "hr"]);
 
-// The parser every reading uses, from the loaded markdown-it module. Exported for the
-// test that holds the draft's preview to every rule it enables
-// (tests/runtime/markdown-preview.test.mjs).
+/** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} breaks */
 export function makeMarkdown(module, breaks) {
-  // Setext headings and indented code are off: a `---` under a line is a rule, not a
-  // heading, and leading spaces are text, so neither surprises a writer, and a fence
-  // is the one way to write code. passages.py reads the same dialect.
   const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true })
     .disable(["lheading", "code"])
     .use(module.taskLists, { enabled: false });
@@ -577,7 +682,7 @@ export function makeMarkdown(module, breaks) {
         continue;
       let gap = 0;
       for (let at = token.map[0] - 1; at >= 0 && gap < 3; at--) {
-        if (lines[at].replace(/^[\s>]*/, "")) break;
+        if (parserItem(lines, at).replace(/^[\s>]*/, "")) break;
         gap++;
       }
       token.attrSet("data-lf-gap", String(gap));
@@ -591,14 +696,20 @@ export function makeMarkdown(module, breaks) {
   // Parse unsafe destinations to retain their visible labels. This owner strips the
   // destinations before HTML exists; there is no active unsafe intermediate markup.
   markdown.validateLink = () => true;
+  /** @param {NativeToken[]} tokens @returns {void} */
   const admitLinks = (tokens) => {
+    /** @type {(string | null)[]} */
     const links = [];
     for (const token of tokens) {
       if (token.type === "link_open") {
-        token.meta = { ...token.meta, linked: safeUrl(token.attrGet("href")) };
-        links.push(token);
+        const url = admittedUrl(token.attrGet("href"));
+        token.lfSource = { ...token.lfSource, url };
+        links.push(url);
       } else if (token.type === "link_close") {
-        token.meta = { ...token.meta, linked: links.pop().meta.linked };
+        const url = links.pop();
+        if (url === undefined)
+          throw new Error("leaf: Markdown link closed without its opening");
+        token.lfSource = { ...token.lfSource, url };
       }
       // Image labels may contain parsed links or further images. Their inline
       // rendering follows the same URL admission as ordinary document prose.
@@ -607,29 +718,35 @@ export function makeMarkdown(module, breaks) {
   };
   markdown.core.ruler.push("safe_links", (state) => {
     for (const block of state.tokens)
-      if (block.type === "inline") admitLinks(block.children);
+      if (isInlineToken(block)) admitLinks(block.children);
   });
   // Nested image labels can retain special text tokens beyond the core's joining
   // pass. Entities and escapes are text there, just as they are in document prose.
-  markdown.renderer.rules.text_special = markdown.renderer.rules.text;
+  markdown.renderer.rules.text_special = (tokens, at, options, env, renderer) =>
+    markdown.utils.escapeHtml(parserItem(tokens, at).content);
   markdown.renderer.rules.link_open = (tokens, at, options, env, renderer) => {
-    const token = tokens[at];
-    if (!token.meta.linked) return "";
-    const href = token.attrGet("href");
+    const token = parserItem(tokens, at);
+    const href = token.lfSource?.url;
+    if (href === null || href === undefined) return "";
     if (isCanonicalMediaUrl(href)) token.attrSet("href", scopedMediaUrl(href));
     return renderer.renderToken(tokens, at, options);
   };
-  markdown.renderer.rules.link_close = (tokens, at, options, env, renderer) =>
-    tokens[at].meta.linked ? renderer.renderToken(tokens, at, options) : "";
+  markdown.renderer.rules.link_close = (tokens, at, options, env, renderer) => {
+    const url = parserItem(tokens, at).lfSource?.url;
+    return url !== null && url !== undefined
+      ? renderer.renderToken(tokens, at, options)
+      : "";
+  };
   markdown.renderer.rules.image = (tokens, at, options, env, renderer) => {
-    const token = tokens[at];
-    const href = token.attrGet("src");
+    const token = parserItem(tokens, at);
+    const href = admittedUrl(token.attrGet("src"));
+    if (!token.children) throw new Error("leaf: Markdown image has no parsed label");
     const alt = renderedWords(
       renderer.renderInline(token.children, options, env),
       true,
     );
     token.attrSet("alt", alt);
-    if (!safeUrl(href)) return escapeHtml(alt);
+    if (href === null) return escapeHtml(alt);
     const markup = renderer.renderToken(tokens, at, options);
     if (!isCanonicalMediaUrl(href)) return markup;
     const image = renderedElement(markup, "img");
@@ -648,11 +765,15 @@ export function makeMarkdown(module, breaks) {
   return markdown;
 }
 
+/** @param {((error: unknown) => void) | null} [onError] */
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
+    /** @type {MarkdownIt | undefined} */
     let softBreaks;
+    /** @type {MarkdownIt | undefined} */
     let positioned;
+    /** @param {boolean | undefined} breaks */
     const dialect = (breaks) =>
       breaks ? markdown : (softBreaks ??= makeMarkdown(module, false));
     render = (text, breaks) => dialect(breaks).render(text);

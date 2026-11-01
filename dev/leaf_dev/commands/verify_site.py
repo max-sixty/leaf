@@ -1000,6 +1000,7 @@ def local_worker() -> Generator[LocalWorker]:
                     "package.json",
                     "pnpm-lock.yaml",
                     "pnpm-workspace.yaml",
+                    "build/*.patch",
                     "worker/codex-config.toml",
                 ],
                 context,

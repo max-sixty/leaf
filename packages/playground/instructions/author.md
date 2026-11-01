@@ -308,6 +308,12 @@ writes the submission's words (`submit-label`, then **Undo choice**), and record
 choice. The instruction stays where `lf-playground-output` is written, so place or
 style it as the page needs.
 
+`lf-playground-preset` sets only `lf-playground-control`s. To offer presets for a
+contributor slice, draw a button for each inside its editor that passes the preset's
+whole value to the handle's `set`; the playground records the press as one gesture,
+which Undo takes back whole. Set `aria-pressed` on the button whose value matches
+`get()`. The `shadow-scale` example draws three.
+
 Keep native editors mounted and avoid writing their value when it already matches.
 The playground owns recording the working values, presets, Reset, instruction copying
 and submission; views draw the values they receive. For a structured configuration, set that

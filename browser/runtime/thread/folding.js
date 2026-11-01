@@ -29,6 +29,7 @@ import { threadNamed } from "./state.js";
 // What the notice calls the thread, cut as undo.js cuts the names its notices quote,
 // so a long passage leaves the press beside it in view.
 const NAMED = 48;
+/** @param {string} key */
 function settledName(key) {
   const thread = threadNamed(key);
   if (!thread) return "the thread";
@@ -42,6 +43,18 @@ function settledName(key) {
   return label || quotedWords(threadName(thread), NAMED);
 }
 
+/** @typedef {() => boolean | void | Promise<boolean | void>} Landing */
+/** @param {{
+ * parent: () => string,
+ * key: string,
+ * resolved: boolean,
+ * prepareLanding?: (() => Landing | null) | null,
+ * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
+ * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
+ * landedAway: (attempt: string) => void,
+ * offerUndo: ReturnType<typeof import("../undo.js").createUndo>["offerUndo"],
+ * returnToThread: ReturnType<typeof import("../undo.js").createUndo>["returnToThread"],
+ * }} dependencies */
 export async function settleThread({
   parent,
   key,
@@ -84,7 +97,13 @@ export async function settleThread({
  * `land` is the surface's landing step, or null; `answer` the send's answer;
  * `pending` whether the gesture is still on its way, so a landing the log answered
  * before the page presented the gesture waits for that answer. */
+/** @param {{land: Landing | null | undefined,
+ * answer: Promise<import("../../types/domain.js").Event | null>,
+ * pending: () => boolean,
+ * refused: () => unknown,
+ * }} continuation */
 async function landGesture({ land, answer, pending, refused }) {
+  /** @param {(() => unknown) | null | undefined} work */
   const step = async (work) => {
     try {
       return Boolean(await work?.());
@@ -95,10 +114,13 @@ async function landGesture({ land, answer, pending, refused }) {
   // These are the command's two deferred invocations, rather than the native async
   // tail that waits for them. Capture both before presentation yields the gesture.
   const startLanding = bindQueuedWork(() => (pending() ? step(land) : false));
-  const finishLanding = bindQueuedWork((accepted, landed) => {
-    if (!accepted) return land && step(refused);
-    if (!landed) return step(land);
-  });
+  const finishLanding = bindQueuedWork(
+    /** @param {import("../../types/domain.js").Event | null} accepted @param {boolean | undefined} landed */
+    (accepted, landed) => {
+      if (!accepted) return land && step(refused);
+      if (!landed) return step(land);
+    },
+  );
   const presentation = whenDocumentPresented();
   paintKeys();
   try {

@@ -71,12 +71,17 @@ const BOUND = marks["x-bound"].paint;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.
+/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, pinned: number | null, left: boolean, sync: () => void}} BoundHold */
+/** @type {WeakMap<Element, BoundHold>} */
 const holds = new WeakMap();
+/** @type {Set<BoundHold>} */
 const registered = new Set();
+/** @type {WeakMap<Element, BoundHold>} */
 const byBox = new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
 let unnamed = 0;
 
+/** @param {Element} bounded */
 function scrollerOf(bounded) {
   const selector = getComputedStyle(bounded).getPropertyValue("--lf-bound-box").trim();
   if (!selector) return bounded;
@@ -86,6 +91,7 @@ function scrollerOf(bounded) {
   return bounded;
 }
 
+/** @param {Element} bounded */
 const regionId = (bounded) =>
   bounded.id && authoredScope(bounded) === pageDocument()
     ? compoundReadingRegionId(bounded, "bound")
@@ -93,29 +99,31 @@ const regionId = (bounded) =>
 
 // Whether the box's bounded block follows its end and the user is there: the user
 // has not scrolled back since this module last pinned it.
-const following = (hold) =>
+/** @param {BoundHold} hold @param {Element} box */
+const following = (hold, box) =>
   hold.bounded.matches(FOLLOWING) &&
   !hold.left &&
-  !(
-    hold.pinned !== null &&
-    hold.box.scrollTop < hold.pinned - SCROLL_SLACK &&
-    !atEnd(hold.box)
-  );
+  !(hold.pinned !== null && box.scrollTop < hold.pinned - SCROLL_SLACK && !atEnd(box));
 
+/** @param {Element} box */
 const heldBy = (box) => {
   const hold = byBox.get(box);
   return hold?.box === box && registered.has(hold) ? hold : null;
 };
 
+/** @param {Element} box */
 export const followingItsEnd = (box) => {
   const hold = heldBy(box);
-  return Boolean(hold && following(hold));
+  return Boolean(hold && following(hold, box));
 };
 
 // The bounded block a registered region body scrolls, or null for any other box.
+/** @param {Element} box */
 export const boundedBlockOf = (box) => heldBy(box)?.bounded ?? null;
 
+/** @param {Element} bounded */
 function holdBlock(bounded) {
+  /** @type {BoundHold} */
   const hold = {
     bounded,
     id: regionId(bounded),
@@ -123,36 +131,42 @@ function holdBlock(bounded) {
     box: null,
     pinned: null,
     left: false,
+    sync: () => sync(false),
   };
+  /** @type {(() => void) | null} */
   let stopRegion = null;
-  const onScroll = () => {
-    // A hidden tab can reset its scroll position as its contents change.
-    if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
-    hold.left = !atEnd(hold.box);
-    if (!hold.left) hold.pinned = hold.box.scrollTop;
-  };
   const letGo = () => {
-    hold.box?.removeEventListener("scroll", onScroll);
     if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
     stopRegion?.();
     stopRegion = null;
     hold.box = null;
     registered.delete(hold);
   };
+  /** @param {Element} box */
   const adopt = (box) => {
     if (box === hold.box) return;
     letGo();
+    const onScroll = () => {
+      if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
+      hold.left = !atEnd(box);
+      if (!hold.left) hold.pinned = box.scrollTop;
+    };
     box.addEventListener("scroll", onScroll, { passive: true });
     resize.observe(box);
     byBox.set(box, hold);
     hold.box = box;
     hold.left = false;
     hold.pinned = null;
-    stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: box });
+    const release = registerReadingRegion({ id: hold.id, host: bounded, body: box });
+    stopRegion = () => {
+      box.removeEventListener("scroll", onScroll);
+      release();
+    };
     registered.add(hold);
   };
   // `observed` when the block's own size observer asks, which cannot take a fresh
   // observation of the block: the same delivery would never reach it (reach.js).
+  /** @param {boolean} observed */
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
@@ -165,16 +179,16 @@ function holdBlock(bounded) {
       }
       return;
     }
-    adopt(scrollerOf(bounded));
+    const box = scrollerOf(bounded);
+    adopt(box);
     if (!bounded.matches(FOLLOWING)) return;
-    if (!following(hold)) {
+    if (!following(hold, box)) {
       hold.left = true;
       return;
     }
-    scrollToEnd(hold.box);
-    hold.pinned = hold.box.scrollTop;
+    scrollToEnd(box);
+    hold.pinned = box.scrollTop;
   };
-  hold.sync = () => sync(false);
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
   new MutationObserver((records) => {
@@ -201,8 +215,11 @@ function holdBlock(bounded) {
 export function holdArrivingBounds() {
   watchArrivals(BOUNDED, [BOUND], {
     arrive: (el) => {
-      if (!holds.has(el)) holds.set(el, holdBlock(el));
-      const hold = holds.get(el);
+      let hold = holds.get(el);
+      if (!hold) {
+        hold = holdBlock(el);
+        holds.set(el, hold);
+      }
       if (!registered.has(hold) || hold.bound !== el.getAttribute(BOUND)) hold.sync();
     },
     leave: (el) => holds.get(el)?.sync(),

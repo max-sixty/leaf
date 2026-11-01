@@ -1670,7 +1670,7 @@ def test_resizing_a_focused_editor_keeps_the_pane_the_reader_scrolled_away(
 
 @pytest.mark.parametrize("pending", [False, True], ids=["accepted", "pending"])
 def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
-    browser, serve, request, pending
+    scrollbar_browser, serve, request, pending
 ):
     """An ongoing answer keeps its identity across the user's interjection. Its later
     tokens stay live, growing down from the reading whether Send has been accepted or
@@ -1681,7 +1681,9 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     root = LONG_THREAD_ROOT["id"]
     claim_for_codex(serve.page_dir, request)
     stream_reply(serve.page_dir, root, "The answer has started.")
-    page = open_page(browser, url)
+    # Exercise bars that take room on every host: their gutter can rewrap the answer
+    # while Send fits the card against the window's top.
+    page = open_page(scrollbar_browser, url, init_script=TRANSCRIPT_BAR_TAKES_ROOM)
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
@@ -1690,6 +1692,15 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
 
     read_positions = """card => ({
           card: card.getBoundingClientRect().top,
+          transcript: (() => {
+            const list = card.querySelector('.lf-thread-transcript');
+            return {
+              scroll: list.scrollTop,
+              height: list.clientHeight,
+              content: list.scrollHeight,
+              gutter: list.offsetWidth - list.clientWidth,
+            };
+          })(),
           messages: [...card.querySelectorAll('.lf-msg')]
             .map(node => node.getBoundingClientRect().top),
           reply: card.querySelector('.lf-thread-reply').getBoundingClientRect().bottom
@@ -1753,7 +1764,10 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         stream_tokens(repetitions)
         after = positions()
         assert after["card"] == pytest.approx(before["card"], abs=0.5)
-        assert after["messages"] == pytest.approx(before["messages"], abs=0.5)
+        assert after["messages"] == pytest.approx(before["messages"], abs=0.5), (
+            before,
+            after,
+        )
         assert after["reply"] > before["reply"] + 10, (before, after)
 
     before_stream = positions()

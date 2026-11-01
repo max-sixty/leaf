@@ -156,30 +156,39 @@ import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
 
+/** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
+/** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
+/** @typedef {ReturnType<typeof import("./messages.js").messageReading>} MessageReading */
+
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
 // application publisher says which thread each stands in (`thread.gestured`). Their
 // words from another tab, or a turn a seat first draws after the log answered it, arrive
 // like the agent's.
+/** @param {{id: string}} thread */
 export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
+/** @param {string | undefined} key */
 const gestured = (key) => {
   const thread = allThreads().find((each) => threadKey(each) === key);
-  return Boolean(thread) && gesturedOn(thread);
+  return thread !== undefined && gesturedOn(thread);
 };
 
 // The reactions in force a strip draws, by token, since a reaction keeps its token but
 // not its id when the log answers it.
+/** @param {NonNullable<MessageReading["reactions"]>} reactions */
 const tokens = (reactions) =>
   new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 
 // The tokens in force in one of two strips and not the other.
+/** @template T @param {ReadonlySet<T>} a @param {ReadonlySet<T>} b */
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
 // draws, that it folds, and whether one of them holds it open (`protected`, which the
 // server derives from whose turn it is). A reaction reply it covers draws as a strip.
+/** @param {ThreadReading["summaries"][number]} summary @param {ReadonlySet<string>} drawn */
 const fold = (summary, drawn) =>
   JSON.stringify([
     summary.id,
@@ -188,6 +197,7 @@ const fold = (summary, drawn) =>
   ]);
 
 // The edit a message's words were last rewritten by, or null for words as first said.
+/** @param {Pick<MessageReading, "base" | "id">} message */
 const rewritten = (message) => (message.base === message.id ? null : message.base);
 
 // How the seat would draw `message` differently in its words from `prior`, the same
@@ -198,6 +208,7 @@ const rewritten = (message) => (message.base === message.id ? null : message.bas
 //   appended turn does;
 // - "rewritten": words a new revision changed, an edit;
 // - "grew": words that changed under the same revision, still that message arriving.
+/** @param {MessageReading | undefined} prior @param {MessageReading} message */
 function messageChange(prior, message) {
   if (!prior) return "joined";
   const reworded = JSON.stringify(prior.body) !== JSON.stringify(message.body);
@@ -224,6 +235,8 @@ function messageChange(prior, message) {
 // took back is no news: it goes. `joined` names new messages and existing streamed
 // messages whose words grew, including progress. Card placement uses those same
 // arrivals when predicting motion and when they actually show. Null where nothing differs.
+/** @typedef {Pick<ThreadReading, "messages" | "resolved" | "working" | "summaries" | "source">} ChangeReading */
+/** @param {ChangeReading} was @param {ChangeReading} now @param {{progressOpen?: boolean}} [options] */
 export function threadChange(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
@@ -239,10 +252,14 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     messages: 0,
     edits: 0,
     reactions: 0,
+    summaries: 0,
     appended: false,
   };
+  /** @type {Set<string>} */
   const changed = new Set();
+  /** @type {Set<string>} */
   const joined = new Set();
+  /** @type {Set<string>} */
   const arrived = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
@@ -264,12 +281,13 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
       news[change === "grew" ? "replies" : "edits"] += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
-    else if (message.reactions && prior.reactions) {
+    else if (message.reactions && prior?.reactions) {
       const turned = symmetric(tokens(prior.reactions), tokens(message.reactions));
       news.reactions += turned.length;
       if (turned.length) changed.add(message.key);
     }
   }
+  /** @param {ChangeReading} reading */
   const summaries = (reading) => {
     const ids = new Set(reading.messages.map(({ id }) => id));
     return new Map(reading.summaries.map((summary) => [fold(summary, ids), summary]));
@@ -284,7 +302,10 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const visible = new Set(now.messages.map(({ id }) => id));
   const retired = new Set(
     now.source.msgs
-      .filter((message) => visible.has(message.completed_by))
+      .filter(
+        (message) =>
+          message.completed_by !== undefined && visible.has(message.completed_by),
+      )
       .map(({ key }) => key),
   );
   const removed = was.messages.filter(({ key }) => retired.has(key));
@@ -307,11 +328,12 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     messages: [
       ...removed.map(({ key }) => key),
       ...[...added, ...gone].flatMap(({ covers }) =>
-        covers.map((id) => keys.get(id)).filter(Boolean),
+        covers.flatMap((id) => keys.get(id) ?? []),
       ),
     ],
     summaries: gone.map(({ id }) => id),
   };
+  /** @type {(keyof typeof news)[]} */
   const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
@@ -322,11 +344,13 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
   const turn = was.messages.findLastIndex(
     (message) => message.author === "user" && !message.progress,
   );
+  const previousTurn = was.messages[turn];
   const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
   const currentTurn = now.messages.findIndex(
     (message) => message.key === was.messages[turn]?.key,
   );
   const answering =
+    previousTurn !== undefined &&
     currentTurn >= 0 &&
     was.messages
       .slice(turn + 1)
@@ -341,7 +365,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
     ![...changed, ...folds.messages].some((key) => asked.has(key));
   const answers = answering
     ? Object.freeze({
-        turn: was.messages[turn].key,
+        turn: previousTurn.key,
         reply:
           now.messages.slice(currentTurn + 1).find((message) => !message.progress)
             ?.key ?? null,
@@ -361,6 +385,7 @@ export function threadChange(was, now, { progressOpen = false } = {}) {
 // derives them: they change the title's status and a message's head row in place, as
 // in a thread that holds nothing, so a resolution held from the card already takes its
 // turn off the title.
+/** @param {ThreadRecord} was @param {ThreadRecord} now */
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
@@ -395,9 +420,10 @@ function withheld(was, now) {
   });
 }
 
+/** @param {number | undefined} count @param {string} one @param {string} many */
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
 /** @param {{
- *   settled?: string,
+ *   settled?: string | null,
  *   replies?: number,
  *   messages?: number,
  *   edits?: number,
@@ -422,21 +448,29 @@ const newsParts = ({
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),
     counted(threads, "new thread", "new threads"),
-  ].filter(Boolean);
+  ].flatMap((part) => (typeof part === "string" && part.length > 0 ? [part] : []));
 
 // How a notice says that things wait: one count of them all ("2 new"), a settling
 // counting as one, on every surface that says news is held, Threads' notice of
 // joining rows included.
+/** @param {number} total */
 export const newsCount = (total) => `${total} new`;
 
 // What a notice says: the count (`text`), and each fact of the news, most telling
 // first, as the line its title, and so its accessible description, reads (`label`).
+/** @param {Parameters<typeof newsParts>[0]} news */
 const said = (news) => {
   const { settled, replies, messages, edits, reactions, summaries, threads } = news;
   const counts = [replies, messages, edits, reactions, summaries, threads];
-  const total = counts.reduce((sum, count) => sum + (count ?? 0), settled ? 1 : 0);
+  const total = counts.reduce(
+    /** @param {number} sum */ (sum, count) => sum + (count ?? 0),
+    settled ? 1 : 0,
+  );
   return { text: newsCount(total), label: newsParts(news).join(" · "), total };
 };
+
+/** @typedef {{text: string, label: string, total: number,
+ * reopened: boolean, open: () => Element | null}} NewsNotice */
 
 /** The control that says what a row holds and shows it. `set(news)` gives it the
  *  reading's `news` ({text, label, reopened, open}); `open` returns the thread to land a
@@ -467,6 +501,7 @@ export function newsNotice(header = false) {
   // reading all Leaf says (voice.js).
   words.dataset.voice = "leaf";
   node.append(words);
+  /** @type {() => Element | null} */
   let open = () => null;
   // A key on the notice, which stands the user on it, lands them on the thread, since
   // the notice goes with what it held. A pointer's press takes no focus, so it shows the
@@ -489,6 +524,7 @@ export function newsNotice(header = false) {
   ]);
   return {
     node,
+    /** @param {Omit<NewsNotice, "total">} news */
     set(news) {
       keepsText(words, news.text);
       keeps(node, "title", news.label);
@@ -508,6 +544,7 @@ export function seatNotice() {
   node.append(notice.node);
   return {
     node,
+    /** @param {NewsNotice} news @param {Element | null | undefined} box */
     set(news, box) {
       notice.set(news);
       if (box?.isConnected)
@@ -518,19 +555,23 @@ export function seatNotice() {
 
 // Every live seat's HeldNews, so an arrival can show what any of them holds of its
 // thread.
+/** @type {Set<HeldNews>} */
 const holders = new Set();
 
 /** Shows what every seat holds of the thread `id` names, a message's id naming its
  *  thread: an arrival at it, or a route whose destination it holds. Each seat draws
  *  what it released before this returns. Returns whether any seat held anything of it. */
+/** @param {string} id */
 export const showHeld = (id) => everySeat(id, (held, thread) => held.show(thread));
 
 /** Shows the new threads a seat holds back where `id` names one of them, as their
  *  notice would, and nothing it holds of threads it draws: a destination with no node
  *  until its seat draws it. Returns whether any seat held it. */
+/** @param {string} id */
 export const showHeldThread = (id) =>
   everySeat(id, (held, thread) => held.showThreads(thread));
 
+/** @param {string} id @param {(held: HeldNews, thread: string) => boolean} show */
 function everySeat(id, show) {
   const thread = threadIdNamed(id);
   let shown = false;
@@ -539,17 +580,31 @@ function everySeat(id, show) {
 }
 
 // The thread the user is in, and their arrivals at another, which show what it holds.
+/** @type {string | null} */
 let currentLocation = null;
-onCurrentLocation((node, cause) => {
-  // A drop leaves them in the thread, for its owner to put them back in.
-  if (cause === "drop") return;
-  const thread = node && closestAcross(node, THREAD);
-  const id = drawnThreadId(thread);
-  const arrived =
-    id !== null && id !== currentLocation && (cause === "move" || cause === "step");
-  currentLocation = id;
-  if (arrived) showHeld(id);
-});
+onCurrentLocation(
+  /** @param {Node | null} node @param {string} cause */ (node, cause) => {
+    // A drop leaves them in the thread, for its owner to put them back in.
+    if (cause === "drop") return;
+    const thread = node && closestAcross(node, THREAD);
+    const id = drawnThreadId(thread);
+    const arrived =
+      id !== null && id !== currentLocation && (cause === "move" || cause === "step");
+    currentLocation = id;
+    if (arrived) showHeld(id);
+  },
+);
+
+/** @typedef {NonNullable<ReturnType<typeof threadChange>>} ThreadChange */
+/** @typedef {ThreadReading & {visible?: boolean, folding?: boolean}} DrawableThread */
+/** @typedef {Partial<ThreadChange["news"]> & {threads?: number}} RawNews */
+/** @typedef {Omit<DrawableThread, "settlement"> & {
+ * settlement: ThreadReading["settlement"] | null, news: RawNews | null,
+ * change: ThreadChange | null}} RawHeldThread */
+/** @typedef {Omit<RawHeldThread, "news"> & {news: NewsNotice | null}} HeldThread */
+/** @typedef {{threads: readonly HeldThread[], news: NewsNotice | null}} HeldCollection */
+/** @typedef {{node: Element, progressOpen?: boolean,
+ * newsMoves: (change: ThreadChange) => boolean}} NewsView */
 
 export class HeldNews {
   #seat;
@@ -559,16 +614,24 @@ export class HeldNews {
   // has taken in, by key, drawn or held; the threads it draws holding news; the threads
   // whose news the user asked to see, which the next reading draws as they stand; the
   // threads not drawn; and each thread's key by its id.
+  /** @type {HeldCollection | null} */
   #shown = null;
+  /** @type {Set<string>} */
   #known = new Set();
+  /** @type {Set<string>} */
   #holds = new Set();
+  /** @type {Map<string, symbol>} */
   #released = new Map();
+  /** @type {Set<string>} */
   #threads = new Set();
+  /** @type {Map<string, string>} */
   #keys = new Map();
+  /** @type {(() => void) | null} */
   #stopWatching = null;
 
   // `view(key)` is the seat's ThreadView for a thread; `changed()` draws the seat again
   // from the reading it holds.
+  /** @param {Element} seat @param {(key: string) => NewsView | null} view @param {() => void} changed */
   constructor(seat, view, changed) {
     this.#seat = seat;
     this.#view = view;
@@ -585,6 +648,8 @@ export class HeldNews {
   // news; one drawn before the log is read, or while the server is away, is no baseline
   // either. `row` says whether the seat draws a first-message row the user is not in, in
   // whose place a new thread's notice can stand.
+  /** @template {{threads: readonly DrawableThread[]}} R
+   * @param {R} reading @param {{row: boolean}} options */
   hold(reading, { row }) {
     const candidate = this.prepare(reading, { row });
     candidate.commit();
@@ -593,6 +658,8 @@ export class HeldNews {
 
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
+  /** @template {{threads: readonly DrawableThread[]}} R
+   * @param {R} reading @param {{row: boolean}} options */
   prepare(reading, { row }) {
     const read = runtime.statePhase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
@@ -622,6 +689,7 @@ export class HeldNews {
   }
 
   // Which of the threads new to the seat it holds back.
+  /** @param {HeldCollection} prior @param {{threads: readonly DrawableThread[]}} reading @param {boolean} row */
   #arrive(prior, reading, row) {
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     // A thread the user starts is their gesture, and the threads before it show with it.
@@ -629,7 +697,7 @@ export class HeldNews {
     else if (arrived.length) {
       const last = prior.threads.at(-1)?.key;
       const after = last ? this.#view(last)?.node : this.#seat;
-      const seen = readingIsContinuous() && Boolean(after) && growthAfterIsSeen(after);
+      const seen = readingIsContinuous() && after != null && growthAfterIsSeen(after);
       if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
       else this.#threads.clear();
     }
@@ -638,57 +706,66 @@ export class HeldNews {
   // Each thread as it stands, except one whose news would move what the reader reads,
   // which stands as it was drawn, its notice saying what waits, if anything but the
   // working message does.
+  /** @template {{threads: readonly DrawableThread[]}} R
+   * @param {HeldCollection | null} prior @param {R} reading
+   * @returns {Omit<R, "threads" | "news"> & HeldCollection} */
   #draw(prior, reading) {
     this.#holds.clear();
     const drawn = new Map(prior?.threads.map((thread) => [thread.key, thread]));
     const threads = reading.threads
       .filter(({ key }) => !this.#threads.has(key))
-      .map((thread) => {
-        const was = drawn.get(thread.key);
-        // A card the reading takes off the screen, or one already leaving it, shows
-        // nothing for news to move.
-        const shown = thread.visible !== false && !thread.folding;
-        const held =
-          was && shown && !this.#released.has(thread.key)
-            ? threadChange(was, thread, {
-                progressOpen: this.#view(thread.key)?.progressOpen ?? false,
-              })
-            : null;
-        if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
-          return { ...thread, news: null, change: held };
-        this.#holds.add(thread.key);
-        // What the news changes stands as drawn. A held reopening's notice stands
-        // where Reopen did, since opening it is what reopening would show.
-        const { news } = held;
-        return {
-          ...thread.reread(withheld(was.source, thread.source)),
-          // Workflows and to-dos update in place, but the working message itself
-          // keeps its drawn presence while its arrival or departure is held.
-          working: news.working ? was.working : thread.working,
-          ...(news.settled === "Reopened" && { settlement: null }),
-          news,
-          change: null,
-        };
-      });
+      .map(
+        /** @returns {RawHeldThread} */ (thread) => {
+          const was = drawn.get(thread.key);
+          // A card the reading takes off the screen, or one already leaving it, shows
+          // nothing for news to move.
+          const shown = thread.visible !== false && !thread.folding;
+          if (!was || !shown || this.#released.has(thread.key))
+            return { ...thread, news: null, change: null };
+          const held = threadChange(was, thread, {
+            progressOpen: this.#view(thread.key)?.progressOpen ?? false,
+          });
+          if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
+            return { ...thread, news: null, change: held };
+          this.#holds.add(thread.key);
+          // What the news changes stands as drawn. A held reopening's notice stands
+          // where Reopen did, since opening it is what reopening would show.
+          const { news } = held;
+          return {
+            ...thread.reread(withheld(was.source, thread.source)),
+            // Workflows and to-dos update in place, but the working message itself
+            // keeps its drawn presence while its arrival or departure is held.
+            working: news.working ? was.working : thread.working,
+            ...(news.settled === "Reopened" && { settlement: null }),
+            news,
+            change: null,
+          };
+        },
+      );
     const waiting = this.#threads.size;
     const host = threads.at(-1);
     if (waiting && host) host.news = { ...host.news, threads: waiting };
-    for (const thread of threads) {
-      const notice = thread.news && said(thread.news);
-      // News of the working message alone waits with no notice (the header).
-      if (!notice?.total) thread.news = null;
-      else
-        thread.news = {
-          ...notice,
-          reopened: thread.news.settled === "Reopened",
-          open: () => {
-            const node = this.#view(thread.key)?.node ?? null;
-            showHeld(thread.id);
-            if (thread === host && waiting) this.#open(thread.key, true);
-            return node;
-          },
+    const presented = threads.map(
+      /** @returns {HeldThread} */ (thread) => {
+        const notice = thread.news && said(thread.news);
+        // News of the working message alone waits with no notice (the header).
+        return {
+          ...thread,
+          news: notice?.total
+            ? {
+                ...notice,
+                reopened: thread.news?.settled === "Reopened",
+                open: () => {
+                  const node = this.#view(thread.key)?.node ?? null;
+                  showHeld(thread.id);
+                  if (thread === host && waiting) this.#open(thread.key, true);
+                  return node;
+                },
+              }
+            : null,
         };
-    }
+      },
+    );
     // A thread arriving with no thread drawn is held only where the seat drew its
     // first-message row, so its notice stands in that row's place.
     const news =
@@ -699,13 +776,15 @@ export class HeldNews {
             open: () => this.#open(null, true),
           }
         : null;
-    return Object.freeze({ ...reading, threads: Object.freeze(threads), news });
+    return Object.freeze({ ...reading, threads: Object.freeze(presented), news });
   }
 
   // Shows what the seat holds of the thread `id`: its news, or, where the seat holds the
   // thread itself, every thread it holds, as the notice saying them would.
+  /** @param {string} id */
   show(id) {
     const key = this.#keys.get(id);
+    if (key === undefined) return false;
     const thread = this.#threads.has(key);
     if (!this.#holds.has(key) && !thread) return false;
     this.#open(key, thread);
@@ -713,14 +792,17 @@ export class HeldNews {
   }
 
   // Shows the new threads the seat holds, where it holds the thread `id` among them.
+  /** @param {string} id */
   showThreads(id) {
-    if (!this.#threads.has(this.#keys.get(id))) return false;
+    const key = this.#keys.get(id);
+    if (key === undefined || !this.#threads.has(key)) return false;
     this.#open(null, true);
     return true;
   }
 
   // Shows what one notice holds: a thread's news, and the seat's new threads where that
   // notice also says them. Returns the thread a keyboard on the notice lands on.
+  /** @param {string | null} key @param {boolean} threads */
   #open(key, threads) {
     const first = threads && [...this.#threads][0];
     let changed = false;
@@ -738,7 +820,8 @@ export class HeldNews {
     // Native disclosure can report the same opening after its owner released the
     // news. A no-op observation must not replace that operation's pending paint.
     if (changed) this.#changed();
-    return this.#view(key ?? first)?.node ?? null;
+    const destination = key ?? first;
+    return destination ? (this.#view(destination)?.node ?? null) : null;
   }
 
   // The next reading draws every thread as it stands, as when the user changes what
@@ -794,13 +877,17 @@ export class HeldNews {
  *  ends it and a return takes it up again, since a return draws nothing again. Current
  *  activation availability is not a retained presentation: callers refresh it
  *  from its current owner even while the reading holds. */
+/** @template T */
 export class HeldReading {
   #region;
   #changed;
+  /** @type {T | null} */
   #shown = null;
   #released = false;
+  /** @type {{nodes: readonly Element[], stop: (() => void) | null} | null} */
   #watch = null;
 
+  /** @param {Element} owner @param {() => readonly Element[]} region @param {() => void} changed */
   constructor(owner, region, changed) {
     this.#region = region;
     this.#changed = changed;
@@ -817,6 +904,7 @@ export class HeldReading {
     });
   }
 
+  /** @param {T} reading @returns {T} */
   hold(reading) {
     // Preparation can draw partial authored contributions before the complete log
     // arrives. That is no baseline for news: the first ready reading stands whole.
@@ -875,6 +963,7 @@ export class HeldReading {
  *  change. A gesture of the reader's into the box is theirs to move it: the owner,
  *  which knows what counts as one, drops the wait and applies the change itself, as a
  *  live sample does on a click or key inside its child (lf-sample.js). */
+/** @param {Element} node @param {() => void} change */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();
@@ -905,6 +994,8 @@ export function heldGrowth(node, change) {
  *  since the marker is its notice. A thread also shows when the user adds a turn to it,
  *  settles or reopens it, or starts a thread at its datum, and once growth anywhere in
  *  the datum would move nothing seen. */
+/** @typedef {{thread: ThreadRecord, datum: string, node: Element}} ArrivingThread */
+/** @typedef {{key: string, id: string, datum: string}} HeldArrival */
 export class HeldArrivals {
   #changed;
   // The keys of the page's threads at the last reading, or null before a reading drawn
@@ -912,11 +1003,15 @@ export class HeldArrivals {
   // news; each held thread's id and datum, by key; and the watch on each holding datum's
   // node. A thread the widget is first handed because the user opened its datum, as a
   // collapsed file, is no news.
+  /** @type {Set<string> | null} */
   #known = null;
+  /** @type {Map<string, HeldArrival>} */
   #held = new Map();
+  /** @type {Map<string, {node: Element, stop: () => void}>} */
   #watching = new Map();
 
   // `changed()` hands the widget its threads again.
+  /** @param {() => void} changed */
   constructor(changed) {
     this.#changed = changed;
   }
@@ -925,16 +1020,18 @@ export class HeldArrivals {
   // the widget has an exact target for, with the `datum` it stands at and that datum's
   // `node`; `drawn` holds the datums where the widget drew a thread last, and `all` is
   // every thread record on the page.
+  /** @param {readonly ArrivingThread[]} threads @param {{drawn: ReadonlySet<string>, all: readonly ThreadRecord[]}} reading */
   hold(threads, { drawn, all }) {
     const read = runtime.statePhase === "ready";
     if (!read) this.#held.clear();
-    else if (this.#known) this.#take(threads, drawn);
+    else if (this.#known) this.#take(threads, drawn, this.#known);
     this.#known = read ? new Set(all.map(({ key }) => key)) : null;
     this.#watch(threads);
     return new Set(this.#held.keys());
   }
 
-  #take(threads, drawn) {
+  /** @param {readonly ArrivingThread[]} threads @param {ReadonlySet<string>} drawn @param {ReadonlySet<string>} known */
+  #take(threads, drawn, known) {
     if (!readingIsContinuous()) {
       this.#lapse(() => true);
       return;
@@ -951,7 +1048,7 @@ export class HeldArrivals {
       if (gesturedOn(thread)) this.#held.delete(thread.key);
       else if (drawn.has(datum)) this.#lapse((each) => each === held);
     }
-    const arrived = threads.filter(({ thread }) => !this.#known.has(thread.key));
+    const arrived = threads.filter(({ thread }) => !known.has(thread.key));
     // A thread the user starts at a datum is their gesture, and the threads held there
     // show before it.
     const started = new Set(
@@ -972,14 +1069,18 @@ export class HeldArrivals {
   // words, in the margin's card, stays there with them, since its
   // release would take the card, and the reply they may be writing, away; it shows
   // when they press its marker, or the next time its datum's growth goes unseen.
+  /** @param {(held: HeldArrival) => boolean} which */
   #lapse(which) {
     const currentLocation = new Set(
-      currentLocationNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
+      currentLocationNodes().map((node) =>
+        closestAcross(node, THREAD)?.getAttribute("data-thread"),
+      ),
     );
     return this.#release((held) => which(held) && !currentLocation.has(held.id));
   }
 
   // One watch for each datum holding a thread, on the node it stands at now.
+  /** @param {readonly ArrivingThread[]} threads */
   #watch(threads) {
     const nodes = new Map(threads.map(({ datum, node }) => [datum, node]));
     const holding = new Set([...this.#held.values()].map(({ datum }) => datum));
@@ -988,9 +1089,8 @@ export class HeldArrivals {
         watch.stop();
         this.#watching.delete(datum);
       }
-    for (const datum of holding) {
-      if (this.#watching.has(datum)) continue;
-      const node = nodes.get(datum);
+    for (const [datum, node] of nodes) {
+      if (!holding.has(datum) || this.#watching.has(datum)) continue;
       const leave = () => {
         if (this.#lapse((held) => held.datum === datum)) this.#changed();
       };
@@ -998,15 +1098,18 @@ export class HeldArrivals {
     }
   }
 
+  /** @param {string} id */
   holds(id) {
     return [...this.#held.values()].some((held) => held.id === id);
   }
 
   // Shows the held threads `ids` names, and returns the ones it held, in `ids`' order.
+  /** @param {readonly string[]} ids */
   show(ids) {
     return ids.filter((id) => this.#release((held) => held.id === id));
   }
 
+  /** @param {(held: HeldArrival) => boolean} which */
   #release(which) {
     const released = [...this.#held.values()].filter(which);
     for (const { key } of released) this.#held.delete(key);

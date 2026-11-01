@@ -52,8 +52,7 @@ let readingId = 0;
 function watchFrame(frame, callback) {
 	let intersecting = false;
 	const seen = new IntersectionObserver((entries) => {
-		const { width, height } = entries.at(-1).intersectionRect;
-		intersecting = width > 0 && height > 0;
+		for (const { intersectionRect: { width, height } } of entries) intersecting = width > 0 && height > 0;
 		callback();
 	}, { threshold: [
 		0,
@@ -85,7 +84,8 @@ function watchFrame(frame, callback) {
 	};
 }
 const owners$1 = [];
-if (!child) for (let view = window; view.frameElement; view = view.parent) owners$1.push(watchFrame(view.frameElement, publish));
+let containingView = window;
+if (!child) for (; containingView.frameElement; containingView = containingView.parent) owners$1.push(watchFrame(containingView.frameElement, publish));
 function frameVisibility() {
 	if (child) return { visible: admitted };
 	if (owners$1.length) return { visible: owners$1.every((owner) => owner.shown()) };
@@ -96,14 +96,15 @@ function onFrameVisibility(callback) {
 	return () => observers.delete(callback);
 }
 function readSampleVisibility() {
-	if (!child) return null;
+	const bridge = child;
+	if (!bridge) return null;
 	return new Promise((resolve, reject) => {
 		const id = ++readingId;
 		readings.set(id, {
 			resolve,
 			reject
 		});
-		child.send({
+		bridge.send({
 			type: "visibility-read",
 			detail: { id }
 		});
@@ -117,7 +118,7 @@ if (child) child.receive(({ type, detail }) => {
 	if (type === "visibility-reading") {
 		const reading = readings.get(detail.id);
 		readings.delete(detail.id);
-		if (detail.error) reading?.reject(Object.assign(new Error(detail.error.message), { stack: void 0 }, detail.error));
+		if ("error" in detail) reading?.reject(Object.assign(new Error(detail.error.message), { stack: void 0 }, detail.error));
 		else reading?.resolve(detail);
 		return;
 	}
@@ -177,6 +178,7 @@ const nextFrame = (callback) => request(running ? afterPaint : queued, callback)
 const nextAnimation = (callback) => requestAnimationFrame(callback);
 const cancelAnimation = (id) => cancelAnimationFrame(id);
 function cancelRender(id) {
+	if (id == null) return;
 	for (const queue of [
 		queued,
 		afterPaint,
@@ -319,36 +321,26 @@ function afterSettling(settled) {
 	nextFrame(owed);
 }
 onFrameVisibility((visibility) => {
-	if (visibility.visible) unsettle();
+	if (visibility?.visible) unsettle();
 });
 unsettle();
 
 //#endregion
-//#region runtime/keeps.js
-const keeps = (node, name, value) => {
-	const next = value == null ? null : String(value);
-	if (!node || node.getAttribute(name) === next) return;
-	if (next === null) node.removeAttribute(name);
-	else node.setAttribute(name, next);
-};
-function keepsHidden(node, hidden) {
-	if (node && node.hidden !== hidden) node.hidden = hidden;
-}
-function keepsText(node, text) {
-	const said = String(text ?? "");
-	if (node && node.textContent !== said) node.textContent = said;
-}
-const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
-const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
-const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
-
-//#endregion
 //#region runtime/shadow-tree.js
-const shadowHost = (root) => root?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? root.host ?? null : null;
+const isShadowRoot = (node) => node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
+const isNode = (node) => typeof node === "object" && node !== null && "nodeType" in node && typeof node.nodeType === "number";
+const isElement = (node) => isNode(node) && node.nodeType === node.ELEMENT_NODE;
+const isText = (node) => node != null && node.nodeType === node.TEXT_NODE;
+function isHTML(node, tag) {
+	return isElement(node) && node.namespaceURI === "http://www.w3.org/1999/xhtml" && (tag === void 0 || node.localName === tag);
+}
+const isSlottable = (node) => isElement(node) || isText(node);
+const shadowHost = (root) => isShadowRoot(root) ? root.host : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
-const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
+const isStyledElement = (node) => node.namespaceURI === "http://www.w3.org/1999/xhtml" || node.namespaceURI === "http://www.w3.org/2000/svg" || node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
+const renderedParent = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
 const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
-const renderedParentNode = (node) => node.assignedSlot ?? composedParentNode(node);
+const renderedParentNode = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
 const under = (node, root) => {
 	for (let at = node; at; at = composedParentNode(at)) if (at === root) return true;
 	return false;
@@ -368,18 +360,26 @@ function renderedOrder(a, b) {
 	const right = renderedChain(b);
 	let index = 0;
 	while (index < left.length && index < right.length && left[index] === right[index]) index += 1;
-	if (index === left.length || index === right.length) return left.length - right.length;
-	return left[index].compareDocumentPosition(right[index]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+	const first = left[index];
+	const second = right[index];
+	if (!first || !second) return left.length - right.length;
+	return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
 }
 const byRenderedOrder = (items, placeOfItem) => {
-	const placed = items.map((item) => ({
-		item,
-		place: placeOfItem(item)
-	}));
-	return [...placed.filter(({ place }) => place).sort((a, b) => renderedOrder(a.place, b.place)), ...placed.filter(({ place }) => !place)].map(({ item }) => item);
+	const placed = [];
+	const unplaced = [];
+	for (const item of items) {
+		const place = placeOfItem(item);
+		if (place) placed.push({
+			item,
+			place
+		});
+		else unplaced.push(item);
+	}
+	return [...placed.sort((a, b) => renderedOrder(a.place, b.place)).map(({ item }) => item), ...unplaced];
 };
 const nativeLayerKind = (node) => {
-	if (node?.nodeType !== Node.ELEMENT_NODE || !node.isConnected) return null;
+	if (!isElement(node) || !node.isConnected) return null;
 	if (node.matches("dialog:modal")) return "modal";
 	return node.matches(":popover-open") ? "popover" : null;
 };
@@ -390,10 +390,34 @@ function nativeLayerHolding(node) {
 }
 function excludedByInert(node) {
 	for (let owner = node; owner; owner = renderedParent(owner)) {
-		if (owner.inert) return true;
+		if (!isElement(owner)) continue;
+		if (isHTML(owner) && owner.inert) return true;
 		if (nativeLayerKind(owner) === "modal") break;
 	}
 	return false;
+}
+
+//#endregion
+//#region runtime/keeps.js
+const keeps = (node, name, value) => {
+	const next = value == null ? null : String(value);
+	if (!node || node.getAttribute(name) === next) return;
+	if (next === null) node.removeAttribute(name);
+	else node.setAttribute(name, next);
+};
+function keepsHidden(node, hidden) {
+	if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+function keepsText(node, text) {
+	const said = String(text ?? "");
+	if (node && node.textContent !== said) node.textContent = said;
+}
+const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
+const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
+function inlineStyle(element) {
+	if (isStyledElement(element)) return element.style;
+	throw new TypeError("This element has no native inline style");
 }
 
 //#endregion
@@ -516,6 +540,8 @@ const owners = /* @__PURE__ */ new WeakMap();
 let offerOwner;
 function watchOwner(owner, lifecycle) {
 	let connected = false;
+	const subscriptions = owners.get(owner) ?? /* @__PURE__ */ new Set();
+	owners.set(owner, subscriptions);
 	const subscription = {
 		connect() {
 			if (connected || !owner.isConnected) return;
@@ -534,8 +560,6 @@ function watchOwner(owner, lifecycle) {
 			lifecycle.disconnect?.();
 		}
 	};
-	let subscriptions = owners.get(owner);
-	if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
 	if (!offerOwner) {
 		const notify = (element, method) => {
 			for (const subscription of owners.get(element) ?? []) try {
@@ -561,21 +585,19 @@ function watchOwner(owner, lifecycle) {
 	return stop;
 }
 function whileConnected(owner, start) {
-	let held;
+	let disconnect = () => {};
 	return watchOwner(owner, {
 		connect() {
 			const controller = new AbortController();
-			held = {
-				controller,
-				cleanup: null
+			let cleanup;
+			disconnect = () => {
+				controller.abort();
+				cleanup?.();
 			};
-			held.cleanup = start(controller.signal);
+			cleanup = start(controller.signal);
 		},
 		disconnect() {
-			const current = held;
-			held = null;
-			current.controller.abort();
-			current.cleanup?.();
+			disconnect();
 		}
 	});
 }
@@ -605,10 +627,10 @@ function liveStages() {
 const isStage = (root) => stages$1.has(root);
 const stands = (el) => {
 	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : stages$1.has(root) && root.host.isConnected;
+	return root === document ? document.body.contains(el) : isStage(root) && root.host.isConnected;
 };
 function* matching(node, selector) {
-	if (node?.nodeType !== Node.ELEMENT_NODE) return;
+	if (!isElement(node)) return;
 	if (node.matches(selector)) yield node;
 	yield* node.querySelectorAll(selector);
 	for (const stage of liveStages()) if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
@@ -632,12 +654,12 @@ function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
 			else arrive(el);
 		} else if (arrived.delete(el)) leave(el);
 	};
-	const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+	const beside = (node) => isElement(node) && (arrived.has(node) || node.matches(selector)) ? [node] : [];
 	const read = (records) => {
 		const offered = /* @__PURE__ */ new Set();
 		for (const record of records) {
 			if (record.type === "attributes") {
-				offered.add(record.target);
+				if (isElement(record.target)) offered.add(record.target);
 				continue;
 			}
 			for (const el of [
@@ -698,8 +720,10 @@ function setScroll(box, options) {
 	if (behavior === "instant" && (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft)) announceScroll(box);
 }
 const heardIn = (stage) => (event) => {
-	if (event.target.getRootNode() !== stage) return;
-	announceScroll(event.target === document ? document.scrollingElement : event.target);
+	const target = event.target;
+	if (target === document) {
+		if (stage === document) announceScroll(document.scrollingElement);
+	} else if (isElement(target) && target.getRootNode() === stage) announceScroll(target);
 };
 document.addEventListener("scroll", heardIn(document), SCROLL);
 function watchScrolls(listener) {
@@ -994,25 +1018,29 @@ const ACTIONS = {
 		icon: "subtract"
 	}
 };
-const actionIcon = (action) => {
+const namedAction = (action) => {
 	const named = ACTIONS[action];
 	if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
-	return named.icon;
+	return named;
 };
-const actionName = (action) => {
-	actionIcon(action);
-	return ACTIONS[action].name;
-};
+const actionIcon = (action) => namedAction(action).icon;
+const actionName = (action) => namedAction(action).name;
 const actionElement = (action, className) => iconElement(actionIcon(action), className);
 const SYMBOLIC = /* @__PURE__ */ new Set(["symbol", "mark"]);
 function actionFace(role, label, action) {
 	if (!SYMBOLIC.has(role)) {
 		if (action !== void 0) throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-		return label;
+		return {
+			label,
+			action: void 0
+		};
 	}
 	if (action === void 0) throw new TypeError(`A ${role} names the action it shows`);
 	const name = actionName(action);
-	return label ?? name;
+	return {
+		label: label ?? name,
+		action
+	};
 }
 function showAction(control, action, className = "lf-action-icon") {
 	const icon = actionIcon(action);
@@ -1027,13 +1055,15 @@ function actionOffers(base) {
 	const titled = (title) => title === void 0 ? void 0 : { title };
 	return {
 		offerAction(role, className, label, { title, action } = {}) {
-			const node = base.offerAction(role, className, actionFace(role, label, action), titled(title));
-			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			const face = actionFace(role, label, action);
+			const node = base.offerAction(role, className, face.label, titled(title));
+			if (face.action !== void 0) drawAction(node, role, face.action);
 			return node;
 		},
 		offerActionElement(node, role, className, label, { title, action } = {}) {
-			base.offerActionElement(node, role, className, actionFace(role, label, action), titled(title));
-			if (SYMBOLIC.has(role)) drawAction(node, role, action);
+			const face = actionFace(role, label, action);
+			base.offerActionElement(node, role, className, face.label, titled(title));
+			if (face.action !== void 0) drawAction(node, role, face.action);
 			return node;
 		}
 	};
@@ -1071,7 +1101,7 @@ const offerElement = (node, cls, pressable = false) => {
 	const face = node.localName.includes("-") ? "" : " lf-ui-face";
 	keeps(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
 	keeps(node, "data-lf-gen", "1");
-	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node.localName === "input" && ["checkbox", "radio"].includes(node.type) ? node.type ?? node.localName : "");
+	keeps(node, "data-lf-offer", pressable ? node.localName : node instanceof HTMLButtonElement || node.localName === "summary" || node instanceof HTMLInputElement && ["checkbox", "radio"].includes(node.type) ? node instanceof HTMLInputElement || node instanceof HTMLButtonElement ? node.type : node.localName : "");
 	return node;
 };
 const generatedElement = (node, { says } = {}) => {
@@ -1081,16 +1111,16 @@ const generatedElement = (node, { says } = {}) => {
 	node.toggleAttribute("data-lf-echo", says === "echo");
 	return node;
 };
-const offer = (tag, cls, label, inputType, pressable = false) => {
+function offer(tag, cls, label, inputType, pressable = false) {
 	const node = document.createElement(tag);
 	if (inputType !== void 0) {
 		if (tag !== "input") throw new TypeError("only an input offer can declare an input type");
-		node.type = inputType;
+		node.setAttribute("type", inputType);
 	}
 	offerElement(node, cls, pressable);
 	if (label !== void 0) node.textContent = label;
 	return node;
-};
+}
 const roleElement = (node, role, cls, label, { title = label } = {}) => {
 	offerElement(node, actionClass(role, cls));
 	if (label !== void 0 && (role === "symbol" || role === "mark")) {
@@ -1154,7 +1184,11 @@ function once(el) {
 	if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
 	return true;
 }
-const dataBody = (el) => el.querySelector(":scope > pre").textContent;
+const dataBody = (el) => {
+	const body = el.querySelector(":scope > pre");
+	if (!body) throw new Error(`<${el.localName}> has no data body`);
+	return body.textContent;
+};
 const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 const PENDING_TASK = "pending-task";
 var PendingTaskEvent = class extends Event {
@@ -1177,11 +1211,10 @@ const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");
 function commandsChanged(el) {
-	const event = new Event(COMMANDS, {
+	const event = Object.assign(new Event(COMMANDS, {
 		bubbles: true,
 		composed: true
-	});
-	event[CHANGED] = el;
+	}), { [CHANGED]: el });
 	(el.isConnected ? el : window).dispatchEvent(event);
 	if (event[REFUSED]) throw event[REFUSED];
 }
@@ -1196,16 +1229,15 @@ function failSoft(el, err, source) {
 	showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`, source);
 }
 function reportFailure(el, err) {
-	const event = new ErrorEvent("error", {
+	const event = Object.assign(new ErrorEvent("error", {
 		error: exceptionError(err),
 		message: describeFailure(err),
 		bubbles: true,
 		composed: true
-	});
-	event[FAILURE] = {
+	}), { [FAILURE]: {
 		element: el,
 		reason: err
-	};
+	} });
 	(el.isConnected ? el : window).dispatchEvent(event);
 }
 const FAILURE = Symbol("failure");
@@ -1279,7 +1311,7 @@ const skipped = (element) => {
 		box = renderedParent(box);
 	}
 	if (!box) return false;
-	if (box.localName === "details") return !box.open && child.localName !== "summary";
+	if (box.localName === "details") return !box.hasAttribute("open") && child.localName !== "summary";
 	return getComputedStyle(box).contentVisibility === "hidden";
 };
 function elementBox(el) {
@@ -1300,7 +1332,8 @@ const unmeasured = sizeObserver((entries) => {
 	for (const { target } of entries) {
 		if (!drawn(target)) continue;
 		unmeasured.unobserve(target);
-		taking.push(measurements.get(target));
+		const take = measurements.get(target);
+		if (take) taking.push(take);
 		measurements.delete(target);
 	}
 	for (const take of taking) take();
@@ -1329,8 +1362,7 @@ function registerVisualParts(source, read, { reveal = null, label = null } = {})
 }
 function visualPartAdmission(visual, declaration) {
 	if (!declaration || typeof declaration !== "object") return null;
-	const { prefixes } = declaration;
-	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+	if ("prefixes" in declaration) return (id) => declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
 	return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
 const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
@@ -1344,7 +1376,7 @@ function visualPartProblems(source, declaration) {
 	if (!registrations.has(source)) return [{ kind: "unregistered" }];
 	const parts = registeredVisualParts(source);
 	const admission = visualPartAdmission(source, declaration);
-	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+	const outside = "prefixes" in declaration && admission ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
 	return outside.length ? [{
 		kind: "unadmitted-parts",
 		parts: outside
@@ -1454,15 +1486,17 @@ const tokenizer = () => tokenizerReady ??= import("/vendor/syntax.esm.js");
 const languagesReady = /* @__PURE__ */ new Map();
 function ensureSyntaxLanguage(lang) {
 	if (!lang) return tokenizer();
-	if (!languagesReady.has(lang)) {
+	let ready = languagesReady.get(lang);
+	if (!ready) {
 		const load = syntaxLanguages[lang];
 		if (!load) throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
-		languagesReady.set(lang, Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+		ready = Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
 			await shared.registerLanguage(lang, grammar.default);
 			return shared;
-		}));
+		});
+		languagesReady.set(lang, ready);
 	}
-	return languagesReady.get(lang);
+	return ready;
 }
 async function syntax(source, lang) {
 	const tokens = await (await ensureSyntaxLanguage(lang)).tokenize(source, lang);
@@ -1478,10 +1512,14 @@ const synNodes = (tokens) => tokens.map(({ text, style }) => {
 	return span;
 });
 function tokenLines(tokens) {
-	const lines = [[]];
+	let line = [];
+	const lines = [line];
 	for (const { text, style } of tokens) text.split("\n").forEach((part, i) => {
-		if (i) lines.push([]);
-		if (part) lines.at(-1).push({
+		if (i) {
+			line = [];
+			lines.push(line);
+		}
+		if (part) line.push({
 			text: part,
 			style
 		});
@@ -1573,13 +1611,14 @@ function foldBlock(el, allocation = null) {
 		played.finished.then(release, release);
 	}
 	const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
-	played.effect.setKeyframes(frames(`${size}px`));
+	const effect = played.effect;
+	if (effect instanceof KeyframeEffect) effect.setKeyframes(frames(`${size}px`));
 	return played;
 }
 
 //#endregion
 //#region runtime/tab-store.js
-const tabStore = document.documentElement.lfStorage?.tabStore ?? {
+const tabStore = window.lfStorage?.tabStore ?? {
 	read: () => ({
 		available: false,
 		value: null
@@ -1592,6 +1631,14 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 	}),
 	keys: () => []
 };
+
+//#endregion
+//#region runtime/canvas.js
+function canvas2D(canvas, options) {
+	const context = canvas.getContext("2d", options);
+	if (!context) throw new Error("The browser could not create a 2D canvas context");
+	return context;
+}
 
 //#endregion
 //#region runtime/time-axis.js
@@ -1640,10 +1687,10 @@ function assignRows(items, start, end) {
 }
 let measuring = null;
 function textWidth(text, font) {
-	measuring ??= document.createElement("canvas").getContext("2d");
+	measuring ??= canvas2D(document.createElement("canvas"));
 	measuring.font = font;
 	return measuring.measureText(text).width;
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

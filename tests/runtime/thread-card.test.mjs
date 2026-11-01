@@ -15,7 +15,6 @@ const wireInput = () =>
   });
 
 test("a thread card's output updates its commands without invalidating its presenter", () => {
-  const view = new ThreadView({ reply: { wireInput }, reaction: {} });
   const model = {
     key: "card-presentation",
     id: "card-presentation",
@@ -28,6 +27,7 @@ test("a thread card's output updates its commands without invalidating its prese
     news: null,
     settlement: { kind: "resolve", label: "Resolve", word: "Resolve" },
   };
+  const view = new ThreadView({ reply: { wireInput }, reaction: {} }, model);
   let paints = 0;
   const stopPaint = effect(() => {
     paints++;
@@ -58,4 +58,56 @@ test("a thread card's output updates its commands without invalidating its prese
     view.dispose();
     view.node.remove();
   }
+});
+
+test("a primary reply forwards the field's live hint and accessible name callbacks", async () => {
+  const { createReplyView } = await import("/runtime/thread/replies.js");
+  const hintParts = () => ["Waiting on the agent"];
+  const hintLead = () => ["Reply"];
+  const accessibleName = () => "Reply to this thread";
+  let inputOptions;
+  const view = createReplyView(
+    "hint-forwarding",
+    {
+      wireInput: (_input, options) => {
+        inputOptions = options;
+        return wireInput();
+      },
+    },
+    () => {},
+    { hintParts, hintLead, accessibleName },
+  );
+  try {
+    assert.equal(inputOptions.hintParts, hintParts);
+    assert.equal(inputOptions.hintLead, hintLead);
+    assert.equal(inputOptions.accessibleName, accessibleName);
+  } finally {
+    view.dispose();
+  }
+});
+
+test("a thread preview registers its keyboard routes before any conversation is selected", async () => {
+  const { createThreadPreview } =
+    await import("/runtime/annotation-overlay/thread-preview.js");
+  const preview = createThreadPreview({
+    inventory: {
+      targetFor: () => null,
+      entryPoint: () => null,
+      entryPlace: () => null,
+    },
+    renderMarginThread: () => [],
+    placedAt: () => undefined,
+    scrollThreadIntoView() {},
+    scrollToElement() {},
+    openInPanel() {},
+    onClose() {},
+  });
+  assert.equal(preview.isOpen(), false);
+  assert.equal(preview.selection(), null);
+  assert.deepEqual(
+    commandDeclarationsWithin(preview.element).flatMap(({ scope }) =>
+      scope.rows.map(({ id }) => id),
+    ),
+    [],
+  );
 });

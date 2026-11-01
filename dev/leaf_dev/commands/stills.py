@@ -89,6 +89,8 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
 from leaf.render_checks import wait_until_ready
+from leaf.revision_artifact import resource_type
+from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -3586,12 +3588,19 @@ def differences(browser, out: Path):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
+    # The module imports the public package API, as a widget does, so the tab answers
+    # with this tree's runtime under the package's own vendored modules.
+    runtime = read_runtime().source
+
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
+        package = ROOT / "packages" / "default" / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
-        elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
+        elif path.startswith("/vendor/") and package.is_file():
+            route.fulfill(path=package)
+        elif path in runtime:
+            route.fulfill(body=runtime[path], content_type=resource_type(path))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

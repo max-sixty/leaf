@@ -1244,10 +1244,11 @@ const INSETS = [
 const stood = /* @__PURE__ */ new Map();
 const floatingSelections = () => [...stood.values()];
 const heldEdges = (floating) => {
-	const edges = stood.get(floating)?.edges;
-	return edges ? {
-		x: edges.left,
-		y: edges.top
+	const placed = stood.get(floating);
+	return placed ? {
+		x: placed.edges.left,
+		y: placed.edges.top,
+		by: placed.anchor
 	} : null;
 };
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;

@@ -278,6 +278,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 	const theirs = () => gesture !== null && sent === gestures ? "send" : gesture;
 	let rests = null;
 	let frame = null;
+	let besideAt = null;
 	let timing = null;
 	let motions = /* @__PURE__ */ new Map();
 	let running = [];
@@ -304,7 +305,10 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
 		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
 		frame = at;
-		if (near(dx, 0) && near(dy, 0)) return;
+		const by = edges?.by?.isConnected ? boxOf(edges.by.getBoundingClientRect()) : null;
+		const passed = !!besideAt && !!by && !(near(by.left - besideAt.left, dx) && near(by.top - besideAt.top, dy));
+		besideAt = by;
+		if (near(dx, 0) && near(dy, 0)) return passed;
 		if (rests) rests = new Map([...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]));
 		for (const moving of motions.values()) {
 			moving.from = shifted(moving.from, dx, dy);
@@ -315,6 +319,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.from += dy;
 			riding.to += dy;
 		}
+		return passed;
 	}
 	const interpolate = (from, to, progress) => {
 		const rect = between(from, to, progress);
@@ -815,11 +820,11 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			}
 		},
 		placed(place) {
-			rebase();
+			const passed = rebase();
 			const read = rests?.get(root);
 			const resized = !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
 			place();
-			if (resized) frame = null;
+			if (resized && !passed) frame = null;
 		},
 		outline() {
 			const moving = motions.get(box);

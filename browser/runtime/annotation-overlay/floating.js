@@ -179,11 +179,14 @@ const INSETS = ["left", "right", "top", "bottom"];
 // without granting that displacement to the owner.
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
-// The edges that hold a placed box where its placement stood it, as box-motion.js reads
-// them (`held`), or null for a box no placement stands.
+// The edges that hold a placed box where its placement stood it, and the anchor of what
+// it stands by, as box-motion.js reads them (`held`), or null for a box no placement
+// stands.
 export const heldEdges = (floating) => {
-  const edges = stood.get(floating)?.edges;
-  return edges ? { x: edges.left, y: edges.top } : null;
+  const placed = stood.get(floating);
+  return placed
+    ? { x: placed.edges.left, y: placed.edges.top, by: placed.anchor }
+    : null;
 };
 
 const physicalContext = (context) =>

@@ -712,7 +712,7 @@
   }
   /* A view's Close at the end of its head line or its tabs takes the face of the presses
      before it. */
-  :is(.lf-fp-head > .lf-fp-aux, .lf-fp-controls) > .lf-fp-chip {
+  :is(.lf-fp-head, .lf-fp-controls) > .lf-fp-aux > .lf-fp-chip {
     flex: none;
     justify-content: center;
     min-width: max(var(--lf-fp-press), var(--aim-floor));
@@ -1051,19 +1051,19 @@
     align-items: center;
     gap: 2px;
   }
-  /* Tabs that name the view keep their room: where the presses after them do not fit
-     beside them, as on a phone, the presses go to a line of their own, at its end. */
-  .lf-fp-controls[data-named] {
+  /* The tabs name the view and keep their room: where the presses after them don't fit
+     beside them, as on a phone, the presses and Close go to a line of their own, at
+     its end. Each tab's view keeps room for one press before Close, Menu's none
+     included, so every tab breaks the line alike and turning them moves nothing. */
+  .lf-fp-controls {
     flex-wrap: wrap;
   }
-  .lf-fp-controls[data-named] > .lf-fp-crumb {
-    flex: 1 0 auto;
-  }
-  .lf-fp-controls[data-named] > .lf-fp-aux {
+  .lf-fp-controls > .lf-fp-aux {
+    min-width: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);
+    justify-content: flex-end;
     margin-inline-start: auto;
   }
-  /* Filter strips share the available width with the presses after them. Their tabs
-     scroll at full size when space runs out, keeping Search and Close reachable. The
+  /* The tabs scroll at full size only where they alone don't fit the line. The
      tabs keep their face under a finger and reach the pointer's floor as the presses
      beside them do. The strip scrolls, which would clip a reach beyond its box, so it
      keeps the reach's room inside its box and takes none in the row. */
@@ -1083,9 +1083,8 @@
     font: var(--font-small);
     min-height: var(--lf-fp-tab);
   }
-  /* On a phone the On view's four tabs, a list's press and Close share one line, so
-     the tabs keep less of their inset rather than wrap Close under them or clip
-     their words. */
+  /* On a phone the tabs keep less of their inset, so in the faces phones ship they
+     share one line with a press and Close at 390px. */
   @media (max-width: 420px) {
     .lf-fp-filters button {
       padding-inline: 3px;

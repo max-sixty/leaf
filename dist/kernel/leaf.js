@@ -5692,9 +5692,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const news = initial ? 0 : newCount();
 		const sayingNow = initial ? /* @__PURE__ */ new Set() : new Set(sayable().map((error) => error.id));
 		const unseen = !initial && errorsReading().some((error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error));
-		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
-		const closeAtFoot = viewControls !== nothing;
+		const closeAtFoot = Boolean(top && viewOf(top).controls);
 		const quickHidden = initial || Boolean(top) && !exit || !exit && (writing || drafted);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
@@ -5717,7 +5716,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       type="button"
       class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
       ${namedAction("close", { label: "Close" })}
-      ?data-unoffered=${Boolean(search) && !menuSearching() && viewControls !== nothing}
+      ?data-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(event) => event.preventDefault()}
       @click=${() => close()}
     ></button>`;
@@ -5749,12 +5748,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                           ${viewOf(route).draw(route)}
                         </div>`)}
             </div>
-            <div
-              class="lf-fp-controls"
-              ?hidden=${viewControls === nothing}
-              ?data-named=${top?.view === "queue"}
-            >
-              ${viewControls}${closeAtFoot ? viewClose : nothing}
+            <div class="lf-fp-controls" ?hidden=${!closeAtFoot}>
+              ${top && closeAtFoot ? controlsTemplate(top, viewClose) : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -7877,11 +7872,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
       </div>
       ${presses === nothing && close === nothing ? nothing : html`<div class="lf-fp-aux">${presses}${close}</div>`}`;
 	};
-	function controlsTemplate(top) {
+	function controlsTemplate(top, close) {
 		const { crumb = nothing, aux = nothing } = viewOf(top).controls?.(top) ?? {};
-		if (crumb === nothing && aux === nothing) return nothing;
 		return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>`;
+      <div class="lf-fp-aux">${aux}${close}</div>`;
 	}
 	const TAB_LABELS = Object.freeze({
 		menu: "Menu",

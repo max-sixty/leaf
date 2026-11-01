@@ -485,14 +485,13 @@ export function createFloatingPanel({
       errorsReading().some(
         (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
       );
-    const viewControls = top ? controlsTemplate(top) : nothing;
     const exit = initial ? null : fieldExit(search, top);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
     // search's own ✕ ends the row under a list's tabs while it holds the field, so the
     // list's Close waits, unseen, for the search to end, and one ✕ shows at the foot;
     // it keeps its room, so the search press beside it stays under the pointer.
-    const closeAtFoot = viewControls !== nothing;
+    const closeAtFoot = Boolean(top && viewOf(top).controls);
     // Page search's way out is its stance's, which the repaint frame reads after the
     // paint that opens it (touch-controls.js). Until then the seat keeps what it shows
     // rather than stepping aside, which, opened from the menu, would hide it again in
@@ -537,7 +536,7 @@ export function createFloatingPanel({
       type="button"
       class="lf-fp-face lf-fp-chip lf-fp-exit lf-fp-close"
       ${namedAction("close", { label: "Close" })}
-      ?data-unoffered=${Boolean(search) && !menuSearching() && viewControls !== nothing}
+      ?data-unoffered=${Boolean(search) && !menuSearching() && closeAtFoot}
       @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
       @click=${() => close()}
     ></button>`;
@@ -584,12 +583,8 @@ export function createFloatingPanel({
                     )
               }
             </div>
-            <div
-              class="lf-fp-controls"
-              ?hidden=${viewControls === nothing}
-              ?data-named=${top?.view === "queue"}
-            >
-              ${viewControls}${closeAtFoot ? viewClose : nothing}
+            <div class="lf-fp-controls" ?hidden=${!closeAtFoot}>
+              ${top && closeAtFoot ? controlsTemplate(top, viewClose) : nothing}
             </div>
           </div>
           <div class="lf-fp-row">
@@ -4250,14 +4245,13 @@ export function createFloatingPanel({
           : html`<div class="lf-fp-aux">${presses}${close}</div>`
       }`;
   };
-  // A view's foot: its tabs and what stands beside them (`VIEWS`, `controls`); a view
-  // with none has no foot.
-  /** @param {PanelRoute} top */
-  function controlsTemplate(top) {
+  // A view's foot, as its head line is in two parts: its tabs (`VIEWS`, `controls`),
+  // then what stands beside them, ended by its Close; a view with none has no foot.
+  /** @param {PanelRoute} top @param {unknown} close */
+  function controlsTemplate(top, close) {
     const { crumb = nothing, aux = nothing } = viewOf(top).controls?.(top) ?? {};
-    if (crumb === nothing && aux === nothing) return nothing;
     return html`<div class="lf-fp-crumb">${crumb}</div>
-      <div class="lf-fp-aux">${aux}</div>`;
+      <div class="lf-fp-aux">${aux}${close}</div>`;
   }
   // The On view's tabs: the menu, the two lists and Threads, at the controls' start,
   // where every other view's way back stands, since they name the view. The menu and

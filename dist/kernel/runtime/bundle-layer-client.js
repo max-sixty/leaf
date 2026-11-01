@@ -1946,7 +1946,7 @@ const revealLayer = () => {
 	layerKnown = true;
 	layerRevealed();
 };
-const postEvent = async (event, held = runtime.data, { keepalive = false } = {}) => {
+const postEvent = async (event, held = runtime.data) => {
 	if (offlineInteractive) throw new Error("no agent or server is available in an interactive export");
 	if (!layerKnown) await layerReady;
 	countTraffic("sends");
@@ -1962,8 +1962,7 @@ const postEvent = async (event, held = runtime.data, { keepalive = false } = {})
 				"Content-Type": "application/json",
 				...dataHeaders(held)
 			}),
-			body: JSON.stringify(event),
-			keepalive
+			body: JSON.stringify(event)
 		});
 		recordInteraction("event_response", {
 			kind: event.kind,

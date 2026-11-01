@@ -231,11 +231,11 @@ function createDelivery({ ledger, applyAcceptedState, settleRejected, settlement
 	}
 	return { drain };
 }
-async function deliverBookkeeping(event, applyState, { keepalive = false } = {}) {
+async function deliverBookkeeping(event, applyState) {
 	const held = runtime.data;
 	let response;
 	try {
-		response = await postEvent(event, held, { keepalive });
+		response = await postEvent(event, held);
 	} catch {
 		return "unreached";
 	}

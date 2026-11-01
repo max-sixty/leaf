@@ -133,7 +133,6 @@ const part = {
   todos: readPart((root) => root.authoritative?.browser.todos ?? []),
   receipts: readPart((root) => root.authoritative?.browser.receipts ?? []),
   revisionLabels: readPart((root) => root.authoritative?.revision_labels),
-  seen: readPart((root) => root.authoritative?.seen ?? null),
 };
 
 // Capture the active reading together with the revision that qualifies it.
@@ -195,11 +194,6 @@ export const runtime = {
   },
   get versions() {
     return part.versions();
-  },
-  // The newest revision a tab showed the user while they were there, or null
-  // (`read_state.seen_revision`).
-  get seen() {
-    return part.seen();
   },
   get workflows() {
     return part.workflows();

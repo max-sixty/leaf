@@ -15,13 +15,21 @@ import { walkPosition } from "../walk-position.js";
 import { word } from "./bindings.js";
 import { innermostStance } from "./dispatch.js";
 
+/** @typedef {NonNullable<ReturnType<typeof walkPosition>>} Walk
+ * @typedef {{goTo: string | null, walk: (Walk & {shown: boolean}) | null, stance: string | null}} StatusContext
+ */
+/** @type {StatusContext} */
 const EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 const context = signal(EMPTY);
+/** @type {Walk | null} */
 let lastWalk = null;
 export const statusContextReading = () => context.value;
+/** @param {import("./bindings.js").Scope | null | undefined} scope */
 const stanceWords = (scope) => (scope ? word(scope.says ?? scope.title) : null) ?? null;
 
+/** @param {StatusContext} context */
 const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
+/** @param {StatusContext} a @param {StatusContext} b */
 const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
@@ -29,6 +37,7 @@ const same = (a, b) =>
   shownWalk(a)?.target === shownWalk(b)?.target;
 
 /** Read the context again, `goToStatus` the Go-to sequence's word or null. */
+/** @param {() => string | null} goToStatus */
 export function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();

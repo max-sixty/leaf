@@ -767,6 +767,37 @@ def card_held_step(page: Page) -> None:
     wait_until_ready(page, state, through="state")
 
 
+def card_after_interjection(page: Page) -> None:
+    """An arriving answer grows a card after Send has fitted its reply against the window."""
+    card_held_step(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
+    expect(card.locator(".lf-msg.user").last).to_contain_text(
+        "Drafting a reply while the agent works"
+    )
+    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
+    settle(page)
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == sent
+    )
+    served.leaf("delivery", "ack", delivery["id"])
+    served.leaf(
+        "thread",
+        "reply",
+        reference,
+        "--ephemeral",
+        "--text",
+        "The answer continues with the detail requested in the interjection. " * 5,
+    )
+    expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
+
+
 def seat_held_news(page: Page) -> None:
     """A seat's thread holding a reply and a message from another tab while the user
     drafts a reply in it: the agent's question on a goal, which a reload draws in
@@ -2719,6 +2750,12 @@ STATES = (
         "review-a-plan",
         card_reply_photo,
         region=".lf-margin-preview .lf-thread-reply",
+    ),
+    State(
+        "plan-card-after-interjection",
+        "review-a-plan",
+        card_after_interjection,
+        region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(

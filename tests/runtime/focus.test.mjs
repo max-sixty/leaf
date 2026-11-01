@@ -186,7 +186,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
         "utf8",
       ),
     );
-    const inputs = page.document.documentElement.lfInputs;
+    const inputs = page.window.lfInputs;
     const heard = [];
     inputs.observe((event) => heard.push(event.type));
     // Native Firefox can call a sandboxed window's wheel listener with a foreign

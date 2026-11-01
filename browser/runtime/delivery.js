@@ -14,7 +14,7 @@ import { holdingError, raiseError } from "./errors.js";
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
-/** @typedef {import("../types/contract.js").ServedEventAnswer} EventAnswer */
+/** @typedef {import("../types/contract.js").ServedEventAnswer & {state?: import("./layer-client.js").StateAnswer}} EventAnswer */
 // What an /api/event answer says, read the same way by both senders: accepted, with
 // the state that shows the event, or refused for good (`final`, event_endpoint.py).
 // An answer that is neither is incomplete.
@@ -24,9 +24,21 @@ const acceptedAnswer = (response, answer) =>
   response.ok && !!answer && "state" in answer && !("final" in answer);
 /** @param {EventAnswer} answer @returns {answer is Extract<EventAnswer, { final: true }>} */
 const refusedAnswer = (answer) => !!answer && "final" in answer;
+/** @typedef {import("./layer-client.js").CompletedState} State
+ * @typedef {import("./pending/state.js").DeliveryHandle} Entry
+ * @typedef {import("../types/domain.js").Event} Event
+ * @typedef {(state: State) => Promise<unknown>} ApplyState
+ * @typedef {{accepted: Event | null, application?: Promise<unknown>, refusal?: string, state?: State}} DeliveryResult
+ * @typedef {ReturnType<typeof import("./pending/state.js").createPendingLedger>} Ledger
+ */
+/** @param {ApplyState} apply @param {State} state */
 const applyAnswerState = (apply, state) =>
   apply(state).catch((error) => reportCarried(error, "state in event response"));
 
+/** @param {{ledger: Ledger, applyAcceptedState: ApplyState,
+ * settleRejected: (entry: Entry, state: State | undefined) => Promise<ReturnType<Ledger["refuse"]>>,
+ * settlementChanged: (entry: Entry, accepted: Event | null) => void,
+ * refusedWords: typeof import("./drafts.js").keepRefusedWords}} dependencies */
 export function createDelivery({
   ledger,
   applyAcceptedState,
@@ -36,10 +48,12 @@ export function createDelivery({
 }) {
   let draining = false;
 
+  /** @param {Entry} entry */
   async function deliver(entry) {
     // That the change is not through yet stands as an error while the tries go on,
     // and leaves when the change is through or refused.
     const retrying = holdingError();
+    /** @param {string} message */
     const retry = async (message) => {
       retrying(message);
       await retryPause();
@@ -51,6 +65,7 @@ export function createDelivery({
     }
   }
 
+  /** @param {Entry} entry @param {(message: string) => Promise<void>} retry @returns {Promise<DeliveryResult>} */
   async function tries(entry, retry) {
     for (;;) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
@@ -64,8 +79,8 @@ export function createDelivery({
         ),
         entry.read.then((accepted) => ({ accepted })),
       ]);
-      if (sent.accepted) return { accepted: sent.accepted };
-      if (sent.error) {
+      if ("accepted" in sent) return { accepted: sent.accepted };
+      if ("error" in sent) {
         // A refused key ends only when the user opens the link, so say that rather
         // than promising a retry that cannot succeed on its own.
         await retry(
@@ -91,8 +106,8 @@ export function createDelivery({
         ),
         entry.read.then((accepted) => ({ accepted })),
       ]);
-      if (decoded.accepted) return { accepted: decoded.accepted };
-      if (decoded.error) {
+      if ("accepted" in decoded) return { accepted: decoded.accepted };
+      if ("error" in decoded) {
         await retry("Not through yet — trying again…");
         continue;
       }
@@ -118,7 +133,7 @@ export function createDelivery({
       ) {
         return {
           accepted: null,
-          state: completeData(answer.state, held),
+          ...(answer.state ? { state: completeData(answer.state, held) } : {}),
           refusal: `Couldn't ${event.kind === "edit" ? "save the edit" : "take this"} — ${answer.error || "it was refused"}`,
         };
       }
@@ -136,6 +151,7 @@ export function createDelivery({
         const { accepted, application, refusal, state } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
         // What the refusal took down with this gesture, such as a reply to its message.
+        /** @type {ReturnType<Ledger["refuse"]>} */
         let dependents = [];
         try {
           if (!accepted) {
@@ -186,6 +202,7 @@ export function createDelivery({
 // "accepted" once that state is applied, "refused" when the server's answer is final,
 // and "unreached" when no complete answer came back, which a later send may still get.
 // `keepalive` lets a send made as the document goes away reach the server.
+/** @param {import("../types/contract.js").BrowserCommand} event @param {ApplyState} applyState */
 export async function deliverBookkeeping(
   event,
   applyState,
@@ -206,7 +223,7 @@ export async function deliverBookkeeping(
   } catch {
     return "unreached";
   }
-  if (answer && "state" in answer)
+  if (answer && answer.state)
     await applyAnswerState(applyState, completeData(answer.state, held));
   return acceptedAnswer(response, answer)
     ? "accepted"

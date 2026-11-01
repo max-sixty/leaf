@@ -61,10 +61,10 @@ const cases = [
 
 for (const [label, reason, error] of cases) {
   test(`a sample command answers a ${label} failure`, async () => {
-    registerSampleCommand(label, () => {
+    registerSampleCommand("thread", () => {
       throw reason;
     });
-    await receive({ id: label, method: label });
+    await receive({ id: label, method: "thread", detail: { id: label } });
     assert.deepEqual(
       sent.find((message) => message.id === label),
       { id: label, error },

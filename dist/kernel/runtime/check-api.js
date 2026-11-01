@@ -3,9 +3,9 @@ import { TEXT_BLOCK, WORKS, annotationMarkSheets, annotationSheets, applicationP
 import { allBindings, authoredBody, commandDeclarationsWithin, commandEntries, commandPresentations, commandRoutes, dragHeld, live, pageRange, recordInteraction, reveal, runtimeRootState } from "./bundle-layer-client.js";
 import { ADDRESSABLE, aimTargetAt, aimTargets, anchorForRange, effectiveScroller, elementFrame, reachScrollers, readingRegion, readingRegionFor, readingRegions, releaseReachStop, resolveAnchor, scrollAxes, scrollersOf, shownRegionBounds, unconcealedReadingRegions, userReadingRegion } from "./bundle-content-layout.js";
 import { USER_VIEW_RESTORE_CASES, availableCommandRoutes, executeCommand, registerSampleCommand, stack } from "./bundle-restore-state.js";
+import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, textNodesUnder, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { PAGE_SCOPE, SAY_BOX, THREAD, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, claimed, completeReadingReturn, domValue, draftStore, heldObligation, observeOutputs, pageScopes, placeNode, placeOf, readingBlock, readingReturn, replyIsEditing, selectionAnchor, servedElements, shallowSigs, storedDraft, userStore, walkOrigin, walkPosition, whereDraft } from "./bundle-data.js";
 import { growthAfterIsSeen, landingBand, seenRect, shownBand, shownBox, shownParts, shownRect, stackLevel, stuckBox, userScrollport, visibleBand } from "./bundle-geometry.js";
-import { alignInlineText, closestAcross, elementById, fencePassageParts, findQuote, layoutBox, pageDocument, pageText, quoteFrom, segmentsIn, sentenceUnits, settledAway, spanIn, textNodesUnder, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { alreadyShown, fitsWhole } from "./bundle-copy-control.js";
 
 //#region runtime/validation.js

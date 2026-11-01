@@ -1,4 +1,5 @@
 import { Directive, PartType, directive, html, nothing, unsafeSVG } from "/vendor/lit.js";
+import { diffArrays } from "/vendor/jsdiff.esm.js";
 
 //#region runtime/queued-work.js
 const jobObservers = /* @__PURE__ */ new Set();
@@ -748,6 +749,25 @@ function watchScrollEnds(listener) {
 }
 
 //#endregion
+//#region runtime/dom-move.js
+let focusOwner = null;
+const installMoveFocus = (owner) => {
+	focusOwner = owner;
+};
+function move(parent, node, before) {
+	if (node.parentNode === parent && (before === node || node.nextSibling === before)) return node;
+	if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
+	if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })) parent.moveBefore(node, before);
+	else {
+		const restore = node.nodeType === Node.ELEMENT_NODE ? focusOwner?.hold(node) : null;
+		parent.insertBefore(node, before);
+		restore?.();
+	}
+	return node;
+}
+window.lfMove = move;
+
+//#endregion
 //#region runtime/control-faces.js
 const ACTION_FACES = {
 	symbol: "lf-icon-action",
@@ -1268,6 +1288,276 @@ function iconTemplate(icon, className = "lf-margin-entry-icon") {
 const actionTemplate = (action, className) => iconTemplate(actionIcon(action), className);
 
 //#endregion
+//#region runtime/dom-children.js
+function setChildren(parent, nodes) {
+	setChildLists([[parent, nodes]]);
+}
+function setChildLists(lists) {
+	for (const [parent, nodes] of lists) orderChildren(parent, nodes);
+	for (const [parent, nodes] of lists) {
+		const keep = new Set(nodes);
+		for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
+	}
+}
+function orderChildren(parent, nodes) {
+	const owned = new Set(nodes);
+	order(parent, nodes, (node) => !owned.has(node));
+}
+function setRenderedChildren(parent, nodes) {
+	const after = document.createDocumentFragment();
+	after.append(...nodes);
+	patchChildren(parent, parent, after, {
+		pairs: new Map([...sourceNodes(parent)].map((node) => [node, node])),
+		arrive: (node) => node,
+		sameValue: (held, wanted) => held === wanted,
+		touched: () => {},
+		declared: () => false,
+		body: () => null,
+		same: (held, wanted) => held.isEqualNode(wanted),
+		generated: () => false
+	});
+}
+function order(parent, nodes, passed = () => false) {
+	const list = [...nodes];
+	const stay = staying(parent, list);
+	let cursor = parent.firstChild;
+	for (const node of list) {
+		while (cursor && passed(cursor)) cursor = cursor.nextSibling;
+		if (node === cursor) cursor = cursor.nextSibling;
+		else if (stay.has(node)) cursor = node.nextSibling;
+		else move(parent, node, cursor);
+	}
+}
+function staying(parent, nodes) {
+	const places = new Map([...parent.childNodes].map((node, at) => [node, at + 1]));
+	const size = places.size;
+	const best = new Array(size + 1).fill(-1);
+	const weightAt = new Array(size + 1).fill(0);
+	const weights = [];
+	const previous = [];
+	let last = -1;
+	nodes.forEach((node, at) => {
+		const place = places.get(node);
+		if (!place) return;
+		let before = -1;
+		for (let i = place - 1; i > 0; i -= i & -i) if (best[i] >= 0 && (before < 0 || weightAt[i] >= weights[before])) before = best[i];
+		const weight = (node.nodeType === Node.ELEMENT_NODE ? nodes.length + 1 : 1) + (before < 0 ? 0 : weights[before]);
+		weights[at] = weight;
+		previous[at] = before;
+		for (let i = place; i <= size; i += i & -i) if (best[i] < 0 || weight >= weightAt[i]) {
+			best[i] = at;
+			weightAt[i] = weight;
+		}
+		if (last < 0 || weight >= weights[last]) last = at;
+	});
+	const stay = /* @__PURE__ */ new Set();
+	for (let at = last; at >= 0; at = previous[at]) stay.add(nodes[at]);
+	return stay;
+}
+function patchTree(before, after, rules) {
+	const live = rules.pairs.get(before);
+	patchAttributes(live, before, after, rules);
+	patchChildren(holder(live, rules), tree(before), tree(after), rules);
+}
+function patchRetains(before, after, target, rules) {
+	if (!target?.isConnected) return false;
+	if (!sourceOwns(before, target, rules)) return true;
+	return retainedWithin(before, after, target, rules);
+}
+function sourceOwns(source, target, rules) {
+	const owns = (node) => rules.contains(target, rules.pairs.get(node));
+	if (owns(source)) return true;
+	for (const node of sourceNodes(source)) if (owns(node)) return true;
+	return false;
+}
+function retainedWithin(before, after, target, rules) {
+	const live = rules.pairs.get(before);
+	if (!live || !sourceOwns(before, target, rules)) return false;
+	if (rules.same(before, after)) return true;
+	if (live === target) return false;
+	if (before.attributes.length !== after.attributes.length || [...before.attributes].some(({ name, value }) => !after.hasAttribute(name) || !rules.sameValue(value, after.getAttribute(name)))) return false;
+	const children = [...tree(before).childNodes];
+	const matches = new Map([...matchNodes(children, [...tree(after).childNodes])].map(([wanted, held]) => [held, wanted]));
+	for (const held of children) {
+		const node = rules.pairs.get(held);
+		if (node?.nodeType !== Node.ELEMENT_NODE || !sourceOwns(held, target, rules)) continue;
+		const wanted = matches.get(held);
+		if (!wanted) return false;
+		if (!(atomic(held, wanted, node, rules) ? rules.same(held, wanted) : retainedWithin(held, wanted, target, rules))) return false;
+	}
+	return true;
+}
+const tree = (node) => node.localName === "template" ? node.content : node;
+const holder = (live, rules) => rules.body(live) ?? tree(live);
+function patchAttributes(live, before, after, rules) {
+	let changed = false;
+	for (const { name, value } of [...before.attributes]) {
+		if (after.hasAttribute(name)) continue;
+		if (name === "class") live.classList.remove(...tokens(value));
+		else live.removeAttribute(name);
+		changed = true;
+	}
+	for (const { name, value } of after.attributes) {
+		const held = before.getAttribute(name);
+		if (held !== null && rules.sameValue(held, value)) continue;
+		if (name === "class") {
+			live.classList.remove(...tokens(held ?? ""));
+			live.classList.add(...tokens(value));
+		} else live.setAttribute(name, value);
+		changed = true;
+	}
+	if (changed) rules.touched(live);
+}
+const tokens = (value) => value.split(/\s+/).filter(Boolean);
+function writeText(node, next) {
+	const held = node.data;
+	if (held === next) return;
+	let prefix = 0;
+	while (prefix < held.length && prefix < next.length && held[prefix] === next[prefix]) prefix += 1;
+	let suffix = 0;
+	while (suffix < held.length - prefix && suffix < next.length - prefix && held[held.length - suffix - 1] === next[next.length - suffix - 1]) suffix += 1;
+	node.replaceData(prefix, held.length - prefix - suffix, next.slice(prefix, next.length - suffix));
+}
+function evict(before, live, rules) {
+	live.remove();
+	for (const inner of sourceNodes(before)) {
+		const stray = rules.pairs.get(inner);
+		if (!stray?.parentNode || live.contains(stray)) continue;
+		stray.remove();
+	}
+}
+function* sourceNodes(node) {
+	for (const child of tree(node).childNodes) {
+		yield child;
+		yield* sourceNodes(child);
+	}
+}
+function patchChildren(liveParent, beforeParent, afterParent, rules) {
+	const held = [...beforeParent.childNodes];
+	const wanted = [...afterParent.childNodes];
+	const matches = matchNodes(held, wanted);
+	const matched = new Set(matches.values());
+	for (const node of held) {
+		if (matched.has(node)) continue;
+		evict(node, rules.pairs.get(node), rules);
+	}
+	const placed = [];
+	for (const node of wanted) {
+		const before = matches.get(node);
+		const held = before && rules.pairs.get(before);
+		const live = held?.parentNode ? held : null;
+		if (!live) {
+			placed.push(rules.arrive(node, liveParent));
+			continue;
+		}
+		if (node.nodeType !== Node.ELEMENT_NODE) writeText(live, node.data);
+		else if (!atomic(before, node, live, rules)) patchTree(before, node, rules);
+		else if (!rules.same(before, node)) {
+			evict(before, live, rules);
+			placed.push(rules.arrive(node, liveParent));
+			continue;
+		} else pairInterior(before, node, rules);
+		rules.pairs.set(node, live);
+		if (live.parentNode === liveParent) placed.push(live);
+	}
+	order(liveParent, placed, rules.generated);
+}
+function pairInterior(before, after, rules) {
+	const held = [...sourceNodes(before)];
+	const wanted = [...sourceNodes(after)];
+	if (held.length !== wanted.length) return;
+	wanted.forEach((node, at) => {
+		const live = rules.pairs.get(held[at]);
+		if (live) rules.pairs.set(node, live);
+	});
+}
+const atomic = (before, after, live, rules) => before.matches("style, link[rel~=\"stylesheet\" i]") || rules.declared(before) && !rules.reaches(before, after) || [...tree(before).childNodes].some((node) => rules.pairs.get(node)?.parentNode !== holder(live, rules));
+function matchNodes(held, wanted) {
+	const matches = /* @__PURE__ */ new Map();
+	const matched = /* @__PURE__ */ new Set();
+	const byId = /* @__PURE__ */ new Map();
+	for (const node of held) if (node.nodeType === Node.ELEMENT_NODE && node.id && !byId.has(node.id)) byId.set(node.id, node);
+	for (const node of wanted) {
+		if (node.nodeType !== Node.ELEMENT_NODE || !node.id) continue;
+		const match = byId.get(node.id);
+		if (!match || match.localName !== node.localName || matched.has(match)) continue;
+		matches.set(node, match);
+		matched.add(match);
+	}
+	alignRest(held.filter((node) => !matched.has(node)), wanted.filter((node) => !matches.has(node)), matches);
+	return matches;
+}
+const COLLAPSE = /\s+/g;
+const signature = (node) => {
+	if (node.nodeType !== Node.ELEMENT_NODE) return `${node.nodeType}:${node.data}`;
+	const words = (node.localName === "template" ? node.content : node).textContent;
+	return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
+};
+function alignRest(held, wanted, matches) {
+	let heldAt = 0;
+	let wantedAt = 0;
+	let gapHeld = [];
+	let gapWanted = [];
+	const closeGap = () => {
+		pairInGap(gapHeld, gapWanted, matches);
+		gapHeld = [];
+		gapWanted = [];
+	};
+	for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+		const count = run.value.length;
+		if (run.added) gapWanted.push(...wanted.slice(wantedAt, wantedAt += count));
+		else if (run.removed) gapHeld.push(...held.slice(heldAt, heldAt += count));
+		else {
+			closeGap();
+			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			heldAt += count;
+			wantedAt += count;
+		}
+	}
+	closeGap();
+}
+function pairInGap(held, wanted, matches) {
+	let heldAt = 0;
+	let wantedAt = 0;
+	for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+		const count = run.value.length;
+		if (run.added) wantedAt += count;
+		else if (run.removed) heldAt += count;
+		else {
+			for (let at = 0; at < count; at++) matches.set(wanted[wantedAt + at], held[heldAt + at]);
+			heldAt += count;
+			wantedAt += count;
+		}
+	}
+}
+const interchangeable = (held, wanted) => held.nodeType === wanted.nodeType && (held.nodeType !== Node.ELEMENT_NODE || held.localName === wanted.localName && !(held.id && wanted.id));
+
+//#endregion
+//#region runtime/shadow-stage.js
+let integration = null;
+const installStageIntegration = (adopt) => {
+	integration = adopt;
+};
+function adoptShadowStage(root) {
+	integration?.(root);
+	return root;
+}
+function shadowStage(host, nodes) {
+	const root = host.shadowRoot ?? stageFor(host);
+	const styles = integration?.(root) ?? [];
+	setChildren(root, [...styles, ...nodes]);
+	for (const child of [...host.childNodes]) child.remove();
+	return root;
+}
+function stageFor(host) {
+	stagesFailure(host, (box) => {
+		shadowStage(host, [box]);
+		return true;
+	});
+	return host.attachShadow({ mode: "open" });
+}
+
+//#endregion
 //#region runtime/shown-box.js
 const skipped = (element) => {
 	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
@@ -1646,4 +1936,4 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, adoptShadowStage, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

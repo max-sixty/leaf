@@ -316,6 +316,10 @@ container. This API clears authored light children and supplies no slots, so rea
 the renderer needs before staging. It removes children individually because clearing
 a shadow host with `replaceChildren()` unloads WebKit's shadow-tree frames.
 
+`shadowStage` also loads through `portable-api.js` on a plain host. There it stages
+only the renderer's content; a Leaf page supplies its theme, annotation support and
+page watches from outside the widget.
+
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
 stylesheet.

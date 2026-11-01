@@ -1,6 +1,6 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, keeps, motionEasing, motionPlays, motionTime, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, move, onUserInput } from "./bundle-layer-stack.js";
+import { afterSettling, cancelRender, keeps, motionEasing, motionPlays, motionTime, move, nextRender, playMotion } from "./bundle-portable.js";
+import { TEXT_FIELD, onUserInput } from "./bundle-layer-stack.js";
 import { el } from "./bundle-layer-client.js";
 import { contentRides } from "./bundle-content-layout.js";
 import { inChrome } from "./bundle-passages.js";

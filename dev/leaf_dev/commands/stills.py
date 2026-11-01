@@ -89,6 +89,8 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
 from leaf.render_checks import wait_until_ready
+from leaf.revision_artifact import resource_type
+from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -516,7 +518,7 @@ def thread_code_copy(page: Page) -> None:
 
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
-    unread, so Next unread stands among the view's controls."""
+    unread, so Next unread stands on the view's head line."""
     as_agent(
         "thread",
         "reply",
@@ -526,7 +528,7 @@ def floating_thread_unread(page: Page) -> None:
         + "The queue holds each edit until the server confirms it. " * 40,
     )
     floating_thread(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:
@@ -3586,12 +3588,19 @@ def differences(browser, out: Path):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
+    # The module imports the public package API, as a widget does, so the tab answers
+    # with this tree's runtime under the package's own vendored modules.
+    runtime = read_runtime().source
+
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
+        package = ROOT / "packages" / "default" / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
-        elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
+        elif path.startswith("/vendor/") and package.is_file():
+            route.fulfill(path=package)
+        elif path in runtime:
+            route.fulfill(body=runtime[path], content_type=resource_type(path))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

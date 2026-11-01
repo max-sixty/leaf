@@ -587,7 +587,7 @@ customElements.define(
                     "Close capture details",
                   )}
                 </header>
-                <dl class="lf-vr-provenance">
+                <dl class="lf-facts">
                   ${fact(
                     "Capture",
                     `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}× · ${record.capture.colorScheme}`,

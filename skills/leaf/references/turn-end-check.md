@@ -13,9 +13,10 @@ what the conversation shows; an empty list is a complete answer.
 
 ## Asks waiting on the user
 
-Name each decision, answer, permission or step the agent left to the user, in its
-replies or anywhere in the conversation, that no On me item holds and the user
-hasn't answered since. Leave out what the agent will settle itself. Leaf puts each
+Leaf's rule for what goes On me, the one the agent follows (`conversation-loop.md`,
+"The On lists"), comes after this check. Name each ask that rule puts On me which
+the agent left to the user, in its replies or anywhere in the conversation, where
+no On me item holds it and the user hasn't answered it since. Leaf puts each
 ask On me as the agent's own, a question in a new thread and a step as a to-do,
 and the agent takes the user's answer or withdraws the ask. For each, give:
 

@@ -36,8 +36,12 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
 the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
-and the answer's form. It asks for two things. Asks: decisions, answers, permissions
-or steps the agent left to the user that no On me item holds. Findings for the agent:
+and the answer's form. It asks for two things. Asks: what Leaf's rule for On me puts
+there that the agent left to the user and no On me item holds. The fork reads that
+rule as the agent does (`on_me_rule`), since the user chose on 2026-10-31 that the
+fork apply Leaf's standard policy rather than a wording of its own, so a question
+such as whether a suggested follow-up goes On me is settled once, by that rule.
+Findings for the agent:
 a page that still says what the work or the conversation has since changed, an On me
 item already settled elsewhere, and work promised or set running that no page shows,
 for which the fork sees the items the page shows started. A first version also wrote
@@ -133,6 +137,9 @@ from .state import (
 
 # What the fork is asked, as the skill ships it.
 REFERENCE = SKILL_FILE.parent / "references" / "turn-end-check.md"
+# Where Leaf's rule for On me lives: the first paragraph of its "The On lists".
+ON_LISTS = SKILL_FILE.parent / "references" / "conversation-loop.md"
+ON_LISTS_HEADING = "## The On lists\n\n"
 
 # The length of a thread's or to-do's title (`comment` and `todo` in the kernel
 # registry), which the fork is asked to keep a title under. A model can't count characters, so the answer takes a
@@ -313,14 +320,22 @@ def _block(facts: dict) -> str:
     return "\n".join(parts)
 
 
+def on_me_rule() -> str:
+    """Leaf's rule for what goes On me, as the agent reads it: the paragraph that
+    opens `conversation-loop.md`'s "The On lists"."""
+    text = ON_LISTS.read_text()
+    start = text.index(ON_LISTS_HEADING) + len(ON_LISTS_HEADING)
+    return text[start : text.index("\n\n", start)]
+
+
 def fork_prompt(pages: list[dict]) -> str:
     """The one message a fork answers: the skill's account of the check
-    (`REFERENCE`), each page's facts (`page_facts`) and the answer's form (`FORM`,
-    `ANSWER`)."""
+    (`REFERENCE`), Leaf's rule for On me (`on_me_rule`), each page's facts
+    (`page_facts`) and the answer's form (`FORM`, `ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
     return (
-        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Page state\n\n{blocks}\n\n"
-        f"{FORM}\n</leaf-fork-check>"
+        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's rule for On me\n\n"
+        f"{on_me_rule()}\n\n## Page state\n\n{blocks}\n\n{FORM}\n</leaf-fork-check>"
     )
 
 

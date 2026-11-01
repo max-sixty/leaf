@@ -19,6 +19,7 @@ from interact_support import (
     append_command,
     command_findings,
     delivered,
+    freeze_events,
     obligations_on_user,
     owed_answers,
     page_packages,
@@ -1536,6 +1537,57 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     )
     [answered] = command_findings("task", "end", page_dir, item["id"], "done")
     assert answered.code == "widget-obligation"
+
+
+def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
+    """A choice sent in a reply stays the user's after they answer it in words, since
+    no revision can write a frozen widget's state. The delivery of their words names
+    the choice in `waiting`, and the agent's `done` end takes it off On me."""
+    asking(page_dir)
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Which store?"},
+    )
+    written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, asked["id"]),
+            "--text",
+            "Which store should own sessions?",
+            "--markup",
+            '<lf-options id="store" choose>'
+            '<lf-option id="store-account"><strong>Account store</strong></lf-option>'
+            '<lf-option id="store-own"><strong>Their own store</strong></lf-option>'
+            "</lf-options>",
+        )
+    )
+    said = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Account."},
+    )
+    [delivered_words] = freeze_events(page_dir, [said])["batches"][0]["events"]
+    assert delivered_words["waiting"] == [
+        {"id": "widget:store", "text": "Which store should own sessions?"}
+    ]
+    written(
+        leaf(
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, said["id"]),
+            "--text",
+            "Sessions stay in the account store.",
+        )
+    )
+    on_user = [item["id"] for item in state_json(page_dir)["queues"]["on_user"]]
+    assert "widget:store" in on_user
+
+    written(leaf("task", "end", page_dir, "widget:store", "done", "--text", "In words"))
+    state = state_json(page_dir)
+    assert "widget:store" not in [item["id"] for item in state["queues"]["on_user"]]
+    [record] = [item for item in state["obligations"] if item["id"] == "widget:store"]
+    assert (record["status"], record["answer"]) == ("answered_elsewhere", None)
 
 
 def test_user_work_cannot_duplicate_a_widget_obligation(page_dir):

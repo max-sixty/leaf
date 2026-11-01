@@ -19,12 +19,14 @@ export const saidNow = () => new Date(serverNow()).toISOString();
 // time it shows by the rule it follows those by, and the shared tick wakes only the
 // paints whose answers changed. The callback receives the calibrated server-now
 // milliseconds used by the comparison.
+/** @template T @param {(now: number) => T} read */
 export const clockValue = (read) =>
   computed(() => {
     pulse.value;
     return read(serverNow());
   }).value;
 
+/** @param {typeof import("./layer-client.js").reportCarried} reportError */
 export async function tickClock(reportError) {
   try {
     tick(pulse);
@@ -33,12 +35,14 @@ export async function tickClock(reportError) {
   }
 }
 
+/** @param {string | null | undefined} now */
 export const observeServerNow = (now) => {
   if (now) clockSkew = Date.parse(now) - Date.now();
 };
 // How long ago a server timestamp was, rounded to its nearest unit, in the one wording
 // the page and every package use: `ago` for a sentence, `shortAgo` where a seat has
 // room for the figure alone, so two seats never give one moment two different ages.
+/** @param {string | null | undefined} ts @param {boolean} compact */
 const age = (ts, compact) =>
   clockValue((now) => {
     if (!ts) return "";
@@ -52,22 +56,25 @@ const age = (ts, compact) =>
           : [Math.round(secs / 86400), "d"];
     return `${count}${unit}${compact ? "" : " ago"}`;
   });
+/** @param {string | null | undefined} ts */
 export const ago = (ts) => age(ts, false);
+/** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
 
 // How long working may go unheard before it reads as quiet. The server's activity fold
 // owns the number and serves it beside `now`; until a state has arrived nothing is
 // quiet, since there is no served clock to measure the silence against either.
+/** @type {number | null} */
 let workingGrace = null;
+/** @param {number} ms */
 export const observeWorkingGrace = (ms) => {
   workingGrace = ms;
 };
+/** @param {string | null | undefined} ts */
 export const quietSince = (ts) =>
   clockValue(
     (now) =>
-      workingGrace !== null &&
-      Boolean(ts) &&
-      now - new Date(ts).getTime() >= workingGrace,
+      workingGrace !== null && !!ts && now - new Date(ts).getTime() >= workingGrace,
   );
 
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
@@ -75,11 +82,16 @@ export const quietSince = (ts) =>
 // fold says an answer can change; it never decides what the new answer is.
 // `activityTransitionAt` is when, on the server's clock, the earliest activity in an
 // answer can next change without any file moving, or Infinity when none is timed.
+/** @param {import("../types/contract.js").ServedState | null} state */
 export const activityTransitionAt = (state) =>
   Math.min(
-    ...[state?.activity, ...(state?.others ?? []).map((entry) => entry?.activity)]
-      .filter((activity) => activity?.next_transition_at)
-      .map((activity) => Date.parse(activity.next_transition_at)),
+    ...[
+      state?.activity,
+      ...(state?.others ?? []).map((entry) => entry?.activity),
+    ].flatMap((activity) =>
+      activity?.next_transition_at ? [Date.parse(activity.next_transition_at)] : [],
+    ),
   );
+/** @param {import("../types/contract.js").ServedState | null} state */
 export const activityTransitionDue = (state) =>
   serverNow() >= activityTransitionAt(state);

@@ -14,6 +14,14 @@ import { signal } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
 
+/** @typedef {import("./voice.js").Words} Words
+ * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
+ * @typedef {{key: "semantic-news", value: readonly SemanticNews[],
+ * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],
+ * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
+ * @typedef {SemanticBackground | {key: "text", value: Words}} Background
+ */
+
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 
@@ -23,12 +31,15 @@ liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
+/** @type {Background | null} */
 let showingBackground = null;
+/** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
 // What the seat says and whether it shows. Errors are no notices: they go through
 // errors.js, which keeps them until they are dealt with.
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean}>>} */
 const noticePresentation = signal(Object.freeze({ message: "", visible: false }));
 
 export const noticeReading = () => noticePresentation.value;
@@ -38,15 +49,18 @@ const noticeVisible = () => noticePresentation.peek().visible;
 // relays the agent's words too is given as parts, each said by whoever says it
 // (semantic-news.js), which the seat draws apart and the live region hears as one line
 // (voice.js).
+/** @param {Words} message */
 export const noticeWords = (message) =>
   typeof message === "string" ? [leafSays(message)] : message;
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
+/** @param {Words} message @param {boolean} visible */
 const presentNotice = (message, visible) => {
   noticePresentation.value = Object.freeze({ message, visible });
 };
 
+/** @param {Words} msg */
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
   // fresh live-region change, including when two arrivals' delays overlap.
@@ -66,6 +80,7 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // `named`). A sentence that is also a button for
 // four seconds is a target
 // the user cannot learn.
+/** @param {Words} msg @param {Background | null} background */
 function showNotice(msg, background = null) {
   presentNotice(msg, true);
   showingBackground = background;
@@ -80,9 +95,10 @@ function showNotice(msg, background = null) {
 
 // A producer may retire a deferred assertion before it reaches the seat.
 // Skip it without spending a visible interval, then take the next queued group.
+/** @param {Background | undefined} entry */
 function showBackground(entry) {
   while (entry) {
-    const message = entry.format(entry.value);
+    const message = entry.key === "text" ? entry.value : entry.format(entry.value);
     if (wordsText(message)) {
       showNotice(message, entry);
       return true;
@@ -92,26 +108,28 @@ function showBackground(entry) {
   return false;
 }
 
+/** @param {Words} message @returns {Background} */
 const textBackground = (message) => ({
   key: "text",
   value: message,
-  combine: (_older, newer) => newer,
-  format: (value) => value,
 });
 
 // The producer supplies what makes two deferred notices one piece of news. An
 // interrupted displayed entry is older than anything already waiting under its key;
 // ordinary new arrivals are newer. One pending entry per key bounds the backlog.
+/** @param {Background} entry */
 function queueBackground(entry, front = false) {
-  const index = waitingBackground.findIndex((waiting) => waiting.key === entry.key);
-  if (index >= 0) {
-    const [waiting] = waitingBackground.splice(index, 1);
-    entry = {
-      ...entry,
-      value: front
-        ? entry.combine(entry.value, waiting.value)
-        : entry.combine(waiting.value, entry.value),
-    };
+  const waiting = waitingBackground.find((waiting) => waiting.key === entry.key);
+  if (waiting) {
+    waitingBackground.splice(waitingBackground.indexOf(waiting), 1);
+    if (entry.key === "semantic-news" && waiting.key === "semantic-news")
+      entry = {
+        ...entry,
+        value: front
+          ? entry.combine(entry.value, waiting.value)
+          : entry.combine(waiting.value, entry.value),
+      };
+    else if (front) entry = waiting;
   }
   if (front) waitingBackground.unshift(entry);
   else waitingBackground.push(entry);
@@ -120,6 +138,7 @@ function queueBackground(entry, front = false) {
 // User commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
+/** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null}} options */
 export function notice(
   msg,
   { background = false, announce: speak = true, group = null } = {},
@@ -149,6 +168,7 @@ function yieldNotice() {
 // A semantic walk is an immediate user command even though its feedback is the live
 // ordinal rather than a timed notice. Hold arriving news for a moment after the step;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
+/** @param {number} ms */
 export function holdStatus(ms) {
   if (noticeVisible()) yieldNotice();
   clearTimeout(userHoldTimer);
@@ -161,6 +181,7 @@ export function holdStatus(ms) {
 
 // Persistent command context outranks background news and pauses its visible interval.
 // A foreground notice may still replace the context briefly, then the context returns.
+/** @param {boolean} active */
 export function setNoticeContext(active) {
   userContext = active;
   if (active && showingBackground) yieldNotice();

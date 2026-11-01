@@ -1444,8 +1444,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     """A pinned document reads current data through its captured data contract."""
     source = PAGE.replace(
         "</section>",
-        '<lf-diff id="patch" source="review-patch" collapsed>'
-        "</lf-diff></section>",
+        '<lf-diff id="patch" source="review-patch" collapsed></lf-diff></section>',
     )
     (page_dir / "index.html").write_text(source)
     first = revisioning_model.activate_source(page_dir)

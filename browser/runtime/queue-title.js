@@ -9,9 +9,9 @@ import { readObligations } from "./obligations/model.js";
 import { readThreads } from "./thread/state.js";
 import { threadName } from "./thread/messages.js";
 
+/** @param {import("./framework/application.js").CurrentQueueItem} item */
 export function queueTitle(item) {
   const thread = readThreads().threads.find((thread) => thread.id === item.thread);
-  const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
   // A to-do's own title, or an obligation's prompt.
   const title = item.todo?.title ?? item.obligation?.prompt.text;
@@ -21,6 +21,7 @@ export function queueTitle(item) {
   const sent = reply && thread?.msgs.find((message) => message.id === reply);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
+    const own = elementById(item.subject.id);
     const record = own && obligationHolding(readObligations().all, own);
     return (
       (record && addressableLabel(obligationPlace(record).context)) ||

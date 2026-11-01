@@ -23,11 +23,13 @@
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
+/** @type {WeakSet<Element>} */
 const initialized = new WeakSet();
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
 // already-upgraded child) must be harmless. A clone starts its own lifetime even when
 // it copied the painted upgrade mark; that mark never owns initialization.
+/** @param {Element} el */
 export function once(el) {
   if (initialized.has(el)) return false;
   initialized.add(el);
@@ -43,17 +45,24 @@ export function once(el) {
 // notation here, so that indent is not untidiness downstream: a diff's file header, a
 // tree's root and a diagram's source type stop parsing, and a walkthrough's `hi` ranges
 // and note anchors all point one line off.
-export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
+/** @param {Element} el */
+export const dataBody = (el) => {
+  const body = el.querySelector(":scope > pre");
+  if (!body) throw new Error(`<${el.localName}> has no data body`);
+  return body.textContent;
+};
 
 // The body's text as a module reads its lines: leading blank lines and trailing
 // whitespace are the <pre>'s layout, not lines. Notations whose whitespace is content,
 // such as a diff or exact Markdown source, read `dataBody` instead.
+/** @param {Element} el */
 export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 
 // Drawing an element has under way, as the community protocol spells it: `complete`
 // settles once the drawing is in, or the element shows why it could not draw.
 export const PENDING_TASK = "pending-task";
 export class PendingTaskEvent extends Event {
+  /** @param {PromiseLike<unknown>} complete */
   constructor(complete) {
     super(PENDING_TASK, { bubbles: true, composed: true });
     this.complete = complete;
@@ -64,6 +73,7 @@ export class PendingTaskEvent extends Event {
 // rearranging descendants, so the widget states that geometry change explicitly, and
 // geometry readers listen for it instead of watching every DOM mutation.
 export const LAYOUT = "lf-layout";
+/** @param {Element} el */
 export const layoutChanged = (el) => {
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
@@ -76,9 +86,13 @@ export const layoutChanged = (el) => {
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");
+/** @typedef {Event & {[CHANGED]: Element, [REFUSED]?: unknown}} CommandsChangedEvent */
+/** @param {Element} el */
 export function commandsChanged(el) {
-  const event = new Event(COMMANDS, { bubbles: true, composed: true });
-  event[CHANGED] = el;
+  /** @type {CommandsChangedEvent} */
+  const event = Object.assign(new Event(COMMANDS, { bubbles: true, composed: true }), {
+    [CHANGED]: el,
+  });
   (el.isConnected ? el : window).dispatchEvent(event);
   if (event[REFUSED]) throw event[REFUSED];
 }
@@ -86,11 +100,14 @@ export function commandsChanged(el) {
 // `lf-announce` event on the window carrying them as its `detail`. Leaf says them in the
 // page's live region; a page without Leaf hears nothing unless it listens.
 export const ANNOUNCE = "lf-announce";
+/** @param {import("./voice.js").Words} words */
 export const announce = (words) =>
   window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
 
 // The element a `commandsChanged` event names, and the refusal its reader hands back.
+/** @param {CommandsChangedEvent} event */
 export const commandsChangedOn = (event) => event[CHANGED];
+/** @param {CommandsChangedEvent} event @param {unknown} error */
 export const refuseCommands = (event, error) => {
   event[REFUSED] = error;
 };
@@ -101,6 +118,7 @@ export const refuseCommands = (event, error) => {
 // box is where the user is looking; the agent that wrote the widget hears the same
 // failure as the page's error, which is also what `page check` fails on wherever it
 // runs the page.
+/** @param {Element} el @param {unknown} err @param {string} [source] */
 export function failSoft(el, err, source) {
   reportFailure(el, err);
   showFailure(
@@ -117,14 +135,17 @@ export function failSoft(el, err, source) {
 // thread is shut, has no way out to the window, so its failure is dispatched there
 // directly. Every listener gets an Error: a reason thrown as something else is wrapped,
 // and Leaf reports the reason as thrown.
+/** @param {Element} el @param {unknown} err */
 export function reportFailure(el, err) {
-  const event = new ErrorEvent("error", {
-    error: exceptionError(err),
-    message: describeFailure(err),
-    bubbles: true,
-    composed: true,
-  });
-  event[FAILURE] = { element: el, reason: err };
+  const event = Object.assign(
+    new ErrorEvent("error", {
+      error: exceptionError(err),
+      message: describeFailure(err),
+      bubbles: true,
+      composed: true,
+    }),
+    { [FAILURE]: { element: el, reason: err } },
+  );
   (el.isConnected ? el : window).dispatchEvent(event);
 }
 
@@ -135,6 +156,7 @@ const FAILURE = Symbol("failure");
 // `reportFailure` gave it, or, for one another element dispatched, that element, where
 // the event began rather than the shadow host it reached the document by, and the
 // event's error. Null for an error that is the window's own, such as an exception.
+/** @param {ErrorEvent & {[FAILURE]?: {element: Element, reason: unknown}}} event */
 export function failureOf(event) {
   if (event[FAILURE]) return event[FAILURE];
   const [origin] = event.composedPath();
@@ -143,6 +165,7 @@ export function failureOf(event) {
 
 // How a failure names its widget to the agent: by tag and id, since that is how the
 // agent finds it.
+/** @param {Element} el */
 export function failureContext(el) {
   const owner = widgetOf(el);
   return `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`;
@@ -150,10 +173,12 @@ export function failureContext(el) {
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
 // any failure it falls back from that no paint reported, so this path reports nothing.
+/** @param {Element} el @param {unknown} err */
 export function failSoftUnreported(el, err) {
   showFailure(el, `<${widgetOf(el).localName}> failed: ${describeFailure(err)}`);
 }
 
+/** @param {Element} el */
 const widgetOf = (el) => {
   let owner = el;
   while (owner.parentElement && !owner.localName.includes("-"))
@@ -170,11 +195,16 @@ const widgetOf = (el) => {
 // so the box stands there (`stagesFailure`, which only shadow-stage.js registers), and
 // the widget's next stage replaces it. Otherwise the box replaces the element's
 // children, and the widget's next draw of them replaces the box, a template's included.
+/** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const placers = new WeakMap();
+/** @param {Element} el @param {(box: HTMLDivElement) => boolean} place */
 export const placesFailure = (el, place) => placers.set(el, place);
+/** @type {WeakMap<Element, (box: HTMLDivElement) => boolean>} */
 const stages = new WeakMap();
+/** @param {Element} host @param {(box: HTMLDivElement) => boolean} place */
 export const stagesFailure = (host, place) => stages.set(host, place);
 
+/** @param {Element} el @param {string} text @param {string} [source] */
 function showFailure(el, text, source) {
   const box = document.createElement("div");
   box.className = "lf-error";

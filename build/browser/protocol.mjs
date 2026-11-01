@@ -285,7 +285,12 @@ const READ = { newConsumes: true, validates: false };
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
  * served state and the x-state verb, which only the generated types read. */
-export const baselineSchemas = ({ served: _served, verb: _verb, ...held }) => held;
+export const baselineSchemas = ({
+  served: _served,
+  verb: _verb,
+  widget: _widget,
+  ...held
+}) => held;
 
 /** Each change from `baseline` to `current` that some Leaf would refuse or misread,
  * as lines naming where and what; none where nothing changes either way. `baseline`

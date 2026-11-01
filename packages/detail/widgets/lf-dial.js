@@ -70,26 +70,38 @@ const READING_LINE = 0.25;
 const MOVING = 120;
 
 // A stable key for each node, which the place keeper matches across a turn.
+/** @type {WeakMap<Element, string>} */
 const keys = new WeakMap();
 let nextKey = 0;
-const keyOf = (node) => {
-  if (!keys.has(node)) keys.set(node, `lf-dial-${nextKey++}`);
-  return keys.get(node);
+const keyOf = (/** @type {Element} */ node) => {
+  const existing = keys.get(node);
+  if (existing !== undefined) return existing;
+  const key = `lf-dial-${nextKey++}`;
+  keys.set(node, key);
+  return key;
 };
 
+/** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
+/** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
+
+/** @typedef {{container: Element, after: Element | null, blocks: Element[]}} FoldRun */
 
 customElements.define(
   "lf-dial",
   class extends LeafElement {
+    /** @type {Map<string, HTMLElement>} */
     #buttons = new Map();
     #depth = "read";
     // Each fold this dial made: the run's marker, mapped to the blocks it folded and
     // the block they follow (or their container, where nothing kept precedes them).
+    /** @type {Map<HTMLElement, Omit<FoldRun, "container">>} */
     #runs = new Map();
     // The disclosures Everything opened, which leaving it closes again.
+    /** @type {Set<HTMLDetailsElement>} */
     #opened = new Set();
+    /** @type {AbortController | null} */
     #listening = null;
 
     get #key() {
@@ -113,12 +125,13 @@ customElements.define(
       }
       this.append(group);
       const [back, ahead] = rowArrows(this);
-      const step = (by) => {
+      const step = (/** @type {number} */ by) => {
         const at = DEPTHS.findIndex((depth) => depth.name === this.#depth);
         const next = DEPTHS[at + by];
         if (!next) return;
         this.turn(next.name);
-        focusDestination(this.#buttons.get(next.name), "move");
+        const button = this.#buttons.get(next.name);
+        if (button) focusDestination(button, "move");
       };
       this.lfCommands = {
         title: "In the detail dial",
@@ -149,6 +162,7 @@ customElements.define(
     }
 
     // Turn the dial to `name`, keeping the reader's place and moving the page there.
+    /** @param {string} name */
     turn(name) {
       if (name === this.#depth) return;
       tabStore.set(this.#key, name === "read" ? null : name);
@@ -160,6 +174,7 @@ customElements.define(
         keeps(button, "aria-pressed", String(name === this.#depth));
     }
 
+    /** @param {string} name @param {{moving: boolean}} options */
     #apply(name, { moving }) {
       const scope = this.#scope;
       const before = moving ? this.#positions(scope) : null;
@@ -194,6 +209,7 @@ customElements.define(
       this.#opened.clear();
     }
 
+    /** @param {Element} block */
     #unfoldBlock(block) {
       if (!block.hasAttribute(FOLDED)) return;
       block.removeAttribute(FOLDED);
@@ -201,15 +217,18 @@ customElements.define(
         block.removeAttribute("hidden");
     }
 
+    /** @param {Element} scope */
     #fold(scope) {
-      this.#listening = new AbortController();
-      for (const run of [...this.#runsIn(scope)]) this.#foldRun(run);
+      const listening = (this.#listening = new AbortController());
+      for (const run of this.#runsIn(scope)) this.#foldRun(run, listening.signal);
     }
 
     // Whether a child is kept whole at Skim, and whether the dial descends into it.
+    /** @param {Element} child */
     #kept(child) {
       return child === this || child.matches(KEPT);
     }
+    /** @param {Element} child */
     #holds(child) {
       if (isLeafElement(child)) return Boolean(child.querySelector(".gist"));
       return child.contains(this) || Boolean(child.querySelector(KEPT));
@@ -217,6 +236,7 @@ customElements.define(
 
     // The blocks the dial lays out: each child of the document, and the children of
     // the plain structure it descends into in place of that structure.
+    /** @param {Element} container @returns {Generator<Element>} */
     *#blocks(container) {
       for (const child of container.children) {
         if (child.matches(STANDS)) continue;
@@ -228,11 +248,18 @@ customElements.define(
 
     // The runs Skim folds within `container`: each a list of blocks, and the kept block
     // they follow, or null where nothing kept precedes them.
+    /** @param {Element} container @returns {Generator<FoldRun>} */
     *#runsIn(container) {
+      /** @type {FoldRun} */
       let run = { container, after: null, blocks: [] };
       for (const child of [...container.children]) {
         if (child.matches(STANDS)) continue;
-        if (child !== this && child.hidden && !child.hasAttribute(FOLDED)) continue;
+        if (
+          child !== this &&
+          child.hasAttribute("hidden") &&
+          !child.hasAttribute(FOLDED)
+        )
+          continue;
         if (this.#kept(child)) {
           // A heading starts a run of its own; a gist straight after it, or after
           // another gist, extends what the run follows.
@@ -253,7 +280,8 @@ customElements.define(
       if (run.blocks.length) yield run;
     }
 
-    #foldRun({ container, after, blocks }) {
+    /** @param {FoldRun} run @param {AbortSignal} signal */
+    #foldRun({ container, after, blocks }, signal) {
       const marker = offer("div", "lf-dial-more");
       const button = offerAction("symbol", "lf-dial-unfold", "Show the rest", {
         action: "more",
@@ -263,7 +291,6 @@ customElements.define(
       );
       marker.append(button);
       move(container, marker, blocks[0]);
-      const { signal } = this.#listening;
       for (const block of blocks) {
         block.setAttribute(FOLDED, "");
         block.setAttribute("hidden", "until-found");
@@ -277,6 +304,7 @@ customElements.define(
     }
 
     // Unfold one run, leaving the rest of the page at its depth.
+    /** @param {HTMLElement} marker @param {{pressed?: boolean}} [options] */
     #unfoldRun(marker, { pressed = false } = {}) {
       const run = this.#runs.get(marker);
       if (!run) return;
@@ -285,9 +313,10 @@ customElements.define(
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);
       marker.remove();
-      if (pressed) {
+      if (before) {
         // The press's own control is gone, so the reader lands on what it showed.
-        focusDestination(run.blocks[0], "return");
+        const [first] = run.blocks;
+        if (first) focusDestination(first, "return");
         this.#move(before, scope);
       }
     }
@@ -296,7 +325,9 @@ customElements.define(
     // Skim folds it, the heading or gist it runs under, lands where it stood. Leaf's
     // place keeper hands a place across to the node drawn under the same identity, so
     // each block's identity is the kept block its run follows.
+    /** @param {Element} scope @param {() => void} change */
     #keepingPlace(scope, change) {
+      /** @type {Map<Element, Element>} */
       const owner = new Map();
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
@@ -319,9 +350,11 @@ customElements.define(
     }
 
     // Where each block shown near the window stands in it now.
+    /** @param {Element} scope */
     #positions(scope) {
       const window = shownWindow();
       const span = window.bottom - window.top;
+      /** @type {Map<Element, number>} */
       const at = new Map();
       for (const block of this.#blocks(scope)) {
         if (at.size >= MOVING) break;
@@ -334,6 +367,7 @@ customElements.define(
     }
 
     // Glide the blocks still shown from where they stood; fade in the ones arriving.
+    /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
       const duration = foldDuration();
       const window = shownWindow();

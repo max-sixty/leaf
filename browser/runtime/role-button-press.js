@@ -27,6 +27,7 @@
 
 export const ROLE_BUTTON_OFFER = '[role="button"][data-lf-offer="button"]:not(button)';
 
+/** @param {KeyboardEvent} ev */
 const offerPressed = (ev) => {
   const target = ev.composedPath()[0];
   return target instanceof HTMLElement &&
@@ -36,6 +37,7 @@ const offerPressed = (ev) => {
     ? target
     : null;
 };
+/** @type {HTMLElement | null} */
 let spaceOn = null;
 addEventListener("keydown", (ev) => {
   const offer = offerPressed(ev);

@@ -16,26 +16,31 @@ import {
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
+/** @param {Element} el */
 const visible = (el) =>
   el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
   !el.closest("[hidden], script, style");
-const px = (value) => parseFloat(value) || 0;
+const px = (/** @type {string} */ value) => parseFloat(value) || 0;
 const controls = 'button, input, select, textarea, [role="button"], a[href], img';
+/** @param {HTMLElement} el */
 const scaleY = (el) => el.getBoundingClientRect().height / el.offsetHeight;
 
 // A nested clip's hidden words are not paint in the outer scroller. Keep the
 // vertical intersection only: every horizontal position is reachable by scrolling.
+/** @param {Element} el @param {DOMRectReadOnly} rect @param {Element} scroller */
 const paintedBottom = (el, rect, scroller) => {
   let top = rect.top,
     bottom = rect.bottom;
-  for (let node = el; node && node !== scroller; node = renderedParent(node)) {
+  /** @type {Element | null} */
+  let node = el;
+  for (; node && node !== scroller; node = renderedParent(node)) {
     const style = getComputedStyle(node);
     if (style.position === "fixed") return -Infinity;
     if (style.overflowY !== "visible") {
       const bounds = node.getBoundingClientRect();
       // SVG clips to its viewport and has no HTML offsetHeight/clientTop box.
       // Dividing by that absent offsetHeight silently discarded all its ink.
-      if (node instanceof SVGElement) {
+      if (!(node instanceof HTMLElement)) {
         top = Math.max(top, bounds.top);
         bottom = Math.min(bottom, bounds.bottom);
       } else {
@@ -60,7 +65,7 @@ export function scrollbarClearance() {
       ...(tree === root ? [root] : []),
       ...tree.querySelectorAll("*"),
     ]) {
-      if (!visible(box)) continue;
+      if (!(box instanceof HTMLElement) || !visible(box)) continue;
       const style = getComputedStyle(box);
       if (!userScrollport(style.overflowX) || box.scrollWidth <= box.clientWidth + 1)
         continue;
@@ -81,6 +86,7 @@ export function scrollbarClearance() {
       if (!required) continue;
       let last = -Infinity,
         content = "";
+      /** @param {Element} el @param {DOMRectReadOnly} rect @param {string} kind */
       const take = (el, rect, kind) => {
         const bottom = paintedBottom(el, rect, box);
         if (bottom > last) {
@@ -92,7 +98,7 @@ export function scrollbarClearance() {
         const walk = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
         for (let node; (node = walk.nextNode());) {
           const parent = upFrom(node);
-          if (!node.data.trim() || !visible(parent)) continue;
+          if (!parent || !node.textContent?.trim() || !visible(parent)) continue;
           const range = document.createRange();
           range.selectNodeContents(node);
           for (const rect of range.getClientRects()) take(parent, rect, "words");

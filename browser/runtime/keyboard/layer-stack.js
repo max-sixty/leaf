@@ -70,25 +70,33 @@ import {
 } from "../focus.js";
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow.js";
-import { isNativeLayer, nativeLayerHolding, nativeLayerKind } from "../shadow-tree.js";
+import {
+  isHTML,
+  isNativeLayer,
+  nativeLayerHolding,
+  nativeLayerKind,
+} from "../shadow-tree.js";
 import { chromeSheet } from "../stylesheets.js";
 import { watchOwner } from "../arrivals.js";
 
-const entries = [];
+/** @typedef {{root: HTMLElement, opening: boolean, readonly kind: ReturnType<typeof nativeLayerKind>, active: () => boolean, fromNowhere: boolean, opener: Element | null, source: Element | null}} NativeLayer
+ * @typedef {{home: NonNullable<HTMLDialogElement["parentNode"]>, chrome: boolean, scope: HTMLElement | null}} ModalHome
+ */
+/** @type {NativeLayer[]} */
+let entries = [];
 const watchedRoots = new WeakSet();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
 
 function prune() {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    if (!entries[index].active()) entries.splice(index, 1);
-  }
+  entries = entries.filter((entry) => entry.active());
 }
 
 // An open entry is left alone wherever it sits, and not merely where it is already on
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
+/** @param {HTMLElement} node @param {Element | null} [source] */
 function pushNativeLayer(node, source = null) {
   const at = entries.findIndex((entry) => entry.root === node);
   const existing = at < 0 ? null : entries[at];
@@ -129,20 +137,21 @@ function pushNativeLayer(node, source = null) {
 // cancellation returns to its opener or reading position; the command reference closes).
 // A modal standing in a closing popover (`seatModal`) goes with it, as the popover's own
 // nested popovers do, rather than stay modal inside a box no longer shown.
+/** @param {ToggleEvent} event */
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
   if (entry) entry.opening = false;
   if (entry?.kind === "popover")
     for (const layer of nativeLayers().toReversed())
-      if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
+      if (layer.kind === "modal" && renderedUnder(layer.root, entry.root))
         closeNativeLayer(layer.root);
   if (
     entry?.kind === "popover" &&
     entry.fromNowhere &&
     !document.documentElement.inert &&
     canPlaceFocus() &&
-    renderedUnder(focused(), event.target)
+    renderedUnder(focused(), entry.root)
   )
     releaseFocus();
 }
@@ -173,7 +182,9 @@ HTMLElement.prototype.showPopover = function (options) {
 // through focusDestination, which prevents native scrolling. Restoring the layer
 // afterward moves no focus. Authored
 // scripts keep the native methods; this is the runtime's navigation contract.
-/** @param {HTMLElement} layer @param {{source?: HTMLElement, modal?: boolean}} [options] */
+/** @overload @param {HTMLDialogElement} layer @param {{source?: Element, modal?: boolean}} [options] @returns {void} */
+/** @overload @param {HTMLElement} layer @param {{source?: HTMLElement, modal?: boolean}} [options] @returns {void} */
+/** @param {HTMLElement} layer @param {{source?: Element, modal?: boolean}} [options] */
 export function showNativeLayer(layer, { source, modal = true } = {}) {
   const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
   if (withholdFocus) layer.inert = true;
@@ -183,7 +194,11 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
         if (source) seatModal(layer, source);
         layer.showModal();
       } else layer.show();
-    } else layer.showPopover(source ? { source } : undefined);
+    } else {
+      if (source && !isHTML(source))
+        throw new TypeError("A popover source must be an HTML element");
+      layer.showPopover(source ? { source } : undefined);
+    }
   } finally {
     if (withholdFocus) layer.inert = false;
   }
@@ -197,26 +212,31 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
 // styles of their own home, so only move within that home. A foreign seat can leave
 // with its widget or revision. Native removal keeps a dialog's open attribute and
 // emits no close event, so the shared connection lifetime closes and restores it.
+/** @type {WeakMap<HTMLDialogElement, ModalHome>} */
 const modalHomes = new WeakMap();
+/** @param {HTMLDialogElement} dialog @param {Element} source */
 function seatModal(dialog, source) {
   let place = modalHomes.get(dialog);
   if (!place) {
+    const parent = dialog.parentNode;
+    if (!parent) throw new Error("A modal dialog needs a connected home");
     place = {
-      home: dialog.parentNode,
+      home: parent,
       chrome: Boolean(dialog.closest(".lf-chrome")),
       scope: null,
     };
     modalHomes.set(dialog, place);
+    const home = place;
     const restore = () => {
-      if (dialog.parentNode !== place.home) move(place.home, dialog);
-      place.scope?.remove();
+      if (dialog.parentNode !== home.home) move(home.home, dialog);
+      home.scope?.remove();
     };
     dialog.addEventListener("close", () => {
       if (!dialog.open) restore();
     });
     watchOwner(dialog, {
       disconnect() {
-        if (dialog.parentNode === place.home) return;
+        if (dialog.parentNode === home.home) return;
         closeNativeLayer(dialog);
         restore();
       },
@@ -224,7 +244,7 @@ function seatModal(dialog, source) {
   }
   const holder = nativeLayerHolding(source);
   let seat = place.home;
-  if (nativeLayerKind(holder) === "popover") {
+  if (holder && nativeLayerKind(holder) === "popover") {
     if (renderedUnder(holder, place.home)) seat = holder;
     else if (place.chrome) {
       if (!place.scope) {
@@ -244,6 +264,7 @@ function seatModal(dialog, source) {
 // Closing a native layer may return focus to a remembered opener, including one
 // in another modal that escapes ancestor inertness. Inhibit those roots only for
 // an actual native close; generic disclosure closes have no native return to stop.
+/** @param {HTMLElement} layer */
 export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
@@ -283,23 +304,36 @@ export function closeNativeLayer(layer) {
 // Each native layer once it has opened or closed, in the document or any stage, where
 // `toggle` does not reach the document: what a modal admits changes with it
 // (`nativeModalAdmits`). Returns the call that stops listening.
+/** @type {Set<(event: ToggleEvent) => void>} */
 const changeListeners = new Set();
+/** @param {(event: ToggleEvent) => void} listener */
 export function watchLayerChanges(listener) {
   changeListeners.add(listener);
   return () => changeListeners.delete(listener);
 }
+/** @param {ToggleEvent} event */
 const changed = (event) => {
-  if (!event.target?.matches?.("[popover], dialog")) return;
+  if (
+    !(event.target instanceof HTMLElement) ||
+    !event.target.matches("[popover], dialog")
+  )
+    return;
   for (const listener of changeListeners) listener(event);
 };
 
+/** @param {{addEventListener(type: "beforetoggle" | "toggle", listener: (event: ToggleEvent) => void, capture: boolean): void}} root */
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
   // Native dialog commands also announce their opening here, without invoking
   // the patched prototype. Nonmodal show() entries are pruned by isNativeLayer().
+  /** @param {ToggleEvent} event */
   const opened = (event) => {
-    if (event.newState === "open" && event.target?.matches?.("[popover], dialog"))
+    if (
+      event.newState === "open" &&
+      event.target instanceof HTMLElement &&
+      event.target.matches("[popover], dialog")
+    )
       pushNativeLayer(event.target, event.source);
   };
   root.addEventListener("beforetoggle", opened, true);
@@ -322,7 +356,9 @@ export function nativeLayers() {
 // modal there, so an unobserved layer never becomes evidence that a child was shown.
 const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
 Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
+/** @param {Element} node */
 export function nativeModalAdmits(node) {
+  /** @type {Document & {[NATIVE_LAYERS]?: () => NativeLayer[]}} */
   const owner = node.ownerDocument;
   const reading = owner[NATIVE_LAYERS];
   if (reading) {
@@ -336,6 +372,7 @@ export function nativeModalAdmits(node) {
 
 // The auto and hint popovers standing outside `root`, which modal entry dismisses,
 // closed newest first. A manual popover is its owner's to close, there as on the page.
+/** @param {Element} root */
 export function dismissPopoversOutside(root) {
   for (const entry of nativeLayers().toReversed())
     if (

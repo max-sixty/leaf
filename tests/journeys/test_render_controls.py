@@ -347,7 +347,7 @@ RING_CASES = (
     (
         "a resolved thread",
         (),
-        {"ship-review": ((".lf-fp-controls .lf-fp-settle", FLOOR_RING),)},
+        {"ship-review": ((".lf-fp-head .lf-fp-settle", FLOOR_RING),)},
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
@@ -547,7 +547,7 @@ RING_SCOPE_WIDTH = {
 # Scopes whose samples stand in a thread's view of the panel: the view of the first
 # thread whose view holds the selector (`open_panel_thread_holding`).
 RING_SCOPE_THREAD = {
-    "a resolved thread": ".lf-fp-controls .lf-fp-settle.lf-reopen",
+    "a resolved thread": ".lf-fp-head .lf-fp-settle.lf-reopen",
     "a reaction palette": ".lf-msg-controls > .lf-react-trigger",
     "message media": ".lf-message-media",
 }
@@ -668,10 +668,10 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at. Resolving
     # moves the user on to the next open thread, so the resolved one is opened again.
     open_panel_thread(page, comment)
-    page.locator(".lf-fp-controls .lf-fp-settle").click()
+    page.locator(".lf-fp-head .lf-fp-settle").click()
     round_trip(page)
     open_panel_thread(page, comment)
-    expect(page.locator(".lf-fp-controls .lf-fp-settle")).to_have_class(
+    expect(page.locator(".lf-fp-head .lf-fp-settle")).to_have_class(
         re.compile(r"\blf-reopen\b")
     )
     yield
@@ -910,7 +910,7 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     )
     child = frame.element_handle().content_frame()
     # The thread's view goes to the passage it quotes with Show on page.
-    show_on_page = child.locator(".lf-fp-controls").get_by_role(
+    show_on_page = child.locator(".lf-fp-head").get_by_role(
         "button", name="Show on page"
     )
     show_on_page.scroll_into_view_if_needed()

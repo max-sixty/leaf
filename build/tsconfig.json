@@ -11,9 +11,6 @@
     "skipLibCheck": true,
     "types": ["node"],
     "resolveJsonModule": true,
-    "paths": {
-      "shiki": ["./syntax/entry.mjs"]
-    },
     "noUncheckedSideEffectImports": true
   },
   "include": [
@@ -24,5 +21,6 @@
     "../dev/**/*.mjs",
     "../dev/**/*.cjs",
     "../worker/*.mjs"
-  ]
+  ],
+  "exclude": ["entries/**/*.mjs"]
 }

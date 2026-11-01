@@ -47,9 +47,12 @@ const KEPT = 20;
 let raised = 0;
 // Errors raised in one task are announced together: the live region keeps only the
 // last of several words written to it at once (notifications.js, `announce`).
+/** @type {string[]} */
 let unsaid = [];
-const errors = signal(/** @type {readonly RaisedError[]} */ (Object.freeze([])));
+/** @type {import("@preact/signals-core").Signal<readonly RaisedError[]>} */
+const errors = signal(Object.freeze([]));
 
+/** @param {readonly RaisedError[]} next */
 const publish = (next) => {
   errors.value = Object.freeze(next.slice(0, KEPT));
 };
@@ -69,6 +72,7 @@ export function raiseError(message, { subject = null, announce: speak = true } =
 
 // Raise an error, taking the one `replaced` names down in the same reading, so the
 // chrome never draws the moment between them.
+/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced */
 function raise(message, subject, speak, replaced) {
   const id = ++raised;
   if (speak && !unsaid.length)
@@ -85,6 +89,7 @@ function raise(message, subject, speak, replaced) {
 }
 
 /** The user edited past these errors where the field said them. */
+/** @param {readonly number[]} ids */
 export function passErrors(ids) {
   if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed))
     publish(
@@ -99,6 +104,7 @@ export function passErrors(ids) {
 }
 
 /** The user came back to the words in `subject`, so every error about it is passed. */
+/** @param {Element | null} subject */
 export function passErrorsAt(subject) {
   passErrors(
     errors
@@ -118,6 +124,7 @@ export function seeErrors() {
     );
 }
 
+/** @param {number} id */
 export function dismissError(id) {
   if (errors.peek().some((entry) => entry.id === id))
     publish(errors.peek().filter((entry) => entry.id !== id));
@@ -129,7 +136,9 @@ export function dismissError(id) {
  * with null clears it.
  */
 export function holdingError({ announce: speak = true } = {}) {
+  /** @type {ReturnType<typeof raise> | null} */
   let held = null;
+  /** @type {string | null} */
   let said = null;
   return (/** @type {string | null} */ message) => {
     if (message === said) return;

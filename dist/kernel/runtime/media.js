@@ -18,7 +18,7 @@ function readAttachedMedia(value) {
 	};
 	return {
 		text: value.slice(0, suffix.index),
-		paths: Array.from(suffix[0].matchAll(ATTACHED_MEDIA), (image) => image[1])
+		paths: [...suffix[0].matchAll(ATTACHED_MEDIA)].flatMap((image) => image.slice(1))
 	};
 }
 function writeAttachedMedia(text, paths) {
@@ -93,7 +93,7 @@ keys(mediaViewer, "Image preview", [
 			const slide = inspector?.currSlide;
 			return Boolean(slide && (slide.zoomLevels.initial < 1 || Math.abs(slide.currZoomLevel - slide.zoomLevels.initial) > .01));
 		},
-		run: () => inspector.toggleZoom()
+		run: () => inspector?.toggleZoom()
 	},
 	{
 		id: "image.pan",
@@ -112,6 +112,7 @@ const cellHeads = (from) => {
 	const cell = from.closest("td");
 	if (!cell) return "";
 	const table = cell.closest("table");
+	if (!table) return "";
 	const box = cell.getBoundingClientRect();
 	const x = box.left + box.width / 2;
 	const y = box.top + box.height / 2;
@@ -133,7 +134,7 @@ const open = async (source, alt, from) => {
 	inspector = null;
 	if (canvasUrl) URL.revokeObjectURL(canvasUrl);
 	canvasUrl = null;
-	const canvas = source instanceof window.HTMLCanvasElement;
+	const canvas = source instanceof HTMLCanvasElement;
 	openLayer(mediaViewer, from);
 	presentViewer(canvas ? null : {
 		url: source,
@@ -141,13 +142,13 @@ const open = async (source, alt, from) => {
 	});
 	render(canvas ? html`<p>Preparing image…</p>` : null, stage);
 	const figureCaption = from.closest("figure")?.querySelector("figcaption");
-	const description = from.dataset.lfMediaCaption || figureCaption && says(figureCaption) || cellHeads(from);
+	const description = from.getAttribute("data-lf-media-caption") || figureCaption && says(figureCaption) || cellHeads(from);
 	keepsText(caption, description);
 	keepsHidden(caption, !description);
 	keepsText(viewerZoom, "100%");
 	if (!mediaViewer.open) showNativeLayer(mediaViewer, { source: from });
 	focusDestination(viewerClose, "move");
-	let url = source;
+	let url;
 	if (canvas) {
 		let blob;
 		try {
@@ -165,9 +166,10 @@ const open = async (source, alt, from) => {
 			url,
 			alt
 		});
-	}
+	} else url = source;
 	render(html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`, stage);
-	const probe = stage.querySelector(".lf-media-viewer-probe > img");
+	const probe = stage.querySelector("img");
+	if (!probe) throw new Error("Image inspection needs its rendered decode probe");
 	Promise.all([imageTools(), probe.decode()]).then(([PhotoSwipe]) => {
 		if (attempt !== opening || !mediaViewer.open) return;
 		const { naturalWidth: width, naturalHeight: height } = probe;
@@ -220,21 +222,22 @@ const open = async (source, alt, from) => {
 				"ArrowRight",
 				"ArrowUp",
 				"ArrowDown"
-			].includes(key.key) || nativeLayers().at(-1)?.root !== mediaViewer || !mediaViewer.contains(key.target)) event.preventDefault();
+			].includes(key.key) || nativeLayers().at(-1)?.root !== mediaViewer || !(key.target instanceof Node && mediaViewer.contains(key.target))) event.preventDefault();
 		});
 		current.on("close", () => {
 			if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
 		});
-		current.on("zoomPanUpdate", () => {
-			const slide = current.currSlide;
+		current.on("zoomPanUpdate", ({ slide }) => {
 			const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + .01;
 			keepsText(viewerZoom, enlarged ? "Fit" : "100%");
 			keeps(viewerZoom, "aria-label", enlarged ? "Fit image" : "Zoom to actual size");
 			paintKeys();
 		});
 		current.init();
-		current.element.removeAttribute("role");
-		current.element.removeAttribute("aria-modal");
+		const root = current.element;
+		if (!root) throw new Error("PhotoSwipe did not create its image inspection surface");
+		root.removeAttribute("role");
+		root.removeAttribute("aria-modal");
 		paintKeys();
 	}, (error) => {
 		if (attempt !== opening || !mediaViewer.open) return;
@@ -258,14 +261,17 @@ mediaViewer.addEventListener("close", () => {
 });
 document.addEventListener("click", (event) => {
 	if (event.defaultPrevented || !plainPress(event)) return;
-	const trigger = event.composedPath().find((node) => node instanceof Element && node.matches(".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]"));
-	const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
+	const path = event.composedPath();
+	const trigger = path.find((node) => node instanceof Element && node.matches(".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]"));
+	const link = path.find((node) => node instanceof HTMLAnchorElement);
 	const image = link?.querySelector("img");
-	const imageLink = image && !link.hasAttribute("download") && (link.href === image.src || link.href === image.currentSrc);
-	if (trigger || imageLink) {
-		event.preventDefault();
-		open(trigger?.hasAttribute("data-lf-media-canvas") && trigger.querySelector("canvas") || trigger?.dataset.lfMediaUrl || link.href, trigger?.dataset.lfMediaAlt || (trigger?.querySelector("img") || image)?.alt || "Image", trigger || link);
-	}
+	const imageLink = link && image && !link.hasAttribute("download") && (link.href === image.src || link.href === image.currentSrc);
+	const origin = trigger ?? (link && imageLink ? link : null);
+	if (!origin) return;
+	const source = (trigger?.hasAttribute("data-lf-media-canvas") ? trigger.querySelector("canvas") : null) || trigger?.getAttribute("data-lf-media-url") || (link && imageLink ? link.href : null);
+	if (!source) throw new Error("Image inspection needs a canvas or image URL");
+	event.preventDefault();
+	open(source, trigger?.getAttribute("data-lf-media-alt") || (trigger?.querySelector("img") || image)?.alt || "Image", origin);
 });
 
 //#endregion

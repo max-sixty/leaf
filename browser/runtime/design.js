@@ -49,6 +49,12 @@ legendRoot.setAttribute("aria-hidden", "true");
  * the page's words. The mode owns that state and supplies `active` to every
  * renderer or command that needs the reading. */
 
+/** @param {{pageGeometry: {refreshAim: () => unknown, pageShifted: () => unknown},
+ * syncGeneral: () => unknown,
+ * composer: Pick<ReturnType<typeof import("./composing/surface.js").createResponseSurface>, "showFab" | "openComposer">,
+ * closePreview: () => unknown, marginTargetAt: NonNullable<import("./anchor-resolution.js").AimOptions["marginTargetAt"]>,
+ * closeDrawMode: () => unknown, closeTargetPicker: () => unknown, closeReactionMode: () => unknown,
+ * announce: (message: string) => unknown, repaint: () => unknown}} options */
 export function createDesignMode({
   pageGeometry,
   syncGeneral,
@@ -65,6 +71,7 @@ export function createDesignMode({
   // DESIGN_MODE_KEY; commands and renderers receive `active` rather than sharing mutable state.
   let designModeOn = false;
 
+  /** @param {boolean} on @param {{spoken?: boolean}} [options] */
   function setDesignMode(on, { spoken = true } = {}) {
     // Design mode reinterprets presses on the page and its margin as interface comments,
     // so retire the thread card rather than leave a thread up that no press can work.
@@ -127,8 +134,12 @@ export function createDesignMode({
   // after one is a layout forced per element — the thrash a legend of a few hundred
   // boxes cannot afford. So the box set is settled first, every box is measured and
   // placed (`place` reads them all before it writes), and only the tags are left.
+  /** @typedef {{holder: Element | null, from: number}} LegendCut */
+  /** @typedef {{addressable: Element, box: HTMLDivElement, tag: HTMLSpanElement | null, radius: string, cuts: LegendCut[], tagW?: number}} LegendEntry */
+  /** @type {Map<Element, LegendEntry>} */
   const legendBoxes = new Map(); // addressable → { box, radius, tagW, cuts }
   // The addressables in document order, as the last pass found them.
+  /** @type {LegendEntry[]} */
   let legendOrder = [];
   const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
   const legend = paintSet(legendRoot, { onNear: () => placeTags() });
@@ -137,17 +148,18 @@ export function createDesignMode({
   // every repaint, which a shift starts. A repaint that heard either would never stop,
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
   // the start of a scroller's words (`data-lf-content-start`) moves nothing either.
-  const authoredClasses = (value) =>
+  const authoredClasses = (/** @type {string | null} */ value) =>
     (value ?? "")
       .split(/\s+/)
       .filter((name) => name && !name.startsWith("lf-"))
       .sort()
       .join(" ");
-  const movesPage = (r) =>
+  const movesPage = (/** @type {MutationRecord} */ r) =>
     !inChrome(r.target) &&
     r.attributeName !== "data-lf-content-start" &&
     !(
       r.attributeName === "class" &&
+      r.target instanceof Element &&
       authoredClasses(r.oldValue) === authoredClasses(r.target.getAttribute("class"))
     );
   const legendMoves = new MutationObserver((records) => {
@@ -197,44 +209,54 @@ export function createDesignMode({
     // widget: a tab holds a whole page, and every heading and paragraph of that page is
     // the author's, and named.
     const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
+    /** @type {LegendEntry[]} */
+    const entries = [];
     for (const addressable of addressables) {
-      if (legendBoxes.has(addressable)) continue;
-      const box = el("div", "lf-legend-box lf-page-paint");
-      box.dataset.for = addressable.id; // which element, stated where a test can read it (as .lf-aim's)
-      if (!parts.has(addressable.tagName.toLowerCase()))
-        box.append(el("span", "lf-legend-tag", designName(addressable)));
-      legendBoxes.set(addressable, { box });
-      legendSizes.observe(addressable);
+      let entry = legendBoxes.get(addressable);
+      if (!entry) {
+        const box = el("div", "lf-legend-box lf-page-paint");
+        box.dataset.for = addressable.id;
+        const tag = parts.has(addressable.tagName.toLowerCase())
+          ? null
+          : el("span", "lf-legend-tag", designName(addressable));
+        if (tag) box.append(tag);
+        entry = {
+          addressable,
+          box,
+          tag,
+          radius: getComputedStyle(addressable).borderRadius,
+          cuts: [],
+        };
+        legendBoxes.set(addressable, entry);
+        legendSizes.observe(addressable);
+      }
+      entries.push(entry);
     }
-    for (const addressable of addressables)
-      legendBoxes.get(addressable).radius ??=
-        getComputedStyle(addressable).borderRadius;
-    // One cut away by a scroller keeps its frames, which hide it until a scroll brings
-    // it in.
-    const shown = addressables.filter((addressable) => addressable.checkVisibility());
-    const placed = legend.place(
-      shown.map((addressable) => ({
-        node: legendBoxes.get(addressable).box,
-        target: addressable,
-        rect: ({ rect }) => ({
-          left: rect.left - 1,
-          top: rect.top - 1,
-          right: rect.right + 1,
-          bottom: rect.bottom + 1,
-        }),
-      })),
-    );
-    shown.forEach((addressable, i) => {
-      const entry = legendBoxes.get(addressable);
+    // Hidden targets retain their frames until scrolling brings them back.
+    const shown = entries.filter(({ addressable }) => addressable.checkVisibility());
+    const placed = legend
+      .place(
+        shown.map(({ addressable, box }) => ({
+          node: box,
+          target: addressable,
+          rect: ({ rect }) => ({
+            left: rect.left - 1,
+            top: rect.top - 1,
+            right: rect.right + 1,
+            bottom: rect.bottom + 1,
+          }),
+        })),
+      )
+      .values();
+    for (const entry of shown) {
       if (entry.box.style.borderRadius !== entry.radius)
         entry.box.style.borderRadius = entry.radius;
-      // The edges that cut the box's top, from their holders' corners, where a tag
-      // above it would be cut.
-      entry.cuts = (placed[i]?.levels ?? [])
+      const placement = placed.next().value;
+      entry.cuts = (placement?.levels ?? [])
         .filter(({ axes }) => axes.y)
         .map(({ holder, from }) => ({ holder, from: from.top }));
-    });
-    legendOrder = addressables;
+    }
+    legendOrder = entries;
     placeTags();
   }
   // Names that would land on one spot step apart: a suggestion and the block it wraps
@@ -248,34 +270,35 @@ export function createDesignMode({
   // its side changed.
   function placeTags(scrolled = false) {
     const roomTop = 0;
+    /** @type {Map<Element, number>} */
     const holders = new Map();
     const tags = [];
-    for (const addressable of legendOrder) {
-      const entry = legendBoxes.get(addressable);
-      if (!entry || !legend.stands(entry.box) || !legend.near(addressable)) continue;
-      const tag = entry.box.firstChild;
-      if (!tag) continue;
+    for (const entry of legendOrder) {
+      const { addressable, tag } = entry;
+      if (!tag || !legend.stands(entry.box) || !legend.near(addressable)) continue;
       legendTagH ||= tag.getBoundingClientRect().height;
-      // A tag's width is its text's (nowrap) under a viewport-relative cap (40vw), so
-      // a pass measures it again rather than keep it: a width taken in a narrow window
-      // understates the tag after a resize, and a missed step is the garble this pass
-      // exists to prevent. A scroll moves no tag's width.
-      if (!scrolled || entry.tagW === undefined) entry.tagW = tag.offsetWidth;
+      const width =
+        !scrolled || entry.tagW === undefined ? tag.offsetWidth : entry.tagW;
+      entry.tagW = width;
       const rect = shownBox(addressable);
       const room = Math.max(
         roomTop,
         ...entry.cuts.map(({ holder, from }) => {
           if (!holder) return from;
-          if (!holders.has(holder))
-            holders.set(holder, holder.getBoundingClientRect().top);
-          return holders.get(holder) + from;
+          let top = holders.get(holder);
+          if (top === undefined) {
+            top = holder.getBoundingClientRect().top;
+            holders.set(holder, top);
+          }
+          return top + from;
         }),
       );
-      tags.push({ entry, rect, inward: rect.top - 1 - legendTagH < room });
+      tags.push({ entry, tag, rect, width, inward: rect.top - 1 - legendTagH < room });
     }
+    /** @type {{left: number, top: number, width: number}[]} */
     const said = []; // tag boxes already placed, in viewport coordinates
-    for (const { entry, rect, inward } of tags) {
-      const { box, tagW } = entry;
+    for (const { entry, tag, rect, width, inward } of tags) {
+      const { box } = entry;
       box.classList.toggle("lf-in", inward);
       const left = rect.left - 1;
       const step = inward ? legendTagH : -legendTagH;
@@ -285,7 +308,7 @@ export function createDesignMode({
         said.some(
           (t) =>
             left < t.left + t.width &&
-            t.left < left + tagW &&
+            t.left < left + width &&
             top < t.top + legendTagH &&
             t.top < top + legendTagH,
         )
@@ -294,9 +317,8 @@ export function createDesignMode({
         shift += step;
       }
       const transform = shift ? `translateY(${layoutPx(shift)})` : "";
-      if (box.firstChild.style.transform !== transform)
-        box.firstChild.style.transform = transform;
-      said.push({ left, top, width: tagW });
+      if (tag.style.transform !== transform) tag.style.transform = transform;
+      said.push({ left, top, width });
     }
   }
   const legendScrolled = () => {
@@ -304,7 +326,8 @@ export function createDesignMode({
   };
 
   const targetOptions = { design: true, marginTargetAt };
-  const designTarget = (node) => aimTargetAt(node, targetOptions);
+  const designTarget = (/** @type {Node | null} */ node) =>
+    aimTargetAt(node, targetOptions);
 
   // Which presses the mode takes at the press, ahead of the page: everything on the page
   // but prose, and whatever in the chrome the agent made. A widget, a control, a picture —
@@ -313,14 +336,16 @@ export function createDesignMode({
   // composer can open; it never gives the activation back to the page. Prose is left to the
   // browser, so a drag still selects, and the click that ends a plain press on it reaches
   // the handler in the entry module rather than being taken here.
+  /** @param {Node | null} target */
   function designPress(target) {
-    const at = target?.nodeType === 1 ? target : target?.parentElement;
+    const at = target instanceof Element ? target : target?.parentElement;
     if (!designModeOn || !at) return false;
     return Boolean(leafSurface(at) ? designTarget(at) : designPressAt(at));
   }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
   // control's word where the press landed on one.
+  /** @param {import("./anchor-resolution.js").AimTarget} target */
   function openOnDesign({ anchor }) {
     composer.showFab(null);
     composer.openComposer(anchor, "");

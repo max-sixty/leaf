@@ -16,31 +16,57 @@ import {
   presentContributionEntry,
   presentContributionReceipts,
 } from "../contribution-controls.js";
-import { contributionSource } from "../contributions.js";
 import { el, generatedElement, offer } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { holdFocus } from "../focus.js";
+
+/** @typedef {import("../contributions.js").ContributionOffer} ContributionOffer
+ * @typedef {import("../contributions.js").ContributionSurface} ContributionSurface
+ * @typedef {import("../margin-model.js").MarginEntry<ContributionOffer>} MarginEntry
+ * @typedef {ReturnType<typeof import("../margin-model.js").clusterProjection<ContributionOffer>>} Cluster
+ * @typedef {Cluster["options"]} Options
+ * @typedef {Cluster["direct"][number] | Options["items"][number]} Item
+ * @typedef {ReturnType<typeof createMarginClusterViewsOwner>} Owner
+ * @typedef {{owner: Owner, optionsId: string}} Configuration
+ */
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";
 
 /** @typedef {MarginClusterView} MarginClusterViewElement For its tag (`runtime-globals.d.ts`). */
 class MarginClusterView extends HTMLElement {
+  /** @type {string | null} */
   #entryKey = null;
-  #marker = null;
-  #more = null;
+  #marker = presentContributionEntry(
+    offer("span", "lf-margin-marker"),
+    contributionEntry({
+      key: "reading",
+      icon: "dot",
+      label: "Open page details",
+      behavior: "disclosure",
+      rank: "reading",
+    }),
+    { writesRelation: false, writesSeat: false },
+  );
+  #more = offer("button", "lf-margin-more");
+  /** @type {HTMLElement | null} */
   #options = null;
+  /** @type {string | null} */
   #optionsId = null;
+  /** @type {Owner | null} */
   #owner = null;
+  /** @type {Cluster["toggle"] | null} */
   #toggle = null;
+  /** @type {readonly ContributionOffer[]} */
   #offers = Object.freeze([]);
+  /** @type {ContributionSurface | null} */
   #surface = null;
 
-  configure({ owner, marker = null, more = null, optionsId = null }) {
+  /** @param {Configuration} configuration */
+  configure({ owner, optionsId }) {
     this.#owner = owner;
-    this.#marker = marker;
-    this.#more = more;
     this.#optionsId = optionsId;
+    this.#more.setAttribute("aria-controls", optionsId);
   }
 
   get marker() {
@@ -59,6 +85,7 @@ class MarginClusterView extends HTMLElement {
     return this.querySelector(":scope > [data-lf-margin-entry-primary]");
   }
 
+  /** @param {Cluster} model */
   present(model) {
     if (!this.#owner) throw new Error("Margin presentation needs its view owner");
     const restoreFocus = holdFocus(this);
@@ -68,7 +95,7 @@ class MarginClusterView extends HTMLElement {
     this.#offers = model.offers;
     this.#surface = "margin";
     this.#owner.prepare(this.#offers, this.#surface);
-    if (!this.#marker || !this.#more || !this.#optionsId)
+    if (!this.#optionsId)
       throw new Error("Page margin presentation needs its retained controls");
     this.#entryKey = model.options.entryKey;
     const direct = this.#owner.materialize(model.direct);
@@ -88,8 +115,8 @@ class MarginClusterView extends HTMLElement {
         this.#more,
         contributionEntry({
           key: "options",
-          action: model.toggle.action,
-          icon: model.toggle.icon,
+          action: "action" in model.toggle ? model.toggle.action : null,
+          icon: "icon" in model.toggle ? model.toggle.icon : null,
           label: model.toggle.label,
           accessibleLabel: model.moreLabel,
           behavior: "disclosure",
@@ -140,61 +167,67 @@ class MarginClusterView extends HTMLElement {
 
 if (!customElements.get(TAG)) customElements.define(TAG, MarginClusterView);
 
-export function createMarginClusterViews({
+/** @param {{activateContribution: Parameters<typeof materializeContributionControls>[2], materializeReading: (item: Extract<Item, {kind: "reading"}>) => HTMLElement, openSpill: (entry: MarginEntry, spill: HTMLElement) => unknown}} dependencies */
+function createMarginClusterViewsOwner({
   activateContribution,
   materializeReading,
   openSpill,
 }) {
+  /** @type {WeakMap<import("../contributions.js").ContributionSource, HTMLElement>} */
   const contributionNotices = new WeakMap();
+  /** @type {Map<string, HTMLButtonElement>} */
   const spills = new Map();
 
+  /** @param {ContributionOffer} offered @param {ContributionSurface} surface */
   const controlsOf = (offered, surface) =>
-    materializeContributionControls(
-      contributionSource(offered),
-      surface,
-      activateContribution,
-    );
+    materializeContributionControls(offered, surface, activateContribution);
 
+  /** @param {Item} item @returns {HTMLElement} */
   function materializeOne(item) {
     if (item.kind === "contribution") {
-      const node = controlsOf(item.offered, "margin").get(item.record.key);
+      const node = controlsOf(item.offered, "margin")(item.record);
       if (item.cluster) node.lfEntry = item.cluster;
       presentContributionReceipts(node, item.receipt, false);
       return node;
     }
     if (item.kind === "reading") return materializeReading(item);
     if (item.kind === "notice") {
-      let node = contributionNotices.get(contributionSource(item.offered));
+      let node = contributionNotices.get(item.offered.source());
       if (!node) {
         node = el("span", "lf-margin-receipt");
-        contributionNotices.set(contributionSource(item.offered), node);
+        contributionNotices.set(item.offered.source(), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
       render(html`${item.notice.text}`, node);
       return node;
     }
-    throw new Error(`Unknown margin presentation item: ${item.kind}`);
+    throw new Error("Unknown margin presentation item");
   }
 
+  /** @param {readonly Item[]} items */
   const materialize = (items) => items.map(materializeOne);
+  /** @param {readonly ContributionOffer[]} offers @param {ContributionSurface} surface */
   const prepare = (offers, surface) => {
     for (const offered of offers) controlsOf(offered, surface);
   };
+  /** @param {readonly ContributionOffer[]} offers @param {ContributionSurface | null} surface */
   const clearOffers = (offers, surface) => {
     if (!surface) return;
     for (const offered of offers)
-      clearContributionControls(contributionSource(offered), surface, new Set());
+      clearContributionControls(offered.source(), surface, new Set());
   };
 
+  /** @param {Options} model */
   function materializeOptions(model) {
-    const all = materialize(model.items);
-    const byItem = new Map(model.items.map((item, index) => [item, all[index]]));
+    const byItem = model.items.map((item) => ({ item, node: materializeOne(item) }));
     const visible = new Set(model.visible);
-    for (const [item, node] of byItem) {
+    for (const { item, node } of byItem) {
       node.removeAttribute("data-lf-margin-entry-primary");
       node.toggleAttribute("data-lf-margin-entry-overflow", !visible.has(item));
     }
-    const shown = model.visible.map((item) => byItem.get(item));
+    const shown = byItem
+      .filter(({ item }) => visible.has(item))
+      .map(({ node }) => node);
     if (!model.spill) {
       spills.delete(model.entryKey);
       return shown;
@@ -219,19 +252,26 @@ export function createMarginClusterViews({
     keeps(spill, "data-lf-spill-count", model.spill.count);
     keeps(spill, "aria-label", model.spill.label);
     spill.lfFirstSpilledOption = model.spill.first;
-    spill.onclick = () => openSpill(model.entry, spill);
+    const control = spill;
+    spill.onclick = () => openSpill(model.entry, control);
     shown.push(spill);
     return shown;
   }
 
-  const owner = {
+  return {
     materialize,
     materializeOptions,
     prepare,
     clearOffers,
-    retire: (entryKey) => spills.delete(entryKey),
+    retire: (/** @type {string} */ entryKey) => spills.delete(entryKey),
   };
-  const create = (className, options = {}) => {
+}
+
+/** @param {Parameters<typeof createMarginClusterViewsOwner>[0]} dependencies */
+export function createMarginClusterViews(dependencies) {
+  const owner = createMarginClusterViewsOwner(dependencies);
+  /** @param {string} className @param {Omit<Configuration, "owner">} options */
+  const create = (className, options) => {
     const view = document.createElement(TAG);
     view.className = className;
     generatedElement(view, { says: false });
@@ -241,7 +281,11 @@ export function createMarginClusterViews({
   };
 
   return Object.freeze({
-    createPage: (marker, more, optionsId) =>
-      create("lf-ui lf-margin-cluster", { marker, more, optionsId }),
+    /** @param {MarginEntry} entry @param {Element | null} target @param {string} optionsId */
+    createPage: (entry, target, optionsId) =>
+      Object.assign(create("lf-ui lf-margin-cluster", { optionsId }), {
+        lfEntry: entry,
+        lfTarget: target,
+      }),
   });
 }

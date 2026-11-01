@@ -43,15 +43,20 @@ import {
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
 
 class MotionStudy extends HTMLElement {
+  /** @type {{controls: HTMLDivElement, play: HTMLButtonElement, time: HTMLInputElement, speed: HTMLSelectElement} | undefined} */
   #ui;
-  #transport;
+  #transport = document.createElement("div");
+  /** @type {((time: number) => void) | undefined} */
   #draw;
   #time = 0;
   #playing = false;
+  /** @type {number | null} */
   #frame = null;
   #last = 0;
   #rate = 1;
+  /** @type {string | null} */
   #failure = null;
+  /** @type {HTMLElement | null} */
   #box = null;
   #drawFailed = false;
 
@@ -96,7 +101,7 @@ class MotionStudy extends HTMLElement {
     if (!once(this)) return;
     // The box stands beside the transport, or first where there is none yet, so the
     // author's study under it stays readable. One failure said again keeps its box.
-    placesFailure(this, (box) => {
+    placesFailure(this, (/** @type {HTMLElement} */ box) => {
       if (this.#box?.isConnected && this.#box.textContent === box.textContent)
         return true;
       this.#box?.remove();
@@ -115,7 +120,6 @@ class MotionStudy extends HTMLElement {
 
   #setup() {
     // The transport joins the authored content; native editors and media never move.
-    this.#transport = document.createElement("div");
     this.#transport.className = "lf-motion-transport";
     this.#transport.setAttribute("data-lf-gen", "1");
     this.prepend(this.#transport);
@@ -125,12 +129,13 @@ class MotionStudy extends HTMLElement {
     this.#time = Math.min(this.duration, saved.time);
     this.#rate = saved.rate;
     render(this.#template(), this.#transport, { host: this });
-    this.#ui = {
-      controls: this.querySelector(".lf-motion-controls"),
-      play: this.querySelector(".lf-motion-play"),
-      time: this.querySelector(".lf-motion-time"),
-      speed: this.querySelector(".lf-motion-speed select"),
-    };
+    const controls = this.#transport.querySelector("div");
+    const play = this.#transport.querySelector("button");
+    const time = this.#transport.querySelector("input");
+    const speed = this.#transport.querySelector("select");
+    if (!controls || !play || !time || !speed)
+      throw new Error("Motion transport did not draw its controls");
+    const ui = (this.#ui = { controls, play, time, speed });
     // A row with no run names the press its control makes (keyboard/bindings.js).
     this.lfCommands = {
       title: "In a motion study",
@@ -138,26 +143,26 @@ class MotionStudy extends HTMLElement {
         {
           id: "motion.play",
           title: () => this.#playLabel(),
-          control: this.#ui.play,
+          control: ui.play,
         },
       ],
     };
     commandsChanged(this);
-    this.#ui.play.addEventListener("click", () => {
+    ui.play.addEventListener("click", () => {
       if (this.#playable) this.#toggle();
     });
     whileConnected(this, (signal) => {
-      this.#ui.time.addEventListener(
+      ui.time.addEventListener(
         "input",
         () => {
-          this.currentTime = Number(this.#ui.time.value);
+          this.currentTime = Number(ui.time.value);
         },
         { signal },
       );
-      this.#ui.speed.addEventListener(
+      ui.speed.addEventListener(
         "change",
         () => {
-          this.#rate = Number(this.#ui.speed.value);
+          this.#rate = Number(ui.speed.value);
           for (const video of this.#videos) video.playbackRate = this.#rate;
           this.#save();
         },
@@ -171,7 +176,7 @@ class MotionStudy extends HTMLElement {
         },
         { signal },
       );
-      const input = (event) => {
+      const input = (/** @type {Event} */ event) => {
         // Firefox can hand an arriving sandboxed window a foreign wheel object, which
         // is no Event of this realm (prepaint.js reads input the same way).
         if (!(event instanceof Event)) return;
@@ -181,7 +186,7 @@ class MotionStudy extends HTMLElement {
             ? target === window
             : target instanceof Node &&
               event.composedPath().includes(this) &&
-              !event.composedPath().includes(this.#ui.controls)
+              !event.composedPath().includes(ui.controls)
         )
           this.#pause();
       };

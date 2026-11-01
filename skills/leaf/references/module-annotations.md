@@ -68,6 +68,11 @@ draws its own control as an entry with
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
+The returned registration's `hasCurrentLocation()` says whether the user's focus is
+inside any control presenting that contribution, across shadow roots and presentation
+surfaces. Its `contains(node)` answers the same ownership question for an arbitrary
+node. Use the focus query when retaining a focused entry while updating its reading.
+
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each

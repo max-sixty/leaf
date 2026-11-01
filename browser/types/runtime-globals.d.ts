@@ -1,12 +1,11 @@
 // What Leaf's classic scripts hang on the page's globals for its modules to read.
 // `prepaint.js` and `bootstrap.js` run before any module, so they cannot export
-// what they build; they set it on `<html>` and `window` instead, and every module
-// reads it there. These declarations are its one statement of shape, and the
+// what they build. Required document-runtime capabilities belong to `window`;
+// optional element metadata belongs to the root element. Every module reads them there. These declarations are its one statement of shape, and the
 // assignments in those scripts are checked against them.
 //
-// DOM's types give `document.documentElement` as `HTMLElement`, so the root's
-// properties are declared on every HTML element; only the root carries them, and
-// each is optional for any other.
+// Leaf's prepaint installs each required Window capability before module loading.
+// Element metadata remains optional because ordinary elements do not carry it.
 
 /** Attributes and custom properties an element wears as one set (`dress.js`). */
 interface LeafDress {
@@ -33,7 +32,7 @@ type LeafActionRole = "symbol" | "word" | "commit" | "mark" | "inline" | "row";
 
 /** Root-state writers required by bootstrap before runtime modules load. */
 interface LeafRootState {
-  keeps(node: Element, name: string, value: unknown): void;
+  keeps(node: Element | null | undefined, name: string, value: unknown): void;
   setRuntimeRootAttribute(node: Element, name: string, value: unknown): void;
   setRuntimeRootStyle(
     node: ElementCSSInlineStyle,
@@ -42,55 +41,51 @@ interface LeafRootState {
     priority?: string,
   ): void;
   removeRuntimeRootStyle(node: ElementCSSInlineStyle, property: string): void;
-  wear(node: Element, dress: LeafDress): void;
+  wear(node: HTMLElement, dress: LeafDress): void;
   attributes(node: Element): Set<string>;
-  styles(node: Element): Set<string>;
+  styles(node: ElementCSSInlineStyle): Set<string>;
 }
 
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
-  readonly settings: any;
-  send(value: unknown): void;
-  receive(callback: (data: any) => void): void;
+  readonly settings: import("../runtime/sample-protocol.js").SampleSettings;
+  send(value: import("../runtime/sample-protocol.js").ChildMessage): void;
+  receive(
+    callback: (data: import("../runtime/sample-protocol.js").ParentMessage) => void,
+  ): void;
   present(): void;
   /** Set once the bootstrap has built what a connected sample wears. */
-  install?(): void;
+  install(): void;
 }
 
-interface HTMLElement {
+interface Window {
   /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
-  lfDocumentLifetime?: { whenActive(fault: string, report: () => void): void };
+  lfDocumentLifetime: { whenActive(fault: string, report: () => void): void };
   /** Text-entry vocabulary, input count and observation from the first script. */
-  lfInputs?: {
+  lfInputs: {
     readonly textField: "leaf-text";
     readonly textBox: string;
-    typesText(node: any): boolean;
-    takesLetters(node: any): boolean;
+    typesText(node: EventTarget | null | undefined): boolean;
+    takesLetters(node: EventTarget | null | undefined): boolean;
     readonly count: number;
     observe(read: (event: Event) => void): () => boolean;
   };
-  /** The exception behind the first startup fault, kept before modules load. */
-  lfStartupException?: { name: string; message: string; stack?: string } | null;
-  lfViews?: {
-    members(holder: Element, selector?: string): HTMLElement[];
+  lfViews: {
+    members(holder: Element, selector?: string): Element[];
     opening(
       holder: Element,
-      fallback?: HTMLElement | null,
+      fallback?: Element | null,
       selector?: string,
-    ): HTMLElement | null;
-    keep(
-      holder: Element,
-      member: HTMLElement | null,
-      leaving?: HTMLElement | null,
-    ): void;
+    ): Element | null | undefined;
+    keep(holder: Element, member: Element | null, leaving?: Element | null): void;
   };
-  lfLinks?: {
+  lfLinks: {
     opensElsewhere(href: string | null): boolean;
     markExternalLink(link: Element): void;
   };
   /** Native working state shared by prepaint and the runtime. */
-  lfStorage?: {
+  lfStorage: {
     initialDisclosureOpen(node: Element): boolean | undefined;
     stored(nativeOpen: () => Storage, name: string, prefix?: string): LeafStore;
     tabStore: LeafStore;
@@ -98,14 +93,19 @@ interface HTMLElement {
     keepDisclosure(node: HTMLDetailsElement): void;
     finishEarlyContent(): void;
   };
-  lfKeyboard?: { readonly quick: boolean; setQuick(on: boolean): void };
+  lfKeyboard: { readonly quick: boolean; setQuick(on: boolean): void };
   /** The floating panel's resting size. */
-  lfChrome?: {
+  lfChrome: {
     /** `row` or `mark`. */
     readonly rest: string;
     setRest(value: string): void;
   };
-  lfRootState?: LeafRootState;
+  lfRootState: LeafRootState;
+}
+
+interface HTMLElement {
+  /** The exception behind the first startup fault, kept before modules load. */
+  lfStartupException?: { name: string; message: string; stack?: string } | null;
   lfSample?: LeafSampleBridge;
 }
 
@@ -115,20 +115,24 @@ interface HTMLElement {
 }
 
 interface Element {
+  readonly updateComplete?: Promise<unknown>;
+  cloneNode(deep?: boolean): Element;
+  /** Package-owned address resolution for generated content (anchor-resolution.js). */
+  lfDataDatum?(key: string, options?: { outdated?: boolean }): Element | null;
+  lfDatumLabel?(key: string): string | null;
+  lfElementsFor?(key: string): Iterable<Element> | null;
+  lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
    * the widget says they changed (`commandsChanged`; keyboard/scopes.js): a scope's
    * title, rows and options, or a `commandScope()` value. */
   lfCommands?:
-    | {
+    | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
         title: string | null;
-        rows: any[];
-        when?: () => boolean;
-        ready?: () => boolean;
-        escape?: "inner";
-        claims?: (binding: string) => boolean;
-      }
-    | ReturnType<typeof import("../runtime/keyboard/scopes.js").commandScope>
-    | null;
+        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+      })
+    | import("../runtime/keyboard/scopes.js").CommandCapability
+    | null
+    | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
   lfCopy?: () => string;
 }
@@ -146,7 +150,7 @@ interface HTMLScriptElement {
 }
 
 interface Window {
-  lfMove?: (parent: Node, node: Node, before: Node | null) => Node;
+  lfMove?: typeof import("../runtime/dom-move.js").move;
 
   /** The sample bridge, kept across a sample child's document swaps. */
   lfSampleBridge?: LeafSampleBridge;
@@ -193,15 +197,22 @@ interface DocumentEventMap {
   "lf-margin-layout": CustomEvent<{ column: DOMRect; height: number }>;
   /** The keyboard owner's call for the keys the bootstrap held while the page loaded;
    * the bootstrap answers in the detail, where it held any (`bootstrap.js`). */
-  "lf-held-keys": CustomEvent<{
-    ready(event: KeyboardEvent): boolean;
-    keep(): boolean;
-    keys?: KeyboardEvent[];
-    pause?(): void;
-    release?(): void;
-  }>;
+  "lf-held-keys": CustomEvent<
+    {
+      ready(event: KeyboardEvent): boolean;
+      keep(): boolean;
+    } & (
+      | { keys?: never; pause?: never; release?: never }
+      | { keys: KeyboardEvent[]; pause(): void; release(): void }
+    )
+  >;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
-  "lf-sample-step": CustomEvent<{ amount: number; unit: string }>;
+  "lf-sample-step": CustomEvent<
+    Extract<
+      import("../runtime/sample-protocol.js").ChildStatus,
+      { type: "step" }
+    >["detail"]
+  >;
   /** Drawing a widget has under way, by the community protocol (`widget-upgrade.js`). */
   "pending-task": import("../runtime/widget-upgrade.js").PendingTaskEvent;
 }
@@ -212,3 +223,143 @@ interface CloseWatcher extends EventTarget {
   destroy(): void;
 }
 declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };
+
+interface Window {
+  SpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
+  webkitSpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
+}
+
+interface CustomElementConstructor {
+  answerWords?: (value: unknown, element: Element) => unknown;
+}
+
+interface ShadowRootEventMap {
+  focus: FocusEvent;
+  blur: FocusEvent;
+  focusin: FocusEvent;
+  focusout: FocusEvent;
+  beforetoggle: ToggleEvent;
+  toggle: ToggleEvent;
+}
+interface ShadowRoot {
+  addEventListener<K extends keyof ShadowRootEventMap>(
+    type: K,
+    listener: (this: ShadowRoot, event: ShadowRootEventMap[K]) => unknown,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  removeEventListener<K extends keyof ShadowRootEventMap>(
+    type: K,
+    listener: (this: ShadowRoot, event: ShadowRootEventMap[K]) => unknown,
+    options?: boolean | EventListenerOptions,
+  ): void;
+  removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void;
+}
+
+interface Element {
+  /** Package-provided words when the registry declares x-word: module. */
+  lfWord?(): string;
+  lfSays?(): string;
+}
+
+interface HTMLElement {
+  cloneNode(deep?: boolean): HTMLElement;
+}
+
+interface HTMLElement {
+  /** The browser's EditContext used by CodeMirror when that native API is present. */
+  editContext?: EventTarget | null;
+}
+
+interface ShadowRoot {
+  /** Chromium's shadow selection API; Firefox and WebKit use the document's. */
+  getSelection?(): Selection | null;
+}
+
+interface DocumentEventMap {
+  "lf-layout": CustomEvent<null> & { readonly target: Element };
+}
+
+interface DocumentEventMap {
+  "lf-drafts": CustomEvent<import("../runtime/drafts.js").DraftNews>;
+}
+
+// Cloning an SVG node preserves its native element namespace, not custom state.
+interface SVGElement {
+  cloneNode(deep?: boolean): SVGElement;
+}
+
+interface Element {
+  /** A package's declared thread surface, read after its upgrade. */
+  threadOutlets?(
+    ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
+  ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+}
+
+interface Element {
+  getRootNode(options?: GetRootNodeOptions): Document | DocumentFragment | Element;
+}
+
+// NavigationResult is generated from an output-only Web IDL dictionary. Every
+// navigate result supplies both promises, including early errors:
+// https://html.spec.whatwg.org/multipage/nav-history-apis.html#navigation-api-initiating-navigations
+interface Navigation {
+  navigate(
+    url: string | URL,
+    options?: NavigationNavigateOptions,
+  ): Required<NavigationResult>;
+}
+
+// Overlay controls retain the immutable reading they currently present.
+interface Element {
+  lfEntry?:
+    | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
+    | undefined;
+  lfFirstSpilledOption?:
+    import("../runtime/annotation-overlay/margin-cluster-view.js").Item | undefined;
+}
+
+interface DocumentEventMap {
+  "lf-page-interface": CustomEvent<{
+    present<T extends PromiseLike<unknown>>(promise: T): T;
+  }>;
+}
+
+interface WindowEventMap {
+  "lf-commands": import("../runtime/widget-upgrade.js").CommandsChangedEvent;
+}
+interface Element {
+  // render() creates its root part with an inserted marker (lit-html render).
+  _$litPart$?: import("lit-html").ChildPart & { readonly startNode: Node };
+}
+
+interface Document {
+  getRootNode(options?: GetRootNodeOptions): Document;
+}
+interface DocumentFragment {
+  getRootNode(options?: GetRootNodeOptions): Document | DocumentFragment | Element;
+}
+
+interface DocumentOrShadowRoot {
+  // Chromium exposes this on ShadowRoot; other engines use the owner document.
+  getSelection?(): Selection | null;
+}
+
+// Safari on iPhone supplies its native video player through this optional route.
+interface HTMLVideoElement {
+  webkitEnterFullscreen?: () => void;
+}
+
+interface Element {
+  lfTarget?: Element | null | undefined;
+  lfChoice?: import("../runtime/margin-model.js").ReadingChoice | undefined;
+  lfTakeFocus?: boolean;
+}

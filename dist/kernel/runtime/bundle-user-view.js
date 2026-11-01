@@ -20,7 +20,7 @@ let reading = null;
 let loading = null;
 function loadReading() {
 	return loading ??= import("/checks/view.js").then((module) => {
-		reading = module.readViewChecks;
+		return reading = module.readViewChecks;
 	}).catch((error) => {
 		loading = null;
 		throw error;
@@ -33,7 +33,9 @@ function context() {
 		width,
 		height
 	};
-	if (viewport.width <= 0 || viewport.height <= 0 || visual.width <= 0 || visual.height <= 0) return null;
+	if (!visual || viewport.width <= 0 || viewport.height <= 0 || visual.width <= 0 || visual.height <= 0) return null;
+	const shown = shownWindow();
+	if (!shown) return null;
 	const clips = /* @__PURE__ */ new Map();
 	return {
 		session,
@@ -50,7 +52,7 @@ function context() {
 			offset_top: visual.offsetTop,
 			scale: visual.scale
 		},
-		shown_window: rectangle(shownWindow()),
+		shown_window: rectangle(shown),
 		color_scheme: shownScheme(),
 		reduced_motion: reducedMotion(),
 		pointer: coarsePointer.matches ? "coarse" : "fine",
@@ -61,8 +63,8 @@ function context() {
 		visible_regions: unconcealedReadingRegions().filter(({ body }) => seenRect(body, clips) !== null).map(({ id }) => id)
 	};
 }
-function readChecks(view) {
-	const open = tagsDeclaring((entry) => ["markup", "members"].includes(entry["x-content"]));
+function readChecks(view, reader) {
+	const open = tagsDeclaring((entry) => entry["x-content"] === "markup" || entry["x-content"] === "members");
 	return {
 		sequence: view.sequence,
 		identity: view.identity,
@@ -72,14 +74,15 @@ function readChecks(view) {
 		visual_viewport: view.visual_viewport,
 		shown_window: view.shown_window,
 		color_scheme: view.color_scheme,
-		reading: reading(open)
+		reading: reader(open)
 	};
 }
 async function readCurrentUserView() {
 	let unavailable = null;
+	let reader = null;
 	if (offlineInteractive) unavailable = "Layout probes are unavailable in an export.";
 	else try {
-		await loadReading();
+		reader = await loadReading();
 	} catch (error) {
 		unavailable = `Layout probes unavailable: ${describeFailure(error)}`;
 	}
@@ -92,13 +95,13 @@ async function readCurrentUserView() {
 		...view,
 		observed_at: (/* @__PURE__ */ new Date()).toISOString(),
 		readiness: pageReadiness(),
-		checks: unavailable ? null : readChecks(view),
+		checks: reader ? readChecks(view, reader) : null,
 		...unavailable ? { unavailable } : {}
 	};
 }
 function observeUserView() {
 	if (offlineInteractive) return;
-	let pending = null;
+	let pending;
 	let checks = null;
 	let checkedBasis = null;
 	let lastSent = null;
@@ -111,7 +114,7 @@ function observeUserView() {
 				checks
 			}),
 			keepalive,
-			signal: keepalive ? void 0 : globalThis.AbortSignal.timeout(REPORT_MS)
+			...keepalive ? {} : { signal: globalThis.AbortSignal.timeout(REPORT_MS) }
 		}).catch(() => {});
 	}
 	function report({ inspect = false, keepalive = false } = {}) {
@@ -129,7 +132,7 @@ function observeUserView() {
 		]);
 		if (view.visible && pageReadiness() === null && (inspect || basis !== checkedBasis)) {
 			if (reading) {
-				checks = readChecks(view);
+				checks = readChecks(view, reading);
 				checkedBasis = basis;
 			} else if (!loading) loadReading().then(schedule).catch(() => {
 				loading = null;
@@ -147,7 +150,7 @@ function observeUserView() {
 	function schedule() {
 		clearTimeout(pending);
 		pending = setTimeout(() => {
-			pending = null;
+			pending = void 0;
 			report();
 		}, QUIET_MS);
 	}

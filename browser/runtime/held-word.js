@@ -35,37 +35,45 @@
    context menu, and Option/Alt aims at the item. Such a press is left to the platform
    and the control's own click handling. A modifier arriving before the release ends the
    hold without this gesture's press and leaves the press to the browser's own click. */
-import { claimReleaseClick } from "./focus.js";
+import { claimReleaseClick, nativeFocusTarget } from "./focus.js";
 import { plainPress } from "./pointer.js";
+import { isElement } from "./shadow-tree.js";
 
 export const HOLDS_WORD = "lf-holds-word";
 
 const HOLDER = `.${HOLDS_WORD}`;
 
 export function holdToRead() {
+  /** @typedef {{pointerId: number, parent: Element | null, reading: Element | null}} HeldWord */
+  /** @type {HeldWord | null} */
   let hold = null;
-  const holderIn = (event) =>
-    event
-      .composedPath()
-      .find((node) => node instanceof Element && node.matches(HOLDER));
-  const read = (holder) => {
-    if (hold.reading === holder) return;
-    hold.reading?.removeAttribute("data-lf-held-word");
-    hold.reading = holder;
+  /** @param {Event} event */
+  const holderIn = (event) => {
+    for (const node of event.composedPath())
+      if (isElement(node) && node.matches(HOLDER)) return node;
+    return null;
+  };
+  /** @param {HeldWord} held @param {Element | null} holder */
+  const read = (held, holder) => {
+    if (held.reading === holder) return;
+    held.reading?.removeAttribute("data-lf-held-word");
+    held.reading = holder;
     holder?.setAttribute("data-lf-held-word", "");
   };
-  const under = (event) => {
+  /** @param {HeldWord} held @param {Event} event */
+  const under = (held, event) => {
     const holder = holderIn(event);
-    return holder?.parentElement === hold.parent ? holder : null;
+    return holder?.parentElement === held.parent ? holder : null;
   };
+  /** @param {PointerEvent} event @param {boolean} commit */
   const end = (event, commit) => {
-    if (hold?.pointerId !== event.pointerId) return;
-    const holder = commit && plainPress(event) ? under(event) : null;
-    read(null);
+    if (!hold || hold.pointerId !== event.pointerId) return;
+    const holder = commit && plainPress(event) ? under(hold, event) : null;
+    read(hold, null);
     hold = null;
     if (!holder) return;
     claimReleaseClick();
-    holder.focus({ preventScroll: true, focusVisible: false });
+    nativeFocusTarget(holder).focus({ preventScroll: true, focusVisible: false });
     holder.dispatchEvent(
       new MouseEvent("click", {
         bubbles: true,
@@ -80,27 +88,27 @@ export function holdToRead() {
   document.addEventListener(
     "pointerdown",
     (event) => {
-      if (hold) read(null);
+      if (hold) read(hold, null);
       hold = null;
       if (!event.isPrimary || !plainPress(event)) return;
       const holder = holderIn(event);
       if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
-      const origin = /** @type {Partial<Element>} */ (event.composedPath()[0]);
-      if (origin.hasPointerCapture?.(event.pointerId))
+      const origin = event.composedPath()[0];
+      if (isElement(origin) && origin.hasPointerCapture(event.pointerId))
         origin.releasePointerCapture(event.pointerId);
       hold = {
         pointerId: event.pointerId,
         parent: holder.parentElement,
         reading: null,
       };
-      read(holder);
+      read(hold, holder);
     },
     { capture: true },
   );
   document.addEventListener(
     "pointermove",
     (event) => {
-      if (hold?.pointerId === event.pointerId) read(under(event));
+      if (hold?.pointerId === event.pointerId) read(hold, under(hold, event));
     },
     { capture: true },
   );

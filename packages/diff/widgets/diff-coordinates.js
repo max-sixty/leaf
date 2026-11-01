@@ -19,6 +19,7 @@ export const diffDatumKey = ({ path, file, side, oldLine, newLine }) =>
         : [path, side, side === "old" ? oldLine : newLine],
   );
 
+/** @param {string} path @param {string} side @param {number} line */
 export const diffLocationKey = (path, side, line) =>
   JSON.stringify([path, "source", side, line]);
 
@@ -61,6 +62,11 @@ export function readDiffCoordinate(key) {
   return null;
 }
 
+/**
+ * @template {{record: {path: string, previousPath?: string | null, operation?: string}}} Entry
+ * @param {Entry[] | null | undefined} entries
+ * @param {DiffCoordinate | null} coordinate
+ */
 export function findDiffFile(entries, coordinate) {
   if (!coordinate || !entries) return null;
   if (coordinate.source && coordinate.side === "old") {
@@ -68,7 +74,8 @@ export function findDiffFile(entries, coordinate) {
       ({ record }) =>
         record.operation === "rename" && record.previousPath === coordinate.path,
     );
-    if (renamed.length) return renamed.length === 1 ? renamed[0] : null;
+    const [first, extra] = renamed;
+    if (first) return extra ? null : first;
   }
   const matching = entries.filter(
     ({ record }) =>
@@ -76,11 +83,15 @@ export function findDiffFile(entries, coordinate) {
         ? (record.previousPath ?? record.path)
         : record.path) === coordinate.path,
   );
-  return matching.length === 1 ? matching[0] : null;
+  const [first, extra] = matching;
+  return first && !extra ? first : null;
 }
 
 // File lookup has already chosen the source's owner; its lines carry destination paths.
+/** @template {{side: string, oldLine?: number | undefined, newLine?: number | undefined}} Line
+ * @param {Line[]} lines @param {DiffCoordinate | null} coordinate */
 export function findDiffLine(lines, coordinate) {
+  if (!coordinate) return null;
   const matching = lines.filter((line) =>
     coordinate.side === "both"
       ? line.side === "both" &&
@@ -92,5 +103,6 @@ export function findDiffLine(lines, coordinate) {
           line.side !== "old" &&
           line.newLine === coordinate.newLine,
   );
-  return matching.length === 1 ? matching[0] : null;
+  const [first, extra] = matching;
+  return first && !extra ? first : null;
 }

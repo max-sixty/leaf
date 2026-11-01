@@ -24,6 +24,9 @@
 # On 1b8e30ef4 the rail check failed 2/2 Claude Code runs on each arm only because
 # the selectable-candidates choice control stood in the preview, as author.md
 # requires; the check now exempts that control.
+# On 945fce2f8 the judge passed 4/4, including the 2 runs whose presets left the
+# candidate choice (`format`) unset; earlier judges failed that same structure,
+# which author.md's own example preset has. Item 2 now says so.
 description: playground-presets-are-whole-designs
 metadata:
   purpose:
@@ -70,7 +73,9 @@ assert:
       2. Presets provide coherent starting points for that exploration. Each sets
          every value its appearance depends on, so its intended treatment does not
          depend on which configuration the user tried before it. Settings unrelated
-         to that treatment may retain their values.
+         to that treatment may retain their values. A preset needn't set the
+         control that picks which candidate to build when every candidate shows
+         the preset's settings at once.
       3. Apart from a preset that reproduces today's diff as the baseline, no preset
          turns on two marks that the CSS draws in the same place for the same line,
          or a line tint and word highlight in the same hue and strength, unless

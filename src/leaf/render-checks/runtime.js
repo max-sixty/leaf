@@ -1,4 +1,8 @@
-import { USER_VIEW_RESTORE_CASES, scrolling } from "/runtime/check-api.js";
+import {
+  USER_VIEW_RESTORE_CASES,
+  scrolling,
+  exceptionText,
+} from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -17,17 +21,18 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 export function moving() {
   return openRoots(document)
     .flatMap((root) => root.getAnimations())
-    .filter(
-      (animation) =>
-        animation.playState === "running" &&
-        Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
-        animation.effect?.target?.checkVisibility() !== false,
-    )
-    .map((animation) =>
-      animation.animationName
-        ? `${at(animation.effect?.target)} ${animation.animationName}`
-        : at(animation.effect?.target),
-    );
+    .flatMap((animation) => {
+      const effect = animation.effect;
+      if (
+        animation.playState !== "running" ||
+        !Number.isFinite(effect?.getComputedTiming().endTime)
+      )
+        return [];
+      const target = effect instanceof KeyframeEffect ? effect.target : null;
+      if (target?.checkVisibility() === false) return [];
+      const name = animation instanceof CSSAnimation ? animation.animationName : "";
+      return [name ? `${at(target)} ${name}` : at(target)];
+    });
 }
 
 // The page is settled once nothing is moving: no finite animation, and no scroll in
@@ -38,23 +43,33 @@ scrolling();
 export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
-const formControl = (node) => node.constructor.formAssociated === true;
+const formControl = (/** @type {Element} */ node) =>
+  customElements.get(node.localName)?.formAssociated === true;
 
 // Where a node Chrome raised a DevTools issue about is, and whether the page owns it.
 // A form-associated control's shadow tree is its module's implementation, so an issue
 // there is the control's to fix; what the page put in its light DOM stays the page's.
-export function issueNode(node) {
+/** @param {Node} initial */
+export function issueNode(initial) {
+  /** @type {Node | null} */
+  let node = initial;
   let owned = true;
-  for (let root = node.getRootNode(); root.host; root = root.host.getRootNode())
+  for (
+    let root = node.getRootNode();
+    root instanceof ShadowRoot;
+    root = root.host.getRootNode()
+  )
     if (formControl(root.host)) owned = false;
   // Read ownership before placing an embedded document's issue at the frame
   // the page author can find. Cross-origin frames withhold that element.
-  const view = (n) => (n.ownerDocument ?? n).defaultView;
-  while (node && view(node) !== globalThis.top) node = view(node).frameElement;
+  const view = (/** @type {Node} */ n) =>
+    (n instanceof Document ? n : n.ownerDocument)?.defaultView;
+  while (node && view(node) !== globalThis.top) node = view(node)?.frameElement ?? null;
   if (!node) return null;
   return { at: at(node), owned };
 }
 
+/** @param {(typeof USER_VIEW_RESTORE_CASES)[number]} restoreCase */
 export function applyRestoreCase(restoreCase) {
   localStorage.clear();
   sessionStorage.clear();
@@ -84,14 +99,20 @@ export const threadsHoldingMarkup = () =>
 // Open one thread where a reader would find it, without moving focus or the page.
 // A probe is synchronous, so the opening's answer is kept for `threadOpening` to read:
 // null while it runs, then whether it drew the thread, or the error it threw.
+/** @typedef {{shown: boolean, error?: string}} OpeningAnswer */
+/** @type {{key: string, answer: OpeningAnswer | null} | null} */
 let opening = null;
+/** @param {string} key */
 export function openThreadToCheck(key) {
+  /** @type {{key: string, answer: OpeningAnswer | null}} */
   const current = { key, answer: null };
   opening = current;
-  threadActions.open(key, { focus: false, travel: false, flash: false }).then(
-    (destination) => (current.answer = { shown: Boolean(destination) }),
-    (error) =>
-      (current.answer = { shown: false, error: String(error?.stack ?? error) }),
+  threadActions.open(key, { focus: false, travel: false }).then(
+    (/** @type {unknown} */ destination) =>
+      (current.answer = { shown: Boolean(destination) }),
+    (/** @type {unknown} */ error) =>
+      (current.answer = { shown: false, error: exceptionText(error) }),
   );
 }
-export const threadOpening = (key) => (opening?.key === key ? opening.answer : null);
+export const threadOpening = (/** @type {string} */ key) =>
+  opening?.key === key ? opening.answer : null;

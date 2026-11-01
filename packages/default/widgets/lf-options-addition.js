@@ -20,18 +20,22 @@ import {
 
 const ANOTHER = "Another option";
 
+/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap[typeof TEXT_FIELD], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
+
 export class OptionAddition {
   #host;
   #offered;
   #commit;
   #context;
-  #form = null;
-  #bindingBadge = null;
-  #input = null;
-  #syncInput = null;
+  /** @type {OptionEditor | null} */
+  #ui = null;
+  /** @type {Set<string>} */
   #inForce = new Set();
+  /** @type {Comment | null} */
   #end = null;
 
+  /** @param {HTMLElement} host
+   * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
   constructor(host, { offered, available, commit }) {
     this.#host = host;
     this.#offered = offered;
@@ -42,41 +46,46 @@ export class OptionAddition {
 
   connect() {
     if (!this.#offered) return;
-    if (this.#form) return;
-    this.#buildForm();
+    if (this.#ui) return;
+    const ui = (this.#ui = this.#buildForm());
     whileConnected(this.#host, () =>
-      watchDraft(this.#context, (value) => this.#syncInput.load(value ?? ""), {
-        input: this.#input,
-        // Resume writing (`g i`) comes back to the field, which stands in the group.
-        resume: () => ({ where: this.#input, input: () => this.#input }),
-      }),
+      watchDraft(
+        this.#context,
+        (/** @type {string | null} */ value) => ui.sync.load(value ?? ""),
+        {
+          input: ui.input,
+          // Resume writing (`g i`) comes back to the field, which stands in the group.
+          resume: () => ({ where: ui.input, input: () => ui.input }),
+        },
+      ),
     );
   }
 
   get input() {
-    return this.#input;
+    return this.#ui?.input ?? null;
   }
 
   get bindingBadge() {
-    return this.#bindingBadge;
+    return this.#ui?.bindingBadge ?? null;
   }
 
   refresh() {
-    if (this.#form) this.#syncInput();
+    this.#ui?.sync();
   }
 
+  /** @returns {OptionEditor} */
   #buildForm() {
-    this.#form = offer("form", "lf-another");
-    this.#input = offer(TEXT_FIELD);
-    this.#input.name = "option";
-    this.#input.setAttribute("aria-label", ANOTHER);
+    const form = offer("form", "lf-another");
+    const input = offer(TEXT_FIELD);
+    input.name = "option";
+    input.setAttribute("aria-label", ANOTHER);
     // An option's title is one line, so Return adds it from a phone's keyboard too.
-    this.#input.setAttribute("aria-multiline", "false");
-    this.#bindingBadge = offer("span", "lf-key-badge");
-    this.#bindingBadge.setAttribute("aria-hidden", "true");
-    this.#input.value = loadDraft(this.#context) ?? "";
-    this.#form.append(this.#bindingBadge, this.#input);
-    this.#syncInput = wireInput(this.#input, {
+    input.setAttribute("aria-multiline", "false");
+    const bindingBadge = offer("span", "lf-key-badge");
+    bindingBadge.setAttribute("aria-hidden", "true");
+    input.value = loadDraft(this.#context)?.text ?? "";
+    form.append(bindingBadge, input);
+    const sync = wireInput(input, {
       hint: "Add another option",
       sends: "add and select option",
       action: "add",
@@ -86,18 +95,21 @@ export class OptionAddition {
       save: () => this.remember(this.#picked()),
       send: (text, _raw, owns) => this.#submit(text, owns),
     });
-    this.#host.append(this.#form);
-    this.#syncInput();
+    this.#host.append(form);
+    sync();
+    return { form, input, bindingBadge, sync };
   }
 
   #picked() {
     return new Set(this.#host.querySelectorAll(":scope > lf-option[chosen]"));
   }
 
+  /** @param {Iterable<Element>} picked */
   remember(picked) {
-    if (!this.#input) return;
-    if (!this.#input.value && loadDraft(this.#context) === null) return;
-    saveDraft(this.#context, this.#input.value, this.detailFor(picked));
+    const input = this.input;
+    if (!input) return;
+    if (!input.value && loadDraft(this.#context) === null) return;
+    saveDraft(this.#context, input.value, this.detailFor(picked));
   }
 
   /* The choice the generation recorded, less any option the group no longer holds:
@@ -105,9 +117,12 @@ export class OptionAddition {
    * the door refuses a pick of an option the group lacks. Membership is the authored
    * options and the adds in force of the latest reading, not whatever this tab last
    * painted. */
+  /** @param {unknown} payload */
   #draftChoice(payload) {
     if (
       !payload ||
+      typeof payload !== "object" ||
+      !("value" in payload) ||
       !Array.isArray(payload.value) ||
       !payload.value.every((id) => typeof id === "string")
     )
@@ -117,26 +132,35 @@ export class OptionAddition {
     };
   }
 
+  /** @param {string} id */
   #authored(id) {
     const option = document.getElementById(id);
     return (
-      option?.parentElement === this.#host && !option.hasAttribute("data-lf-added")
+      option !== null &&
+      option.parentElement === this.#host &&
+      !option.hasAttribute("data-lf-added")
     );
   }
 
   /* The draft's attempt names the option, so a resend after reload names the same one
    * and the log answers it as the same `add`. The pick is absolute state and needs no
    * such identity. */
+  /** @param {string} text @param {() => boolean} owns */
   async #submit(text, owns) {
-    await sendDraft(this.#context, owns, (attempt, payload) => {
-      const id = `${this.#host.id}-option-${attempt}`;
-      const choice = this.#draftChoice(payload);
-      const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
-      picked.add(id);
-      return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
-    });
+    await sendDraft(
+      this.#context,
+      owns,
+      (/** @type {string} */ attempt, /** @type {unknown} */ payload) => {
+        const id = `${this.#host.id}-option-${attempt}`;
+        const choice = this.#draftChoice(payload);
+        const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
+        picked.add(id);
+        return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
+      },
+    );
   }
 
+  /** @param {Iterable<Element>} picked */
   detailFor(picked) {
     return { value: [...picked].map((option) => option.id) };
   }
@@ -145,12 +169,13 @@ export class OptionAddition {
    * of the group, before the persistent draft editor; authored options and their
    * evidence are outside that range. Guarding Markdown keeps its text nodes and the
    * reader's selection when another option changes. */
+  /** @param {Readonly<Record<string, string>>} [added] @param {Node | null} [fallbackBefore] */
   render(added = {}, fallbackBefore = null) {
     const options = Object.entries(added);
     this.#inForce = new Set(options.map(([id]) => id));
     if (!this.#end) {
       this.#end = document.createComment("added options");
-      move(this.#host, this.#end, this.#form ?? fallbackBefore);
+      move(this.#host, this.#end, this.#ui?.form ?? fallbackBefore);
     }
     render(
       repeat(

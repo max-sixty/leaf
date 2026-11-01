@@ -24,6 +24,7 @@ import { scrollerFor } from "../reading-regions.js";
 import { offFlowSurfaceOf } from "../off-flow.js";
 
 // The room a box takes in its flow, its margins included; none once it has gone.
+/** @param {Element} node */
 const room = (node) => {
   if (!node.isConnected) return 0;
   const { marginBlockStart, marginBlockEnd } = getComputedStyle(node);
@@ -36,12 +37,16 @@ const room = (node) => {
 
 export class ReplyContinuity {
   #owner;
+  /** @type {Element | null} */
   #row = null;
+  /** @type {(() => void) | null} */
   #departure = null;
   #space = 0;
   // The boxes a presentation changes itself, each with its height before it.
+  /** @type {{node: Element, height: number}[]} */
   #presenting = [];
   gap = document.createElement("div");
+  /** @param {HTMLElement} owner */
   constructor(owner) {
     this.#owner = owner;
     owner.classList.add("lf-reply-continuity");
@@ -57,6 +62,7 @@ export class ReplyContinuity {
   }
   // `own` are the boxes the presentation opens, closes, changes the words of or removes,
   // whose own height change the extent follows.
+  /** @param {readonly Element[]} own */
   before(own = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
@@ -73,11 +79,12 @@ export class ReplyContinuity {
       ? null
       : placeKeeper(scrollerFor(this.#owner), {
           items: ".lf-reply-continuity",
-          identity: (node) => node.dataset.thread,
+          identity: (node) => node.getAttribute("data-thread"),
           preferred: () => this.#owner,
         });
     return { extent, place, held: place?.take({ spans: false }) };
   }
+  /** @param {ReturnType<ReplyContinuity["before"]>} reading */
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
@@ -101,6 +108,7 @@ export class ReplyContinuity {
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
+  /** @param {number} space */
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;

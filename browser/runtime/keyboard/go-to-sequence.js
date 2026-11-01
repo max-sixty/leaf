@@ -53,13 +53,13 @@
 
    The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
-import { bindings, labelOf, live, word } from "./bindings.js";
+import { bindings, commandRun, labelOf, live, nativePress } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { createHintSession, HINT_KEYS, hintCodes, renderKeys } from "./hints.js";
+import { createHintSession, HINT_KEYS, codedHints, renderKeys } from "./hints.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
-  progressStates,
+  progressSteps,
 } from "./key-sequence.js";
 import { html, nothing } from "/runtime/framework.js";
 import { isExternalPageLink } from "../declared-words.js";
@@ -84,6 +84,24 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
+/** @typedef {import("./bindings.js").Command} Command
+ * @typedef {{kind: string, member: Element, go: () => unknown, exposure: "self" | "across"}} TargetMember
+ * @typedef {{key: number, className: string, hintCode: string, kind: string, marginEntryKey: string | null,
+ * targetId: string | null, commandId: null, address: null, sequence: ReturnType<typeof keySequenceModel>}} GoToHintModel
+ * @typedef {{id: string, key: string, word: string, matches: (target: TargetMember) => boolean}} TargetFilter
+ * @typedef {Object} GoToOptions
+ * @property {Pick<ReturnType<typeof import("../floating-panel.js").createFloatingPanel>["doors"], "threads" | "queue" | "leaves">} doors
+ * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
+ * @property {() => unknown} openPageMap
+ * @property {() => readonly Command[]} directDestinations
+ * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"]} scrollToElement
+ * @property {() => boolean} leavesOffered
+ * @property {{visibleMarginEntries: () => HTMLElement[], activateMarginEntry: (element: HTMLElement) => unknown, marginEntryKind: (element: Element) => string | null} | null} marginEntries
+ * @property {typeof import("../navigation.js").glideTo} glideTo
+ * @property {typeof import("../navigation.js").placeThreadEdge} placeThreadEdge
+ * @property {typeof import("../navigation.js").stopGlide} stopGlide
+ */
+/** @param {GoToOptions} options */
 export function createGoToSequence({
   doors,
   hintChrome,
@@ -91,9 +109,7 @@ export function createGoToSequence({
   directDestinations,
   scrollToElement,
   leavesOffered,
-  activateMarginEntry,
-  marginEntryKind,
-  visibleMarginEntries,
+  marginEntries,
   glideTo,
   placeThreadEdge,
   stopGlide,
@@ -101,6 +117,7 @@ export function createGoToSequence({
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
   // row's own binding, so a rebinding cannot leave a sentence promising the old press.
+  /** @param {Command} row */
   const formatGoToAddress = (row) =>
     [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
 
@@ -111,17 +128,23 @@ export function createGoToSequence({
   // its visible anchors are still routes through this page. Chrome-owned panels sit outside
   // main and remain named global destinations. Other platform targets use pageParts so an
   // injected control inside the document does not silently become a tab or fold route.
-  const pageLinks = () =>
-    pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
+  /** @returns {HTMLAnchorElement[]} */
+  const pageLinks = () => {
+    /** @type {HTMLAnchorElement[]} */
+    const links = pageQueryAll("a[href]");
+    return links.filter((link) => closestAcross(link, "main"));
+  };
   // The tabs rather than their panels: the visible choice is what wears the hint and
   // what the user is on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
+  /** @returns {HTMLElement[]} */
   const pageTabs = () => pageParts('[role="tab"]');
   // The summaries rather than the boxes they head: a summary is what the user is on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
   // means a different section the moment one of them opens.
+  /** @returns {HTMLElement[]} */
   const pageDisclosures = () => pageParts("details > summary");
   // Narrower than the disclosure scope's own reading: this route can reveal a native
   // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
@@ -132,19 +155,25 @@ export function createGoToSequence({
   // than by an entry here. The register stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
   // reading stops where the hand stops, because it is the same reading.
+  /** @returns {HTMLElement[]} */
   const pageControls = () => pageParts(PRESSABLE);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
   // arrival for every activation route; the sequence only names an external new tab.
   // A cancelled click has replaced that navigation step with one of its own.
+  /** @param {HTMLAnchorElement} link */
   function followLink(link) {
-    let activation = null;
-    link.addEventListener("click", (event) => (activation = event), {
-      capture: true,
-      once: true,
-    });
+    const activation = { prevented: false };
+    link.addEventListener(
+      "click",
+      (event) => (activation.prevented = event.defaultPrevented),
+      {
+        capture: true,
+        once: true,
+      },
+    );
     link.click();
-    if (!activation || activation.defaultPrevented) return;
+    if (activation.prevented) return;
     if (isExternalPageLink(link) && link.target === "_blank") {
       const name =
         link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";
@@ -157,6 +186,7 @@ export function createGoToSequence({
   // close that make its surface useful rather than leaving the dispatcher to know which
   // furniture it enters. Other owners' destinations rank ahead of the fixed doors, so a
   // narrow line keeps the step a notice just named, such as Resume writing.
+  /** @type {Command[]} */
   const destinations = [
     ...directDestinations(),
     {
@@ -180,7 +210,7 @@ export function createGoToSequence({
       keys: ["Shift+l"],
       title: () => (doors.leaves.shows() ? "close All pages" : "All pages"),
       run: () => doors.leaves.press(),
-      when: (...args) => doors.leaves.shows() || leavesOffered(...args),
+      when: () => doors.leaves.shows() || leavesOffered(),
     },
     {
       id: "navigation.page-map",
@@ -199,55 +229,42 @@ export function createGoToSequence({
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
   // remain one behavior.
+  /** @param {HTMLElement} control */
   function press(control) {
     scrollToElement(control, undefined, "nearest");
     focusDestination(control, "press");
-    control.click();
+    nativePress(control)?.();
   }
 
   const MARGIN_TARGET_KIND = "Margin entry";
+  /** Each declaration binds native activation to its actual selected element before
+   * heterogeneous target families join the shared map.
+   * @template {Element} E @param {string} kind @param {() => E[]} list
+   * @param {(element: E) => unknown} go @param {"self" | "across"} [exposure] */
+  const targetKind = (kind, list, go, exposure = "across") => ({
+    list: () =>
+      list().map((member) => ({ kind, member, go: () => go(member), exposure })),
+  });
   const TARGET_KINDS = [
-    ...(visibleMarginEntries
+    ...(marginEntries
       ? [
-          {
-            kind: MARGIN_TARGET_KIND,
-            list: visibleMarginEntries,
-            go: activateMarginEntry,
-            exposure: "self",
-          },
+          targetKind(
+            MARGIN_TARGET_KIND,
+            marginEntries.visibleMarginEntries,
+            marginEntries.activateMarginEntry,
+            "self",
+          ),
         ]
       : []),
-    {
-      kind: "Tab",
-      list: pageTabs,
-      go: press,
-    },
-    {
-      kind: "Link",
-      list: pageLinks,
-      // Use the platform click method so authored handlers, cancellation, fragments,
-      // targets, and downloads keep their anchor semantics.
-      go: followLink,
-    },
-    {
-      kind: "Fold",
-      list: pageDisclosures,
-      // Opening is the arrival. Scroll the disclosure rather than its summary so a section
-      // taller than the viewport starts at its start, then leave focus on the summary for
-      // the platform's own close route.
-      go: (summary) => {
-        scrollToElement(summary.parentElement, undefined, "nearest");
-        focusDestination(summary, "move");
-      },
-    },
-    // Native and role-specific targets keep their meaning before the generic offered
-    // control reading. Collapse keeps the first kind for one activation surface.
-    {
-      kind: "Control",
-      list: pageControls,
-      go: press,
-    },
+    targetKind("Tab", pageTabs, press),
+    targetKind("Link", pageLinks, followLink),
+    targetKind("Fold", pageDisclosures, (summary) => {
+      scrollToElement(summary.parentElement, undefined, "nearest");
+      focusDestination(summary, "move");
+    }),
+    targetKind("Control", pageControls, press),
   ];
+  /** @type {TargetFilter[]} */
   const TARGET_FILTERS = [
     {
       id: "margin-entries",
@@ -260,7 +277,8 @@ export function createGoToSequence({
       key: "t",
       word: "Thread controls",
       matches: ({ kind, member }) =>
-        kind === MARGIN_TARGET_KIND && marginEntryKind(member) === "comment",
+        kind === MARGIN_TARGET_KIND &&
+        marginEntries?.marginEntryKind(member) === "comment",
     },
     {
       id: "hyperlinks",
@@ -290,16 +308,28 @@ export function createGoToSequence({
   );
   const GO_TO_HINT_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
 
-  const visibleWords = (member) => member.innerText?.replace(/\s+/g, " ").trim();
+  /** @param {Element} member */
+  const visibleWords = (member) =>
+    member instanceof HTMLElement ? member.innerText.replace(/\s+/g, " ").trim() : "";
+  /** @param {Element} member */
   const nativeLabelWords = (member) =>
-    [...(member.labels ?? [])].map(visibleWords).filter(Boolean).join(" ");
+    "labels" in member && member.labels instanceof NodeList
+      ? [...member.labels]
+          .filter((node) => node instanceof Element)
+          .map(visibleWords)
+          .filter(Boolean)
+          .join(" ")
+      : "";
 
+  /** @param {TargetFilter | null} [filter] */
   function visibleCandidates(filter = null) {
     const placement = keyBadgePlacement();
+    /** @type {Set<Element>} */
     const seen = new Set();
     const found = [];
     for (const [order, entry] of TARGET_KINDS.entries())
-      for (const member of entry.list()) {
+      for (const candidate of entry.list()) {
+        const { member } = candidate;
         // A role=tab anchor is one activation surface, not a tab and a link. TARGET_KINDS
         // orders the more specific meaning first; genuinely different nested elements stay.
         const unavailable =
@@ -311,15 +341,15 @@ export function createGoToSequence({
           closestAcross(member, "[inert]");
         if (unavailable) continue;
         const rect = placement.badgeBox(member);
-        if (!rect || !placement.exposes(member, rect, entry.exposure)) continue;
+        if (!rect || !placement.exposes(member, rect, candidate.exposure)) continue;
         seen.add(member);
         const says =
           member.getAttribute("aria-label")?.trim() ||
           nativeLabelWords(member) ||
           addressableSays(member) ||
           visibleWords(member) ||
-          entry.kind;
-        found.push({ ...entry, order, member, rect, says });
+          candidate.kind;
+        found.push({ ...candidate, order, rect, says });
       }
     found.sort(
       (left, right) =>
@@ -327,27 +357,29 @@ export function createGoToSequence({
         left.rect.left - right.rect.left ||
         left.order - right.order,
     );
-    const codes = hintCodes(found.length, GO_TO_HINT_KEYS);
-    const coded = found.map((candidate, index) => ({
-      ...candidate,
-      code: codes[index],
-    }));
+    const coded = codedHints(found, GO_TO_HINT_KEYS.join(""));
     return filter ? coded.filter(filter.matches) : coded;
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
   // added to the live sequence so the chips can paint how far it has advanced.
   const sequencePrefix = () => [labelOf(OPEN_GO_TO)].filter(Boolean);
-  const sequenceKeys = () =>
-    [...sequencePrefix(), targetFilter?.key, ...hints.prefix()].filter(Boolean);
+  const sequenceKeys = () => [
+    ...sequencePrefix(),
+    ...(targetFilter ? [targetFilter.key] : []),
+    ...hints.prefix(),
+  ];
   const hintRenderKey = renderKeys();
+  /** @param {ReturnType<typeof visibleCandidates>[number]} candidate @param {boolean} current @returns {GoToHintModel} */
   const goToHintModel = (candidate, current) => {
     const steps = [...candidate.code];
-    const marginEntryKey = candidate.member.dataset?.lfMarginEntryKey;
+    const marginEntryKey = candidate.member.getAttribute("data-lf-margin-entry-key");
     const targetId =
-      closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
+      closestAcross(candidate.member, "[data-lf-margin-for]")?.getAttribute(
+        "data-lf-margin-for",
+      ) ||
       candidate.member.id ||
-      candidate.member.dataset.lfMarginFor ||
+      candidate.member.getAttribute("data-lf-margin-for") ||
       candidate.member.getAttribute("aria-controls");
     return Object.freeze({
       key: hintRenderKey(candidate.member),
@@ -358,10 +390,11 @@ export function createGoToSequence({
       targetId: targetId || null,
       commandId: null,
       address: null,
-      sequence: keySequenceModel(steps, progressStates(steps, [...hints.prefix()])),
+      sequence: keySequenceModel(progressSteps(steps, [...hints.prefix()])),
     });
   };
 
+  /** @param {GoToHintModel} model */
   const goToHintTemplate = (model) => html`
     <span
       class=${model.className}
@@ -379,11 +412,13 @@ export function createGoToSequence({
   // the map, the typed prefix, the audible walk, and the scroll freeze; this owner holds
   // only which kind filter the user has asked for.
   let goToActive = false;
+  /** @type {TargetFilter | null} */
   let targetFilter = null;
 
   // A generated label over an inline link must not become a span the passage walk then
   // has to understand, so the chips are chrome and the scene is read rather than marked.
-  const hints = createHintSession({
+  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], ReturnType<typeof keyBadgePlacement>, GoToHintModel>} */
+  const hintOptions = {
     layer: goToHintLayer,
     walk: "go-to-target",
     read: () => visibleCandidates(targetFilter),
@@ -410,7 +445,7 @@ export function createGoToSequence({
     template: goToHintTemplate,
     take: (candidate) => {
       setGoToSequence(false);
-      candidate.go(candidate.member);
+      candidate.go();
     },
     words: {
       describe: (candidate) => `${candidate.kind}, ${candidate.says}`,
@@ -418,8 +453,10 @@ export function createGoToSequence({
       all: "All go-to hints.",
     },
     chrome: hintChrome,
-  });
+  };
+  const hints = createHintSession(hintOptions);
 
+  /** @param {boolean} on */
   function setGoToSequence(on) {
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
@@ -447,12 +484,15 @@ export function createGoToSequence({
   const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
   const atGoToTargets = () => !targetFilter && !hints.prefix();
 
+  /** @param {string} binding */
   function filterTargets(binding) {
-    targetFilter = TARGET_FILTERS.find(({ key }) => key === binding);
+    const chosen = TARGET_FILTERS.find(({ key }) => key === binding);
+    if (!chosen) return;
+    targetFilter = chosen;
     const found = hints.refresh();
     const message = found.length
-      ? `${found.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
-      : `No visible ${targetFilter.word}.`;
+      ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
+      : `No visible ${chosen.word}.`;
     if (found.length) notice(message);
     else announce(message);
     repaint();
@@ -470,7 +510,9 @@ export function createGoToSequence({
   // placements, and its own way out. Structural and named rows stand only before a hint
   // prefix; once a generated route has begun, only valid continuations, audible browsing,
   // activation, and backing remain.
+  /** @type {Command[] | null} */
   let goRows = null;
+  /** @type {import("./bindings.js").Scope} */
   const GO_TO_SCOPE = {
     title: "Go to",
     escape: "inner",
@@ -493,6 +535,7 @@ export function createGoToSequence({
     },
   };
 
+  /** @returns {Command[]} */
   function build() {
     return [
       {
@@ -521,7 +564,7 @@ export function createGoToSequence({
         title: "thread top / bottom",
         travels: true,
         when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
-        run: (binding) => {
+        runKey: (binding) => {
           const thread = focusedThreadTarget();
           setGoToSequence(false);
           placeThreadEdge(thread, binding === "k" ? "start" : "end");
@@ -562,7 +605,7 @@ export function createGoToSequence({
         // then reports the miss inside this sequence rather than falling through to a page
         // command whose letter happened to match it.
         when: () => (goToActive ? true : targetCapability()),
-        run: hints.type,
+        runKey: hints.type,
       },
       {
         id: "navigation.target.filter",
@@ -577,7 +620,7 @@ export function createGoToSequence({
         sequenceSteps: ["kind"],
         title: "filter by kind",
         when: () => atGoToTargets() && targetCapability(),
-        run: filterTargets,
+        runKey: filterTargets,
       },
       ...hints.walkRows({
         id: "navigation.target",
@@ -590,18 +633,22 @@ export function createGoToSequence({
       // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
       // progress and cancellation; liveness, words, landing, and return remain with the
       // owner that can keep them true.
-      ...destinations.map((destination) => ({
-        ...destination,
-        // A direct destination's finger route is its permanent page command in
-        // More. Arming this keyboard sequence doesn't seat another gesture control.
-        touch: false,
-        when: () => atGoToTargets() && live(destination),
-        run: (binding) => {
-          setGoToSequence(false);
-          if (destination.run) destination.run(binding);
-          else word(destination.control).click();
+      ...destinations.map(
+        /** @returns {Command} */ (destination) => {
+          const { run, runKey, ...metadata } = destination;
+          return {
+            ...metadata,
+            // A direct destination's finger route is its permanent page command in
+            // More. Arming this keyboard sequence doesn't seat another gesture control.
+            touch: false,
+            when: () => atGoToTargets() && live(destination),
+            runKey: (binding) => {
+              setGoToSequence(false);
+              commandRun(destination, binding)?.();
+            },
+          };
         },
-      })),
+      ),
       {
         id: "navigation.page.edge",
         touch: false,
@@ -621,7 +668,7 @@ export function createGoToSequence({
         title: "top / bottom",
         travels: true,
         when: atGoToTargets,
-        run: (binding) => {
+        runKey: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
           const box = pageScroller;
           glideTo(box, binding === "g" ? 0 : box.scrollHeight);
@@ -653,6 +700,7 @@ export function createGoToSequence({
   // so the letter the user presses and the letter the page prints cannot diverge.
   //
   // The page-level row promises the sequence rather than any particular ephemeral hint.
+  /** @type {Command} */
   const OPEN_GO_TO = {
     id: "navigation.go-to.open",
     touch: false,
@@ -670,12 +718,20 @@ export function createGoToSequence({
   // Every named capability stays invocable by id outside the armed sequence. Native
   // control activation and generated touch controls remain separate from that route:
   // a run-less row delegates to its control without replacing its native default.
-  for (const destination of destinations)
-    pageCommand({
+  for (const destination of destinations) {
+    const registered = {
       ...destination,
       keys: [],
       touch: destination.touch ?? false,
-    });
+    };
+    // Invocation is a live capability. Spreading a destination would freeze an
+    // unavailable getter at registration, before its owner can offer the action.
+    for (const name of ["run", "runKey"]) {
+      const handler = Object.getOwnPropertyDescriptor(destination, name);
+      if (handler) Object.defineProperty(registered, name, handler);
+    }
+    pageCommand(registered);
+  }
 
   return {
     goToStatus,

@@ -22,6 +22,7 @@ import { PENDING } from "./identity.js";
 /** @typedef {import("../../types/domain.js").Message} Message */
 /** @typedef {import("../../types/domain.js").Settlement} Settlement */
 /** @typedef {import("../../types/domain.js").Anchor} Anchor */
+/** @typedef {NonNullable<import("../framework/application.js").SemanticDocument["messageBodies"]> extends ReadonlyMap<string, infer B> ? B : never} CapturedBody */
 
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
@@ -113,17 +114,19 @@ export function threadNames(threads) {
 
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
-/** @param {{author?: string, pending?: boolean, token?: string, text?: string}} message */
+/** @param {{author?: string, pending?: boolean, token?: string, text?: string | undefined}} message */
 export const editable = (message) =>
   message.author === "user" &&
   !message.pending &&
   !message.token &&
   Boolean(message.text);
 
-/** @param {Pick<Thread, "bare_reaction">} thread */
+/** @template {{readonly bare_reaction: boolean, readonly root: {readonly token?: string | null}}} T
+ * @param {T} thread
+ * @returns {thread is T & {bare_reaction: true, root: T["root"] & {token: string}}} */
 export const bareReaction = (thread) => thread.bare_reaction;
 /** @param {Pick<Thread, "bare_reaction">} thread */
-export const discussed = (thread) => !bareReaction(thread);
+export const discussed = (thread) => !thread.bare_reaction;
 /** Whether a thread holds words the user hasn't read.
  * @param {Pick<Thread, "unread">} thread */
 const hasUnread = (thread) => thread.unread.length > 0;
@@ -287,25 +290,25 @@ export const reactionsAt = (threads, anchor) =>
   threads
     .filter(
       (thread) =>
-        bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),
+        !discussed(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),
     )
     .map((thread) => thread.root);
 
-/** @param {Thread} thread */
+/** @param {Pick<Thread, "seat">} thread */
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
 // asks what is newest in a thread — the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
-/** @param {{edited?: {seq?: number, ts: string}, seq?: number, ts?: string}} message */
+/** @param {{edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}} message */
 export const moved = (message) => ({
   seq: message.edited?.seq ?? message.seq ?? null,
   ts: message.edited?.ts ?? message.ts ?? null,
 });
 
 // When a thread last moved: the latest move of any of its turns.
-/** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
+/** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string} | undefined, seq?: number, ts?: string}[], root: {id: string}}} thread */
 export function lastMovedAt(thread) {
   let latest = null;
   for (const message of turns(thread)) {
@@ -360,52 +363,67 @@ export function readThreadRecords(
     });
     unitsByMessage.set(descriptor.document.message, units);
   }
+  /** @param {Message} message @param {ReadonlySet<string>} unreadMessages @param {string} thread */
+  const readMessage = (message, unreadMessages, thread) => {
+    const {
+      markup,
+      plainText,
+      attention,
+      session,
+      publication,
+      responds,
+      start,
+      title,
+      ...record
+    } = message;
+    const units = unitsByMessage.get(message.id) ?? [];
+    const authored = document.messageBodies?.get(message.id);
+    if (markup && !authored)
+      throw new Error(`Authored message ${message.id} has no captured body`);
+    /** @type {({kind: "authored", units: typeof units} & CapturedBody)
+     * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
+    const body =
+      markup && authored
+        ? { kind: "authored", ...authored, units }
+        : {
+            kind: message.token
+              ? "reaction"
+              : message.suggestion
+                ? "suggestion"
+                : "prose",
+            text: authored?.text ?? plainText ?? message.text ?? message.token ?? "",
+          };
+    const unitIds = new Set(units.map((unit) => unit.id));
+    return {
+      ...record,
+      thread,
+      unread: unreadMessages.has(message.id),
+      key: messageKey(message),
+      body,
+      // The message's own inputs, its first words and each rewrite of them, and the
+      // actions on widgets frozen into it, in the published order `strongestWorkflow`
+      // reads.
+      workflows: workflows.filter(
+        (workflow) =>
+          workflow.message === message.id ||
+          (workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)),
+      ),
+    };
+  };
+  // Public readings carry presentation state, including a prior reading's absent
+  // fields explicitly restored while news is held. They preserve the values an
+  // admitted message can carry without claiming its admission-only correlations.
+  /** @typedef {Omit<ReturnType<typeof readMessage>, "text" | "edited" | "provisional" | "completed_by"> & {
+   * text?: Message["text"], edited?: Message["edited"],
+   * provisional?: Message["provisional"], completed_by?: Message["completed_by"]
+   * }} PublishedMessage */
   return threads.map((thread) => {
     const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
     const unreadMessages = new Set(unread.map((item) => item.message));
-    const msgs = thread.msgs.map((message) => {
-      const {
-        markup,
-        plainText,
-        attention,
-        session,
-        publication,
-        responds,
-        start,
-        title,
-        ...record
-      } = message;
-      const units = unitsByMessage.get(message.id) ?? [];
-      const authored = document.messageBodies?.get(message.id);
-      if (markup && !authored)
-        throw new Error(`Authored message ${message.id} has no captured body`);
-      const body =
-        markup && authored
-          ? { kind: "authored", ...authored, units }
-          : {
-              kind: message.token
-                ? "reaction"
-                : message.suggestion
-                  ? "suggestion"
-                  : "prose",
-              text: authored?.text ?? plainText ?? message.text ?? message.token ?? "",
-            };
-      const unitIds = new Set(units.map((unit) => unit.id));
-      return {
-        ...record,
-        unread: unreadMessages.has(message.id),
-        key: messageKey(message),
-        body,
-        // The message's own inputs, its first words and each rewrite of them, and the
-        // actions on widgets frozen into it, in the published order `strongestWorkflow`
-        // reads.
-        workflows: workflows.filter(
-          (workflow) =>
-            workflow.message === message.id ||
-            (workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)),
-        ),
-      };
-    });
+    const msgs = thread.msgs.map(
+      /** @returns {PublishedMessage} */
+      (message) => readMessage(message, unreadMessages, threadKey(thread)),
+    );
     const reactions = { key: threadKey(thread), resolved: thread.resolved, msgs };
     const messages = msgs.map((message) => ({
       ...message,

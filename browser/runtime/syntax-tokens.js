@@ -8,28 +8,30 @@ import { syntaxLanguages } from "./syntax-languages.js";
 // Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors
 // follow the page's scheme; generated spans never enter the authored source.
 // The engine loads only for code, and each grammar only when it is requested.
+/** @type {Promise<typeof import("/vendor/syntax.esm.js")> | undefined} */
 let tokenizerReady;
 const tokenizer = () => (tokenizerReady ??= import("/vendor/syntax.esm.js"));
+/** @type {Map<string, ReturnType<typeof tokenizer>>} */
 const languagesReady = new Map();
 
 // The registry generates the literal import map. A missing language is a bundle
 // mismatch, not a reason to silently color a declared language as plain text.
 // An absent language prepares only the theme, for a diff of an unknown file type.
+/** @param {string | null | undefined} lang */
 export function ensureSyntaxLanguage(lang) {
   if (!lang) return tokenizer();
-  if (!languagesReady.has(lang)) {
+  let ready = languagesReady.get(lang);
+  if (!ready) {
     const load = syntaxLanguages[lang];
     if (!load)
       throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
-    languagesReady.set(
-      lang,
-      Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
-        await shared.registerLanguage(lang, grammar.default);
-        return shared;
-      }),
-    );
+    ready = Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+      await shared.registerLanguage(lang, grammar.default);
+      return shared;
+    });
+    languagesReady.set(lang, ready);
   }
-  return languagesReady.get(lang);
+  return ready;
 }
 
 // Code as [{text, style}] — a flat run in source order, carrying Shiki's
@@ -38,6 +40,7 @@ export function ensureSyntaxLanguage(lang) {
 // emits one span per token, while lf-code interleaves the line spans it numbers.
 // A declared language is validated by page check
 // against the registry's $languages.names.
+/** @param {string} source @param {string} lang */
 export async function syntax(source, lang) {
   const shared = await ensureSyntaxLanguage(lang);
   const tokens = await shared.tokenize(source, lang);
@@ -58,6 +61,8 @@ export async function syntax(source, lang) {
 // lands in the DOM that says nothing. Callers build from here — plain code replacing its
 // own children, lf-code appending into the line it is numbering — because a second place
 // writing the same span is a second place to forget the attribute.
+/** @typedef {Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>[number]} SyntaxToken */
+/** @param {readonly SyntaxToken[]} tokens */
 export const synNodes = (tokens) =>
   tokens.map(({ text, style }) => {
     if (!Object.keys(style).length) return document.createTextNode(text);
@@ -76,13 +81,20 @@ export const synNodes = (tokens) =>
 // because a token can span a newline:
 // a docstring coloured line by line restarts the tokenizer inside itself and reads its
 // second line as code.
+/** @param {readonly SyntaxToken[]} tokens @returns {[SyntaxToken[], ...SyntaxToken[][]]} */
 export function tokenLines(tokens) {
-  const lines = [[]];
+  /** @type {SyntaxToken[]} */
+  let line = [];
+  /** @type {[SyntaxToken[], ...SyntaxToken[][]]} */
+  const lines = [line];
   for (const { text, style } of tokens) {
     const parts = text.split("\n");
     parts.forEach((part, i) => {
-      if (i) lines.push([]);
-      if (part) lines.at(-1).push({ text: part, style });
+      if (i) {
+        line = [];
+        lines.push(line);
+      }
+      if (part) line.push({ text: part, style });
     });
   }
   return lines;

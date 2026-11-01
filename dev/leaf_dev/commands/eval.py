@@ -431,7 +431,9 @@ def prepare(
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (
-                        "" if instructions or condition == "adaptive" else SKILL_PREFIX
+                        ""
+                        if instructions or condition in {"adaptive", "html"}
+                        else SKILL_PREFIX
                     )
                     + prompt,
                 }

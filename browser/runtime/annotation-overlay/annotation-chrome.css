@@ -358,9 +358,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-close {
     flex: none;
   }
-  /* A reading region the card stands in cuts it at the region's edge
-     (thread-preview.js, `placeThreadPreview`); with no region the cuts are unset, and
-     the declaration with them, so nothing clips the card. */
+  /* A reading region the card stands in, or a block whose edge its row has crossed,
+     cuts it at that edge (thread-preview.js, `placeThreadPreview`); with neither the
+     cuts are unset, and the declaration with them, so nothing clips the card. */
   .lf-margin-preview {
     clip-path: inset(
       var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)

@@ -104,7 +104,9 @@ A playground whose submitted configuration you have applied becomes a record too
 Author each control at the chosen value, so the preview, Reset and the page's account
 of the choice agree, and keep it and its evidence open beside what came of the choice,
 since the user reads the record against that evidence. The user can still explore from
-it, and Reset brings them back to the record.
+it. Keep the recorded configuration identifiable when working values change; a
+changing preview shows the working configuration and is labeled accordingly.
+Reset brings the preview back to the record.
 
 The user reads threads to find out how their input was addressed. When a revision
 resolves the question or completes the work discussed in an open thread, reply there

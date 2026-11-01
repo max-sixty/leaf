@@ -37,33 +37,48 @@ import { upFrom } from "./shadow.js";
 import { offer } from "./widget-elements.js";
 
 // element -> { notes, authored }; a note's element, read back.
+/** @typedef {{notes: Element[], authored: string | null}} ShelfRecord */
+/** @type {Map<Element, ShelfRecord>} */
 const records = new Map();
+/** @type {WeakMap<Node, Element>} */
 const owners = new WeakMap();
+/** @type {HTMLDivElement | null} */
 let shelf = null;
 
 declareSide((node) => {
-  for (let at = node; at && at !== shelf; at = upFrom(at)) {
+  /** @type {Element | null} */
+  let at = node;
+  for (; at && at !== shelf; at = upFrom(at)) {
     const element = owners.get(at);
     if (element) return element;
   }
   return null;
 });
 
+/** @template T @param {readonly T[]} left @param {readonly T[]} right */
 const same = (left, right) =>
   left.length === right.length && left.every((node, index) => node === right[index]);
 
 // The elements an authored `aria-details` names, looked up where the element stands.
-const authoredDetails = (element, value) =>
-  (value ?? "")
+/** @param {Element} element @param {string | null} value */
+const authoredDetails = (element, value) => {
+  const root = element.getRootNode();
+  if (!("getElementById" in root)) return [];
+  return (value ?? "")
     .split(/\s+/)
     .filter(Boolean)
-    .map((id) => element.getRootNode().getElementById?.(id))
-    .filter(Boolean);
+    .flatMap((id) => {
+      const node = root.getElementById(id);
+      return node ? [node] : [];
+    });
+};
 
 // The relation this module wrote still stands where the attribute is the empty value
 // writing it leaves.
+/** @param {Element} element */
 const written = (element) => element.getAttribute("aria-details") === "";
 
+/** @param {Element} element @param {ShelfRecord} record */
 function name(element, record) {
   if (!written(element)) record.authored = element.getAttribute("aria-details");
   const wanted = [...authoredDetails(element, record.authored), ...record.notes];
@@ -73,6 +88,7 @@ function name(element, record) {
 
 // Stand `note` on the shelf and have `element` name it. Idempotent, and meant to be asked
 // on every pass that finds the note still owed.
+/** @param {Element} element @param {Element} note */
 export function shelve(element, note) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
@@ -89,6 +105,7 @@ export function shelve(element, note) {
 
 // Take `note` off the shelf and out of `element`'s relation. The element's authored
 // `aria-details` comes back with its last note.
+/** @param {Element} element @param {Element} note */
 export function unshelve(element, note) {
   const record = records.get(element);
   if (record?.notes.includes(note)) {

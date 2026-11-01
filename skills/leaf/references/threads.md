@@ -2,7 +2,8 @@
 
 Open a thread when the answer depends on the user. Add `--obligation` to put the
 message on their On me list until they answer. The message itself supplies the
-request; no widget or markup is needed. Anchor it with a quote for a passage, a section id
+request; no widget or markup is needed, though a question whose answers you can list
+takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
@@ -51,8 +52,7 @@ longer describes the discussion, rename it with
 message.
 
 Add `--markup` for an HTML fragment after the text: a native table, a bounded log, or
-a small question using `lf-ask` and `lf-options`. Native HTML needs no widget
-wrapper. Its ids must be new, used in no version of the page and no earlier
+a choice ("Ask for a pick" below). Native HTML needs no widget wrapper. Its ids must be new, used in no version of the page and no earlier
 message. Leaf checks markup as it checks a page, and refuses document settings or a
 stylesheet for the whole page. An `lf-sample` template gives the user a live
 practice page in the thread (`live-samples.md`).
@@ -139,8 +139,8 @@ Every answer declares whose move it leaves:
   review before making one, or asks them for an answer or permission. It creates
   `message:<its id>` on On me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
-  decision it informs is already there. A widget in `--markup` can instead register
-  the answer it captures ([The On lists](conversation-loop.md#the-on-lists)).
+  decision it informs is already there. Where you can list the answers, a choice in
+  `--markup` asks instead ("Ask for a pick").
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
@@ -148,13 +148,35 @@ Every answer declares whose move it leaves:
   nothing to decide.
 
 ```bash
-leaf thread reply <answer.ref> --obligation --text "Which store should own it?"
+leaf thread reply <answer.ref> --obligation --text "How long must exports be kept?"
 leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
 and **Still to do** until you end the to-do. A promise declared `--done` reads as
 finished work.
+
+### Ask for a pick
+
+When a message asks the user to choose among answers you can list, such as which of
+two ways to proceed or whether to take an action, send the answers as an `lf-options`
+group in `--markup` rather than listing them in words. The user answers with a press
+in the thread, and the group waits on them until they do, so the message takes no
+`--obligation`, which the command refuses beside it. The message's text asks the
+question and gives your reason, so the group needs no `lf-ask`. Title each option by
+what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
+question holds"):
+
+```bash
+leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small><strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
+```
+
+If the user answers in words instead, end the question with
+`leaf task end <page> widget:<id> done --text "<where they answered>"`; the delivery
+of their reply lists it in `waiting`. Another widget that asks works the same way, such
+as an `lf-draft` marked `needed` for wording the user edits. A decision the page
+records, or one whose evidence needs the column, goes on the page beside its subject
+(`authoring-on-me.md`), linked from the reply.
 
 ### Progress messages
 
@@ -177,10 +199,9 @@ Progress carries only text;
 questions, to-dos, markup, anchor moves and failure receipts each need a reply of
 their own.
 
-Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options`, waits on the user and keeps its thread at "Your turn"
-until they answer it. A thread you open waits on nobody by itself: `--obligation` registers the
-message's request without markup. A user task attached to the thread instead waits
+A widget that asks in a message's markup keeps its thread at "Your turn" until the
+user answers it ("Ask for a pick"). A thread you open waits on nobody by itself:
+`--obligation` registers the message's request without markup. A user task attached to the thread instead waits
 for Done; discussing it does not complete it.
 
 Correct a message you or an earlier agent wrote, without adding a turn:

@@ -722,7 +722,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a widget that seats work, an element,
     or the page. A completing note and `todo_end` share completion authority.
-    A `todo_end` also admits an agent's end of a question answered in words; a
+    A `todo_end` also admits an agent's end of a question an agent message asks; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 

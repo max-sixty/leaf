@@ -197,8 +197,9 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 
 
 # The floating panel's row ends in one seat: at rest the On me mark, which counts what
-# waits on the user and dots a thread with news; while a view, stance or search stands,
-# its way out (`.lf-fp-exit`, with `.lf-fp-close` for a view's Close) in the same place.
+# waits on the user and dots a thread with news; while a stance or search stands, its
+# way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
+# ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
 
@@ -242,7 +243,7 @@ def open_threads(page: Page | FrameLocator) -> None:
     host = page.locator(".lf-floating-panel")
     if host.get_attribute("data-open") == "threads":
         return
-    back = page.locator(".lf-fp-controls .lf-fp-back", has_text="Threads")
+    back = page.get_by_role("button", name="Back to Threads")
     if back.count():
         back.click()
     else:

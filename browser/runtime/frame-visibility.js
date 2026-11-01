@@ -36,7 +36,10 @@
    it judges, and has no host to ask. */
 const child = document.documentElement.lfSample;
 let admitted = false;
+/** @type {Set<(visibility: ReturnType<typeof frameVisibility>) => unknown>} */
 const observers = new Set();
+/** @typedef {Exclude<Extract<import("./sample-protocol.js").ParentNotice, {type: "visibility-reading"}>["detail"], {error: import("./sample-protocol.js").SampleFailure}>} SampleVisibility */
+/** @type {Map<number, {resolve: (visibility: SampleVisibility) => void, reject: (reason: Error) => void}>} */
 const readings = new Map();
 let readingId = 0;
 
@@ -45,12 +48,15 @@ let readingId = 0;
  * containing viewports, and when an attribute that can hide or exclude it changes on
  * the frame or an element holding it, which no observer of geometry hears. `stop`
  * disconnects. */
+/** @param {Element} frame @param {() => unknown} callback */
 export function watchFrame(frame, callback) {
   let intersecting = false;
   const seen = new IntersectionObserver(
     (entries) => {
-      const { width, height } = entries.at(-1).intersectionRect;
-      intersecting = width > 0 && height > 0;
+      for (const {
+        intersectionRect: { width, height },
+      } of entries)
+        intersecting = width > 0 && height > 0;
       callback();
     },
     // Edge adjacency is already "intersecting" at zero area, so a positive threshold
@@ -81,10 +87,13 @@ export function watchFrame(frame, callback) {
 }
 
 // A cross-origin ancestor's frame element reads null and ends the walk.
+/** @type {ReturnType<typeof watchFrame>[]} */
 const owners = [];
+/** @type {Window} */
+let containingView = window;
 if (!child)
-  for (let view = /** @type {Window} */ (window); view.frameElement; view = view.parent)
-    owners.push(watchFrame(view.frameElement, publish));
+  for (; containingView.frameElement; containingView = containingView.parent)
+    owners.push(watchFrame(containingView.frameElement, publish));
 
 /** Null in a top-level document; otherwise whether its frame shows. */
 export function frameVisibility() {
@@ -92,6 +101,7 @@ export function frameVisibility() {
   if (owners.length) return { visible: owners.every((owner) => owner.shown()) };
   return null;
 }
+/** @param {(visibility: {visible: boolean} | null) => void} callback */
 export function onFrameVisibility(callback) {
   observers.add(callback);
   return () => observers.delete(callback);
@@ -101,12 +111,18 @@ export function onFrameVisibility(callback) {
 // scan is entitled to reuse. A nested sample's containing owner obtains this same
 // reading from its own owner before answering. Null outside a sample.
 export function readSampleVisibility() {
-  if (!child) return null;
-  return new Promise((resolve, reject) => {
-    const id = ++readingId;
-    readings.set(id, { resolve, reject });
-    child.send({ type: "visibility-read", detail: { id } });
-  });
+  const bridge = child;
+  if (!bridge) return null;
+  return new Promise(
+    /** @param {(visibility: SampleVisibility) => void} resolve */ (
+      resolve,
+      reject,
+    ) => {
+      const id = ++readingId;
+      readings.set(id, { resolve, reject });
+      bridge.send({ type: "visibility-read", detail: { id } });
+    },
+  );
 }
 function publish() {
   const visibility = frameVisibility();
@@ -117,7 +133,7 @@ if (child) {
     if (type === "visibility-reading") {
       const reading = readings.get(detail.id);
       readings.delete(detail.id);
-      if (detail.error)
+      if ("error" in detail)
         reading?.reject(
           Object.assign(
             new Error(detail.error.message),

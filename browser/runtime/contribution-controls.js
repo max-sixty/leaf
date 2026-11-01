@@ -2,6 +2,7 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
+import { renderedUnder } from "./shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { HOLDS_WORD } from "./held-word.js";
@@ -9,9 +10,9 @@ import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
 import { elementDirective, offer } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { focusDestination } from "./focus.js";
+import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
@@ -26,12 +27,32 @@ import {
   normalizeContributionReading,
   visibleContributionEntryLabel,
 } from "./contribution-model.js";
+/** @typedef {import("./contribution-model.js").EntryInput} EntryInput
+ * @typedef {import("./contribution-model.js").ContributionEntry} Entry
+ * @typedef {import("./contribution-model.js").OwnedEntry} OwnedEntry
+ * @typedef {Entry & {owner?: string}} PresentedEntry
+ * @typedef {import("./contribution-model.js").ReadingOptions} ReadingOptions
+ * @typedef {import("./contribution-model.js").ContributionReading} ContributionReading
+ * @typedef {import("./contributions.js").ContributionSource} ContributionSource
+ * @typedef {import("./contributions.js").ContributionSurface} Surface
+ * @typedef {import("./keyboard/scopes.js").CommandCapability} CommandScope
+ * @typedef {{accessibleLabel?: string | null, relatedControlIds?: readonly string[],
+ * writesRelation?: boolean, writesSeat?: boolean, selected?: boolean}} HostOptions
+ * @typedef {{description: string | null, title: string | null,
+ * stage: ReturnType<typeof progressFace>, word: ReturnType<typeof workflowWord>, detail: string | null}} AgentDescription
+ * @typedef {{offered: ContributionSource, entry: OwnedEntry, control: Element, surface: Surface, event: UIEvent}} ControlActivation
+ */
 // Scopes belong to the browser declaration, not the immutable model record.
+/** @type {WeakMap<object, CommandScope>} */
 const commandScopes = new WeakMap();
+/** @type {WeakSet<object>} */
 const commandEntries = new WeakSet();
-export const contributionOwnsCommand = (record) => commandEntries.has(record);
+/** @param {object | undefined} record */
+export const contributionOwnsCommand = (record) =>
+  record !== undefined && commandEntries.has(record);
 // The key this module projects an entry's scope onto its control under.
 const CONTRIBUTION_ENTRY = Symbol("contribution entry");
+/** @template {object} R @param {R} record @param {EntryInput} declared */
 function bindScope(record, declared) {
   const scope = commandScopes.get(declared) ?? declared.scope;
   if (scope != null) commandScopes.set(record, scope);
@@ -39,6 +60,7 @@ function bindScope(record, declared) {
   return record;
 }
 
+/** @param {EntryInput} offered */
 export function contributionEntry(offered) {
   const scope = commandScopes.get(offered) ?? offered.scope;
   if (scope != null && !isCommandScope(scope))
@@ -50,7 +72,7 @@ export function contributionEntry(offered) {
       contributionOwnsCommand(offered)
         ? {
             ...offered,
-            disabled: commandDisabled(scope, command),
+            disabled: commandDisabled(command),
           }
         : offered,
     ),
@@ -61,34 +83,39 @@ export function contributionEntry(offered) {
 // An entry may project a declared command as its native action. The stable command
 // id in activation keeps every projection on that callback, including its disabled
 // reading, while the native adapter retains surface and gesture intent.
+/** @param {EntryInput | Entry | undefined} record */
 export function contributionCommand(record) {
-  if (!contributionOwnsCommand(record)) return null;
+  if (!record || !contributionOwnsCommand(record)) return null;
   const scope = commandScopes.get(record);
   return entryCommand(scope, record.activation);
 }
+/** @param {EntryInput | Entry | undefined} record */
 export function contributionCommandDisabled(record) {
-  const scope = commandScopes.get(record);
   const command = contributionCommand(record);
-  return contributionOwnsCommand(record) && commandDisabled(scope, command);
+  return contributionOwnsCommand(record) && commandDisabled(command);
 }
-const commandDisabled = (scope, command) =>
+/** @param {ReturnType<typeof entryCommand>} command */
+const commandDisabled = (command) =>
   Boolean(
     !command ||
-    (scope.scope.when && !scope.scope.when()) ||
+    (command.scope.scope.when && !command.scope.scope.when()) ||
     !commandAvailable(command.row, command.route),
   );
+/** @param {CommandScope | null | undefined} scope @param {string | null | undefined} id */
 function entryCommand(scope, id) {
-  for (const row of scope?.scope.rows ?? []) {
-    if (!row.run) continue;
+  if (!scope) return null;
+  for (const row of scope.scope.rows) {
+    if (!row.run && !row.runKey) continue;
     const routes = commandRoutes(row);
     if (!routes.length && row.id === id)
-      return { row, route: null, binding: commandBinding(row) };
+      return { scope, row, route: null, binding: commandBinding(row) };
     const route = routes.find((route) => route.id === id);
-    if (route) return { row, route, binding: commandBinding(row, route) };
+    if (route) return { scope, row, route, binding: commandBinding(row, route) };
   }
   return null;
 }
 
+/** @param {ReadingOptions} reading @param {string} owner @param {ContributionReading | null} previous */
 export function normalizeReading(reading, owner, previous = null) {
   const priorEntries = new Map(
     (previous?.entries ?? []).map((entry) => [entry.key, entry]),
@@ -96,6 +123,7 @@ export function normalizeReading(reading, owner, previous = null) {
   const entries = (reading.entries ?? []).map((entry) => {
     const prior = priorEntries.get(entry.key);
     if (
+      prior &&
       contributionOwnsCommand(prior) &&
       entry.activation === prior.activation &&
       (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)
@@ -109,29 +137,42 @@ export function normalizeReading(reading, owner, previous = null) {
     return contributionEntry(declaration);
   });
   const normalized = normalizeContributionReading({ ...reading, entries }, owner);
-  normalized.entries.forEach((entry, index) => bindScope(entry, entries[index]));
+  const declarations = entries[Symbol.iterator]();
+  for (const entry of normalized.entries) {
+    const declared = declarations.next();
+    if (declared.done) break;
+    bindScope(entry, declared.value);
+  }
   return normalized;
 }
 
 // Primary annotation and inline Thread seats share each native entry. Page Map
 // keeps its own modal projection in the presented directory below.
+/** @type {WeakMap<ContributionSource, Map<string, HTMLElement>>} */
 const contributionControls = new WeakMap();
 let relationOrdinal = 0;
+/** @type {WeakMap<ContributionSource, Map<Surface, Map<string, Element>>>} */
 const presented = new WeakMap();
+/** @type {WeakMap<Element, PresentedEntry>} */
 const records = new WeakMap();
+/** @type {WeakMap<Element, ContributionSource>} */
 const controlContributions = new WeakMap();
+/** @type {WeakMap<Element, string[]>} */
 const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
+/** @param {Entry} record @param {string} [className] */
 function createContributionControl(record, className = "") {
   return offer(record.behavior === "status" ? "span" : "button", className);
 }
 
+/** @param {Element} control @param {Entry} record */
 const contributionControlMatches = (control, record) =>
   record.behavior === "status"
     ? control instanceof HTMLSpanElement
     : control instanceof HTMLButtonElement;
 
+/** @param {Element} control */
 export function contributionEntryRecord(control) {
   const record = records.get(control);
   if (!record)
@@ -139,11 +180,13 @@ export function contributionEntryRecord(control) {
   return record;
 }
 
+/** @param {Element} control */
 export function contributionControlKey(control) {
   const { owner, key } = contributionEntryRecord(control);
   return JSON.stringify([owner, key]);
 }
 
+/** @param {Element} control */
 export function contributionEntrySource(control) {
   const offered = controlContributions.get(control);
   if (!offered) return null;
@@ -152,9 +195,13 @@ export function contributionEntrySource(control) {
 
 // Agent workflow is projection state. One claim gets one shared arrival window so the
 // independently rendered Margin and Page Map carriers join rather than replay its pulse.
+/** @type {WeakMap<Element, AgentDescription>} */
 const agentWorkflowDescriptions = new WeakMap();
+/** @type {Map<string, number>} */
 const claimArrivals = new Map();
+/** @type {WeakMap<Element, string>} */
 const controlArrivals = new WeakMap();
+/** @param {Element} control */
 function agentWorkflowDescription(control) {
   let reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
@@ -170,17 +217,23 @@ function agentWorkflowDescription(control) {
   return reading;
 }
 
-function syncAgentArrival(control, claim, stage) {
-  if (stage !== "working") {
+/** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt */
+function syncAgentArrival(control, receipt) {
+  if (!receipt || progressFace(receipt) !== "working") {
     control.removeAttribute("data-lf-agent-arrival");
     return;
   }
-  if (!claimArrivals.has(claim)) claimArrivals.set(claim, performance.now());
-  const elapsed = performance.now() - claimArrivals.get(claim);
+  const claim = JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]);
+  let began = claimArrivals.get(claim);
+  if (began === undefined) {
+    began = performance.now();
+    claimArrivals.set(claim, began);
+  }
+  const elapsed = performance.now() - began;
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
   if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
-  control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
+  inlineStyle(control).setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(
     "animationend",
@@ -189,6 +242,7 @@ function syncAgentArrival(control, claim, stage) {
   );
 }
 
+/** @param {Element} control */
 function paintAgentDescription(control) {
   const reading = agentWorkflowDescriptions.get(control);
   if (!reading) {
@@ -205,14 +259,14 @@ function paintAgentDescription(control) {
     reading.stage && reading.word,
     reading.stage && reading.detail && agentSays(reading.detail),
   ]
-    .filter(Boolean)
+    .flatMap((part) => (part ? [part] : []))
     .flatMap((part, index) => (index ? [" · ", part] : [part]));
   paintLabelMore(control, more);
   if (!reading.stage) {
-    for (const [attribute, value] of [
-      ["aria-description", reading.description],
-      ["title", reading.title],
-    ]) {
+    for (const [attribute, value] of Object.entries({
+      "aria-description": reading.description,
+      title: reading.title,
+    })) {
       keeps(control, attribute, value);
     }
     return;
@@ -236,30 +290,30 @@ function paintAgentDescription(control) {
   );
 }
 
+/** @param {Element} control @param {import("./voice.js").Words | null} more */
 function paintLabelMore(control, more) {
+  /** @type {HTMLElement | null} */
   const line = control.querySelector(
     ":scope > .lf-margin-entry-label > .lf-margin-entry-more",
   );
   if (line) render(voiced(more ?? []), line);
 }
 
+/** @param {Element} control @param {string | null} description @param {string | null} title */
 function syncAgentDescriptionBase(control, description, title) {
   Object.assign(agentWorkflowDescription(control), { description, title });
   paintAgentDescription(control);
 }
 
+/** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt */
 function syncContributionAgentWorkflow(control, receipt) {
   const paintedStage = progressFace(receipt);
-  syncAgentArrival(
-    control,
-    receipt && JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]),
-    paintedStage,
-  );
+  syncAgentArrival(control, receipt);
   const reading = agentWorkflowDescription(control);
   keeps(control, "data-lf-agent-workflow", paintedStage || null);
   Object.assign(
     reading,
-    paintedStage
+    receipt && paintedStage
       ? {
           stage: paintedStage,
           word: workflowWord(receipt, agentName()),
@@ -270,6 +324,7 @@ function syncContributionAgentWorkflow(control, receipt) {
   paintAgentDescription(control);
 }
 
+/** @param {Element} control @param {boolean | undefined} selected */
 export function syncContributionSelection(control, selected) {
   control.toggleAttribute("data-lf-target-selected", Boolean(selected));
 }
@@ -279,16 +334,19 @@ export function syncContributionSelection(control, selected) {
 // carrier that stops waiting loses it rather than keeping a stale colour. Only the
 // user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
+/** @param {Element} control @param {boolean} awaitsUser */
 function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
 // Whether a reading carries agent content the user has not taken in: the same
 // Thread `unread` the panel and the margin paint, as one attribute both surfaces share.
+/** @param {Element} control @param {number} count */
 export function syncContributionUnread(control, count) {
   control.toggleAttribute("data-lf-unread", Boolean(count));
 }
 
+/** @param {Element} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
 export function presentContributionHost(
   control,
   offered,
@@ -299,6 +357,7 @@ export function presentContributionHost(
     writesSeat = true,
   } = {},
 ) {
+  /** @type {PresentedEntry} */
   const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");
@@ -360,7 +419,10 @@ export function presentContributionHost(
   } else {
     keeps(control, "role", "button");
     keeps(control, "aria-disabled", record.disabled);
-    if (writesSeat && control.tabIndex < 0) control.tabIndex = 0;
+    if (writesSeat) {
+      const target = nativeFocusTarget(control);
+      if (target.tabIndex < 0) target.tabIndex = 0;
+    }
   }
   keeps(control, "aria-label", accessibleLabel ?? record.accessibleLabel);
   syncAgentDescriptionBase(control, record.description || null, record.title || null);
@@ -374,7 +436,13 @@ export function presentContributionHost(
 // the record's host attributes and scope.
 export const contributionHost = elementDirective(
   "contributionHost",
-  (control, source, surface, record, options) => {
+  (
+    control,
+    /** @type {ContributionSource} */ source,
+    /** @type {Surface} */ surface,
+    /** @type {EntryInput | PresentedEntry} */ record,
+    /** @type {HostOptions | undefined} */ options = undefined,
+  ) => {
     presentContributionHost(control, record, options);
     trackContributionControl(source, surface, record.key, control);
   },
@@ -384,6 +452,7 @@ export const contributionHost = elementDirective(
 // control paints what its projection chose, on every pass, so a control keeps no
 // receipt from the seat or the projection it last stood in. Retained controls call
 // it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+/** @param {Element} control @param {import("./framework/application.js").Workflow | null | undefined} receipt @param {boolean} awaitsUser */
 export function presentContributionReceipts(control, receipt, awaitsUser) {
   syncContributionAgentWorkflow(control, receipt);
   syncContributionTurn(control, awaitsUser);
@@ -393,6 +462,7 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
+/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
@@ -416,7 +486,9 @@ export function presentContributionEntry(control, offered, options = {}) {
     html`${glyph}<span class="lf-margin-entry-space" aria-hidden="true"> </span
       ><span class="lf-margin-entry-label" aria-hidden="true"
         ><span class="lf-margin-entry-label-word"
-          >${record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel}</span
+          >${
+            record.voice ? voiced(saidBy(record.voice, visibleLabel)) : visibleLabel
+          }</span
         >${
           record.context
             ? html`<span class="lf-margin-entry-context"
@@ -437,6 +509,7 @@ export function presentContributionEntry(control, offered, options = {}) {
   return control;
 }
 
+/** @param {ContributionSource} offered @param {Surface} surface @param {string} key @param {Element} control */
 export function trackContributionControl(offered, surface, key, control) {
   controlContributions.set(control, offered);
   let surfaces = presented.get(offered);
@@ -452,19 +525,22 @@ export function trackContributionControl(offered, surface, key, control) {
   controls.set(key, control);
 }
 
+/** @param {ContributionSource} offered @param {Surface} surface @param {ReadonlySet<string>} liveKeys */
 export function clearContributionControls(offered, surface, liveKeys) {
-  const controls = presented.get(offered)?.get(surface);
-  if (!controls) return;
+  const surfaces = presented.get(offered);
+  const controls = surfaces?.get(surface);
+  if (!surfaces || !controls) return;
   for (const [key, control] of controls) {
     if (liveKeys.has(key)) continue;
     controls.delete(key);
-    const retained = [...presented.get(offered).values()].some((seats) =>
+    const retained = [...surfaces.values()].some((seats) =>
       [...seats.values()].includes(control),
     );
     if (!retained) releaseContributionControl(control);
   }
 }
 
+/** @param {ContributionSource} offered @param {string} entryKey @param {Surface | null} surface @param {boolean} visible */
 export function contributionControl(
   offered,
   entryKey,
@@ -472,27 +548,38 @@ export function contributionControl(
   visible = false,
 ) {
   const surfaces = presented.get(offered);
-  for (const name of surface ? [surface] : ["margin", "page", "map", "inline"]) {
+  /** @type {readonly Surface[]} */
+  const names = surface ? [surface] : ["margin", "page", "map", "inline"];
+  for (const name of names) {
     const control = surfaces?.get(name)?.get(entryKey);
     if (control?.isConnected && (!visible || control.checkVisibility())) return control;
   }
   return null;
 }
 
+/** @param {ContributionSource} offered */
+const presentedControls = (offered) =>
+  [...(presented.get(offered)?.values() ?? [])].flatMap((controls) => [
+    ...controls.values(),
+  ]);
+
+/** @param {ContributionSource} offered @param {Node | null} node */
 export function contributionContains(offered, node) {
-  if (!(node instanceof Node)) return false;
-  return [...(presented.get(offered)?.values() ?? [])].some((controls) =>
-    [...controls.values()].some(
-      (control) => control === node || control.contains(node),
-    ),
-  );
+  return presentedControls(offered).some((control) => renderedUnder(node, control));
 }
 
+/** The registration spans each of its controls, whichever surface presents them.
+ * @param {ContributionSource} offered */
+export const contributionHasCurrentLocation = (offered) =>
+  presentedControls(offered).some(currentLocationIn);
+
+/** @param {Element} control */
 function releaseContributionControl(control) {
   controlAvailabilityOutput(control, CONTRIBUTION_ENTRY);
   projectCommandScope(control, CONTRIBUTION_ENTRY, null);
   controlContributions.delete(control);
 }
+/** @param {ContributionSource} offered */
 export function forgetContributionControls(offered) {
   for (const controls of presented.get(offered)?.values() ?? [])
     for (const control of controls.values()) releaseContributionControl(control);
@@ -503,6 +590,7 @@ export function forgetContributionControls(offered) {
  *  activation's `focus(key)` hands the user on from the control they pressed to the
  *  entry `key` names, which is a return (focus.js, `focusDestination`). `reveal` shows a
  *  destination its surface hides first, as the margin does a row annotations hide. */
+/** @param {ControlActivation} activation @param {((control: Element) => unknown) | null} reveal */
 export function activateContributionControl(
   { offered, entry, control, surface, event },
   reveal = null,
@@ -521,41 +609,57 @@ export function activateContributionControl(
   });
 }
 
-export function materializeContributionControls(source, surface, activate) {
+/** Materialize the chosen immutable reading while retaining its source's native controls.
+ * The returned capability draws an exact owned record, so a selected snapshot never
+ * has to recover its control from the source's later reading by a string key.
+ * @param {import("./contributions.js").ContributionOffer} offer @param {Surface} surface
+ * @param {(activation: ControlActivation) => unknown} activate */
+export function materializeContributionControls(offer, surface, activate) {
+  const source = offer.source();
   let controls = contributionControls.get(source);
   if (!controls) {
     controls = new Map();
     contributionControls.set(source, controls);
   }
-  const entries = source.reading.entries.filter((entry) => entry.visible);
+  const directory = controls;
+  const entries = offer.reading.entries.filter((entry) => entry.visible);
   const liveKeys = new Set(entries.map((entry) => entry.key));
-  const changed = new Set();
-  for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
-  for (const entry of entries) {
-    let control = controls.get(entry.key);
+  for (const key of directory.keys()) if (!liveKeys.has(key)) directory.delete(key);
+  /** @param {OwnedEntry} entry */
+  const retain = (entry) => {
+    let control = directory.get(entry.key);
+    let changed;
     if (!control || !contributionControlMatches(control, entry)) {
       control = createContributionControl(entry);
-      controls.set(entry.key, control);
-      changed.add(control);
-    } else if (contributionEntryRecord(control) !== entry) changed.add(control);
-    control.onclick = (event) =>
-      activate({ offered: source, entry, control, surface, event });
-    trackContributionControl(source, surface, entry.key, control);
-  }
+      directory.set(entry.key, control);
+      changed = true;
+    } else changed = contributionEntryRecord(control) !== entry;
+    const native = control;
+    native.onclick = (event) =>
+      activate({ offered: source, entry, control: native, surface, event });
+    trackContributionControl(source, surface, entry.key, native);
+    return { entry, control: native, changed };
+  };
+  const drawn = entries.map(retain);
   clearContributionControls(source, surface, liveKeys);
-  for (const entry of entries) {
-    const control = controls.get(entry.key);
+  /** @param {ReturnType<typeof retain>} view */
+  const paint = ({ entry, control, changed }) => {
     const related =
       entry.relation?.kind === "entries"
-        ? entry.relation.keys.map((key) => controls.get(key)).filter(Boolean)
+        ? entry.relation.keys.flatMap((key) => directory.get(key) ?? [])
         : [];
     related.forEach((node, index) => {
       if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
     });
-    if (changed.has(control))
+    if (changed)
       presentContributionEntry(control, entry, {
         relatedControlIds: related.map((node) => node.id),
       });
-  }
-  return controls;
+  };
+  drawn.forEach(paint);
+  return (/** @type {OwnedEntry} */ entry) => {
+    const view = retain(entry);
+    paint(view);
+    return view.control;
+  };
 }

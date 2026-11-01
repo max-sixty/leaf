@@ -1099,19 +1099,6 @@ html[data-lf-region-capture] main * {
   .lf-copyable-text pre::after {
     content: none;
   }
-  .lf-inspection-metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px 20px;
-  }
-  .lf-inspection-metrics dt {
-    color: var(--muted);
-    font: var(--font-small);
-  }
-  .lf-inspection-metrics dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-  }
   .lf-page-map-search {
     width: 100%;
     margin-top: 10px;

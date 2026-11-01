@@ -494,7 +494,7 @@ def mark_declared(
                     index(location.start_tag.end_line, location.start_tag.end_col),
                     (
                         '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1"'
-                        f"{source_words}>{markdown_markup(text, breaks=words)}</div>"
+                        f"{source_words}>{markdown_markup(text)}</div>"
                     ),
                 )
             )

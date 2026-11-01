@@ -87,7 +87,6 @@ import {
   rewriteContext,
   forgetWritingPlace,
   loadDraft,
-  loadDraftPayload,
   mirrorDraft,
   restoreDraft,
   saveDraft,
@@ -109,28 +108,48 @@ import { offer, offerAction } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
 import { signal } from "/runtime/framework.js";
 
+/** @typedef {import("./messages.js").MessageView} MessageView */
+/** @typedef {NonNullable<Parameters<ReturnType<typeof import("./actions.js").createThreadActions>["edit"]>[3]>} EditOptions */
+/** @typedef {(text: string, options: EditOptions) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["edit"]>} SendRewrite */
+/** @typedef {{
+ * wireInput: ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"],
+ * said: () => string, base: () => string, send: SendRewrite,
+ * land: () => unknown, paint: () => void, previous: () => MessageView | null,
+ * reveal: (caretLine: Element) => void,
+ * }} EditorCommands */
+
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 // message id -> {view, thread}: the view drawing its editor, null once that view is
 // gone, and the key of its thread.
+/** @type {Map<string, {view: MessageView | null, thread: string}>} */
 const open = new Map();
 // Rewrites whose words are on their way to the log: neither open nor kept.
+/** @type {Set<string>} */
 const sending = new Set();
 // The changed words this document's latest discard threw away, with the revision they
 // were written over: values, never the closed editor. Not a draft, so the discard still
 // settles that draft in every tab and Resume writing goes back where it went before.
+/** @type {{id: string, text: string, over: string} | null} */
 let discarded = null;
 
 // Restore discarded edit: the words go back to the rewrite's draft, and its message
 // opens on them as it does on words a reload kept, the editor raising its warning where
 // the message changed since. Words of the rewrite's own, open, sending or in another
 // tab, are newer, so the command stands dead over them.
+/** @param {{revealInThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openThreadDraft"],
+ * holdsThreadDraft: (context: string) => boolean}} destinations
+ * @returns {import("../keyboard/bindings.js").Command} */
 export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
-  const restorable = () =>
-    discarded &&
-    !open.has(discarded.id) &&
-    !draftHasContent(rewriteContext(discarded.id)) &&
-    holdsThreadDraft(rewriteContext(discarded.id));
+  const restorable = () => {
+    const candidate = discarded;
+    return candidate &&
+      !open.has(candidate.id) &&
+      !draftHasContent(rewriteContext(candidate.id)) &&
+      holdsThreadDraft(rewriteContext(candidate.id))
+      ? candidate
+      : null;
+  };
   return {
     id: "message.edit.restore",
     keys: ["Shift+d"],
@@ -139,8 +158,9 @@ export function createRewriteRestore({ revealInThread, holdsThreadDraft }) {
     menu: "keys",
     when: () => Boolean(restorable()),
     run: async () => {
-      if (!restorable()) return;
-      const { id, text, over } = discarded;
+      const candidate = restorable();
+      if (!candidate) return;
+      const { id, text, over } = candidate;
       const ctx = rewriteContext(id);
       if (!restoreDraft(ctx, text, { over })) return;
       discarded = null;
@@ -160,6 +180,7 @@ export const messageDrawn = () => {
 
 // Whether `view` draws the editor for message `id`: the view holding it, or the first to
 // ask once no view does.
+/** @param {string} id @param {MessageView} view */
 export function holdsMessageEdit(id, view) {
   const holder = open.get(id);
   if (!holder) return false;
@@ -169,6 +190,7 @@ export function holdsMessageEdit(id, view) {
 }
 
 // The view drawing `id`'s editor is gone; the next view of the message takes it.
+/** @param {string} id @param {MessageView} view */
 export function releaseMessageEdit(id, view) {
   const holder = open.get(id);
   if (holder?.view === view) holder.view = null;
@@ -178,6 +200,7 @@ export function releaseMessageEdit(id, view) {
 // elsewhere, in another reader of the thread, draws the message as it stands again, so
 // one editor shows it; and one rewrite stands open in a thread unless the user changed
 // its words, so another left as its message says it closes, whichever reader holds it.
+/** @param {string} id @param {MessageView} view @param {string} thread */
 function openMessageEdit(id, view, thread) {
   for (const [other, holder] of [...open]) {
     if (other === id || holder.thread !== thread) continue;
@@ -192,19 +215,22 @@ function openMessageEdit(id, view, thread) {
 }
 
 // Whether a rewrite of `id` holds words no editor shows: a reload's or a refusal's.
+/** @param {string} id */
 export const keptRewrite = (id) =>
   !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 
 // Call `changed` on news of the words of a rewrite of `id`, from this tab or another.
 // Returns the unsubscribe.
+/** @param {string} id @param {() => void} changed */
 export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), changed);
 
 // Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
 // the box its words are in: none where the thread does not draw that message as one the
 // user may rewrite.
+/** @param {Element | null} thread @param {string} id */
 export function openMessageEditIn(thread, id) {
   const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
-    (node) => node.dataset.event === id,
+    (node) => node.getAttribute("data-event") === id,
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return (
@@ -218,29 +244,25 @@ export function openMessageEditIn(thread, id) {
  * view of a message in the thread takes `edit`, as its commands' `edit`; the reader's
  * reply box takes `editLast`, its ↑ route.
  *
- * `views` answers the reader's MessageViews of the thread in its order; `send` posts a
- * rewrite of message `id`; `paint(node)` draws the view at `node` again at once;
+ * `views` answers the reader's MessageViews of the thread in its order;
+ * `paint(node)` draws the view at `node` again at once;
  * `box` answers the thread's reply box, or null where the reader shows none; `home(node)`
  * answers the drawn thread around message `node`, which the user is on once the
  * editor goes where the box is out of view; `opening(id)` is the reader's own share of
- * a rewrite of `id` opening, such as unfolding the summary that holds it; `thread`
- * answers the thread's key, which every reader of it shares.
+ * a rewrite of `id` opening, such as unfolding the summary that holds it. The message
+ * reading carries its owning thread key; the view sends through ThreadActions directly.
  *
  * @param {{
- *   thread: () => string,
- *   views: () => any[],
- *   send: (id: string, text: string, options: any) => any,
- *   paint: (node: any) => void,
- *   box: () => HTMLElement | null,
+ *   views: () => readonly MessageView[],
+ *   paint: (node: Element) => void,
+ *   box: () => Element | null,
  *   home: (node?: Element) => Element,
  *   opening?: (id: string) => void,
- *   landInThread?: any,
- *   landSent?: any,
+ *   landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"],
+ *   landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
  * }} reader */
 export function threadRewrites({
-  thread,
   views,
-  send,
   paint,
   box,
   home,
@@ -253,30 +275,36 @@ export function threadRewrites({
   // already open. A message with no words, such as a bare drawing, is passed over; none
   // while the words found cannot be rewritten, such as a message still sending, rather
   // than older words.
+  /** @param {string | null} [before] */
   const lastEditable = (before = null) => {
     const drawn = views();
     const end =
       before === null
         ? drawn.length
         : drawn.findIndex(({ model }) => model?.id === before);
-    const view = drawn
-      .slice(0, Math.max(end, 0))
-      .findLast(
-        ({ model }) =>
-          model?.author === "user" && model.body.kind !== "reaction" && model.body.text,
-      );
+    const view = drawn.slice(0, Math.max(end, 0)).findLast(
+      /** @returns {view is MessageView & {model: NonNullable<MessageView["model"]>}} */
+      (view) => {
+        const model = view.model;
+        return (
+          model?.author === "user" &&
+          model.body.kind !== "reaction" &&
+          Boolean(model.body.text)
+        );
+      },
+    );
     return view?.model.editable ? view : null;
   };
   return {
     edit: {
       paint,
-      send,
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
       // does, which moves nothing. A save in a resolved thread reopens it, so the box
       // its presentation draws then takes the caret, as Reopen's landing gives it
       // (#46, the user's decision, 2026-10-07).
+      /** @param {Element} message */
       land: (message) => {
         const shown = () => {
           const input = box();
@@ -291,13 +319,16 @@ export function threadRewrites({
           if (drawn && mayLand()) landInThread(drawn);
         });
       },
+      /** @param {string} id */
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
       // stand, so opening one is acting in the thread (`openMessageEdit`).
-      opening: (id, view) => {
-        opening(id);
-        openMessageEdit(id, view, thread());
+      /** @param {Pick<NonNullable<MessageView["model"]>, "id" | "thread">} message @param {MessageView} view */
+      opening: (message, view) => {
+        opening(message.id);
+        openMessageEdit(message.id, view, message.thread);
       },
+      /** @param {Element} message @param {Element} caretLine */
       reveal: (message, caretLine) => revealEditor(message, caretLine),
     },
     editLast: {
@@ -310,6 +341,7 @@ export function threadRewrites({
   };
 }
 
+/** @param {string} id @param {{discard: boolean}} options */
 function closeMessageEdit(id, { discard }) {
   open.delete(id);
   if (!discard) return;
@@ -332,9 +364,11 @@ export class MessageEditor {
   #stop;
   #putAside;
   #reveal;
+  /** @type {ResizeObserver | null} */
   #settling = null;
   #follow;
 
+  /** @param {string} id @param {MessageView} view @param {EditorCommands} commands */
   constructor(
     id,
     view,
@@ -346,7 +380,12 @@ export class MessageEditor {
     // they were written over; where the message has changed since, the user is told what
     // it says now before the kept words go over it.
     let base = currentBase();
-    const keptOver = loadDraftPayload(ctx)?.over;
+    const kept = loadDraft(ctx);
+    const payload = kept?.payload;
+    const keptOver =
+      payload && "over" in payload && typeof payload.over === "string"
+        ? payload.over
+        : null;
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
@@ -375,7 +414,7 @@ export class MessageEditor {
     this.foot.className = "lf-msg-edit-foot";
     this.node.append(this.input);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
-    this.input.value = loadDraft(ctx) || said();
+    this.input.value = kept?.text || said();
     // Until the user changes them, the words are the message's, so a rewrite the view
     // draws on the message meanwhile, as one a reader held back as news while this
     // opened, carries them and its revision with it: Save then writes over what the
@@ -384,6 +423,7 @@ export class MessageEditor {
     // The rewrite whole, its words and its pictures, as the box holds it: `.value` is
     // the words alone (input.js, `sync.value`), so a picture taken off changes only this.
     const whole = () => sync.value();
+    /** @type {string | null} */
     let opened = null;
     this.#follow = () => {
       if (base === currentBase() || draftHasContent(ctx) || whole() !== opened) return;
@@ -396,6 +436,7 @@ export class MessageEditor {
       const now = whole();
       return !now.trim() || now === said();
     };
+    /** @param {boolean} discard @param {{landing?: boolean, says?: string | null, painting?: boolean}} [options] */
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
       // A closing box shows no more of its draft: settled by a save, it would refill
@@ -421,6 +462,7 @@ export class MessageEditor {
       if (unchanged()) return close();
       const message = this.node.closest(".lf-msg");
       leave(false, { landing: false });
+      /** @type {HTMLButtonElement | null | undefined} */
       const reopen = message?.querySelector(".lf-msg-edit");
       if (reopen) focusDestination(reopen, "return");
       notice("Edit kept");
@@ -485,12 +527,16 @@ export class MessageEditor {
               this.input.selectionStart,
               this.input.selectionEnd,
             ];
-            return start === 0 && end === 0 && unchanged() && Boolean(previous());
+            return start === 0 && end === 0 && unchanged();
           },
-          run: () => {
+          get run() {
             const before = previous();
-            putAside();
-            before.openEdit();
+            return before
+              ? () => {
+                  putAside();
+                  before.openEdit();
+                }
+              : undefined;
           },
         },
       ],

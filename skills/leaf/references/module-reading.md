@@ -74,8 +74,9 @@ element or `null`.
 
 A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
 text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. Adopt the rendered
-`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
+block Markdown while the recorded body stays the source. It reads as a Markdown file,
+whose soft line breaks are spaces. Adopt the rendered `.lf-markdown-body` and repaint
+changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
@@ -118,6 +119,10 @@ with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
 on a generated image or link, so it resolves on published pages too.
 `isCanonicalMediaUrl(href)` says whether a path is such a `/media/…` path.
+
+`canvas2D(canvas, options)` returns the native 2D context of a canvas or offscreen
+canvas, and throws if the browser cannot create it. Pass native context options when
+the drawing needs them.
 
 ### Icons
 

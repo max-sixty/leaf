@@ -24,13 +24,15 @@ import {
   spell,
   word,
 } from "./bindings.js";
-import { pageScopes } from "./register.js";
+import { ELEMENTS, pageScopes } from "./register.js";
 import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
 
+/** @param {import("./bindings.js").Scope | null | undefined} scope */
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
 // The presses that reach a row, each spelled as a key chip spells it: a step is one
 // press, so a label's own words never split into steps.
+/** @param {import("./bindings.js").Scope} scope @param {import("./bindings.js").Command} row */
 const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
 
 /** The complete shortcut one command advertises, each press a step as a key chip
@@ -39,8 +41,9 @@ const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boo
  * command id rather than by row identity: a scope may carry another owner's command as a
  * row of its own — a `g` destination wraps the declaration it stands for — and the
  * shortcut the user presses is the one that scope prefixes. */
+/** @param {string} id */
 export function commandSteps(id) {
-  for (const scope of pageScopes())
+  for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
     for (const row of scope?.rows ?? [])
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
   return [];
@@ -48,6 +51,7 @@ export function commandSteps(id) {
 
 // Each visible control a page row names, or one of its routes does, with the press that
 // reaches it: a route's control names that route's binding alone.
+/** @param {import("./bindings.js").Command} row */
 function* namedControls(row) {
   if (row.control)
     yield {
@@ -57,18 +61,21 @@ function* namedControls(row) {
       shortcuts: () => ariaShortcuts([row], false),
     };
   for (const route of commandRoutes(row))
-    if (route.control)
+    if (route.control && route.binding !== undefined) {
+      const binding = route.binding;
       yield {
         control: route.control,
-        active: commandAvailable(row, route) && bindings(row).includes(route.binding),
-        press: spell(route.binding),
-        shortcuts: () => ariaShortcuts([{ keys: [route.binding] }], false),
+        active: commandAvailable(row, route) && bindings(row).includes(binding),
+        press: spell(binding),
+        shortcuts: () => ariaShortcuts([{ ...route, keys: [binding] }], false),
       };
+    }
 }
 
 function controlRows() {
+  /** @type {Map<Element, {scope: import("./bindings.js").Scope, control: import("./bindings.js").Cell<Element | null>, active: boolean, press: string, shortcuts: () => string}>} */
   const controls = new Map();
-  for (const scope of pageScopes())
+  for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
     for (const row of scope?.rows ?? [])
       for (const named of namedControls(row)) {
         const control = word(named.control);
@@ -85,9 +92,13 @@ function controlRows() {
 
 export function paintCoreControls() {
   for (const [control, { scope, active, press, shortcuts }] of controlRows()) {
-    if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
+    let title = control.getAttribute("data-lf-key-title");
+    if (title === null) {
+      title = control.getAttribute("title") ?? "";
+      control.setAttribute("data-lf-key-title", title);
+    }
     const steps = [...stepsBefore(scope), press].filter(Boolean).join(" ");
-    keeps(control, "title", control.dataset.lfKeyTitle + (active ? ` (${steps})` : ""));
+    keeps(control, "title", title + (active ? ` (${steps})` : ""));
     // Native command buttons receive exact reachable shortcuts from command-hints.
     if (buttonCommand(control)) continue;
     // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate

@@ -52,7 +52,7 @@ const position = () => {
   });
 };
 
-/** @param {number} dir */
+/** @param {import("./keyboard/bindings.js").Step} dir */
 function step(dir) {
   const list = changes();
   const origin = walkOrigin();
@@ -100,7 +100,7 @@ export function createChangeWalk() {
     when: offered,
     repeat: true,
     travels: true,
-    run: (/** @type {string} */ binding) => step(binding === "h" ? 1 : -1),
+    runKey: (binding) => step(binding === "h" ? 1 : -1),
   });
   // The row stands while a comparison marks anything, so the surfaces reading the keys
   // are repainted where the marks come or go.

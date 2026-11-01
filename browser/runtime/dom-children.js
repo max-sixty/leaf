@@ -345,35 +345,30 @@ function patchAttributes(live, before, after, rules) {
 }
 
 // The runtime writes properties of its own inline on authored elements, `body`'s
-// included (composing/aim.js, content-layout.js), so a revision moves declarations by
-// name: one the author dropped comes off, one the author wrote goes on. An empty custom
-// property (`--x: ;`) reads back as "", and `setProperty` with "" removes rather than
-// declares, so an empty one is written as the single space that parses to it.
+// included (composing/aim.js, content-layout.js), so a revision writes the author's new
+// text as given and carries over each property the old text didn't declare. Moving the
+// author's declarations one by one instead loses a shorthand written with `var()`, whose
+// longhands read back empty. An empty custom property (`--x: ;`) also reads back as "",
+// and `setProperty` with "" removes rather than declares, so it is written as the
+// single space that parses to it.
 /** @param {Element} live @param {string} held @param {string} next */
 function restyle(live, held, next) {
   const { style } = /** @type {HTMLElement} */ (live);
-  const declarations = (/** @type {string} */ text) => {
-    const parsed = document.createElement("div").style;
-    parsed.cssText = text;
-    return parsed;
-  };
   const names = (/** @type {CSSStyleDeclaration} */ declared) =>
     Array.from({ length: declared.length }, (_, at) => declared.item(at));
-  const after = declarations(next);
-  const written = new Set(names(after));
-  for (const property of names(declarations(held)))
-    if (!written.has(property)) style.removeProperty(property);
-  const present = new Set(names(style));
-  for (const property of written) {
-    const value = after.getPropertyValue(property);
-    const priority = after.getPropertyPriority(property);
-    if (
-      !present.has(property) ||
-      style.getPropertyValue(property) !== value ||
-      style.getPropertyPriority(property) !== priority
-    )
-      style.setProperty(property, value || " ", priority);
-  }
+  const authored = document.createElement("div").style;
+  authored.cssText = held;
+  const declared = new Set(names(authored));
+  const kept = names(style)
+    .filter((property) => !declared.has(property))
+    .map((property) => ({
+      property,
+      value: style.getPropertyValue(property),
+      priority: style.getPropertyPriority(property),
+    }));
+  live.setAttribute("style", next);
+  for (const { property, value, priority } of kept)
+    style.setProperty(property, value || " ", priority);
 }
 
 // Source text, so any run of whitespace separates two classes.

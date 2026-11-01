@@ -5551,21 +5551,17 @@ function patchAttributes(live, before, after, rules) {
 }
 function restyle(live, held, next) {
 	const { style } = live;
-	const declarations = (text) => {
-		const parsed = document.createElement("div").style;
-		parsed.cssText = text;
-		return parsed;
-	};
 	const names = (declared) => Array.from({ length: declared.length }, (_, at) => declared.item(at));
-	const after = declarations(next);
-	const written = new Set(names(after));
-	for (const property of names(declarations(held))) if (!written.has(property)) style.removeProperty(property);
-	const present = new Set(names(style));
-	for (const property of written) {
-		const value = after.getPropertyValue(property);
-		const priority = after.getPropertyPriority(property);
-		if (!present.has(property) || style.getPropertyValue(property) !== value || style.getPropertyPriority(property) !== priority) style.setProperty(property, value || " ", priority);
-	}
+	const authored = document.createElement("div").style;
+	authored.cssText = held;
+	const declared = new Set(names(authored));
+	const kept = names(style).filter((property) => !declared.has(property)).map((property) => ({
+		property,
+		value: style.getPropertyValue(property),
+		priority: style.getPropertyPriority(property)
+	}));
+	live.setAttribute("style", next);
+	for (const { property, value, priority } of kept) style.setProperty(property, value || " ", priority);
 }
 const tokens$1 = (value) => value.split(/\s+/).filter(Boolean);
 function writeText(node, next) {

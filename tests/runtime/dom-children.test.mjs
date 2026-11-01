@@ -114,7 +114,7 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   };
 }
 
-test("a revision moves the author's inline declarations and keeps the runtime's", () => {
+test("a revision writes the author's inline style and keeps the runtime's", () => {
   const { live, install } = patch(
     '<p style="color: red; margin: 0">Words</p>',
     '<p style="color: blue">Words</p>',

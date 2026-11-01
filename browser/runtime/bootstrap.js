@@ -218,7 +218,8 @@
         ...keys,
         keys.length === 1 ? "runs when it's ready" : "run when it's ready",
       );
-      if (!echo.isConnected) document.body?.append(echo);
+      // After the chrome's root, which it ties with (base.css, `.lf-held-keys`).
+      if (!echo.isConnected) document.documentElement.append(echo);
     };
     const letGo = () => {
       held.length = 0;

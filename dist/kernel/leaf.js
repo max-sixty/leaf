@@ -11212,7 +11212,7 @@ async function boot() {
 		];
 		chromeForeground.append(targetTraceLayer, aimLayer, liveEl, mediaViewer, commandReferenceDialog, inspectEl);
 		chromeRoot.append(legendRoot, atWorkLayer, ...visualMarkPaint ? [visualMarkPaint.layer] : [], drawingPaint.layer, fabBar, chromeForeground);
-		document.documentElement.append(chromeRoot);
+		document.body.after(chromeRoot);
 		version.mount();
 		mountPageStatus();
 		floatingPanel.mount(chromeForeground);
@@ -11252,7 +11252,7 @@ async function boot() {
 	} else {
 		document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
 		chromeRoot.append(mediaViewer);
-		document.documentElement.append(chromeRoot);
+		document.body.after(chromeRoot);
 		mountRepaint({
 			publishInputHint: inputs.publishInputHint,
 			paintCloseRequests,

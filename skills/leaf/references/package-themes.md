@@ -80,9 +80,9 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
-The body supplies `--lf-ground`: the browser's `Canvas`, or `var(--paper)` under the
-reading theme, which paints the body that colour; a theme or page that paints its own
-ground sets it to match. Each solid containing surface
+The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the browser's
+`Canvas`, or `var(--paper)` under the reading theme, which paints the body that colour;
+a theme or page that paints its own ground sets it on `:root` to match. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.

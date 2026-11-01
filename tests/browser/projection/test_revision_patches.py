@@ -30,7 +30,8 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
 
     A body class taken off and put back restyles the whole document, so a revision
     that changes only the page's words writes nothing to either root. An empty custom
-    property reads back as "", and stays declared all the same."""
+    property reads back as "", and stays declared all the same, and a shorthand written
+    with `var()` arrives whole, though its longhands read back as ""."""
     empty = '<body class="live-second" data-live-body="second" style="--live-body: 2'
     page = open_page(
         browser, live_url(serve(LIVE_V2.replace(empty, f"{empty}; --live-empty: ")))
@@ -64,15 +65,19 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("window.__lfRootWrites") == []
     assert page.evaluate("[...document.body.style].includes('--live-empty')")
 
-    # A revision that newly declares an empty property puts it on.
+    # A revision newly declaring an empty property or a `var()` shorthand puts it on.
     (serve.page_dir / "index.html").write_text(
         LIVE_V2.replace(
             "<title>Live second</title>", "<title>Live more</title>"
-        ).replace(empty, f"{empty}; --live-empty: ; --live-added: ")
+        ).replace(
+            empty,
+            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink)",
+        )
     )
     told(page)
     expect(page).to_have_title("Live more")
     assert page.evaluate("[...document.body.style].includes('--live-added')")
+    assert page.evaluate("getComputedStyle(document.body).outlineWidth") == "5px"
 
 
 def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(

@@ -114,17 +114,13 @@
    whatever stacking contexts the page makes, and the page rises over Leaf only through
    the top layer (the ladder, below). Its box is empty at the origin and takes no room;
    Leaf positions its surfaces against the document or the viewport. It inherits from
-   the root rather than `body`, so it states what Leaf's surfaces took from the page's
-   body: words that wrap, and the ground a widget's opaque controls paint, the paper its
-   surfaces stand on unless one says otherwise (floating-panel.css). */
+   the root, as `body` does, so what the two share is declared there (`:root`, below). */
 :root > .lf-chrome {
   position: absolute;
   inset: 0 auto auto 0;
   z-index: 2147483647;
   width: 0;
   height: 0;
-  overflow-wrap: break-word;
-  --lf-ground: var(--paper);
 }
 
 @property --lf-motion-flash {
@@ -216,7 +212,6 @@
   --lf-z-margin-preview: 8920; /* the thread card, under the panel it scrolls beneath */
   --lf-z-region-capture: 8930; /* viewport crop selection, over the thread card */
   --lf-z-panel: 9000; /* the floating panel */
-  --lf-z-held-keys: 9030; /* the keys bootstrap holds, over the panel's row */
   --lf-z-escaped-control: 9050; /* a focused control that leaves the flow to be seen */
   --lf-z-chrome-paint: 9060; /* paint whose target is inside the chrome */
   --lf-z-key-badges: 9070; /* a key chip naming what stands in a surface */
@@ -890,7 +885,13 @@ html:not([data-lf-live]) {
  * not become a containing block, and the foot's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
- * page-layout.js).
+ * page-layout.js). */
+body {
+  position: static !important;
+  box-sizing: border-box !important;
+  container: lf-shell / inline-size;
+}
+/* What the page's body and Leaf's chrome after it both inherit from the root.
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that
  * was holding it, since the live root clips what overflows sideways
@@ -902,12 +903,9 @@ html:not([data-lf-live]) {
  *
  * The ground a widget's opaque controls paint (`--lf-ground`) is the canvas the browser
  * draws until a theme or the page paints its own (package-themes.md). */
-body {
-  position: static !important;
-  box-sizing: border-box !important;
-  --lf-ground: Canvas;
+:root {
   overflow-wrap: break-word;
-  container: lf-shell / inline-size;
+  --lf-ground: Canvas;
 }
 /* Read only by the root's own `scroll-padding-bottom`, so it does not inherit: the
  * panel's every change of height then restyles the root alone. */
@@ -1037,10 +1035,12 @@ body {
 }
 /* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
  * It stands centred on the band where the floating panel's row will rest, and is styled
- * here because it can appear before the runtime has adopted chrome.css. */
+ * here because it can appear before the runtime has adopted chrome.css. It stands after
+ * `body` at the chrome root's z-index and follows that root, so it paints over the page
+ * and the panel's row alike (`:root > .lf-chrome`, above). */
 .lf-held-keys {
   position: fixed;
-  z-index: var(--lf-z-held-keys);
+  z-index: 2147483647;
   pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
   bottom: calc(

@@ -39,7 +39,7 @@ import {
   tabFromBlock,
   writeInsets,
 } from "./block-controls.js";
-import { copyControl } from "./copy-control.js";
+import { copyControl, copyTrigger } from "./copy-control.js";
 import { headerLevels } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
 import { layoutPx } from "./keeps.js";
@@ -48,10 +48,14 @@ import { inChrome, pageQueryAll } from "./passages.js";
 
 const HEADING = "h1, h2, h3, h4, h5, h6";
 
+/** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
+/** @type {Map<Element, HeadingLink>} */
 const links = new Map(); // heading → its link, from the first reveal until it leaves
+/** @type {WeakMap<Element, Element>} */
 const owners = new WeakMap(); // control → its heading
 
 /** The element `heading`'s link names, or null where it has no address (header). */
+/** @param {Element} heading */
 export function headingAddress(heading) {
   let address = isAddressable(heading) ? heading : null;
   for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
@@ -62,8 +66,9 @@ export function headingAddress(heading) {
 }
 
 // The page heading `node` stands in, where a link can stand over it.
+/** @param {Node | null | undefined} node */
 function headingAt(node) {
-  const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  const element = node instanceof Element ? node : node?.parentElement;
   const heading = element?.closest(HEADING);
   return heading && heading.getRootNode() === document && !inChrome(heading)
     ? heading
@@ -72,8 +77,9 @@ function headingAt(node) {
 
 // The heading whose link the user is on: the heading itself or the address it names.
 // A control inside the heading, such as a link, is somewhere else, with its own Enter.
+/** @param {Node | null | undefined} node */
 function headingOn(node) {
-  if (node?.nodeType !== Node.ELEMENT_NODE) return null;
+  if (!(node instanceof Element)) return null;
   if (headingAt(node) === node) return headingAddress(node) ? node : null;
   const title = leadingTitle(node);
   return title && headingAt(title) === title && headingAddress(title) === node
@@ -81,9 +87,11 @@ function headingOn(node) {
     : null;
 }
 
+/** @param {Element} address */
 const linkUrl = (address) =>
   new URL(`#${encodeURIComponent(address.id)}`, location.href).href;
 
+/** @param {Element} heading @returns {HeadingLink} */
 function makeLink(heading) {
   const control = copyControl("lf-heading-link", {
     label: "Copy link to section",
@@ -96,6 +104,7 @@ function makeLink(heading) {
   const link = {
     heading,
     control,
+    /** @type {Set<string>} */
     shown: new Set(),
     events: new AbortController(),
     stop: () => {},
@@ -133,6 +142,7 @@ function makeLink(heading) {
 // Where the heading's first line of words stands in its box, so the control centers on
 // it. An anchor offers the box's edges and no line in it, and a heading that wraps
 // would otherwise center the control between its lines.
+/** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
   const range = document.createRange();
@@ -142,11 +152,12 @@ function firstLine(heading) {
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };
 }
+/** @param {HTMLElement} control @param {{top: number, height: number}} line */
 function writeLine(control, { top, height }) {
-  for (const [property, length] of /** @type {[string, number][]} */ ([
-    ["--lf-heading-link-top", top],
-    ["--lf-heading-link-line", height],
-  ])) {
+  for (const [property, length] of Object.entries({
+    "--lf-heading-link-top": top,
+    "--lf-heading-link-line": height,
+  })) {
     const value = layoutPx(length);
     if (control.style.getPropertyValue(property) !== value)
       control.style.setProperty(property, value);
@@ -154,6 +165,7 @@ function writeLine(control, { top, height }) {
 }
 
 // Take a link out once its heading leaves, or loses its address to a revision.
+/** @param {HeadingLink} link */
 function retire(link) {
   link.stop();
   link.events.abort();
@@ -163,6 +175,7 @@ function retire(link) {
 
 // Show or hide the heading's link for one reason; it shows while any reason holds.
 // Returns the link, made on first showing, or null where the heading has no address.
+/** @param {Element} heading @param {string} reason @param {boolean} force */
 function show(heading, reason, force) {
   let link = links.get(heading);
   if (force && !headingAddress(heading)) {
@@ -170,7 +183,7 @@ function show(heading, reason, force) {
     return null;
   }
   if (force && !link) link = makeLink(heading);
-  else if (force) {
+  else if (force && link) {
     revealControl(link.control, heading);
     writeLine(link.control, firstLine(heading));
   }
@@ -183,7 +196,9 @@ function show(heading, reason, force) {
 export function watchHeadingLinks() {
   // A live sample's URL is private to the page holding it.
   if (document.documentElement.lfSample) return;
+  /** @type {Element | null | undefined} */
   let hovered = null;
+  /** @param {Element | null | undefined} heading */
   const hover = (heading) => {
     if (heading === hovered) return;
     if (hovered) show(hovered, "hover", false);
@@ -194,7 +209,7 @@ export function watchHeadingLinks() {
     "pointerover",
     (event) => {
       if (event.pointerType === "touch") return;
-      const target = /** @type {Node} */ (event.target);
+      const target = event.target instanceof Node ? event.target : null;
       const control = target instanceof Element && target.closest(".lf-heading-link");
       hover(control ? owners.get(control) : headingAt(target));
     },
@@ -211,14 +226,16 @@ export function watchHeadingLinks() {
     "pointerdown",
     (event) => {
       if (event.pointerType !== "touch") return;
-      const heading = headingAt(/** @type {Node} */ (event.target));
+      const heading = headingAt(event.target instanceof Node ? event.target : null);
       if (heading && headingAddress(heading)) focusDestination(heading, "move");
     },
     { capture: true },
   );
+  /** @type {Element | null} */
   let current = null;
+  /** @param {Element | null} heading */
   const stand = (heading) => {
-    if (heading === current) return links.get(heading);
+    if (heading === current) return heading ? links.get(heading) : null;
     if (current) show(current, "current", false);
     current = heading;
     return heading && show(heading, "current", true);
@@ -244,7 +261,7 @@ export function watchHeadingLinks() {
           if (!link) return;
           await customElements.whenDefined(link.control.localName);
           await link.control.updateComplete;
-          link.control.shadowRoot.querySelector("button").click();
+          copyTrigger(link.control)?.click();
         },
       },
     ],

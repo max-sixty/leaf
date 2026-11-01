@@ -55,11 +55,21 @@ import {
   readSampleVisibility,
 } from "../frame-visibility.js";
 
+/** @typedef {import("../../types/domain.js").ContentVersion} ContentVersion */
+/** @typedef {[number, number]} Interval */
+/** @typedef {{reply_id?: string | null, input_id?: string | null,
+ * attempt?: string | null, reply_kind: string, presentation_kind: string,
+ * surface: string}} Feedback */
+/** @typedef {{id: string | null, version: string | null, feedback: Feedback | null}} BodyReading */
+/** @typedef {{key: string, width: number, height: number, contentHeight: number, intervals: Interval[]}} Exposure */
+/** @param {ContentVersion} item */
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
 
+/** @param {Interval[]} intervals */
 function mergeIntervals(intervals) {
   const ordered = intervals.sort((a, b) => a[0] - b[0]);
+  /** @type {Interval[]} */
   const merged = [];
   for (const [start, end] of ordered) {
     const prior = merged.at(-1);
@@ -69,6 +79,8 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
+/** @param {Element} body @param {import("../geometry.js").ClipCache} clips @param {import("../rect.js").Box} band
+ * @returns {{interval: Interval, height: number, width: number, contentHeight: number} | null} */
 function visibleInterval(body, clips, band) {
   if (!presented(body)) return null;
   const box = body.getBoundingClientRect();
@@ -93,13 +105,14 @@ function visibleInterval(body, clips, band) {
 
 // An element's box can intersect the viewport while all its words are clipped or
 // below it. Measure the text itself through the shared clipping/chrome reading.
+/** @param {Element} body @param {import("../geometry.js").ClipCache} clips @param {import("../rect.js").Box} band */
 function wordsAreVisible(body, clips, band) {
   if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
     return false;
   const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   for (let node = text.nextNode(); node; node = text.nextNode()) {
-    if (!node.textContent.trim()) continue;
+    if (!node.textContent?.trim()) continue;
     const holder = node.parentElement;
     if (
       !holder ||
@@ -118,12 +131,21 @@ function wordsAreVisible(body, clips, band) {
   return false;
 }
 
+/** @param {{
+ * markRead: (items: ContentVersion[]) => ReturnType<typeof import("../delivery.js").deliverBookkeeping>,
+ * openThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
+ * }} dependencies */
 export function createReadTracking({ markRead, openThread }) {
+  /** @type {WeakMap<Element, Exposure>} */
   let coverage = new WeakMap();
+  /** @type {Map<Element, BodyReading & {body: Element}>} */
   const renderedBodies = new Map();
+  /** @type {Set<string>} */
   const visibleReplies = new Set();
+  /** @type {Set<string>} */
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
+  /** @type {(() => void)[]} */
   const frameWatches = [];
   // The threads the last presented pass drew. A signal, because the first-unread
   // command's liveness reads it once the pass has committed.
@@ -135,6 +157,7 @@ export function createReadTracking({ markRead, openThread }) {
   let visitGeneration = 0;
   let scheduled = false;
   // What waits for the next pass over the presented threads (`afterPass`).
+  /** @type {(() => void)[]} */
   let passWaiters = [];
 
   function resetExposure() {
@@ -144,14 +167,15 @@ export function createReadTracking({ markRead, openThread }) {
     refusedThisVisit.clear();
   }
 
+  /** @param {ReturnType<typeof readThreads>["threads"]} threads */
   const unreadIn = (threads) =>
-    threads.flatMap((thread) =>
-      thread.unread.map((item) => ({
-        thread,
-        item,
-        message: thread.msgs.find((message) => message.id === item.message),
-      })),
-    );
+    threads.flatMap((thread) => {
+      const unread = new Map(thread.unread.map((item) => [item.message, item]));
+      return thread.msgs.flatMap((message) => {
+        const item = unread.get(message.id);
+        return item ? [{ thread, item, message }] : [];
+      });
+    });
   // Unread in what the page has presented and still unread in the current reading: a
   // version this tab is marking read, or another tab or update already did, is not
   // offered again.
@@ -163,10 +187,11 @@ export function createReadTracking({ markRead, openThread }) {
   };
 
   // The first unread message on the page, or in the thread keyed `thread`.
+  /** @param {string | null} [thread] */
   function firstUnread(thread = null) {
     const target = actionableUnread()
       .filter((each) => thread === null || each.thread.key === thread)
-      .sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
+      .sort((a, b) => Number(moved(a.message).seq) - Number(moved(b.message).seq))[0];
     return target
       ? openThread(target.item.message, { part: "message" })
       : Promise.resolve();
@@ -183,10 +208,11 @@ export function createReadTracking({ markRead, openThread }) {
     run: () => void firstUnread(),
   };
 
+  /** @param {import("../frame-visibility.js").SampleVisibility | null} [sampleBand] */
   function scan(sampleBand) {
-    if (document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible" || sampleBand?.visible === false) return;
     const band = sampleBand ?? layoutWindow();
-    if (!band || sampleBand?.visible === false) return;
+    if (!band) return;
     const candidates = new Map(
       (threadsPresented ? actionableUnread() : []).map(({ item }) => [
         item.message,
@@ -195,6 +221,7 @@ export function createReadTracking({ markRead, openThread }) {
     );
     const mayRead = threadsPresented && document.hasFocus() && sessionIsActive();
     const clips = new Map();
+    /** @type {Map<string, ContentVersion>} */
     const completed = new Map();
     const unseenWords = [];
     for (const [node, rendered] of renderedBodies) {
@@ -214,15 +241,10 @@ export function createReadTracking({ markRead, openThread }) {
           } else unseenWords.push(body);
         }
       }
-      const item = mayRead && candidates.get(id);
-      const key = item && keyOf(item);
-      if (
-        !item ||
-        item.version !== version ||
-        completed.has(key) ||
-        refusedThisVisit.has(key)
-      )
-        continue;
+      const item = mayRead && id !== null ? candidates.get(id) : undefined;
+      if (!item || item.version !== version) continue;
+      const key = keyOf(item);
+      if (completed.has(key) || refusedThisVisit.has(key)) continue;
       const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
@@ -245,8 +267,9 @@ export function createReadTracking({ markRead, openThread }) {
       tracked.intervals = mergeIntervals([...tracked.intervals, visible.interval]);
       if (
         tracked.intervals.length === 1 &&
-        tracked.intervals[0][0] <= EPSILON &&
-        tracked.intervals[0][1] >= visible.height - EPSILON
+        tracked.intervals.every(
+          ([start, end]) => start <= EPSILON && end >= visible.height - EPSILON,
+        )
       ) {
         completed.set(key, item);
       }
@@ -273,6 +296,7 @@ export function createReadTracking({ markRead, openThread }) {
   // box the body renders inside brings one more pass when that run ends or is
   // cancelled. A replayed animation has a new `finished` promise and is awaited again.
   const awaitedRuns = new WeakSet();
+  /** @param {readonly Element[]} bodies */
   function passAfterFades(bodies) {
     for (const body of bodies) {
       const animations = body.getAnimations({ subtree: true });
@@ -289,6 +313,7 @@ export function createReadTracking({ markRead, openThread }) {
   // Runs `then` after the next pass over the presented threads, once what that pass
   // read counts as read in `readThreads()`: what still stands unread then is what the
   // page has not shown whole, as the floating panel's Next unread asks.
+  /** @param {() => void} then */
   function afterPass(then) {
     passWaiters.push(then);
     scheduleScan();
@@ -329,7 +354,7 @@ export function createReadTracking({ markRead, openThread }) {
     document.addEventListener("lf-session-active", scheduleScan);
     frameWatches.push(
       onFrameVisibility((visibility) => {
-        if (visibility.visible) scheduleScan();
+        if (!visibility || visibility.visible) scheduleScan();
         else resetExposure();
       }),
     );
@@ -343,6 +368,7 @@ export function createReadTracking({ markRead, openThread }) {
     });
   }
 
+  /** @param {Element} body @param {BodyReading} reading */
   function observeBody(body, reading) {
     if (!(body instanceof Element))
       throw new TypeError("A message body must be an Element");
@@ -360,6 +386,7 @@ export function createReadTracking({ markRead, openThread }) {
     };
   }
 
+  /** @param {Element} body @param {{id: string, version: string, author: string, attempt: string | null, provisional: boolean, progress: boolean, failure: string | null}} message */
   function observeMessage(body, message) {
     return observeBody(body, {
       id: message.id,
@@ -385,6 +412,7 @@ export function createReadTracking({ markRead, openThread }) {
 
   // A working line displays explicit agent words without mounting their folded
   // MessageView. Its renderer supplies exact source identity, never its thread parent.
+  /** @param {Element} body @param {Feedback} feedback */
   function observeFeedback(body, feedback) {
     return observeBody(body, { id: null, version: null, feedback });
   }

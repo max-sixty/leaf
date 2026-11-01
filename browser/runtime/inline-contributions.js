@@ -20,10 +20,15 @@ import { move } from "./dom-move.js";
 import { el, generatedElement } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
+/** @typedef {import("./contributions.js").ContributionSource} Source
+ * @typedef {{host: HTMLDivElement, offers: Source[]}} Seat */
+/** @param {{targetPath: (element: Element) => string}} options */
 export function createInlineContributions({ targetPath }) {
+  /** @type {Map<Element, Seat>} */
   const hosts = new Map();
 
   function present() {
+    /** @type {Map<Element, Source[]>} */
     const grouped = new Map();
     for (const offered of contributionEntries()) {
       const target = offered.target();
@@ -67,20 +72,20 @@ export function createInlineContributions({ targetPath }) {
         "aria-label",
         `Actions for ${spokenSubject(addressableWord(target))}`,
       );
-      const controls = (side) =>
+      const controls = (/** @type {"before" | "after"} */ side) =>
         offers
           .filter((offered) => offered.reading.side === side)
-          .sort(compareContributions)
+          .sort((left, right) => compareContributions(left.model, right.model))
           .flatMap((offered) => {
             const materialized = materializeContributionControls(
-              offered,
+              offered.model,
               "inline",
               activateContributionControl,
             );
             return offered.reading.entries
               .filter((entry) => entry.visible)
               .map((entry) => {
-                const control = materialized.get(entry.key);
+                const control = materialized(entry);
                 presentContributionReceipts(control, entry.workflowReceipt, false);
                 return control;
               });
@@ -90,8 +95,8 @@ export function createInlineContributions({ targetPath }) {
       const restoreFocus = holdFocus(host);
       setChildren(host, nodes);
       restoreFocus?.();
-      if (target.nextSibling !== host)
-        move(target.parentNode, host, target.nextSibling);
+      const parent = target.parentNode;
+      if (parent && target.nextSibling !== host) move(parent, host, target.nextSibling);
     }
   }
   return Object.freeze({ present });

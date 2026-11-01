@@ -2,6 +2,11 @@
 import { html, nothing } from "/vendor/lit.js";
 import { actionClass } from "/runtime/widget-api.js";
 
+/**
+ * @param {HTMLElement} host
+ * @param {{ready?: boolean, done?: boolean, generic?: string, named?: string, words?: string, onUser?: number | boolean}} [state]
+ * @param {(() => void) | null} [onNext]
+ */
 export function render(
   host,
   {
@@ -30,7 +35,7 @@ export function render(
             title="Next on me here"
             aria-controls=${host.getAttribute("for")}
             ?disabled=${!ready || !onUser}
-            @mousedown=${(event) => event.preventDefault()}
+            @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
             @click=${onNext}
           >
             Next on me

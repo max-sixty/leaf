@@ -10,9 +10,8 @@ test("an empty bootstrap handover preserves native Space", () => {
     value: script,
     configurable: true,
   });
-  const root = document.documentElement;
-  const keyboard = root.lfKeyboard;
-  root.lfKeyboard = { quick: true };
+  const keyboard = window.lfKeyboard;
+  window.lfKeyboard = { quick: true };
   try {
     (0, eval)(
       readFileSync(
@@ -60,7 +59,7 @@ test("an empty bootstrap handover preserves native Space", () => {
       queued.release();
     }
   } finally {
-    root.lfKeyboard = keyboard;
+    window.lfKeyboard = keyboard;
     if (descriptor) Object.defineProperty(document, "currentScript", descriptor);
     else delete document.currentScript;
   }

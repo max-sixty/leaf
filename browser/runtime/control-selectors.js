@@ -11,7 +11,7 @@
 // code asking whether something takes typed paragraphs asks `TEXT_BOX`, since a native
 // textarea on an author's page still does. One spelling of each lets the field's
 // element change without a lookup somewhere silently finding nothing.
-export const TEXT_FIELD = document.documentElement.lfInputs.textField;
+export const TEXT_FIELD = window.lfInputs.textField;
 
 // The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
 // goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
@@ -31,9 +31,10 @@ export const CARET_KEYS = [
   "PageDown",
 ];
 // Select All under either platform's modifier. With Shift also held the key reads "A".
+/** @param {KeyboardEvent} event */
 export const selectsAll = (event) =>
   event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
-export const TEXT_BOX = document.documentElement.lfInputs.textBox;
+export const TEXT_BOX = window.lfInputs.textBox;
 
 // What the platform puts in the tab order without being asked, which is what a layout
 // keeps clear of and what "does this box already hold a stop" asks about. A disclosure's

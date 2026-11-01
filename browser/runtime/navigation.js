@@ -42,9 +42,16 @@ import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 
+/** @typedef {import("./thread/placement.js").PlacedAt} PlacedAt
+ * @typedef {Pick<ReturnType<typeof import("./thread/destination.js").createThreadDestinations>, "openPageThread" | "threadAtCurrentLocation" | "threadPlace">} ThreadDestinations
+ * @typedef {import("./keyboard/bindings.js").Step} Step
+ * @typedef {{box: Element, goal: number, wrote: number, raf: ReturnType<typeof nextFrame>}} Glide
+ */
+
 // The walk's threads: the open ones, in the page's order (thread/placement.js), read
 // from the thread model rather than from any surface that draws them, so every route
 // into the walk steps through the same list. Each is named by its id.
+/** @param {PlacedAt} placedAt */
 const openThreads = (placedAt) =>
   inPageOrder(
     threadList().filter((thread) => !thread.resolved),
@@ -54,12 +61,14 @@ const openThreads = (placedAt) =>
 // The thread the walk stands on: the one the origin's current location is in,
 // wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
 // not on it (current-target.js, `walkOrigin`).
+/** @param {readonly string[]} threads @param {import("./current-target.js").WalkOrigin | null} origin */
 const currentThread = (threads, origin) => {
   const id =
     origin?.kind === "current-location" ? drawnThreadId(threadIn(origin.node)) : null;
-  return threads.includes(id) ? id : null;
+  return id !== null && threads.includes(id) ? id : null;
 };
 
+/** @param {PlacedAt} placedAt */
 const threadPosition = (placedAt) => {
   const threads = openThreads(placedAt);
   return listWalkPosition(threads, currentThread(threads, currentLocationOrigin()));
@@ -73,6 +82,8 @@ const threadPosition = (placedAt) => {
 // It answers whether the user arrived, once the thread stands open. `intent` is the
 // press's, retained before any wait the caller made: newer input cancels the arrival,
 // and the walk then says nothing about a thread the user is not at.
+/** @param {string} id @param {Pick<ThreadDestinations, "openPageThread">} destinations
+ * @param {ReturnType<typeof retainUserIntent>} intent */
 async function arriveAtThread(id, { openPageThread }, intent) {
   return Boolean(await openPageThread(id, { part: "thread", intent }));
 }
@@ -85,6 +96,7 @@ async function arriveAtThread(id, { openPageThread }, intent) {
 // A thread at the user's current location, or whose place holds where they are, is
 // where they are without being in it, so the press opens it. A general thread has no
 // place and stands after every placed one.
+/** @param {Step} dir @param {ThreadDestinations} destinations @param {PlacedAt} placedAt */
 function stepThread(dir, destinations, placedAt) {
   const { threadAtCurrentLocation, threadPlace } = destinations;
   const threads = openThreads(placedAt);
@@ -117,6 +129,7 @@ function stepThread(dir, destinations, placedAt) {
 // moves only the thread scroller and keeps the card's focus. Native scroll placement
 // reads the list's declared scroll-padding, its focus-ring room, from the same authority
 // the t/T walk uses.
+/** @param {Element | null} thread @param {ScrollLogicalPosition} edge */
 export function placeThreadEdge(thread, edge) {
   scrollIntoView(thread, { behavior: scrollBehavior(), block: edge });
 }
@@ -156,8 +169,10 @@ export function placeThreadEdge(thread, edge) {
 // rather than 60% of the box, which is the answer the user wants — a step that landed
 // them under the panel would be a step onto words they cannot read.
 const SCROLL_MS = 140;
-let glide = null; // {box, goal, wrote, raf}
+/** @type {Glide | null} */
+let glide = null;
 // A glide is one scroll however many frames write it (arrivals.js, `scrolling`).
+/** @param {Glide | null} next */
 const setGlide = (next) => {
   glide = next;
   scrollGlides(Boolean(next));
@@ -166,8 +181,9 @@ const setGlide = (next) => {
 // wrote it. The tick asks before every write, and a press asks the same question before
 // trusting the goal — the user can take the box between frames, and a press landing
 // in that gap otherwise measures from a goal the box has already left.
+/** @param {Element} box */
 const holding = (box) =>
-  glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
+  glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1 ? glide : null;
 // Reading-page keys follow the region the user is working in (`userReadingRegion`), so
 // `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
 // a panel or anchored thread beside the page. Focus on a region's
@@ -176,10 +192,11 @@ const holding = (box) =>
 // walks that box's scroll chain (`stepAlong`), where a box outside the visible band
 // passes it on as a spent one does, so a floating thread scrolled off screen still
 // pages its document. Neither changes which region the user is reading.
+/** @param {Element} box @param {import("./geometry.js").ClipCache} clips */
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
-  if (!band) return null;
+  if (!shown || !band) return null;
   const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
@@ -198,6 +215,7 @@ const stepStart = () => {
   }
   return effectiveScroller(region);
 };
+/** @param {number} amount @param {"page" | "pixel"} unit */
 const stepReading = (amount, unit) => stepAlong(stepStart(), amount, unit);
 // The step walks the chain from `from` to the first box that shows and can take it. A
 // box that contains its overscroll, or one an open modal leaves outside, ends the walk.
@@ -205,6 +223,7 @@ const stepReading = (amount, unit) => stepAlong(stepStart(), amount, unit);
 // does, so a chain spent without either boundary passes the step on, and the
 // containing page's navigation takes it up from the frame; outside a sample the notice
 // goes nowhere.
+/** @param {Element} from @param {number} amount @param {"page" | "pixel"} unit */
 function stepAlong(from, amount, unit) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
@@ -213,17 +232,18 @@ function stepAlong(from, amount, unit) {
     const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
     if (step && canMove) {
       const distance = unit === "page" ? amount * step.height : amount;
-      const from = holding(box) ? glide.goal : box.scrollTop;
+      const from = holding(box)?.goal ?? box.scrollTop;
       glideTo(box, from + distance);
       return;
     }
     if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
   }
-  sampleNotice("step", { amount, unit });
+  sampleNotice({ type: "step", detail: { amount, unit } });
 }
 // One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed.
+/** @param {Element} box @param {number} goal */
 export function glideTo(box, goal) {
   goal = Math.max(0, Math.min(scrollLimit(box), goal));
   if (reducedMotion()) {
@@ -233,8 +253,10 @@ export function glideTo(box, goal) {
   cancelRender(glide?.raf);
   const start = box.scrollTop;
   const t0 = performance.now();
+  /** @param {number} now */
   const tick = (now) => {
-    if (!holding(box)) {
+    const current = holding(box);
+    if (!current) {
       setGlide(null); // the box moved under another hand; theirs wins
       return;
     }
@@ -253,8 +275,8 @@ export function glideTo(box, goal) {
     });
     // Where the write left the box, not what it asked for: the box clamps at its ends
     // and snaps to pixels, and the claim the next tick tests is about the box.
-    glide.wrote = box.scrollTop;
-    if (t < 1) glide.raf = nextFrame(tick);
+    current.wrote = box.scrollTop;
+    if (t < 1) current.raf = nextFrame(tick);
     else setGlide(null);
   };
   setGlide({ box, goal, wrote: start, raf: nextFrame(tick) });
@@ -262,12 +284,14 @@ export function glideTo(box, goal) {
 
 // A spatial command takes the page where it is now. Stop only the travel this owner is
 // driving; native paging belongs to the platform and reports its motion through scroll.
+/** @param {Element} box */
 export function stopGlide(box) {
   if (glide?.box !== box) return;
   cancelRender(glide.raf);
   setGlide(null);
 }
 
+/** @param {{threadDestinations: ThreadDestinations, placedAt: PlacedAt}} dependencies */
 export function createNavigation({ threadDestinations, placedAt }) {
   const currentItem = () => {
     // The place the floating panel holds while the user is in it is the same current location,
@@ -278,7 +302,8 @@ export function createNavigation({ threadDestinations, placedAt }) {
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;
     const region = readingRegionFor(at) ?? userReadingRegion();
-    const inReading = (node) => !region || under(node, region.body);
+    /** @param {Node | null | undefined} node */
+    const inReading = (node) => !region || under(node ?? null, region.body);
     const place = placeOf(at);
     const focusedItem = blockAt(place) ?? place;
     if (
@@ -296,6 +321,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
   };
   // Like page scrolling, alignment stays offered at the edge of its useful range.
   // Resolve the current reading only when invoked, not on every controls repaint.
+  /** @satisfies {import("./keyboard/bindings.js").Command} */
   const alignTop = {
     id: "reading.align.top",
     keys: ["z"],
@@ -312,6 +338,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
     },
   };
   const move = stepReading;
+  /** @param {Step} dir */
   const walkThreads = (dir) => stepThread(dir, threadDestinations, placedAt);
 
   // Travel's own page keys.
@@ -344,7 +371,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
     // with no seat, and that view's own step dismisses it.
-    run: (binding) => walkThreads(binding === "t" ? 1 : -1),
+    runKey: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });
   // A sample's spent step arrives at its frame (sample.js). It goes on only while the
   // user is still in that frame: one that lands after they have left was not theirs to
@@ -352,7 +379,8 @@ export function createNavigation({ threadDestinations, placedAt }) {
   // frame's word is trusted as a page script's would be.
   document.addEventListener("lf-sample-step", (event) => {
     const frame = event.composedPath()[0];
-    if (focused() === frame) stepAlong(frame, event.detail.amount, event.detail.unit);
+    if (frame instanceof Element && focused() === frame)
+      stepAlong(frame, event.detail.amount, event.detail.unit);
   });
   pageCommand({
     id: "page.move",
@@ -373,7 +401,7 @@ export function createNavigation({ threadDestinations, placedAt }) {
     title: "page down / up",
     repeat: true,
     travels: true,
-    run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
+    runKey: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
   });
   pageCommand({
     id: "scroll.move",
@@ -394,11 +422,12 @@ export function createNavigation({ threadDestinations, placedAt }) {
     title: "scroll down / up",
     repeat: true,
     travels: true,
-    run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
+    runKey: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival,
   // whatever list the thread is in.
+  /** @param {string} id @param {string | null} message @returns {Promise<boolean>} */
   const arriveAtThreadById = (id, message = null) =>
     message
       ? threadDestinations

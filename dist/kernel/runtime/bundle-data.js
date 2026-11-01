@@ -9100,19 +9100,23 @@ function changedSince(base, current = currentSource()) {
 		kept
 	};
 }
-function viewOf(block) {
-	for (let at = block.parentElement; at; at = at.parentElement) {
+function viewOf(block, controls) {
+	for (let at = block; at; at = at.parentElement) {
 		if (at.localName === "details") return at;
 		const members = registry$1[at.parentElement?.localName ?? ""]?.["x-views"]?.members;
 		if (members && at.matches(members)) return at;
+		const control = at.id ? controls.get(at.id) : void 0;
+		if (control) return control;
 	}
 	return null;
 }
 function changeRuns(marked, kept) {
 	const runs = [];
 	let run = null;
+	const controls = /* @__PURE__ */ new Map();
+	for (const control of document.querySelectorAll("[aria-expanded][aria-controls]")) for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/)) controls.set(id, control);
 	for (const node of byRenderedOrder([.../* @__PURE__ */ new Set([...marked, ...kept])], (n) => n)) if (marked.has(node)) {
-		if (run && viewOf(node) === viewOf(run[0])) run.push(node);
+		if (run && viewOf(node, controls) === viewOf(run[0], controls)) run.push(node);
 		else runs.push(run = [node]);
 	} else if (!run?.some((block) => under(node, block))) run = null;
 	return runs.map((each) => Object.freeze(each));

@@ -8,6 +8,7 @@ these tests set both through the platform's own readings (`visibility`, `attenti
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -163,13 +164,21 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
         expect(page.locator(expected)).to_be_focused()
 
 
-def test_a_change_ends_where_a_disclosure_does(browser, serve):
+@pytest.mark.parametrize(
+    "fold",
+    [
+        '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
+        # A widget's own disclosure: the settled group's row controls its options.
+        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" choose settled>'
+        '<lf-option id="keep" chosen>Keep it.</lf-option>'
+        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></lf-ask>',
+    ],
+    ids=["details", "settled-options"],
+)
+def test_a_change_ends_where_a_disclosure_does(browser, serve, fold):
     """A change hidden in a closed disclosure and one just after it are two changes,
     so the one the reader can see keeps a margin entry of its own."""
-    folded = PAGE.replace(
-        '<p id="c">Gamma stays as it was.</p>',
-        '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
-    )
+    folded = PAGE.replace('<p id="c">Gamma stays as it was.</p>', fold)
     url = live_url(serve(folded))
     d = serve.page_dir
     page = open_page(browser, url)

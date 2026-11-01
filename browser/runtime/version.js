@@ -891,16 +891,19 @@ function changedSince(base, current = currentSource()) {
   return { changed, kept };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
-// holding it, or member of a widget's declared views (`x-views`), such as a tab. Both
-// are structure, so a change's extent doesn't depend on which views were open when
-// the comparison ran. A widget's own disclosure that declares neither, such as a
-// settled options group, is not a view here.
-/** @param {Element} block */
-function viewOf(block) {
-  for (let at = block.parentElement; at; at = at.parentElement) {
+// holding it, member of a widget's declared views (`x-views`), such as a tab, or
+// element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`),
+// such as a settled options group's options, which share their one control's view.
+// Each is structure, so a change's extent doesn't depend on which views were open when
+// the comparison ran. A fold whose control names nothing in `aria-controls` is no view.
+/** @param {Element} block @param {Map<string, Element>} controls */
+function viewOf(block, controls) {
+  for (let at = /** @type {Element | null} */ (block); at; at = at.parentElement) {
     if (at.localName === "details") return at;
     const members = registry[at.parentElement?.localName ?? ""]?.["x-views"]?.members;
     if (members && at.matches(members)) return at;
+    const control = at.id ? controls.get(at.id) : undefined;
+    if (control) return control;
   }
   return null;
 }
@@ -919,9 +922,14 @@ function changeRuns(marked, kept) {
   const runs = [];
   /** @type {[Element, ...Element[]] | null} */
   let run = null;
+  /** @type {Map<string, Element>} */
+  const controls = new Map();
+  for (const control of document.querySelectorAll("[aria-expanded][aria-controls]"))
+    for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/))
+      controls.set(id, control);
   for (const node of byRenderedOrder([...new Set([...marked, ...kept])], (n) => n)) {
     if (marked.has(node)) {
-      if (run && viewOf(node) === viewOf(run[0])) run.push(node);
+      if (run && viewOf(node, controls) === viewOf(run[0], controls)) run.push(node);
       else runs.push((run = [node]));
     } else if (!run?.some((block) => under(node, block))) run = null;
   }

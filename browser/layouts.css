@@ -631,6 +631,7 @@
         :has(> [data-lf-reading-role="pane"])
       ) {
       padding-block-end: var(--lf-end-room);
+      scroll-padding-block-end: var(--lf-end-room);
     }
   }
   @media screen and (min-width: 720px) and (min-height: 480px) {

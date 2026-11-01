@@ -22,41 +22,58 @@
    keeper's write returns the reader to a place they already had (reading-place.js,
    `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
-   is the keeper's. A landing in motion counts from its start (`startScroll`), since
-   layout it caused can be announced before its sequence ends. A sequence can end frames
-   after its last `scroll` event, as WebKit's do, so continuity takes a reading at the
-   end too. Like that record, this listens on the document, which a scroll inside a
-   shadow root does not reach. */
+   is the keeper's. An explicit landing counts from its start (`startScroll`), even
+   when instant, since layout it caused can be announced before its sequence ends.
+   A sequence can end frames after its last `scroll` event, as WebKit's do, so
+   continuity takes a reading at the end too. Like that record, this listens on the
+   document, which a scroll inside a shadow root does not reach. */
 
 import { nextFrame, sizeObserver } from "./rendering.js";
 import { setScroll, watchOwner } from "./arrivals.js";
+import { skipped } from "./shown-box.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
 // all describe the same reading position. The chrome's views still own their nested
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
-export const pageScroller = document.scrollingElement;
+const nativeScroller = document.scrollingElement;
+if (!(nativeScroller instanceof HTMLElement))
+  throw new Error("Leaf requires an active HTML document scrollport");
+export const pageScroller = nativeScroller;
 
+/** @type {WeakMap<Element, {glide: boolean}>} */
 const moving = new WeakMap();
 // Where each box's last sequence ended, the boxes layout has moved since, and each box's
 // extent where its layout last settled. A box is watched from its first scroll, through
 // its own size and its children's, where content grows, so content that grew between
 // sequences doesn't make the next one layout's.
+/** @type {WeakMap<Element, number>} */
 const ended = new WeakMap();
+/** @type {WeakMap<Element, number>} */
 const scrollSteps = new WeakMap();
+/** @type {WeakSet<Element>} */
 const layoutMoved = new WeakSet();
+/** @type {WeakSet<Element>} */
 const watchedLayout = new WeakSet();
+/** @type {WeakMap<Element, number[]>} */
 const extents = new WeakMap();
+/** @param {Element} box */
 const extentOf = (box) => [box.scrollHeight, box.clientWidth, box.clientHeight];
+/** @param {number[] | undefined} before @param {number[]} after */
 const changedExtent = (before, after) =>
   before?.some((value, index) => value !== after[index]);
+/** @param {Element} box */
 function watchLayout(box) {
   if (watchedLayout.has(box)) return;
   watchedLayout.add(box);
   extents.set(box, extentOf(box));
   const root = box === pageScroller ? document.documentElement : box;
+  /** @type {WeakMap<Element, number[] | null>} */
   const sizes = new WeakMap();
-  const measure = (node) => [node.clientWidth, node.clientHeight, node.scrollHeight];
+  // Observe skipped children too, so revealing them supplies their first reading.
+  /** @param {Element} node */
+  const measure = (node) =>
+    skipped(node) ? null : [node.clientWidth, node.clientHeight, node.scrollHeight];
   const observer = sizeObserver(
     (entries) => {
       let changed = false;
@@ -64,7 +81,8 @@ function watchLayout(box) {
         const next = measure(target);
         const before = sizes.get(target);
         sizes.set(target, next);
-        if (before?.some((value, index) => value !== next[index])) changed = true;
+        if (next && (!before || before.some((value, index) => value !== next[index])))
+          changed = true;
       }
       if (changed) {
         if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
@@ -73,6 +91,7 @@ function watchLayout(box) {
     },
     { counted: false },
   );
+  /** @param {Element} node */
   const observe = (node) => {
     sizes.set(node, measure(node));
     observer.observe(node);
@@ -105,44 +124,53 @@ ended.set(pageScroller, pageScroller.scrollTop);
 // is already visible. Chromium can deliver one last compositor scroll after this
 // instant cancellation, so its rendering update must finish before the caller reads
 // geometry and places the new destination. Two callbacks enclose that whole update.
+/** @param {Iterable<Element>} boxes */
 export function stopScroll(boxes) {
-  const stopped = [...boxes]
-    .filter((box) => moving.has(box))
-    .map((box) => [box, moving.get(box)]);
+  const stopped = [...boxes].flatMap((box) => {
+    const sequence = moving.get(box);
+    return sequence ? [{ box, sequence }] : [];
+  });
   if (!stopped.length) return null;
-  for (const [box] of stopped)
+  for (const { box } of stopped)
     setScroll(box, {
       left: box.scrollLeft,
       top: box.scrollTop,
       behavior: "instant",
     });
-  return new Promise((resolve) =>
-    nextFrame(() =>
-      nextFrame(() => {
-        for (const [box, sequence] of stopped)
-          if (moving.get(box) === sequence) moving.delete(box);
-        resolve(undefined);
-      }),
-    ),
+  return new Promise(
+    /** @param {(value?: void) => void} resolve */ (resolve) =>
+      nextFrame(() =>
+        nextFrame(() => {
+          for (const { box, sequence } of stopped)
+            if (moving.get(box) === sequence) moving.delete(box);
+          resolve(undefined);
+        }),
+      ),
   );
 }
 
 let choices = 0;
+/** @type {WeakMap<Element, number>} */
 const chosen = new WeakMap();
+/** @type {WeakMap<Element, number>} */
 const kept = new WeakMap();
 // How many choices the reader has made so far, for a keeper to note with a reading.
 export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
+/** @param {Element} box @param {number} count */
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
+/** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
-// Record a native glide before its first compositor frame; scroll events alone
-// cannot report an outgoing placement a new gesture interrupts that early.
+// Record an explicit landing before native scroll events: an instant move can
+// coincide with layout, and a new gesture can interrupt a glide before its first frame.
+/** @param {Element} box */
 export function startScroll(box) {
   moving.set(box, { glide: true });
   chooseScroll(box);
 }
 // The browser's travel into hidden content, until the sequence it starts has ended,
 // which is before the second frame after.
+/** @type {object | null} */
 let travel = null;
 document.addEventListener(
   "beforematch",
@@ -156,11 +184,15 @@ document.addEventListener(
   },
   { capture: true },
 );
-const eventScroller = (target) => (target === document ? pageScroller : target);
+/** @param {EventTarget | null} target */
+const eventScroller = (target) =>
+  target === document ? pageScroller : target instanceof Element ? target : null;
 document.addEventListener(
   "scroll",
   ({ target }) => {
     const box = eventScroller(target);
+    if (!box) return;
+    if (skipped(box)) return;
     watchLayout(box);
     scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
     if (moving.get(box)?.glide) return;
@@ -179,6 +211,7 @@ document.addEventListener(
     passive: true,
   },
 );
+/** @param {Element[]} boxes */
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
 }
@@ -186,6 +219,13 @@ document.addEventListener(
   "scrollend",
   ({ target }) => {
     const box = eventScroller(target);
+    if (!box) return;
+    if (skipped(box)) {
+      moving.delete(box);
+      scrollSteps.delete(box);
+      layoutMoved.delete(box);
+      return;
+    }
     watchLayout(box);
     const wasMoving = moving.get(box);
     moving.delete(box);
@@ -215,17 +255,21 @@ document.addEventListener(
 // is read from its layout each time it is asked, so its end stays where its layout puts
 // it, content arriving mid-ride included, and a landing at the end doesn't chase the
 // ride.
+/** @type {WeakSet<Element>} */
 const riding = new WeakSet();
+/** @param {Element} box @param {boolean} rides */
 export const contentRides = (box, rides) =>
   rides ? riding.add(box) : riding.delete(box);
 // A box's scroll height as its layout gives it: from where its children stand, which
 // offsets read without any transform, and its own end padding. A child placed against
 // something other than the box leaves the browser's reading.
+/** @param {Element} box */
 function laidOutHeight(box) {
   let end = 0;
   for (const child of box.children) {
     if (!child.checkVisibility()) continue;
-    if (child.offsetParent !== box) return box.scrollHeight;
+    if (!(child instanceof HTMLElement) || child.offsetParent !== box)
+      return box.scrollHeight;
     end = Math.max(
       end,
       child.offsetTop +
@@ -237,6 +281,7 @@ function laidOutHeight(box) {
   return Math.min(box.scrollHeight, end + padding);
 }
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
+/** @param {Element} box */
 export const scrollLimit = (box) =>
   Math.max(
     0,
@@ -248,6 +293,7 @@ export const scrollLimit = (box) =>
 export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized.
+/** @param {Element} box */
 export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 /** @param {Element} box @param {ScrollBehavior} behavior */
 export const scrollToEnd = (box, behavior = "instant") => {
@@ -267,6 +313,7 @@ export const scrollToEnd = (box, behavior = "instant") => {
 // A place read there, and a keeper's next correction, start from the aim: started
 // from where the box landed, each move's rounding would add to the last, and a line
 // would creep across the screen revision by revision, or frame by frame of a fold.
+/** @type {WeakMap<Element, {aim: number, at: number}>} */
 const aims = new WeakMap();
 /** @param {Element} box @param {number} top @param {ScrollBehavior} behavior */
 export const moveScrollerBy = (box, top, behavior = "instant") => {
@@ -282,6 +329,7 @@ export const moveScrollerBy = (box, top, behavior = "instant") => {
 // Where Leaf last aimed `box`, while it stands where that move left it, else its offset.
 // A move that landed a pixel or more off was cut off by the box's range, and names no
 // position the box stands at.
+/** @param {Element} box */
 export const aimedTop = (box) => {
   const kept = aims.get(box);
   return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
@@ -289,5 +337,6 @@ export const aimedTop = (box) => {
 
 // How much of a move a box can make from where it stands: a box at its end moves no
 // further, whatever it is asked.
+/** @param {Element} box @param {number} top */
 export const reachable = (box, top) =>
   Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));

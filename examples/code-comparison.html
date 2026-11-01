@@ -170,6 +170,7 @@
             this.#comparison = this.#playground.registerContributor(
               "comparison",
               DEFAULT_COMPARISON,
+              this.querySelector(".code-comparison-toolbar"),
             );
             this.#playground.registerInstructionProvider((values) => {
               const chosen =
@@ -239,19 +240,19 @@
   <body>
     <main class="layout-workspace density-working" id="code-comparison-workspace">
       <header><h1>Choose a code reader treatment</h1></header>
-      <lf-tabs id="code-comparison-parts">
+      <lf-tabs id="code-comparison-parts" class="layout-flow">
         <lf-tab
           id="code-comparison-choose"
+          class="layout-flow"
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <lf-ask id="code-comparison-ask">
+          <lf-ask id="code-comparison-ask" data-width="available">
             <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
               id="code-comparison-playground"
               contract="code-comparison-values"
               submit-label="Apply treatment"
-              data-width="available"
             >
               <lf-playground-preview id="code-comparison-preview">
                 <code-reader-comparison id="code-reader-comparison">
@@ -333,6 +334,7 @@ export function releaseLabels(releases) {
         </lf-tab>
         <lf-tab
           id="code-comparison-comment"
+          class="layout-flow"
           label="Comment on the reader"
           summary="Point at the part to change"
         >
@@ -349,7 +351,7 @@ export function releaseLabels(releases) {
               </p>
               <section
                 id="target-reader-artifact"
-                class="code-candidate"
+                class="code-candidate layout-flow"
                 data-width="available"
               >
                 <h3 id="target-reader-heading" class="reader-treatment-title">

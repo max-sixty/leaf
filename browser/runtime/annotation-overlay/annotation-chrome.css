@@ -169,7 +169,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])
     .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
-    outline-offset: 0;
     --lf-wears-ring: 1;
   }
   .lf-fab-ground {
@@ -192,21 +191,25 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   /* Attached images hang off the box on the side away from its passage, outside its
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
-     6px under the composer row, or 6px over the
-     field when the box stands above its passage. The user chose this on 20 October
+     the shelf's gap clear of the field's ring (response.css), under the field, or over
+     it when the box stands above its passage. The user chose this on 20 October
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
      field. The pictures cover the page beside the box while the draft holds them, and
      in a window too short for both they can stand past its edge. The shelf's padding,
      which holds their shadows and removal reach (response.css), is taken back by its
      offsets. Only the pictures take presses, so the padding over page text takes
-     none. */
+     none. Under the field, the marks on the pictures' top corners face it, so the
+     pictures stand clear of it by the marks' reach too, which a finger's aim floor
+     makes wider than the gap: a tap on the field stays the field's. */
   .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media:not([hidden]) {
     position: absolute;
     /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
     grid-area: auto;
     inset-block-start: calc(
-      100% - var(--lf-comment-frame-bottom) + 6px - var(--lf-media-room)
+      100% - var(--lf-comment-frame-bottom) +
+        max(var(--lf-media-gap) + var(--focus-ring-w), var(--lf-media-room)) -
+        var(--lf-media-room)
     );
     inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
     max-width: calc(
@@ -219,7 +222,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-placement^="top"]
     .lf-composer-media:not([hidden]) {
     inset-block: auto
-      calc(100% - var(--lf-comment-frame-top) + 6px - var(--lf-media-room));
+      calc(
+        100% - var(--lf-comment-frame-top) + var(--lf-media-gap) + var(--focus-ring-w) -
+          var(--lf-media-room)
+      );
     align-items: flex-end;
   }
   .lf-fab-bar:not([data-lf-presentation="inline"])
@@ -347,14 +353,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-page-thread .lf-msg[data-lf-focus-visible]
   ) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * var(--focus-ring-w));
+    outline-offset: var(--focus-ring-inset);
   }
   .lf-margin-preview-close {
     flex: none;
   }
-  /* A reading region the card stands in cuts it at the region's edge
-     (thread-preview.js, `placeThreadPreview`); with no region the cuts are unset, and
-     the declaration with them, so nothing clips the card. */
+  /* A reading region the card stands in, or a block whose edge its row has crossed,
+     cuts it at that edge (thread-preview.js, `placeThreadPreview`); with neither the
+     cuts are unset, and the declaration with them, so nothing clips the card. */
   .lf-margin-preview {
     clip-path: inset(
       var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)
@@ -442,8 +448,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     flex: none;
     align-items: center;
     gap: 0;
-    color: var(--muted-2);
-    font-size: 10px;
+    color: var(--muted);
+    font: var(--font-fine);
   }
   .lf-margin-preview-position {
     white-space: nowrap;
@@ -487,8 +493,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-content: start;
   }
   /* The action track crosses the transcript and its retained message groups.
-     Bodies keep both tracks; each sticky head stops at the actions without copying
-     their measured width into every message. */
+     Bodies keep both tracks; the head beside the actions stops at them without
+     copying their measured width into every message. */
   .lf-margin-thread .lf-thread-transcript > *,
   .lf-margin-thread :is(.lf-thread-checkpoint, .lf-summary-checkpoint) > * {
     grid-column: 1 / -1;
@@ -502,6 +508,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      actions, which would otherwise cover its disclosure on a narrow card. */
   .lf-margin-thread :is(.lf-msg-head, .lf-summary-header) {
     grid-column: 1;
+  }
+  /* A later message's head shares the actions' line only once it sticks there, so it
+     takes both tracks, and its controls stand at the card's edge rather than mid-card
+     at the first track's end. On the actions' line it keeps to the first track, as the
+     first message's head does, cutting there what it can't fit, and its controls
+     give up their room (`data-lf-beside-actions`, thread-preview.js): a narrow card's
+     actions leave too little room for even its name and time. They stand aside, but
+     an open rewrite's Discard and Save stay, since the rewrite is still open below,
+     standing over the head's words, as far past the head's start as the track is
+     short of them. */
+  .lf-margin-thread
+    .lf-thread-transcript
+    > .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
+    & > .lf-msg-head {
+      grid-column: 1 / -1;
+    }
+    &[data-lf-beside-actions] > .lf-msg-head {
+      grid-column: 1;
+      & > .lf-msg-control-room {
+        min-inline-size: 0;
+        &:not(:has(> .lf-msg-controls > .lf-msg-edit-actions)) {
+          visibility: hidden;
+        }
+      }
+    }
   }
   .lf-margin-thread .lf-msg-body {
     grid-column: 1 / -1;
@@ -525,14 +556,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
-  /* Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
+  /* Both moments of a floating comment share their scrollbar: the field while
+     writing and the transcript after Send. No gutter is reserved before it scrolls.
+     Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
      contrast guidance for custom controls, chosen to keep the card's chrome quiet.
      Native scrolling, hiding, and hover widening remain browser-controlled. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]) leaf-text.lf-fab-input,
+  .lf-margin-thread .lf-thread-transcript {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
+  }
   .lf-margin-thread .lf-thread-transcript {
     min-height: 1lh;
     overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
        base.css), held open by a row before the first message, not padding: Firefox
@@ -547,6 +583,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin-inline: calc(-1 * var(--lf-transcript-room));
     margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
+  }
+  /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
+     subgrid's items on its parent's tracks without subtracting the room an `auto`
+     scrollbar takes (2026-10-30), so on a platform whose scrollbars take room (Linux,
+     Windows, macOS with a mouse) the words would run under the bar and the
+     transcript could scroll sideways by the bar's width. Both subtract a
+     `scrollbar-gutter: stable` gutter, so the transcript holds one once its turns
+     overflow, when the bar takes that room anyway (thread-preview.js says until
+     when). Rejected:
+     holding the gutter always, which on such a platform would wrap a short thread's
+     words narrower than the draft they were sent from. */
+  .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
+    scrollbar-gutter: stable;
   }
   /* The row holds paper in the actions' track that sticks on the heads' line, so
      words pass beneath the actions only where a message's head row paints over it
@@ -646,15 +695,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      sticks while that message is read, so the row always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.
      Every head uses the shared message row's height and alignment, so the actions
-     neither change the opening message's gap nor cover the next line. A head occupies
-     the shared track before the actions; bodies span both without adding to the
-     card's width. A head sticks at the slot (`--lf-top`) and covers only its own
+     neither change the opening message's gap nor cover the next line. The head beside
+     the actions occupies the shared track before them, and a later one both tracks;
+     bodies span both without adding to the card's width. A head sticks at the slot (`--lf-top`) and covers only its own
      message, so the words under it take the slot past its height as their `--lf-top`,
      and its height as their `scroll-margin` below the landing band (base.css, at
      `--lf-top`): a reveal lands them below it and the runtime's reading counts what it
-     covers as hidden, while a whole message lands flush with its own head. The card
-     draws no reactions, so a head keeps a control's room only where it draws one, the
-     user's Edit; an agent's keeps none for a trigger under a finger. */
+     covers as hidden, while a whole message lands flush with its own head. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: calc(var(--lf-transcript-room) + var(--lf-msg-head-height));
   }
@@ -728,16 +775,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-block-start: var(--lf-top);
     z-index: 1;
     background-color: var(--lf-msg-ground);
-    /* Paper over the room above it: a shadow, since the head clips what it holds and
-       anchors its control at its middle, and one that paints beneath the head's own
+    /* Paper over the room above it: a shadow, which paints beneath the head's own
        controls and their rings. Paper rather than the message's ground, which an
        arriving message tints. */
     box-shadow: 0 calc(-1 * var(--lf-thread-room-cover, 0px)) var(--paper);
   }
-  /* The head row's cell in the actions' track sticks with the head in the message's
-     ground, over the transcript's paper. It comes before the head, whose focused
-     control's ring paints over it. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg::before {
+  /* The head row's cell in the actions' track, beside a head that keeps to the first
+     track (the first message's, and a later one on the actions' line), sticks with
+     the head in the message's ground, over the transcript's paper; elsewhere a later
+     head spans that track itself. It comes before the head, whose focused control's
+     ring paints over it. */
+  .lf-margin-thread
+    .lf-thread-transcript
+    > .lf-msg:is(
+      :nth-child(1 of .lf-msg, .lf-thread-checkpoint),
+      [data-lf-beside-actions]
+    )::before {
     content: "";
     grid-column: 2;
     grid-row: 1;
@@ -751,48 +804,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      its top away. */
   .lf-margin-thread .lf-thread-transcript .lf-msg[data-lf-focus-visible] {
     outline: none;
-  }
-  .lf-margin-thread
-    .lf-thread-transcript
-    .lf-msg:not(:has(.lf-msg-control))
-    > .lf-msg-head {
-    --lf-msg-control: 0px;
-  }
-  /* A later message's controls, its Edit and Copy and an open rewrite's Discard and
-     Save, stand at the card's edge on its head line, in the track the actions keep
-     beside the first message's head, rather than where the head ends, a track short
-     of the edge, which stood them mid-card. So the head keeps no room for them. They
-     follow the message rather than its sticking head, and stand over its head row's
-     cell in that track (below). While the head line shares the actions' line, Edit
-     and Copy stand aside (`data-lf-beside-actions`, thread-preview.js): no ground
-     under the actions hides what passes beneath them, since the cells give the
-     message's own. */
-  .lf-margin-thread
-    .lf-thread-transcript
-    .lf-msg:not(:nth-child(1 of .lf-msg, .lf-thread-checkpoint)) {
-    /* Keep the controls in this box both during its translation and at rest.
-       Anchoring to the message itself loses that anchor when a translation makes
-       the message the controls' containing block. */
-    position: relative;
-    & > .lf-msg-head {
-      --lf-msg-control: 0px;
-    }
-    & > :is(.lf-msg-copy, .lf-msg-edit),
-    & .lf-msg-edit-actions {
-      z-index: 1;
-      position-anchor: auto;
-      inset-block-start: calc(var(--lf-msg-head-height) / 2);
-      inset-inline-end: 0;
-    }
-    &[data-lf-beside-actions] > :is(.lf-msg-copy, .lf-msg-edit) {
-      visibility: hidden;
-    }
-    /* Under a finger Copy is left out (controls.css), so Edit takes the edge. */
-    @media (hover: hover) and (pointer: fine) {
-      &:has(> .lf-msg-copy) > .lf-msg-edit {
-        inset-inline-end: calc(var(--lf-msg-control-width) + var(--lf-msg-edit-gap));
-      }
-    }
   }
   /* A name cut to less than an em beside a notice of news shows none of itself
      (thread-card.js, `#fitMarginNews`), rather than a sliver of its first letter. It
@@ -810,8 +821,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      second row; past that they stand above the transcript, which clips them. A
      wrapped one rises under the name and time, which paint over it as the head paints
      over the words. A focused one stays in the stuck row, where the user can see what
-     they hold. The metadata clips only sideways, for its ellipsis, so a label rises to
-     the card's edge rather than vanishing at the metadata's own top. The rules wait
+     they hold. The metadata stands the head's whole height and clips them at its
+     edges, since the head leaves its own to its controls' reach. The rules wait
      on view timelines: Firefox, which lacks them, would run the animation on the
      document clock, whose filled end holds the annotations above their row at rest,
      so it keeps them stuck with the name instead. */
@@ -822,7 +833,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       --lf-msg-annotation-exit: calc(2 * var(--lf-msg-head-height));
     }
     .lf-margin-thread .lf-thread-transcript .lf-msg-meta {
-      overflow: clip visible;
+      align-self: stretch;
+      align-items: center;
+      overflow: clip;
     }
     /* A flex item stacks by its z-index unpositioned, so the metadata leaves the head
        to hold the unread dot. */
@@ -840,7 +853,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       margin-inline-end: calc(-1 * var(--sp-2));
     }
     :is(
-      .lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
+      .lf-margin-thread
+        .lf-thread-transcript
+        .lf-msg-head
+        > :not(b, .lf-msg-meta, .lf-msg-control-room),
       .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new)
     ):not([data-lf-focus]) {
       animation: lf-msg-annotation-exit linear both;

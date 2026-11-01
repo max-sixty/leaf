@@ -13,7 +13,7 @@ mkdirSync(evidencePath, { recursive: true });
 const observations = [];
 let browser;
 let status = "insufficient_evidence";
-let reason = "The browser probe did not complete.";
+let reason;
 
 async function visible(locator) {
   for (const item of await locator.all()) if (await item.isVisible()) return item;
@@ -35,7 +35,7 @@ async function active(control) {
 }
 
 async function selectionAfter(choices, expected) {
-  let current = [];
+  let current;
   const deadline = Date.now() + 2000;
   do {
     current = await Promise.all(choices.map(({ control }) => active(control)));
@@ -191,7 +191,7 @@ async function form(page) {
   await page.screenshot({ path: join(evidencePath, "filled.png"), fullPage: true });
   const before = await receipts(page);
   await submit.click();
-  let after = [];
+  let after;
   const deadline = Date.now() + 2000;
   do {
     after = await receipts(page);

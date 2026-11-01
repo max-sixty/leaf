@@ -9,8 +9,9 @@ for each defect whether a check reported it and whether the author acted. The
 judge stays blind to the checks so that what they report can't steer what it
 looks for, which would inflate their measured recall.
 
-The assertion passes when the judge finds no defect. Its metadata carries the
-defects with their check readings and the findings the author's checks raised,
+The assertion passes when the judge finds no defect. Its metadata carries a
+status and reason for every outcome, including an unscored run, and on completion
+the defects with their check readings and the findings the author's checks raised,
 so a run's defect rate and the checks' recall read from `results.json`.
 """
 
@@ -59,6 +60,10 @@ def get_assert(output: str, context: dict) -> dict:
         return unscored(response["error"])
     metadata = response["metadata"]
     work = Path(metadata["work"])
+    if not (work / "page" / "index.html").is_file():
+        return unscored(
+            f"No authored page to inspect at {work / 'page' / 'index.html'}"
+        )
     judged = judge_pages(
         {
             "final": {
@@ -86,7 +91,7 @@ def get_assert(output: str, context: dict) -> dict:
             f"the check matcher read defects {sorted(indices)} of "
             f"{len(verdict['defects'])}; see {work / 'defects' / 'match'}"
         )
-    by_index = dict(zip(indices, readings["defects"]))
+    by_index = dict(zip(indices, readings["defects"], strict=True))
     defects = [
         defect | {"checks": by_index[index]}
         for index, defect in enumerate(verdict["defects"])
@@ -108,6 +113,8 @@ def get_assert(output: str, context: dict) -> dict:
         },
         "metadata": {
             "page_defects": {
+                "status": verdict["status"],
+                "reason": verdict["reason"],
                 "defects": defects,
                 "session_findings": readings["session_findings"],
                 "judge": judged["metadata"]["trace"],
@@ -118,4 +125,9 @@ def get_assert(output: str, context: dict) -> dict:
 
 
 def unscored(reason: str) -> dict:
-    return {"pass": False, "score": 0.0, "reason": f"unscored: {reason}"}
+    return {
+        "pass": False,
+        "score": 0.0,
+        "reason": f"unscored: {reason}",
+        "metadata": {"page_defects": {"status": "unscored", "reason": reason}},
+    }

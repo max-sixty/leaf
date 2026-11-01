@@ -12,7 +12,8 @@ absolute launcher; a bare `leaf` may run the installed plugin instead.
 Before writing words the user sees, such as a label, status line or placeholder, or
 naming anything they operate or an identifier for one, read `references/glossary.md`,
 Leaf's canonical vocabulary and guidance for visible text. A control may
-need no words at all (`<root>/browser/AGENTS.md`, "Visual grammar").
+need no words at all (`<root>/browser/AGENTS.md`, "Controls are few and quiet"). Before
+changing anything Leaf draws, read that file's "Leaf's interface".
 
 ## Take a backlog item
 
@@ -83,12 +84,13 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste goes in the shipped instructions as a goal with its reason, so the
-authoring agent weighs it against its own page. A CSS rule, validator or Layout that
-fixes how many tiles share a row overrides every page that needs another number. A
-check may report what it sees, as the render check names where a tile row wraps, and
-leave the decision to the agent.
+the user relies on, such as a gesture being recorded or a pressed control staying where
+it was (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
+in the shipped instructions as a
+goal with its reason, so the authoring agent weighs it against its own page. A CSS
+rule, validator or Layout that fixes how many tiles share a row overrides every page
+that needs another number. A check may report what it sees, as the render check names
+where a tile row wraps, and leave the decision to the agent.
 
 `page check` and its render checks enforce Leaf's page contracts: they report widget
 initialization failures and unintended clipping of content or controls.
@@ -198,8 +200,9 @@ task with a Playwright expectation: disclosure and focus prove only themselves, 
 returning from the input doesn't prove an asynchronous update finished.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
-and lists the computed styles that differ in it, shadow trees included (its module
-header covers committing first and `--authored`). For a change to where a rule sits,
+and lists the computed styles that differ in it, shadow trees included, with the
+declarations behind them (its module header covers committing first and
+`--authored`). For a change to where a rule sits,
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
 reached by interaction, including focus states where layout can cover a focus ring,
@@ -328,7 +331,10 @@ When pages keep failing the same way, improve the guidance the author reads whil
 writing, and measure it in `evals/`. That guidance is usually the workflow's reference
 rather than a registry entry (`skills/leaf/references/packages.md`, "A widget"), and a
 passage that has grown into a list is rewritten around its goals
-(`/improving-instructions`, "Authoring the change").
+(`/improving-instructions`, "Authoring the change"). The fix states the goal the
+failing page missed and what an author weighs to meet it, and offers the form that
+passed the eval as a default to depart from where the content calls for it, not as a
+requirement.
 
 ## Score an instruction change
 

@@ -153,7 +153,7 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
         return leaf_page(
             f"Stuck tab {added}",
             "<style>html { overflow-anchor: none; }</style>"
-            f'<lf-tabs id="views"><lf-tab id="first" label="First view">{paragraphs}'
+            f'<lf-tabs id="views" class="layout-flow"><lf-tab id="first" label="First view">{paragraphs}'
             '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
             "</lf-tabs>",
         )

@@ -1,16 +1,48 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
+from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
 from model.test_user_views import report
+
+
+@pytest.mark.parametrize("failure", [None, "body", "finish"])
+def test_probe_observation_finishes_and_disposes_native_handle(monkeypatch, failure):
+    """A failed check or native reading still disconnects and releases its observation."""
+    calls = []
+    finding = {"code": "passive-layout-shift"}
+
+    def finish(_expression):
+        calls.append("finish")
+        if failure == "finish":
+            raise RuntimeError("finish failed")
+        return [finding]
+
+    handle = SimpleNamespace(evaluate=finish, dispose=lambda: calls.append("dispose"))
+    page = SimpleNamespace(evaluate_handle=lambda *_args: handle)
+    monkeypatch.setattr(render_checks_model, "_load_probes", lambda *_args: None)
+    error = (
+        pytest.raises(RuntimeError, match=f"{failure} failed")
+        if failure
+        else nullcontext()
+    )
+    with error:
+        with render_checks_model.observe_probe(page, "passiveLayoutShifts") as records:
+            assert records == []
+            if failure == "body":
+                raise RuntimeError("body failed")
+    assert calls == ["finish", "dispose"]
+    assert records == ([] if failure == "finish" else [finding])
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
@@ -50,6 +82,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             if spill
             else [],
             "scrollbars": [],
+            "contained": [],
             "clipped": [
                 {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
                 | {
@@ -146,24 +179,6 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
     assert len({finding, finding.but(values={})}) == 1
     with pytest.raises(ValueError):
         Finding("no-such-code")
-    # A wait that never ended carries what the console said, as findings of its own.
-    console = [
-        Finding("console-error", values={"text": "refused", "url": "http://page/"}),
-        Finding("console-warning", values={"text": "slow"}),
-    ]
-    stalled = Finding(
-        "never-reached",
-        values={
-            "arrival": "an authored main",
-            "requesting": ["/page.css"],
-            "console": [entry.json(text=False) for entry in console],
-        },
-        scheme="light",
-    )
-    assert str(stalled) == (
-        "[light] pre-upgrade proof failed: the document never reached an authored"
-        " main; still requesting /page.css — refused — http://page/\nwarning: slow"
-    )
 
 
 def test_page_check_json_names_only_the_gates_that_read_the_page():
@@ -232,14 +247,14 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     later = Finding("console-error", values={"text": "later"}, scheme="dark")
     failed = Finding("probe-failed", values={"error": "probe failed"}, scheme="light")
     first = Finding(
-        "unreserved-height",
+        "grows-with-content",
         "<lf-x id=a>",
-        {"first": 0, "drawn": 20, "reserved": None},
+        {"layout": "column", "box": "div", "height": 20},
         severity="advice",
     )
 
     def attempt(failures=(), notices=(), complete=True, advice=()):
-        reading = render_gate_model.RenderReading([*failures, *advice], [], [])
+        reading = render_gate_model.RenderReading([*failures, *advice], [])
         return reading, list(notices), complete
 
     def policy(*attempts):
@@ -324,7 +339,5 @@ def test_output_contract_failures_refuse_page_and_package_checks():
         "<lf-counter id=count> (package producer): output 'total' value is invalid "
         "for contract 'counts' at $.count: 'wrong' is not of type 'integer'"
     )
-    assert (
-        BrowserCheck(["render check"], render=RenderReading(found, [], [])).status == 1
-    )
+    assert BrowserCheck(["render check"], render=RenderReading(found, [])).status == 1
     assert WidgetQuality(1, findings=tuple(found)).status == 1

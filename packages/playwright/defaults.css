@@ -6,7 +6,6 @@ lf-trace {
      the page takes, since they are the widget's own. */
   --lf-reading-face: 1;
   --lf-trace-control-size: 44px;
-  --lf-trace-small-type: max(12px, var(--t-6));
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
   --lf-trace-stage-height: max(
     320px,
@@ -24,15 +23,17 @@ lf-trace {
   border-radius: var(--r);
   padding: var(--sp-3);
   background: var(--paper);
-  font: var(--t-5) / 1.45 var(--sans);
+  font: var(--font-ui);
   overflow-wrap: anywhere;
 }
-/* Before its module connects, reserve the waiting line without generating copy.
- * The live template owns the actual waiting message. */
-lf-trace:not(:defined)::before {
-  content: "";
-  display: block;
-  block-size: 1lh;
+
+/* The module's waiting line replaces this fixed-height slot when it connects. */
+@scope (html[data-lf-interactive]) {
+  lf-trace:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: 1lh;
+  }
 }
 .lf-trace-view {
   display: contents;
@@ -88,7 +89,9 @@ lf-trace[hidden="until-found"] {
 /* Keep source names visible and let the shared control own keyboard selection. */
 .lf-trace-sources {
   --wa-form-control-height: var(--lf-trace-control-size);
+  display: block;
   flex: 0 1 auto;
+  min-block-size: var(--lf-trace-control-size);
   min-inline-size: 0;
   max-inline-size: 100%;
 }
@@ -113,7 +116,7 @@ lf-trace[hidden="until-found"] {
   min-block-size: var(--lf-trace-control-size);
   display: inline-flex;
   align-items: center;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-position-row {
   display: grid;
@@ -161,12 +164,11 @@ lf-trace[hidden="until-found"] {
   margin-block-end: var(--sp-2);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  font: var(--lf-trace-small-type) / 1 var(--sans);
+  /* The drawing's words stand in lanes and rows of stated heights, so their line is as
+     tall as the words, as a mark's count is. */
+  font: var(--font-small);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-.lf-trace-timeline[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
 }
 .lf-trace-lane-names {
   display: grid;
@@ -344,7 +346,7 @@ lf-trace[hidden="until-found"] {
   white-space: nowrap;
   text-overflow: ellipsis;
   padding-inline: 4px;
-  line-height: calc(var(--lf-trace-row-h) - 4px);
+  padding-block: calc((var(--lf-trace-row-h) - 4px - 1lh) / 2);
   border-radius: 0 var(--r-s) var(--r-s) 0;
   background: var(--paper);
   border: 1px solid var(--border-2);
@@ -512,7 +514,7 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--r);
   background: var(--ink);
   color: var(--paper);
-  font: var(--lf-trace-small-type) / 1.4 var(--sans);
+  font: var(--font-tip);
   white-space: pre-line;
   pointer-events: none;
 }
@@ -531,32 +533,23 @@ lf-trace[hidden="until-found"] {
   margin: 0;
   min-inline-size: 0;
 }
-.lf-trace-moments-heading {
-  margin: 0;
-  font-size: var(--lf-trace-small-type);
-  color: var(--muted);
-}
 .lf-trace-bookmark-list {
   max-inline-size: 44rem;
 }
 /* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
- * row. The row keeps 2px at its start for the stripe where the word face it wore kept
- * 1px all round, so the padding gives the difference back and the words stay put. */
-.lf-trace-bookmark {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-2);
-  inline-size: 100%;
-  min-block-size: var(--lf-trace-control-size);
-  padding: var(--sp-2) calc(var(--sp-2) + 1px) var(--sp-2) calc(var(--sp-2) - 1px);
+ * row, led by its number in the ring its marker wears on the track. The number stands
+ * on the baseline the row's name and time share, so the ring, taller than a line,
+ * holds the line on its middle. Centring each part on the ring's middle instead stood
+ * the time, set smaller, half a pixel above the name. */
+.lf-trace-bookmark > .lf-row-lead {
+  align-self: baseline;
 }
 .lf-trace-clock,
 .lf-trace-readout,
 .lf-trace-caption,
 .lf-trace-tree-clock {
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-clock {
@@ -572,12 +565,10 @@ lf-trace[hidden="until-found"] {
   --lf-top: 0px;
   --lf-holds-height: 1;
 }
-.lf-trace-metadata[data-lf-focus-visible] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-metadata > details > summary[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+/* The scroller and the rows it holds stand their rings inside their edges, which the
+   scroller clips (base.css, "Where it stands"). */
+:is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-readout {
   margin-block: var(--sp-1) var(--sp-2);
@@ -591,7 +582,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-phase {
   margin-block: var(--sp-1) var(--sp-2);
-  font: 500 var(--t-5) / 1.4 var(--sans);
+  font: var(--font-status);
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-no-action :is(.lf-trace-action, .lf-trace-phase, .lf-trace-error) {
@@ -697,7 +688,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-node-path {
   display: block;
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-code);
 }
 lf-trace-bookmark {
   display: none;
@@ -720,13 +711,14 @@ lf-trace-bookmark {
   border: 1px solid var(--border-2);
   border-radius: 999px;
   background: var(--paper);
+  font-weight: 600;
 }
 .lf-trace-full-image {
   flex: 0 0 auto;
   min-block-size: var(--lf-trace-control-size);
   display: inline-flex;
   align-items: center;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-image-status {
   display: none;
@@ -739,18 +731,6 @@ lf-trace-bookmark {
 }
 .lf-trace-image-loading .lf-trace-image-status {
   display: block;
-}
-.lf-trace-moment-number {
-  justify-self: start;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-.lf-trace-moment-time {
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 /* A sticky header: its controls stand its top padding below where it sticks, which
  * the layer's focus margin reads (`--lf-head-inset`, kernel shadow.css). */
@@ -783,7 +763,7 @@ lf-trace-bookmark {
   align-items: center;
   gap: var(--sp-1);
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-pace select {
   min-block-size: var(--lf-trace-control-size);
@@ -796,9 +776,8 @@ lf-trace-bookmark {
   block-size: var(--lf-trace-control-size);
 }
 /* These adjacent targets keep the shared ring inside their own allocation. */
-.lf-trace-transport-button[data-lf-focus-visible],
-.lf-trace-bookmark[data-lf-focus-visible] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
+.lf-trace-transport-button {
+  outline-offset: var(--focus-ring-inset);
 }
 .lf-trace-play {
   inline-size: var(--lf-trace-control-size);
@@ -817,7 +796,7 @@ lf-trace-bookmark {
     order: 1;
   }
   .lf-trace-selection {
-    font-size: var(--lf-trace-small-type);
+    font: var(--font-small);
   }
   /* Lane names give way to the time scale on narrow screens. */
   .lf-trace-timeline {
@@ -887,7 +866,7 @@ lf-trace-bookmark {
   flex: 0 0 auto;
   text-align: end;
   white-space: nowrap;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -905,13 +884,7 @@ lf-trace-bookmark {
   z-index: 3;
   pointer-events: none;
   outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-trace-no-moments {
-  margin: 0;
-  padding: var(--sp-2);
-  color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  outline-offset: var(--focus-ring-inset);
 }
 
 @container (max-width: 480px) {
@@ -949,7 +922,7 @@ lf-trace-bookmark {
   padding: var(--sp-1) var(--sp-2);
   background: var(--paper);
   color: var(--accent);
-  font: 600 var(--lf-trace-small-type) / 1.5 var(--sans);
+  font: var(--font-heading);
   pointer-events: none;
 }
 .lf-trace-input-point {
@@ -971,12 +944,17 @@ lf-trace-bookmark {
  * A recording is replaced in place, so its outgoing descendants cannot anchor
  * document scrolling. The stable surrounding page remains the reader's anchor. */
 lf-trace-compare {
+  --lf-trace-compare-top: var(--lf-top);
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   --lf-trace-control-size: 44px;
-  font: var(--t-5) / 1.45 var(--sans);
+  --lf-trace-chooser-padding: var(--sp-2);
+  font: var(--font-ui);
+}
+lf-trace-compare > :not(.lf-trace-compare-controls) {
+  --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head-h, 0px));
 }
 .lf-trace-compare-controls {
   position: sticky;
@@ -984,17 +962,16 @@ lf-trace-compare {
   --lf-head-inset: var(--sp-2);
   z-index: 4;
   background: var(--paper);
-  padding-block: var(--sp-2);
+  padding-block: var(--lf-trace-chooser-padding);
   border-block-end: 1px solid var(--border-2);
 }
 lf-trace-compare .lf-trace-heading {
   position: static;
+  --lf-head-inset: initial;
 }
 @media (max-width: 600px) {
-  .lf-trace-compare-controls {
-    position: static;
-    --lf-head-inset: initial;
-    padding-block: var(--sp-1);
+  lf-trace-compare {
+    --lf-trace-chooser-padding: var(--sp-1);
   }
 }
 lf-trace-compare > *,
@@ -1002,20 +979,15 @@ lf-trace-compare lf-trace {
   margin-block: 0;
 }
 
-/* Prepaint chooses the same recording as the upgraded workspace. Without an
- * interactive runtime, every labeled recording remains available in page flow. */
-@scope (html[data-lf-interactive] lf-trace-compare) {
-  :scope:is(lf-trace-compare):not(:defined) {
-    &::before {
-      content: "";
-      display: block;
-      /* Match the upgraded chooser's bottom border as well as its control and padding. */
-      block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1) + 1px);
-      margin-block-end: var(--sp-2);
-    }
-    & > :is(lf-trace, :has(lf-trace)):not([data-lf-opening]) {
-      display: none;
-    }
+/* The chooser has fixed apparatus geometry; its native slot holds that room
+ * while the module loads. View selection remains the shared view owner's job. */
+@scope (html[data-lf-interactive]) {
+  lf-trace-compare:not(:defined)::before {
+    content: "";
+    display: block;
+    block-size: calc(
+      var(--lf-trace-control-size) + 2 * var(--lf-trace-chooser-padding) + 1px
+    );
   }
 }
 

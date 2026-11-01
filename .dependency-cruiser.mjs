@@ -44,6 +44,7 @@ const exactClosures = {
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
+    "voice.js",
   ],
   "margin-map-model.js": [
     "margin-model.js",
@@ -52,6 +53,7 @@ const exactClosures = {
     "words.js",
     "kernel-facts.js",
     "thread/workflow.js",
+    "voice.js",
   ],
   "projection/model.js": ["kernel-facts.js"],
   "projection/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
@@ -59,6 +61,7 @@ const exactClosures = {
     "anchor-coordinate.js",
     "thread/identity.js",
     "thread/workflow.js",
+    "voice.js",
   ],
   "thread/state.js": [
     "semantic-state.js",
@@ -68,8 +71,9 @@ const exactClosures = {
     "anchor-coordinate.js",
     "thread/identity.js",
     "thread/workflow.js",
+    "voice.js",
   ],
-  "thread/workflow.js": [],
+  "thread/workflow.js": ["voice.js"],
   "pending/model.js": ["thread/identity.js", "kernel-facts.js"],
   "pending/state.js": ["semantic-state.js", "version-signal.js", "queued-work.js"],
   "keyboard/dispatch.js": [
@@ -89,6 +93,7 @@ const exactClosures = {
     "keyboard/register.js",
     "keyboard/scopes.js",
     "keyboard/text-entry.js",
+    "role-button-press.js",
     "keeps.js",
     "pointer.js",
     "user-intent.js",
@@ -103,6 +108,7 @@ const exactClosures = {
     // A widget's declared commands arrive by the event it dispatches, and a malformed
     // declaration is reported as its failure.
     "widget-upgrade.js",
+    "exception.js",
     "page-paint.js",
   ],
 };

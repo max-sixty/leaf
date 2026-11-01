@@ -59,7 +59,7 @@ test("authored activity detail retains its exact source only in the words that s
   assert.equal(model.summary, "checking the roof");
   assert.deepEqual(
     model.summaryParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   const stalled = statusModel(
     pageStatus(state({ ...activity, kind: "stalled" })),
@@ -72,11 +72,11 @@ test("authored activity detail retains its exact source only in the words that s
   );
   assert.deepEqual(
     stalled.explanationParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   assert.deepEqual(
     stalled.addsParts.filter((part) => part.source),
-    [{ text: "checking the roof", source }],
+    [{ text: "checking the roof", voice: "agent", source }],
   );
   const generic = statusModel(
     pageStatus(state({ ...activity, detail_source: null })),
@@ -89,19 +89,14 @@ test("authored activity detail retains its exact source only in the words that s
   );
 });
 
-test("working with no sentence of the agent's names what its turn picked up", () => {
-  const picked = (handling, handling_comments) =>
-    said({
-      kind: "working",
-      detail: "",
-      ts: minutesAgo(0),
-      counts: { handling, handling_comments },
-    });
-  assert.deepEqual(picked(1, 1), ["Got your comment", "Got your comment (just now)"]);
-  assert.equal(picked(1, 0)[0], "Got your answer");
-  assert.equal(picked(3, 2)[0], "Got 2 comments and 1 answer");
-  // Nothing picked up and nothing said is plain work.
-  assert.deepEqual(picked(0, 0), ["Working on it", "Working on it (just now)"]);
+test("working with no sentence of the agent's leaves the row's words to it", () => {
+  const picked = (handling) =>
+    said({ kind: "working", detail: "", ts: minutesAgo(0), counts: { handling } });
+  // The leaf's tone says it works; only the disclosure says so in words, Leaf's.
+  for (const handling of [1, 3, 0])
+    assert.deepEqual(picked(handling), ["", "Working (just now)"]);
+  const status = pageStatus(state({ kind: "working", detail: "" }));
+  assert.ok(status.explanationParts.every((part) => part.voice === "leaf"));
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -130,7 +125,7 @@ test("work waiting in the agent's own session says where it is answered, and is 
       awaiting: true,
     }),
   );
-  assert.equal(status.explanation, "Need your approval in the terminal (just now)");
+  assert.equal(status.explanation, "Approval needed in the terminal (just now)");
   assert.equal(status.actionableWork, "awaiting_approval");
   // The wait leads the sentence it interrupts.
   assert.equal(
@@ -142,7 +137,7 @@ test("work waiting in the agent's own session says where it is answered, and is 
         awaiting: true,
       }),
     ).summary,
-    "Need your input in the terminal — Writing the page",
+    "Input needed in the terminal — Writing the page",
   );
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
@@ -203,14 +198,62 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
   ]);
 });
 
-test("only words the agent can't be saying are Leaf's", () => {
-  // Nudging the terminal is said about the agent, which isn't answering; the rest of
-  // the status is the agent's own voice, Leaf's guesses at its words included.
-  const voice = (activity) => pageStatus(state(activity)).voice;
-  assert.equal(voice({ kind: "away", counts: { overdue: 1 } }), "leaf");
+test("only words the agent wrote are in its voice", () => {
+  const source = { event_id: "progress-1", item: "question-1" };
+  const status = (activity) => pageStatus(state(activity));
+  const line = { detail: "revising the plan", detail_source: source };
+  // Who says each part of each wording.
+  const voices = (reading) =>
+    [reading.summaryParts, reading.explanationParts, reading.addsParts].map((parts) =>
+      parts.map((part) => [part.text, part.voice]),
+    );
+  assert.deepEqual(voices(status({ kind: "working", ...line, ts: minutesAgo(0) })), [
+    [["revising the plan", "agent"]],
+    [
+      ["revising the plan", "agent"],
+      [" (just now)", "leaf"],
+    ],
+    [],
+  ]);
+  // Everything Leaf composes is Leaf's, the agent's last line beside it or not.
   for (const kind of ["working", "listening", "stalled", "away", "unheld", "closed"])
-    assert.equal(voice({ kind, detail: "" }), "agent", kind);
-  assert.equal(pageStatus(null, { reach: "unreachable" }).voice, "leaf");
+    assert.ok(
+      voices(status({ kind, detail: "" }))
+        .flat()
+        .every(([, voice]) => voice === "leaf"),
+      kind,
+    );
+  assert.deepEqual(voices(status({ kind: "stalled", ts: minutesAgo(5), ...line })), [
+    [["Last checked in 5m ago", "leaf"]],
+    [
+      ["Last checked in 5m ago", "leaf"],
+      [": ", "leaf"],
+      ["revising the plan", "agent"],
+      [". Updates are saved.", "leaf"],
+    ],
+    [
+      ["Last said: ", "leaf"],
+      ["revising the plan", "agent"],
+      [". ", "leaf"],
+      ["Updates are saved.", "leaf"],
+    ],
+  ]);
+  // A wait in the terminal leads the agent's line in Leaf's words: only the line's
+  // part carries its source, which the seats draw in the agent's voice.
+  const waiting = status({
+    kind: "working",
+    ...line,
+    observed_kind: "awaiting_approval",
+    awaiting: true,
+  });
+  assert.deepEqual(
+    waiting.summaryParts.map((part) => [part.text, part.voice, Boolean(part.source)]),
+    [
+      ["Approval needed in the terminal", "leaf", false],
+      [" — ", "leaf", false],
+      ["revising the plan", "agent", true],
+    ],
+  );
 });
 
 test("an unreachable server reports itself in the blocked tone; a refused key and an unappliable state ask", () => {
@@ -218,7 +261,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "unreachable",
     tone: "blocked",
     summary: "Lost the connection — reconnecting",
-    voice: "leaf",
     explanation:
       "Lost the connection — reconnecting. Keep this page open so changes made here go through.",
     adds: "",
@@ -227,7 +269,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "refused",
     tone: "blocked",
     summary: "This tab lost access — open the link again",
-    voice: "leaf",
     explanation:
       "This tab lost access. Open the page's link again in a new tab, and keep this one open so changes made here go through.",
     adds: "Keep this tab open so changes made here go through.",
@@ -237,7 +278,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "faulted",
     tone: "blocked",
     summary: "Hit a problem — trying again",
-    voice: "leaf",
     explanation: "Hit a problem: KeyError: 'x'. Trying again.",
     adds: "KeyError: 'x'. Trying again.",
   });
@@ -245,7 +285,6 @@ test("an unreachable server reports itself in the blocked tone; a refused key an
     kind: "broken",
     tone: "blocked",
     summary: "Couldn't show the latest — reload",
-    voice: "leaf",
     explanation: "Couldn't show the latest — reload",
     adds: "",
     asks: true,
@@ -301,6 +340,13 @@ test("the explanation names what waits on each side", () => {
     model.explanation,
     "Ready — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
+  // A to-do's title is the agent's words; the count around it is Leaf's.
+  assert.deepEqual(
+    model.explanationParts
+      .filter((part) => part.voice === "agent")
+      .map((part) => part.text),
+    ["Try the build on a phone", "Rebuild the chart"],
+  );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);
   const offline = statusModel(
@@ -333,9 +379,9 @@ test("what the disclosure adds to the row says only what the row does not", () =
       kind: "working",
       detail: "",
       ts: minutesAgo(0),
-      counts: { handling: 1, handling_comments: 1 },
+      counts: { handling: 1 },
     }),
-    "",
+    "Working",
   );
   assert.equal(
     adds({ kind: "listening", detail: "", counts: { pending: 1 } }),
@@ -410,7 +456,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
       observed_kind: "tool",
       counts: { pending: 1, queued: 2 },
     }),
-    "Using a tool · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
+    "2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
     row({
@@ -419,7 +465,21 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
       observed_kind: "awaiting_approval",
       awaiting: true,
     }),
-    "Need your approval in the terminal — Writing the page",
+    "Approval needed in the terminal — Writing the page",
+  );
+  // Each part is in the voice of whoever said it.
+  const voices = (activity) =>
+    leafRow(state(activity)).parts.map((part) => [part.text, part.voice]);
+  assert.deepEqual(voices({ kind: "working", detail: "recording the demo" }), [
+    ["recording the demo", "agent"],
+  ]);
+  assert.deepEqual(
+    voices({ kind: "stalled", detail: "revising", ts: minutesAgo(20) }),
+    [
+      ["Last checked in 20m ago", "leaf"],
+      [" — ", "leaf"],
+      ["revising", "agent"],
+    ],
   );
   assert.equal(row({ kind: "listening", detail: "" }), "Ready");
   assert.equal(

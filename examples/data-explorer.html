@@ -205,6 +205,7 @@
             this.#filters = this.#playground.registerContributor(
               "filters",
               DEFAULT_FILTERS,
+              this,
             );
             this.#playground.registerInstructionProvider((values) => {
               const rows = values.filters.order.map((id) =>
@@ -374,13 +375,12 @@
   <body>
     <main class="layout-workspace density-working" id="release-query-workspace">
       <header><h1>Shape a release query</h1></header>
-      <lf-ask id="release-query-ask">
+      <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
         <lf-playground
           id="release-query-playground"
           contract="data-explorer-values"
           submit-label="Build query"
-          data-width="available"
         >
           <lf-playground-control
             name="limit"

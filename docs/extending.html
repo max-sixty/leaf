@@ -186,8 +186,8 @@
         </p>
       </header>
 
-      <lf-tabs id="extensions">
-        <lf-tab id="contracts" label="Contracts"
+      <lf-tabs id="extensions" class="layout-flow">
+        <lf-tab id="contracts" label="Contracts" class="layout-flow"
           ><details class="topic-outline" id="contracts-outline">
             <summary>In this topic</summary>
             <nav aria-label="Contracts sections">
@@ -198,7 +198,7 @@
               </ul>
             </nav>
           </details>
-          <section id="responsibilities">
+          <section id="responsibilities" class="layout-flow">
             <h2>Who is responsible for what</h2>
             <p id="responsibilities-lede">
               The user sets the goal and preferences. The author composes the page;
@@ -310,7 +310,7 @@ flowchart TD
               declarations and rendered behavior.
             </p>
           </section>
-          <section id="boundaries">
+          <section id="boundaries" class="layout-flow">
             <h2>Choose the extension boundary</h2>
             <ol class="steps">
               <li id="extend-page">
@@ -331,7 +331,7 @@ flowchart TD
               </li>
             </ol>
           </section>
-          <section id="layer">
+          <section id="layer" class="layout-flow">
             <h2>Package interfaces</h2>
             <p>
               Packages connect through declared inputs, outputs and actions. A release
@@ -429,7 +429,7 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="build-package" label="Build a package"
+        <lf-tab id="build-package" label="Build a package" class="layout-flow"
           ><details class="topic-outline" id="build-outline">
             <summary>In this topic</summary>
             <nav aria-label="Build a package sections">
@@ -441,7 +441,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="start">
+          <section id="start" class="layout-flow">
             <h2>Build a package with two files</h2>
             <p>Create a package in the project, then check the empty composition:</p>
             <pre
@@ -498,7 +498,7 @@ packages/callout/
               shown inline for an obligation.
             </p>
           </section>
-          <section id="theme">
+          <section id="theme" class="layout-flow">
             <h2>Style the element</h2>
             <p>
               A package's <code>defaults.css</code> joins Leaf's existing cascade as
@@ -526,7 +526,7 @@ packages/callout/
               control sheets compose.
             </p>
           </section>
-          <section id="widget">
+          <section id="widget" class="layout-flow">
             <h2>Declare the element</h2>
             <p>The page will author the callout as ordinary readable markup:</p>
             <pre
@@ -568,7 +568,7 @@ packages/callout/
               <code>x-*</code> declaration. A CSS-only widget stops here.
             </p>
           </section>
-          <section id="check">
+          <section id="check" class="layout-flow">
             <h2>Compose and check the page</h2>
             <pre
               id="package-check-command"
@@ -617,7 +617,7 @@ $ leaf page check PAGE --render</code></pre>
             </dl>
           </section></lf-tab
         >
-        <lf-tab id="css" label="CSS"
+        <lf-tab id="css" label="CSS" class="layout-flow"
           ><details class="topic-outline" id="css-outline">
             <summary>In this topic</summary>
             <nav aria-label="CSS sections">
@@ -629,7 +629,7 @@ $ leaf page check PAGE --render</code></pre>
               </ul>
             </nav>
           </details>
-          <section id="styles-contract">
+          <section id="styles-contract" class="layout-flow">
             <h2>CSS contracts</h2>
             <p id="styles-contract-lede">
               Widget packages style their own elements; theme packages supply
@@ -864,8 +864,8 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="packages" label="Packages"
-          ><section id="bundled">
+        <lf-tab id="packages" label="Packages" class="layout-flow"
+          ><section id="bundled" class="layout-flow">
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows

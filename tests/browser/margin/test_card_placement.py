@@ -2,6 +2,7 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from interact_support import append_carried_log_record
@@ -32,7 +33,7 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    leave_card_by_its_target,
+    leave_card,
     resized_shell,
 )
 from browser.threads import append_user_reply
@@ -281,7 +282,7 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
   return {
     notice: box(notice).left,
     head: box(head).right,
-    edit: box(head.parentElement.querySelector(':scope > .lf-msg-edit svg'))?.left ?? null,
+    edit: box(head.querySelector('.lf-msg-controls > .lf-msg-edit svg')).left,
     time: box(head.querySelector('time')).right,
   };
 }"""
@@ -297,9 +298,19 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
     does before its name. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
-    )
+    # Written 51 days ago, so the time reads "51d ago" however slowly the test runs:
+    # "just now" turned "1m ago", narrow enough to stand whole on the phone.
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the logo where it is",
+            "anchor": {"section": "h-how"},
+            "ts": (datetime.now().astimezone() - timedelta(days=51)).isoformat(),
+        },
+    )["id"]
     if phone:
         context = browser.new_context(
             viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
@@ -335,7 +346,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
         NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
     )
     assert stands["notice"] >= stands["head"] - 0.5, stands
-    assert stands["edit"] is None or stands["time"] <= stands["edit"] + 0.5, stands
+    assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
     assert times and all(time["whole"] != phone for time in times), times
     name = head.locator("b")
@@ -544,14 +555,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
-    leave_card_by_its_target(page)
+    leave_card(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile(""))
 
-    leave_card_by_its_target(page)
+    leave_card(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()

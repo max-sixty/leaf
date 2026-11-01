@@ -1130,8 +1130,8 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
-            '<lf-diff id="other" source="other-patch"><pre></pre></lf-diff>'
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<lf-diff id="other" source="other-patch"></lf-diff>'
             "</section>",
         )
     )
@@ -1444,8 +1444,7 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     """A pinned document reads current data through its captured data contract."""
     source = PAGE.replace(
         "</section>",
-        '<lf-diff id="patch" source="review-patch" collapsed>'
-        "<pre></pre></lf-diff></section>",
+        '<lf-diff id="patch" source="review-patch" collapsed></lf-diff></section>',
     )
     (page_dir / "index.html").write_text(source)
     first = revisioning_model.activate_source(page_dir)
@@ -3036,7 +3035,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
-    with pytest.raises(ValueError, match="event id .* already exists"):
+    with pytest.raises(ValueError, match=r"event id .* already exists"):
         append_carried_log_record(
             page_dir,
             {"id": first["id"], "kind": "comment", "author": "user", "text": "third"},
@@ -3059,8 +3058,8 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     )
     access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
-    assert access["port"] == 41234
-    assert access["lifetime"] == "persistent"
+    assert access.get("port") == 41234
+    assert access.get("lifetime") == "persistent"
 
 
 def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
@@ -3409,13 +3408,15 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
-        lambda: server_rows_model.read_row(
-            neighbor, server_model.running_server(neighbor)
+        lambda: (
+            (current := server_model.running_server(neighbor))
+            and server_rows_model.read_row(neighbor, current)
         ),
         bool,
         failure="the server did not publish a row",
     )
-    original = server_model.running_server(neighbor)["server_id"]
+    original = server_model.running_server(neighbor)
+    assert original is not None
     (neighbor / "stream.json").write_text("{invalid")
     wait_for(
         lambda: server_model.running_server(neighbor),
@@ -3427,8 +3428,9 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     write_record(neighbor / "stream.json", {})
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
-    renewed = server_model.running_server(neighbor)["server_id"]
-    assert renewed != original
+    renewed = server_model.running_server(neighbor)
+    assert renewed is not None
+    assert renewed["server_id"] != original["server_id"]
     [row] = wait_for(
         lambda: presence_model.other_leaves(page_dir),
         lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
@@ -3532,7 +3534,7 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         try:
             server.close()
             closed.set()
-        except Exception as error:  # noqa: BLE001 - asserted by the owning test thread
+        except Exception as error:
             errors.append(error)
 
     monkeypatch.setattr(http_model.PageEndpoint, "_get", delayed_get)
@@ -3962,7 +3964,7 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
         started.set()
         assert release.wait(COMPOSITE_TIMEOUT)
         assert fetch(state_url, token=None) == (200, before)
-        return RenderReading([], [], [])
+        return RenderReading([], [])
 
     monkeypatch.setattr(
         browser_command, "run_in_browser", lambda read: (read(None), "held browser")
@@ -4618,12 +4620,12 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     runner = CliRunner()
     stamp = page_dir / schema_model.LAYER_FILE
     vendored = stamp.read_text(encoding="utf-8")
-    foreign = vendored_at_another_protocol(page_dir, newer=True)
+    vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+    assert "Use a newer Leaf" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert read_record(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -4637,7 +4639,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         cli_model.cli, ["server", "start", "--lifetime", "persistent", str(page_dir)]
     )
     assert reshaped.exit_code != 0, reshaped.output
-    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+    assert "Use a newer Leaf" in reshaped.output
 
     stamp.unlink()
     stamp.write_text(vendored, encoding="utf-8")
@@ -4647,10 +4649,10 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         assert started.exit_code == 0, started.output
         assert server_model.running_server(page_dir)
         assert write_refusal(page_dir) is None
-        foreign = vendored_at_another_protocol(page_dir, newer=True)
+        vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
-        assert f"Use a Leaf at protocol {foreign} or later" in reused.output
+        assert "Use a newer Leaf" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4740,8 +4742,9 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         assert len(successor) == 1
         assert fetch(successor[0].url)[0] == 200
         wait_for(
-            lambda: server_rows_model.read_row(
-                page_dir, server_model.running_server(page_dir)
+            lambda: (
+                (current := server_model.running_server(page_dir))
+                and server_rows_model.read_row(page_dir, current)
             ),
             bool,
             failure="the accepted successor did not publish its own serving row",
@@ -4762,6 +4765,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     record_claim(neighbor, id="private-revival")
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     previous = server_model.running_server(neighbor)
+    assert previous is not None
     wait_for(
         lambda: server_rows_model.read_row(neighbor, previous),
         bool,
@@ -4813,6 +4817,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
                 )
                 assert rows[0]["title"] == "Private revival"
                 current = server_model.running_server(neighbor)
+                assert current is not None
                 assert current["server_id"] != previous["server_id"]
                 assert (
                     files_model.read_json(server_rows_model.row_path(neighbor))[
@@ -4838,6 +4843,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     """A producer constructor failure publishes neither service nor acquisition."""
     hosting_model.start_server(page_dir, persistent=True, harness=None)
     previous = server_model.running_server(page_dir)
+    assert previous is not None
     wait_for(
         lambda: server_rows_model.read_row(page_dir, previous),
         bool,

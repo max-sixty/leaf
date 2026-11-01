@@ -29,7 +29,10 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const PYTHON_ONLY = new Set(["data-lf-export-pending", "data-lf-annotation-theme"]);
 
 const registry = JSON.parse(
-  await readFile(new URL("browser/runtime/kernel-registry.json", `file://${root}`)),
+  await readFile(
+    new URL("browser/runtime/kernel-registry.json", `file://${root}`),
+    "utf8",
+  ),
 );
 
 const tracked = (...patterns) =>

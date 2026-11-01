@@ -117,8 +117,8 @@
     }
   },
   "lf-diff": {
-    "description": "A unified patch with per-file navigation and commentable source lines.",
-    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave the `<pre>` empty. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch reserves the height it draws at; leave `data-height` off it, and give one only to a `source` diff, whose patch arrives after first paint.",
+    "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
+    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
     "type": "object",
     "properties": {
       "id": {
@@ -159,8 +159,7 @@
     "x-shadow": true,
     "x-thread-surface": true,
     "x-height": true,
-    "x-initial": "/vendor/lf-diff-initial.js",
-    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
+    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
   },
   "$diff": {
     "widgets": {
@@ -224,9 +223,9 @@
     "x-content": "members",
     "x-space": "wide",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-worktree-diffs-initial.js",
     "x-patch": "members",
-    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>"
+    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>",
+    "x-shadow": true
   },
   "lf-worktree": {
     "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
@@ -320,7 +319,34 @@
     "x-content": "markup",
     "x-name": "label",
     "x-upgrade": true,
-    "x-initial": "/vendor/lf-worktree-initial.js",
-    "x-patch": "members"
+    "x-patch": "members",
+    "x-shadow": true
+  },
+  "lf-diff-note": {
+    "description": "An authored prose remark under an old or new source line of its lf-diff parent.",
+    "x-instructions": "Place directly inside lf-diff, beside pre. Set file to the source path, side to old or new, and at to that side's 1-based source line. For renames, old uses the previous path. Notes follow their file disclosure. A note whose file or line is absent remains at the foot with its unmatched address.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "file": {
+        "type": "string",
+        "minLength": 1
+      },
+      "side": {
+        "enum": ["old", "new"]
+      },
+      "at": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      }
+    },
+    "required": ["file", "side", "at"],
+    "additionalProperties": false,
+    "x-owners": ["lf-diff"],
+    "x-content": "markup",
+    "x-upgrade": false
   }
 }

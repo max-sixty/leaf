@@ -9,16 +9,16 @@ names another ref (`base_ref`).
 A child runs from a scratch cwd outside any repository, so no project instructions
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
-the user's `~/.claude/CLAUDE.md`). The home carries the login and, for a sandboxed
-Claude Code child, generated instructions naming its scratch directory and
-restriction. A trace is the child's normalized tool/turn evidence; it counts when
+the user's `~/.claude/CLAUDE.md`). The home carries the login; sandboxed children
+receive instructions naming their scratch directory and restriction. A trace is
+the child's normalized tool/turn evidence; it counts when
 its harness turn completed (`completed`). CC raw stdout and Codex notifications
 are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS, native authoring sessions use
-`authoring_sandbox` to isolate shared `/tmp` and host plugin payloads. Read-only probes use
+`authoring_sandbox` to isolate shared `/tmp`, host plugin payloads and other processes. Read-only probes use
 their provider's restrictions; Codex's sandbox cannot nest inside a macOS sandbox.
 """
 
@@ -102,7 +102,7 @@ HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
 MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
-    "user": "claude-sonnet-5-5",
+    "user": "gpt-6.1-sol",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
@@ -599,7 +599,7 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
 
 
 def authoring_sandbox(*owned: Path) -> str:
-    """Isolate shared scratch files and installed instructions on macOS.
+    """Isolate shared scratch files, installed instructions and processes on macOS.
 
     The child's `TMPDIR` and zsh's `TMPPREFIX` are already private, but
     authoring agents also write fixed names such as `/tmp/chk.py`, which a
@@ -612,7 +612,8 @@ def authoring_sandbox(*owned: Path) -> str:
     runtime directory traversal. The sandbox resolves `/tmp` to `/private/tmp`,
     so the rules name that. Host plugin payloads are inaccessible: a guessed global
     cache path must not replace the sample's installed instructions. Credentials
-    outside those payloads remain available.
+    outside those payloads remain available. Signals stay within the inherited sandbox:
+    an author's browser cleanup cannot terminate another sample's or the host's browser.
     """
     uid = os.getuid()
     names = (
@@ -628,6 +629,8 @@ def authoring_sandbox(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
             '(deny file-read-data file-write* (subpath "/private/tmp"))',
             f'(allow file-read-data file-write* (regex #"^/private/tmp/({names})"))',
             *(
@@ -640,6 +643,14 @@ def authoring_sandbox(*owned: Path) -> str:
             ),
             "",
         ]
+    )
+
+
+def authoring_sandbox_instructions(cwd: Path) -> str:
+    """The scratch capability of the outer sandbox, shared by native harnesses."""
+    return (
+        f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
+        "An outer process sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
     )
 
 
@@ -690,10 +701,7 @@ def claude_child(
     instructions = home / ".claude" / "CLAUDE.md"
     if sandbox and shutil.which("sandbox-exec"):
         instructions.parent.mkdir(exist_ok=True)
-        instructions.write_text(
-            f"Writable scratch directory: `{cwd / 'tmp'}` (`$TMPDIR`).\n"
-            "The sandbox rejects arbitrary reads and writes under shared `/tmp`.\n"
-        )
+        instructions.write_text(authoring_sandbox_instructions(cwd))
         profile = authoring_sandbox(cwd, home, *dirs)
         command = ["sandbox-exec", "-p", profile, *command]
     else:
@@ -979,7 +987,7 @@ class LiveSession:
                 if self.stopping:
                     return
         # The driver's thread raises what the child's records raised.
-        except BaseException as error:  # noqa: BLE001
+        except BaseException as error:
             self.handed.put(error)
             return
         self.handed.put(_ENDED)
@@ -1080,7 +1088,7 @@ class LiveSession:
             try:
                 done.put((True, action()))
             # Raised again in the driver's thread.
-            except BaseException as error:  # noqa: BLE001
+            except BaseException as error:
                 done.put((False, error))
 
         worker = threading.Thread(target=run, daemon=True)
@@ -1233,6 +1241,19 @@ def completed(trace: list[dict]) -> bool:
     """Whether a trace counts: its model call reached a result that is not an
     error."""
     return trace_result(trace).get("is_error") is False
+
+
+def author_failure(trace: list[dict]) -> str | None:
+    """A failed native author is a provider error, not a page-quality judgment."""
+    if completed(trace):
+        return None
+    result = trace_result(trace)
+    error = result.get("error") or result.get("errors")
+    return (
+        f"Author did not complete: {json.dumps(error)}"
+        if error
+        else "Author did not complete; no successful closing result in the native trace"
+    )
 
 
 @overload

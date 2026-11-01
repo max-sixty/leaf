@@ -68,6 +68,8 @@ import { allButCommandReference, pageCommand, pageScope } from "./keyboard/regis
 import {
   PRESS,
   cycledRow,
+  hasRows,
+  nativePress,
   rowArrows,
   savedReadingSettled,
 } from "./keyboard/bindings.js";
@@ -80,6 +82,13 @@ import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
 import { raiseError } from "./errors.js";
 
+/** @typedef {import("../types/domain.js").Anchor} Anchor
+ * @typedef {ReturnType<typeof import("./composing/surface.js").createResponseSurface>} ResponseSurface
+ * @typedef {ReturnType<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>} Margin
+ * @typedef {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["post"]} Post
+ * @typedef {{withdrawReaction: ReturnType<typeof import("./undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
+ */
+
 const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
 // page row and the keyboard accelerators all read this one list, so a layer that
@@ -90,6 +99,7 @@ export const reactionTokens = () => Object.entries(reactionVocabulary());
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
+/** @param {Anchor | null} anchor */
 const anchorChoices = (anchor) =>
   reactionAvailable()
     ? tokenChoices(
@@ -102,6 +112,7 @@ const anchorChoices = (anchor) =>
 // (thread/reaction-strips.js). The token names the control and the compact face
 // stays the declared mark. Digits remain keyboard accelerators without changing the
 // shape of every chip.
+/** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
   chip.dataset.token = name;
@@ -125,14 +136,23 @@ function reactionChip({ name, glyph, label }, pressed) {
 // The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
 // pressed where one stands, from the press on. A press on a pressed chip
 // takes that reaction back (reactHere).
+/** @param {Anchor | null} anchor */
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const inForce = by.get(chip.dataset.token)?.inForce;
+    const inForce = by.get(chip.getAttribute("data-token") ?? "")?.inForce;
     keeps(chip, "aria-pressed", String(Boolean(inForce)));
   }
 }
 
+/** @param {{marginEntryChoices: Margin["marginEntryChoices"] | undefined,
+ * marginEntryContextContains: Margin["marginEntryContextContains"] | undefined,
+ * openMarginEntryOptions: Margin["openMarginEntryOptions"] | undefined,
+ * designModeActive: () => boolean,
+ * currentLocationThread: typeof import("./thread/landing.js").currentLocationThread,
+ * currentTarget: ReturnType<typeof import("./composing/current-target.js").createCurrentTarget>
+ * } & Pick<ResponseSurface, "hideComposer" | "syncResponseOptions" | "fabAnchorAt" | "fabReturnPlaces" |
+ * "fabTargetAt" | "hasPageSelectionTarget" | "showFab" | "showFabOptions" | "updateFab">} dependencies */
 export function createReactionController({
   marginEntryChoices,
   marginEntryContextContains,
@@ -150,14 +170,21 @@ export function createReactionController({
   currentLocationThread,
   currentTarget,
 }) {
+  /** @type {WeakMap<Element, {palette: HTMLElement, trigger: HTMLElement}>} */
   const surfaces = new WeakMap();
   const marginSurface = Symbol("margin reactions");
+  /** @type {ReturnType<typeof registerContribution> | null} */
   let marginOffer = null;
+  /** @type {Element | null} */
   let marginTarget = null;
+  /** @type {Anchor | null} */
   let marginAnchor = null;
+  /** @type {ReactionCommands | null} */
   let pageCommands = null;
+  /** @param {string} name @param {number} ordinal */
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
+  /** @param {Element} surface @param {{palette: HTMLElement, trigger: HTMLElement}} picker */
   function registerReactSurface(surface, { palette, trigger }) {
     surfaces.set(surface, { palette, trigger });
     return {
@@ -168,6 +195,7 @@ export function createReactionController({
     };
   }
 
+  /** @param {ReactionCommands} commands */
   function buildReactBar(commands) {
     pageCommands = commands;
     const palette = el("span", "lf-react-palette");
@@ -179,6 +207,7 @@ export function createReactionController({
     syncResponseOptions();
   }
 
+  /** @param {Anchor | null} anchor */
   const anchorWord = (anchor) => {
     if (!anchor) return "the target";
     if (anchor.quote) return "the selection";
@@ -188,6 +217,7 @@ export function createReactionController({
     return addressableWord(addressable) || "the element";
   };
 
+  /** @param {string} name @param {ReactionCommands} commands @param {Anchor | null} anchor */
   async function reactHere(name, commands, anchor = fabAnchorAt()) {
     const choice = anchorChoices(anchor).find((choice) => choice.name === name);
     if (!choice) return;
@@ -197,13 +227,15 @@ export function createReactionController({
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnPlaces();
-    if (!anchor) return;
+    const revision = runtime.currentRevision;
+    if (!anchor || revision === null) return;
     let sent;
     if (inForce) sent = commands.withdrawReaction(inForce);
     else {
+      /** @type {Extract<Parameters<Post>[0], {kind: "comment"}>} */
       const event = {
         kind: "comment",
-        revision: runtime.currentRevision,
+        revision,
         token: name,
         anchor: structuredClone(anchor),
       };
@@ -230,20 +262,27 @@ export function createReactionController({
   let reactRaised = false;
   // The margin lends reaction mode its disclosure and returns a release that restores
   // the user's previous fold only while this mode still owns it.
+  /** @type {(() => void) | null} */
   let releaseMarginOptions = null;
   // React mode's opener (focus.js, `openLayer`): the control the user was on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
   const reactFrom = () => openerOf(reactLayer);
+  /** @type {Element | typeof marginSurface | null} */
   let reactSurface = null;
   // An open reply list closes once its trigger is out of view. The list is in the
   // top layer, and its anchor only stops painting it there, so without this the user
   // would read on through another thread while Tab, arrows and digits still answered
   // the reply scrolled away.
+  /** @type {(() => void) | null} */
   let reactDeparture = null;
+  /** @param {Element} held */
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
-  const pickerFor = (surface) => surfaces.get(surface);
+  /** @param {Element | typeof marginSurface | null} surface */
+  const pickerFor = (surface) =>
+    surface instanceof Element ? surfaces.get(surface) : undefined;
 
+  /** @returns {{kind: "surface", surface: Element} | {kind: "anchor" | "selection"} | {kind: "target", target: NonNullable<ReturnType<typeof currentTarget>>} | null} */
   function reactionTarget() {
     const said = currentLocationThread();
     const strip = said && latestAgentStrip(said.held);
@@ -258,7 +297,8 @@ export function createReactionController({
   function raiseMarginSurface() {
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
-    if (!pageCommands || !target || !openMarginEntryOptions) return false;
+    const commands = pageCommands;
+    if (!commands || !target || !openMarginEntryOptions) return false;
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
@@ -279,7 +319,7 @@ export function createReactionController({
         })),
         readings: [],
       }),
-      activate: (name) => reactHere(name, pageCommands, marginAnchor),
+      activate: (name) => reactHere(name, commands, marginAnchor),
     });
     marginTarget = target;
     const release = openMarginEntryOptions(target, "responses");
@@ -305,6 +345,7 @@ export function createReactionController({
     delete fabBar.dataset.lfMarginRaised;
   }
 
+  /** @param {Element | typeof marginSurface | null} surface */
   function closeSurface(surface) {
     if (surface === marginSurface) return;
     reactDeparture?.();
@@ -323,6 +364,7 @@ export function createReactionController({
     return reactArmed && reactSurface === marginSurface;
   }
 
+  /** @param {boolean} on @param {{surface?: Element | null}} options */
   function setReact(on, { surface = null } = {}) {
     if (on && !reactionAvailable()) return;
     if (!on && !reactArmed) {
@@ -380,14 +422,14 @@ export function createReactionController({
           return;
         }
       }
-      if (reactSurface !== marginSurface && !pickerFor(reactSurface)) {
+      const picker = pickerFor(reactSurface);
+      if (reactSurface !== marginSurface && !picker) {
         reactSurface = null;
         openLayer(reactLayer, null);
         return;
       }
       reactArmed = true;
-      if (reactSurface !== marginSurface) {
-        const picker = pickerFor(reactSurface);
+      if (picker) {
         // `e` opens the latest reply of the thread the user is in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open, and it
@@ -398,6 +440,7 @@ export function createReactionController({
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
+        /** @param {Element} trigger */
         const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
         reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
@@ -422,6 +465,7 @@ export function createReactionController({
   // must not pull the user onto it. `handBack` tries again a frame later only where the
   // one it chose is swapped by a repaint in that frame, as a reaction press releasing
   // held news repaints the thread. A press armed from nowhere has only the bar's field.
+  /** @param {Element | null} active */
   function closeReact(active) {
     const from = reactFrom();
     const trigger = pickerFor(reactSurface)?.trigger;
@@ -450,17 +494,19 @@ export function createReactionController({
     );
   }
 
+  /** @param {Element | typeof marginSurface | null} surface @returns {Element[]} */
   function responseChoices(surface) {
     if (!surface) return [];
-    if (surface === marginSurface) return marginEntryChoices(fabTargetAt());
+    if (surface === marginSurface) return marginEntryChoices?.(fabTargetAt()) ?? [];
     return [...surface.querySelectorAll(".lf-react-palette > .lf-react")].filter(
       (choice) => choice.checkVisibility(),
     );
   }
 
+  /** @param {string} binding */
   function stepResponse(binding) {
     const choices = responseChoices(reactSurface);
-    if (!choices.length) return;
+    if (!hasRows(choices)) return;
     const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
       binding,
     );
@@ -470,6 +516,7 @@ export function createReactionController({
     );
   }
 
+  /** @satisfies {import("./keyboard/bindings.js").Scope} */
   const REACT = {
     title: "With reactions open",
     ready: savedReadingSettled,
@@ -502,7 +549,7 @@ export function createReactionController({
             .join(", "),
         title: "react",
         when: reactionAvailable,
-        run: (binding) => {
+        runKey: (binding) => {
           if (reactSurface === marginSurface) {
             const ordinal = +binding - 1;
             const token = reactionTokens()[ordinal]?.[0];
@@ -514,9 +561,9 @@ export function createReactionController({
               });
             return;
           }
-          pickerFor(reactSurface)
-            ?.palette.querySelectorAll(".lf-react")
-            [+binding - 1]?.click();
+          const buttons =
+            pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react");
+          nativePress(buttons?.[+binding - 1])?.();
         },
       },
       {
@@ -526,7 +573,7 @@ export function createReactionController({
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
         title: "move",
         repeat: true,
-        run: stepResponse,
+        runKey: stepResponse,
       },
       {
         id: "response.activate",
@@ -534,8 +581,9 @@ export function createReactionController({
         runFromCommandReference: false,
         keys: PRESS,
         title: "choose",
-        when: () => responseChoices(reactSurface).includes(focused()),
-        run: () => focused()?.click(),
+        when: () =>
+          responseChoices(reactSurface).some((choice) => choice === focused()),
+        run: () => nativePress(focused())?.(),
       },
       {
         id: "reaction.cancel",
@@ -548,6 +596,7 @@ export function createReactionController({
   };
 
   const isReactArmed = () => reactArmed;
+  /** @param {Element | null} node */
   const reactionContextContains = (node) =>
     reactArmed &&
     reactSurface === marginSurface &&
@@ -618,12 +667,14 @@ export function createReactionController({
   };
 }
 
+/** @param {Extract<Parameters<Post>[0], {kind: "comment" | "reply"}>} event @param {string} where @param {Post} postReaction */
 export async function sendReaction(event, where, postReaction) {
   const sent = await postReaction(event);
   if (sent) announce(`${event.token} on ${where}`);
   return sent;
 }
 // Where a reaction stands, as Threads names its anchor.
+/** @param {{kind: string, anchor?: Anchor | null | undefined, about?: import("../types/contract.js").EventMap["comment"]["about"]}} event */
 export function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";
   if (!event.anchor) return "the page";

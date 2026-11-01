@@ -9,31 +9,26 @@
    page's stylesheet; marks are adopted, shared by the document and every stage.
    Passage annotation paint joins them only when the selected renderer owns it.
 
-   It takes the nodes rather than handing back a root to fill, so the style cannot be
-   left out: a module that wrote its own children would replace the one thing holding its
-   look, and it would look right in exactly the session where someone remembered. Same
-   reasoning as renderSaid — a rule each widget has to remember is a rule that gets
-   forgotten, and the forgetting is invisible until a page ships without it.
+   LeafElement stages its normal Lit root here, retaining authored light children for
+   slots. An imperative renderer gives shadowStage the nodes to stage so replacing
+   its content cannot drop the shared styles and watches.
 
    Adopted sheets supplied by an embedded renderer remain that renderer's: staging
    adds Leaf's sheets without discarding them. A renderer that replaces the adopted
    list stages again before yielding, restoring the shared annotation sheets too.
 
-   The host's light children go too: an x-shadow widget shows only its stage and slots
-   none of its authored children, so what the page authored inside it (a placeholder, the
-   source a widget read) is cleared here, child by child. Read it before staging. WebKit's `replaceChildren()` and `textContent = ""` on a shadow host
-   unload every iframe in its shadow tree, even with no child to remove, so a widget
-   that cleared its own host reloaded each frame in a diff thread or an editor.
-
-   The root is infrastructure owned here, not a template render container. Stage a
-   concrete container and render templates inside it; retaining that container across
-   stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
-import { SHADOW_LEADING_CSS, shadowRules } from "./shadow.js";
+   shadowStage clears the host's authored children after the renderer has read them.
+   WebKit's replaceChildren() and textContent = "" on a shadow host unload every iframe
+   in its shadow tree, even with no child to remove, so this removes them one by one.
+   Stage a concrete container and render templates inside it; retaining that container
+   across updates keeps Lit's markers, native editors and directive lifetimes intact. */
+import { shadowRules } from "./shadow.js";
 import { annotationMarkSheets, marksSheet } from "./stylesheets.js";
 import { watchCurrentLocationIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
+import { move } from "./dom-move.js";
 import { watchPassageRoot } from "./passages.js";
 import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "./widget-upgrade.js";
@@ -42,10 +37,23 @@ import { stagesFailure } from "./widget-upgrade.js";
 // whenever its content changes, and a fresh <style> restyles every node in the root,
 // even with the same rules: a diff staging again as each file opened recomputed the
 // style of every file already open.
+/** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const stageStyles = new WeakMap();
 
-export function shadowStage(host, nodes) {
-  const root = host.shadowRoot ?? stageFor(host);
+/** @param {ShadowRoot} root */
+function stageStyle(root) {
+  let style = stageStyles.get(root);
+  if (!style) {
+    style = document.createElement("style");
+    style.setAttribute("data-lf-gen", "1");
+    stageStyles.set(root, style);
+  }
+  return style;
+}
+
+// Both Lit roots and imperative stages receive the same sheets and watches.
+/** @param {ShadowRoot} root */
+export function adoptShadowStage(root) {
   // The stages' one registry (arrivals.js), and the watch over what stands in them: no
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);
@@ -58,14 +66,19 @@ export function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   watchCurrentLocationIn(root);
-  const rules = SHADOW_LEADING_CSS + shadowRules;
-  let style = stageStyles.get(root);
-  if (style?.textContent !== rules) {
-    style = document.createElement("style");
-    style.textContent = rules;
-    stageStyles.set(root, style);
+  const style = stageStyle(root);
+  if (style.textContent !== shadowRules) {
+    style.textContent = shadowRules;
   }
-  // Fragment hydration can add a sheet while the user uses an existing control.
+  if (style.parentNode !== root) move(root, style, root.firstChild);
+  watchPassageRoot(root);
+  return root;
+}
+
+/** @param {Element} host @param {Iterable<Node>} nodes */
+export function shadowStage(host, nodes) {
+  const root = adoptShadowStage(host.shadowRoot ?? stageFor(host));
+  const style = stageStyle(root);
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
   for (const child of [...host.childNodes]) child.remove();
@@ -77,6 +90,7 @@ export function shadowStage(host, nodes) {
 
 // An x-shadow widget shows only what its stage holds, so its failure box stands there,
 // and the widget's next stage replaces it.
+/** @param {Element} host */
 function stageFor(host) {
   stagesFailure(host, (box) => {
     shadowStage(host, [box]);

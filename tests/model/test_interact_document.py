@@ -157,7 +157,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(Refused, match="missing.js"):
+        with pytest.raises(Refused, match=r"missing\.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -268,7 +268,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     (authored / "nested").mkdir(parents=True)
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
-        'import "/runtime/widget-api.js"; window.result = value;'
+        'import "/runtime/widget-api.js"; import "/vendor/lit.js"; window.result = value;'
     )
     (authored / "nested" / "value.js").write_text(
         'export { value } from "../value.js";'
@@ -305,6 +305,8 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     # The public module app.js imports is the runtime's, which the delivering Leaf
     # supplies, so the revision holds none of it.
     assert "/runtime/widget-api.js" not in artifact.resources
+    assert "/vendor/lit.js" not in artifact.resources
+    assert "/vendor/lit.js" in executing(artifact).resources
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
@@ -477,7 +479,6 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./data.json?variant";', "dependency-not-local"),
         ('import "./data.json#variant";', "dependency-not-local"),
         ('import "/runtime/events.js";', "module-outside-page"),
-        ('import "/vendor/lit.js";', "module-outside-page"),
         ('import "./notes.txt";', "module-type"),
         ('import "./data\\u002ejson";', "dependency-not-local"),
         # A symlink out of page/ is refused whether or not anything names it, since
@@ -1505,6 +1506,32 @@ def test_check_rejects_widget_violations(page_dir):
         [],
     ]
     assert found(findings, "text-outside-pre", "<lf-diagram>")
+
+
+def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
+    """A data widget's text is its <pre> or its bound input, never both, so text
+    written under a binding, which the widget would never show, is refused. Written
+    text names its origin with a label, as a bound document names its file."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            '<lf-text-document id="bound" source="notes"></lf-text-document>'
+            '<lf-text-document id="written" label="CHANGELOG.md" preview="markdown">'
+            "<pre>**Fixed** a crash.</pre></lf-text-document>"
+            '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
+            '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
+            "</lf-text-document>"
+            '<lf-code id="bare-code"></lf-code>',
+        )
+    )
+    _, findings = check_findings(page_dir)
+    assert [(f.at, f.values["bound"]) for f in found(findings, "data-body")] == [
+        ("<lf-text-document>", True),
+        ("<lf-code>", False),
+    ]
+    assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
+    assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
 
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
@@ -3944,7 +3971,9 @@ def _apart(a, b, vision=None):
         rgb = _linear(colour)
         if vision is None:
             return _oklab(rgb)
-        return _oklab([sum(w * c for w, c in zip(row, rgb)) for row in _CVD[vision]])
+        return _oklab(
+            [sum(w * c for w, c in zip(row, rgb, strict=True)) for row in _CVD[vision]]
+        )
 
     return math.dist(seen(a), seen(b)) * 100
 
@@ -4052,7 +4081,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
         )
     )
     initial = state_json(page_dir)
@@ -4099,7 +4128,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
         )
     )
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"

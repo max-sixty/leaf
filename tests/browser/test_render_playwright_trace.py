@@ -14,6 +14,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    scroll_settled,
     still_page,
     told,
 )
@@ -25,8 +26,8 @@ from leaf_dev.page_fixtures import example_media
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve):
-    """The before/after result names differ at their ends, which must remain readable."""
+def test_trace_results_can_be_read_and_compared_on_a_phone(browser, serve):
+    """Result names stay readable and switching recordings keeps their evidence in view."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -35,6 +36,9 @@ def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve
     )
     for recording, label in [("before", "Before the fix"), ("after", "After the fix")]:
         page.get_by_role("radio", name=label, exact=True).tap()
+        image = page.locator(f"#fix-{recording} .lf-trace-image-viewport")
+        if recording == "after":
+            expect(image).to_be_in_viewport(ratio=1)
         moment = page.locator(f"#fix-{recording} .lf-trace-bookmark").last
         moment.scroll_into_view_if_needed()
         measured = moment.evaluate("""row => {
@@ -49,6 +53,16 @@ def test_trace_moments_keep_their_distinguishing_words_on_a_phone(browser, serve
         }""")
         assert measured["horizontal"] <= 1, measured
         assert measured["words"], measured
+        moment.tap()
+        expect(image).to_be_in_viewport(ratio=1)
+        expect(page.locator(".lf-trace-compare-controls")).to_be_in_viewport(ratio=1)
+
+    page.get_by_role("radio", name="After the fix", exact=True).press("Tab")
+    start = page.locator("#fix-after").get_by_role("button", name="Start", exact=True)
+    expect(start).to_be_focused()
+    scroll_settled(page)
+    chooser = page.locator(".lf-trace-compare-controls").bounding_box()
+    assert start.bounding_box()["y"] >= chooser["y"] + chooser["height"]
 
 
 def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
@@ -974,24 +988,47 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
     url = serve(source, packages=("playwright",))
     user = browser.new_page()
     held = []
+    parsing = []
+
+    def pause_in_second_view(route):
+        response = route.fetch()
+        body, count = re.subn(
+            r'(<lf-trace\b[^>]*\bid="paired-after")',
+            '<p class="arriving-caption">The later recording.</p>'
+            '<script src="/pause-parser.js"></script>\\1',
+            response.text(),
+        )
+        assert count == 1
+        route.fulfill(response=response, body=body)
+
+    user.route(url, pause_in_second_view)
+    user.route("**/pause-parser.js", lambda route: parsing.append(route))
     user.route("**/widgets/lf-trace-compare.js", lambda route: held.append(route))
-    with user.expect_request("**/widgets/lf-trace-compare.js"):
+    with user.expect_request("**/pause-parser.js"):
         user.goto(url, wait_until="commit")
     workspace = user.locator("lf-trace-compare")
-    user.wait_for_function(
-        "() => document.querySelector('lf-trace-compare > [data-lf-opening]')"
-    )
+    # The parser has the second wrapper and caption but not its recording. View
+    # membership must already hold, otherwise this caption flashes during delivery.
+    expect(user.locator(".arriving-caption")).to_have_count(1)
+    expect(user.locator("#paired-after")).to_have_count(0)
+    expect(user.locator(".arriving-caption")).to_be_hidden()
+    assert len(parsing) == 1
+    parsing[0].fulfill(status=200, content_type="text/javascript", body="")
+    expect(user.locator("#paired-after")).to_have_count(1)
+    holding(user, held, 1, "comparison module")
+    user.unroute(url)
+    user.unroute("**/pause-parser.js")
+    expect(workspace.locator(":scope > figure")).to_have_count(2)
+    expect(workspace.locator(":scope > figure").first).to_be_visible()
+    expect(workspace.locator(":scope > figure").last).to_be_hidden()
     before = workspace.evaluate("""node => ({
         children: [...node.children].map(child => ({
-            opening: child.hasAttribute('data-lf-opening'),
-            drawn: child.checkVisibility()
+            drawn: child.getBoundingClientRect().height > 0
         })),
         reserved: parseFloat(getComputedStyle(node, '::before').height)
     })""")
     assert len(before["children"]) == 2
-    assert [child["drawn"] for child in before["children"]] == [
-        child["opening"] for child in before["children"]
-    ]
+    assert [child["drawn"] for child in before["children"]] == [True, False]
     assert before["reserved"] >= 44
     assert held
     user.unroute("**/widgets/lf-trace-compare.js")

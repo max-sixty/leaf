@@ -24,8 +24,9 @@ long it lives across revisions. A widget's declarations are in
 
 ## The helper surface
 
-Import Leaf's helpers only from `/runtime/widget-api.js`, or its portable part ("A
-widget that also runs off Leaf"). Don't import the runtime's
+Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
+widget that also runs off Leaf"). Templates use the same API and `/vendor/lit.js`.
+Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
 of the module `widget-api.js` re-exports it from. Every export is public for independent
@@ -43,7 +44,9 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 A widget that must also run on a page without Leaf's runtime, such as a chart another
 app shows, imports only from `/runtime/portable-api.js`, the part of the helper
-surface any document can load; `widget-api.js` re-exports all of it. The host maps
+surface any document can load; `widget-api.js` re-exports all of it.
+The control constructors and template directives under “Generated controls”
+are portable too: use the same offers and generated-word markers on either host. The host maps
 `/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
 page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement` and
 draws into the box the page gives it. Leaf hears from it only through standard events
@@ -71,10 +74,8 @@ ignores:
   which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
-- A first drawing (`x-initial`): `initialRender(host, createView)` ("First paint"),
-  which off Leaf draws with the factory the widget passes.
-- Working state in `tabStore`, which keeps nothing on a plain page: a read there
-  answers null.
+- State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
+  there answers null.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -93,11 +94,13 @@ script", lists.
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
   label them with `relabel()` ("Generated controls").
-- Keep the box the widget has at first paint ("First paint").
+- Keep the widget's visible geometry stable as its state updates ("First paint"), and
+  meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
-- Record the user's choices only through the widget controller, and keep working state
-  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
+- Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
+  puts it: record what the user makes through the widget controller, and keep how they
+  look at the widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
@@ -130,7 +133,8 @@ to place the box beside them: `place(box)` returns true when it handles the box,
 the renderer removes it when the failed content recovers. An element has one placer,
 which registering again replaces. Where the widget shows a
 failed part its own way, as `lf-diff` does for a patch it cannot draw,
-`reportFailure(element, error)` only reports.
+`reportFailure(element, error)` only reports. `describeFailure(error)` returns a
+short message for any thrown value when the widget presents its own recovery.
 
 ## Connection lifetimes
 
@@ -206,61 +210,41 @@ now would move what the user sees, pass the work to the widget controller's
 
 ### First paint
 
-The widget's box at first paint is the box it keeps: upgrade adds behavior without
-moving anything. `leaf package check --render` reports a widget that moves as
-`keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
+The document paints its authored HTML while browser modules load. Each widget renders
+when its module loads, then updates that same view from Leaf's readings. A control
+that needs JavaScript or saved state waits only for its own behavior or reading;
+native disclosures, links and authored content need no such wait.
 
-- Size the widget in the package theme under `html[data-lf-interactive]`, which Leaf
-  sets before first paint wherever its runtime will run.
-- The widget's initial structure goes in `x-initial`: the path of a committed classic
-  script that calls
-  `document.documentElement.lfInitial.register(tag, createView)`. Delivery calls
-  the supplied factory with `host` and `tools` as soon as each host's markup arrives,
-  nested hosts first, so the widget first appears
-  whole. Delivery inlines each used bundle once in the head; for later revisions and
-  thread messages the loader imports the bundle before the behavior module.
-  `tools` provides `tabStore`, `offer`, `offerElement`, `offerAction`,
-  `offerActionElement`, `selectableOffer`, `selectableOfferElement`,
-  `generatedElement`, `keeps` (the attribute keeper) and `authoredBody`.
-  Leaf keeps the authored markup before drawing, so source readings and comparisons
-  ignore the drawing. `createView` is synchronous, fetches nothing and reads nothing from the log; it may move authored
-  nodes within the host. To put every authored child inside a box it builds, as
-  `lf-worktree` puts its evidence under its disclosure's summary, pass that box to
-  `tools.authoredBody(box)`, which moves the children into it. Leaf treats the boxes around
-  it as the widget's own and its contents as the page's, and an `x-patch: members`
-  revision edits inside it. The factory returns a view with `render()`, returning
-  a Lit template, and the node references and mechanical inputs the module needs.
-  Delivery supplies `document.documentElement.lfInitial.lit`, the shared Lit namespace,
-  before any factory script runs, including a custom classic script with no build.
-  Delivery renders that template into `view.root ?? host`; `root` isolates a generated
-  region when the host also retains authored children. The module gets
-  the view with `initialRender(host, createView)`, which also initializes later
-  arrivals, and draws the view's template with its live inputs into the same root, so
-  Lit retains the first drawing's nodes and bindings. On a page without Leaf nothing
-  drew first, so `initialRender` calls `createView` itself, with tools that write only
-  the widget's own classes, types and names, and renders it; a widget that also runs
-  off Leaf passes the factory it imports, and keeps it in a module of its own that the
-  bundle imports too. It defines its element at once where `drawsFirst()` is true,
-  and elsewhere defines it once a dynamic import of that module resolves, so a Leaf
-  page fetches nothing it doesn't run and every page draws the widget in the task that
-  upgrades it. `actionOffers(tools)` returns `offerAction` and
-  `offerActionElement` that also draw a symbol's or mark's icon from its `action`, and
-  `showAction(control, action)` redraws a press's symbol when its action changes. The factory does not keep a second
-  paint or update method. A view needing generated-node measurements may mount its
-  template with public Lit `render` before measuring; delivery commits the measured
-  template in the same root. A producer that only reserves geometry and draws nothing
-  returns null. A drawing that reads markup after its host, as `lf-toc` reads the headings
-  below it, finishes when the document has parsed (`readystatechange`), before any
-  module runs; if that changes its
-  height, mark the affected reading scope `data-lf-initial-pending` while parsing and
-  remove the mark after drawing. `x-initial` requires `x-upgrade: true`.
+- Return a widget's complete view from `LeafElement.render()`. The same rendering
+  root handles fresh mounts, frozen messages and later updates; do not add a second initial
+  renderer or transfer generated nodes between renderers.
+- Size the widget in the package theme, including its initial authored drawing.
+  A shadow template uses native slots for authored children, keeping their nodes and
+  browser state in the light DOM.
+- For an imperative widget that moves authored children into a generated container,
+  use `holdAuthoredBody(host, box)`. An `x-patch: members` revision edits inside that box.
+  A markup container without `x-views` leaves those children as independent evidence;
+  revisions can change them without rebuilding its generated controls. A renderer that
+  consumes its children's identities or attributes declares structural members or
+  `x-views`, so changing those inputs rebuilds its view.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
-- A widget that shows one member at a time, as `lf-tabs` does, declares `x-views`.
-  Before upgrade only the member marked `data-lf-opening` shows; on upgrade, open the
-  member `openingView(holder, members)` returns, and record each member it shows with
-  `keepView(holder, member)` so a reload reopens it. Pass `null` as a third argument
-  to get null where neither the address nor the tab names a member, and choose then. A holder whose members share the
+- A widget that shows one member at a time declares `x-views: {members: "selector"}`;
+  the browser matches the selector against each direct authored child, including
+  while HTML is still arriving. A selector that depends on descendants, such as
+  `:has()`, can change membership as they arrive; use the child's own start tag for
+  stable first-paint membership. Delivery carries the selector so the same browser
+  owner shows the chosen member before modules load. Their native `hidden` attribute
+  is view state.
+  Read `viewMembers(holder)` for the canonical member list, including holders a module
+  creates. Reading members or the opening choice changes no DOM. During setup, open the
+  member `openingView(holder)` returns, and show each later member with
+  `keepView(holder, member)`, which applies native visibility and remembers it for reload.
+  Passing null shows none without forgetting the last member. During an exit animation,
+  `keepView(holder, member, leaving)` keeps one outgoing member visible too; call it
+  again without that member when the animation ends. Only the selected member is
+  saved. Pass `null` as a second argument to get null where neither the address nor
+  the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
 
@@ -282,11 +266,12 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 
 ### Drawing what a widget reads
 
-A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`,
-into itself or into a generated part `createRenderRoot()` returns, never over its
-authored children. One-time building goes in `setup()`, which runs on the first
-connection, before the first render; a `setup()` that throws shows its failure and the
-widget draws nothing after it.
+A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`.
+An `x-shadow` widget uses an ordinary shadow root; other widgets draw into
+themselves or a generated part `createRenderRoot()` returns, never over authored
+children. One-time setup goes in `setup()`, before the first render; work needing the
+rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
+the widget draws nothing after it.
 
 `render()` reads through Leaf's readers: `this.reading` and `this.state`, the
 property a bound source sets (module-state.md, "Bound data and projections"), and page
@@ -319,13 +304,17 @@ Declare `x-shadow` when the user should quote and comment on the words a widget'
 shadow root shows. A root attached any other way, as a vendored component or a page
 script's own custom element attaches one, is opaque to comments.
 
-Build an `x-shadow` widget's shadow root with `shadowStage(host, nodes)`, never
-`attachShadow`; it applies the theme's styles and returns the root. For a template,
-stage a container with `shadowStage(host, [container])` and render into that container.
+For `x-shadow`, `LeafElement` creates the root, applies the shared stylesheet and
+annotation support, and owns its Lit render. Return the template from `render()` and
+use native slots for authored children. Read presentation inputs from the host and its
+authored children; read decisions through `this.reading` and `this.state`.
 
-An `x-shadow` widget slots none of its authored children, so `shadowStage` removes them
-all from the host on every call (WebKit unloads the frames in a shadow tree when a host
-is cleared any other way). Read what the widget needs from them before the first stage.
+An imperative renderer overrides `createRenderRoot()` to keep Lit out of its stage
+and uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
+the same styles and returns the root. Stage a retained container and render into that
+container. This API clears authored light children and supplies no slots, so read what
+the renderer needs before staging. It removes children individually because clearing
+a shadow host with `replaceChildren()` unloads WebKit's shadow-tree frames.
 
 Wrap stylesheet text the module writes itself in `inBaseLayer(css)`, so its rules sit in
 the theme's `lf-base` cascade layer, below Layouts, theme packages and the page's own
@@ -383,9 +372,10 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `departed`, `arriving`, `arrived`, `input`, `current-location` (with `{focused}`),
-and `height` (with `{height, gesture}`). Use the latter to size a block frame, holding
-a growth the user did not request as described in `module-scroll-and-motion.md`.
+`loading`, `departed`, `arrived`, `input` (with the event's `{type}`), `current-location`
+(with `{focused}`), and `height` (with `{height}`). Use `height` to size a block frame,
+holding growth the user did not request as described in `module-scroll-and-motion.md`
+until a `click`, `keydown` or `input` notice says they acted in the child.
 `restoreCurrentLocation()` returns focus to the child's last focused control;
 `showThread(id, {surface, status, signal})` opens a child Thread with an AbortSignal
 for the owning gesture's lifetime. `surface: "panel"` selects the child's panel,
@@ -412,12 +402,13 @@ controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
 whose host implements `focus()` and `click()`. In a template, `<div
 ${offered("my-tools")}>` does the same, with an input's `type` binding placed before
-`offered`.
+`offered`. `offerElement(node, className, pressable)` marks an existing node.
 
 A button that looks like Leaf's own controls is built by its role, so every control of
 one kind wears one face: `offerAction(role, className, label, {title, action})`, or
 `<button ${offeredAction(role, className, label, {action})}></button>` in a template.
-The roles are:
+`offerActionElement(node, role, className, label, {title, action})` applies the same
+face, symbol and name to an existing node. The roles are:
 
 - `"symbol"`, a press that shows the symbol of its `action`, one of Leaf's actions
   (`module-reading.md`, "Icons"), and draws it for you. Its tooltip and accessible name
@@ -444,8 +435,11 @@ Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply t
 generated controls too.
 
 A control whose label is the page's own words, such as a tab's name, must stay
-selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
-whose keyboard behavior the widget supplies. In a template, use
+selectable, so build it with `selectableOffer(role, className, label)`, a focusable
+span. Leaf presses any span it offers as a button as it does a button, so with the
+role `"button"` Enter and Space press it, on a page with Leaf or without it, and the
+widget declares no keys for that press; for another role, such as `"tab"`, the widget
+declares its keys. In a template, use
 `<span ${selectableOffered(role, className)}>${label}</span>`. To give it a role's
 face, such as `"row"` for a list whose rows are the page's words, name the role last:
 `selectableOffer(role, className, label, "row")` or `selectableOffered(role,

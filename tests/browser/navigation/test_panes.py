@@ -802,8 +802,7 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     history = preview.locator(".lf-thread-transcript")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
-    page.keyboard.press("Escape")  # onto the passage, the card beside it
-    page.keyboard.press("Escape")  # letting go of the passage takes the card
+    page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
     expect(preview).to_be_visible()
@@ -839,18 +838,19 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             "</head>",
-            "<style>#reading-split lf-pane { block-size: 420px; }"
+            "<style>#reading-split, #other-reading { grid-column: full; }"
+            " #reading-split lf-pane { block-size: 420px; }"
             " #reading-split lf-pane > :not(header, footer)"
             " { min-block-size: 0; overflow: auto; }</style></head>",
         )
         .replace(
             '<main class="layout-workspace">',
-            '<main class="layout-sidebar"><lf-tabs id="reading-tabs">'
-            '<lf-tab id="first-tab" label="First">',
+            '<main class="layout-column"><lf-tabs id="reading-tabs" class="layout-flow">'
+            '<lf-tab id="first-tab" label="First" class="layout-flow">',
         )
         .replace(
             "</main>",
-            '</lf-tab><lf-tab id="second-tab" label="Second">'
+            '</lf-tab><lf-tab id="second-tab" label="Second" class="layout-flow">'
             '<lf-pane id="other-reading" label="Other reading">'
             '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
             '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',

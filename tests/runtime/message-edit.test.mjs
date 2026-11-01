@@ -3,13 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as editing from "/runtime/thread/message-edit.js";
 import { createCompositionInputs } from "/runtime/composing/input.js";
-import {
-  clearDraft,
-  loadDraft,
-  loadDraftPayload,
-  rewriteContext,
-  saveDraft,
-} from "/runtime/drafts.js";
+import { clearDraft, loadDraft, rewriteContext, saveDraft } from "/runtime/drafts.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { draftStore } from "/runtime/storage.js";
 import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
@@ -43,7 +37,7 @@ function discard(id, text, said = "Original words") {
   );
   editor.input.value = text;
   editor.input.dispatchEvent(new Event("input", { bubbles: true }));
-  editor.node.querySelector(".lf-msg-edit-cancel").click();
+  editor.actions.querySelector(".lf-msg-edit-cancel").click();
   editor.dispose();
   assert.equal(loadDraft(rewriteContext(id)), null);
 }
@@ -70,7 +64,7 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
   saveDraft(ctx, "A newer draft");
   assert.equal(restore.when(), false);
   await restore.run();
-  assert.equal(loadDraft(ctx), "A newer draft");
+  assert.equal(loadDraft(ctx)?.text, "A newer draft");
   assert.deepEqual(visits, []);
   clearDraft(ctx);
   // Another tab writes before its storage event reaches this one. The cached
@@ -78,12 +72,15 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
   saveDraft("other-tab", "Words from another tab", { over: "revision-2" });
   draftStore.set("lf-draft:" + ctx, draftStore.get("lf-draft:other-tab"));
   await restore.run();
-  assert.equal(loadDraft(ctx), "Words from another tab");
+  assert.equal(loadDraft(ctx)?.text, "Words from another tab");
   assert.deepEqual(visits, []);
   clearDraft(ctx);
   await restore.run();
-  assert.equal(loadDraft(ctx), "  The last discarded rewrite\nwith its spacing.  ");
-  assert.deepEqual(loadDraftPayload(ctx), { over: "revision-1" });
+  assert.equal(
+    loadDraft(ctx)?.text,
+    "  The last discarded rewrite\nwith its spacing.  ",
+  );
+  assert.deepEqual(loadDraft(ctx)?.payload, { over: "revision-1" });
   assert.deepEqual(visits, [ctx]);
   assert.equal(restore.when(), false);
   await restore.run();
@@ -117,6 +114,6 @@ test("g D restores the discarded rewrite", (t) => {
   assert.equal(press("g"), true);
   assert.equal(press("D", true), true);
   assert.equal(goTo.goToSequenceActive(), false);
-  assert.equal(loadDraft(rewriteContext("keyboard")), "Recover by keyboard");
+  assert.equal(loadDraft(rewriteContext("keyboard"))?.text, "Recover by keyboard");
   assert.deepEqual(visits, [rewriteContext("keyboard")]);
 });

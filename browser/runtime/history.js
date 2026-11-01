@@ -39,9 +39,10 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
+import { pageRange, selectEnds, selectionBackward } from "./native-selection.js";
 import { setScroll } from "./arrivals.js";
-import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
-import { pageRange, selectEnds, selectionBackward } from "./passages.js";
+import { deepFocus, drawn, focusDestination, readCaret, blurFocused } from "./focus.js";
+
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./current-target.js";
 import { upFrom } from "./shadow.js";
@@ -49,7 +50,16 @@ import { presented } from "./geometry.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
 
+/** @typedef {[WeakRef<Node>, number]} HeldSelectionEnd
+ * @typedef {{focus: WeakRef<Element> | null, place: WeakRef<Element> | null,
+ * caret: import("./focus.js").Caret | null, ends: [HeldSelectionEnd, HeldSelectionEnd] | null,
+ * offset: [number, number]}} WorkingPlace
+ * @typedef {() => void | boolean | Promise<void | boolean>} TraversalHandler
+ * @typedef {(url: URL) => TraversalHandler | null | undefined} TraversalClaim
+ */
+/** @type {Set<TraversalClaim>} */
 const claims = new Set();
+/** @type {Map<string, WorkingPlace>} */
 const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
@@ -58,15 +68,17 @@ const places = new Map();
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
 // keeps its working end.
+/** @param {Element | null} focus @returns {WorkingPlace} */
 export function readPlace(focus = deepFocus()) {
   const place = placeOf(focus);
   const selection = getSelection();
-  const range = selection.rangeCount ? pageRange(selection) : null;
+  const range = selection?.rangeCount ? pageRange(selection) : null;
+  /** @type {[HeldSelectionEnd, HeldSelectionEnd] | null} */
   const ends = range && [
     [new WeakRef(range.startContainer), range.startOffset],
     [new WeakRef(range.endContainer), range.endOffset],
   ];
-  if (ends && selectionBackward(selection, range)) ends.reverse();
+  if (ends && selection && range && selectionBackward(selection, range)) ends.reverse();
   return {
     focus: focus && new WeakRef(focus),
     place: place && new WeakRef(place),
@@ -80,15 +92,11 @@ export function readPlace(focus = deepFocus()) {
 // shortened what it named since, so a node no longer drawn is not returned to, and a
 // selection end past its node's current length returns to what is left of that node,
 // its end.
+/** @param {WorkingPlace} checkpoint */
 export function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const place = checkpoint.place?.deref();
   const { caret } = checkpoint;
-  const ends = checkpoint.ends?.map(([ref, offset]) => {
-    const node = ref.deref();
-    const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
-    return [node, Math.min(offset, length ?? offset)];
-  });
   if (focus !== document.body && focus?.isConnected && presented(focus)) {
     focusDestination(focus, "return", { caret });
     // A field's caret is its whole selection, and clearing the document's would
@@ -99,16 +107,23 @@ export function returnPlace(checkpoint) {
   // its closing fade. Its page target is the same working place from the other
   // side, and remains a browser focus destination on return.
   else if (place?.isConnected && presented(place)) focusDestination(place, "return");
-  else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+  else blurFocused();
   const selection = getSelection();
+  if (!selection) return;
   selection.removeAllRanges();
   // Editing the passage can remove its saved endpoint. That checkpoint then has no
   // selection to restore, and the returned viewport supplies the next walk's origin.
-  if (
-    ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))
-  ) {
-    selectEnds(...ends);
-  }
+  const anchor = checkpoint.ends && returnEnd(checkpoint.ends[0]);
+  const end = checkpoint.ends && returnEnd(checkpoint.ends[1]);
+  if (anchor && end) selectEnds(anchor, end);
+}
+
+/** @param {HeldSelectionEnd} end @returns {import("./native-selection.js").SelectionEnd | null} */
+function returnEnd([ref, offset]) {
+  const node = ref.deref();
+  if (!node || !drawn(node instanceof Element ? node : upFrom(node))) return null;
+  const length = node instanceof CharacterData ? node.length : node.childNodes.length;
+  return [node, Math.min(offset, length)];
 }
 
 // Whether this document is writing an entry itself. The Navigation API fires `navigate`
@@ -116,6 +131,8 @@ export function returnPlace(checkpoint) {
 // press on a link to the fragment the page already shows: both are a same-document
 // `replace` or `push` with no hash change. Only the writer can tell them apart.
 let writing = false;
+/** @param {"pushState" | "replaceState"} method @param {unknown} state
+ * @param {string | URL | null | undefined} url */
 function write(method, state, url) {
   writing = true;
   try {
@@ -125,10 +142,12 @@ function write(method, state, url) {
   }
 }
 
+/** @param {string | URL | null | undefined} url @param {unknown} state */
 export function pushEntry(url, state = null) {
   write("pushState", state, url);
 }
 
+/** @param {string | URL | null | undefined} url @param {unknown} state */
 export function replaceEntry(url, state = history.state) {
   write("replaceState", state, url);
 }
@@ -144,19 +163,23 @@ export function prepareEntry() {
   const offset = place.offset;
   const sourceUrl = window.location.href;
   const sourceState = history.state;
-  return (url, state, replace) => {
+  return /** @param {string | URL} url @param {unknown} state @param {boolean} replace */ (
+    url,
+    state,
+    replace,
+  ) => {
     if (replace) {
       replaceEntry(url, state);
       return;
     }
-    const arrival = [scrollX, scrollY];
+    const arrival = { left: scrollX, top: scrollY };
     // Exposing another view renames this entry. Its original URL and state belong to
     // the outgoing checkpoint; the exposed destination belongs to the new entry.
     if (window.location.href !== sourceUrl || history.state !== sourceState)
       replaceEntry(sourceUrl, sourceState);
     setScroll(pageScroller, { left: offset[0], top: offset[1], behavior: "instant" });
     pushEntry(url, state);
-    setScroll(pageScroller, { left: arrival[0], top: arrival[1], behavior: "instant" });
+    setScroll(pageScroller, { ...arrival, behavior: "instant" });
     if (key) places.set(key, place);
   };
 }
@@ -165,23 +188,25 @@ export function prepareEntry() {
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
 // A handler places the viewport itself unless it resolves to false, handing placement
 // back to the entry's checkpoint (or the browser when no checkpoint was captured).
-/** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
+/** @param {TraversalClaim} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
 }
 
 let mounted = false;
+/** @param {{followFragment: TraversalClaim, returnToFragment: TraversalClaim}} options */
 export function mountHistory({ followFragment, returnToFragment }) {
   if (mounted) return;
   mounted = true;
-  window.navigation?.addEventListener("navigate", (event) => {
+  const navigation = window.navigation;
+  navigation?.addEventListener("navigate", (event) => {
     if (!event.destination.sameDocument || !event.canIntercept) return;
     const url = new URL(event.destination.url);
     if (event.navigationType !== "replace") {
-      const live = new Set(window.navigation.entries().map((entry) => entry.key));
+      const live = new Set(navigation.entries().map((entry) => entry.key));
       for (const key of places.keys()) if (!live.has(key)) places.delete(key);
-      const key = window.navigation.currentEntry?.key;
+      const key = navigation.currentEntry?.key;
       if (key) places.set(key, readPlace());
     }
     if (event.navigationType === "traverse") {
@@ -202,6 +227,7 @@ export function mountHistory({ followFragment, returnToFragment }) {
           ]);
           await stopScroll(scrollers);
           if (!mayReturn()) return;
+          /** @type {unknown} */
           let work;
           mayReturn.handoff(() => {
             work = handler?.();
@@ -226,10 +252,18 @@ export function mountHistory({ followFragment, returnToFragment }) {
     // change, and still a navigation step: its target may have been shut since.
     if (writing || event.formData || !url.hash) return;
     const handler = followFragment(url);
-    if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
+    if (handler)
+      event.intercept({
+        scroll: "manual",
+        focusReset: "manual",
+        handler: async () => {
+          await handler();
+        },
+      });
   });
 }
 
+/** @param {URL} url */
 function claimed(url) {
   for (const claim of claims) {
     const handler = claim(url);

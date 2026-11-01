@@ -1,6 +1,6 @@
-import { frameVisibility, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
-import { inputInFrame, keeps, move, pageUrl, runtime } from "./bundle-layer-stack.js";
-import { recordInteraction, requestJson } from "./bundle-layer-client.js";
+import { exceptionRecord, frameVisibility, keeps, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
+import { inputInFrame, move, pageUrl, runtime } from "./bundle-layer-stack.js";
+import { RequestError, recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-data.js";
 import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
@@ -26,7 +26,8 @@ async function loadWithinLimit(work, signal) {
 	const release = () => {
 		if (released) return;
 		released = true;
-		if (loadWaiters.length) loadWaiters.shift()();
+		const next = loadWaiters.shift();
+		if (next) next();
 		else loadingSamples--;
 	};
 	try {
@@ -38,8 +39,12 @@ async function loadWithinLimit(work, signal) {
 const departure = (message) => new DOMException(message, "SampleDepartedError");
 const mounted = /* @__PURE__ */ new Map();
 const isSampleFrame = (node) => mounted.has(node);
-const sampleFrameImage = (frame, crop) => mounted.get(frame)("image", crop);
-const request = (url, body, headers = {}) => requestJson(url, {
+function sampleFrameImage(frame, crop) {
+	const call = mounted.get(frame);
+	if (!call) throw departure("Sample frame has departed");
+	return call("image", crop);
+}
+const request = (url, body, headers = {}) => requestJson(String(url), {
 	method: "POST",
 	headers: {
 		"Content-Type": "application/json",
@@ -48,6 +53,9 @@ const request = (url, body, headers = {}) => requestJson(url, {
 	body: JSON.stringify(body),
 	keepalive: true
 }, "sample");
+function connectionMessage(value) {
+	return value !== null && typeof value === "object" && "type" in value && value.type === "leaf-sample-connect" && "sample" in value && typeof value.sample === "string" && "nonce" in value && typeof value.nonce === "string";
+}
 function mountSample(frame, { template, source, window: asWindow = false }) {
 	if (template == null === (source == null)) throw new Error("a sample needs either an authored template id or source document");
 	let revision = runtime.currentRevision;
@@ -67,9 +75,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 	let channel = null;
 	let lost;
 	let nextId = 0;
-	let readyResolve;
-	let readyReject;
-	let upgrading = false;
+	let pendingInterface = null;
 	let hasConnected = false;
 	let connectedNonce = null;
 	const hostId = ++nextHost;
@@ -88,20 +94,27 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 	});
 	const recordFailure = (error, detail = {}) => record("failed", {
 		error: {
-			name: error.name,
-			message: error.message,
-			stack: error.stack,
-			status: error.status,
-			body: error.body
+			...exceptionRecord(error),
+			...error instanceof RequestError && {
+				status: error.status,
+				body: error.body
+			}
 		},
 		...detail
 	});
 	const lifetimeController = new AbortController();
 	const candidates = /* @__PURE__ */ new Set();
 	const pending = /* @__PURE__ */ new Map();
-	const listeners = /* @__PURE__ */ new Map();
+	const listeners = {
+		height: /* @__PURE__ */ new Set(),
+		input: /* @__PURE__ */ new Set(),
+		"current-location": /* @__PURE__ */ new Set(),
+		arrived: /* @__PURE__ */ new Set(),
+		loading: /* @__PURE__ */ new Set(),
+		departed: /* @__PURE__ */ new Set()
+	};
 	const notify = (type, detail) => {
-		for (const callback of listeners.get(type) ?? []) callback(detail);
+		for (const callback of listeners[type] ?? []) callback(detail);
 	};
 	keeps(frame, "sandbox", "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock");
 	frame.toggleAttribute("data-lf-contained", true);
@@ -134,11 +147,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 				type: "visibility-reading",
 				detail: {
 					id,
-					error: {
-						name: error.name,
-						message: error.message,
-						stack: error.stack
-					}
+					error: exceptionRecord(error)
 				}
 			});
 			reportError(error);
@@ -166,7 +175,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 		try {
 			return await work;
 		} catch (error) {
-			if (error.name !== "AbortError") {
+			if (exceptionRecord(error).name !== "AbortError") {
 				recordFailure(error);
 				await retire("failure", error);
 			}
@@ -174,38 +183,35 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 		}
 	}
 	function interfaceReady() {
-		upgrading = true;
-		return new Promise((resolve, reject) => {
-			readyResolve = (value) => {
-				upgrading = false;
-				resolve(value);
-			};
-			readyReject = (error) => {
-				upgrading = false;
-				reject(error);
-			};
-		});
+		const completion = Promise.withResolvers();
+		pendingInterface = completion;
+		return completion.promise;
 	}
 	function awaitNext() {
-		if (upgrading) return;
+		if (pendingInterface) return;
 		host.ready = settle(interfaceReady());
 		host.ready.catch(() => {});
 	}
 	function failure(error) {
-		if (upgrading) readyReject(error);
-		else {
+		if (pendingInterface) {
+			const completion = pendingInterface;
+			pendingInterface = null;
+			completion.reject(error);
+		} else {
 			begin(settle(Promise.reject(error)));
-			notify("loading");
+			notify("loading", void 0);
 		}
 	}
 	function connect(event) {
-		if (!current || event.source !== frame.contentWindow || event.data?.sample !== new URL(current).pathname) return;
-		if (event.data.type !== "leaf-sample-connect" || typeof event.data.nonce !== "string" || event.data.nonce === connectedNonce) return;
-		const nonce = event.data.nonce;
+		const data = event.data;
+		if (!current || event.source !== frame.contentWindow || !connectionMessage(data) || data.sample !== new URL(current).pathname || data.nonce === connectedNonce) return;
+		const nonce = data.nonce;
 		const owned = current;
 		const pair = new MessageChannel();
 		const port = pair.port1;
-		document.querySelector("script[data-lf-entry]").lfDocumentPort = port;
+		const entry = document.querySelector("script[data-lf-entry]");
+		if (!entry) throw new Error("A sample host needs the Leaf bootstrap entry");
+		entry.lfDocumentPort = port;
 		candidates.add(port);
 		port.onmessage = ({ data }) => {
 			if (data.type === "connected") {
@@ -221,7 +227,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 				record("connected", { reloading });
 				if (reloading) {
 					awaitNext();
-					notify("loading");
+					notify("loading", void 0);
 				}
 				visibility();
 				return;
@@ -232,21 +238,25 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 				disconnect(departure("sample document navigated"));
 				operation = null;
 				awaitNext();
-				notify("departed");
+				notify("departed", void 0);
 				return;
 			}
 			if (data.type === "visibility-read") {
 				readVisibility(port, data.detail.id);
 				return;
 			}
-			if (pending.has(data.id)) {
-				const { resolve, reject } = pending.get(data.id);
+			if (data.type === void 0) {
+				const completion = pending.get(data.id);
+				if (!completion) return;
+				const { resolve, reject } = completion;
 				pending.delete(data.id);
 				if (data.error) reject(Object.assign(new Error(data.error.message), { stack: void 0 }, data.error));
 				else resolve(data.result);
 			} else if (data.type === "ready") {
 				record("upgraded");
-				readyResolve(data.detail);
+				const completion = pendingInterface;
+				pendingInterface = null;
+				completion?.resolve(data.detail);
 				visibility();
 			} else if (data.type === "error") failure(Object.assign(new Error(data.detail.message), { stack: void 0 }, data.detail));
 			else if (data.type === "return") frame.dispatchEvent(new Event("lf-sample-return"));
@@ -255,13 +265,15 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 				composed: true,
 				detail: data.detail
 			}));
-			else {
-				if (data.type === "input") inputInFrame(frame, data.detail.type);
-				notify(data.type, data.detail);
-			}
+			else if (data.type === "input") {
+				inputInFrame(frame, data.detail.type);
+				notify("input", data.detail);
+			} else if (data.type === "height") notify("height", data.detail);
+			else if (data.type === "current-location") notify("current-location", data.detail);
+			else if (data.type === "arrived") notify("arrived", void 0);
 		};
-		event.source.postMessage({
-			sample: event.data.sample,
+		frame.contentWindow?.postMessage({
+			sample: data.sample,
 			nonce,
 			settings: {
 				window: asWindow,
@@ -304,7 +316,9 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 		disconnect(cause);
 		for (const port of candidates) port.close();
 		candidates.clear();
-		readyReject?.(cause);
+		const completion = pendingInterface;
+		pendingInterface = null;
+		completion?.reject(cause);
 		const parent = frame.parentNode;
 		const next = frame.nextSibling;
 		frame.remove();
@@ -370,20 +384,20 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 	}
 	function reset() {
 		if (destroyed) return Promise.reject(/* @__PURE__ */ new Error("the sample host has been destroyed"));
-		if (!operation) begin(replace());
-		return operation;
+		return operation ?? begin(replace());
 	}
-	function call(method, detail = {}) {
+	function call(method, detail) {
 		const ready = host.ready;
 		return ready.then(() => {
 			if (ready !== host.ready || !channel) throw lost;
+			const port = channel;
 			const id = ++nextId;
 			return new Promise((resolve, reject) => {
 				pending.set(id, {
 					resolve,
 					reject
 				});
-				channel.postMessage({
+				port.postMessage({
 					id,
 					method,
 					detail
@@ -392,18 +406,20 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 		});
 	}
 	const host = {
-		ready: null,
+		ready: replace(),
 		reset,
 		setWindow(value) {
 			asWindow = value;
 			return call("window", { window: value });
 		},
 		on(type, callback) {
-			if (!listeners.has(type)) listeners.set(type, /* @__PURE__ */ new Set());
-			listeners.get(type).add(callback);
-			return () => listeners.get(type).delete(callback);
+			const callbacks = listeners[type];
+			callbacks.add(callback);
+			return () => {
+				callbacks.delete(callback);
+			};
 		},
-		restoreCurrentLocation: () => call("restore-current-location"),
+		restoreCurrentLocation: () => call("restore-current-location", {}),
 		showThread(id, { signal, ...options }) {
 			if (signal.aborted) return Promise.resolve(false);
 			const cancel = () => channel?.postMessage({ type: "cancel-view" });
@@ -439,7 +455,7 @@ function mountSample(frame, { template, source, window: asWindow = false }) {
 	};
 	window.addEventListener("pagehide", departing);
 	mounted.set(frame, call);
-	reset();
+	begin(host.ready);
 	return host;
 }
 

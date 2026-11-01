@@ -2,7 +2,8 @@
  * event record (`$events.kinds` in browser/runtime/kernel-registry.json), which the page
  * protocol holds, and the state the server serves the runtime
  * (src/leaf/served_state/state.schema.json), which it doesn't; and the values of
- * each page-wide declaration an author writes (`$authored`). Value constraints
+ * each page-wide declaration an author writes (`$authored`), and package data
+ * contracts (each package's `registry.json`, `$data.contracts`). Value constraints
  * (patterns, ranges, and conditional clauses) stay with the schemas' readers. Widget
  * detail stays open: the page's registry, rather than the kernel, owns it.
  *
@@ -21,14 +22,18 @@
  * with the baseline.
  */
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { glob, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment"]);
 
 function reference(ref) {
   const [uri, pointer = ""] = ref.split("#");
-  if (!uri) return pointer ? `Served${pointer.replace("/$defs/", "")}` : "ServedState";
+  if (!uri) {
+    if (!pointer) return "ServedState";
+    const [name, ...fields] = pointer.replace("/$defs/", "").split("/properties/");
+    return `Served${name}${fields.map((field) => `[${JSON.stringify(field)}]`).join("")}`;
+  }
   const named =
     uri === "leaf:verb"
       ? "ServedVerb"
@@ -39,7 +44,7 @@ function reference(ref) {
   return field ? `Exclude<${named}[${JSON.stringify(field)}], undefined>` : named;
 }
 
-function typeOf(input) {
+function typeOf(input, referenceName = reference) {
   if (input === false) return "never";
   if (input === true) return "unknown";
   const schema = Object.fromEntries(
@@ -52,24 +57,29 @@ function typeOf(input) {
     const { anyOf, oneOf, ...base } = schema;
     return (anyOf ?? oneOf)
       .map((branch) =>
-        typeOf({
-          ...base,
-          ...branch,
-          properties: { ...base.properties, ...branch.properties },
-          required: [...(base.required ?? []), ...(branch.required ?? [])],
-        }),
+        typeOf(
+          {
+            ...base,
+            ...branch,
+            properties: { ...base.properties, ...branch.properties },
+            required: [...(base.required ?? []), ...(branch.required ?? [])],
+          },
+          referenceName,
+        ),
       )
       .join(" | ");
   }
   if (schema.$ref) {
     const { $ref, ...rest } = schema;
-    const named = reference($ref);
+    const named = referenceName($ref);
     return Object.keys(rest.properties ?? {}).length
-      ? `${named} & ${typeOf({ type: "object", unevaluatedProperties: false, ...rest })}`
+      ? `${named} & ${typeOf({ type: "object", unevaluatedProperties: false, ...rest }, referenceName)}`
       : named;
   }
   if (Array.isArray(schema.type))
-    return schema.type.map((type) => typeOf({ ...schema, type })).join(" | ");
+    return schema.type
+      .map((type) => typeOf({ ...schema, type }, referenceName))
+      .join(" | ");
   switch (schema.type) {
     case "string":
       return "string";
@@ -82,15 +92,16 @@ function typeOf(input) {
       return "null";
     case "array":
       if (schema.prefixItems) {
-        const tuple = schema.prefixItems.map(typeOf);
-        if (schema.items !== false) tuple.push(`...(${typeOf(schema.items ?? {})})[]`);
+        const tuple = schema.prefixItems.map((item) => typeOf(item, referenceName));
+        if (schema.items !== false)
+          tuple.push(`...(${typeOf(schema.items ?? {}, referenceName)})[]`);
         return `readonly [${tuple.join(", ")}]`;
       }
-      return `ReadonlyArray<${typeOf(schema.items ?? {})}>`;
+      return `ReadonlyArray<${typeOf(schema.items ?? {}, referenceName)}>`;
     case "object": {
       const fields = Object.entries(schema.properties ?? {}).map(
         ([name, value]) =>
-          `${JSON.stringify(name)}${schema.required?.includes(name) ? "" : "?"}: ${typeOf(value)};`,
+          `${JSON.stringify(name)}${schema.required?.includes(name) ? "" : "?"}: ${typeOf(value, referenceName)};`,
       );
       // An object naming its fields reads as those fields: one left open for a
       // reference to extend, or for fields another Leaf writes, still has no others
@@ -100,7 +111,9 @@ function typeOf(input) {
           ? !schema.properties && schema.unevaluatedProperties !== false
           : schema.additionalProperties !== false
       )
-        fields.push(`[key: string]: ${typeOf(schema.additionalProperties ?? {})};`);
+        fields.push(
+          `[key: string]: ${typeOf(schema.additionalProperties ?? {}, referenceName)};`,
+        );
       return `{ ${fields.join(" ")} }`;
     }
     default:
@@ -194,12 +207,13 @@ function pythonSchemas(root) {
   const program = `
 import json
 from leaf.registry.schema import leaf_resources
+from leaf.schema import EXTENSION_SCHEMA
 from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
     for kind, record in declared_records().items()
 }
-print(json.dumps({"references": leaf_resources(), "records": records}))
+print(json.dumps({"references": leaf_resources(), "records": records, "widget": EXTENSION_SCHEMA}))
 `;
   return JSON.parse(
     execFileSync("uv", ["run", "--quiet", "python", "-c", program], {
@@ -213,14 +227,15 @@ print(json.dumps({"references": leaf_resources(), "records": records}))
  * kernel event records and browser commands (`$events`), the served state, the x-state
  * verb, and each `state.Record` with the protocol its shape was set at. */
 export async function protocolSchemas(root) {
-  const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
+  const read = async (file) => JSON.parse(await readFile(new URL(file, root), "utf8"));
   const { $events } = await read("browser/runtime/kernel-registry.json");
-  const { references, records } = pythonSchemas(root);
+  const { references, records, widget } = pythonSchemas(root);
   return {
     protocol: $events.protocol,
     events: { ownership: $events.ownership, kinds: $events.kinds },
     served: await read("src/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
+    widget,
     // The composer's draft (`$events.draft`) beside the `state.Record`s.
     records: {
       ...records,
@@ -254,9 +269,47 @@ function written(schema, references) {
   };
 }
 
-export async function contractTypes(root, { events, served, verb }) {
+// Package data schemas are the contract for both their Python producers and widgets.
+// Local definitions retain their contract's namespace, so two packages can call a
+// definition "node" without creating a second browser vocabulary for either.
+async function packageDataTypes(root) {
+  const typeName = (name) =>
+    name
+      .split(/[^a-zA-Z0-9]+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join("");
+  const files = [];
+  for await (const file of glob("packages/*/registry.json", {
+    cwd: fileURLToPath(root),
+  }))
+    files.push(file);
+  const declarations = [],
+    contracts = [];
+  for (const file of files.sort()) {
+    const registry = JSON.parse(await readFile(new URL(file, root), "utf8"));
+    for (const [contract, { schema }] of Object.entries(
+      registry.$data?.contracts ?? {},
+    )) {
+      const name = `Data${typeName(contract)}`;
+      const names = new Map([["#", name]]);
+      for (const key of Object.keys(schema.$defs ?? {}))
+        names.set(`#/$defs/${key}`, `${name}${typeName(key)}`);
+      const named = (ref) => names.get(ref) ?? reference(ref);
+      for (const [key, definition] of Object.entries(schema.$defs ?? {}))
+        declarations.push(
+          `export type ${names.get(`#/$defs/${key}`)} = ${typeOf(definition, named)};`,
+        );
+      const { $defs, ...value } = schema;
+      declarations.push(`export type ${name} = ${typeOf(value, named)};`);
+      contracts.push(`${JSON.stringify(contract)}: ${name};`);
+    }
+  }
+  return `${declarations.join("\n")}\nexport interface DataContracts { ${contracts.join(" ")} }\n`;
+}
+
+export async function contractTypes(root, { events, served, verb, widget }) {
   const registry = JSON.parse(
-    await readFile(new URL("browser/runtime/kernel-registry.json", root)),
+    await readFile(new URL("browser/runtime/kernel-registry.json", root), "utf8"),
   );
-  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}`;
+  return `/* @noformat Generated from kernel-registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes({ $events: events })}${authoredTypes(registry)}${servedTypes(served, verb)}export type WidgetDeclaration = ${typeOf(widget)} & {type?: string | ReadonlyArray<string>; properties?: Record<string, unknown>};\n${await packageDataTypes(root)}`;
 }

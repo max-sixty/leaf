@@ -1,20 +1,27 @@
+import {
+  offerElement,
+  offerActionElement,
+  fragmentTarget,
+  generatedElement,
+  keeps,
+  tabStore,
+} from "/runtime/widget-api.js";
 /* One Lit drawing from the retained tab-local reading through live history. The
- * retained template keeps its identity when the behavior module adopts it.
+ * retained template keeps its identity through live updates.
  * Retained rows are presentation snapshots, never semantic state; the
  * behavior module holds/reveals authoritative history through HeldReading and supplies
  * the live clock, thread action and current-document target reading. */
-import { html, nothing, ref, render, repeat } from "/vendor/lit.js";
+import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
 
-// Before modules load only the light document's ids can be read. The behavior module
-// supplies fragmentTarget, which also finds shadow ids and refuses settled content.
-const lightTarget = (fragment, doc) =>
-  doc.readyState !== "loading" &&
-  doc.getElementById(decodeURIComponent(fragment.slice(1)));
-
-function refreshTarget(link, row, write, names) {
-  const fragment = `#${encodeURIComponent(row.widget)}`;
+/** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
+/** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
+/** @typedef {(fragment: string, document: Document) => Element | null} ActivityTarget */
+/** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
+/** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
+function refreshTarget(link, widget, write, names) {
+  const fragment = `#${encodeURIComponent(widget)}`;
   const href = names(fragment, link.ownerDocument) ? fragment : null;
   // Preserve the focused node as a link becomes historical text, and back again.
   // Give it a programmatic stop before removing href; restore href before removing
@@ -24,15 +31,15 @@ function refreshTarget(link, row, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
-export function initialActivity(
-  host,
-  { offerElement, offerActionElement, generatedElement, tabStore, keeps },
-) {
+/** @param {HTMLElement} host */
+export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
+  /** @type {ActivityReading} */
   const reading = saved
     ? JSON.parse(saved)
     : { open: false, shown: "[]", label: "Show activity", news: false };
+  /** @type {{storageKey: string, reading: ActivityReading, restored: boolean, notice: Element | null, list: Element | null, empty: Element | null}} */
   const drawing = {
     storageKey,
     reading,
@@ -42,14 +49,17 @@ export function initialActivity(
     empty: null,
   };
   let shown = reading;
+  /** @type {ActivityCapabilities} */
   let capabilities = {};
-  const notice = (node) => {
+  const notice = (/** @type {Element | undefined} */ node) => {
     if (!node) return;
     drawing.notice = node;
     offerActionElement(node, "inline", "lf-activity-news");
   };
-  const target = (row) => {
-    if (row.thread)
+  const target = (/** @type {ActivityRow} */ row) => {
+    const thread = row.thread;
+    const openThread = capabilities.openThread;
+    if (thread)
       return html`<button
         ${ref(
           (node) =>
@@ -60,25 +70,25 @@ export function initialActivity(
         )}
         type="button"
         data-lf-carry=${`row-${row.id}`}
-        @click=${
-          capabilities.openThread ? () => capabilities.openThread(row.thread) : null
-        }
+        @click=${openThread ? () => openThread(thread) : null}
       >
         ${row.label}
       </button>`;
     if (!row.widget && !row.label) return nothing;
     if (!row.widget) return html`<span class="lf-activity-target">${row.label}</span>`;
+    const widget = row.widget;
     return html`<a
       class="lf-activity-target"
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node && refreshTarget(node, row, keeps, capabilities.names ?? lightTarget),
+          node &&
+          refreshTarget(node, widget, keeps, capabilities.names ?? fragmentTarget),
       )}
       >${row.label}</a
     >`;
   };
-  const rowTemplate = (row) =>
+  const rowTemplate = (/** @type {ActivityRow} */ row) =>
     html`<li class="lf-activity-row" ?data-lf-undone=${row.undone}>
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
@@ -95,6 +105,7 @@ export function initialActivity(
   const template = (next = shown, live = capabilities) => {
     shown = next;
     capabilities = live;
+    /** @type {ActivityRow[]} */
     const rows = JSON.parse(shown.shown);
     const hidden = !shown.open && !capabilities.printing;
     return html`
@@ -128,13 +139,5 @@ export function initialActivity(
     `;
   };
   host.replaceChildren();
-  // A missing destination may still be below this host while parsing. Refresh at
-  // interactive, before module requests can delay DOMContentLoaded.
-  if (host.ownerDocument.readyState === "loading")
-    host.ownerDocument.addEventListener(
-      "readystatechange",
-      () => render(template(), host, { host }),
-      { once: true },
-    );
   return Object.assign(drawing, { render: template });
 }

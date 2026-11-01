@@ -1,0 +1,39 @@
+diff --git a/src/marks/axis.d.ts b/src/marks/axis.d.ts
+index db225f5efdbbfe083af2fa08ed7305d1bb598cb6..303c4de68cc70bef600b12023e70af26bc2d175b 100644
+--- a/src/marks/axis.d.ts
++++ b/src/marks/axis.d.ts
+@@ -48,7 +48,7 @@ export interface GridOptions extends GridScaleOptions {
+    * the stroke opacity of tick vectors and grid rules, and the fill opacity of
+    * tick texts and axis label texts; defaults to 1 for axes and 0.1 for grids.
+    */
+-  opacity?: MarkOptions["opacity"];
++  opacity?: Exclude<MarkOptions["opacity"], undefined>;
+ }
+ 
+ /** Options for the axis marks. */
+diff --git a/src/marks/crosshair.d.ts b/src/marks/crosshair.d.ts
+index 86e39d7ee0a030e6b4e3457c6819f108d2b8a529..84701470dc944a59094f3c489b2c498a460e99dc 100644
+--- a/src/marks/crosshair.d.ts
++++ b/src/marks/crosshair.d.ts
+@@ -30,7 +30,7 @@ export interface CrosshairOptions extends MarkOptions {
+   color?: MarkOptions["stroke"];
+ 
+   /** A shorthand for setting **ruleStrokeOpacity**; defaults to 0.2. */
+-  opacity?: MarkOptions["opacity"];
++  opacity?: Exclude<MarkOptions["opacity"], undefined>;
+ 
+   /** The rule **stroke**; defaults to **color**. */
+   ruleStroke?: MarkOptions["stroke"];
+diff --git a/src/marks/link.d.ts b/src/marks/link.d.ts
+index 48abedd7b9037a76fb11b3327dea93b800e6264b..0cc9ec49c07e9603802bbe0eaa631a9de3ea930b 100644
+--- a/src/marks/link.d.ts
++++ b/src/marks/link.d.ts
+@@ -54,7 +54,7 @@ export interface LinkOptions extends MarkOptions, MarkerOptions, CurveAutoOption
+    * will render links as geodesics; to draw a straight line instead, use the
+    * *linear* **curve**.
+    */
+-  curve?: CurveAutoOptions["curve"];
++  curve?: Exclude<CurveAutoOptions["curve"], undefined>;
+ }
+ 
+ /**

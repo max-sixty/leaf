@@ -1,3 +1,4 @@
+import { render as motionTemplate } from "./motion-view.js";
 /* One transport for page-authored illustrations and compared video recordings.
  * A synchronous renderFrame(time) paints illustrations from milliseconds, while
  * descendant videos play on their native media clocks. The furthest video time
@@ -13,7 +14,7 @@
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` plays it too, by its own controls. The element draws its
- * transport itself, in the task that changes it, so a frame never claims the page's
+ * single Lit transport itself, in the task that changes it, so a frame never claims the page's
  * presentation and nothing waits on it. Play is the widget's own button: its click
  * plays, and the transport draws it `aria-disabled` while there is nothing to play.
  * Leaf reads the Play command, which binds no key, from `lfCommands`, and names the
@@ -27,9 +28,7 @@
 import {
   cancelAnimation,
   commandsChanged,
-  drawsFirst,
   failSoft,
-  initialRender,
   nextAnimation,
   onMotionPreferenceChange,
   once,
@@ -41,21 +40,23 @@ import {
   whileConnected,
 } from "/runtime/portable-api.js";
 
-// The transport's producer, which this module draws with only where nothing drew
-// before the first paint (below).
-let drawMotion;
-
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
 
 class MotionStudy extends HTMLElement {
+  /** @type {{controls: HTMLDivElement, play: HTMLButtonElement, time: HTMLInputElement, speed: HTMLSelectElement} | undefined} */
   #ui;
+  #transport = document.createElement("div");
+  /** @type {((time: number) => void) | undefined} */
   #draw;
   #time = 0;
   #playing = false;
+  /** @type {number | null} */
   #frame = null;
   #last = 0;
   #rate = 1;
+  /** @type {string | null} */
   #failure = null;
+  /** @type {HTMLElement | null} */
   #box = null;
   #drawFailed = false;
 
@@ -100,13 +101,13 @@ class MotionStudy extends HTMLElement {
     if (!once(this)) return;
     // The box stands beside the transport, or first where there is none yet, so the
     // author's study under it stays readable. One failure said again keeps its box.
-    placesFailure(this, (box) => {
+    placesFailure(this, (/** @type {HTMLElement} */ box) => {
       if (this.#box?.isConnected && this.#box.textContent === box.textContent)
         return true;
       this.#box?.remove();
       this.#box = box;
       const controls = this.#ui?.controls;
-      if (controls?.isConnected) controls.after(box);
+      if (controls?.isConnected) this.#transport.after(box);
       else this.prepend(box);
       return true;
     });
@@ -118,9 +119,23 @@ class MotionStudy extends HTMLElement {
   }
 
   #setup() {
-    this.#ui = initialRender(this, drawMotion);
-    this.#time = Number(this.#ui.time.value);
-    this.#rate = Number(this.#ui.speed.value);
+    // The transport joins the authored content; native editors and media never move.
+    this.#transport.className = "lf-motion-transport";
+    this.#transport.setAttribute("data-lf-gen", "1");
+    this.prepend(this.#transport);
+    const saved = JSON.parse(
+      tabStore.get(`motion:${this.id}`) || '{"time":0,"rate":1}',
+    );
+    this.#time = Math.min(this.duration, saved.time);
+    this.#rate = saved.rate;
+    render(this.#template(), this.#transport, { host: this });
+    const controls = this.#transport.querySelector("div");
+    const play = this.#transport.querySelector("button");
+    const time = this.#transport.querySelector("input");
+    const speed = this.#transport.querySelector("select");
+    if (!controls || !play || !time || !speed)
+      throw new Error("Motion transport did not draw its controls");
+    const ui = (this.#ui = { controls, play, time, speed });
     // A row with no run names the press its control makes (keyboard/bindings.js).
     this.lfCommands = {
       title: "In a motion study",
@@ -128,26 +143,26 @@ class MotionStudy extends HTMLElement {
         {
           id: "motion.play",
           title: () => this.#playLabel(),
-          control: this.#ui.play,
+          control: ui.play,
         },
       ],
     };
     commandsChanged(this);
-    this.#ui.play.addEventListener("click", () => {
+    ui.play.addEventListener("click", () => {
       if (this.#playable) this.#toggle();
     });
     whileConnected(this, (signal) => {
-      this.#ui.time.addEventListener(
+      ui.time.addEventListener(
         "input",
         () => {
-          this.currentTime = Number(this.#ui.time.value);
+          this.currentTime = Number(ui.time.value);
         },
         { signal },
       );
-      this.#ui.speed.addEventListener(
+      ui.speed.addEventListener(
         "change",
         () => {
-          this.#rate = Number(this.#ui.speed.value);
+          this.#rate = Number(ui.speed.value);
           for (const video of this.#videos) video.playbackRate = this.#rate;
           this.#save();
         },
@@ -161,7 +176,7 @@ class MotionStudy extends HTMLElement {
         },
         { signal },
       );
-      const input = (event) => {
+      const input = (/** @type {Event} */ event) => {
         // Firefox can hand an arriving sandboxed window a foreign wheel object, which
         // is no Event of this realm (prepaint.js reads input the same way).
         if (!(event instanceof Event)) return;
@@ -170,8 +185,8 @@ class MotionStudy extends HTMLElement {
           event.type === "blur"
             ? target === window
             : target instanceof Node &&
-              this.contains(target) &&
-              !this.#ui.controls.contains(target)
+              event.composedPath().includes(this) &&
+              !event.composedPath().includes(ui.controls)
         )
           this.#pause();
       };
@@ -313,23 +328,21 @@ class MotionStudy extends HTMLElement {
     if (this.#playing) this.#frame = nextAnimation(() => this.#tick());
   }
 
+  #template() {
+    return motionTemplate(this, {
+      time: this.#time,
+      rate: this.#rate,
+      label: this.#playLabel(),
+      playing: this.#playing,
+      playable: this.#playable,
+      failure: this.#failure,
+    });
+  }
+
   #paintControls() {
     if (!this.#ui) return;
-    // The media clock changes local inspection, not the page's state: the transport
-    // draws in the task that changes it and claims nothing.
     try {
-      render(
-        this.#ui.render({
-          time: this.#time,
-          rate: this.#rate,
-          label: this.#playLabel(),
-          playing: this.#playing,
-          playable: this.#playable,
-          failure: this.#failure,
-        }),
-        this,
-        { host: this },
-      );
+      render(this.#template(), this.#transport, { host: this });
     } catch (error) {
       failSoft(this, error);
     }
@@ -341,15 +354,4 @@ class MotionStudy extends HTMLElement {
   }
 }
 
-const define = () => customElements.define("lf-motion", MotionStudy);
-
-// Delivery draws the transport before first paint on a Leaf page, so the element is
-// defined at once and fetches nothing it doesn't run. Elsewhere it is defined once its
-// producer arrives, so every study upgrades with the producer in hand and draws in the
-// task that upgrades it, on either kind of page.
-if (drawsFirst()) define();
-else
-  import("./motion-view.js").then((module) => {
-    drawMotion = module.drawMotion;
-    define();
-  });
+customElements.define("lf-motion", MotionStudy);

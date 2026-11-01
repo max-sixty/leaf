@@ -7,6 +7,108 @@
       "/vendor/signals-core.js": [
         "./signals-core.d.ts"
       ],
+      "/vendor/snapdom.esm.js": [
+        "../../build/entries/snapdom/entry.mjs"
+      ],
+      "/vendor/images.esm.js": [
+        "../../build/entries/trace-images/entry.mjs"
+      ],
+      "/vendor/markdown-it.esm.js": [
+        "../../build/entries/markdown/entry.mjs"
+      ],
+      "/vendor/photoswipe.esm.js": [
+        "../../build/entries/photoswipe/entry.mjs"
+      ],
+      "/vendor/sortable.esm.js": [
+        "../../build/entries/sortable/entry.mjs"
+      ],
+      "/vendor/pele.esm.js": [
+        "../../build/entries/pele/entry.mjs"
+      ],
+      "/vendor/codemirror.esm.js": [
+        "../../build/entries/codemirror/entry.mjs"
+      ],
+      "/vendor/extensions.esm.js": [
+        "../../build/entries/file-editor/entry.mjs"
+      ],
+      "/vendor/floating-ui.esm.js": [
+        "../../build/entries/floating-ui/entry.mjs"
+      ],
+      "/vendor/syntax.esm.js": [
+        "../../build/entries/syntax/entry.mjs"
+      ],
+      "/vendor/syntax/bash.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/bash.d.mts"
+      ],
+      "/vendor/syntax/css.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/css.d.mts"
+      ],
+      "/vendor/syntax/diff.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/diff.d.mts"
+      ],
+      "/vendor/syntax/go.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/go.d.mts"
+      ],
+      "/vendor/syntax/html.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/html.d.mts"
+      ],
+      "/vendor/syntax/java.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/java.d.mts"
+      ],
+      "/vendor/syntax/javascript.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/javascript.d.mts"
+      ],
+      "/vendor/syntax/json.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/json.d.mts"
+      ],
+      "/vendor/syntax/markdown.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/markdown.d.mts"
+      ],
+      "/vendor/syntax/python.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/python.d.mts"
+      ],
+      "/vendor/syntax/rust.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/rust.d.mts"
+      ],
+      "/vendor/syntax/sql.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/sql.d.mts"
+      ],
+      "/vendor/syntax/toml.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/toml.d.mts"
+      ],
+      "/vendor/syntax/typescript.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/typescript.d.mts"
+      ],
+      "/vendor/syntax/yaml.js": [
+        "../../node_modules/.pnpm/@shikijs+langs@4.5.0/node_modules/@shikijs/langs/dist/yaml.d.mts"
+      ],
+      "/vendor/jsdiff.esm.js": [
+        "../../build/entries/jsdiff/entry.mjs"
+      ],
+      "/vendor/blazediff.js": [
+        "../../build/entries/blazediff/entry.mjs"
+      ],
+      "/vendor/density-clustering.esm.js": [
+        "../../build/entries/density-clustering/entry.mjs"
+      ],
+      "/vendor/plot.esm.js": [
+        "../../build/entries/plot/entry.mjs"
+      ],
+      "/vendor/pierre-diffs.esm.js": [
+        "../../build/entries/pierre/entry.mjs"
+      ],
+      "/vendor/pierre-parser.esm.js": [
+        "../../build/entries/pierre/parser.mjs"
+      ],
+      "/vendor/pierre-trees.esm.js": [
+        "../../build/entries/trees/entry.mjs"
+      ],
+      "/vendor/webawesome.esm.js": [
+        "../../build/entries/webawesome/entry.mjs"
+      ],
+      "/vendor/webawesome-chrome.js": [
+        "../../build/entries/webawesome/chrome.mjs"
+      ],
       "/vendor/*": [
         "../vendor/*",
         "../../packages/code-review/vendor/*",

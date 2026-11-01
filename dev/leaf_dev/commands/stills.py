@@ -42,22 +42,46 @@ Elements are keyed by their path of tags, ids and first two classes. A state wit
 differing property, or a subtree only one arm has, also counts as changed, and its
 `styles.txt` lists them (`style_changes`). The properties are the cascade's own, not
 the geometry it produces, which the stills show; width, height and offsets stay out
-because they move with every reflow. A widget inside a tab or disclosure the page
-opens shut, such as a chart, may or may not have drawn by the reading, in either arm,
-so rerun a state before taking a difference confined to one as a change.
+because they move with every reflow. Below them, for each group's first element, it
+lists the declarations Chromium's inspector reads as matching it in only one arm, or
+in another order, each with its sheet, layers, scope and selector
+(`declaration_changes`): the rule a change added, removed, edited or moved. Where none
+differ, the element inherits the difference or reads it from a custom property.
+
+Across the run, the command also collects each arm's faces: the family, size, weight,
+style, tracking and case of every shown element that holds words of its own, in the
+states both arms completed. The run's `faces.txt` lists each face only one arm draws,
+with the elements that wear it and the other arm's nearest face (`face_changes`). A
+change that reuses Leaf's faces adds none, so a new face half a pixel or a hundred of
+weight from its nearest is usually a drift to fold into that face. A consolidation
+lists the faces it retired.
+
+The command reads, too, where words stand on their lines. Words of two faces centred
+in boxes of their own stand on different baselines, the larger lower, and a reader
+sees the line step by a pixel. In every state both arms completed,
+`stills_baselines.js` reads the words that stand beside each other on a line (its
+header says which), and the run's `baselines.txt` lists each line whose words stand a
+quarter of a CSS pixel or more apart (`baseline_changes`): those only head splits,
+those both arms split, and those only base splits. Words on a box of their own, such
+as a key's letter on its badge, are listed and marked but count toward no split, since
+the eye reads that box rather than their baseline.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
+Once the whole report is written, the command exits 1 if any state failed, so a
+caller that reads only the exit status still learns that a state went uncaptured.
 """
 
+import json
 import re
 import tempfile
 import traceback
-from collections.abc import Callable
-from contextlib import contextmanager
+from collections.abc import Callable, Generator, Iterable
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import click
@@ -162,11 +186,15 @@ STYLED = [
     "box-sizing",
     "z-index",
 ]
-# Every element's `STYLED` values by its path, sharing each distinct set of values.
+# Every element's `STYLED` values by its path, sharing each distinct set of values, the
+# paths of the shown elements with words of their own, and the elements themselves by
+# path on `window.stillsRead`, for `declarations`.
 STYLES = """(properties) => {
   const skip = new Set(["head", "script", "style", "template", "link", "meta"]);
   const faces = new Map();
   const elements = {};
+  const texts = [];
+  const read = (window.stillsRead = new Map());
   const walk = (parent, prefix) => {
     const seen = {};
     for (const element of parent.children) {
@@ -180,13 +208,35 @@ STYLES = """(properties) => {
       const face = JSON.stringify(properties.map((name) => style.getPropertyValue(name)));
       if (!faces.has(face)) faces.set(face, faces.size);
       elements[key] = faces.get(face);
+      read.set(key, element);
+      const words = [...element.childNodes].some(
+        (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
+      );
+      if (words && element.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+        texts.push(key);
       walk(element, `${key} > `);
       if (element.shadowRoot) walk(element.shadowRoot, `${key} >> `);
     }
   };
   walk(document, "");
-  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements };
+  return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
+# Where the words beside each other on a line stand their baselines
+# (`baseline_changes`), and the gap between two of them that the report names: half a
+# device pixel of the 2x stills, which can round to a whole one. A reader saw a name
+# stand half a CSS pixel below its time.
+BASELINES = Path(__file__).with_name("stills_baselines.js").read_text()
+SPLIT = 0.25
+# The computed properties that make a face, the font a run of words is set in, which
+# `face_changes` compares across a run.
+FACE = [
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "letter-spacing",
+    "text-transform",
+]
 
 
 def at_rest(page: Page) -> None:
@@ -194,11 +244,12 @@ def at_rest(page: Page) -> None:
 
 
 def worktree_summaries(page: Page) -> None:
-    """Close the initially open worktree so the list's summary columns stand together."""
-    page.locator("#worktree-example-worktree-0 > details > summary").click()
-    expect(
-        page.locator("#worktree-example-worktree-0 > details")
-    ).not_to_have_attribute("open")
+    """Close the initially open worktree so the list's summary columns stand together.
+    Press the widget's summary by its class, since the authored evidence in the row
+    holds a summary of its own."""
+    worktree = page.locator("#worktree-example-worktree-0")
+    worktree.locator(".lf-worktree-summary").click()
+    expect(worktree.locator(".lf-worktree-disclosure")).not_to_have_attribute("open")
 
 
 def plan_execution(page: Page) -> None:
@@ -370,25 +421,26 @@ def panel_corner_hover(page: Page) -> None:
 
 
 def share_link(page: Page) -> None:
-    """The page's link as a readonly field reached by keyboard, where the leaf's menu
-    leaves it to select under About because the clipboard refused the copy."""
+    """The page's link, focused by keyboard as read-only text in About this page,
+    which the menu's Copy link opens when the clipboard refuses the copy."""
     page.evaluate(
         "() => { Clipboard.prototype.writeText ="
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
-    link = page.locator(".lf-fp-menu[data-level=group]").get_by_label(
-        "Link", exact=True
-    )
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
+    link = about.get_by_label("Link", exact=True)
     page.keyboard.press("Shift")  # keyboard modality, so focus is drawn
     link.focus()
     expect(link).to_be_focused()
 
 
 def diff_filter(page: Page) -> None:
-    """A nonempty file filter with Clear and its match count inside one field."""
-    field = page.locator("#pr-key-hunk").get_by_role(
+    """A nonempty file filter with Clear and its match count inside one field, on the
+    walkthrough's whole patch, since a diff of one file offers no filter."""
+    field = page.locator("#pr-exact-patch").get_by_role(
         "searchbox", name="Filter diff files"
     )
     field.scroll_into_view_if_needed()
@@ -449,6 +501,19 @@ def floating_thread(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
 
 
+def thread_code_copy(page: Page) -> None:
+    """A command in an agent's reply, with its source copy control revealed."""
+    as_agent(
+        "thread",
+        "reply",
+        "7b3e0a41",
+        "--text",
+        "Run this command:\n\n```sh\necho hello\n```\n\nThen continue.",
+    )
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread] pre").hover()
+
+
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
     unread, so Next unread stands among the view's controls."""
@@ -492,7 +557,7 @@ def motion_controls(page: Page) -> None:
 
 def timeline_steps(page: Page) -> None:
     """A timeline's Previous and Next beside its position, above its lanes."""
-    page.locator("#race-before .lf-timeline-controls").scroll_into_view_if_needed()
+    page.locator("#race .lf-timeline-controls").scroll_into_view_if_needed()
 
 
 def card_by_pointer(page: Page) -> None:
@@ -543,10 +608,50 @@ def card_reply_empty(page: Page) -> None:
     )
 
 
+def card_rewrite_empty(page: Page) -> None:
+    """The user's message in the first margin card, opened for a rewrite by ↑ from its
+    empty reply and emptied, so the editor says only its hint and keys."""
+    card_reply_empty(page)
+    page.keyboard.press("ArrowUp")
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-msg')"
+        " && !document.activeElement.closest('.lf-thread-reply')"
+    )
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Delete")
+
+
+def panel_reply_empty(page: Page) -> None:
+    """The last open thread, opened from Threads in the floating panel, with the caret
+    in its empty reply."""
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.locator(".lf-fp-field leaf-text").click()
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+
+
+def option_empty(page: Page) -> None:
+    """An option list's empty one-line add field, focused."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    expect(field).to_be_focused()
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_reply_empty(page)
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
+
+
+def card_reply_photo(page: Page) -> None:
+    """The first margin card with a screenshot pasted into its reply, standing over
+    the field."""
+    card_reply(page)
+    paste_screenshot(
+        page, page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    )
 
 
 def card_aging(page: Page) -> None:
@@ -589,11 +694,40 @@ def card_reply_resolved(page: Page) -> None:
     ).click()
 
 
+def section_ring_by_keyboard(page: Page) -> None:
+    """A thread on a whole section, opened and resolved by keyboard, which hands focus
+    back to the section and rings it: where the ring stands against the section's
+    heading, which no text in a still otherwise shows."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-implementation",
+        "--text",
+        "Is this order right?",
+    )
+    marker = page.locator(
+        '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
+    )
+    marker.wait_for()
+    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    marker.focus()
+    page.keyboard.press("Enter")
+    resolve = page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Resolve thread", exact=True
+    )
+    resolve.focus()
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.activeElement?.id === 'plan-implementation'")
+
+
 def card_reply_resolved_elsewhere(page: Page) -> None:
     """An agent resolves the thread while the user keeps writing in its margin card."""
     card_reply(page)
     card = page.locator(".lf-margin-preview .lf-page-thread")
-    as_agent("thread", "resolve", card.get_attribute("data-thread"))
+    root = card.get_attribute("data-thread")
+    assert root
+    as_agent("thread", "resolve", root)
     expect(card.locator(".lf-reopen")).to_be_visible()
 
 
@@ -649,6 +783,37 @@ def card_held_step(page: Page) -> None:
     wait_until_ready(page, state, through="state")
 
 
+def card_after_interjection(page: Page) -> None:
+    """An arriving answer grows a card after Send has fitted its reply against the window."""
+    card_held_step(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
+    expect(card.locator(".lf-msg.user").last).to_contain_text(
+        "Drafting a reply while the agent works"
+    )
+    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
+    settle(page)
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == sent
+    )
+    served.leaf("delivery", "ack", delivery["id"])
+    served.leaf(
+        "thread",
+        "reply",
+        reference,
+        "--ephemeral",
+        "--text",
+        "The answer continues with the detail requested in the interjection. " * 5,
+    )
+    expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
+
+
 def seat_held_news(page: Page) -> None:
     """A seat's thread holding a reply and a message from another tab while the user
     drafts a reply in it: the agent's question on a goal, which a reload draws in
@@ -664,11 +829,11 @@ def seat_held_news(page: Page) -> None:
 
 def option_picked(page: Page) -> None:
     """The panel's row just after the plan's rollout option is picked and admitted,
-    while a passing notice would still stand in its status seat."""
+    which the live region alone announces."""
     option = page.locator("#plan-admin")
     option.scroll_into_view_if_needed()
     option.click()
-    expect(page.locator(".lf-live")).to_contain_text("— sent")
+    expect(page.locator(".lf-live")).to_contain_text("Chose “")
 
 
 def option_references(page: Page) -> None:
@@ -780,6 +945,15 @@ def command_reference_search(page: Page) -> None:
     page.keyboard.press("?")
     page.keyboard.press("?")
     page.get_by_role("combobox", name="Search commands").fill("comment")
+
+
+def page_map(page: Page) -> None:
+    """The Page Map over a plan's threads, questions and controls: its title, its
+    groups' headings and its rows' ends."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+P")
+    expect(page.locator(".lf-page-map-dialog[open]")).to_be_visible()
 
 
 def retained_quote(page: Page) -> None:
@@ -989,6 +1163,17 @@ def composer_long(page: Page) -> None:
     page.keyboard.insert_text(LONG_DRAFT)
 
 
+def composer_scrolling(page: Page) -> None:
+    """A floating draft that fills its available height and scrolls its words."""
+    composer_empty(page)
+    page.keyboard.insert_text((LONG_DRAFT + "\n\n") * 8)
+    page.wait_for_function("""() => {
+      const field = document.querySelector('.lf-fab-input');
+      return field.scrollHeight > field.clientHeight;
+    }""")
+    page.locator(".lf-fab-input").hover()
+
+
 def composer_sent(page: Page) -> None:
     """That comment just sent: its card shares the draft's text column and wrapping."""
     composer_long(page)
@@ -1129,6 +1314,15 @@ def activity_feed(page: Page) -> None:
         page.locator("#triage-activity .lf-activity-row").filter(has_text="moved")
     ).to_be_visible()
     page.locator("#triage-moves").scroll_into_view_if_needed()
+
+
+def gloss_open(page: Page) -> None:
+    """A gloss's card, pinned open by a press on its phrase."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    gloss = page.locator("#bg-gloss")
+    gloss.scroll_into_view_if_needed()
+    gloss.click()
+    expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
 
 
 def settled_option(page: Page) -> None:
@@ -1281,6 +1475,11 @@ def code_copy_by_keyboard(page: Page) -> None:
     # keyboard as the latest input.
     page.keyboard.press("Shift")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
+
+
+def diff_author_notes(page: Page) -> None:
+    """Author prose under old and new lines, beside horizontally scrolling source."""
+    page.locator("#dfg-scroll").scroll_into_view_if_needed()
 
 
 def diff_path_by_keyboard(page: Page) -> None:
@@ -1507,10 +1706,12 @@ def more_menu(page: Page) -> None:
 
 
 def capture_menu(page: Page) -> None:
-    """Capture area, chosen from the leaf menu's Annotations."""
+    """Capture area, chosen from the leaf menu's Annotations, standing over the dimmed
+    page with no area drawn until a drag draws one."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="group:annotate"]').click()
     page.locator('.lf-fp-item[data-row="command:capture.region.open"]').click()
+    expect(page.get_by_role("region", name="Capture area", exact=True)).to_be_visible()
 
 
 def capture_area(page: Page) -> None:
@@ -1518,7 +1719,6 @@ def capture_area(page: Page) -> None:
     of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
@@ -1528,7 +1728,6 @@ def capture_small_drag(page: Page) -> None:
     """Hold a small selection over words, which must remain visible during the drag."""
     page.locator("#plan-current").scroll_into_view_if_needed()
     capture_menu(page)
-    page.locator(".lf-region-selection").wait_for(state="visible")
     target = page.locator("#plan-current").bounding_box()
     assert target is not None
     left, top = round(target["x"]) + 45, round(target["y"]) + 8
@@ -1756,7 +1955,7 @@ def trace_timeline_by_keyboard(page: Page) -> None:
 
 def authored_timeline_step(page: Page) -> None:
     """A step reached by Tab, with the timeline's playhead on it."""
-    page.locator("#race-before .lf-timeline-step").first.click()
+    page.locator("#race .lf-timeline-step").first.click()
     page.keyboard.press("Tab")
     page.keyboard.press("Space")
 
@@ -1789,19 +1988,19 @@ STATES = (
         touch=True,
         region=".lf-inspection-dialog",
     ),
-    State("authored-timeline", "lost-update", at_rest, region="#race-before"),
+    State("authored-timeline", "lost-update", at_rest, region="#race"),
     State(
         "authored-timeline-keyboard",
         "lost-update",
         authored_timeline_step,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-dark",
         "lost-update",
         authored_timeline_step,
         scheme="dark",
-        region="#race-before",
+        region="#race",
     ),
     State(
         "authored-timeline-phone",
@@ -1809,7 +2008,7 @@ STATES = (
         at_rest,
         viewport=(390, 900),
         touch=True,
-        region="#race-before",
+        region="#race",
     ),
     State(
         "native-code",
@@ -1885,6 +2084,7 @@ STATES = (
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
+    State("thread-code-copy", "ship-review", thread_code_copy, region=".lf-fp-opened"),
     State(
         "floating-thread-unread",
         "ship-review",
@@ -2028,13 +2228,18 @@ STATES = (
         scheme="dark",
     ),
     State("panel-corner-hover", "review-a-plan", panel_corner_hover),
-    State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
+    State(
+        "share-link",
+        "developer/feature-gallery",
+        share_link,
+        region='.lf-inspection-dialog [aria-label="Page details"]',
+    ),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
     State(
         "diff-filter",
         "pr-walkthrough",
         diff_filter,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "diff-separator",
@@ -2049,7 +2254,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
-        region="#pr-key-hunk .lf-diff-tools",
+        region="#pr-exact-patch .lf-diff-tools",
     ),
     State(
         "playground-text",
@@ -2172,6 +2377,27 @@ STATES = (
     State("visual-review", "developer/visual-review-gallery", at_rest),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-long-lines", "developer/diff-thread-gallery", diff_long_lines),
+    State(
+        "diff-author-notes",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        region="#dfg-scroll",
+    ),
+    State(
+        "diff-author-notes-dark",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        scheme="dark",
+        region="#dfg-scroll",
+    ),
+    State(
+        "diff-author-notes-touch",
+        "developer/diff-thread-gallery",
+        diff_author_notes,
+        viewport=(390, 844),
+        touch=True,
+        region="#dfg-scroll",
+    ),
     State("worktree-diffs", "developer/worktree-diffs", at_rest),
     State(
         "worktree-summaries",
@@ -2219,6 +2445,15 @@ STATES = (
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
+        "gloss-open",
+        "developer/feature-gallery",
+        gloss_open,
+        region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("deck", "developer/deck", at_rest, region="#deck-catch-up"),
+    State("detail-dial", "developer/detail", at_rest, region="#detail-dial"),
+    State("file-editor", "developer/file-editor", at_rest, region="#research-file"),
+    State(
         "settled-option",
         "developer/feature-gallery",
         settled_option,
@@ -2254,7 +2489,7 @@ STATES = (
         "timeline-steps",
         "lost-update",
         timeline_steps,
-        region="#race-before .lf-timeline-controls",
+        region="#race .lf-timeline-controls",
     ),
     State(
         "trace-timeline-keyboard",
@@ -2283,24 +2518,30 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
-    State("contents-spine", "developer/feature-gallery", at_rest),
     State(
         "topic-contents",
         "developer/feature-gallery",
         topic_contents,
         region="#bg-topic-contents",
     ),
-    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
+    # example draws one, so these states read a fixture built that way.
+    State("contents-spine", "../tests/fixtures/pages/sidebar-contents", at_rest),
+    State(
+        "contents-spine-keyboard",
+        "../tests/fixtures/pages/sidebar-contents",
+        contents_by_keyboard,
+    ),
     State(
         "contents-over-reading",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         region=".lf-toc-start a",
     ),
     State(
         "contents-over-reading-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_over_reading,
         viewport=(1100, 900),
         scheme="dark",
@@ -2308,17 +2549,27 @@ STATES = (
     ),
     State(
         "contents-spine-dark",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         contents_by_keyboard,
         scheme="dark",
     ),
     # Where the margin has no room for the map, and where a coarse pointer keeps the
     # sidebar's contents in the flow, at a roomy width and on a phone.
-    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
-    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-narrow",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        viewport=(900, 900),
+    ),
+    State(
+        "contents-coarse",
+        "../tests/fixtures/pages/sidebar-contents",
+        at_rest,
+        touch=True,
+    ),
     State(
         "contents-phone",
-        "developer/feature-gallery",
+        "../tests/fixtures/pages/sidebar-contents",
         at_rest,
         viewport=(390, 844),
         touch=True,
@@ -2465,6 +2716,9 @@ STATES = (
         touch=True,
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
+    State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
+    # Its threads on the user's turn, tinted and saying so at their ends.
+    State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",
@@ -2490,6 +2744,18 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-reply", "review-a-plan", card_reply),
+    State(
+        "plan-card-reply-photo",
+        "review-a-plan",
+        card_reply_photo,
+        region=".lf-margin-preview .lf-thread-reply",
+    ),
+    State(
+        "plan-card-after-interjection",
+        "review-a-plan",
+        card_after_interjection,
+        region=".lf-margin-preview",
+    ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(
         "plan-card-held-news",
@@ -2614,7 +2880,21 @@ STATES = (
         card_reply_empty,
         region=".lf-margin-preview .lf-thread-reply",
     ),
+    State(
+        "plan-card-rewrite-empty",
+        "review-a-plan",
+        card_rewrite_empty,
+        region=".lf-margin-preview .lf-msg:has(:focus)",
+    ),
+    State(
+        "plan-panel-reply-empty",
+        "review-a-plan",
+        panel_reply_empty,
+        region=".lf-fp-row",
+    ),
+    State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(
         "plan-card-reply-resolved-elsewhere",
         "review-a-plan",
@@ -2673,6 +2953,19 @@ STATES = (
         region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
+    State(
+        "triage-composer-scrolling",
+        "triage-board",
+        composer_scrolling,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-scrolling-dark",
+        "triage-board",
+        composer_scrolling,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(
@@ -3008,17 +3301,21 @@ STATES = (
 
 # Every state's input by name, for `leaf-dev probe --do drive:NAME`.
 DRIVERS: dict[str, Callable[[Page], None]] = {
-    getattr(state.drive, "__name__").replace("_", "-"): state.drive for state in STATES
+    getattr(state.drive, "__name__").replace("_", "-"): state.drive  # noqa: B009 - Callable does not expose function attributes to ty.
+    for state in STATES
 }
 
 
+@contextmanager
 def capture(
     browser, address: str, state: State, path: Path
-) -> tuple[dict | None, dict[str, list[str]]]:
+) -> Generator[tuple[dict | None, dict[str, list[str]], list[str], list[dict], Page]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
-    as the reader's screen draws them. Return the state's region in the screenshot,
-    if it names one, and its elements' styles (`STYLES`)."""
+    as the reader's screen draws them. Yield the state's region in the screenshot,
+    if it names one, its elements' styles and the paths of those showing words
+    (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
+    and the tab, open until the block ends so `declaration_changes` can read it."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -3046,21 +3343,23 @@ def capture(
         styles = {
             key: reading["faces"][face] for key, face in reading["elements"].items()
         }
+        splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        return region, styles
+        yield region, styles, reading["texts"], splits, page
 
 
 def style_changes(
     base: dict[str, list[str]], head: dict[str, list[str]]
-) -> tuple[int, list[str]]:
+) -> tuple[int, list[str], list[str]]:
     """Each `STYLED` property whose value differs between an element's base and head
     readings, grouped by property and values with up to four of its elements, then
     the subtrees only one arm has, each named by its outermost element, since a widget
     that draws in one arm and not the other adds every node of its drawing. Return how
-    many element properties differ, plus those subtrees, and the lines that list them."""
+    many element properties differ, plus those subtrees, the lines that list them, and
+    each group's first element."""
     groups: dict[tuple[str, str, str], list[str]] = {}
     for key in base.keys() & head.keys():
-        for name, before, after in zip(STYLED, base[key], head[key]):
+        for name, before, after in zip(STYLED, base[key], head[key], strict=True):
             if before != after:
                 groups.setdefault((name, before, after), []).append(key)
     alone = {
@@ -3073,16 +3372,210 @@ def style_changes(
         )
     }
     lines = []
+    firsts = {}
     for (name, before, after), keys in sorted(
         groups.items(), key=lambda group: -len(group[1])
     ):
+        keys.sort()
+        firsts[keys[0]] = None
         lines.append(f"{name}: {before} -> {after}  x{len(keys)}")
-        lines.extend(f"    {key}" for key in sorted(keys)[:4])
+        lines.extend(f"    {key}" for key in keys[:4])
     for heading, keys in alone.items():
         if keys:
             lines.append(f"{heading}  x{len(keys)}")
             lines.extend(f"    {key}" for key in keys[:4])
-    return sum(map(len, groups.values())) + sum(map(len, alone.values())), lines
+    count = sum(map(len, groups.values())) + sum(map(len, alone.values()))
+    return count, lines, list(firsts)
+
+
+def face_of(values: list[str]) -> tuple[str, ...]:
+    """The `FACE` values among an element's `STYLED` ones."""
+    return tuple(values[STYLED.index(name)] for name in FACE)
+
+
+def describe_face(face: tuple[str, ...]) -> str:
+    family, size, weight, style, tracking, case = face
+    words = [weight, size, family.split(",")[0].strip('"')]
+    words += [style] if style != "normal" else []
+    words += [f"tracked {tracking}"] if tracking != "normal" else []
+    words += [case] if case != "none" else []
+    return " ".join(words)
+
+
+def face_distance(a: tuple[str, ...], b: tuple[str, ...]) -> float:
+    """How far apart two faces read: a pixel of size, a hundred of weight and a
+    tenth of an em of tracking each count one, and a different family, style or case
+    puts them apart altogether."""
+    if (a[0], a[3], a[5]) != (b[0], b[3], b[5]):
+        return float("inf")
+
+    def pixels(value: str) -> float:
+        return float(value.removesuffix("px")) if value.endswith("px") else 0.0
+
+    tracks = [pixels(face[4]) / (pixels(face[1]) or 1) for face in (a, b)]
+    return (
+        abs(pixels(a[1]) - pixels(b[1]))
+        + abs(int(a[2]) - int(b[2])) / 100
+        + abs(tracks[0] - tracks[1]) * 10
+    )
+
+
+def face_changes(drawn: dict[str, dict[tuple[str, ...], list[str]]]) -> list[str]:
+    """The faces only one arm draws in `drawn` (each arm's faces, by the states and
+    elements that wear them), each with up to three of those and the other arm's
+    nearest face."""
+    lines = []
+    for arm, other in (("head", "base"), ("base", "head")):
+        alone = sorted(drawn[arm].keys() - drawn[other].keys(), key=describe_face)
+        if not alone:
+            continue
+        lines.append(f"faces only {arm} draws  x{len(alone)}")
+        for face in alone:
+            wearers = drawn[arm][face]
+            nearest = min(
+                drawn[other],
+                key=lambda candidate: face_distance(face, candidate),
+                default=None,
+            )
+            near = (
+                f"; {other}'s nearest {describe_face(nearest)}"
+                if nearest and face_distance(face, nearest) < float("inf")
+                else ""
+            )
+            lines.append(f"  {describe_face(face)}  x{len(wearers)}{near}")
+            lines.extend(f"      {wearer}" for wearer in wearers[:3])
+    return lines
+
+
+def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
+    """The lines whose words stand on baselines `SPLIT` apart in `split` (each arm's,
+    by state, from `BASELINES`): those only head splits, those both arms split, with
+    how far apart each arm stands them, and those only base splits, each with its
+    words' faces and where each stands against the line's first."""
+
+    def keyed(arm: str) -> dict[tuple, tuple[str, dict]]:
+        # A line is known by its state, row and words, and by which of the lines alike
+        # in those it is (`nth`), so two rows that read alike stay two.
+        return {
+            (
+                state,
+                line["row"],
+                *(item["text"] for item in line["items"]),
+                line["nth"],
+            ): (state, line)
+            for state, lines in split[arm].items()
+            for line in lines
+        }
+
+    head, base = keyed("head"), keyed("base")
+    groups = (
+        ("only head splits", head, head.keys() - base.keys()),
+        ("both arms split", head, head.keys() & base.keys()),
+        ("only base splits", base, base.keys() - head.keys()),
+    )
+    lines = []
+    for title, read, keys in groups:
+        if not keys:
+            continue
+        lines.append(f"lines {title}  x{len(keys)}")
+        for key in sorted(keys):
+            state, line = read[key]
+            spread = f"{line['spread']}px"
+            if key in base and key in head:
+                spread = f"{base[key][1]['spread']} -> {spread}"
+            lines.append(f"  {state}: {line['row']}  {spread} apart")
+            lines.extend(
+                f"      {item['text']!r} {item['face']}"
+                f"{' on a box' if item['boxed'] else ''} {item['offset']:+.2f}"
+                for item in line["items"]
+            )
+    return lines
+
+
+def declarations(page: Page) -> Callable[[str], list[str]]:
+    """Read an element `STYLES` read, by its key, through Chromium's inspector: every
+    authored declaration of the rules that match it and of its style attribute, in the
+    order the inspector lists them, each with its sheet, layers, scope and selector."""
+    session = page.context.new_cdp_session(page)
+    sheets: dict[str, dict] = {}
+    session.on(
+        "CSS.styleSheetAdded",
+        lambda event: sheets.update({event["header"]["styleSheetId"]: event["header"]}),
+    )
+    session.send("DOM.enable")
+    session.send("CSS.enable")
+    session.send("DOM.getDocument")
+
+    def label(rule: dict) -> str:
+        header = sheets.get(rule.get("styleSheetId"), {})
+        if rule["origin"] != "regular":
+            sheet = rule["origin"]
+        elif header.get("isConstructed"):
+            sheet = "constructed"
+        # An inline sheet's URL is its document's, which names the arm's port.
+        elif header.get("isInline") or not header.get("sourceURL"):
+            sheet = "<style>"
+        else:
+            sheet = header["sourceURL"].rsplit("/", 1)[-1]
+        layers = ".".join(layer["text"] or "anonymous" for layer in rule["layers"])
+        return " ".join(
+            [
+                sheet,
+                *([f"@layer {layers}"] if layers else []),
+                *(f"@scope {scope['text']}" for scope in rule["scopes"]),
+                rule["selectorList"]["text"],
+            ]
+        )
+
+    def read(key: str) -> list[str]:
+        element = session.send(
+            "Runtime.evaluate", {"expression": f"stillsRead.get({json.dumps(key)})"}
+        )
+        node = session.send(
+            "DOM.requestNode", {"objectId": element["result"]["objectId"]}
+        )
+        matched = session.send("CSS.getMatchedStylesForNode", node)
+        rules = [
+            (label(entry["rule"]), entry["rule"]["style"])
+            for entry in matched["matchedCSSRules"]
+        ]
+        if matched.get("inlineStyle"):
+            rules.append(("style attribute", matched["inlineStyle"]))
+        return [
+            f"{rule} {{ {' '.join(declaration['text'].split())} }}"
+            for rule, style in rules
+            for declaration in style["cssProperties"]
+            if "text" in declaration
+        ]
+
+    return read
+
+
+def declaration_changes(pages: dict[str, Page], keys: Iterable[str]) -> list[str]:
+    """For each element, the declarations (`declarations`) that match it in only one
+    of the arms' `pages`, or in another order, as lines under its key."""
+    read = {arm: declarations(page) for arm, page in pages.items()}
+    lines = ["declarations that differ, on each group's first element"]
+    for key in keys:
+        before, after = read["base"](key), read["head"](key)
+        changes = [
+            line
+            for tag, i, j, k, m in SequenceMatcher(
+                None, before, after, autojunk=False
+            ).get_opcodes()
+            if tag != "equal"
+            for line in [
+                *(f"- {row}" for row in before[i:j]),
+                *(f"+ {row}" for row in after[k:m]),
+            ]
+        ]
+        lines.append(f"    {key}")
+        lines.extend(
+            f"        {line}"
+            for line in changes
+            or ["none: it inherits the difference or reads it from a custom property"]
+        )
+    return lines
 
 
 @contextmanager
@@ -3183,6 +3676,8 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
+    drawn: dict[str, dict[tuple[str, ...], list[str]]] = {"base": {}, "head": {}}
+    split: dict[str, dict[str, list[dict]]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
         message = (
@@ -3211,47 +3706,74 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                     source_roots[arm],
                     commit,
                 )
-        with headless_shell() as browser, differences(browser, out) as compare:
+        # Capture the scrollbars readers see, including the room a classic bar takes.
+        with (
+            headless_shell(ignore_default_args=["--hide-scrollbars"]) as browser,
+            differences(browser, out) as compare,
+        ):
             for state in states:
                 folder = out / state.name
                 folder.mkdir()
                 crop_regions = []
                 styles = {}
-                for arm, arm_dir in arms.items():
-                    # Every state starts from its authored fixture. A prior Send or
-                    # Resolve must not become the next state's initial event log.
-                    # The base refuses a source written in vocabulary only the head
-                    # declares; that state has no base still, and the head's still
-                    # stands alone in its folder.
-                    try:
-                        with serving_source(
-                            arm_dir,
-                            source_roots[arm] / "examples" / f"{state.source}.html",
-                            scratch / f"{arm}-{state.name}",
-                        ) as address:
-                            region, styles[arm] = capture(
-                                browser, address, state, folder / f"{arm}.png"
+                texts = {}
+                splits = {}
+                pages = {}
+                # Both arms stay open through the comparison, which reads their tabs.
+                with ExitStack() as held:
+                    for arm, arm_dir in arms.items():
+                        # Every state starts from its authored fixture. A prior Send
+                        # or Resolve must not become the next state's initial event
+                        # log. The base refuses a source written in vocabulary only
+                        # the head declares; that state has no base still, and the
+                        # head's still stands alone in its folder.
+                        try:
+                            address = held.enter_context(
+                                serving_source(
+                                    arm_dir,
+                                    source_roots[arm]
+                                    / "examples"
+                                    / f"{state.source}.html",
+                                    scratch / f"{arm}-{state.name}",
+                                )
+                            )
+                            region, styles[arm], texts[arm], splits[arm], pages[arm] = (
+                                held.enter_context(
+                                    capture(
+                                        browser, address, state, folder / f"{arm}.png"
+                                    )
+                                )
                             )
                             if region:
                                 crop_regions.append(region)
-                    except Exception as error:  # noqa: BLE001 - isolate each capture
-                        failure(state, arm, error)
-                if state.name in failed:
-                    continue
-                try:
-                    difference = compare(state.name)
-                    if difference["changed"]:
-                        crop(
-                            folder, difference["regions"], framing=crop_regions or None
+                        except Exception as error:
+                            failure(state, arm, error)
+                    if state.name in failed:
+                        continue
+                    for arm, keys in texts.items():
+                        split[arm][state.name] = splits[arm]
+                        for key in keys:
+                            drawn[arm].setdefault(face_of(styles[arm][key]), []).append(
+                                f"{state.name}: {key}"
+                            )
+                    try:
+                        difference = compare(state.name)
+                        if difference["changed"]:
+                            crop(
+                                folder,
+                                difference["regions"],
+                                framing=crop_regions or None,
+                            )
+                        difference["styles"], lines, firsts = style_changes(
+                            styles["base"], styles["head"]
                         )
-                    difference["styles"], lines = style_changes(
-                        styles["base"], styles["head"]
-                    )
-                    if lines:
-                        (folder / "styles.txt").write_text("\n".join(lines) + "\n")
-                    read[state.name] = difference
-                except Exception as error:  # noqa: BLE001 - isolate each comparison
-                    failure(state, "comparison", error)
+                        if firsts:
+                            lines += declaration_changes(pages, firsts)
+                        if lines:
+                            (folder / "styles.txt").write_text("\n".join(lines) + "\n")
+                        read[state.name] = difference
+                    except Exception as error:
+                        failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in states:
@@ -3266,4 +3788,20 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")
+    if lines := face_changes(drawn):
+        (out / "faces.txt").write_text("\n".join(lines) + "\n")
+        click.echo(
+            "faces one arm alone draws: "
+            + ", ".join(line.strip() for line in lines if line.startswith("faces"))
+            + f" -> {out / 'faces.txt'}"
+        )
+    if lines := baseline_changes(split):
+        (out / "baselines.txt").write_text("\n".join(lines) + "\n")
+        click.echo(
+            "lines whose words split their baseline: "
+            + ", ".join(line.strip() for line in lines if line.startswith("lines"))
+            + f" -> {out / 'baselines.txt'}"
+        )
     click.echo(f"files in {out}")
+    if failed:
+        raise SystemExit(1)

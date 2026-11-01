@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "resolveJsonModule": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": [
+    "**/*.mjs",
+    "../*.mjs",
+    "../.*.mjs",
+    "../.github/scripts/*.mjs",
+    "../dev/**/*.mjs",
+    "../dev/**/*.cjs",
+    "../worker/*.mjs"
+  ],
+  "exclude": ["entries/**/*.mjs"]
+}

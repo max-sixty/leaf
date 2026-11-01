@@ -29,21 +29,27 @@ from leaf.render_checks import rendered
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     browser, serve, placement
 ):
-    """The same tab vocabulary has page or section scope from where it is placed: the
-    first set directly in main is page navigation whatever stands beside it, and a set
-    inside another block is a tabbed section."""
+    """Authored flow chooses the face independently of primary view history.
+
+    The first set directly in main owns URL/history; another arriving before it
+    changes that owner without framing a set the page still declares as flow.
+    """
     sample = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
     assert sample is not None
+    sample = sample[0]
+    if placement != "nested":
+        sample = sample.replace("<lf-tabs ", '<lf-tabs class="layout-flow" ', 1)
+        sample = sample.replace("<lf-tab ", '<lf-tab class="layout-flow" ')
     heading = "<header><h1>Project views</h1></header>"
     body = {
-        "alone": heading + sample[0],
+        "alone": heading + sample,
         "among-blocks": heading
-        + '<aside class="sidebar"><p>Contents</p></aside>'
-        + sample[0]
+        + "<aside><p>Contents</p></aside>"
+        + sample
         + "<p>This conclusion follows the tab set.</p>",
-        "nested": heading + "<section>" + sample[0] + "</section>",
+        "nested": heading + "<section>" + sample + "</section>",
     }[placement]
     embedded = placement == "nested"
     page = open_page(
@@ -68,20 +74,21 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
         source = serve.page_dir / "index.html"
         original = source.read_text()
-        # An earlier tab set in main takes over the page's navigation, and this one
-        # becomes a tabbed section without being rebuilt.
+        # An earlier set takes over primary navigation; this one's authored flow
+        # and retained panel stay as they were.
         stamp_page(
             serve.page_dir,
             original.replace(
-                '<lf-tabs id="bg-tabs">',
+                '<lf-tabs class="layout-flow" id="bg-tabs">',
                 '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab" label="Earlier">'
                 "<p>Earlier views.</p></lf-tab></lf-tabs>"
-                '<lf-tabs id="bg-tabs">',
+                '<lf-tabs class="layout-flow" id="bg-tabs">',
             ),
             "Add an earlier tab set",
         )
         wait_for_revision(page, 2)
-        expect(tabs).to_have_css("border-left-width", "1px")
+        expect(tabs).to_have_css("border-left-width", "0px")
+        expect(tabs).to_have_css("--lf-views-flow", "page")
         assert page.evaluate(
             "window.__retainedTabs === document.querySelector('#bg-tabs')"
         )

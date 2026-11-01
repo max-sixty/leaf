@@ -2,6 +2,7 @@
 
 import re
 from html import escape
+from itertools import pairwise
 
 import pytest
 from playwright.sync_api import expect
@@ -58,7 +59,9 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
             reading = page.locator("#trees").evaluate("""node => {
               const box = n => n && n.getBoundingClientRect().toJSON();
               return {width: node.clientWidth, viewport: innerWidth,
-                rows: [...node.querySelectorAll('.lf-worktree-summary')].map(summary => ({
+                rows: [...node.querySelectorAll(':scope > lf-worktree')]
+                  .map(host => host.shadowRoot.querySelector('.lf-worktree-summary'))
+                  .map(summary => ({
                   box: box(summary), label: box(summary.querySelector('.lf-worktree-identity')),
                   line: parseFloat(getComputedStyle(summary).lineHeight),
                   status: box(summary.querySelector('.lf-worktree-status')),
@@ -88,7 +91,7 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 ), [(stat["width"], stat["content"]) for stat in row["stats"]]
                 assert all(
                     before["right"] < after["left"]
-                    for before, after in zip(row["stats"], row["stats"][1:])
+                    for before, after in pairwise(row["stats"])
                 )
             if reading["width"] > 608:
                 if width == 1280:
@@ -102,13 +105,17 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 )
             else:
                 assert rows[0]["stats"][0]["top"] >= rows[0]["label"]["bottom"]
-            page.locator("#short > details > summary").click()
-            expect(page.locator("#evidence")).to_be_visible()
-            evidence = page.locator("#short .lf-worktree-body").bounding_box()
-            assert (
-                evidence["width"] > page.locator("#short").bounding_box()["width"] * 0.8
-            )
-            page.locator("#short > details > summary").click()
+            summary = page.locator("#short .lf-worktree-summary")
+            summary.click()
+            try:
+                expect(page.locator("#evidence")).to_be_visible()
+                evidence = page.locator("#short .lf-worktree-body").bounding_box()
+                assert (
+                    evidence["width"]
+                    > page.locator("#short").bounding_box()["width"] * 0.8
+                )
+            finally:
+                summary.click()
 
 
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
@@ -159,7 +166,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
             )
         ),
     )
-    overview = page.locator("#trees > .lf-worktree-overview")
+    overview = page.locator("#trees .lf-worktree-overview")
     expect(overview).to_contain_text("5 worktrees")
     expect(overview).to_contain_text("2 files")
     expect(overview).to_contain_text("+2")
@@ -170,14 +177,14 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.locator("#empty").get_by_text("0 files", exact=True)
     ).not_to_be_visible()
 
-    row = page.locator("#drafts > details")
+    row = page.locator("#drafts .lf-worktree-disclosure")
     summary = row.locator(":scope > summary")
     expect(row).to_contain_text("/workspace/leaf.retain-drafts")
     expect(summary).to_contain_text(head[:8])
     # Counts say a row changed; a word names only what counts can't.
     expect(summary).not_to_contain_text("Changed")
-    expect(page.locator("#clean-0 > details > summary")).to_contain_text("Clean")
-    snapshot = row.locator(
+    expect(page.locator("#clean-0 .lf-worktree-summary")).to_contain_text("Clean")
+    snapshot = page.locator("#drafts").locator(
         "details", has=page.get_by_text("Snapshot details", exact=True)
     )
     snapshot.locator("summary").click()
@@ -193,7 +200,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     expect(search).not_to_be_visible()
     # Tab reaches the next worktree; Enter opens it independently of the first.
     page.keyboard.press("Tab")
-    missing_summary = page.locator("#missing > details > summary")
+    missing_summary = page.locator("#missing .lf-worktree-summary")
     expect(missing_summary).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
@@ -226,13 +233,15 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.get_by_text("The supplied checkout is temporarily unavailable.")
     ).to_be_visible()
     expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
-    expect(row.locator("aside")).to_have_attribute("title", "Agent commentary")
+    expect(page.locator("#drafts > aside")).to_have_attribute(
+        "title", "Agent commentary"
+    )
     expect(search).to_have_value("app.py")
     expect(file_summary.locator("..")).not_to_have_attribute("open")
     expect(snapshot.locator("code")).to_be_visible()
     file_summary.click()
     expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
-    fifth_summary = page.locator("#clean-2 > details > summary")
+    fifth_summary = page.locator("#clean-2 .lf-worktree-summary")
     fifth_summary.click()
     expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
     # A related navigator must reveal the worktree around its destination too.
@@ -257,6 +266,14 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
         page.get_by_text("The supplied checkout is temporarily unavailable.")
     ).to_be_visible()
     expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
+    # A fresh shadow tree restores both an authored-open row the reader closed
+    # and an authored-closed row they opened, after startup observation has ended.
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#drafts .lf-worktree-disclosure")).not_to_have_attribute(
+        "open"
+    )
+    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
@@ -280,11 +297,11 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     page.locator("h1").click()
     page.evaluate("""async () => {
       const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollBy = Element.prototype.scrollBy;
-      Element.prototype.scrollBy = function(options) {
-        const result = scrollBy.call(this, options);
+      const scrollTo = Element.prototype.scrollTo;
+      Element.prototype.scrollTo = function(options) {
+        const result = scrollTo.call(this, options);
         if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollBy = scrollBy;
+          Element.prototype.scrollTo = scrollTo;
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');
@@ -320,7 +337,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             "Browse patch files",
             "<h1>Review the importer</h1>"
             '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
-            f'<lf-diff id="patch" source="change" view="{view}" collapsed><pre></pre></lf-diff>',
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(
@@ -464,7 +481,7 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
             '<lf-file-tree id="files" for="patch"></lf-file-tree></lf-pane>'
             '<lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
             '<div id="evidence"><p>Inspect the changes in each file.</p>'
-            '<lf-diff id="patch" source="change" view="file"><pre></pre></lf-diff>'
+            '<lf-diff id="patch" source="change" view="file"></lf-diff>'
             "</div></lf-pane></div>",
             head="""<style>
               #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
@@ -538,7 +555,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     Both inline and bound patches use the widget's render lifecycle."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
     diff = (
-        '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
+        '<lf-diff id="d-bad" source="bad-patch"></lf-diff>'
         if bound
         else f'<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>'
     )
@@ -574,7 +591,7 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
     """A departure cuts short preparation, but a settled return keeps its native rows."""
     patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
     diff = (
-        '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="patch-data"></lf-diff>'
         if bound
         else f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>'
     )
@@ -622,7 +639,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
         leaf_page(
             "Retry a file diff",
             '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
-            'collapsed><pre></pre></lf-diff><button id="after" '
+            'collapsed></lf-diff><button id="after" '
             'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
         )
     )
@@ -742,7 +759,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         leaf_page(
             "Identify sources",
             "<h1>Identify sources</h1>"
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
@@ -819,7 +836,7 @@ diff --git a/other.md b/other.md
     url = serve(
         leaf_page(
             "Lazy source",
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
@@ -988,7 +1005,7 @@ new mode 100755
             "Closed evidence",
             "<h1>Closed evidence</h1>"
             + "".join(
-                f'<lf-diff id="{name.lower()}" source="source-{name.lower()}" collapsed><pre></pre></lf-diff>'
+                f'<lf-diff id="{name.lower()}" source="source-{name.lower()}" collapsed></lf-diff>'
                 for name in ids
             ),
         )
@@ -1331,16 +1348,15 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
 
     tag = "lf-call-diff" if kind == "call" else "lf-diff"
     attributes = 'diff="patch"' if kind == "call" else ""
-    body = "" if kind == "call" else "<pre></pre>"
     extra = (
-        '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>'
         if kind == "call"
         else ""
     )
     url = serve(
         leaf_page(
             "Fold evidence",
-            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}>{body}</{tag}>'
+            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}></{tag}>'
             '<button id="after">Continue review</button>' + extra,
         ),
         packages=("diff",),

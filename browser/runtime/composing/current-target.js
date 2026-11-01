@@ -27,6 +27,7 @@ import { OBLIGATION_CONTROL } from "../obligations/view-elements.js";
 
 // The innermost question frame holding `node`, or null where none does or `node` is in
 // one of that frame's answer widgets.
+/** @param {Element} node */
 function frameHolding(node) {
   const framed = readObligations()
     .all.map((item) => obligationPlace(item))
@@ -35,6 +36,7 @@ function frameHolding(node) {
         source && context && context !== source && under(node, context),
     );
   const frame = framed.reduce(
+    /** @param {Element | null} inner */
     (inner, { context }) => (inner && under(inner, context) ? inner : context),
     null,
   );
@@ -44,6 +46,7 @@ function frameHolding(node) {
   return answering ? null : frame;
 }
 
+/** @param {{currentLocationIn: () => Element | null}} options */
 export function createCurrentTarget({ currentLocationIn }) {
   return function currentTarget() {
     const held = focused();

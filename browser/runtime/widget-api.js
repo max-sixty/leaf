@@ -16,10 +16,11 @@
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
 export { move } from "./dom-move.js";
-export { actionTemplate, iconElement, iconTemplate } from "./icons.js";
+export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
+export { holdAuthoredBody } from "./widget-elements.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -54,6 +55,7 @@ export {
   handBack,
   holdFocus,
   onCurrentLocation,
+  onPress,
   onPressAway,
   openLayer,
   openerOf,
@@ -94,7 +96,7 @@ export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
-// (browser/AGENTS.md, "Stability").
+// (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
@@ -151,6 +153,7 @@ export { shadowStage } from "./shadow-stage.js";
 export { revisionLabel } from "./context.js";
 export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
+export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
@@ -186,7 +189,7 @@ export { retainUserIntent } from "./user-intent.js";
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
-export { keepView, openingView } from "./storage.js";
+export { keepView, openingView, viewMembers } from "./storage.js";
 export { highlightBlocks, langForPath } from "./syntax.js";
 export {
   saidAt,
@@ -200,20 +203,12 @@ export {
   PRESSABLE,
   dragging,
   el,
-  generated,
-  generatedElement,
   motionPreview,
   nameAction,
   namedAction,
-  offer,
-  offerAction,
-  offered,
-  offeredAction,
   reachedForWords,
   relabel,
   searchField,
-  selectableOffer,
-  selectableOffered,
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
@@ -225,6 +220,9 @@ export { leafEditorView } from "./editor-view.js";
 
 // Render a declared template or a generated document as an isolated live Leaf page.
 // The returned host owns readiness, Reset and disposal (live-samples.md).
+/** @param {Parameters<typeof import("./sample.js").mountSample>[0]} frame
+ * @param {Parameters<typeof import("./sample.js").mountSample>[1]} options
+ * @returns {Promise<ReturnType<typeof import("./sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

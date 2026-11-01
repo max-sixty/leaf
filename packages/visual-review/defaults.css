@@ -38,13 +38,13 @@ lf-visual-review {
 }
 .lf-vr-heading h2 {
   margin: 0;
-  font: 500 var(--t-5)/1.4 var(--sans);
+  font: var(--font-title);
 }
 .lf-vr-progress {
   display: flex;
   gap: 16px;
   color: var(--muted);
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   font-variant-numeric: tabular-nums;
 }
 .lf-vr-progress strong {
@@ -85,41 +85,23 @@ lf-visual-review {
   --lf-pane-top: 0px;
   container-type: normal;
 }
-/* A case is a row (controls.css, `.lf-row`), the case shown its current row; its
- * start keeps 6px beside the stripe, as the panel's rows do. */
+/* A case is a row (controls.css, `.lf-row`), the case shown its current row: its
+ * number, its title, and a check in the ok ink at its end once it looks right. A
+ * case not yet checked shows nothing there, since the header's count and the case's
+ * own Looks right box say so, and the check keeps its room, so checking a case moves
+ * no word. The check stood as the words Looks right on a line of their own under the
+ * title, which left every unchecked case a blank line taller than its words. */
 .lf-vr-case-button {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-  inline-size: 100%;
-  border-block-end: 1px solid var(--rule);
-  padding: 14px 4px 14px 6px;
   cursor: pointer;
 }
+/* Each case sizes its own columns, since the list is a strip of tabs at a narrow width,
+   so its number keeps two digits' room and every title starts on one edge. */
 .lf-vr-case-number {
-  font: var(--t-working-label)/1.5 var(--sans);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.lf-vr-case-label {
-  display: grid;
-  gap: 4px;
-}
-.lf-vr-case-name {
-  font-weight: 550;
-  line-height: 1.35;
+  min-width: 2ch;
 }
 .lf-vr-case-status {
-  color: var(--muted);
-  font-size: var(--t-working-label);
-  font-weight: 400;
-}
-.lf-vr-case-status[data-approved="true"] {
   color: var(--ok-ink);
 }
-/* A case not yet checked says nothing: the header's count and the case's own Looks
-   right box say so. Its words keep their line, so checking a case moves no row. */
 .lf-vr-case-status[data-approved="false"] {
   visibility: hidden;
 }
@@ -153,10 +135,10 @@ lf-visual-review {
   padding-block: 18px 10px;
   min-inline-size: 0;
 }
+/* The case's title is its heading, in markup's reading face, which the review wears
+   (above). */
 .lf-vr-caption h3 {
   margin: 0 0 8px;
-  font: 500 var(--t-2)/1.2 var(--serif);
-  letter-spacing: -0.015em;
 }
 .lf-vr-claim p {
   margin: 0;
@@ -164,7 +146,7 @@ lf-visual-review {
 }
 .lf-vr-claim .lf-vr-action {
   margin-block-start: 6px;
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   color: var(--muted);
 }
 .lf-vr-decision {
@@ -185,7 +167,7 @@ lf-visual-review {
   align-items: center;
   gap: 7px;
   min-block-size: var(--aim-floor);
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
   cursor: pointer;
 }
 .lf-vr-approval input {
@@ -209,7 +191,7 @@ lf-visual-review {
   background: var(--paper);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-ui);
 }
 @supports (position-area: bottom) {
   .lf-vr-details,
@@ -228,7 +210,7 @@ lf-visual-review {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 20px;
-  font-size: var(--t-working-label);
+  font: var(--font-compact);
 }
 .lf-vr-provenance :is(dt, dd) {
   margin: 0;
@@ -265,7 +247,7 @@ lf-visual-review {
   flex: 1 1 20rem;
   margin: 0;
   color: var(--muted);
-  font: 12px/1.4 var(--sans);
+  font: var(--font-small);
 }
 /* The capture takes the desk's spare height, but never less than its toolbar and a
    frame worth reading: in a short window, where the desk's other regions leave it
@@ -325,7 +307,7 @@ lf-visual-review {
     margin-block-start: 2px;
   }
   .lf-vr-case-button {
-    padding: 10px 8px 10px 6px;
+    padding-block: 10px;
   }
   .lf-vr-caption {
     padding-block: 14px 8px;
@@ -337,31 +319,21 @@ lf-visual-review {
   }
   .lf-vr-progress {
     gap: 10px;
-    font-size: 12px;
+    font: var(--font-small);
+    font-variant-numeric: tabular-nums;
   }
   .lf-vr-case-button {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    padding: 8px 6px;
-    font-size: 12px;
+    padding-block: 8px;
+    font: var(--font-small);
   }
   .lf-vr-case-number {
     display: none;
   }
-  .lf-vr-case-status {
-    font-size: 11px;
-  }
-  .lf-vr-case-label {
-    gap: 4px;
-  }
-  .lf-vr-caption h3 {
-    font-size: var(--t-3);
-  }
   .lf-vr-claim p {
-    font-size: 13px;
+    font: var(--font-compact);
   }
   .lf-vr-claim .lf-vr-action {
-    font-size: 12px;
+    font: var(--font-small);
   }
   .lf-vr-decision {
     gap: 8px;
@@ -400,7 +372,7 @@ lf-visual-review {
 }
 .lf-vr-inspection-heading h4 {
   margin: 0;
-  font: 600 15px/1.4 var(--sans);
+  font: var(--font-title);
 }
 
 .lf-vr-open-threads {

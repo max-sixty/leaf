@@ -63,7 +63,7 @@ from interact_support import (
 )
 from model_folds import leaf_page
 from PIL import Image
-from playwright.sync_api import BrowserContext, Page, expect
+from playwright.sync_api import BrowserContext, Frame, Page, expect
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -71,6 +71,7 @@ from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -140,7 +141,17 @@ def document_port_binding_source():
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
-    controls = subprocess.check_output(
+    source = (
+        'import { clippingAxes } from "./browser/runtime/rect.js";\n'
+        'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
+        'import { renderedParent } from "./browser/runtime/shadow-tree.js";\n'
+        + WATCH_PLATFORM_SOURCE.read_text()
+        + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
+        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
+        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
+        + SHIFT_WATCH_SOURCE.read_text()
+    )
+    return subprocess.check_output(
         [
             "node",
             "--import",
@@ -148,38 +159,20 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
+                'import { readFileSync } from "node:fs";'
+                'import { buildSync } from "esbuild";'
                 'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
-                'import { clippingAxes } from "./browser/runtime/rect.js";'
-                'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
-                'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "const vocabulary = `const interactive=${JSON.stringify(WORKS)},"
+                "pressControls=${JSON.stringify(PRESSES)},caretKeys=${JSON.stringify(CARET_KEYS)};\n`;"
+                'const result = buildSync({stdin: {contents: vocabulary + readFileSync(0, "utf8"),'
+                'resolveDir: process.cwd()}, bundle: true, format: "iife", write: false});'
+                "process.stdout.write(result.outputFiles[0].text);"
             ),
         ],
+        input=source,
         cwd=ROOT,
         text=True,
         timeout=STATED_TIMEOUT,
-    )
-    (
-        interactive,
-        presses,
-        caret_keys,
-        clipping,
-        host,
-        parent,
-        rendered_parent,
-        element_axes,
-        axes,
-    ) = json.loads(controls)
-    return (
-        WATCH_PLATFORM_SOURCE.read_text()
-        + "\n"
-        + "const nativePerformance = window.lfWatchPlatform.performance;\n"
-        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
-        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
-        f"const shadowHost = {host};\nconst upFrom = {parent};\n"
-        f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 
@@ -1617,7 +1610,9 @@ def is_problem(problem, expected):
         if name in {"node", "field", "place"} and isinstance(value, list):
             if not isinstance(actual, list) or len(actual) != len(value):
                 return False
-            if not all(place_step_matches(a, e) for a, e in zip(actual, value)):
+            if not all(
+                place_step_matches(a, e) for a, e in zip(actual, value, strict=True)
+            ):
                 return False
         elif actual != value:
             return False
@@ -1813,10 +1808,13 @@ def press_visible(page, control, *, touch=False):
 
     Locator click/tap on Chromium 156 can scroll the document while preparing a
     visible fixed control. Coordinates exercise the user's visible route directly.
+    A frame's bounding box is already in its owning page's coordinates; input
+    goes through that page while the control stays scoped to its document.
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page = page.page if isinstance(page, Frame) else page
     if touch:
         page.touchscreen.tap(x, y)
     else:
@@ -2092,13 +2090,9 @@ def open_page(
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
     its own medium instead, just as it owns the rest of its browser state.
 
-    False is for the one test whose subject is the interval between them, which holds the
-    registry fetch open and so never earns either. It waits on the panel instead, which
-    says only that the runtime's module evaluated — long before the anchor pass has run,
-    and so before the Comment button can answer a selection at all. A test that reads
-    there without an auto-retrying wait is racing the upgrade and loses on a loaded
-    machine: the passage sweep lost it on the corpus, the heaviest page here, and what
-    it reported was a passage it had not tested rather than one that failed."""
+    False waits only for panel construction, after registry loading and before
+    presentation. A reader there must await the particular state its assertion uses;
+    chrome existing does not say that the anchor pass can answer a selection."""
     page = (
         context.new_page()
         if context
@@ -2497,6 +2491,13 @@ def live_leaf(tmp_path, monkeypatch):
         # even while no browser has visited this neighboring page.
         url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
+        # The address is announced before the row producer starts. All pages can
+        # discover this neighbour only after that producer publishes its first row.
+        wait_for(
+            lambda: presence_model.live_leaves({d.resolve()}),
+            lambda leaves: len(leaves) == 1,
+            failure=f"{name} never published its live neighbour row",
+        )
         return url.split("?")[0].rstrip("/"), d
 
     yield go

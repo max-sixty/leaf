@@ -2,6 +2,7 @@
 
 import io
 import json
+from itertools import pairwise
 from types import SimpleNamespace
 from urllib.parse import urljoin
 
@@ -31,6 +32,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    primed,
     resized,
     round_trip,
     select,
@@ -164,10 +166,11 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
             expect(part).to_have_css("background-color", "rgba(0, 0, 0, 0)")
 
 
-def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
-    """At a narrow allocation, Space must not create a blank line while the
-    words and Send still fit. The text's right inset already clears part of
-    Send's hit box; reserving its full width again wasted eleven pixels."""
+def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the words
+    still fit. Under a mouse the words keep no room for Send, which takes the corner
+    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    as they start."""
     page = open_page(
         browser,
         serve(
@@ -196,15 +199,13 @@ def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
     after = resting_box()
     assert after["height"] == pytest.approx(before["height"], abs=1)
     assert after["y"] == pytest.approx(before["y"], abs=1)
-    reservation = field.evaluate("""el => {
-      const style = getComputedStyle(el), box = el.getBoundingClientRect();
-      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
-      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
-        - parseFloat(style.paddingInlineEnd)
-        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
-        sendStart: send.left};
+    insets = field.evaluate("""el => {
+      const style = getComputedStyle(el);
+      return [parseFloat(style.borderInlineStartWidth) + parseFloat(style.paddingInlineStart),
+        parseFloat(style.borderInlineEndWidth) + parseFloat(style.paddingInlineEnd)
+        + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
-    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+    assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -250,12 +251,30 @@ CARET_ROOM = rf"""box => {{{CARET_AT}
   return clip - caret.getBoundingClientRect().right;
 }}"""
 
+# The words of the field's first line, as the browser wraps them.
+FIRST_LINE = """box => {
+  const line = window.__lfRoots.get(box).querySelector('.cm-line');
+  const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  const word = document.createRange();
+  const words = [];
+  let top = null;
+  for (let text; (text = texts.nextNode()); )
+    for (const { index, 0: found } of text.data.matchAll(/\\S+/g)) {
+      word.setStart(text, index);
+      word.setEnd(text, index + found.length);
+      top ??= word.getBoundingClientRect().top;
+      if (word.getBoundingClientRect().top > top + 1) return words.join(' ');
+      words.push(found);
+    }
+  return null;
+}"""
+
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     """The caret after a line's last character stands at the very end of the text
-    column: in a box that grows with its words, and after a trailing space that fits
-    beside Send. Firefox paints the caret a pixel wide from that offset onward, pulled
+    column: in a box that grows with its words, and in a narrow allocation. Firefox
+    paints the caret a pixel wide from that offset onward, pulled
     inside only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
     clipping its words at the column's end hid it, and it read as gone under Send.
     Chromium and WebKit pull a line-end caret back inside the line's block, and WebKit
@@ -270,10 +289,32 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     page.locator("#passage").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    hold_motion(page)
-    # The box grows with its words, so the caret after the last word ends its column.
+    box = page.locator(".lf-fab-bar .lf-compose-field")
+    least = box.bounding_box()
     page.keyboard.insert_text(
-        "it's not really a feed as much as a list? I see a feed as"
+        "it's not really a feed as much as a list? I see a feed as a stream of"
+        " things that keep arriving while a list is something you work down"
+    )
+    rendered(page)
+    wrapped = box.bounding_box()
+    hold_motion(page)
+    # The box grows with its words, so the caret after the last word ends its column,
+    # and the lines the words give up move the box. The first line's words are those
+    # each platform's fonts fit.
+    first_line = field.evaluate(FIRST_LINE)
+    assert first_line, wrapped
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(first_line)
+    page.wait_for_function(
+        "line => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height < line",
+        arg=least["height"] + 0.5,
+    )
+    one_line = box.bounding_box()
+    assert least["width"] < one_line["width"] < wrapped["width"], (
+        least,
+        one_line,
+        wrapped,
     )
     rendered(page)
     held_motion(page, ".lf-fab-ground")
@@ -283,11 +324,14 @@ def test_a_caret_at_a_lines_end_paints_inside_the_field(engine, request, serve):
     })""")
     assert field.evaluate(CARET_ROOM) >= 1
     finish_held(page)
-    # At a narrow allocation the trailing space fits beside Send (see above).
+    # Check the last ink at a narrow allocation too. A trailing pre-wrap space can
+    # hang outside the line: its Range box is not the native caret's painted box,
+    # which Chromium pulls back inside the line. Read before that space instead.
     resized(page, 346, 900)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
     page.keyboard.press("Space")
+    page.keyboard.press("ArrowLeft")
     rendered(page)
     assert field.evaluate(CARET_ROOM) >= 1
 
@@ -384,8 +428,10 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 navLeft: box('.lf-margin-preview-nav').left,
                 navRight: box('.lf-margin-preview-nav').right,
                 resolveLeft: box('.lf-resolve').left,
+                // The head's items, not its controls' reach past its edge.
                 overflow: actions.scrollWidth - actions.clientWidth
-                  + head.scrollWidth - head.clientWidth,
+                  + Math.max(0, ...[...head.children].map((item) =>
+                    item.getBoundingClientRect().right - head.getBoundingClientRect().right)),
               };
             }"""
         )
@@ -411,7 +457,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='sidenote'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "
@@ -659,11 +705,20 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
         " ![blocked *image*](javascript&#58;window.leaked=true)"
         " beside [the page](https://example.com/?a=1&amp;b=2)"
         " and <https://example.com/?a=1&amp;b=2>"
-        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/icon.svg "Sales &amp; revenue")'
+        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/chart.png "Sales &amp; revenue")'
         f" and ![A **media** chart]({media})",
         {"section": "p0"},
     )
-    page = open_page(browser, url)
+    prepared = primed(
+        browser,
+        lambda page: page.route(
+            "**/chart.png",
+            lambda route: route.fulfill(
+                content_type="image/png", body=pixels.getvalue()
+            ),
+        ),
+    )
+    page = open_page(prepared, url)
     view = open_panel_thread(page, root)
 
     prose = view.locator(".lf-msg-text").first
@@ -1249,7 +1304,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
             leaf_page(
                 "Draft faces",
                 "<h1>Draft faces</h1>"
-                '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+                '<lf-diff id="patch" source="review-patch"></lf-diff>',
             )
         )
         data_model.cmd_data_set(
@@ -1326,7 +1381,10 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
 
     def find(node):
         attrs = node.get("attributes", [])
-        if dict(zip(attrs[::2], attrs[1::2])).get("id") == "draft-face-editor":
+        if (
+            dict(zip(attrs[::2], attrs[1::2], strict=True)).get("id")
+            == "draft-face-editor"
+        ):
             return node
         for child in node.get("children", []) + node.get("shadowRoots", []):
             if found := find(child):
@@ -1371,3 +1429,483 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
         for name in FACES
     }
     assert not any(differ.values()), differ
+
+
+# Quotes holding quotes, code and a list, and a fence its quote ends, each line ending in
+# a word.
+NESTED = (
+    "> alpha\n> > beta\n> gamma\n\n> ```\n> delta\n> ```\n\n"
+    "> ```\n> zeta\nomega\n\n> - kappa\n> - lambda"
+)
+# Where each word stands in a root's content box: its left edge, its top, the left edge
+# of each ruled or framed box holding it, innermost first, and how many list items,
+# each drawing its marker, hold it. The source the editor leaves unseen is not a word.
+WORDS_AND_RULES = """(root, words) => {
+  const style = getComputedStyle(root);
+  const origin = root.getBoundingClientRect().left + parseFloat(style.borderLeftWidth)
+    + parseFloat(style.paddingLeft);
+  const top = root.getBoundingClientRect().top;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const found = {};
+  for (let node; (node = walker.nextNode()); ) {
+    if (node.parentElement.closest('.lf-md-unseen')) continue;
+    for (const word of words) {
+      const at = node.data.indexOf(word);
+      if (at < 0 || word in found) continue;
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + word.length);
+      const r = range.getBoundingClientRect();
+      const rules = [];
+      let items = 0;
+      for (let el = node.parentElement; el !== root; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (parseFloat(style.borderLeftWidth) > 0)
+          rules.push(Math.round(el.getBoundingClientRect().left - origin));
+        if (style.display === 'list-item') items++;
+      }
+      found[word] = {x: Math.round(r.left - origin), y: r.top - top, rules, items};
+    }
+  }
+  return found;
+}"""
+
+
+def test_a_draft_nests_its_blocks_as_its_sent_message_does(browser, serve):
+    """A quote inside a quote, and code inside a quote, stand in the draft where they will
+    in the message, each beside its quote's rule. The preview drew every quoted line with
+    one class, which CodeMirror merged, so a nested quote showed one rule at one inset and
+    a lazy line seemed back at the first level; a code block's frame replaced its quote's
+    rule and inset, and indented code in a quote showed its four spaces. A fence its quote
+    ended lacked the code's padding below it, so the next block rose on sending. A list
+    in a quote kept its source markers as words, where the message draws bullets."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, NESTED, {"section": "p0"})
+    page = open_page(browser, url, init_script=KEEP_ROOTS)
+    view = open_panel_thread(page, root)
+    words = [
+        "alpha",
+        "beta",
+        "gamma",
+        "delta",
+        "zeta",
+        "omega",
+        "kappa",
+        "lambda",
+    ]
+    sent = view.locator(".lf-msg-text").first.evaluate(WORDS_AND_RULES, words)
+    box = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    # The caret stays after the last word, away from every container's source.
+    write(box, NESTED)
+    rendered(page)
+    draft = box.evaluate(
+        f"""(box, words) => ({WORDS_AND_RULES})(
+          window.__lfRoots.get(box).querySelector('.cm-content'), words)""",
+        words,
+    )
+    # Each word's line is read from the word above it, so one gap flags once.
+    step = {
+        name: [round(read[b]["y"] - read[a]["y"]) for a, b in pairwise(read)]
+        for name, read in (("sent", sent), ("draft", draft))
+    }
+    assert step["draft"] == pytest.approx(step["sent"], abs=1), step
+    for read in (sent, draft):
+        for place in read.values():
+            del place["y"]
+    assert draft == sent
+
+
+# A rule under a line and in a list item, entities, a backslash's break, spaces
+# leading a paragraph and a quoted line, a tab in code, and task items, each followed
+# by a word.
+SPELLED = (
+    "alpha &amp; bravo &copy; charlie\ndelta\\\necho\n---\n   foxtrot\n"
+    "> golf\n>    hotel\n\n- lima\n  ***\n  mike\n- november\n\noscar\n\n"
+    "```\n\tpapa\n```\n\n- [ ] india\n- [x] juliet\n- kilo"
+)
+# The words a root shows, the source the editor leaves unseen aside, a box's state as
+# its word.
+SHOWN_WORDS = """root => {
+  const words = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let node; (node = walker.nextNode()); ) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      if (node.type === 'checkbox') words.push(node.checked ? '[done]' : '[open]');
+      continue;
+    }
+    if (!node.parentElement.closest('.lf-md-unseen')) words.push(node.data);
+  }
+  return words.join(' ').split(/\\s+/).filter(Boolean).join(' ');
+}"""
+
+
+def test_a_draft_draws_what_its_message_shows_for_the_source(browser, serve):
+    """A draft shows the characters its message shows, where the message shows them.
+    The preview left as source a rule, which the message draws as a stroke through a
+    line, an entity, which it shows as the character named, a break's backslash and
+    the spaces leading a paragraph or a quoted line, which it drops, and a task item's
+    brackets, which it draws as a disabled checkbox. Code drew a tab four columns wide
+    where the message draws it eight. A press on a task's box puts the caret in its
+    brackets, which then show, as a press on any drawn source does: in Chromium the
+    disabled box took the press, and nothing happened."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, SPELLED, {"section": "p0"})
+    page = open_page(browser, url, init_script=KEEP_ROOTS)
+    view = open_panel_thread(page, root)
+    words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"]
+    words += ["lima", "mike", "november", "oscar", "papa", "india", "juliet", "kilo"]
+    message = view.locator(".lf-msg-text").first
+    sent = message.evaluate(WORDS_AND_RULES, words)
+    sent_words = message.evaluate(SHOWN_WORDS)
+    box = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    # The caret stays after the last word, away from every construct's source.
+    write(box, SPELLED)
+    rendered(page)
+    content = "window.__lfRoots.get(box).querySelector('.cm-content')"
+    draft = box.evaluate(
+        f"(box, words) => ({WORDS_AND_RULES})({content}, words)", words
+    )
+    draft_words = box.evaluate(f"box => ({SHOWN_WORDS})({content})")
+    assert draft_words == sent_words
+    step = {
+        name: [round(read[b]["y"] - read[a]["y"]) for a, b in pairwise(read)]
+        for name, read in (("sent", sent), ("draft", draft))
+    }
+    assert step["draft"] == pytest.approx(step["sent"], abs=1), step
+    for read in (sent, draft):
+        for place in read.values():
+            del place["y"]
+    assert draft == sent
+    # The box's centre once it holds still, where the field takes the press.
+    centre = f"""box => {{
+      const r = {content}.querySelector('input[type=checkbox]').getBoundingClientRect();
+      const x = r.x + r.width / 2, y = r.y + r.height / 2;
+      return [x, y, box.getRootNode().elementFromPoint(x, y) === box];
+    }}"""
+    task = None
+    while task != (task := box.evaluate(centre)):
+        rendered(page)
+    assert task[2], "the field doesn't hold the task's box under the pointer"
+    page.mouse.click(*task[:2])
+    expect(box).to_be_focused()
+    rendered(page)
+    brackets = SPELLED.index("[ ]")
+    pressed = box.evaluate(
+        f"box => [box.selectionStart, {content}.querySelectorAll('input').length]"
+    )
+    assert brackets <= pressed[0] <= brackets + 3 and pressed[1] == 1, pressed
+
+
+# The field's height and the top of each of its lines in it, once they hold still,
+# which revealing a line's source leaves where they stood. The caret's reveal can carry
+# them a fraction of a pixel; a scroll bringing the caret into view carries the field
+# with them, and the field carries its words to where its growth puts them.
+STILL = """async box => {
+  const read = () => {
+    const { top, height } = box.getBoundingClientRect();
+    return JSON.stringify([height, ...[...window.__lfRoots.get(box)
+      .querySelectorAll('.cm-line')].map(line => line.getBoundingClientRect().top - top)]);
+  };
+  for (let last = read(); ; ) {
+    await new Promise((done) => setTimeout(done, 100));
+    const now = read();
+    if (now === last) return JSON.parse(now);
+    last = now;
+  }
+}"""
+
+
+# Rules between paragraphs, with and without blank lines around them.
+@pytest.mark.parametrize(
+    "source", ["P\n\n---\n\nQ", "P\n***\nQ"], ids=["apart", "close"]
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_step_onto_a_drawn_rule(engine, source, request, serve):
+    """Up and Down step onto a rule's line, which then shows its source on that line,
+    and nothing moves. The rule's line was a stroke's height while the caret was away,
+    and grew to a line's height as its source showed, growing the field and moving
+    every line below it."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    write(field, source)
+    rendered(page)
+    still = field.evaluate(STILL)
+    rule = next(at for at in range(len(source)) if source[at] in "-*")
+    landed = []
+    for key in ["ArrowUp"] * source[rule:].count("\n") + ["ArrowUp", "ArrowDown"]:
+        page.keyboard.press(key)
+        landed.append(field.evaluate("box => box.selectionStart"))
+        rendered(page)
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
+    on_rule = [rule <= at <= rule + 3 for at in landed]
+    # Up from the last line reaches the rule, Up leaves it, Down comes back.
+    assert on_rule[-3:] == [True, False, True], landed
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_show_the_quote_marker_the_caret_reaches(engine, request, serve):
+    """Up and Down at the start of a quote's lines show the `>` of the line the caret
+    reaches and hide the one it left, and nothing moves. CodeMirror moves one line's
+    marker element to the other line and swaps its `> ` for that line's, which the
+    browser fixture's write watch read as rewriting a marker unchanged."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    write(field, "> one\n> two\n> three")
+    page.keyboard.press("Home")
+    rendered(page)
+    still = field.evaluate(STILL)
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(
+      line => !line.querySelector('.lf-md-quote-marker').matches('.lf-md-unseen'))"""
+    seen = [field.evaluate(shown)]
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown"]:
+        page.keyboard.press(key)
+        rendered(page)
+        seen.append(field.evaluate(shown))
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), seen
+    assert seen == [
+        [False, False, True],
+        [False, True, False],
+        [True, False, False],
+        [False, True, False],
+    ]
+
+
+# The caret's left edge in the field's content: a collapsed range at it, measured on
+# the text node holding it in the line it stands on.
+CARET_X = """box => {
+  const root = window.__lfRoots.get(box);
+  const content = root.querySelector('.cm-content');
+  const at = box.selectionStart;
+  const line = box.value.slice(0, at).split('\\n').length - 1;
+  let column = at - box.value.lastIndexOf('\\n', at - 1) - 1;
+  const row = content.querySelectorAll('.cm-line')[line];
+  const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  range.setStart(row, 0);
+  for (let node; (node = walker.nextNode()); ) {
+    if (column <= node.data.length) { range.setStart(node, column); break; }
+    column -= node.data.length;
+  }
+  const rect = range.getBoundingClientRect();
+  const left = rect.top || rect.left ? rect.left : row.getBoundingClientRect().left;
+  return [line, at - box.value.lastIndexOf('\\n', at - 1) - 1,
+          left - content.getBoundingClientRect().left];
+}"""
+
+
+@pytest.mark.parametrize("column", [0, 14])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_arrow_keys_keep_their_column_across_a_fence(engine, column, request, serve):
+    """Up through a fence and its code visits every line, keeping the caret as near
+    the column it set out from as each line allows, as CodeMirror's own motion does.
+    The step onto a short line placed the caret by the character column it carried,
+    which a blank line resets to 0, on every short line, and code lines, a pixel
+    shorter than prose, counted as short. A fence's line shows its source, and nothing
+    moves: it stood for the code box's padding while the caret was away and grew to a
+    code line as the caret arrived, growing the field and moving every line."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    source = (
+        "Para above the fence.\n\n```\ncode line that is long\n```\n\n"
+        "after the fence, too"
+    )
+    write(field, source)
+    last = source.rindex("\n") + 1
+    field.evaluate("(box, at) => box.setSelectionRange(at, at)", last + column)
+    # An arrow there and back reads the place as the user's, and sets the goal.
+    page.keyboard.press("ArrowRight" if column == 0 else "ArrowLeft")
+    page.keyboard.press("ArrowLeft" if column == 0 else "ArrowRight")
+    *_, goal = field.evaluate(CARET_X)
+    rendered(page)
+    still = field.evaluate(STILL)
+    lines = source.split("\n")
+    landed = []
+    for _ in range(len(lines) - 1):
+        page.keyboard.press("ArrowUp")
+        landed.append(field.evaluate(CARET_X))
+        rendered(page)
+        assert field.evaluate(STILL) == pytest.approx(still, abs=0.5), landed
+    assert [line for line, _, _ in landed] == list(range(len(lines) - 2, -1, -1))
+    for (line, at, x), text in zip(landed, reversed(lines[:-1]), strict=True):
+        if column == 0:
+            assert at == 0, (line, landed)
+        # A line shorter than the goal holds the caret at its end, a blank one at 0;
+        # code's characters are wider than prose's, so the caret is a character off.
+        elif len(text) > column + 2:
+            assert x == pytest.approx(goal, abs=9), (line, landed, goal)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "lines",
+    [["```", "one", ""], ["- item", "  ```", "  one", "  "]],
+    ids=["draft", "item"],
+)
+def test_a_new_line_in_an_open_fence_starts_in_its_code(engine, lines, request, serve):
+    """A line begun at the end of a fence not yet closed is a line of its code from the
+    start, in the draft or in a list item, its indent unseen as the message drops it.
+    The parser's reading of the fence stops before the draft's blank last line, so the
+    preview drew that line, with the caret on it, below the code's frame as prose, and
+    moved it into the frame on the first key; in an item, the code then showed the
+    item's indent."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    for at, text in enumerate(lines):
+        if at:
+            # A user retyping the line takes back what continuing the list put there.
+            before = field.evaluate("box => box.value")
+            page.keyboard.press("Shift+Enter")
+            while len(field.evaluate("box => box.value")) > len(before) + 1:
+                page.keyboard.press("Backspace")
+        page.keyboard.type(text)
+    expect(field).to_have_js_property("value", "\n".join(lines))
+    # The last line's box from the fence's, which the field's growth carries with it,
+    # and where the words of each line start.
+    last_line = r"""box => {
+      const lines = [...window.__lfRoots.get(box).querySelectorAll('.cm-line')];
+      const fence = lines.find(line => line.textContent.includes('```'))
+        .getBoundingClientRect();
+      const r = lines.at(-1).getBoundingClientRect();
+      const style = getComputedStyle(lines.at(-1));
+      const words = lines.slice(-2).map(line => {
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        for (let node; (node = walker.nextNode()); ) {
+          const at = node.data.search(/\S/);
+          if (node.parentElement.closest('.lf-md-unseen') || at < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, at);
+          range.setEnd(node, at + 1);
+          return range.getBoundingClientRect().left;
+        }
+      });
+      return {box: [r.left - fence.left, r.top - fence.top, r.width],
+        face: [style.fontFamily, style.backgroundColor], words};
+    }"""
+    rendered(page)
+    empty = field.evaluate(last_line)
+    page.keyboard.type("two")
+    expect(field).to_have_js_property("value", "\n".join(lines) + "two")
+    rendered(page)
+    typed = field.evaluate(last_line)
+    assert typed["box"] == pytest.approx(empty["box"], abs=0.5), (empty, typed)
+    assert typed["face"] == empty["face"]
+    one, two = typed["words"]
+    assert two == pytest.approx(one, abs=0.5), typed
+
+
+# Keys typed into a draft, Shift+Enter as `⏎`, Backspace as `⌫`, ArrowLeft as `←`, Tab
+# as `⇥`, Shift+Tab as `⇤` and undo as `↶`, and the draft they leave.
+KEYS = {
+    "⏎": "Shift+Enter",
+    "⌫": "Backspace",
+    "←": "ArrowLeft",
+    "⇥": "Tab",
+    "⇤": "Shift+Tab",
+    "↶": "ControlOrMeta+z",
+}
+
+
+def type_drafts(page, field, drafts):
+    """Type each draft's keys into an emptied field; return the draft each leaves."""
+    left = {}
+    for name, (typed, _) in drafts.items():
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.press("Backspace")
+        expect(field).to_have_js_property("value", "")
+        for key in typed:
+            if key in KEYS:
+                page.keyboard.press(KEYS[key])
+            else:
+                page.keyboard.type(key)
+        left[name] = field.evaluate("box => box.value")
+    return left
+
+
+CONTINUED = {
+    "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
+    "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
+    "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
+    "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
+    "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
+    "outdenting a nested item": (
+        "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
+        "1. a\n2. b\n   - c\n3. d",
+    ),
+    "splitting an item": ("- one two←←←⏎", "- one \n- two"),
+    "leaving a list, then its quote": ("> - a⏎⏎⏎x", "> - a\n\nx"),
+    "continuing a task": ("- [ ] a⏎b", "- [ ] a\n- [ ] b"),
+    "leaving a task list": ("- [ ] a⏎⏎b", "- [ ] a\n\nb"),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_shift_enter_continues_the_containers_the_message_will_hold(
+    engine, request, serve
+):
+    """Shift+Enter begins a line in each quote and list item the message will read the
+    caret's line in, a fence's code included, and on a line holding only their markers
+    leaves the innermost, an item in an item outdenting; a task's next item is an open
+    task. CodeMirror's own Markdown grammar decided it, which stopped at a fence, so a
+    fence's next line fell out of its quote or item and its closing fence opened
+    another; leaving a list took a third press, the second only loosening it. A bare
+    `> ` after a list read as inside the list's last item, so leaving the quote did
+    nothing."""
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE))
+    field = page_comment(page)
+    left = type_drafts(page, field, CONTINUED)
+    assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
+
+
+# The last draft stays in the field for its preview to be read.
+NESTING = {
+    "taking it out again": ("- one⏎⇥two⇤", "- one\n- two"),
+    "nesting in a quote": ("> - one⏎⇥two", "> - one\n>   - two"),
+    "nesting a numbered item": ("1. one⏎⇥two", "1. one\n   1. two"),
+    "the first item": ("- one⇥", "- one"),
+    "undoing a nest": ("- one⏎⇥↶", "- one\n- "),
+    "nesting a new item": ("- one⏎⇥two", "- one\n  - two"),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_nests_a_list_item_and_shift_tab_takes_it_out(engine, request, serve):
+    """Tab in a list item nests it under the item above, where the message will draw it
+    as a nested item, in the platform's nested bullet; Shift+Tab takes it out a level,
+    and one undo takes back one Tab. The first item, with no item to nest under, stays
+    and keeps the caret. Elsewhere Tab and Shift+Tab leave the field, as they used to
+    from a list too."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    left = type_drafts(page, field, NESTING)
+    assert left == {name: draft for name, (_, draft) in NESTING.items()}
+    expect(field).to_be_focused()
+    # The nested item wears the nested bullet with its words and before them, though
+    # the message reads an empty nested item as words of the item above.
+    bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
+      .map(line => [...line.closest('.lf-md-item').classList]
+        .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
+    for erase in (0, len("two")):
+        for _ in range(erase):
+            page.keyboard.press("Backspace")
+        rendered(page)
+        assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
+    expect(field).to_have_js_property("value", "- one\n  - ")
+    # Outside a list item the press leaves the field as before, and so does Shift+Tab
+    # with no item to take out, so a draft that is all list still lets focus out.
+    for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
+        field.focus()
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.type(typed)
+        page.keyboard.press(key)
+        expect(field).not_to_be_focused()
+        expect(field).to_have_js_property("value", typed)

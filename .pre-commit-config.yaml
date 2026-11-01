@@ -5,17 +5,17 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        # Generated output and captured evidence must keep their original bytes.
-        exclude: &generated ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
+        # Generated output, source patches and captured evidence keep their bytes.
+        exclude: &verbatim ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)|\.patch$
       - id: end-of-file-fixer
-        exclude: *generated
+        exclude: *verbatim
       - id: check-yaml
       - id: check-json
       - id: check-toml
       - id: mixed-line-ending
-        exclude: *generated
+        exclude: *verbatim
       - id: check-added-large-files
-        exclude: *generated
+        exclude: ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.3
     hooks:
@@ -38,6 +38,12 @@ repos:
         args: [--max-warnings=0, --no-warn-ignored]
   - repo: local
     hooks:
+      - id: record-types
+        name: generated Python record types
+        language: system
+        entry: uv run leaf-dev record-types --check
+        pass_filenames: false
+        files: '^(src/leaf/|dev/leaf_dev/commands/record_types\.py$|pyproject\.toml$|uv\.lock$)'
       - id: ty
         name: ty
         language: system

@@ -47,8 +47,9 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
 )
 
 
+@pytest.mark.parametrize("draft", [False, True], ids=["stamped", "draft"])
 def test_interactive_export_with_an_obligation_reaches_application_presentation(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, draft
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
@@ -61,6 +62,7 @@ def test_interactive_export_with_an_obligation_reaches_application_presentation(
             str(serve.page_dir),
             "--out",
             str(interactive),
+            *(["--draft"] if draft else []),
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
@@ -263,7 +265,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         leaf_page(
             "offline deferred data",
             '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     patch = (
@@ -408,6 +410,11 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
+    imports = page.evaluate("""() => JSON.parse(
+        document.querySelector('script[type="importmap"]').textContent
+    ).imports""")
+    assert imports
+    assert all(url.startswith("blob:") for url in imports.values())
     assert page.evaluate("document.characterSet") == "UTF-8"
     assert page.evaluate("window.order") == ["head", "body"]
     assert page.evaluate("document.doctype.name") == "html"
@@ -677,8 +684,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     url = serve(
         leaf_page(
             "thread export",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
     data_model.cmd_data_set(
@@ -805,8 +811,10 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         leaf_page(
             "Exported notes",
             '<h1 id="title">Migration</h1>'
-            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
-            '<p id="passage">Advance the migration one cohort at a time.</p>',
+            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
+            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
+        ).replace(
+            '<main class="layout-column">', '<main class="layout-column layout-notes">'
         )
     )
     interactive = tmp_path / "margin-notes.html"
@@ -816,13 +824,17 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.goto(interactive.as_uri(), wait_until="load")
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#note")).to_have_css("float", "right")
+    wide = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert wide["x"] >= prose["x"] + prose["width"]
     page.set_viewport_size({"width": 390, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "none")
-    page.set_viewport_size({"width": 1440, "height": 900})
-    expect(page.locator("#note")).to_have_css("float", "right")
+    narrow = page.locator("#note").bounding_box()
+    prose = page.locator("#passage").bounding_box()
+    assert narrow["y"] >= prose["y"] + prose["height"]
+    page.set_viewport_size({"width": 1600, "height": 900})
+    assert page.locator("#note").bounding_box() == pytest.approx(wide)

@@ -1,6 +1,7 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -58,8 +59,6 @@ _RENDERING_SETTLED = """facts => {
   const state = globalThis.__leafRenderDriver.renderingState();
   return (facts ?? Object.keys(state)).every(fact => state[fact]);
 }"""
-_THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
-_PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
 
 def _timeout(page, timeout_ms: int | None) -> int:
@@ -113,40 +112,44 @@ def observe_output_documents(page) -> None:
     page.expose_binding("__leafOutputValue", heard)
 
     def before_entry(route):
+        frame = route.request.frame
+        if not is_runtime_entry(route.request):
+            route.fallback()
+            return
+        # Let the browser order the subscription before this entry's upgrade. A route
+        # callback must not wait for a document: sibling sample routes can nest while
+        # its parser is awaiting another response, stranding both. This imports the
+        # same check API graph as the runtime; no publication can precede the call.
         try:
-            frame = route.request.frame
-            if not is_runtime_entry(route.request):
-                route.fallback()
-                return
-            # Let the browser order the subscription before this entry's upgrade. A route
-            # callback must not wait for a document: sibling sample routes can nest while
-            # its parser is awaiting another response, stranding both. This imports the
-            # same check API graph as the runtime; no publication can precede the call.
-            try:
-                response = route.fetch(timeout=_timeout(page, None))
-            except PlaywrightError:
-                route.abort()
-                return
-            document = frame.url
-            probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
-            route.fulfill(
-                response=response,
-                body=(
-                    f'import {{ observeOutputValues }} from "{probe}";\n'
-                    "observeOutputValues();\n" + response.text()
-                ),
-            )
-            page._leaf_output_documents[frame] = document
+            response = route.fetch(timeout=_timeout(page, None))
         except PlaywrightError:
-            # Closing a page cancels the entire observer, including a body read
-            # after fetch returned. Let no cancelled route poison the shared
-            # driver's next call; failures on a live page still reach its caller.
-            if not page.is_closed():
-                raise
+            route.abort()
+            return
+        document = frame.url
+        probe = urljoin(route.request.url, f"{RENDER_CHECKS_DIR}/outputs.js")
+        route.fulfill(
+            response=response,
+            body=(
+                f'import {{ observeOutputValues }} from "{probe}";\n'
+                "observeOutputValues();\n" + response.text()
+            ),
+        )
+        page._leaf_output_documents[frame] = document
 
-    # The main document's pre-upgrade proof holds its own entry; subsequent child
-    # entries reach this route, including samples opened later by the check's sweep.
+    # Observe publications before each document's entry runs, including the main
+    # document and samples opened later by the check's sweep.
     page.route("**/leaf.js", before_entry)
+
+
+def close_render_page(page) -> None:
+    """Cancel route callbacks before disposing a render check's page and responses.
+
+    Context closure disposes fetched responses before the page reports closed, so
+    callback-local checks of `is_closed()` cannot recognize every cancellation.
+    Playwright's route lifecycle suppresses errors from those cancelled callbacks.
+    """
+    page.unroute_all(behavior="ignoreErrors")
+    page.close()
 
 
 def output_values(page) -> list[dict]:
@@ -195,6 +198,25 @@ def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
     _load_probes(page, _timeout(page, None))
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
+
+
+@contextmanager
+def observe_probe(page, name: str, *args):
+    """Own a probe's native finish closure; fill its records when the scope ends.
+
+    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
+    observation in this document and disconnects it even if the caller's work fails.
+    """
+    _load_probes(page, _timeout(page, None))
+    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
+    records = []
+    try:
+        yield records
+    finally:
+        try:
+            records.extend(handle.evaluate("finish => finish()"))
+        finally:
+            handle.dispose()
 
 
 def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
@@ -374,19 +396,6 @@ def wait_until_ready(
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
-
-
-def wait_for_theme(page) -> None:
-    """Wait until the authored document's theme stylesheet is readable."""
-    _ensure_driver(page)
-    page.wait_for_function(_THEME_READY)
-
-
-def pre_upgrade_findings(page) -> list[dict]:
-    """Read authored structure before the held Leaf entry is released, as finding
-    records (`leaf.findings`)."""
-    _ensure_driver(page)
-    return page.evaluate(_PRE_UPGRADE_FINDINGS)
 
 
 def install_window_errors(page, heard) -> None:

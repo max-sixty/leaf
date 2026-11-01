@@ -378,9 +378,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
         before = geometry()
         assert before["padding"] == "12px", before
-        # Copy's toolbar stands on the block's top border, near its right edge.
+        # Copy's toolbar stands just inside the block's top-right corner.
         frame, overlay = before["frame"], before["copy"]
-        assert overlay[1] + overlay[3] / 2 == pytest.approx(frame[1], abs=1), before
+        assert 0 <= overlay[1] - frame[1] <= 8, before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
             # Enter on the source copies it, though the control stands outside
@@ -694,7 +694,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "data-bound diff",
         '<h1 id="title">Review</h1><div style="height: 900px"></div>'
         '<lf-diff id="patch" source="review-patch">'
-        "<pre></pre></lf-diff>",
+        "</lf-diff>",
     )
     url = serve(authored)
     patch = """diff --git a/app.py b/app.py
@@ -974,7 +974,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-        "<pre></pre></lf-diff>",
+        "</lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -1026,8 +1026,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_status).to_have_text("Got it")
-    expect(panel_status).to_have_text("Got it")
+    expect(inline_status).to_have_text("Delivered")
+    expect(panel_status).to_have_text("Delivered")
     expect(inline_status).to_have_attribute("data-identity-probe", "inline")
     expect(panel_status).to_have_attribute("data-identity-probe", "panel")
     reply = append_carried_log_record(
@@ -1129,7 +1129,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     panel_settled(page, open=False)
 
     strip = thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-strip')
-    strip.locator(".lf-react-trigger").click()
+    thread.locator(f'.lf-msg[data-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
         strip.locator('.lf-react[data-token="change"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
@@ -1178,7 +1178,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
                 for case in [*accepted, *refused]
             ),
             *(
-                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"></lf-diff>'
                 for case in [*accepted, *stored]
             ),
             f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
@@ -1221,7 +1221,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             "files": [],
             "rendered": False,
             "errors": [f"<lf-diff> failed: {case['widget']}"],
-            "source": case["patch"].rstrip("\n") or None,
+            "source": case["patch"] or None,
         }, case["id"]
     for case in stored:
         reading = readings[f"files-{case['id']}"]

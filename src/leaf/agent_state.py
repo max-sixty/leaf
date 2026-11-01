@@ -81,7 +81,7 @@ def cmd_page_state(
         raise Refused("--after and --limit page a thread; name one as ID")
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
-        return _page_state(
+        return page_state(
             page_dir,
             page.events,
             activation.error,
@@ -294,11 +294,17 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             for item in state["obligations"]
             if item["thread"] is None
             and (
-                item["source"]["kind"] == "widget"
-                and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
-                or item["source"]["kind"] in {"update", "todo"}
-                and item["source"]["subject"]["kind"] == "widget"
-                and inside(item["source"]["subject"]["id"])
+                (
+                    item["source"]["kind"] == "widget"
+                    and (
+                        inside(item["source"]["id"]) or inside(item["prompt"]["target"])
+                    )
+                )
+                or (
+                    item["source"]["kind"] in {"update", "todo"}
+                    and item["source"]["subject"]["kind"] == "widget"
+                    and inside(item["source"]["subject"]["id"])
+                )
             )
         ],
         "todos": [
@@ -310,7 +316,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def _page_state(
+def page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
@@ -365,7 +371,7 @@ def _page_state(
                 "claim_session",
                 "session_name",
                 "session_cwd",
-                "claim_turn",
+                "turn",
                 "turn_closed",
             )
         },
@@ -395,6 +401,13 @@ def _page_state(
     state["workflows"] = served["workflows"]
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
+    )
+    # The newest revision a tab showed the user, recorded as they left it
+    # (`read_state.seen_revision`), which their page marks its changes since on their
+    # return. It lags while they are still on the page.
+    seen = served["seen"]
+    state["seen"] = (
+        {"revision": seen["revision"], "label": seen["label"]} if seen else None
     )
     # Before a first revision there is no document, so no thread, obligation, widget, or
     # claim subject either: every reading below keeps its empty default.

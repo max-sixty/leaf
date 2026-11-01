@@ -1,21 +1,25 @@
 """The screens `page check --render` saves for the author to read.
 
 The gate's findings say what is broken; they cannot say whether the page reads well,
-which is the author's judgment of a picture. So the check saves the page as a reader
-meets it: down the page three times, on a desktop, in the widest window the sweep
-reaches, where what scales with the window is at its largest, and on a phone, each as
-far as its first eight screens, where a reader decides whether to go on, with the
-label saying how many of the page's screens they are; one screen at each width
-where the page's own arrangement is at its tightest before it changes, or where its
-margin content changes, with that box in view; and, on a page with obligations, the desktop
-window at each of its first eight open ones as `m` arrives there from the top, which is
-how a user working the page reads each obligation, with the view that holds it opened;
-`m` walks everything waiting on the user, so a thread or a handed-back widget action it
-stops at on the way gets no screen. The screens go to one directory per page
-under the state home's screens/, which the check names; a check writes a fresh
-directory beside it and then puts it in its place, so a reader never meets half of one
-check's screens and half of another's. The page directory is the page's record, and a
-file there would count as activity on the page.
+which is the author's judgment of a picture. The check captures a fresh desktop
+arrival, then resizes that desktop through selected expansion views: the widest
+window the sweep reaches, followed by the widths where the page's arrangement is
+at its tightest before it changes or its margin content changes. These are resized
+desktop views, not fresh arrivals at each width or a replay of every sweep width;
+page code that depends on its initial window keeps the desktop's startup state.
+A separate fresh phone supplies mobile input capabilities from startup.
+
+Desktop, widest-window and phone captures each cover the first eight screens at
+most, with the label saying how many of the page's screens they are. Arrangement
+captures show the box that changed. An independent desktop arrival walks the first
+eight open obligations with `m` from the top, opening the view that holds each one;
+this keeps the walk's opened disclosures out of the expansion views. `m` walks
+everything waiting on the user, so a thread or a handed-back widget action it stops
+at on the way gets no screen. The screens go to one directory per page under the
+state home's screens/, which the check names; a check writes a fresh directory
+beside it and then puts it in its place, so a reader never meets half of one check's
+screens and half of another's. The page directory is the page's record, and a file
+there would count as activity on the page.
 
 A screen is the window as the reader sees it, fixed chrome included, scrolled by most
 of a window at a time, because the document is the page's scroller and a full-page
@@ -26,7 +30,7 @@ import tempfile
 from pathlib import Path
 
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.readings import SWEEP_WIDTHS
+from leaf.render_gate.readings import SWEEP_WIDTHS, settle_at
 from leaf.state import page_key, state_home
 
 PHONE = {"width": 390, "height": 844}
@@ -132,46 +136,48 @@ def save_screens(
     into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
     saved = []
 
-    def whole(viewport, phone, label):
-        context, page = _open(browser, url, viewport, phone)
-        try:
-            shots, total = _down_the_page(page, into, f"{viewport['width']}px")
-            if total > len(shots):
-                label = f"{label}, the first {len(shots)} of the page's {total} screens"
-            saved.extend((shot, label) for shot in shots)
-        finally:
-            context.close()
+    def whole(page, label):
+        shots, total = _down_the_page(page, into, f"{page.viewport_size['width']}px")
+        if total > len(shots):
+            label = f"{label}, the first {len(shots)} of the page's {total} screens"
+        saved.extend((shot, label) for shot in shots)
 
-    def one(width, selector, name, label):
-        viewport = {"width": width, "height": desktop["height"]}
-        context, page = _open(browser, url, viewport, False)
-        try:
+    context, page = _open(browser, url, desktop, False)
+    try:
+        obligation_shots, more = _obligations_in_turn(page, into)
+        obligation_label = (
+            "desktop, each press of `m` from the top, at the next open obligation"
+        )
+        if more:
+            obligation_label = (
+                f"{obligation_label}, the first {len(obligation_shots)}"
+                " of the page's open obligations"
+            )
+    finally:
+        context.close()
+    context, page = _open(browser, url, desktop, False)
+    try:
+        whole(page, "desktop")
+        saved.extend((shot, obligation_label) for shot in obligation_shots)
+        settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
+        whole(page, "resized desktop, the widest window")
+        for width, selector, said in reading.arrangement:
+            settle_at(page, width, desktop["height"])
             page.evaluate(
                 "(s) => document.querySelector(s)?.scrollIntoView({block: 'start'})",
                 selector,
             )
             rendered(page)
-            shot = into / f"{width}px-{name}.png"
+            shot = into / f"{width}px-arrangement.png"
             page.screenshot(path=shot)
-            saved.append((shot, label))
-        finally:
-            context.close()
-
-    whole(desktop, False, "desktop")
-    context, page = _open(browser, url, desktop, False)
-    try:
-        shots, more = _obligations_in_turn(page, into)
-        label = "desktop, each press of `m` from the top, at the next open obligation"
-        if more:
-            label = f"{label}, the first {len(shots)} of the page's open obligations"
-        saved.extend((shot, label) for shot in shots)
+            saved.append((shot, f"resized desktop, the tightest before {said}"))
     finally:
         context.close()
-    widest = {"width": max(SWEEP_WIDTHS), "height": desktop["height"]}
-    whole(widest, False, "the widest window")
-    for width, selector, said in reading.arrangement:
-        one(width, selector, "arrangement", f"the tightest before {said}")
-    whole(PHONE, True, "phone")
+    context, page = _open(browser, url, PHONE, True)
+    try:
+        whole(page, "phone")
+    finally:
+        context.close()
     if final.exists():
         shutil.rmtree(final)
     into.rename(final)

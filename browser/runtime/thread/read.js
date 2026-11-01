@@ -197,6 +197,7 @@ export function createReadTracking({ markRead, openThread }) {
       : Promise.resolve();
   }
 
+  /** @satisfies {import("../keyboard/bindings.js").Command} */
   const firstUnreadCommand = {
     id: "thread.unread.first",
     ready: savedReadingSettled,
@@ -370,8 +371,6 @@ export function createReadTracking({ markRead, openThread }) {
 
   /** @param {Element} body @param {BodyReading} reading */
   function observeBody(body, reading) {
-    if (!(body instanceof Element))
-      throw new TypeError("A message body must be an Element");
     if (!renderedBodies.has(body)) sizes.observe(body);
     const registration = {
       body,

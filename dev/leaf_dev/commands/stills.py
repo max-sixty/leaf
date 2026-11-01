@@ -56,6 +56,16 @@ change that reuses Leaf's faces adds none, so a new face half a pixel or a hundr
 weight from its nearest is usually a drift to fold into that face. A consolidation
 lists the faces it retired.
 
+The command reads, too, where words stand on their lines. Words of two faces centred
+in boxes of their own stand on different baselines, the larger lower, and a reader
+sees the line step by a pixel. In every state both arms completed,
+`stills_baselines.js` reads the words that stand beside each other on a line (its
+header says which), and the run's `baselines.txt` lists each line whose words stand a
+quarter of a CSS pixel or more apart (`baseline_changes`): those only head splits,
+those both arms split, and those only base splits. Words on a box of their own, such
+as a key's letter on its badge, are listed and marked but count toward no split, since
+the eye reads that box rather than their baseline.
+
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
 comparison. Arm construction, browser setup failures, and interrupts end the command.
@@ -79,6 +89,8 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import Locator, Page, expect
 
 from leaf.render_checks import wait_until_ready
+from leaf.revision_artifact import resource_type
+from leaf.runtime_selection import read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -211,6 +223,12 @@ STYLES = """(properties) => {
   walk(document, "");
   return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements, texts };
 }"""
+# Where the words beside each other on a line stand their baselines
+# (`baseline_changes`), and the gap between two of them that the report names: half a
+# device pixel of the 2x stills, which can round to a whole one. A reader saw a name
+# stand half a CSS pixel below its time.
+BASELINES = Path(__file__).with_name("stills_baselines.js").read_text()
+SPLIT = 0.25
 # The computed properties that make a face, the font a run of words is set in, which
 # `face_changes` compares across a run.
 FACE = [
@@ -500,7 +518,7 @@ def thread_code_copy(page: Page) -> None:
 
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
-    unread, so Next unread stands among the view's controls."""
+    unread, so Next unread stands on the view's head line."""
     as_agent(
         "thread",
         "reply",
@@ -510,7 +528,7 @@ def floating_thread_unread(page: Page) -> None:
         + "The queue holds each edit until the server confirms it. " * 40,
     )
     floating_thread(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:
@@ -3312,13 +3330,13 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 @contextmanager
 def capture(
     browser, address: str, state: State, path: Path
-) -> Generator[tuple[dict | None, dict[str, list[str]], list[str], Page]]:
+) -> Generator[tuple[dict | None, dict[str, list[str]], list[str], list[dict], Page]]:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them. Yield the state's region in the screenshot,
     if it names one, its elements' styles and the paths of those showing words
-    (`STYLES`), and the tab, open until the block ends so `declaration_changes` can
-    read it."""
+    (`STYLES`), the lines whose words stand on baselines `SPLIT` apart (`BASELINES`),
+    and the tab, open until the block ends so `declaration_changes` can read it."""
     scale = 2
     with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
@@ -3346,8 +3364,9 @@ def capture(
         styles = {
             key: reading["faces"][face] for key, face in reading["elements"].items()
         }
+        splits = page.evaluate(BASELINES, SPLIT)
         region = {key: value * scale for key, value in clip.items()} if clip else None
-        yield region, styles, reading["texts"], page
+        yield region, styles, reading["texts"], splits, page
 
 
 def style_changes(
@@ -3449,6 +3468,51 @@ def face_changes(drawn: dict[str, dict[tuple[str, ...], list[str]]]) -> list[str
     return lines
 
 
+def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
+    """The lines whose words stand on baselines `SPLIT` apart in `split` (each arm's,
+    by state, from `BASELINES`): those only head splits, those both arms split, with
+    how far apart each arm stands them, and those only base splits, each with its
+    words' faces and where each stands against the line's first."""
+
+    def keyed(arm: str) -> dict[tuple, tuple[str, dict]]:
+        # A line is known by its state, row and words, and by which of the lines alike
+        # in those it is (`nth`), so two rows that read alike stay two.
+        return {
+            (
+                state,
+                line["row"],
+                *(item["text"] for item in line["items"]),
+                line["nth"],
+            ): (state, line)
+            for state, lines in split[arm].items()
+            for line in lines
+        }
+
+    head, base = keyed("head"), keyed("base")
+    groups = (
+        ("only head splits", head, head.keys() - base.keys()),
+        ("both arms split", head, head.keys() & base.keys()),
+        ("only base splits", base, base.keys() - head.keys()),
+    )
+    lines = []
+    for title, read, keys in groups:
+        if not keys:
+            continue
+        lines.append(f"lines {title}  x{len(keys)}")
+        for key in sorted(keys):
+            state, line = read[key]
+            spread = f"{line['spread']}px"
+            if key in base and key in head:
+                spread = f"{base[key][1]['spread']} -> {spread}"
+            lines.append(f"  {state}: {line['row']}  {spread} apart")
+            lines.extend(
+                f"      {item['text']!r} {item['face']}"
+                f"{' on a box' if item['boxed'] else ''} {item['offset']:+.2f}"
+                for item in line["items"]
+            )
+    return lines
+
+
 def declarations(page: Page) -> Callable[[str], list[str]]:
     """Read an element `STYLES` read, by its key, through Chromium's inspector: every
     authored declaration of the rules that match it and of its style attribute, in the
@@ -3543,12 +3607,19 @@ def differences(browser, out: Path):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
+    # The module imports the public package API, as a widget does, so the tab answers
+    # with this tree's runtime under the package's own vendored modules.
+    runtime = read_runtime().source
+
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
+        package = ROOT / "packages" / "default" / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
-        elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
+        elif path.startswith("/vendor/") and package.is_file():
+            route.fulfill(path=package)
+        elif path in runtime:
+            route.fulfill(body=runtime[path], content_type=resource_type(path))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:
@@ -3634,6 +3705,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
     drawn: dict[str, dict[tuple[str, ...], list[str]]] = {"base": {}, "head": {}}
+    split: dict[str, dict[str, list[dict]]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
         message = (
@@ -3673,6 +3745,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 crop_regions = []
                 styles = {}
                 texts = {}
+                splits = {}
                 pages = {}
                 # Both arms stay open through the comparison, which reads their tabs.
                 with ExitStack() as held:
@@ -3692,7 +3765,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                                     scratch / f"{arm}-{state.name}",
                                 )
                             )
-                            region, styles[arm], texts[arm], pages[arm] = (
+                            region, styles[arm], texts[arm], splits[arm], pages[arm] = (
                                 held.enter_context(
                                     capture(
                                         browser, address, state, folder / f"{arm}.png"
@@ -3706,6 +3779,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                     if state.name in failed:
                         continue
                     for arm, keys in texts.items():
+                        split[arm][state.name] = splits[arm]
                         for key in keys:
                             drawn[arm].setdefault(face_of(styles[arm][key]), []).append(
                                 f"{state.name}: {key}"
@@ -3748,6 +3822,13 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
             "faces one arm alone draws: "
             + ", ".join(line.strip() for line in lines if line.startswith("faces"))
             + f" -> {out / 'faces.txt'}"
+        )
+    if lines := baseline_changes(split):
+        (out / "baselines.txt").write_text("\n".join(lines) + "\n")
+        click.echo(
+            "lines whose words split their baseline: "
+            + ", ".join(line.strip() for line in lines if line.startswith("lines"))
+            + f" -> {out / 'baselines.txt'}"
         )
     click.echo(f"files in {out}")
     if failed:

@@ -1,7 +1,8 @@
 """Leaf's clerk: a fork of the agent's conversation, made as each of its turns ends,
 that checks the pages the session holds against the conversation. It puts On me what
-the agent left to the user without putting it there, and passes the agent what else
-it finds out of date. It is experimental, and runs only in Claude Code.
+the agent left to the user without putting it there, fixes a few out-of-date words on
+a page where the fork says how, and passes the agent what else it finds out of date.
+It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left
@@ -14,7 +15,12 @@ can act on them: Leaf writes a result only where the fork's answer settles it an
 record is one Leaf keeps for that purpose, an ask On me, and everything else reaches
 the agent as a message, which it acts on or forks off. That
 reverses the advisor's rejection for those findings alone. Only the agent opens a
-to-do on its own list, since that list holds work the user wants done.
+to-do on its own list, since that list holds work the user wants done. Later that day
+they asked that the fork also make small fixes itself, such as a lede that still says
+work is running, and tell the agent what it changed, which keeps the agent in control:
+it hears the old and new words and changes them back or rewrites them as it would its
+own edit. That reverses the rejection of a clerk that rewrites the page for fixes of a
+few words; a fix that needs more goes to the agent as a message.
 
 Three principles, the user's (2026-10-30), bound what the fork may do:
 
@@ -91,6 +97,23 @@ pick a to-do for a step once `m` opened On me on a to-do, where its title reads 
 (queue-walk.js). A step asked as a thread question had a cost: a clarifying reply
 such as "where do I run it?" answers it, and the agent has to ask again.
 
+The fork reads each page's words as the user reads them, a block to a line
+(`page_text`, from the passage reading `leaf thread create` quotes against), so it
+sees what a page says now, text written before a compaction included, and can quote
+it exactly. A stale finding may carry an edit: the page's words and the words to put
+in their place. Leaf makes it (`_fix`) only while no turn has opened since the fork
+read the conversation, and only where the page shows the words once. The reading,
+not the file's text, says which place in the source the user reads the words that
+change from (`_place`), so a copy in the head, a script, a style, a comment or a
+draft body the user rewrote is never the one changed. Leaf swaps just those words in
+`index.html` (`fixed_source`), keeping the source's whitespace between them so a line
+or paragraph break among them stays, checks that the page then reads as before but
+for them, and publishes the save as an agent's is checked and published, putting the
+source back where the check fails. A fix whose changing words cross markup, that
+would drop a line break, or that Leaf can't otherwise place reaches the agent as the
+finding alone. A page the agent builds from another file loses the fix at its next
+build, which the agent's line tells it.
+
 Leaf queues one line for each record and finding (`QUEUED`) under the same locks as
 its page's write, so a later page's failure loses no earlier page's lines. The next
 prompt or tool-boundary hook adds the lines to the agent's context
@@ -114,13 +137,23 @@ them real and 1 false, and 7 pieces of unshown work, 6 real and none false; the
 sample held no settled item, and one case added for it found both in 3 of 3 runs.
 Warm, a fork cost $0.125 and wrote about seven times
 the output. Rewording what failed, measured on those cases (`fork5.py`), cleared the
-false and chat-reply findings at the cost of one hedged but true one. Claude Code's
-fork reuses the
-session's cached prefix only while its system prompt, tools and effort match the
-session's, which `$.model.fork` keeps by resending the main thread's own last request.
+false and chat-reply findings at the cost of one hedged but true one. With each page's
+text in the prompt and edits allowed (`fork8.py`), once on eight turn ends, the fork
+named 34 stale passages against 17 without the text, and gave edits for 26, of which
+25 read right. Replayed through `fixed_source` on the pages' sources (`place8.py`),
+every one quoted words the page shows once, 24 landed where the user reads them and
+2, whose changing words cross a link or a code span, were refused; none landed
+anywhere else. The text adds about 1,000 to 11,000 input tokens per page. Claude
+Code's fork reuses the session's cached prefix only while its system prompt, tools
+and effort match the session's, which `$.model.fork` keeps by resending the main
+thread's own last request.
 """
 
 import json
+import re
+from bisect import bisect_right
+from html import escape
+from itertools import chain, islice
 from pathlib import Path
 
 from .schema import SKILL_FILE
@@ -186,6 +219,24 @@ ANSWER = {
                     # The agent's or the user's words, which the agent finds the
                     # original message by.
                     "quote": {"type": "string"},
+                    # A stale passage's fix where a few words make it: the page's
+                    # words and the words to put in their place (`_fix`). Optional,
+                    # since a fork that leaves it off another kind of finding would
+                    # otherwise lose the whole answer.
+                    "edit": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "words": _WORDS,
+                                    "replacement": {"type": "string"},
+                                },
+                                "required": ["words", "replacement"],
+                                "additionalProperties": False,
+                            },
+                        ]
+                    },
                 },
                 "required": ["kind", "page", "summary", "quote"],
                 "additionalProperties": False,
@@ -204,7 +255,8 @@ FORM = (
     '"<title>", "text": "<message, empty for a step>", "passage": "<the page\'s '
     'words, or empty>", "quote": "<the agent\'s words>"}], "findings": [{"kind": '
     '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
-    '"<summary>", "quote": "<the words it rests on>"}]}'
+    '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
+    'page\'s words>", "replacement": "<the new words>"} or null}]}'
 )
 
 # What each kind of finding is, as the agent's line names it.
@@ -317,6 +369,11 @@ def _block(facts: dict) -> str:
             ]
         )
     )
+    if facts.get("text"):
+        parts.append(
+            "What the page says now, as the user reads it, one block per line:\n"
+            + facts["text"]
+        )
     return "\n".join(parts)
 
 
@@ -395,13 +452,38 @@ def take_answer(session_id: str, text: str, asked: dict | None) -> dict:
 
 def _facts(page_dir: Path) -> dict | None:
     from .agent_state import page_state
+    from .files import latest_revision
     from .service import PageTransaction
 
     try:
         with PageTransaction(page_dir) as page:
-            return page_facts(page_state(page_dir, page.events), page.events)
+            facts = page_facts(page_state(page_dir, page.events), page.events)
+            revision = latest_revision(page_dir)
+            if revision is None:
+                return {**facts, "text": ""}
+            passages = _reading(page_dir, page.events, revision).passages()
+            return {**facts, "text": page_text(passages)}
     except FileNotFoundError:
         return None
+
+
+def _reading(page_dir: Path, events: list, revision: int):
+    """The page at `revision` under the log, whose `passages` are its words as the
+    user reads them, which `leaf thread create` quotes against."""
+    from .projection import page_reading
+    from .registry.storage import require_registry
+    from .revision_artifact import read_revision
+
+    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
+    return page_reading(reading, events, revision)
+
+
+def page_text(passages) -> str:
+    """`passages`' words with each block's on a line of its own."""
+    chars = list(passages.text)
+    for index in passages.breaks:
+        chars[index] = "\n"
+    return "".join(chars)
 
 
 def _title(words: str) -> str:
@@ -415,14 +497,15 @@ def _title(words: str) -> str:
 
 def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
     """Act on `answer` for each page `session_id` holds: put its asks On me
-    (`_ask`) while the session's turn is still the one `asked` names, and pass each
-    finding to the agent whatever turn has
-    opened since, queueing a line for each for the agent's next step; what it wrote
-    and told, and why it wrote no records if it didn't."""
+    (`_ask`) and make each stale passage's fix (`_fix`) while the session's turn is
+    still the one `asked` names, and pass each other finding to the agent whatever
+    turn has opened since, queueing a line for each for the agent's next step; what
+    it wrote, changed and told, and why it wrote no records if it didn't."""
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
 
     wrote: list[dict] = []
+    changed: list[dict] = []
     told: list[str] = []
     dropped = None
     for page_dir in owned_pages(session_id):
@@ -459,10 +542,17 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                         ):
                             wrote.append(record)
                             lines.append(line)
-                    lines.extend(
-                        _found(path, item, session_id, current)
-                        for item in mine["findings"]
-                    )
+                    # After the asks, which stand on the words the fork read.
+                    for item in mine["findings"]:
+                        edit = item.get("edit")
+                        fixed = (
+                            _fix(page_dir, page, edit)
+                            if current and item["kind"] == "stale" and edit
+                            else None
+                        )
+                        if fixed:
+                            changed.append({"page": path, **fixed})
+                        lines.append(_found(path, item, session_id, current, fixed))
                 finally:
                     if lines:
                         queue_path = session_file(session_id, QUEUED.kind)
@@ -471,7 +561,12 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                     told.extend(lines)
         except FileNotFoundError:
             continue
-    return {"wrote": wrote, "told": told, **({"dropped": dropped} if dropped else {})}
+    return {
+        "wrote": wrote,
+        "changed": changed,
+        "told": told,
+        **({"dropped": dropped} if dropped else {}),
+    }
 
 
 def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
@@ -522,10 +617,12 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
         yield record, _told(str(page_dir), kind, title, text, passage, record)
 
 
-def _found(path: str, item: dict, session_id: str, current: bool) -> str:
+def _found(
+    path: str, item: dict, session_id: str, current: bool, fixed: dict | None = None
+) -> str:
     """The line passing one finding to the agent: what the fork found, which turn it
-    read, `current` where no turn has opened since, and the words it rests on, so the
-    agent can find the original message."""
+    read, `current` where no turn has opened since, the words it rests on, so the
+    agent can find the original message, and what Leaf changed for it, if anything."""
     turn = "your last turn" if current else "a turn before the user's latest message"
     quoted = "\n".join(f"> {line}" for line in item["quote"].splitlines())
     rests = (
@@ -534,11 +631,198 @@ def _found(path: str, item: dict, session_id: str, current: bool) -> str:
         if quoted
         else ""
     )
+    done = (
+        f'Leaf changed "{fixed["old"]}" to "{fixed["new"]}" in {path}/index.html and '
+        "published it. The change is yours like any edit you make: change it back or "
+        "rewrite it if it's wrong, and if you build this page from another file, carry "
+        "the change there."
+        if fixed
+        else "Leaf changed nothing for this; act on it if it still holds."
+    )
     return (
         f"Leaf's turn-end check read {turn} and found {FOUND[item['kind']]} on "
-        f"{path}: {item['summary']}{rests}\nLeaf changed nothing for this; act on it "
-        "if it still holds."
+        f"{path}: {item['summary']}{rests}\n{done}"
     )
+
+
+def _fix(page_dir: Path, page, edit: dict) -> dict | None:
+    """Make a stale passage's fix in `page`, an open transaction (`fixed_source`), and
+    publish the page as an agent's save is checked and published; `{"old", "new"}`
+    once made, or None, writing nothing, where Leaf can't make it."""
+    from .files import require_revision
+    from .publishing import authored_files, replaced_authored_files
+    from .refusals import Refused
+    from .revisioning import activate_source
+
+    if activate_source(page_dir, transaction=page).error:
+        return None
+    view = _reading(page_dir, page.events, require_revision(page_dir))
+    previous = authored_files(page_dir / "index.html", page_dir / "page")
+    made = fixed_source(
+        previous["index.html"].decode(), view.registry, view.logged_words, edit
+    )
+    if made is None:
+        return None
+    fixed, change = made
+    try:
+        with replaced_authored_files(
+            page_dir, {**previous, "index.html": fixed.encode()}, previous
+        ):
+            if error := activate_source(page_dir, transaction=page).error:
+                raise Refused(error)
+    except Refused:
+        return None
+    return change
+
+
+def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
+    """`source` with `edit`'s replacement in place of the words that change, where
+    its page, read under `registry` and the log's changes (`logged_words`), shows the
+    edit's words once, with `{"old", "new"}`; or None.
+
+    The page's reading says where the words stand (`_place`) and checks the result:
+    the page must read as before but for those words, with as many blocks. Only the
+    words that change are swapped, and the source's own whitespace between them
+    stays, so a line or paragraph break among them survives the swap; a fix that
+    would drop one is refused, since only a preformatted body would show it."""
+    from .anchor_capture import occurrences
+    from .passages import COLLAPSE, collapse, page_passages
+    from .structure import SourceDocument
+
+    def read(html: str):
+        return page_passages(SourceDocument(html), registry, **logged)
+
+    words, put = collapse(edit["words"]), collapse(edit["replacement"])
+    passages = read(source)
+    found = occurrences(passages.text, words, 0, len(passages.text), passages.fences)
+    if words == put or len(found) != 1:
+        return None
+    start, end, new = _changed(words, put)
+    old, target = words[start:end], found[0] + start
+    placed = _place(SourceDocument(source), registry, old, target, passages, read)
+    if placed is None:
+        return None
+    place, attribute = placed
+    parts = new.split(" ") if new else []
+    gaps = COLLAPSE.findall(place.group())
+    if any("\n" in gap or "\r" in gap for gap in gaps[max(len(parts) - 1, 0) :]):
+        return None
+    spaces = [*gaps, *[" "] * len(parts)][: max(len(parts) - 1, 0)]
+    swapped = [escape(part, quote=attribute) for part in parts[:1]]
+    for part, gap in zip(parts[1:], spaces, strict=True):
+        swapped += [gap, escape(part, quote=attribute)]
+    fixed = source[: place.start()] + "".join(swapped) + source[place.end() :]
+    reading = read(fixed)
+    shown = collapse(passages.text[:target] + new + passages.text[found[0] + end :])
+    if reading.text != shown or len(reading.breaks) != len(passages.breaks):
+        return None
+    return fixed, {"old": old, "new": new}
+
+
+def _place(document, registry: dict, words: str, target: int, passages, read):
+    """Where `document`'s source writes the `words` the user reads at `target` in
+    `passages`, its page's reading, as the match and whether it stands in an
+    attribute; or None. Each place the source may write them, in its text or in
+    the value of an attribute a widget shows (`x-says`), gets a character of its
+    own just before it, and the marked page's reading (`read`) says which mark
+    stands at `target`. A copy in a script, a style, the head, a comment or a body
+    the user rewrote shows nowhere, so it is never the one found.
+
+    A place writes whole words, may write each character that isn't a letter or
+    digit as a character reference, and the words' spaces as any whitespace; one
+    that crosses markup is no place, since a fix of a word or two swaps words within
+    one run of text. The marks are private-use characters neither the source nor
+    the reading holds, and a page with more places than those is refused."""
+    from .passages import COLLAPSE
+
+    source = document.html
+    tags, values = [], []
+    for element in document.tree.find_all(True):
+        location = element.source_location
+        if location is None:
+            continue
+        tags += [
+            document.offsets(span)
+            for span in (location.start_tag, location.end_tag)
+            if span is not None
+        ]
+        for name in (registry.get(element.tag) or {}).get("x-says") or {}:
+            if name in location.attrs:
+                start, end = document.offsets(location.attrs[name])
+                _, equals, value = source[start:end].partition("=")
+                value = value.lstrip()
+                quoted = value[:1] in {'"', "'"}
+                if equals:
+                    values.append((end - len(value) + quoted, end - quoted))
+    tags.sort()
+    starts = [start for start, _ in tags]
+
+    def free(place: re.Match) -> bool | None:
+        """Whether a place may be the one, in text (False) or an attribute (True)."""
+        if any(a <= place.start() and place.end() <= b for a, b in values):
+            return True
+        index = bisect_right(starts, place.start()) - 1
+        return False if index < 0 or tags[index][1] <= place.start() else None
+
+    pattern = COLLAPSE.pattern.join(
+        "".join(
+            re.escape(ch) if ch.isalnum() else f"(?:&#?\\w+;|{re.escape(ch)})"
+            for ch in word
+        )
+        for word in words.split(" ")
+    )
+    edges = (
+        "(?<!\\w)" if words[0].isalnum() else "",
+        "(?!\\w)" if words[-1].isalnum() else "",
+    )
+    places = [
+        (place, inside)
+        for place in re.finditer(edges[0] + pattern + edges[1], source)
+        if (inside := free(place)) is not None
+    ]
+    held = set(source) | set(passages.text)
+    private = chain(range(0xF0000, 0xFFFFE), range(0x100000, 0x10FFFE))
+    marks = list(
+        islice((mark for mark in map(chr, private) if mark not in held), len(places))
+    )
+    if len(marks) < len(places):
+        return None
+    marked, last = [], 0
+    for mark, (place, _) in zip(marks, places, strict=True):
+        marked += [source[last : place.start()], mark]
+        last = place.start()
+    by_mark = dict(zip(marks, places, strict=True))
+    seen = 0
+    for found in _PRIVATE.finditer(read("".join([*marked, source[last:]])).text):
+        if found.group() not in by_mark:
+            continue
+        if found.start() - seen == target:
+            return by_mark[found.group()]
+        seen += 1
+    return None
+
+
+# The supplementary private use areas, which `_place` draws its marks from.
+_PRIVATE = re.compile("[\U000f0000-\U0010fffd]")
+
+
+def _changed(words: str, put: str) -> tuple[int, int, str]:
+    """Where in `words` the words `put` changes stand, and what replaces them, each
+    widened to whole words: the span between the longest prefix and suffix the two
+    share."""
+    prefix = 0
+    while prefix < min(len(words), len(put)) and words[prefix] == put[prefix]:
+        prefix += 1
+    suffix = 0
+    while (
+        suffix < min(len(words), len(put)) - prefix
+        and words[-1 - suffix] == put[-1 - suffix]
+    ):
+        suffix += 1
+    start = words.rfind(" ", 0, prefix) + 1
+    end = words.find(" ", len(words) - suffix)
+    end = len(words) if end < 0 else end
+    return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
 def _put(page_dir, page, kind, title, text, identity, passage) -> dict:

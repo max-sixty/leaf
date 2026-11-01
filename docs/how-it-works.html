@@ -844,8 +844,9 @@ flowchart TD
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
                     Each question it asked in a thread and step it put On me as a to-do,
-                    with its words, its id and how to withdraw it, and what else the
-                    fork found out of date, with the words it rests on.
+                    with its words, its id and how to withdraw it, each stale passage it
+                    fixed, with the old and new words, and what else the fork found out
+                    of date, with the words it rests on.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1147,10 +1148,10 @@ flowchart TD
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/turn-end-check.md"
                   >turn-end check</a
                 >
-                with Leaf's rule for what goes On me, as the agent reads it, and each
-                page's On me, the questions and to-dos on the user already answered,
-                ended or withdrawn, and the items the page shows under way. The fork
-                names:
+                with Leaf's rule for what goes On me, as the agent reads it, and for
+                each page its text as the user reads it, its On me, the questions and
+                to-dos on the user already answered, ended or withdrawn, and the items
+                it shows under way. The fork names:
               </p>
               <ul id="fork-checks">
                 <li>
@@ -1190,23 +1191,33 @@ flowchart TD
                 doesn't show its words once. It stays On me until the user replies or
                 presses Done, and nothing on the page marks where it came from.
               </p>
+              <p id="fork-fixes">
+                Where a few of a page's words have gone stale, the fork can give the
+                words to put in their place. Leaf makes that change itself where the
+                page shows the old words once: it finds the place in the page's source
+                the user reads them from, swaps in just the words that change, checks
+                that the page then reads as the fork asked, saves it as any save is
+                checked, and tells the agent the old and new words, so the agent can
+                change them back or rewrite them. A fix that needs more than a sentence,
+                or that Leaf can't place, goes to the agent instead.
+              </p>
               <p id="fork-findings">
-                Only the agent revises a page, settles an On me item or adds to its own
-                list, so the other findings reach it as messages. Each gives the fork's
-                summary and the words from the conversation it rests on, which lead the
-                agent to the original message even after a compaction. At its next
-                prompt or tool call, the agent reads these and each record Leaf wrote
-                with its id, and withdraws a question or step it disagrees with as it
-                would its own.
+                Only the agent settles an On me item or adds to its own list, so the
+                other findings reach it as messages. Each gives the fork's summary and
+                the words from the conversation it rests on, which lead the agent to the
+                original message even after a compaction. At its next prompt or tool
+                call, the agent reads these and each record and change Leaf made, and
+                withdraws a question or step it disagrees with as it would its own.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
                 user's next message waits for it. It reads the conversation from the
                 session's prompt cache and answers in a few seconds. Leaf writes no
-                record once another turn has opened, since the fork's reading is then
-                out of date; a finding still reaches the agent, naming the turn it came
-                from. When a fork fails or its answer isn't the JSON Leaf asked for,
-                Leaf writes nothing and records the failure in Claude Code's debug log.
+                record and changes no page once another turn has opened, since the
+                fork's reading is then out of date; a finding still reaches the agent,
+                naming the turn it came from. When a fork fails or its answer isn't the
+                JSON Leaf asked for, Leaf writes nothing and records the failure in
+                Claude Code's debug log.
               </p>
             </details>
             <details id="host-entry-points">

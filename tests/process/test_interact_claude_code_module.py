@@ -426,7 +426,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
         lambda line: line.startswith("Leaf: the clerk"),
         failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
     )
-    assert "wrote 1 record and told the agent 1 line" in told, told
+    assert "wrote 1 record, changed 0 passages and told the agent 1 line" in told, told
     assert driven.forks.empty()
     [asked] = [
         event

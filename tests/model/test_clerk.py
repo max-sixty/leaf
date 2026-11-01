@@ -4,14 +4,16 @@ what Leaf writes from that answer and tells the agent at its next step."""
 import json
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
 
 from leaf import clerk as clerk_model
 from leaf import event_log as events_model
 from leaf import hooks as hooks_model
 from leaf import todos as todos_model
 from leaf.agent_state import cmd_page_state
+from leaf.files import require_revision
 from leaf.refusals import Refused
+from leaf.revisioning import activate_source
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -245,10 +247,12 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
 
 def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys):
     """A finding only the agent can act on reaches it at its next step with the
-    fork's summary, the turn the fork read and the words the finding rests on, and
-    Leaf writes nothing for it. It still reaches the agent once another turn has
-    opened, since the agent judges whether it holds; the asks beside it are dropped."""
+    fork's summary, the turn the fork read and the words the finding rests on. It
+    still reaches the agent once another turn has opened, since the agent judges
+    whether it holds, but Leaf then writes nothing: the asks beside it are dropped,
+    and its fix isn't made, since that turn's agent may be editing the page."""
     page = claimed.resolve()
+    source = (claimed / "index.html").read_text()
     hook(capsys, "UserPromptSubmit")
     question = asked()
     hook(capsys, "UserPromptSubmit", "p2")
@@ -260,11 +264,13 @@ def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys)
             "page": str(page),
             "summary": "The lede still gives the old cutoff of 30 days.",
             "quote": "Let's make the cutoff 14 days.",
+            "edit": {"words": "Ship dark.", "replacement": "Ship behind a flag."},
         }
     ]
     done = clerk_model.take_answer("s1", json.dumps(answer), question["basis"])
-    assert done["wrote"] == [] and "dropped" in done
+    assert done["wrote"] == [] and done["changed"] == [] and "dropped" in done
     assert len(events_model.read_events(claimed)) == before
+    assert (claimed / "index.html").read_text() == source
     context = hook(capsys, "PostToolBatch")
     assert (
         "read a turn before the user's latest message and found the page saying what "
@@ -272,7 +278,288 @@ def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys)
         f"{page}: The lede still gives the old cutoff of 30 days." in context
     )
     assert "(session s1):\n> Let's make the cutoff 14 days." in context
+    assert "Leaf changed nothing for this" in context
     assert "Pick one?" not in context
+
+
+def _stale(page, words: str, replacement: str) -> str:
+    return json.dumps(
+        {
+            "asks": [],
+            "findings": [
+                {
+                    "kind": "stale",
+                    "page": str(page),
+                    "summary": "The plan has moved on.",
+                    "quote": "Let's change the plan.",
+                    "edit": {"words": words, "replacement": replacement},
+                }
+            ],
+        }
+    )
+
+
+def _reads(page_dir) -> str:
+    """The page's words as the user reads them."""
+    events = events_model.read_events(page_dir)
+    reading = clerk_model._reading(page_dir, events, require_revision(page_dir))
+    return reading.passages().text
+
+
+def _fixed(capsys, page_dir, words: str, replacement: str) -> dict:
+    """What Leaf changed for a stale finding whose fix is `words` → `replacement`,
+    asked at the end of the turn it answers, with the page published as its server
+    publishes it."""
+    activate_source(page_dir)
+    hook(capsys, "UserPromptSubmit")
+    question = asked()
+    return clerk_model.take_answer(
+        "s1", _stale(page_dir.resolve(), words, replacement), question["basis"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "replacement", "old", "new", "shown"),
+    [
+        (
+            "Ship dark.",
+            "Ship behind a flag.",
+            "dark.",
+            "behind a flag.",
+            "Flag first Ship behind a flag.",
+        ),
+        # The quote crosses a link and a code span; the word that changes doesn't.
+        (
+            "The cutoff lives in jobs/backfill.py:88.",
+            "The cutoff now lives in jobs/backfill.py:88.",
+            "lives",
+            "now lives",
+            "The cutoff now lives in jobs/backfill.py:88.",
+        ),
+    ],
+)
+def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
+    claimed, capsys, words, replacement, old, new, shown
+):
+    """The fork reads the page as the user does, a block to a line, and where a few
+    of its words have gone stale, Leaf swaps in the fork's words, publishes the page
+    and tells the agent the old and new words, so the agent can change them back."""
+    page = claimed.resolve()
+    activate_source(claimed)
+    hook(capsys, "UserPromptSubmit")
+    question = asked()
+    assert (
+        "What the page says now, as the user reads it, one block per line:\n"
+        "Plan\nThe cutoff lives in jobs/backfill.py:88.\n"
+    ) in question["prompt"]
+    done = clerk_model.take_answer(
+        "s1", _stale(page, words, replacement), question["basis"]
+    )
+    assert done["changed"] == [{"page": str(page), "old": old, "new": new}]
+    assert done["wrote"] == []
+    assert shown in _reads(claimed)
+    assert (
+        f'Leaf changed "{old}" to "{new}" in {page}/index.html and published it.'
+        in hook(capsys, "PostToolBatch")
+    )
+
+
+@pytest.mark.parametrize(
+    ("head", "body", "words", "replacement", "after"),
+    [
+        # The title holds the same words, but the user reads the heading's.
+        (
+            "<title>Backfill: running</title>",
+            "<h3>Backfill: <span>running</span></h3>",
+            "Backfill: running",
+            "Backfill: done",
+            "<h3>Backfill: <span>done</span></h3>",
+        ),
+        # A tip a widget shows from its attribute, beside a paragraph with the
+        # same words.
+        (
+            "",
+            '<p>Path <lf-gloss tip="A thin path, built Monday.">gloss</lf-gloss></p>'
+            "<p>Built Monday.</p>",
+            "A thin path, built Monday.",
+            "A thin path, built Tuesday.",
+            '<p>Path <lf-gloss tip="A thin path, built Tuesday.">gloss</lf-gloss></p>'
+            "<p>Built Monday.</p>",
+        ),
+        # The source writes a character as a reference.
+        (
+            "",
+            "<p>Ship &amp; flip on Monday.</p>",
+            "Ship & flip on Monday.",
+            "Ship and flip on Monday.",
+            "<p>Ship and flip on Monday.</p>",
+        ),
+        # Only the words that change are swapped, so a line break the source keeps
+        # in preformatted text beside them stays.
+        (
+            "",
+            "<pre>step one: build\nstep two: deploy</pre>",
+            "build step two",
+            "test step two",
+            "<pre>step one: test\nstep two: deploy</pre>",
+        ),
+        # Changing words the break stands among keep it, a line in preformatted
+        # text and a paragraph in a draft's Markdown.
+        (
+            "",
+            "<pre>step one: build\nstep two: deploy</pre>",
+            "build step two",
+            "test phase two",
+            "<pre>step one: test\nphase two: deploy</pre>",
+        ),
+        (
+            "",
+            '<lf-draft id="plan-note"><pre>\nShip quietly.\n\nNext we verify.\n</pre>'
+            "</lf-draft>",
+            "Ship quietly. Next we verify.",
+            "Ship loudly. Then we verify.",
+            '<lf-draft id="plan-note"><pre>\nShip loudly.\n\nThen we verify.\n</pre>'
+            "</lf-draft>",
+        ),
+        # The words a widget shows from an attribute, here naming it, and words the
+        # page writes beside a character from a private use area, as an icon font's.
+        (
+            "",
+            '<p>Path <lf-gloss tip="Read the tip then go.">gloss</lf-gloss></p>',
+            "Read the tip then go.",
+            "Read the hint then go.",
+            '<p>Path <lf-gloss tip="Read the hint then go.">gloss</lf-gloss></p>',
+        ),
+        (
+            "",
+            "<p>Prompt \U000f0001 ready. We can't ship.</p>",
+            "We can't ship.",
+            "We don't ship.",
+            "<p>Prompt \U000f0001 ready. We don't ship.</p>",
+        ),
+        # A fix that would drop a line break: only preformatted text would show it.
+        (
+            "",
+            "<pre>step one: build\nstep two: deploy</pre>",
+            "build step two",
+            "rebuild two",
+            None,
+        ),
+        # Copies the user never reads: a title, a script, a style and a comment, and
+        # a number inside a longer one. The words the page shows cross markup, so
+        # Leaf places none of these fixes.
+        (
+            "<title>Ship soon Monday</title>",
+            "<h3>Ship <em>soon</em> Monday</h3>",
+            "Ship soon Monday",
+            "Ship on Tuesday",
+            None,
+        ),
+        (
+            "<style>.wide { max-width: 30rem }</style>",
+            "<h3>Cutoff: <b>30</b>rem days</h3>",
+            "Cutoff: 30rem days",
+            "Cutoff: 14rem days",
+            None,
+        ),
+        (
+            "",
+            "<!-- old -> Ship soon Monday --><h3>Ship <em>soon</em> Monday</h3>",
+            "Ship soon Monday",
+            "Ship on Tuesday",
+            None,
+        ),
+        (
+            "",
+            "<h3>Cutoff <b>3</b>0 days</h3><p>Due in 2030.</p>",
+            "Cutoff 30 days",
+            "Cutoff 14 days",
+            None,
+        ),
+    ],
+    ids=[
+        "title",
+        "tip",
+        "reference",
+        "spacing",
+        "line",
+        "paragraph",
+        "named",
+        "private",
+        "dropped",
+        "markup",
+        "style",
+        "comment",
+        "longer",
+    ],
+)
+def test_leaf_changes_the_words_the_user_reads_or_nothing(
+    claimed, capsys, head, body, words, replacement, after
+):
+    """Leaf changes the one place in the source the user reads the words from, or,
+    where it finds none, nothing at all, and the finding reaches the agent alone."""
+    source = PAGE.replace("<title>t</title>", head or "<title>t</title>").replace(
+        "<h2>Plan</h2>", f"<h2>Plan</h2>\n{body}"
+    )
+    (claimed / "index.html").write_text(source)
+    done = _fixed(capsys, claimed, words, replacement)
+    written = (claimed / "index.html").read_text()
+    if after is None:
+        assert done["changed"] == [] and written == source
+        assert "Leaf changed nothing for this" in hook(capsys, "PostToolBatch")
+        return
+    assert len(done["changed"]) == 1
+    assert written == source.replace(body, after)
+    assert replacement in _reads(claimed)
+
+
+@pytest.mark.parametrize(
+    ("words", "replacement"),
+    [
+        # Words the page doesn't show.
+        ("Nothing is running.", "A build is running."),
+        # Words the page shows more than once.
+        ("risk", "danger"),
+        # A changing word that crosses markup: the colon number inside the code span
+        # and the full stop outside it.
+        (
+            "The cutoff lives in jobs/backfill.py:88.",
+            "The cutoff lives in jobs/backfill.py:90!",
+        ),
+    ],
+)
+def test_a_fix_leaf_cant_place_reaches_the_agent_as_the_finding(
+    claimed, capsys, words, replacement
+):
+    source = (claimed / "index.html").read_text()
+    done = _fixed(capsys, claimed, words, replacement)
+    assert done["changed"] == []
+    assert (claimed / "index.html").read_text() == source
+    assert "Leaf changed nothing for this" in hook(capsys, "PostToolBatch")
+
+
+def test_a_body_the_user_rewrote_keeps_their_words(claimed, capsys):
+    """The user's edit stands in the draft's authored body on the page, so the
+    authored words are a copy they don't read, which Leaf leaves alone."""
+    (claimed / "index.html").write_text(DRAFTED)
+    activate_source(claimed)
+    edit(claimed, "Adds --dry-run to every mutating command now.")
+    source = (claimed / "index.html").read_text()
+    done = _fixed(
+        capsys, claimed, "to every mutating command now.", "to each command now."
+    )
+    assert done["changed"] == []
+    assert (claimed / "index.html").read_text() == source
+
+
+def test_a_fix_keeps_the_sources_line_endings(claimed, capsys):
+    crlf = PAGE.replace("\n", "\r\n").encode()
+    (claimed / "index.html").write_bytes(crlf)
+    done = _fixed(capsys, claimed, "Ship dark.", "Ship behind a flag.")
+    assert len(done["changed"]) == 1
+    assert (claimed / "index.html").read_bytes() == crlf.replace(
+        b"Ship dark.", b"Ship behind a flag."
+    )
 
 
 def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):
@@ -308,7 +595,9 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
         "Nothing to report.",
         '{"asks": [], "findings": [], "extra": 1}',
         '{"asks": [], "findings": [{"kind": "stale", "page": "p", "summary": " ", '
-        '"quote": ""}]}',
+        '"quote": "", "edit": null}]}',
+        '{"asks": [], "findings": [{"kind": "stale", "page": "p", "summary": "s", '
+        '"quote": "", "edit": {"words": " ", "replacement": "x"}}]}',
         '{"asks": [{"page": "p", "title": "x"}]}',
         '{"asks": [{"page": "p", "kind": "question", "title": "x", "text": "", '
         '"passage": "", "quote": ""}]}',
@@ -317,6 +606,15 @@ def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):
 def test_an_answer_outside_the_schema_writes_nothing(text):
     with pytest.raises(Refused):
         clerk_model.read_answer(text)
+
+
+def test_a_finding_needs_no_edit():
+    """A fork that leaves `edit` off a finding it can't fix loses none of its answer."""
+    answer = {
+        "asks": [],
+        "findings": [{"kind": "settled", "page": "p", "summary": "s", "quote": ""}],
+    }
+    assert clerk_model.read_answer(json.dumps(answer)) == answer
 
 
 def test_a_long_title_is_cut_at_a_word_to_fit_a_thread():

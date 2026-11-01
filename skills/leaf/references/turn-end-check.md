@@ -39,13 +39,20 @@ and the agent takes the user's answer or withdraws the ask. For each, give:
 
 ## Findings for the agent
 
-The agent acts on these itself, so Leaf passes each to it as a message. Name:
+Leaf passes each of these to the agent as a message, for the agent to act on, and
+first makes a stale passage's fix itself where you give one. Name:
 
 - `stale`: what a page, not a reply, still says that the work or the conversation
   has since changed, such as a result, a capture, a lede, a question it still asks,
   or a section the user dropped in chat. Name only what the conversation shows the
   page saying now, quoting its words where it holds them, and leave out what the
-  page might still say. The agent revises the page.
+  page might still say. Where a few of the page's words say it and a few new words
+  fix it, give the fix as `edit`: `words`, the page's words exactly as its text
+  below shows them and found nowhere else on it, and `replacement`, the words that
+  should stand there now, written as the page writes. Leaf makes the change and
+  tells the agent, which can undo it. Leave `edit` null where the fix needs more
+  than a sentence or a choice the conversation hasn't made; the agent revises the
+  page.
 - `settled`: an On me item the user has answered elsewhere, such as in chat, or
   that the work has made moot. The agent records the answer or withdraws the item.
 - `unshown`: work the agent promised the user, or set running, such as a
@@ -54,5 +61,6 @@ The agent acts on these itself, so Leaf passes each to it as a message. Name:
   agent decides whether it belongs on its list.
 
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
-rereading the conversation, and as `quote` the words it rests on, the agent's or
-the user's, so the agent can find the original message.
+rereading the conversation, as `quote` the words it rests on, the agent's or the
+user's, so the agent can find the original message, and its `edit`, null except
+for a stale passage's fix.

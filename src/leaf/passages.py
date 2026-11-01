@@ -304,6 +304,7 @@ class _PassageParser:
         self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
+        self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
         # id → the ids enclosing it, outermost first, itself last. Structure, not
@@ -322,6 +323,7 @@ class _PassageParser:
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
+        self._break = False  # whether that separator ends a block
 
     def _fresh(self) -> int:
         self._uid += 1
@@ -332,16 +334,18 @@ class _PassageParser:
         if data.strip():
             self.bearing.update(ids)
         if self.chars and block != self._block:
-            self._space = True
+            self._space = self._break = True
         self._block = block
         for ch in data:
             if ch in COLLAPSE_CHARS:
                 self._space = bool(self.chars)
                 continue
             if self._space:
+                if self._break:
+                    self.breaks.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)
-                self._space = False
+                self._space = self._break = False
             self.chars.append(ch)
             self.owner.append(ids)
         for frame in reversed(self.stack):
@@ -571,6 +575,7 @@ class Passages(NamedTuple):
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
+    breaks: set  # indices of the spaces that end one block's words and start the next's
 
 
 def _walk(parser: "_PassageParser", node) -> None:
@@ -617,6 +622,7 @@ def page_passages(
         parser.gone,
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
+        parser.breaks,
     )
 
 

@@ -807,6 +807,18 @@
       var(--lf-fp-notice-tint)
     );
   }
+  /* A passing notice says its words where the field's would, so it wears their face:
+     the message's type, and the dimmed ink of a notice the field says (above), in
+     Leaf's italic (voice.js); only its press reads as one, upright in ink with its
+     key. In a chip's small type and full ink it read as a different line from the
+     field's "Away" or the "Resolved the thread" it replaced. */
+  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-face {
+    font: var(--font-message);
+    color: var(--muted);
+  }
+  .lf-fp-row-notice[data-passing] .lf-fp-row-notice-act {
+    color: var(--ink);
+  }
   .lf-fp-row-notice-sep {
     color: var(--lf-fp-quiet);
   }

@@ -10,16 +10,15 @@
    until the next send, empty or not. A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
-   Above its subject, reading keeps the foot. Writing keeps the top from when the user
-   comes into the reply. In the box a send left the caret in, the card keeps the foot
-   the send held until the user leaves the box, so the next draft grows up from the
-   reply's foot, as the comment box does over its subject. Rejected: holding the top
-   from the first key typed there, which gave a card filling the room above its subject
-   the room below its top for its transcript to take, so the reply moved 139px down at
-   800x520; and holding the transcript at its height while the reply is written in,
-   which kept that reply still but stopped news shown into a card beside its subject
-   from growing it. Beside its subject, a card also rises as it grows (`rises`), read
-   or written in: it may outgrow the room below its top, and the window's foot lifts
+   Above its subject, a card keeps its foot, read or written in, so a growing draft
+   rises over the transcript, as the comment box grows over its subject, and leaves the
+   words the thread is about in view (the user's decision, 2026-10-31). Rejected:
+   keeping a written card's top there, which grew the draft down over its subject and
+   needed a send's foot held through the next draft to keep the reply from moving
+   down; and holding the transcript at its height while the reply is written in, which
+   kept that reply still but stopped news shown into a card beside its subject from
+   growing it. Beside its subject, a card also rises as it grows (`rises`), read or
+   written in: it may outgrow the room below its top, and the window's foot lifts
    it, as a chat's composer grows, so the line being typed, or the answer arriving,
    stays in view with the turn it answers (the user's decisions, 2026-10-21 for writing
    and 2026-10-31 for reading). Its top stays where it stood, so a shorter thread
@@ -179,10 +178,7 @@ export class CardAnchor {
     /** @type {Edge} */
     const attachment = seat.side === "top" ? "foot" : "top";
     /** @type {Edge} */
-    const ordinary =
-      this.#sent || (seat.side === "top" && (!writing || this.#sentFrom))
-        ? "foot"
-        : "top";
+    const ordinary = this.#sent || seat.side === "top" ? "foot" : "top";
     const beside = seat.side === "left" || seat.side === "right";
     return {
       writing,

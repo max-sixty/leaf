@@ -133,28 +133,28 @@ test("a box written in after Send stays written in once its words are erased", (
   assert.equal(anchor.newsMoves(new Set(["answer"])), true);
 });
 
-test("above its subject, the next draft in the box Send left keeps the send's foot", (t) => {
+test("above its subject a card keeps its foot, read or written in", (t) => {
   const { anchor, field, place } = card(t);
   const above = { ...beside, side: "top" };
+  assert.equal(place(above), "foot");
+  // A draft grows up over the transcript, leaving the subject below in view.
   field.focus();
   anchor.writing();
   field.value = "A draft";
-  assert.equal(place(above), "top");
+  assert.equal(place(above), "foot");
+  // Beside its subject the same draft keeps the top.
+  assert.equal(place(beside), "top");
+});
+
+test("coming back into the box Send left is writing again", (t) => {
+  const { anchor, field, place } = card(t);
+  field.focus();
+  place();
   anchor.sending("sent turn");
-  field.value = "";
   anchor.presented(new Set(["sent turn"]));
-  assert.equal(place(above), "foot");
-  anchor.presented(new Set(["answer"]));
-  assert.equal(place(above), "foot");
-  // Typing the next draft there keeps the foot the send held.
-  anchor.writing();
-  field.value = "The next draft";
-  assert.equal(place(above), "foot");
-  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
-  // Leaving the reply and coming back into it writes from the top again.
+  assert.equal(anchor.newsMoves(new Set(["answer"])), false);
   anchor.leftReply();
-  anchor.writing();
-  assert.equal(place(above), "top");
+  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
 });
 
 test("beside its subject a card rises as it grows, unless a press or a send holds it", (t) => {

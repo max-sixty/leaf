@@ -705,7 +705,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
     open_versions(page)
-    expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
+    expect(page.locator(panel_view("versions"))).to_be_visible()
 
 
 def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, serve):

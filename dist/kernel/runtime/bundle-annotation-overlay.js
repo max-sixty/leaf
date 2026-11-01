@@ -1,7 +1,7 @@
-import { LAYOUT, Z, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setChildLists, setChildren, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
+import { LAYOUT, Z, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, move, nativeLayerHolding, nextAnimation, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setChildLists, setChildren, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, layerLanding, letGo, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
 import { closeControl, cycledRow, el, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollLimit, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollLimit, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, pageWords, quoteFrom, rangeOf, segmentsIn } from "./bundle-passages.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
@@ -1993,6 +1993,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		for (const control of selectedReadingCarriers) if (!selected.has(control)) syncContributionSelection(control, false);
 		for (const control of selected) syncContributionSelection(control, true);
 		selectedReadingCarriers = selected;
+		scheduleMarginEntryLabels();
 	}
 	const threadIdOf = (choice) => choice.items[0].thread.id;
 	const entryThread = (node) => {
@@ -2881,25 +2882,6 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 		returning?.();
 	}
 	function mount() {
-		let beforeInputScroll = null;
-		let inputEpoch = 0;
-		fabInput.addEventListener("lf-before-edit", () => {
-			beforeInputScroll = response.open && response.floating ? pageScroller.scrollTop : null;
-			const epoch = ++inputEpoch;
-			nextFrame(() => {
-				if (inputEpoch === epoch) beforeInputScroll = null;
-			});
-		});
-		fabInput.addEventListener("input", () => {
-			if (beforeInputScroll === null) return;
-			if (pageScroller.scrollTop !== beforeInputScroll) {
-				setScroll(pageScroller, {
-					top: beforeInputScroll,
-					behavior: "instant"
-				});
-				placeKept(pageScroller);
-			}
-		});
 		document.addEventListener(LAYOUT, (event) => {
 			const geometry = anchorGeometry(response.anchor);
 			const target = response.target ?? geometry?.contextNode;

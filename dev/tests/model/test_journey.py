@@ -275,6 +275,87 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     }
 
 
+def test_a_comment_a_fork_decided_on_keeps_the_forks_record():
+    """A comment a fork of the conversation answered carries the fork's outcome,
+    time and tokens, and no breakdown of a reply the session spent nothing on; one
+    the fork handed over carries both."""
+    events = [
+        {"kind": "comment", "id": "c1", "ts": at(0)},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "id": "r1",
+            "parent": "c1",
+            "responds": "c1",
+            "text": "You asked me to serve it for review.",
+            "ts": at(4),
+        },
+        {"kind": "comment", "id": "c2", "ts": at(10)},
+        {
+            "kind": "pickup",
+            "id": "p2",
+            "phase": "opened",
+            "events": ["c1", "c2"],
+            "ts": at(20),
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "id": "r2",
+            "parent": "c2",
+            "responds": "c2",
+            "text": "Renamed it.",
+            "ts": at(30),
+        },
+    ]
+    usage = {"input_tokens": 12, "output_tokens": 80, "cache_read_input_tokens": 9000}
+    forks = [
+        {
+            "type": "fork_reply",
+            "thread": "c1",
+            "inputs": ["c1"],
+            "outcome": "reply",
+            "reply": "r1",
+            "text": "You asked me to serve it for review.",
+            "elapsedMs": 3200.0,
+            "usage": usage,
+        },
+        {
+            "type": "fork_reply",
+            "thread": "c2",
+            "inputs": ["c2"],
+            "outcome": "hand_over",
+            "why": "it asks for a change",
+            "elapsedMs": 2100.0,
+        },
+    ]
+    end = journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
+    user = journey.User(
+        end, "v", lambda: events, journey.Terminal(), list, lambda: forks
+    )
+    for name, comment in (("fork-idle", "c1"), ("fork-work", "c2")):
+        profile = journey.AgentProfile()
+        profile.event_ids = [comment]
+        user.ids[name], user.profiles[name] = comment, profile
+        user.sent.append(name)
+    assert user.timing("fork-idle") == (
+        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's reply "
+        "after 3200 ms on 12 in, 80 out, 9000 cache read tokens"
+    )
+    user.passed("forks", time.monotonic())
+
+    [step] = user.sample()["steps"]
+    answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
+    assert answered["fork"] == {"outcome": "reply", "elapsedMs": 3200.0, "usage": usage}
+    assert "reply" not in answered
+    assert handed["fork"] == {
+        "outcome": "hand_over",
+        "why": "it asks for a change",
+        "elapsedMs": 2100.0,
+    }
+    assert "reply" in handed
+
+
 PROMPT = """
  Bash command
 
@@ -972,7 +1053,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview):
+    def target_session(browser, target, release, *, sandbox, preview, forks):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)

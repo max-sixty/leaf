@@ -709,6 +709,21 @@ def panel_reply_empty(page: Page) -> None:
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
 
 
+def panel_dictating(page: Page) -> None:
+    """The floating panel's field while Dictate listens. Headless has no microphone, so
+    the button takes the state a listening dictation renders on it."""
+    page.locator(".lf-fp-field leaf-text").click()
+    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
+    expect(dictate).to_be_visible()
+    dictate.evaluate(
+        """button => {
+          button.setAttribute("aria-pressed", "true");
+          button.dataset.dictation = "listening";
+        }"""
+    )
+    settle(page)
+
+
 def option_empty(page: Page) -> None:
     """An option list's empty one-line add field, focused."""
     field = page.locator(".lf-another leaf-text").first
@@ -3010,6 +3025,16 @@ STATES = (
         "plan-panel-reply-empty",
         "review-a-plan",
         panel_reply_empty,
+        region=".lf-fp-row",
+    ),
+    State(
+        "plan-panel-dictating", "review-a-plan", panel_dictating, region=".lf-fp-row"
+    ),
+    State(
+        "plan-panel-dictating-dark",
+        "review-a-plan",
+        panel_dictating,
+        scheme="dark",
         region=".lf-fp-row",
     ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),

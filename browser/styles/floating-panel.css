@@ -1083,6 +1083,14 @@
     font: var(--font-small);
     min-height: var(--lf-fp-tab);
   }
+  /* On a phone the On view's four tabs, a list's press and Close share one line, so
+     the tabs keep less of their inset rather than wrap Close under them or clip
+     their words. */
+  @media (max-width: 420px) {
+    .lf-fp-filters button {
+      padding-inline: 3px;
+    }
+  }
   .lf-fp-filters button:hover,
   .lf-fp-filters [aria-pressed="true"] {
     color: var(--ink);

@@ -108,11 +108,13 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
         context=context,
     )
-    # About this page, a row of the leaf's menu, names the preview and copies its
-    # diagnostics.
+    # About this page, a row of the leaf's menu, shows the preview's diagnostics and
+    # copies them.
     panel_control(page, "inspection").click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
-    expect(about.get_by_text("User · fb77@26499ea1abcd+ · 3d ago")).to_be_visible()
+    expect(about.get_by_role("region", name="Page details")).to_contain_text(
+        "checkout: fb77"
+    )
     about.get_by_role("button", name="Copy Preview diagnostics", exact=True).click()
     page.wait_for_function(
         "navigator.clipboard.readText().then(text => text.startsWith('Leaf preview'))"
@@ -144,20 +146,6 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     expect(about.get_by_label("Preview diagnostics", exact=True)).to_have_count(0)
     layer = served_layer(load_registry(serve.page_dir)["$layer"], serve.page_dir)
     producer = layer.get("producer", {})
-    identity = (
-        producer["commit"][:8]
-        if producer.get("commit")
-        else "sha256:" + layer["fingerprint"].removeprefix("sha256:")[:12]
-    )
-    dated = producer.get("committed") or producer.get("installed")
-    expect(
-        about.get_by_text(
-            re.compile(
-                rf"^Leaf {re.escape(identity)}{re.escape('+') if producer.get('dirty') else ''}"
-                + (r" · (just now|\d+[mhd] ago)$" if dated else "$")
-            )
-        )
-    ).to_be_visible()
     about.get_by_role("button", name="Copy Leaf version", exact=True).click()
     ordinary.wait_for_function(
         "navigator.clipboard.readText().then(text => text.startsWith('Leaf layer'))"

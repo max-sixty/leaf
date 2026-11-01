@@ -5695,7 +5695,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const viewControls = top ? controlsTemplate(top) : nothing;
 		const exit = initial ? null : fieldExit(search, top);
 		const closeAtFoot = viewControls !== nothing;
-		const quickHidden = initial || Boolean(top) && !exit || !exit && (search || writing || drafted);
+		const quickHidden = initial || Boolean(top) && !exit || !exit && (writing || drafted);
 		const notice = initial || search ? null : olderVersion();
 		const peek = initial ? null : peekPresentation();
 		const mode = search ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate("search", "lf-fp-mode-icon")}<span>${searchMode}</span>` : selection ? "Selection" : nothing;
@@ -6206,14 +6206,26 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			quiet: () => true,
 			draw: () => menuView(),
 			controls: () => ({ crumb: onTabs("menu") }),
-			rows: ".lf-fp-item:not(:disabled)"
+			rows: ".lf-fp-item:not(:disabled)",
+			keys: [{
+				id: "panel.floating.menu.find",
+				keys: ["/"],
+				title: "search the menu",
+				run: () => focusDestination(threadSearchInput, "move")
+			}]
 		},
 		threads: {
 			title: () => "Threads",
 			quiet: () => true,
 			draw: () => threadsView(),
 			controls: () => threadsControls(),
-			rows: ".lf-fp-thread, .lf-fp-settled"
+			rows: ".lf-fp-thread, .lf-fp-settled",
+			keys: [{
+				id: "panel.floating.threads.find",
+				keys: ["/"],
+				title: "find a thread",
+				run: () => findThreads()
+			}]
 		},
 		thread: {
 			key: (route) => `thread:${route.thread}`,
@@ -6229,7 +6241,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: (route) => threadView(route.thread),
 			presses: (route) => threadPresses(route),
 			nominate: (route, collection, parts) => nominateThread(route, collection, parts),
-			over: ["threads", "queue"]
+			over: [
+				"threads",
+				"queue",
+				"menu"
+			]
 		},
 		queue: {
 			title: () => tabLabel(queueTab),
@@ -6250,7 +6266,26 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			draw: () => versionsList(),
 			rows: ".lf-fp-version > :is(.lf-fp-item, .lf-fp-compare)",
 			row: { view: "versions" },
-			over: ["menu"]
+			over: ["menu"],
+			keys: [{
+				id: "panel.floating.versions.pick",
+				keys: () => numbered().map(({ version }) => String(version)),
+				label: () => {
+					const top = numbered().at(-1)?.version;
+					return top !== void 0 && top > 1 ? `1–${top}` : "1";
+				},
+				title: "show version",
+				when: () => numbered().length > 0,
+				runKey: (binding) => {
+					const chosen = numbered().find(({ version }) => String(version) === binding);
+					if (!chosen) throw new Error(`Version ${binding} is unavailable in the panel`);
+					showVersion(chosen.entry);
+				}
+			}],
+			claims: (binding) => {
+				const { key, mods } = parsed(binding);
+				return key.length === 1 && key !== " " && mods.every((mod) => mod === "Shift") && !pageDoor(binding);
+			}
 		},
 		errors: {
 			title: () => "Errors",
@@ -6459,6 +6494,18 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			shown: new Set([...view.querySelectorAll(".lf-msg[data-message]")].map((message) => message.dataset.message ?? ""))
 		};
 	}, { capture: true });
+	let clicked = null;
+	const runOfClicks = (event) => {
+		const control = event.target instanceof Element ? event.target.closest("button") : null;
+		if (event.detail > 1 && control && control !== clicked?.deref()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			return;
+		}
+		if (event.type === "click") clicked = control && new WeakRef(control);
+	};
+	host.addEventListener("mousedown", runOfClicks, { capture: true });
+	host.addEventListener("click", runOfClicks, { capture: true });
 	const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
 	const holding = (view) => Math.max(0, ...[...view.children].map((child) => contentTop(child, view) + child.getBoundingClientRect().height));
 	function pressAt(node) {
@@ -6760,17 +6807,17 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}, {
 			opens: true,
 			row: "errors"
-		}) : nothing}${reached.map(rowFor)}${lists.map((group) => menuItem(group.label, nothing, () => open({
+		}) : nothing}${lists.map((group) => menuItem(group.label, nothing, () => open({
 			view: "group",
 			group
 		}), {
 			opens: true,
 			row: `group:${group.name}`
-		}))}${named.map((thread) => menuItem(threadName(thread), kind("Thread"), () => open({
+		}))}${reached.map(rowFor)}${named.map((thread) => menuItem(threadName(thread), kind("Thread"), () => open({
 			view: "thread",
 			thread: thread.key
 		}), { row: `thread:${thread.key}` }))}${versions.map((entry) => menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, kind("Version"), () => showVersion(entry), { title: entry.note }))}${errors.length || reached.length || lists.length || named.length || versions.length ? nothing : html`<p class="lf-rows-empty">No row, thread or version matches.</p>`}
-      <hr />
+      <hr class="lf-fp-rule" />
       ${menuItem(`Search commands for “${words}”`, nothing, () => putAwayThen(() => findCommands(words, leaf)))}`;
 	}
 	function rootTemplate() {
@@ -8258,38 +8305,21 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			if (first) focusDestination(first, "move");
 		}
 	}], () => menuSearching());
-	const threadsShown = () => showing({ view: "threads" });
 	const versionsShown = () => showing({ view: "versions" });
+	const shownViewDef = () => {
+		const top = trail.value.at(-1);
+		return top ? viewOf(top) : null;
+	};
 	const numbered = () => versionsReading().rows.flatMap((entry) => entry.version !== null && entry.version <= 9 ? [{
 		entry,
 		version: entry.version
 	}] : []).toSorted((a, b) => a.version - b.version);
-	keys(opened, "In the floating panel", [{
-		id: "panel.floating.threads.find",
-		keys: ["/"],
-		title: "find a thread",
-		when: threadsShown,
-		run: findThreads
-	}, {
-		id: "panel.floating.versions.pick",
-		keys: () => numbered().map(({ version }) => String(version)),
-		label: () => {
-			const top = numbered().at(-1)?.version;
-			return top !== void 0 && top > 1 ? `1–${top}` : "1";
-		},
-		title: "show version",
-		when: () => versionsShown() && numbered().length > 0,
-		runKey: (binding) => {
-			const chosen = numbered().find(({ version }) => String(version) === binding);
-			if (!chosen) throw new Error(`Version ${binding} is unavailable in the panel`);
-			showVersion(chosen.entry);
-		}
-	}], {
-		when: () => threadsShown() || versionsShown(),
-		claims: (binding) => {
-			const { key, mods } = parsed(binding);
-			return versionsShown() && key.length === 1 && key !== " " && mods.every((mod) => mod === "Shift") && !pageDoor(binding);
-		}
+	keys(opened, "In the floating panel", Object.values(VIEWS).flatMap((view) => (view.keys ?? []).map((row) => ({
+		...row,
+		when: () => shownViewDef() === view && (row.when?.() ?? true)
+	}))), {
+		when: () => Boolean(shownViewDef()?.keys),
+		claims: (binding) => shownViewDef()?.claims?.(binding) ?? false
 	});
 	keys(editorSeat, "In the comment field", [{
 		id: "panel.floating.leave",
@@ -9672,7 +9702,6 @@ registerPageControl({
 		import("./runtime/bundle-page-inspection.js").then(({ openPageInspection }) => openPageInspection(intent)).catch((error) => raiseError(`About this page could not open: ${error.message}. Open the menu to retry.`));
 	}
 });
-const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 const payloadDateLines = (provenance) => Object.entries({
 	committed: provenance.committed,
 	installed: provenance.installed
@@ -9688,15 +9717,6 @@ if (SHARE_ROOT) {
 		copies: () => shareUrl(root),
 		group: "page"
 	});
-}
-function claimantValue(state) {
-	const { session_name: name, claim_session: id, session_cwd: cwd } = state;
-	const where = cwd ? cwd.split("/").findLast(Boolean) : null;
-	return [
-		name || id?.slice(0, 8),
-		where,
-		state.session_alive === false && "ended"
-	].filter(Boolean).join(" · ");
 }
 function claimantDiagnostics(state) {
 	return [
@@ -9716,10 +9736,6 @@ registerPageControl({
 	key: "claimant",
 	rank: PAGE_CONTROL_RANK.claimant,
 	label: "agent session",
-	value: () => {
-		const state = claimed();
-		return state ? claimantValue(state) : "";
-	},
 	copies: () => {
 		const state = claimed();
 		return state ? claimantDiagnostics(state) : "";
@@ -9728,12 +9744,6 @@ registerPageControl({
 	group: "about"
 });
 const preview = () => runtime.state?.preview ?? null;
-function previewLabel(preview) {
-	const producer = pageIdentity().layer?.producer ?? {};
-	const stem = `${preview.interaction === "user" ? "User" : "Preview"} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
-	const age = payloadAge(producer);
-	return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
-}
 function previewDiagnostics(preview) {
 	const identity = pageIdentity();
 	const producer = identity.layer?.producer ?? {};
@@ -9759,10 +9769,6 @@ registerPageControl({
 	key: "preview",
 	rank: PAGE_CONTROL_RANK.preview,
 	label: "preview diagnostics",
-	value: () => {
-		const reading = preview();
-		return reading ? previewLabel(reading) : "";
-	},
 	copies: () => {
 		const reading = preview();
 		return reading ? previewDiagnostics(reading) : "";
@@ -9784,11 +9790,6 @@ const layerShown = () => {
 	const identity = pageIdentity();
 	return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
-function layerNamed() {
-	const identity = pageIdentity();
-	const age = payloadAge(identity.layer?.producer ?? {});
-	return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
-}
 function layerDiagnostics() {
 	const identity = pageIdentity();
 	const producer = identity.layer?.producer ?? {};
@@ -9809,7 +9810,6 @@ registerPageControl({
 	key: "layer",
 	rank: PAGE_CONTROL_RANK.layer,
 	label: "Leaf version",
-	value: () => layerShown() ? layerNamed() : "",
 	copies: () => layerShown() ? layerDiagnostics() : "",
 	offered: layerShown,
 	group: "about"

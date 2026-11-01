@@ -26,6 +26,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
+from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
@@ -996,6 +997,39 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
     assert max(middles) - min(middles) < 1, presses
     assert presses[0]["y"] >= back["y"] + back["height"] - 1, (back, presses)
     assert [box["x"] for box in presses] == sorted(box["x"] for box in presses)
+
+
+def test_on_a_phone_on_s_tabs_and_presses_share_one_line(browser, serve):
+    """On a phone the On view's four tabs, a list's press and Close stand on one line
+    in the menu, On me and Threads alike, so turning between the tabs moves none of
+    them and no tab's words are cut."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-fp-leaf").tap()
+    strip = page.locator(".lf-fp-controls .lf-fp-filters")
+    close = page.locator(".lf-fp-controls .lf-fp-close")
+    for tab, view in (
+        (None, "menu"),
+        ("On me", "queue"),
+        ("Threads", "threads"),
+        ("Menu", "menu"),
+    ):
+        if tab:
+            panel_tab(page, tab).tap()
+        panel_settled(page, view=view)
+        assert strip.evaluate("el => el.scrollWidth <= el.clientWidth"), tab
+        line, end = strip.bounding_box(), close.bounding_box()
+        assert (
+            abs(line["y"] + line["height"] / 2 - (end["y"] + end["height"] / 2)) < 2
+        ), (
+            tab,
+            line,
+            end,
+        )
 
 
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
@@ -4127,12 +4161,36 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
+def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
+    """The menu is taller than a list over it, so the ‹ at the list's head stands where
+    one of the menu's rows comes; the second click of a double-click on it presses
+    nothing there, Undo included, nor takes focus from the row the list came from, so
+    the next Enter can't undo either, and the user's choice stands."""
+    page = floating(browser, serve(UNDO_PAGE))
+    with sending(page, "the pick"):
+        page.locator("#opt-a").click()
+    panel_menu(page, "annotate")
+    box = page.locator(".lf-fp-head .lf-fp-back").bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.dblclick(*point)
+    panel_settled(page, view="menu")
+    assert page.evaluate(
+        "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fp-item'))",
+        list(point),
+    ), "the double-click must aim at a menu row once it goes back"
+    expect(page.locator('.lf-fp-item[data-row="group:annotate"]')).to_be_focused()
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] != "undo"
+
+
 def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     """While the menu stands the field is its search, where a mouse's press on the leaf
     leaves the user. Words narrow the menu to the rows they name, a list's rows
     included, and the threads they name, ending in a press that hands them to the
-    command reference. Enter presses the first row found; Escape clears the words, then
-    puts the menu away."""
+    command reference, a list ahead of the rows it holds. Enter presses the first row
+    found, and `/` among the rows returns to the search; Escape clears the words, then
+    puts the menu away. A thread found opens over the menu, its way back returning to
+    the words."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -4147,6 +4205,15 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     expect(draw).to_be_visible()
     expect(annotations).to_have_count(0)
     expect(menu.locator(".lf-fp-item").last).to_have_text("Search commands for “draw”")
+    page.keyboard.press("ArrowDown")
+    expect(search).not_to_be_focused()
+    page.keyboard.press("/")
+    expect(search).to_be_focused()
+    expect(search).to_have_value("draw")
+    search.fill("annotations")
+    expect(menu.locator(".lf-fp-item").first).to_have_attribute(
+        "data-row", "group:annotate"
+    )
     page.keyboard.press("Escape")
     expect(search).to_have_value("")
     expect(annotations).to_be_visible()
@@ -4158,6 +4225,12 @@ def test_the_menu_s_search_finds_rows_threads_and_commands(browser, serve):
     expect(menu.locator(".lf-fp-item").first).to_contain_text("Is the window long")
     page.keyboard.press("Enter")
     panel_settled(page, view="thread")
+    back = page.locator(".lf-fp-head .lf-fp-back")
+    expect(back).to_have_accessible_name("Back to Menu")
+    back.click()
+    panel_settled(page, view="menu")
+    expect(search).to_have_value("window long")
+    close_panel_menu(page)
 
     panel_menu(page)
     page.keyboard.type("undo")

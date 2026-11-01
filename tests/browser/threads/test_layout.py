@@ -1074,8 +1074,9 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
         assert spread(band) < 40, (scroll, reading)
 
 
+@pytest.mark.parametrize(("width", "touch"), [(1200, False), (1400, True)])
 def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
-    browser, serve
+    browser, serve, width, touch
 ):
     """Reading down a long reply keeps its writer and time at the top while the
     edited annotation leaves with the reply's first line."""
@@ -1107,7 +1108,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
                 "text": f"Turn {turn}. " + LANDING_WORDS * 4,
             },
         )
-    page = open_page(browser, url)
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
     selector = (
         f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'

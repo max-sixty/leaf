@@ -16,6 +16,8 @@ line:
   `moves` still says whether the card took the box's side.
 - `stands`: whether it stands where that side puts it: beside the block `level with
   the words`, or `clear of the block` under or over it, else how far off.
+  The touch passage verifies either clear placement or a window-constrained frame
+  when the paragraph and frame cannot fit together; font metrics can choose either.
 - `moves`: how far the card stands from where the box stood, at the edge each holds
   (the left edge across; the top down, or the foot where the card stands above),
   bucketed `still` (the same place), `near` (a line or two) or `away`.

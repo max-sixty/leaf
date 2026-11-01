@@ -1402,12 +1402,16 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
 
 
 # Comment length and device are independent, so each length takes one device.
-@pytest.mark.parametrize("long", [False, True], ids=["short", "scrolled"])
+@pytest.mark.parametrize(
+    "long, touch",
+    [(False, True), (True, False)],
+    ids=["short-touch", "scrolled-desktop"],
+)
 def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
-    browser, serve, long
+    browser, serve, long, touch
 ):
     """The transcript carries the editor's place and holds its drawing reference."""
-    context = browser.new_context()
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
         serve(

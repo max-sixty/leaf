@@ -4064,9 +4064,10 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     ) == ["new-map", "route"]
 
 
-def clearance_page(browser, serve):
+def clearance_page(browser, serve, rail=True):
     """One commented passage between spacers, and a way to stand its bottom edge
-    `offset` pixels below the top of the panel's scroll padding at the foot."""
+    `offset` pixels below the top of the panel's scroll padding at the foot. Without
+    `rail`, the page gives its right margin to its own content (`data-rail="none"`)."""
     source = leaf_page(
         "Bottom clearance",
         """
@@ -4076,6 +4077,8 @@ def clearance_page(browser, serve):
 <div style="height: 900px" aria-hidden="true"></div>
 """,
     )
+    if not rail:
+        source = source.replace("<body>", '<body data-rail="none">')
     page = open_page(
         browser,
         serve(source, anchored=(("destination", "The passage remains readable"),)),
@@ -4156,6 +4159,40 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         covered["scroll"], abs=1
+    )
+
+
+def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
+    """On a page that keeps no rail, the thread's margin row stands as a pin on its
+    block on a desktop's window too, and a card opens from it there. The card stands
+    under or over the block, never over the very words the user pressed, and leaves
+    once the passage does."""
+    page, place_bottom = clearance_page(browser, serve, rail=False)
+    resized(page, 1000, 800)
+    expect(page.locator('[data-lf-margin-for="destination"]')).to_have_attribute(
+        "data-lf-place", "pin"
+    )
+    place_bottom(-560)
+    page.mouse.click(*mark_point(page, "lf-mark"))
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    boxes = page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const words = [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect();
+          return {card: [card.top, card.bottom], words: [words.top, words.bottom]};
+        }"""
+    )
+    card, words = boxes["card"], boxes["words"]
+    assert card[1] <= words[0] or card[0] >= words[1], (
+        f"the card spans {card[0]:.0f}\u2013{card[1]:.0f} over the pressed words at "
+        f"{words[0]:.0f}\u2013{words[1]:.0f}"
+    )
+    # The same box decides where the card goes once its subject leaves: it leaves with
+    # the pin, and so the passage.
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
+    rendered(page)
+    assert page.locator(".lf-margin-preview").evaluate(
+        "card => card.getBoundingClientRect().bottom <= 0"
     )
 
 

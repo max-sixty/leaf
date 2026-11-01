@@ -1583,7 +1583,19 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(editor).to_be_focused()
 
 
-def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve):
+@pytest.mark.parametrize(
+    "window",
+    [
+        {"viewport": {"width": 1280, "height": 800}},
+        {
+            "viewport": {"width": 1024, "height": 768},
+            "is_mobile": True,
+            "has_touch": True,
+        },
+    ],
+    ids=["desktop", "tablet"],
+)
+def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
     resizing the window, and a card whose reply the user is writing stands inside what
     is left, clear of the floating panel. The zoom stands in for the keyboard, which no
@@ -1596,7 +1608,7 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve):
         f'<h1 id="t">Card</h1>{filler}<p id="low">The paragraph a thread is on.</p>'
         f"{after}",
     )
-    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    context = browser.new_context(**window)
     page = open_page(
         browser, serve(source, events=[_comment_on("low")]), context=context
     )

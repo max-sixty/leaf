@@ -2731,6 +2731,15 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    # A window with room for the rail but none beside the ask, so the card stands over
+    # its options and covers a choice's hint.
+    State(
+        "thread-choice-hints",
+        "../tests/fixtures/pages/thread-choice-hints",
+        card_by_keyboard,
+        viewport=(1000, 838),
+        region=".lf-margin-preview",
+    ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
         "plan-card-reply-photo",
@@ -2762,6 +2771,16 @@ STATES = (
         "review-a-plan",
         card_held_step,
         scheme="dark",
+        region=".lf-margin-preview",
+    ),
+    # A finger's card at its least width: a 1400px touch window stands it beside its
+    # words, where a phone opens the thread in the floating panel.
+    State(
+        "plan-card-held-news-touch",
+        "review-a-plan",
+        card_held_news,
+        viewport=(1400, 844),
+        touch=True,
         region=".lf-margin-preview",
     ),
     State(
@@ -2830,6 +2849,13 @@ STATES = (
         touch=True,
     ),
     State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State(
+        "plan-card-reply-long-touch",
+        "review-a-plan",
+        card_reply_long,
+        viewport=(1400, 844),
+        touch=True,
+    ),
     State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
     State(
         "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
@@ -3245,6 +3271,13 @@ STATES = (
         card_by_pointer,
         viewport=(1440, 480),
         scheme="dark",
+    ),
+    State(
+        "ship-card-touch",
+        "ship-review",
+        card_by_pointer,
+        viewport=(1024, 500),
+        touch=True,
     ),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),

@@ -494,8 +494,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const {left, top, bottom} = subject.getBoundingClientRect();
             return {left, top, bottom};
           };
+          // An empty diff reply rests as the Reply field, without a visible button.
           const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
-            .find(button => button.checkVisibility());
+            .find(button => button.checkVisibility()) ?? node.querySelector('leaf-text');
           const pose = {action: rect(action),
             tail: rect(document.querySelector('#continuity-tail'))};
           const close = document.querySelector('.lf-margin-preview-close');

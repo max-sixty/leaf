@@ -93,9 +93,15 @@ STYLE = """
 .report-highlights li { margin-block: .75rem; }
 .report-score-summary td, .report-score-summary th { vertical-align: top; }
 .pair-shots details img { margin-top: .5rem; }
+.campaign-diagrams { display: flex; flex-wrap: wrap; align-items: start; gap: 1rem; }
+/* These sibling studies wrap at their drawings' natural widths; the report
+   supplies the width bound instead of the layer's available-width containment. */
+.campaign-diagrams > lf-diagram { flex: 1 1 auto; inline-size: max-content; contain: none; min-inline-size: 0; max-inline-size: 100%; }
 .sample-links { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
 .sample-table td { vertical-align: top; }
-.sample-table small { display: block; max-inline-size: 20rem; overflow-wrap: anywhere; }
+/* Keep metadata in its own formatting context: Chrome 156 crashes when this
+   report reveals the table with ordinary block metadata; flow-root preserves it. */
+.sample-table small { display: flow-root; max-inline-size: 20rem; overflow-wrap: anywhere; }
 #report-views lf-tabs { margin-block: .75rem; }
 @media (max-width: 640px) {
   .sample-table, .sample-table tbody { display: block; }
@@ -161,7 +167,7 @@ def condition_labels(columns: dict) -> dict[str, str]:
     """Keep a named arm intact; name the condition when it distinguishes arms."""
     names = {
         column: {"leaf": "Leaf", "html": "Plain HTML"}.get(
-            members[0]["diagnostics"].get("condition"), column
+            members[0]["execution_metadata"]["condition"], column
         )
         for column, members in columns.items()
     }
@@ -1691,19 +1697,60 @@ def campaign_view(campaign: dict | None) -> str:
         return ""
     kinds = list(dict.fromkeys(node["kind"] for node in campaign["nodes"]))
     nodes = {node["id"]: f"n{number}" for number, node in enumerate(campaign["nodes"])}
-    lines = [
-        "flowchart TD",
-        "accTitle: Campaign journey",
-        "accDescr: " + campaign["summary"],
-    ]
-    for node in campaign["nodes"]:
-        lines.append(f"{nodes[node['id']]}[{json.dumps(node['label'])}]")
-        lines.append(f"class {nodes[node['id']]} kind-{kinds.index(node['kind'])}")
+    # Independent studies do not share a graph rank. Keep each connected study
+    # whole so multi-input joins survive, without widening unrelated diagrams.
+    neighbors = {node_id: set() for node_id in nodes}
     for edge in campaign["edges"]:
-        label = f"|{json.dumps(edge['label'])}|" if edge.get("label") else ""
-        lines.append(f"{nodes[edge['from']]} -->{label} {nodes[edge['to']]}")
+        neighbors[edge["from"]].add(edge["to"])
+        neighbors[edge["to"]].add(edge["from"])
+    unseen = set(nodes)
+    diagrams = []
+    for node_id in nodes:
+        if node_id not in unseen:
+            continue
+        component = set()
+        pending = [node_id]
+        while pending:
+            member = pending.pop()
+            if member in component:
+                continue
+            component.add(member)
+            pending.extend(neighbors[member] - component)
+        unseen -= component
+        lines = [
+            "---",
+            "config:",
+            "  flowchart:",
+            "    nodeSpacing: 20",
+            "---",
+            "flowchart TD",
+            "accTitle: Campaign study",
+            "accDescr: " + campaign["summary"],
+        ]
+        for node in campaign["nodes"]:
+            if node["id"] in component:
+                label = f"{node['kind']} · {node['label']}"
+                lines.append(
+                    f"{nodes[node['id']]}[{json.dumps(label, ensure_ascii=False)}]"
+                )
+                lines.append(
+                    f"class {nodes[node['id']]} kind-{kinds.index(node['kind'])}"
+                )
+        for edge in campaign["edges"]:
+            if edge["from"] not in component:
+                continue
+            label = (
+                f"|{json.dumps(edge['label'], ensure_ascii=False)}|"
+                if edge.get("label")
+                else ""
+            )
+            lines.append(f"{nodes[edge['from']]} -->{label} {nodes[edge['to']]}")
+        diagram_id = "campaign-flow" if not diagrams else f"campaign-flow-{node_id}"
+        diagrams.append(
+            f'<lf-diagram id="{escape(diagram_id)}" parts="all"><pre>{escape(chr(10).join(lines))}</pre></lf-diagram>'
+        )
     styles = "".join(
-        f"#campaign-flow .pele-node.kind-{number} rect {{fill: color-mix(in srgb, var(--series-{number % 5 + 1}) 12%, var(--paper)); stroke: var(--series-{number % 5 + 1});}}"
+        f"#campaign-journey .pele-node.kind-{number} rect {{fill: color-mix(in srgb, var(--series-{number % 5 + 1}) 12%, var(--paper)); stroke: var(--series-{number % 5 + 1});}}"
         for number, _ in enumerate(kinds)
     )
     legend = "".join(
@@ -1717,7 +1764,7 @@ def campaign_view(campaign: dict | None) -> str:
     return (
         '<section id="campaign-journey" data-width="available"><h2>Campaign journey</h2>'
         f'<p>{escape(campaign["summary"])}</p><ul class="sample-links">{legend}</ul>'
-        f'<style>{styles}</style><lf-diagram id="campaign-flow" parts="all"><pre>{escape(chr(10).join(lines))}</pre></lf-diagram>'
+        f'<style>{styles}</style><div class="campaign-diagrams">{"".join(diagrams)}</div>'
         '<details><summary>Journey steps and evidence</summary><table id="campaign-step-key"><thead><tr><th scope="col">Step</th><th scope="col">Run type</th></tr></thead><tbody>'
         f"{key}</tbody></table></details>"
         + (
@@ -1908,12 +1955,17 @@ def review_sections(
         )
         selected = experiment.get("review", False)
         kind = experiment.get("kind", "Experiment")
-        content = (
+        heading = (
             '<header class="experiment-heading">'
             f'<p class="report-kind">{escape(kind)}</p>'
             f"<h2>{escape(experiment['title'])}</h2>"
             f'<p class="experiment-recommendation"><span>Recommendation:</span> <strong>{escape(experiment["recommendation"])}</strong></p></header>'
-            f'<p class="experiment-change">{escape(experiment["change"])}</p>'
+            if selected
+            else f'<p class="report-kind">{escape(kind)}</p>'
+        )
+        content = (
+            heading
+            + f'<p class="experiment-change">{escape(experiment["change"])}</p>'
             + f'<aside id="{anchor}-assessment" class="report-assessment"><p class="report-kind">Assessment · Report author</p>'
             + f"<p>{escape(experiment['reason'])}</p></aside>"
             + f'<p class="experiment-limit"><strong>Limits.</strong> {escape(experiment["limits"])}</p>'
@@ -1988,7 +2040,7 @@ def review_sections(
         + f"<p>{escape(latest['summary'])}</p>"
         + (
             '<section id="score-summary"><h3>Results at a glance</h3><table id="score-summary-table" class="report-score-summary" data-width="available"><thead><tr>'
-            '<th scope="col">Comparison</th><th scope="col">Baseline / first result</th><th scope="col">Candidate / final result</th><th scope="col">Interpretation</th>'
+            '<th scope="col">Comparison</th><th scope="col">Scope / baseline</th><th scope="col">Observed result</th><th scope="col">Interpretation</th>'
             f"</tr></thead><tbody>{score_rows}</tbody></table></section>"
             if score_rows
             else ""

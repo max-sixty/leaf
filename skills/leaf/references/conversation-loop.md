@@ -205,11 +205,11 @@ each step On me as your to-do on the user, places either on the passage it conce
 or the page, and tells you at your next step what it wrote. It also tells you what
 else it found, such as a page that still says what has since changed, an On me item
 the user settled elsewhere, or work you set running that no page shows, for you to
-act on where it still holds; `turn-end-check.md` is what it asks. That catches what slips;
-it doesn't ask for you, so keep asking by the routes below. What it writes is yours
-like anything you write: the user's reply reaches you as any reply does, and you end
-one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id being
-`message:<id>`.
+act on where it still holds; `turn-end-check.md` is what it asks. That catches what
+slips; it doesn't ask for you, so keep asking by the routes below. What it writes is
+yours like anything you write: the user's reply reaches you as any reply does, and you
+end one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id
+being `message:<id>`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each

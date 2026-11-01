@@ -15,6 +15,7 @@ from browser.test_render_playwright_trace import (
     navigate_to_phase,
     stop_time,
 )
+from browser.threads import open_panel_thread
 from playwright.sync_api import expect
 from render_harness import (
     holding,
@@ -344,6 +345,10 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     rendered(user)
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     expect(body).to_have_js_property("scrollTop", 0)
+    # Wheeling leaves the remembered walk position. The walk enters the trace's
+    # first thread; the next walk step returns to the frame comment.
+    user.keyboard.press("t")
+    expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
 
@@ -424,8 +429,10 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         )
     ).not_to_have_attribute("data-lf-datum", captured)
     expect(posted).to_have_count(0)
-    # The drawing is the last thread before the timeline the user is located on.
-    user.keyboard.press("Shift+t")
+    # Select the drawing explicitly: hidden image parts do not give their
+    # threads a fixed position relative to the timeline in the page's walk.
+    open_panel_thread(user, drawing["id"])
+    user.get_by_role("button", name="Show on page", exact=True).click()
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(posted).to_have_count(1)
     user.keyboard.press("Escape")

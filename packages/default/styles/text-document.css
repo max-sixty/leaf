@@ -131,10 +131,8 @@ lf-text-document code[data-code] {
     /* The frame's ground under the caption is the figure's, and the strip and panel
        below it are the tabs' card (tabs.css), which the rendering wears from the strip's
        room down, clipped at the frame's rounded corners as the figure clips the tabs. */
-    &[preview] {
-      background: var(--paper);
-    }
     &:has(> [data-lf-prepaint]) {
+      background: var(--paper);
       overflow: clip;
       &::after {
         content: none;

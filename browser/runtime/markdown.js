@@ -155,8 +155,7 @@ export function formatDeclaredMarkdown(scope) {
 // reads, as delivery paints the first document's, so its box is the drawn preview's
 // before the module draws over both. Presentation arrivals, a revision's and a
 // message's, call this before connection, with the parser loaded. A version's painted
-// source leaves the rendering out, as its baseline does: it is presentation, and its
-// body holds no source words for comparison to key.
+// source leaves the rendering out, as its baseline does, since it is presentation.
 /** @param {Element | Document | DocumentFragment} scope */
 export function prepaintDeclaredFiles(scope) {
   const files = unpaintedFiles(scope);

@@ -122,6 +122,21 @@ test("native and restored writing reclaim the reply without comparing draft hist
   assert.equal(place(), "top");
 });
 
+test("a box written in after Send stays written in once its words are erased", (t) => {
+  const { anchor, field, place } = card(t);
+  field.focus();
+  place();
+  anchor.sending("sent turn");
+  anchor.presented(new Set(["sent turn"]));
+  // The empty box Send left the caret in lets the answer show.
+  assert.equal(anchor.newsMoves(new Set(["answer"])), false);
+  // The user types there and erases the words: still writing, so news waits.
+  anchor.writing();
+  field.value = "A";
+  field.value = "";
+  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
+});
+
 test("a news query before Send masks its words cannot release the sent place", (t) => {
   const { anchor, field, place } = card(t);
   field.value = "A reply being sent";

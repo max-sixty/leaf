@@ -6,7 +6,8 @@
    words restore ordinary reading, including more words in the same stream; writing
    also ends that hold. The empty box a send leaves the caret in (replies.js) is no
    writing until the user types there or comes back to it, so the answer they wait for
-   shows as it did when Send left them on the thread. A press instead keeps the control it
+   shows as it did when Send left them on the thread; once they have, it is writing
+   until the next send, empty or not. A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, reading keeps the foot. Writing keeps the top. Beside its
@@ -41,6 +42,7 @@ export class CardAnchor {
   // The box keeps the caret through a send (replies.js), but the empty box the user
   // sent from is no draft being written until they type in it, or leave it and come
   // back, so news, the answer they wait for first, shows as it does to a reader.
+  // Typing ends that for good: words erased again leave a box still being written in.
   #sentFrom = false;
 
   /** @param {HTMLElement} surface */
@@ -56,9 +58,11 @@ export class CardAnchor {
   }
 
   // Entering or editing the native reply starts a new writing place, even while
-  // an earlier send remains in flight. Its later receipt cannot borrow it again.
+  // an earlier send remains in flight. Its later receipt cannot borrow it again, and
+  // the box is no longer the empty one the send left.
   writing() {
     this.#sent = null;
+    this.#sentFrom = false;
   }
 
   // The user left the reply, so coming back into it is writing again.

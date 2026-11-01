@@ -131,6 +131,7 @@ var CardAnchor = class {
 	}
 	writing() {
 		this.#sent = null;
+		this.#sentFrom = false;
 	}
 	leftReply() {
 		this.#sentFrom = false;

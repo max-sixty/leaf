@@ -218,7 +218,7 @@
     "runtime/text-alignment.js": "78612672d322b192190135b2a47754b4ed735b46f272ea38a287a0df7fdd22f7",
     "runtime/thread/actions.js": "b1083b48256fa60b03ee1a7198a961d18cc71efe19ddbdba9dc2189da6e6fb9c",
     "runtime/thread/box.js": "e238aeac5b3fe1e530ec59d75aa2ffca47e5afae5e42c852a995bdb25a37bc4a",
-    "runtime/thread/card-anchor.js": "fe6c1e42c4ac884dd7db1e327f867d021022e6cfec89143f5475d435039fbee4",
+    "runtime/thread/card-anchor.js": "d6ff079ab7902b1e2e96d266974e76ff0ab3914ef5001f1cc80cd05788bf8ad0",
     "runtime/thread/destination.js": "a84f769233aed0c5681c21df5456bf777401cbad049cb8522bebe5680f470503",
     "runtime/thread/focus.js": "2faa80db8045ca64a7cb139bd5db7ddd30120b9a9788f60cf59502d6c66fcc89",
     "runtime/thread/folding.js": "f0dd9961efec544a171206dd17a06c9a0142e6806dcccc54a79a1e7ee419a862",

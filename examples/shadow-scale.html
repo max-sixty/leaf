@@ -176,6 +176,31 @@
         opacity: 0.55;
         cursor: default;
       }
+      .ws-presets {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--ws-quiet);
+      }
+      .ws-presets > span {
+        margin-right: 4px;
+      }
+      shadow-workshop .ws-preset {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--ws-well);
+        color: var(--ws-ink-2);
+        font-size: 12px;
+      }
+      shadow-workshop .ws-preset:hover {
+        background: var(--ws-fill);
+      }
+      shadow-workshop .ws-preset[aria-pressed="true"] {
+        background: var(--ws-ink);
+        color: var(--ws-canvas);
+      }
       .ws-row {
         display: flex;
         align-items: baseline;
@@ -392,6 +417,7 @@
     <script type="module">
       import {
         generatedElement,
+        keeps,
         keepsText,
         once,
         whileInterfaceConnected,
@@ -410,6 +436,38 @@
           L(0, 26, 10, 0, 8),
         ],
       };
+      // Starting points, each a whole scale, so one press sets all three elevations.
+      const PRESETS = [
+        [
+          "Flat",
+          {
+            colour: "#0e0d0a",
+            resting: [L(0, 0, 0, 1, 6)],
+            raised: [L(0, 0, 0, 1, 6), L(0, 1, 2, 0, 5)],
+            overlay: [L(0, 0, 0, 1, 8), L(0, 2, 4, 0, 6)],
+          },
+        ],
+        ["Soft", DEFAULT_SCALE],
+        [
+          "Deep",
+          {
+            colour: "#0e0d0a",
+            resting: [L(0, 1, 2, 0, 6), L(0, 4, 8, 0, 6)],
+            raised: [L(0, 2, 4, 0, 8), L(0, 8, 16, 0, 8), L(0, 18, 28, 0, 7)],
+            overlay: [
+              L(0, 4, 6, 0, 10),
+              L(0, 12, 18, 0, 10),
+              L(0, 24, 32, 0, 10),
+              L(0, 40, 48, -4, 12),
+            ],
+          },
+        ],
+      ];
+      // A scale's JSON with its keys in one order, so a value read back from the log
+      // compares equal to the preset it came from.
+      const KEYS = ["colour", "resting", "raised", "overlay"];
+      const canonical = (scale) =>
+        JSON.stringify(scale, [...KEYS, ...SLIDERS.map(([key]) => key)]);
       const LEVELS = [
         ["resting", "Resting", "Stationary surfaces"],
         ["raised", "Raised", "Interactive planes"],
@@ -514,6 +572,21 @@
             actions.append(this.#parts.reset, this.#parts.save);
             head.append(named, actions);
 
+            // A press sets the whole slice, which the playground records as one
+            // gesture, so Undo takes a preset back whole.
+            const presets = el("div", "ws-presets");
+            presets.setAttribute("role", "group");
+            presets.setAttribute("aria-labelledby", "ws-presets-label");
+            const presetsLabel = el("span", null, "Start from");
+            presetsLabel.id = "ws-presets-label";
+            presets.append(presetsLabel);
+            this.#parts.presets = PRESETS.map(([name, scale]) => {
+              const button = el("button", "ws-preset", name);
+              button.addEventListener("click", () => this.#scale.set(scale));
+              presets.append(button);
+              return [button, canonical(scale)];
+            });
+
             const row = el("div", "ws-row");
             const count = el("b", null, "Shadow layers ");
             this.#parts.count = el("span");
@@ -557,7 +630,7 @@
             colour.append(el("span", null, "Colour"), swatch);
             sliders.append(colour);
 
-            inspector.append(head, row, this.#parts.layers, sliders);
+            inspector.append(head, presets, row, this.#parts.layers, sliders);
             for (const box of [stage, inspector]) generatedElement(box, { says: true });
             this.append(stage, inspector);
           }
@@ -602,11 +675,12 @@
           #paint() {
             if (!this.#scale) return;
             const s = this.#scale.get();
+            const chosen = canonical(s);
+            for (const [button, scale] of this.#parts.presets)
+              keeps(button, "aria-pressed", scale === chosen);
             for (const [key, name, role] of LEVELS) {
               this.#cards.get(key).style.boxShadow = shadowCss(s[key], s.colour);
-              this.#levelButtons
-                .get(key)
-                .setAttribute("aria-pressed", String(key === this.#level));
+              keeps(this.#levelButtons.get(key), "aria-pressed", key === this.#level);
               if (key === this.#level) {
                 keepsText(this.#parts.role, role);
                 keepsText(this.#parts.title, name);
@@ -635,7 +709,7 @@
                 });
                 list.append(row);
               }
-              row.setAttribute("aria-pressed", String(i === this.#layer));
+              keeps(row, "aria-pressed", i === this.#layer);
               row.tile.style.marginLeft = `${i * 6}px`;
               row.tile.style.boxShadow = shadowCss([layer], s.colour);
               keepsText(row.summary, summary(layer));

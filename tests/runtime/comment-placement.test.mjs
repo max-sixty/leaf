@@ -22,7 +22,7 @@ document.documentElement.style.setProperty("--thread-card", "592px");
 // beside any columns, so its room across them is itself.
 const windowBoundary = (left, top, width, height) => {
   const boundary = Object.assign(new DOMRect(left, top, width, height), {
-    inRegion: null,
+    cut: null,
     key: [left, top, left + width, top + height],
   });
   return Object.assign(boundary, { across: () => boundary });
@@ -159,7 +159,7 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   // A region boundary is keyed by the region's whole size, so a scroll of the page that
   // moves and clips its shown bounds chooses no side afresh, while a resize does.
   const region = (top, height, size = [0, 0, 900, 600]) =>
-    Object.assign(new DOMRect(100, top, 900, height), { inRegion: {}, key: size });
+    Object.assign(new DOMRect(100, top, 900, height), { cut: {}, key: size });
   const clear = block(120, 860, 300, 500);
   const input = {
     clear,

@@ -1242,15 +1242,16 @@ def test_scrolling_a_drafting_card_leaves_its_editor_s_height_alone(browser, ser
         ) == pytest.approx(height, abs=0.5), step
 
 
-def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, serve):
-    """A card being read holds its top: a turn longer than the room below it scrolls in
-    inside the card rather than lifting the card's top over the words being read."""
+def test_a_turn_arriving_leaves_a_card_under_its_words_where_it_stands(browser, serve):
+    """A card under its words holds its top as a turn arrives: one longer than the room
+    below scrolls in inside the card, since rising would cover the words. Beside its
+    words a card rises instead (`test_an_answer_arriving_lifts_a_card_beside_its_words`)."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1000, 600)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", "below")
     rendered(page)
     top = preview.evaluate("card => card.getBoundingClientRect().top")
     reply = append_carried_log_record(
@@ -1269,8 +1270,12 @@ def test_a_turn_arriving_leaves_the_card_being_read_where_it_stands(browser, ser
 
 
 @pytest.mark.parametrize("repeats", [2, 12])
-def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
-    """A scroll into room expands clipped turns, whether or not the whole thread fits."""
+def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeats):
+    """A card being read beside its words near the window's foot rises as an answer
+    arrives, the window's foot lifting it as it lifts a card being written in, so the
+    question stays in view above the answer. An answer the window can't hold fills the
+    window and scrolls inside the card. Held at its top, the card scrolled the answer in
+    under the question and hid it (the user's decision, 2026-10-31)."""
     source = leaf_page(
         "Room for a conversation",
         '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'
@@ -1304,17 +1309,22 @@ def test_a_thread_uses_room_the_page_gives_it(browser, serve, repeats):
     told(page)
     expect(transcript.locator(f'[data-event="{answer["id"]}"]')).to_be_attached()
     rendered(page)
-    assert preview.bounding_box()["y"] == pytest.approx(top, abs=0.5)
-    assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
-    cramped = transcript.evaluate("node => node.clientHeight")
-    page.evaluate("scrollBy(0, 400)")
-    rendered(page)
-    assert transcript.evaluate("node => node.clientHeight") > cramped + (
-        150 if repeats == 2 else 300
+    risen = preview.bounding_box()
+    room = preview.evaluate(
+        """async card => {
+          const {left, right} = card.getBoundingClientRect();
+          const {top, bottom} = (await window.__lfWidgetApi())
+            .shownWindow({gap: 8, across: {left, right}});
+          return {top, bottom};
+        }"""
     )
+    assert risen["y"] < top - 20, (top, risen)
+    assert risen["y"] + risen["height"] == pytest.approx(room["bottom"], abs=1)
     if repeats == 2:
         assert transcript.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    assert preview.bounding_box()["y"] == pytest.approx(top - 400, abs=0.5)
+    else:
+        assert risen["y"] == pytest.approx(room["top"], abs=1), (risen, room)
+        assert transcript.evaluate("node => node.scrollHeight > node.clientHeight")
 
 
 def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, serve):

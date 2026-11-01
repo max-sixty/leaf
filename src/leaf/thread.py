@@ -249,33 +249,64 @@ def cmd_comment(
         # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
-        events = page.events
-        revision, anchor = current_anchor(
-            page_dir, events, quote, section, part, transaction=page
+        return open_thread(
+            page_dir,
+            page,
+            body,
+            quote,
+            section,
+            part,
+            markup,
+            title=title,
+            obligation=obligation,
         )
-        if markup:
-            check_markup(
-                page_dir,
-                "comment",
-                markup,
-                events,
-                publication=revision_publication(page_dir, revision),
-            )
-        event = {
-            "kind": "comment",
-            "author": "agent",
-            "revision": revision,
-            "text": body,
-        }
-        if obligation:
-            event["obligation"] = True
-        if anchor:
-            event["anchor"] = anchor
-        if markup:
-            event["markup"] = markup
-        if title is not None:
-            event["title"] = title
-        return append_admitted(page, event)[0]
+
+
+def open_thread(
+    page_dir: Path,
+    page: PageTransaction,
+    body: str,
+    quote: str = "",
+    section: str = "",
+    part: str = "",
+    markup: str = "",
+    *,
+    title: str | None = None,
+    obligation: bool = False,
+    identity: dict | None = None,
+) -> dict:
+    """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
+    describes, from a `body` already checked (`checked_text`); `identity` names the
+    agent and session where the writer isn't the agent's own process, as Leaf's
+    clerk is (`clerk.apply_answer`)."""
+    events = page.events
+    revision, anchor = current_anchor(
+        page_dir, events, quote, section, part, transaction=page
+    )
+    if markup:
+        check_markup(
+            page_dir,
+            "comment",
+            markup,
+            events,
+            publication=revision_publication(page_dir, revision),
+        )
+    event = {
+        "kind": "comment",
+        "author": "agent",
+        **(identity or {}),
+        "revision": revision,
+        "text": body,
+    }
+    if obligation:
+        event["obligation"] = True
+    if anchor:
+        event["anchor"] = anchor
+    if markup:
+        event["markup"] = markup
+    if title is not None:
+        event["title"] = title
+    return append_admitted(page, event)[0]
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:

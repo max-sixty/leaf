@@ -1,4 +1,4 @@
-import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, layoutPx, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, tabStore, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
+import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, atLayoutPrecision, bindQueuedWork, byRenderedOrder, cancelRender, composedParentNode, dataBody, elementDirective, failSoft, failSoftUnreported, frameVisibility, generatedElement, holdRendering, iconTemplate, isNativeLayer, keeps, keepsHidden, layoutPx, nextRender, offer, offerAction, onFrameVisibility, once, placesFailure, readSampleVisibility, reducedMotion, renderedOrder, renderedParent, renderedUnder, reportFailure, scrollBehavior, setScroll, shadowHost, sizeObserver, stagesFailure, tabStore, under, upFrom, watchArrivalsIn, watchOwner, whileConnected } from "./bundle-portable.js";
 import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, canPlaceFocus, closeLayer, closeNativeLayer, d, deepFocus, discussed, documentChanged, drawingSchema, drawn, editable, focusDestination, focused, handBack, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, stateCoordinate, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, holdingError, isCommandScope, keys, layerHeaders, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
@@ -1212,9 +1212,114 @@ function editorViewOver({ Compartment, Direction, EditorState, EditorView, State
 const touches = (state, from, to) => state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 const read = (state) => {
 	const source = state.doc.toString();
-	if (!/^[\s>]*$/.test(state.doc.line(state.doc.lines).text)) return placedMarkdownTokens(source);
+	const last = state.doc.line(state.doc.lines).text;
+	if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last)) return placedMarkdownTokens(source);
 	return placedMarkdownTokens(`${source}x`).filter(({ token, to }) => token.block || to <= source.length);
 };
+const columns = (text) => {
+	let col = 0;
+	for (const ch of text) col = ch === "	" ? col + 4 - col % 4 : col + 1;
+	return col;
+};
+const ITEM = "list_item_open";
+const LIST = /^(bullet|ordered)_list_open$/;
+const itemEnd = (placed, item) => Math.max(...placed.filter(({ token, from, to }) => token.block && !LIST.test(token.type) && from >= item.from && to <= item.to).map((b) => b.token.type === ITEM ? b.from + 1 : b.to));
+function nestItems(source, placed, from, to, deeper) {
+	const starts = [0];
+	for (let at = source.indexOf("\n"); at !== -1; at = source.indexOf("\n", at + 1)) starts.push(at + 1);
+	const lineStart = (pos) => starts.findLast((start) => start <= pos);
+	const lineEnd = (start) => {
+		const at = source.indexOf("\n", start);
+		return at === -1 ? source.length : at;
+	};
+	const items = placed.filter(({ token }) => token.type === ITEM);
+	const end = (item) => Math.min(source.length, itemEnd(placed, item));
+	const within = (c, at) => c.from <= at && at < c.to;
+	const first = lineStart(from);
+	const last = to > from && lineStart(to) === to ? lineStart(to - 1) : lineStart(to);
+	const holding = items.filter((i) => i.from <= first && first < end(i)).at(-1);
+	const chosen = items.filter((i) => i === holding || i.from >= first && i.from <= last);
+	if (!chosen.length) return null;
+	const listOf = (i) => placed.findLast((c) => LIST.test(c.token.type) && c.token.level === i.token.level - 1 && within(c, i.from));
+	const siblings = (i) => items.filter((s) => s.token.level === i.token.level && within(listOf(i), s.from));
+	const above = (i) => siblings(i).findLast((s) => s.from < i.from);
+	const parent = (i) => {
+		const list = listOf(i);
+		return items.findLast((c) => c.token.level === list.token.level - 1 && within(c, list.from));
+	};
+	const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup}`;
+	const quotes = (i) => placed.filter((c) => c.token.type === "blockquote_open" && c.token.level < i.token.level && within(c, i.from));
+	const base = (i, start) => Math.max(start, ...quotes(i).flatMap((q) => q.markers).filter(([a]) => a >= start && a <= lineEnd(start)).map(([, b]) => b));
+	const shape = (i) => {
+		const at = base(i, i.from);
+		const [a, b] = i.markers[0];
+		const mark = source.slice(a, b).trimEnd();
+		const rest = source.slice(a + mark.length, lineEnd(i.from));
+		const gap = rest.trim() ? columns(rest.match(/^[ \t]*/)[0]) : 1;
+		const lead = source.slice(at, a);
+		return {
+			at,
+			lead,
+			marker: a,
+			col: columns(lead),
+			mark,
+			words: columns(lead) + mark.length + (gap > 4 ? 1 : gap)
+		};
+	};
+	const changes = [];
+	const moved = [];
+	for (const item of chosen) {
+		if (moved.some(({ item: m }) => m.from < item.from && item.from < end(m))) continue;
+		const own = shape(item);
+		if (/\S/.test(own.lead)) continue;
+		let col;
+		let mark = own.mark;
+		if (deeper) {
+			const before = above(item);
+			if (!before) continue;
+			const along = moved.find((m) => m.item === before);
+			if (along) col = own.col + along.shift;
+			else {
+				col = shape(before).words;
+				const list = placed.filter((c) => c.token.block && c.token.level === before.token.level + 1 && within(before, c.from)).at(-1);
+				if (list && LIST.test(list.token.type)) mark = next(items.findLast((c) => c.token.level === list.token.level + 1 && within(list, c.from)));
+				else if (item.token.info) mark = `1${item.token.markup}`;
+			}
+		} else {
+			const outer = parent(item);
+			if (!outer) continue;
+			col = shape(outer).col;
+			mark = next(outer);
+		}
+		const shift = col - own.col;
+		const by = shift + mark.length - own.mark.length;
+		changes.push(mark === own.mark ? {
+			from: own.at,
+			to: own.marker,
+			insert: " ".repeat(col)
+		} : {
+			from: own.at,
+			to: own.marker + own.mark.length,
+			insert: " ".repeat(col) + mark
+		});
+		for (const start of starts) {
+			if (start <= item.from || start >= end(item)) continue;
+			const at = base(item, start);
+			const lead = source.slice(at, lineEnd(start)).match(/^[ \t]*/)[0];
+			if (at + lead.length === lineEnd(start)) continue;
+			changes.push({
+				from: at,
+				to: at + lead.length,
+				insert: " ".repeat(Math.max(0, columns(lead) + by))
+			});
+		}
+		moved.push({
+			item,
+			shift
+		});
+	}
+	return changes.filter(({ from, to, insert }) => source.slice(from, to) !== insert);
+}
 const DRAWN = /* @__PURE__ */ new Set([
 	"paragraph_open",
 	"heading_open",
@@ -1339,7 +1444,7 @@ function standBlocks(state, blocks, out, line) {
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
+function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, StateField, Facet, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
@@ -1685,24 +1790,119 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		run: lineStep(true, false),
 		shift: lineStep(true, true)
 	}];
+	const reading = StateField.define({
+		create: (state) => ({
+			placed: read(state),
+			judged: markdownReady()
+		}),
+		update(value, tr) {
+			const judged = markdownReady();
+			return tr.docChanged || judged !== value.judged ? {
+				placed: read(tr.state),
+				judged
+			} : value;
+		}
+	});
+	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", ITEM]);
+	const item = (c) => c?.token.type === ITEM;
+	const holding = (placed, line) => (c) => c.from <= line.from && line.from < (item(c) ? itemEnd(placed, c) : c.to);
+	const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+	const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+	const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+	const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+	const joint = Decoration.replace({ widget: new Spelled(" ") });
+	const jointsOf = (state) => {
+		if (!state.facet(joinsLines)) return Decoration.none;
+		const { placed } = state.field(reading);
+		const inline = placed.filter(({ token }) => !token.block);
+		const hard = inline.filter(({ token }) => token.type === "hardbreak");
+		const containers = placed.filter(({ token }) => CONTAINERS.has(token.type));
+		const breaks = /* @__PURE__ */ new Set();
+		for (const { from, to } of inline) {
+			const text = state.sliceDoc(from, to);
+			for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) breaks.add(from + at);
+		}
+		const out = [];
+		for (const at of [...breaks].sort((a, b) => a - b)) {
+			if (hard.some(({ from, to }) => from <= at && at < to)) continue;
+			const line = state.doc.lineAt(at);
+			const next = state.doc.line(line.number + 1);
+			const words = opened(next, containers);
+			out.push(joint.range(at - line.text.match(/[ \t]*$/)[0].length, words + state.sliceDoc(words, next.to).match(/^[ \t]*/)[0].length));
+		}
+		return Decoration.set(out);
+	};
+	const joints = StateField.define({
+		create: jointsOf,
+		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(joinsLines) === tr.startState.facet(joinsLines) ? set : jointsOf(tr.state),
+		provide: (field) => [EditorView.decorations.from(field), EditorView.atomicRanges.of((view) => view.state.field(field))]
+	});
+	function newLine(view) {
+		const { state } = view;
+		if (!state.facet(joinsLines)) return insertNewline(view);
+		const { from, to } = state.selection.main;
+		const { placed } = state.field(reading);
+		const paragraph = placed.find(({ token, from: a, to: b }) => token.type === "paragraph_open" && a <= from && to <= b);
+		const words = paragraph ? placed.filter(({ token, from: a, to: b }) => !token.block && token.type !== "softbreak" && a >= paragraph.from && b <= paragraph.to) : [];
+		const before = words.some(({ from: a }) => a < from);
+		const after = words.some(({ to: b }) => b > to);
+		const line = state.doc.lineAt(from);
+		const holds = holding(placed, line);
+		const containers = placed.filter((c) => CONTAINERS.has(c.token.type) && holds(c));
+		const inner = containers.at(-1);
+		if (inner && (!before || !after && item(inner)) && continueBlocks(view, true)) return true;
+		if (!before) return insertNewline(view);
+		const prefix = containers.map(carried).join("");
+		let spec;
+		if (after) {
+			let [a, b] = [from, to];
+			a -= state.sliceDoc(Math.min(a, opened(line, containers)), a).match(/[ \t]*$/)[0].length;
+			b += state.sliceDoc(b, state.doc.lineAt(b).to).match(/^[ \t]*/)[0].length;
+			state.field(joints).between(a, b, (jointFrom, jointTo) => {
+				a = Math.min(a, jointFrom);
+				b = Math.max(b, jointTo);
+			});
+			const breaks = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length, end]);
+			a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
+			const hard = breaks.find(([at, end]) => at <= b && b <= end);
+			const insert = `\\\n${prefix}`;
+			const changes = state.changes(hard ? [{
+				from: Math.min(a, hard[0]),
+				to: hard[0]
+			}, {
+				from: hard[1],
+				insert
+			}] : {
+				from: a,
+				to: b,
+				insert
+			});
+			spec = {
+				changes,
+				selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) }
+			};
+		} else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
+		view.dispatch(state.update(spec, {
+			scrollIntoView: true,
+			userEvent: "input"
+		}));
+		return true;
+	}
 	const livePreview = ViewPlugin.fromClass(class {
 		constructor(view) {
 			this.live = true;
-			this.placed = read(view.state);
-			this.drawn = decorate(view.state, this.placed);
-			this.judged = markdownReady();
-			if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+			this.read = view.state.field(reading);
+			this.drawn = decorate(view.state, this.read.placed);
+			if (!this.read.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
 		}
 		destroy() {
 			this.live = false;
 		}
 		update(update) {
-			const judged = markdownReady();
-			if (update.docChanged || judged !== this.judged) {
-				this.judged = judged;
-				this.placed = read(update.state);
-			} else if (!update.selectionSet) return;
-			this.drawn = decorate(update.state, this.placed);
+			const read = update.state.field(reading);
+			if (read === this.read && !update.selectionSet) return;
+			this.read = read;
+			this.drawn = decorate(update.state, read.placed);
 		}
 	}, {
 		decorations: (plugin) => plugin.drawn.decorations,
@@ -1713,29 +1913,22 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 			Prec.high(keymap.of(LINE_STEPS))
 		]
 	});
-	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", "list_item_open"]);
 	const CHECKBOX = "[ ] ";
-	function continueBlocks(view) {
+	function continueBlocks(view, nextItem = false) {
 		const { state } = view;
-		const placed = view.plugin(livePreview)?.placed ?? [];
+		const { placed } = state.field(reading);
 		const { from, to } = state.selection.main;
 		const line = state.doc.lineAt(from);
 		const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-		const blocks = placed.filter(({ token }) => token.block && !token.type.endsWith("list_open"));
-		const end = (c) => c.token.type === "list_item_open" ? Math.max(...blocks.filter((b) => b.from >= c.from && b.to <= c.to).map((b) => b.token.type === "list_item_open" ? b.from + 1 : b.to)) : c.to;
-		const holding = (c) => c.from <= line.from && line.from < end(c);
-		const containers = all.filter(holding);
+		const holds = holding(placed, line);
+		const containers = all.filter(holds);
 		if (!containers.length) return false;
-		const code = placed.some((c) => c.token.type === "fence" && holding(c));
-		const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
-		const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+		const code = placed.some((c) => c.token.type === "fence" && holds(c));
 		const bare = (l) => {
 			const rest = state.sliceDoc(opened(l, all), l.to).trim();
 			return !rest || `${rest} ` === CHECKBOX;
 		};
 		if (from < opened(line, containers)) return false;
-		const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
-		const item = (c) => c?.token.type === "list_item_open";
 		const task = ({ token }) => token.attrGet("class")?.split(" ").includes("task-list-item");
 		const next = (c) => `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
 		const inner = containers.at(-1);
@@ -1768,7 +1961,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				insert: `${kept(line).trimEnd()}\n${around.map(carried).join("")}`
 			};
 		} else {
-			const marker = item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
+			const marker = item(inner) && (nextItem || inner.from === line.from) && !code ? next(inner) : carried(inner);
 			change = {
 				from,
 				to,
@@ -1784,6 +1977,21 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		}));
 		return true;
 	}
+	const nest = (deeper) => (view) => {
+		const { state } = view;
+		if (state.readOnly) return false;
+		const { from, to } = state.selection.main;
+		const { placed } = state.field(reading);
+		const changes = nestItems(state.doc.toString(), placed, from, to, deeper);
+		if (!changes?.length) return Boolean(changes) && deeper;
+		view.dispatch(state.update({
+			changes,
+			scrollIntoView: true,
+			userEvent: deeper ? "indent.more" : "indent.less",
+			annotations: isolateHistory.of("full")
+		}));
+		return true;
+	};
 	const editable = new Compartment();
 	const histories = new Compartment();
 	const attributes = new Compartment();
@@ -1845,11 +2053,21 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					},
 					{
 						key: "Enter",
-						run: (view) => field.returned() && insertNewline(view)
+						run: (view) => field.returned() && newLine(view)
 					},
 					{
 						key: "Shift-Enter",
-						run: continueBlocks
+						run: (view) => view.state.facet(joinsLines) && newLine(view)
+					},
+					{
+						key: "Shift-Enter",
+						run: (view) => continueBlocks(view)
+					},
+					{
+						key: "Tab",
+						run: nest(true),
+						shift: nest(false),
+						stopPropagation: true
 					},
 					{
 						key: "Shift-Enter",
@@ -1861,6 +2079,9 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
 					...historyKeymap
 				]),
+				reading,
+				joinsLines.of(field.joined()),
+				joints,
 				livePreview,
 				EditorView.lineWrapping,
 				editable.of(EditorState.readOnly.of(field.readOnly)),
@@ -2278,6 +2499,7 @@ var LeafText = class extends HTMLElement {
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
+			joined: () => this.facesOf !== null,
 			focused: () => this.#measureOverflow(),
 			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
 			typed: (native, insert) => {
@@ -2600,6 +2822,7 @@ const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = "";
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
+fabBar.setAttribute("part", "composer");
 const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
@@ -7992,6 +8215,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			return true;
 		});
 		try {
+			if (this.#writesInput()) for (const { property } of this.#inputs) this[property] = dataBody(this);
 			this.setup();
 		} catch (error) {
 			this.#broken = true;
@@ -8003,6 +8227,10 @@ var LeafElement = class extends q(UpdateBoundary) {
 		});
 	}
 	setup() {}
+	#writesInput() {
+		const declaration = registry[this.localName];
+		return Boolean(declaration?.["x-content"] === "data" && this.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(this, input)));
+	}
 	get reading() {
 		return this.#controller?.read() ?? null;
 	}

@@ -4414,7 +4414,7 @@ const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
 const groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
 const namedIn = (step) => [...step.item ? [step.item.id] : [], ...step.steps.flatMap(namedIn)];
 const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
-function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
+function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, showOnMe, announce, actions }) {
 	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.thread !== null ? threadPlace(stop.thread) : subjectPlace(stop.subject);
 	const pagePlace = (stop) => {
 		const at = stopElement(stop);
@@ -4572,6 +4572,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		const ready = arriveAt(next).then((arrived) => {
 			if (!arrived) return false;
 			announce(beginWalk("queue", null, () => position(region)) ?? walkPositionLabel(null, list.indexOf(next) + 1, list.length, `${region ? WITHIN : QUALIFIER} · ${next.noun}`));
+			if (next.kind === "obligation" && next.obligation.source.kind === "todo") showOnMe();
 			return true;
 		});
 		ready.catch(() => {});
@@ -4770,6 +4771,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
+	host.setAttribute("part", "panel");
 	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
 	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
@@ -5542,6 +5544,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		observer: follow
 	});
 	const { ground } = following;
+	ground.setAttribute("part", "panel");
 	function streamSend() {
 		following.stream();
 	}
@@ -6301,6 +6304,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
 	}
+	function showOnMe() {
+		const turned = chooseQueueTab("you");
+		if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+		else if (turned) paint();
+	}
 	function pressMark() {
 		if (!onUserCount() && newCount()) {
 			query = "";
@@ -6802,7 +6810,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </p>` : nothing}${last ? html`<p>
               ${voiced([
 			leafSays("Last done: "),
-			excerptWords(queueTitle(last), 60),
+			agentSays(excerptWords(queueTitle(last), 60)),
 			leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`)
 		])}
             </p>` : nothing}
@@ -7512,6 +7520,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		pageComment,
 		searchPage,
 		doors,
+		showOnMe,
 		showForSample,
 		openThread,
 		captureCurrentLocation,
@@ -10622,6 +10631,7 @@ async function boot() {
 		prepareNavigationStep: anchorTravel.prepareNavigationStep,
 		arrive: anchorTravel.arrive,
 		readableDestination: anchorTravel.readableDestination,
+		showOnMe: () => floatingPanel.showOnMe(),
 		announce
 	});
 	const changeWalk = createChangeWalk();

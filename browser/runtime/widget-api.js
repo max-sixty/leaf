@@ -59,8 +59,6 @@ export {
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
-// Making an element's children a list, moving only what is out of place.
-export { setChildLists, setRenderedChildren } from "./dom-children.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
 export { obligationsIn } from "./obligations/place.js";
@@ -195,7 +193,6 @@ export {
   reachedForWords,
   worksInside,
 } from "./widget-elements.js";
-export { atLayoutPrecision, keepsHidden } from "./keeps.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

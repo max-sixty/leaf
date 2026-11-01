@@ -308,7 +308,7 @@ RING_CASES = (
                 ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
+                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),

@@ -72,7 +72,7 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { namedAction, offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -575,9 +575,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             : "Dictate";
       const submitControl = html`<button
         type="button"
-        ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(submitAction, {
-          label: action,
+        ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
+          action: submitAction,
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
         aria-disabled=${String(!canSend())}
@@ -625,13 +624,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const dictationControl = offersDictation
         ? html`<button
             type="button"
-            ${offered("lf-compose-dictate")}
-            ?hidden=${!micShown}
-            data-dictation=${dictationState}
-            ${namedAction("dictate", {
-              label: micAction,
+            ${offeredAction("symbol", "lf-compose-dictate", micAction, {
+              action: "dictate",
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
+            ?hidden=${!micShown}
+            data-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
             @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}

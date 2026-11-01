@@ -297,26 +297,12 @@ leaf-composition-field {
   z-index: 1;
   pointer-events: none;
 }
-/* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
-   whose ::before is the action's disc that stays clear at rest and takes its tint
-   on hover. The hit box around the disc is a symbol's (controls.css). Resolve is a
-   symbol drawn in its own ink; the composer's Send and Dictate are the composer's own
-   controls, which wireInput dresses whatever its caller made them, so they state the
-   symbol's box here. The glyph's ink outranks the .lf-ui face by coming later. Reopen
-   standing in Resolve's place is the same glyph drawn done, on every surface that
-   seats a thread. */
-:is(.lf-compose-submit, .lf-compose-dictate) {
-  box-sizing: border-box;
-  width: var(--lf-icon-action-hit);
-  height: var(--lf-icon-action-face);
-  min-width: var(--lf-icon-action-hit);
-  min-height: var(--lf-icon-action-face);
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r);
-  cursor: pointer;
-}
+/* Send and resolve are the two glyph actions: symbols (controls.css) drawn in the
+   action's own ink, whose ::before is the action's disc that stays clear at rest and
+   takes its tint on hover. Send, the composer's commit, draws in the accent, and
+   Dictate in a symbol's quiet ink until it listens; each states its ink after the
+   symbol's face, at its weight, as Resolve does. Reopen standing in Resolve's place
+   is the same glyph drawn done, on every surface that seats a thread. */
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
@@ -353,6 +339,8 @@ leaf-composition-field {
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-inset);
   inset-block-end: var(--lf-compose-action-inset);
+}
+.lf-compose-submit.lf-icon-action {
   color: var(--accent);
 }
 :is(.lf-compose-submit, .lf-compose-dictate, .lf-response-trigger):not(

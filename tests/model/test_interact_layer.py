@@ -1646,11 +1646,6 @@ def _bundled_modules():
 # `test_every_press_is_built_by_role_or_family` refuses one built neither by role nor
 # with a family's class. A class that no press outside the roles wears leaves the list.
 PRESS_FAMILIES = {
-    "the composer's actions": (
-        {"lf-compose-submit", "lf-compose-dictate"},
-        "Send and Dictate, which wireInput draws as a glyph on a disc in the field;"
-        " the symbol role awaits the composer's own change",
-    ),
     "keyboard stops": (
         {"lf-mark-note", "lf-visual-action", "lf-gloss-mark"},
         "the keyboard's stop, unseen at rest, for what the pointer takes on the page;"

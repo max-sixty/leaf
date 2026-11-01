@@ -5,7 +5,6 @@
 import "./dom-move.js";
 export {
   AsyncDirective,
-  Directive,
   LitElement,
   PartType,
   classMap,

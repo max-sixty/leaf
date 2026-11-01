@@ -10,7 +10,6 @@ export {
   offer,
   offerAction,
   offerActionElement,
-  selectableOfferElement,
   selectableOffer,
   elementDirective,
   offered,

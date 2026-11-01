@@ -29,6 +29,7 @@ import { scheduleDocumentLayout } from "./content-layout.js";
 // the root landing inset. CSS cannot sum heights across independent header owners.
 // Read the actual border boxes so typography and theme changes need no second height
 // declaration. Positioning and local sticky-content offsets remain the package's.
+/** @type {Set<Element>} */
 const rootHeaders = new Set();
 const paintRootHeaders = () => {
   const height = [...rootHeaders]
@@ -43,6 +44,7 @@ const syncRootHeaders = () => afterScript(paintRootHeaders);
 /** Reserve a header's height in document landings while it is connected. Independent
  * headers add their heights. Call the returned stop when a header changes to local
  * navigation; removing and reconnecting the node otherwise withdraws and restores it. */
+/** @param {Element} header */
 export function registerRootHeader(header) {
   return whileConnected(header, () => {
     rootHeaders.add(header);
@@ -57,6 +59,9 @@ export function registerRootHeader(header) {
   });
 }
 
+/** @param {{scheduleThreadPreviewPosition?: (() => unknown) | undefined,
+ * syncReactLayout: () => boolean, refreshFab: () => unknown,
+ * pageShifted: () => unknown, repaintPage: () => unknown}} dependencies */
 export function createPageLayout({
   scheduleThreadPreviewPosition,
   syncReactLayout,
@@ -84,13 +89,15 @@ export function createPageLayout({
   // watched box cannot create an undelivered-notification loop.
   let bodyContentWidth = 0;
   let bodyContentHeight = 0;
-  const layoutSizes = sizeObserver(([{ contentRect }]) => {
-    const widthChanged = contentRect.width !== bodyContentWidth;
-    const moved = widthChanged || contentRect.height !== bodyContentHeight;
-    bodyContentWidth = contentRect.width;
-    bodyContentHeight = contentRect.height;
-    if (widthChanged) repaintPage();
-    else if (moved) pageShifted();
+  const layoutSizes = sizeObserver((entries) => {
+    for (const { contentRect } of entries) {
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const moved = widthChanged || contentRect.height !== bodyContentHeight;
+      bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
+      if (widthChanged) repaintPage();
+      else if (moved) pageShifted();
+    }
   });
   // Mount only after the chrome is attached. Constructors perform no observation or
   // listener installation, so importing the public widget API cannot start layout.

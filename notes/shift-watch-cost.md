@@ -1,6 +1,6 @@
 # Shift-watch cost
 
-`tests/shift_watch.js` owns the Stability sensor and explains why Chrome's
+`tests/shift_watch.js` owns the shift watch and explains why Chrome's
 layout-shift source rectangles cannot replace its landmark ledger. Its header
 also describes the current reuse of unchanged readings. This note holds cost
 evidence and remaining optimization work; `tests/AGENTS.md` owns test selection.

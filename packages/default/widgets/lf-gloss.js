@@ -29,18 +29,18 @@ let nextId = 0;
 customElements.define(
   "lf-gloss",
   class extends HTMLElement {
-    #bubble = null;
+    #bubble = document.createElement("span");
     #dismissed = false;
     #focused = false;
     #hovered = false;
-    #mark = null;
+    #mark = offer("button", "lf-gloss-mark");
     #pinned = false;
     #shown = false;
 
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
-      whileConnected(this, (signal) => {
+      whileConnected(this, (/** @type {AbortSignal} */ signal) => {
         this.#listen(signal);
         this.#sync();
         return () => {
@@ -54,11 +54,9 @@ customElements.define(
 
     #build() {
       const phrase = this.textContent.replace(/\s+/g, " ").trim();
-      this.#mark = offer("button", "lf-gloss-mark");
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 
-      this.#bubble = document.createElement("span");
       do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
       while (document.getElementById(this.#bubble.id));
       this.#bubble.className = "lf-gloss-popover";
@@ -98,6 +96,7 @@ customElements.define(
       });
     }
 
+    /** @param {AbortSignal} signal */
     #listen(signal) {
       this.addEventListener(
         "pointerenter",
@@ -144,11 +143,14 @@ customElements.define(
       this.addEventListener("click", (event) => this.#click(event), { signal });
     }
 
+    /** @param {MouseEvent} event */
     #click(event) {
       if (event.defaultPrevented || reachedForWords(this)) return;
-      const nested = worksInside(event.target, this);
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
-      if (event.target.closest(".lf-gloss-popover")) return;
+      if (event.composedPath().includes(this.#bubble)) return;
       this.#dismissed = false;
       this.#pinned = !this.#pinned;
       this.#sync();

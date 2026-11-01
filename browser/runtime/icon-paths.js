@@ -7,6 +7,7 @@
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
+/** @type {Record<string, string>} */
 const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
   add: '<path d="M8 3v10M3 8h10"/>',
@@ -71,12 +72,14 @@ const ICONS = {
 
 const SVG = "http://www.w3.org/2000/svg";
 
+/** @param {string} icon */
 export const iconMarkup = (icon) => {
   const markup = ICONS[icon];
   if (!markup) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   return markup;
 };
 
+/** @param {string} icon @param {string} [className] */
 export function iconElement(icon, className = "lf-margin-entry-icon") {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
@@ -89,7 +92,7 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 }
 
 // Each action a press can show as a symbol, and the symbol and name it shows wherever
-// Leaf offers it (browser/AGENTS.md, "Visual grammar"). A press names its action and
+// Leaf offers it (browser/AGENTS.md, "Controls are few and quiet"). A press names its action and
 // never an icon, so one action can't show two symbols. Two actions may share one
 // symbol, as Undo and Discard share the U-turn, and a press may say more than the
 // action's name, as "Retry source inspection" does. The icons above that no action
@@ -100,6 +103,7 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
 // from its card's Close. A reaction's removal took undo over ✕ for the same reading
 // (the user's choice, 23 October 2026, anchor-controls.js).
+/** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
@@ -146,20 +150,18 @@ export const ACTIONS = {
   "zoom-out": { name: "Zoom out", icon: "subtract" },
 };
 
-/** The symbol `action` shows. */
-export const actionIcon = (action) => {
+/** @param {string} action */
+const namedAction = (action) => {
   const named = ACTIONS[action];
   if (!named) throw new TypeError(`Unknown Leaf action: ${action}`);
-  return named.icon;
+  return named;
 };
+/** The symbol `action` shows. @param {string} action */
+export const actionIcon = (action) => namedAction(action).icon;
+/** The name `action` says as its press's tooltip and accessible name. @param {string} action */
+export const actionName = (action) => namedAction(action).name;
 
-/** The name `action` says as its press's tooltip and accessible name. */
-export const actionName = (action) => {
-  actionIcon(action);
-  return ACTIONS[action].name;
-};
-
-/** The element that draws `action`'s symbol. */
+/** The element that draws `action`'s symbol. @param {string} action @param {string} [className] */
 export const actionElement = (action, className) =>
   iconElement(actionIcon(action), className);
 
@@ -168,15 +170,16 @@ const SYMBOLIC = new Set(["symbol", "mark"]);
 // The name a control of `role` says. A symbol or mark shows its action's symbol and
 // says its name unless `label` says more. Whether a page's own press is a word or a
 // symbol stays its author's call, so a page's "Done" may stay a word.
+/** @param {LeafActionRole} role @param {string | undefined} label @param {string | undefined} action */
 function actionFace(role, label, action) {
   if (!SYMBOLIC.has(role)) {
     if (action !== undefined)
       throw new TypeError(`A ${role} says its label and shows no action's symbol`);
-    return label;
+    return { label, action: undefined };
   }
   if (action === undefined) throw new TypeError(`A ${role} names the action it shows`);
   const name = actionName(action);
-  return label ?? name;
+  return { label: label ?? name, action };
 }
 
 /**
@@ -194,6 +197,7 @@ export function showAction(control, action, className = "lf-action-icon") {
   else control.prepend(symbol);
 }
 
+/** @param {Element} node @param {LeafActionRole} role @param {string} action */
 const drawAction = (node, role, action) =>
   showAction(node, action, role === "mark" ? "lf-mark-icon" : "lf-action-icon");
 
@@ -202,9 +206,13 @@ const drawAction = (node, role, action) =>
  * drawn from its action: `offerAction(role, className, label, {title, action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
  * from these (widget-elements.js).
- * @param {{offerAction: (...args: any[]) => HTMLButtonElement; offerActionElement: <T extends Element>(node: T, ...args: any[]) => T}} base
+ * @param {{
+ * offerAction: (role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => HTMLButtonElement,
+ * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => T
+ * }} base
  */
 export function actionOffers(base) {
+  /** @param {string | undefined} title */
   const titled = (title) => (title === undefined ? undefined : { title });
   return {
     /**
@@ -212,13 +220,9 @@ export function actionOffers(base) {
      * @param {{title?: string, action?: string}} [options]
      */
     offerAction(role, className, label, { title, action } = {}) {
-      const node = base.offerAction(
-        role,
-        className,
-        actionFace(role, label, action),
-        titled(title),
-      );
-      if (SYMBOLIC.has(role)) drawAction(node, role, action);
+      const face = actionFace(role, label, action);
+      const node = base.offerAction(role, className, face.label, titled(title));
+      if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
     /**
@@ -227,14 +231,9 @@ export function actionOffers(base) {
      * @param {string} [label] @param {{title?: string, action?: string}} [options]
      */
     offerActionElement(node, role, className, label, { title, action } = {}) {
-      base.offerActionElement(
-        node,
-        role,
-        className,
-        actionFace(role, label, action),
-        titled(title),
-      );
-      if (SYMBOLIC.has(role)) drawAction(node, role, action);
+      const face = actionFace(role, label, action);
+      base.offerActionElement(node, role, className, face.label, titled(title));
+      if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
   };

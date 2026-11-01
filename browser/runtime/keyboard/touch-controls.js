@@ -23,14 +23,24 @@ import { innermostStance, invokePress } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 
 // Each press's latest reading, by the command it invokes, and how its row reads now.
+/** @typedef {ReturnType<typeof touchPresses>[number]} TouchPress
+ * @typedef {{label: string, shortcut: string[], disabled: boolean}} Face
+ * @typedef {{label: string, action: keyof typeof import("../icon-paths.js").ACTIONS, disabled: boolean, press: {id: string, row: import("./bindings.js").Command, binding: undefined}}} StanceFace
+ */
+/** @type {Map<string, {press: TouchPress, face: Face | undefined}>} */
 const presses = new Map();
-const faces = new Map();
 
+/** @param {TouchPress} press */
 function place(press) {
-  const known = presses.has(press.id);
-  presses.set(press.id, press);
-  if (known) return press.id;
-  const face = () => faces.get(press.id);
+  const known = presses.get(press.id);
+  if (known) {
+    known.press = press;
+    return press.id;
+  }
+  /** @type {{press: TouchPress, face: Face | undefined}} */
+  const record = { press, face: undefined };
+  presses.set(press.id, record);
+  const face = () => record.face;
   registerPageControl({
     key: `command:${press.id}`,
     rank: PAGE_CONTROL_RANK.commands,
@@ -39,16 +49,16 @@ function place(press) {
     // where the menu's row cuts its words, are read where the menu paints, so one that
     // says how long ago, as Undo's does, follows the page's clock (presence.js,
     // `clockValue`) rather than standing as the repaint frame last read it.
-    value: () => (face() ? (word(presses.get(press.id).row.touchValue) ?? "") : ""),
-    title: () => (face() ? descriptionOf(presses.get(press.id).row) : ""),
+    value: () => (face() ? (word(record.press.row.touchValue) ?? "") : ""),
+    title: () => (face() ? descriptionOf(record.press.row) : ""),
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
     group: press.row.menu ?? "page",
     offered: () => Boolean(face()),
     disabled: () => face()?.disabled ?? true,
     // A command that acts on where the reader stood gets that place back before it runs.
-    press: (held) => {
-      const current = presses.get(press.id);
+    press: /** @param {Parameters<typeof returnPlace>[0] | null} held */ (held) => {
+      const current = record.press;
       if (current.row.retainCurrentLocation && held) returnPlace(held);
       if (live(current.row)) invokePress(current);
     },
@@ -57,6 +67,7 @@ function place(press) {
 }
 
 // The way out of the stance the user is in now: its row's words and latest press.
+/** @type {StanceFace | null} */
 let stance = null;
 let stanceRegistered = false;
 
@@ -78,9 +89,11 @@ function placeStanceExit() {
   });
 }
 
+/** @param {StanceFace | null} a @param {StanceFace | null} b */
 const sameStance = (a, b) =>
   a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
 
+/** @param {Face | undefined} a @param {Face | undefined} b */
 const same = (a, b) =>
   a?.label === b?.label &&
   a?.disabled === b?.disabled &&
@@ -91,10 +104,11 @@ export function paintTouchControls() {
   let changed = false;
   const held = innermostStance();
   if (held) placeStanceExit();
-  const title = held && titleOf(held.exit);
+  const title = held ? titleOf(held.exit) : "";
+  /** @type {StanceFace | null} */
   const nextStance = held
     ? {
-        label: title[0].toUpperCase() + title.slice(1),
+        label: title.charAt(0).toUpperCase() + title.slice(1),
         action: held.exit.action ?? "close",
         disabled: !live(held.exit),
         press: { id: held.exit.id, row: held.exit, binding: undefined },
@@ -102,7 +116,8 @@ export function paintTouchControls() {
     : null;
   if (!sameStance(nextStance, stance)) changed = true;
   stance = nextStance;
-  for (const [id, press] of presses) {
+  for (const [id, record] of presses) {
+    const { press } = record;
     const [binding] = bindings(press.row);
     const next = shown.has(id)
       ? {
@@ -111,10 +126,9 @@ export function paintTouchControls() {
           disabled: !live(press.row),
         }
       : undefined;
-    if (same(next, faces.get(id))) continue;
+    if (same(next, record.face)) continue;
     changed = true;
-    if (next) faces.set(id, next);
-    else faces.delete(id);
+    record.face = next;
   }
   if (changed) pageControlsChanged();
 }

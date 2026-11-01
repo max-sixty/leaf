@@ -315,19 +315,21 @@ lf-tabs[data-lf-views] > lf-tab {
      * row down rather than below the whole list. The set is the container its own
      * parts ask, which is why the stacking is written on them and not on the set.
      *
-     * Summary and outcome each add one stated line to a horizontal strip. The same
-     * authored declarations reserve those lines before upgrade, so the panel starts
-     * in its final position. In a column, summaries can wrap to keep their context. */
+     * Summary and outcome each add one line to a horizontal strip, as tall as a line of
+     * the font it is set in: the summary's `--font-compact` and the outcome's
+     * `--font-heading` (base.css), each its size times the fonts' shared leading. The
+     * same authored declarations reserve those lines before upgrade, so the panel
+     * starts in its final position. In a column, summaries can wrap to keep their
+     * context. */
     :is(lf-tabs[list="side"], lf-parts) {
-      --lf-tab-summary-h: 17px;
       --lf-tab-context-h: 0px;
       --lf-tab-outcome-h: 0px;
     }
     lf-tabs[list="side"]:has(> lf-tab[summary]) {
-      --lf-tab-context-h: var(--lf-tab-summary-h);
+      --lf-tab-context-h: calc(var(--t-working-label) * var(--lf-ui-lh));
     }
     lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
-      --lf-tab-outcome-h: var(--lf-tab-summary-h);
+      --lf-tab-outcome-h: calc(var(--t-6) * var(--lf-ui-lh));
     }
     lf-tabs[list="side"][data-lf-views] {
       container-type: inline-size;
@@ -399,14 +401,11 @@ lf-tabs[data-lf-views] > lf-tab {
       container-type: inline-size;
       grid-column: 1 / -1;
       grid-row: 3;
-      block-size: var(--lf-tab-summary-h);
-      line-height: var(--lf-tab-summary-h);
       padding-inline: 5px;
       justify-self: stretch;
       display: flex;
       gap: 0.3em;
-      font-size: var(--t-6);
-      font-weight: 600;
+      font: var(--font-heading);
       color: var(--ink-2);
     }
     lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer::before {
@@ -417,7 +416,7 @@ lf-tabs[data-lf-views] > lf-tab {
     lf-tabs[list="side"][data-lf-views]
       > .lf-tabstrip
       .lf-tab-answer[data-lf-obligations="open"] {
-      font-weight: 400;
+      font: var(--font-small);
       color: var(--muted);
       &::before {
         content: "○" / "";
@@ -441,8 +440,7 @@ lf-tabs[data-lf-views] > lf-tab {
       grid-column: 1 / -1;
       grid-row: 2;
       padding: 0 5px;
-      font-size: var(--t-working-label);
-      line-height: var(--lf-tab-summary-h);
+      font: var(--font-compact);
       color: var(--muted);
     }
     /* Each run of rows sharing a group, or sharing none, is a box of its own

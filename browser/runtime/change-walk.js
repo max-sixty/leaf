@@ -36,7 +36,7 @@ import { announce } from "./notifications.js";
 import { repaint } from "./repaint.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
-/** @typedef {readonly Element[]} Change */
+/** @typedef {import("./version.js").Change} Change */
 // Where a change starts, which is where a step lands.
 const start = (/** @type {Change} */ change) => change[0];
 
@@ -58,7 +58,7 @@ const position = () => {
   });
 };
 
-/** @param {number} dir */
+/** @param {import("./keyboard/bindings.js").Step} dir */
 function step(dir) {
   const list = comparisonChanges();
   const origin = walkOrigin();
@@ -107,7 +107,7 @@ export function createChangeWalk() {
     when: offered,
     repeat: true,
     travels: true,
-    run: (/** @type {string} */ binding) => step(binding === "h" ? 1 : -1),
+    runKey: (binding) => step(binding === "h" ? 1 : -1),
   });
   // The row stands while a comparison marks anything, so the surfaces reading the keys
   // are repainted where the marks come or go.

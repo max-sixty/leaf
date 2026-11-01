@@ -467,7 +467,7 @@ export function createFloatingResponsePlacement({
       column: place.column,
       extent: place.extent,
       boundary,
-      scroller: place.scroller,
+      scroller: boundary.scroller,
       coarse: coarsePointer.matches,
     });
 

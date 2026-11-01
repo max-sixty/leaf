@@ -65,10 +65,12 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
   for (const source of ["First\nword300", "First  \nword300"]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);
+    // A soft break reads as a file's space, inside the paragraph's one text.
     const node = body.querySelector("p").lastChild;
+    const at = node.data.indexOf("word300");
     for (const offset of [0, 2])
       assert.equal(
-        markdownSourceOffset(body, node, offset),
+        markdownSourceOffset(body, node, at + offset),
         source.indexOf("word300") + offset,
         source,
       );
@@ -84,7 +86,7 @@ test("Markdown body readings share file dialect, safe destinations and native st
   );
   for (const { source, words, links } of cases) {
     const body = document.createElement("div");
-    body.innerHTML = renderMarkdown(source);
+    body.innerHTML = renderMarkdown(source, false);
     assert.deepEqual(
       [...body.querySelectorAll("a")].map((link) => ({
         text: link.textContent,

@@ -19,16 +19,22 @@ import { spokenSubject } from "./contribution-model.js";
 import { offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 
+/** @param {number} count */
 const label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 
+/** @typedef {readonly [string, ...string[]]} CommentThreads */
+/** @param {{openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],
+ * labelAnchor: typeof import("./thread/messages.js").anchorLabel}} options */
 export function createAnchorNoteProjection({ openThread, labelAnchor }) {
   // holder -> { note, firstThreadId }
+  /** @type {Map<Element, ReturnType<typeof claim>>} */
   const claims = new Map();
 
-  function claim() {
+  /** @param {string} firstThreadId */
+  function claim(firstThreadId) {
     const note = offer("button", "lf-mark-note");
     note.tabIndex = -1;
-    const record = { note, firstThreadId: null };
+    const record = { note, firstThreadId };
     note.addEventListener(
       "click",
       () => void openThread(record.firstThreadId, { part: "thread" }),
@@ -36,17 +42,19 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     return record;
   }
 
+  /** @param {Element} holder @param {ReturnType<typeof claim>} record */
   function release(holder, record) {
     unshelve(holder, record.note);
     claims.delete(holder);
   }
 
+  /** @param {ReadonlyMap<Element, CommentThreads>} notes */
   function present(notes) {
     for (const [holder, record] of claims)
       if (!notes.has(holder) || !holder.isConnected) release(holder, record);
     for (const [holder, threadIds] of notes) {
       let record = claims.get(holder);
-      if (!record) claims.set(holder, (record = claim()));
+      if (!record) claims.set(holder, (record = claim(threadIds[0])));
       shelve(holder, record.note);
       record.firstThreadId = threadIds[0];
       const count = label(threadIds.length);

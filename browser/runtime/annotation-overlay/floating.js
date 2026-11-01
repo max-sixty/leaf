@@ -62,6 +62,22 @@ import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
 import { upFrom, renderedParent } from "../shadow.js";
 
+/** @typedef {import("@floating-ui/dom").MiddlewareState} MiddlewareState */
+/** @typedef {import("@floating-ui/dom").ComputePositionReturn} Position */
+/** @typedef {import("@floating-ui/dom").Side} Side */
+/** @typedef {{x: number, y: number}} Point */
+/** @typedef {{edge: Side, at: number}} HoldingEdge */
+/** @typedef {"page" | "window" | "region"} Plane */
+/** @typedef {import("@floating-ui/dom").VirtualElement & {
+ * contextNode?: Node | null, geometry?: ReturnType<typeof floatingGeometry>
+ * }} FloatingReference */
+/** @typedef {{subject: Element | null, anchor: ReturnType<typeof anchorFor>,
+ * frame: ReturnType<typeof anchorFor>, plane: Plane, at: Point}} PlacementProof */
+/** @typedef {{floating: HTMLElement, subject: Element | null,
+ * anchor: ReturnType<typeof anchorFor>, frame: ReturnType<typeof anchorFor>,
+ * plane: Plane, tenure: object, edges: {left: "left" | "right", top: "top" | "bottom"},
+ * point: {left: number, top: number}, size: {width: number, height: number}}} FloatingSelection */
+
 /** @type {Promise<typeof import("/vendor/floating-ui.esm.js")> | null} */
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -70,6 +86,7 @@ afterPresentation(floatingUi);
 
 // Ask the solver's platform how one positioning pixel reaches the viewport. A Window
 // offset parent can still be scaled by CSS zoom; getScale(Window) cannot describe it.
+/** @param {Pick<MiddlewareState, "elements" | "platform" | "strategy">} state */
 export async function positioningScale({ elements, platform, strategy }) {
   const unit = await platform.convertOffsetParentRelativeRectToViewportRelativeRect({
     elements,
@@ -85,6 +102,7 @@ export async function positioningScale({ elements, platform, strategy }) {
 // that space. Nothing where a transform, filter, or containment between the box and the
 // body makes some box other than the viewport its containing block, since an anchor
 // outside that block cannot position it.
+/** @param {import("@floating-ui/dom").ReferenceElement} reference @returns {import("@floating-ui/dom").Middleware} */
 const anchorAt = (reference) => ({
   name: "anchorAt",
   async fn(state) {
@@ -109,16 +127,18 @@ const anchorAt = (reference) => ({
 // it stands by, innermost first, the one whose box or visible band has that edge on the
 // client line `at`. The window's edges and its head room are none of theirs, which
 // leaves the surface in the window's plane.
+/** @param {HoldingEdge} holding @param {Element} context @param {ReturnType<typeof import("@floating-ui/dom").getOverflowAncestors>} overflowAncestors */
 function holderOf({ edge, at }, context, overflowAncestors) {
   const candidates = overflowAncestors.filter(
+    /** @returns {source is Element} */
     (source) => source instanceof Element && source !== document.scrollingElement,
   );
-  for (
-    let region = containingReadingRegionFor(context);
-    region;
-    region = upFrom(region.host) && containingReadingRegionFor(upFrom(region.host))
-  )
+  /** @type {ReturnType<typeof containingReadingRegionFor> | null} */
+  let region = containingReadingRegionFor(context);
+  while (region) {
     if (!candidates.includes(region.body)) candidates.push(region.body);
+    region = upFrom(region.host) && containingReadingRegionFor(upFrom(region.host));
+  }
   return (
     candidates.find((box) =>
       [box.getBoundingClientRect(), shownBand(box)].some(
@@ -134,23 +154,27 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
 // and one that carries an inline offset its inline edge as `inline`; an edge the
 // boundary shifted the box against outranks either.
+/** @type {import("@floating-ui/dom").Middleware} */
 const held = {
   name: "held",
   async fn(state) {
     const { placement, rects, middlewareData, elements, platform } = state;
     const [side, alignment] = placement.split("-");
+    /** @template {string} T @param {T} start @param {T} end */
     const aligned = (start, end) => (alignment === "end" ? end : start);
+    /** @type {{x: "left" | "right", y: "top" | "bottom"}} */
     const edges =
       side === "top" || side === "bottom"
         ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
         : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
     edges.y = middlewareData.hold?.edge ?? edges.y;
     edges.x = middlewareData.hold?.inline ?? edges.x;
-    const shifted = middlewareData.shift ?? {};
-    if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
-    if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
+    const shiftX = middlewareData.shift?.x ?? 0;
+    const shiftY = middlewareData.shift?.y ?? 0;
+    if (Math.abs(shiftX) >= 0.5) edges.x = shiftX < 0 ? "right" : "left";
+    if (Math.abs(shiftY) >= 0.5) edges.y = shiftY < 0 ? "bottom" : "top";
     const parent = await platform.getOffsetParent(elements.floating);
-    const block = parent === window ? document.documentElement : parent;
+    const block = parent instanceof Element ? parent : document.documentElement;
     // Client dimensions belong to the block's CSS pixels, except the standards-mode
     // root's viewport pixels. Cross through the platform's viewport conversion so
     // a surface zoomed relative to an element block keeps the same positioning units.
@@ -171,17 +195,22 @@ const held = {
   },
 };
 
+/** @type {readonly Side[]} */
 const INSETS = ["left", "right", "top", "bottom"];
 
 // The mechanical owner's last written placement in viewport pixels, relative to
 // its frame, never a rectangle read back from its rendered box. Consumers can
 // distinguish a native plane change from a local child/holder displacement
 // without granting that displacement to the owner.
+/** @type {Map<HTMLElement, FloatingSelection>} */
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
 // The edges that hold a placed box where its placement stood it, the anchor of what it
 // stands by, and the element its plane moves with, as box-motion.js reads them
 // (`held`), or null for a box no placement stands.
+// The edges that hold a placed box where its placement stood it, as box-motion.js reads
+// them (`held`), or null for a box no placement stands.
+/** @param {HTMLElement} floating */
 export const heldEdges = (floating) => {
   const placed = stood.get(floating);
   return placed
@@ -194,35 +223,44 @@ export const heldEdges = (floating) => {
     : null;
 };
 
+/** @param {Node | null | undefined} context */
 const physicalContext = (context) =>
   context instanceof Element ? context : context?.parentElement;
 
 // A surface anchors to `context` (css-anchors.js, `anchorFor`). A presenter can retain
 // this reading beside its reference rectangle before a module load: the anchor boxes
 // must describe the same geometry as that rectangle.
+/** @param {readonly (Node | null | undefined)[]} contexts */
 export function floatingGeometry(contexts) {
   const anchors = new Map();
   for (const context of contexts) {
-    const anchor = anchorFor(context);
+    const anchor = anchorFor(context ?? null);
     if (anchor) anchors.set(anchor, anchorBox(anchor));
   }
   return { anchors };
 }
 
+/** @param {{floating: HTMLElement, update: () => void}} options */
 export function floatingPlacement({ floating, update }) {
   let epoch = 0;
+  /** @type {Element | null} */
   let watched = null;
+  /** @type {object | null} */
   let observer = null;
   let tenure = Object.freeze({});
+  /** @type {(() => void) | null} */
   let stopWatching = null;
+  /** @type {{anchor: import("../css-anchors.js").Anchor, edgeX: "left" | "right", edgeY: "top" | "bottom", lengthX: number, lengthY: number} | null} */
   let lastAnchorStand = null;
   // Writes the held edges' insets and clears the free ones.
+  /** @param {Partial<Record<Side, string>>} insets */
   const inset = (insets) => {
     for (const edge of INSETS)
       if (insets[edge] === undefined) floating.style.removeProperty(edge);
       else floating.style.setProperty(edge, insets[edge]);
   };
   // Each held edge's inset from the same edge of the box's containing block.
+  /** @param {Position} answer */
   const placedAt = ({ x, y, middlewareData }) => {
     lastAnchorStand = null;
     const { edges, width, height, block } = middlewareData.held;
@@ -237,8 +275,10 @@ export function floatingPlacement({ floating, update }) {
   // placements retains the last solved spot until its owner repositions or withdraws
   // the box. Replacing a target must not send an active editor off screen between
   // the native anchor disappearing and the next asynchronous solve.
+  /** @param {import("../css-anchors.js").Anchor} anchor @param {Point} at */
   const anchoredAt =
     (anchor, at) =>
+    /** @param {Position} answer */
     ({ x, y, middlewareData }) => {
       const { edges, width, height, block } = middlewareData.held;
       const lengthX = atLayoutPrecision(
@@ -250,13 +290,15 @@ export function floatingPlacement({ floating, update }) {
       // Scrolling carries the anchor itself. Re-solving an unchanged offset must
       // not write a new fallback position and repaint the page's highlights.
       if (
-        lastAnchorStand?.anchor === anchor &&
+        lastAnchorStand &&
+        lastAnchorStand.anchor === anchor &&
         lastAnchorStand.edgeX === edges.x &&
         lastAnchorStand.edgeY === edges.y &&
         lastAnchorStand.lengthX === lengthX &&
         lastAnchorStand.lengthY === lengthY
       )
         return;
+      /** @param {"left" | "top"} side @param {number} length @param {number} fallback */
       const from = (side, length, fallback) =>
         `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
       floating.style.positionAnchor = anchorName(anchor);
@@ -277,12 +319,15 @@ export function floatingPlacement({ floating, update }) {
       };
     };
   let stand = placedAt;
+  /** @type {PlacementProof | null} */
   let placementProof = null;
+  /** @type {(() => void) | null} */
   let stopScrollInvalidation = null;
   // Where an answer stands the box, in client coordinates, from the measurement it was
   // solved against rather than read off the box, which may not yet be laid out where a
   // scroll the browser carried it through has put it, or, just taken into its anchor's
   // plane, where that anchor stands.
+  /** @param {Position} answer */
   function clientBox(answer) {
     const { offset, scale } = answer.middlewareData.anchorAt;
     const { width, height } = answer.middlewareData.held;
@@ -298,6 +343,9 @@ export function floatingPlacement({ floating, update }) {
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
     // for; `autoUpdate` declares which mechanical changes invalidate its placement.
+    /** @template {import("@floating-ui/dom").ReferenceElement} R
+     * @param {Element} element @param {R} reference
+     * @param {(reference: R, floating: HTMLElement, update: () => void) => () => void} autoUpdate */
     watch(element, reference, autoUpdate) {
       if (element === watched && autoUpdate === observer) return;
       stopWatching?.();
@@ -311,6 +359,7 @@ export function floatingPlacement({ floating, update }) {
       // descendants supply both the visibility reading and the mutations that change it.
       // Only a changed visibility reading invalidates placement.
       let visible = visibleTargetParts(element).length > 0;
+      /** @type {boolean | null} */
       let observesParts = null;
       const visibility = new MutationObserver(() => {
         observeVisibility();
@@ -340,6 +389,7 @@ export function floatingPlacement({ floating, update }) {
     },
     follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
+    /** @param {number} placement */
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the constraint
     // `planeOf` reads as binding it: `"page"`, `"window"`, or the edge that holds it in
@@ -347,11 +397,16 @@ export function floatingPlacement({ floating, update }) {
     // stands beside in the page's plane. `stand` then writes that answer's spot in its
     // plane. An answer a later placement superseded while it was computed is null, and
     // writes nothing.
+    /** @param {typeof import("@floating-ui/dom").computePosition} computePosition
+     * @param {FloatingReference} reference
+     * @param {Partial<import("@floating-ui/dom").ComputePositionConfig> & {middleware: import("@floating-ui/dom").Middleware[]}} options
+     * @param {(answer: Position) => "page" | "window" | HoldingEdge} planeOf
+     * @param {Element} beside */
     async position(computePosition, reference, options, planeOf, beside) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
       const physical = physicalContext(context);
-      const anchor = anchorFor(context);
+      const anchor = anchorFor(context ?? null);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorStood = geometry.anchors.get(anchor);
@@ -384,7 +439,7 @@ export function floatingPlacement({ floating, update }) {
             ? "region"
             : "window";
       const frameAnchor =
-        plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
+        plane === "page" ? anchor : holder ? anchorElement(holder) : null;
       const frameBox =
         plane === "page" ? anchorStood : frameAnchor && anchorBox(frameAnchor);
       const at = offset && {
@@ -421,6 +476,7 @@ export function floatingPlacement({ floating, update }) {
     },
     // Writes the answer's spot in its plane, and returns how far that moved the box, by
     // the answer's own measure (`clientBox`).
+    /** @param {Position} answer */
     stand(answer) {
       const from = floating.getBoundingClientRect();
       stand(answer);
@@ -434,23 +490,24 @@ export function floatingPlacement({ floating, update }) {
       const { edges, width, height, block } = answer.middlewareData.held;
       const { offset, scale } = answer.middlewareData.anchorAt;
       const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
-      const point = {};
-      for (const [axis, start, coordinate, length, extent] of [
-        ["left", "left", "x", width, block.width],
-        ["top", "top", "y", height, block.height],
-      ]) {
+      /** @param {"x" | "y"} coordinate @param {"left" | "top"} start
+       * @param {number} length @param {number} extent */
+      const axisPoint = (coordinate, start, length, extent) => {
         const fromStart = edges[coordinate] === start;
         const spot = answer[coordinate];
-        point[axis] = frameAnchor
+        const point = frameAnchor
           ? fromStart
             ? atLayoutPrecision(spot - at[coordinate])
             : -atLayoutPrecision(at[coordinate] - spot - length)
           : fromStart
             ? atLayoutPrecision(spot)
             : extent - atLayoutPrecision(extent - spot - length);
-        point[axis] =
-          (point[axis] - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
-      }
+        return (point - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
+      };
+      const point = {
+        left: axisPoint("x", "left", width, block.width),
+        top: axisPoint("y", "top", height, block.height),
+      };
       stood.set(
         floating,
         Object.freeze({

@@ -116,12 +116,26 @@
  * state as a picture, sends every press to the root while it runs, and abandons a
  * running one when the next change starts, as each keystroke would; here every part
  * stays live and pressable, which takes reading where each was drawn. */
-import { keeps } from "./keeps.js";
+import { inlineStyle, keeps } from "./keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
+
+/** @typedef {import('./rect.js').Box} Box
+ * @typedef {import('./css-anchors.js').Anchor} Anchor
+ * @typedef {keyof Box} Edge
+ * @typedef {[number, number]} Offset
+ * @typedef {[number, number, number, number]} Insets
+ * @typedef {{element: Element, style: CSSStyleDeclaration, box: Box, window: boolean,
+ * parts: Part[], scrolls: boolean, whole: boolean, holdsWindow: boolean}} Part
+ * @typedef {{from: Box, to: Box, carries?: [Edge, Edge], frames?: boolean,
+ * revealed?: boolean, gaveUp?: number}} Moving
+ * @typedef {{child: Element, top: number}} StreamStart
+ * @typedef {{child: Element, from: number, to: number}} Stream
+ * @typedef {(element: Element | null) => Offset} Carried
+ * @typedef {{duration: number, easing: string}} Timing */
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
@@ -130,8 +144,10 @@ import { contentRides } from "./scrolling.js";
 // gesture's rendering settles, a reading back within a frame or two, is taken as
 // theirs. Typing is told apart, since the field it types in must not move under it.
 // Activation is a new gesture too: a held press can settle before its click.
+/** @type {"typing" | "press" | null} */
 let gesture = null;
 let gestures = 0;
+/** @param {Event} event */
 function beginGesture(event) {
   if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
     return;
@@ -154,57 +170,78 @@ function listen() {
 // the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
 // off `element`, where the theme registers them as lengths. Cut at the drop and one
 // blur, the shadow stopped in a step.
+/** @param {Element} element @param {number} level */
 const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
-  const [drop, blur] = ["drop", "blur"].map((part) =>
-    Number.parseFloat(lift.getPropertyValue(`--raise-${level}-${part}`)),
-  );
+  const drop = Number.parseFloat(lift.getPropertyValue(`--raise-${level}-drop`));
+  const blur = Number.parseFloat(lift.getPropertyValue(`--raise-${level}-blur`));
   return drop + 2 * blur;
 };
 
+/** @param {number} a @param {number} b */
 const near = (a, b) => Math.abs(a - b) < 0.5;
+/** @param {Box} rect @returns {Box} */
 const boxOf = (rect) => ({
   left: rect.left,
   top: rect.top,
   right: rect.right,
   bottom: rect.bottom,
 });
+/** @param {Box} box */
 const width = (box) => box.right - box.left;
+/** @param {Box} box */
 const height = (box) => box.bottom - box.top;
+/** @param {Box} a @param {Box} b */
 const same = (a, b) =>
-  ["left", "top", "right", "bottom"].every((side) => near(a[side], b[side]));
-const between = (from, to, progress) =>
-  Object.fromEntries(
-    Object.keys(to).map((side) => [
-      side,
-      from[side] + (to[side] - from[side]) * progress,
-    ]),
-  );
+  near(a.left, b.left) &&
+  near(a.top, b.top) &&
+  near(a.right, b.right) &&
+  near(a.bottom, b.bottom);
+/** @param {Box} from @param {Box} to @param {number} progress @returns {Box} */
+const between = (from, to, progress) => ({
+  left: from.left + (to.left - from.left) * progress,
+  top: from.top + (to.top - from.top) * progress,
+  right: from.right + (to.right - from.right) * progress,
+  bottom: from.bottom + (to.bottom - from.bottom) * progress,
+});
+/** @param {Box} box @param {number} dx @param {number} dy */
 const shifted = (box, dx, dy) => ({
   left: box.left + dx,
   top: box.top + dy,
   right: box.right + dx,
   bottom: box.bottom + dy,
 });
+/** @param {Insets} sides @param {number} [radius] */
 const insetOf = ([top, right, bottom, left], radius = 0) =>
   `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`;
+/** @param {readonly number[]} sides @param {number} [radius] @returns {Keyframe} */
 const clipFrame = (sides, radius = 0) => ({
   clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
+// Whether an anchor is in the document: an element, or the start of what a scroller
+// holds (css-anchors.js, `ContentStart`).
+/** @param {Anchor} anchor */
+const connected = (anchor) =>
+  "scroller" in anchor ? anchor.scroller.isConnected : anchor.isConnected;
 // The part of a move `moved` that a plane moving `limit` accounts for: no farther than
 // the plane moved, and only in its direction.
+/** @param {number} moved @param {number} limit */
 const planeShare = (moved, limit) =>
   moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
+/** @param {CSSStyleDeclaration} style */
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
+/** @param {string} color */
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
+/** @param {CSSStyleDeclaration} style */
 const paints = (style) =>
   !seeThrough(style.backgroundColor) ||
   style.backgroundImage !== "none" ||
   style.boxShadow !== "none" ||
-  ["Top", "Right", "Bottom", "Left"].some(
-    (side) => Number.parseFloat(style[`border${side}Width`]) > 0,
+  ["top", "right", "bottom", "left"].some(
+    (side) => Number.parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0,
   );
+/** @param {CSSStyleDeclaration} style */
 const rings = (style) =>
   style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
 
@@ -225,7 +262,7 @@ const rings = (style) =>
  * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
  * observer: ResizeObserver,
  * held?: () => {
- *   x: "left" | "right", y: "top" | "bottom", by?: Element | null, plane?: Element | null,
+ *   x: "left" | "right", y: "top" | "bottom", by?: Anchor | null, plane?: Anchor | null,
  * } | null,
  * }} options */
 export function boxMotion({
@@ -241,6 +278,7 @@ export function boxMotion({
   // The surface: a ring and a fill inside it, cut to the box's outline, under one
   // shadow, and a ring a part of the box wears, drawn here only while the box moves,
   // in that ring's own colour, since no transform draws a ring changing size.
+  /** @param {string} name */
   const layer = (name) => {
     const node = document.createElement("div");
     node.className = name;
@@ -248,12 +286,10 @@ export function boxMotion({
   };
   const room = layer(`lf-box-ground ${surfaceClass}`);
   room.setAttribute("aria-hidden", "true");
-  const [ring, fill, ringLayer, ringFill] = [
-    "lf-box-ring",
-    "lf-box-fill",
-    "lf-box-moving-ring",
-    "lf-box-fill",
-  ].map(layer);
+  const ring = layer("lf-box-ring");
+  const fill = layer("lf-box-fill");
+  const ringLayer = layer("lf-box-moving-ring");
+  const ringFill = layer("lf-box-fill");
   room.append(ring, fill, ringLayer, ringFill);
   const shadowReach = () => liftReach(room, lift);
   // Each layer, how far past the outline it is cut, and what it paints besides.
@@ -267,20 +303,26 @@ export function boxMotion({
   let sent = -1;
   const theirs = () => (gesture !== null && sent === gestures ? "send" : gesture);
   // Each part's box as its layout placed it at the last reading, in the window.
+  /** @type {Map<Element, Box> | null} */
   let rests = null;
   // The root's box when the readings kept were taken, in the window. A box anchored in
   // the page moves with the page's scroll, and a placement can carry it whole, as
   // dragging it does; neither is a change of its layout. So every reading kept is moved
   // first as far as the edges holding the root moved since (`rebase`), and a box held
   // by its foot that grows at its top reads as growing, not as moving.
+  /** @type {Box | null} */
   let frame = null;
   // What the box stands by, and where it stood in the box's plane at the last reading
   // or placement, or null for a box that stands by nothing (`beside`).
+  /** @type {{by: Anchor, plane: Anchor | null, x: number, y: number} | null} */
   let besideAt = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
+  /** @type {Timing | null} */
   let timing = null;
   // Each part moving, from the box it was drawn at to its rest, on one clock.
+  /** @type {Map<Element, Moving>} */
   let motions = new Map();
+  /** @type {Animation[]} */
   let running = [];
   // Folding finishes the change of size while the compact object is still travelling.
   // Keep that path here too when a new gesture interrupts it: the next motion starts
@@ -289,15 +331,18 @@ export function boxMotion({
   let rtl = false;
   // Where each scroller's content was drawn when a send began, in the window, read by
   // one of its children: the send's stream starts from there (`stream`).
+  /** @type {Map<Element, StreamStart>} */
   let streamFrom = new Map();
   // Each scroller's content riding a stream, by that child, from where it was drawn to
   // where it stands, on the clock every part shares.
+  /** @type {Map<Element, Stream>} */
   let streams = new Map();
   let stopStreaming = new AbortController();
   // How far each editor had scrolled its words before the change being read: taken at
   // each reading, again as each press or key begins, and as the field opens an edit
   // (`lf-before-edit`, composing/text-field.js), since a field scrolls as it is typed
   // in without changing size, and paste or dictation edit it with no key.
+  /** @type {Map<Element, number>} */
   let fieldScrolls = new Map();
   const noteFieldScrolls = () => {
     for (const field of fieldScrolls.keys()) fieldScrolls.set(field, field.scrollTop);
@@ -314,6 +359,7 @@ export function boxMotion({
   // trail the window's edge by a tween.
   addEventListener("resize", forget);
   // Moves every reading kept, and what is moving, as far as the plane carried the box.
+  /** @param {number} dx @param {number} dy */
   function carryReadings(dx, dy) {
     if (near(dx, 0) && near(dy, 0)) return;
     if (rests)
@@ -336,16 +382,17 @@ export function boxMotion({
   // frame after a placement takes it into its anchor's plane: a reading of the box then
   // is off by the same amount in every part, and carried whole, but a move of the box
   // against its anchor would read as one.
+  /** @param {ReturnType<typeof held>} edges */
   function beside(edges) {
     const by = edges?.by;
     const plane = edges?.plane ?? null;
-    if (!by?.isConnected || (plane && !plane.isConnected)) return null;
+    if (!by || !connected(by) || (plane && !connected(plane))) return null;
     const at = by.getBoundingClientRect();
     const origin = plane?.getBoundingClientRect() ?? { left: 0, top: 0 };
     return { by, plane, x: at.left - origin.left, y: at.top - origin.top };
   }
   // Carries every reading kept as far as the edges holding the root moved since
-  // (`frame`), and returns how far what the box stands by moved in the box's plane
+  // (`frame`), and returns the root's box and how far what the box stands by moved in the box's plane
   // meanwhile, as a scroll moves a passage past a box the window's edge holds.
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
@@ -360,8 +407,9 @@ export function boxMotion({
         ? { x: now.x - besideAt.x, y: now.y - besideAt.y }
         : { x: 0, y: 0 };
     besideAt = now;
-    return past;
+    return { at, past };
   }
+  /** @param {Box} from @param {Box} to @param {number} progress */
   const interpolate = (from, to, progress) => {
     const rect = between(from, to, progress);
     const shape = Math.min(1, progress / shapeUntil);
@@ -372,17 +420,22 @@ export function boxMotion({
     rect.top = rect.bottom - h;
     return rect;
   };
+  /** @type {Map<Element, {value: string, priority: string}>} */
   const translations = new Map();
+  /** @param {Set<Element>} [keep] */
   const restoreTranslations = (keep = new Set()) => {
     for (const [element, { value, priority }] of translations) {
       if (keep.has(element)) continue;
-      element.style.setProperty("translate", value, priority);
+      inlineStyle(element).setProperty("translate", value, priority);
       translations.delete(element);
     }
   };
+  /** @type {Set<Element>} */
   let observed = new Set();
   // The parts read whole, whose insides no reading reads.
+  /** @type {WeakSet<Element>} */
   let wholes = new WeakSet();
+  /** @param {Element} node */
   const insideWhole = (node) => {
     for (let up = node.parentElement; up && up !== root; up = up.parentElement)
       if (wholes.has(up)) return true;
@@ -391,27 +444,32 @@ export function boxMotion({
 
   // The nearest carrier's global offset includes every carrying ancestor: each
   // nested translation subtracts its parent's offset, so the local offsets telescope.
+  /** @param {number} progress @returns {Carried} */
   function carriedBy(progress) {
+    /** @type {Map<Element, Offset>} */
     const offsets = new Map();
-    const offset = (carrier) => {
-      if (!offsets.has(carrier)) {
-        const { from, to, carries } = motions.get(carrier);
-        const now = between(from, to, progress);
-        offsets.set(
-          carrier,
-          carries.map((edge) => now[edge] - to[edge]),
-        );
-      }
-      return offsets.get(carrier);
-    };
     return (element) => {
-      for (let up = element; up && up !== root; up = up.parentElement)
-        if (motions.get(up)?.carries) return offset(up);
+      for (let up = element; up && up !== root; up = up.parentElement) {
+        const moving = motions.get(up);
+        if (!moving?.carries) continue;
+        let offset = offsets.get(up);
+        if (!offset) {
+          const {
+            from,
+            to,
+            carries: [x, y],
+          } = moving;
+          const now = between(from, to, progress);
+          offsets.set(up, (offset = [now[x] - to[x], now[y] - to[y]]));
+        }
+        return offset;
+      }
       return [0, 0];
     };
   }
 
   // A part, with its box as its layout places it and what decides how it moves.
+  /** @param {Element} element @param {Part[]} into @param {Carried} carried */
   function read(element, into, carried) {
     // The surface draws the box, and is no part of it.
     if (element === room) return;
@@ -425,14 +483,17 @@ export function boxMotion({
     // that travel as a layout change would retarget the anchor on every frame.
     if (style.positionAnchor.startsWith("--")) return;
     const [dx, dy] = carried(element);
+    /** @type {Part} */
     const part = {
       element,
       style,
       box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
       window: style.position === "fixed",
       parts: [],
+      scrolls: /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`),
+      whole: false,
+      holdsWindow: false,
     };
-    part.scrolls = /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`);
     // The motion owner exposes its own parts, even when its host is a custom element.
     // Descendant widgets keep their independent rendering opaque.
     part.whole =
@@ -441,7 +502,7 @@ export function boxMotion({
       part.scrolls ||
       element.childElementCount === 0 ||
       [...element.childNodes].some(
-        (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
       );
     if (!part.whole)
       for (const child of element.children) read(child, part.parts, carried);
@@ -453,17 +514,18 @@ export function boxMotion({
   // Where each part of the last reading is drawn now, mid-tween or at rest: its own
   // motion's box, or its rest moved as far as the parts carrying it are. A part still
   // being revealed has none: it is still new.
-  function drawn(progress, carried) {
+  /** @param {number} progress @param {Carried} carried @param {Map<Element, Box>} rests */
+  function drawn(progress, carried, rests) {
     const at = new Map();
     for (const [element, rest] of rests) {
       const moving = motions.get(element);
       if (moving?.revealed && progress < 1) continue;
-      at.set(
-        element,
-        moving
+      at.set(element, {
+        from: moving
           ? (element === box ? interpolate : between)(moving.from, moving.to, progress)
           : shifted(rest, ...carried(element)),
-      );
+        rest,
+      });
     }
     return at;
   }
@@ -474,6 +536,7 @@ export function boxMotion({
   // from where it shows. Observing starts in the next frame, since a part observed
   // while the observer delivers would be read in that same delivery, which the browser
   // reports as a loop.
+  /** @type {Set<Element>} */
   const arrived = new Set();
   let watching = 0;
   const watch = () => {
@@ -499,6 +562,7 @@ export function boxMotion({
 
   // The tween a change of layout travels on, the box's own unless its caller names
   // another (`--lf-motion-box-resize`, chrome.css).
+  /** @param {Partial<Timing>} [timing] @param {boolean} [compact] */
   function follow(
     {
       duration = motionTime("--lf-motion-box-resize", box),
@@ -508,12 +572,15 @@ export function boxMotion({
   ) {
     timing = { duration, easing };
     rebase();
-    const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+    const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
+    /** @type {Part[]} */
     const parts = [];
     wholes = new WeakSet();
     read(root, parts, carried);
+    /** @type {Map<Element, Box>} */
     const next = new Map();
+    /** @param {Part} part */
     const note = (part) => {
       next.set(part.element, part.box);
       part.parts.forEach(note);
@@ -535,9 +602,10 @@ export function boxMotion({
     if (
       !scrolled &&
       rests?.size === next.size &&
-      [...next].every(
-        ([element, at]) => rests.has(element) && same(rests.get(element), at),
-      )
+      [...next].every(([element, at]) => {
+        const rest = rests?.get(element);
+        return rest !== undefined && same(rest, at);
+      })
     )
       return;
     for (const scroller of streams.keys()) contentRides(scroller, false);
@@ -545,7 +613,8 @@ export function boxMotion({
     running = [];
     // A box not drawn at all, as in print, has nothing to move, and its next reading
     // takes it as it stands.
-    if (!next.has(box)) {
+    const boxAt = next.get(box);
+    if (!boxAt) {
       restoreTranslations();
       rests = null;
       motions = new Map();
@@ -555,16 +624,15 @@ export function boxMotion({
     const gesture = theirs();
     // The first reading, and any while motion does not play, is taken as it stands, as
     // is one a key makes, but for a line it takes away.
-    let was = motionPlays() && rests ? drawn(progress, carried) : null;
-    const drawnBox = was?.get(box);
-    const closes = drawnBox && height(next.get(box)) < height(drawnBox) - 0.5;
-    if (gesture === "typing" && !closes) was = null;
+    const previous = motionPlays() && rests ? drawn(progress, carried, rests) : null;
+    const drawnBox = previous?.get(box)?.from;
+    const closes = drawnBox && height(boxAt) < height(drawnBox) - 0.5;
+    const was = gesture === "typing" && !closes ? null : previous;
     // A part holding parts of its own that was growing is drawn at a size of its own,
     // so its parts are placed again from where each is drawn.
     const framed = new Set(
       [...motions].filter(([, moving]) => moving.frames).map(([element]) => element),
     );
-    const before = rests;
     // A stream's content mid-ride starts the next reading from where it is drawn.
     const streamed = new Map();
     if (progress < 1)
@@ -582,6 +650,7 @@ export function boxMotion({
     );
 
     const space = boxOf(room.getBoundingClientRect());
+    /** @param {Box} at @param {number} grow @param {number} radius @returns {[Insets, number]} */
     const outline = (at, grow, radius) => [
       [
         at.top - space.top - grow,
@@ -591,7 +660,6 @@ export function boxMotion({
       ],
       radius + grow,
     ];
-    const boxAt = rests.get(box);
     const boxStyle = getComputedStyle(box);
     const boxRadius = radiusOf(boxStyle);
     for (const [layer, reach, paint] of surface())
@@ -600,17 +668,23 @@ export function boxMotion({
         "style",
         `${paint}clip-path: ${insetOf(...outline(boxAt, reach, boxRadius))}`,
       );
-    if (!was?.has(box)) {
+    const previousBox = was?.get(box);
+    if (!was || !previousBox) {
       restoreTranslations();
       return;
     }
-    const boxFrom = was.get(box);
+    const boxFrom = previousBox.from;
     shapeUntil = compact ? 0.55 : 1;
     rtl = getComputedStyle(box).direction === "rtl";
     // Every part moves on one clock, through the one door for motion; it plays here,
     // since this reading found that it does.
-    const start = (element, keyframes) =>
-      running.push(playMotion(element, keyframes, { duration, easing }));
+    /** @param {Element} element @param {Keyframe[]} keyframes */
+    const start = (element, keyframes) => {
+      const animation = playMotion(element, keyframes, { duration, easing });
+      if (animation) running.push(animation);
+      return animation;
+    };
+    /** @param {Box} from @param {Box} to @param {number} grow @param {number} radius @param {boolean} [compact] */
     const contour = (from, to, grow, radius, compact = false) => {
       const frames = [clipFrame(...outline(from, grow, radius))];
       if (compact)
@@ -621,9 +695,11 @@ export function boxMotion({
       frames.push(clipFrame(...outline(to, grow, radius)));
       return frames;
     };
+    /** @param {Element} element @param {string} property @param {string} value */
     const hold = (element, property, value) =>
       start(element, [{ [property]: value }, { [property]: value }]);
     const translated = new Set();
+    /** @param {Element} element @param {number} dx @param {number} dy */
     const move = (element, dx, dy) => {
       // From/to stay in window coordinates; nested translations are relative to the
       // nearest carrying ancestor, so their local offsets add to this global one.
@@ -632,20 +708,22 @@ export function boxMotion({
       dy -= carriedY;
       if (!translations.has(element))
         translations.set(element, {
-          value: element.style.getPropertyValue("translate"),
-          priority: element.style.getPropertyPriority("translate"),
+          value: inlineStyle(element).getPropertyValue("translate"),
+          priority: inlineStyle(element).getPropertyPriority("translate"),
         });
       translated.add(element);
-      element.style.setProperty("translate", "var(--lf-box-carry)");
+      inlineStyle(element).setProperty("translate", "var(--lf-box-carry)");
       start(element, [
         { "--lf-box-carry": `${dx}px ${dy}px` },
         { "--lf-box-carry": "0px 0px" },
       ]);
     };
+    /** @param {Element} element @param {readonly number[]} cut @param {number} [radius] */
     const cutFrom = (element, cut, radius = 0) =>
       start(element, [clipFrame(cut, radius), clipFrame([0, 0, 0, 0], radius)]);
 
     // Moved whole, from where it was drawn.
+    /** @param {Part} part @param {Box} from */
     function carry(part, from) {
       const dx = from.left - part.box.left;
       const dy = from.top - part.box.top;
@@ -665,6 +743,7 @@ export function boxMotion({
     // it, rather than showing at its old top and sliding down. The user asked on 26
     // October for a line removed to move the words with the field's top edge, which
     // until then traveled while they jumped.
+    /** @param {Part} part @param {Box} from */
     function carryContent(part, from) {
       const to = part.box;
       if (part.scrolls && !part.element.matches(TEXT_FIELD)) {
@@ -674,6 +753,7 @@ export function boxMotion({
       }
       const emptied =
         gesture === "send" || part.element.matches(":state(placeholder-shown)");
+      /** @param {Edge} start @param {Edge} end @param {(box: Box) => number} length */
       const edgeBy = (start, end, length) =>
         emptied &&
         length(to) < length(from) - 0.5 &&
@@ -681,6 +761,7 @@ export function boxMotion({
         !near(from[start], to[start])
           ? end
           : start;
+      /** @type {[Edge, Edge]} */
       const carries = [
         rtl ? edgeBy("right", "left", width) : edgeBy("left", "right", width),
         edgeBy("top", "bottom", height),
@@ -744,6 +825,7 @@ export function boxMotion({
     // Drawn where its layout puts it, cut to its outline growing from where it stood.
     // Cancel any carrying ancestor: native scroll and landing already put its content
     // where it belongs, so inheriting that carry would move it away and back.
+    /** @param {Part} part @param {Box} from */
     function grow(part, from) {
       const to = part.box;
       motions.set(part.element, { from: to, to });
@@ -763,6 +845,7 @@ export function boxMotion({
     // Cut to the frame it stands in as the frame's edges reach it, on every side but
     // one it stands out of, and to each carried part beside it in that frame as that
     // part passes, so it comes out from behind the part rather than under it.
+    /** @param {Part} part @param {{from: Box, to: Box}} frame @param {Part[]} siblings */
     function reveal(part, frame, siblings) {
       const to = part.box;
       // A cut on a part holding one placed against the window would cut that one too,
@@ -773,6 +856,7 @@ export function boxMotion({
         return;
       }
       const carriedTo = shifted(to, ...carriedBy(0)(part.element.parentElement));
+      /** @param {number} inset @param {boolean} beyond */
       const side = (inset, beyond) => (beyond ? 0 : Math.max(0, inset));
       /** @type {[number, number, number, number]} */
       const from = [
@@ -783,6 +867,7 @@ export function boxMotion({
       ];
       /** @type {[number, number, number, number]} */
       const end = [0, 0, 0, 0];
+      /** @param {Box} a @param {Box} b @param {Edge} low @param {Edge} high */
       const overlaps = (a, b, low, high) => a[low] < b[high] && b[low] < a[high];
       for (const sibling of siblings) {
         const moving = motions.get(sibling.element);
@@ -792,13 +877,15 @@ export function boxMotion({
         const along = overlaps(at, to, "left", "right");
         // On each side the part stands beside it, how far in it reaches, then and at
         // rest.
-        [
+        const reaches = [
           along && { then: then.bottom - carriedTo.top, rest: at.bottom - to.top },
           across && { then: carriedTo.right - then.left, rest: to.right - at.left },
           along && { then: carriedTo.bottom - then.top, rest: to.bottom - at.top },
           across && { then: then.right - carriedTo.left, rest: at.right - to.left },
-        ].forEach((reach, index) => {
-          if (reach && reach.rest <= 0.5 && reach.then > from[index]) {
+        ];
+        from.forEach((inset, index) => {
+          const reach = reaches[index];
+          if (reach && reach.rest <= 0.5 && reach.then > inset) {
             from[index] = reach.then;
             end[index] = reach.rest;
           }
@@ -815,7 +902,8 @@ export function boxMotion({
     // as the thread's reply field taking the page field's seat in the row does, has no
     // edge bringing it, so it is revealed where it stands: risen from below, it showed
     // nothing of the row's field until the tween's last frames.
-    function rise(part, frame, siblings) {
+    /** @param {Part} part @param {{from: Box, to: Box}} frame @param {Part[]} siblings */
+    const rise = (part, frame, siblings) => {
       const to = part.box;
       const dy = boxFrom.top - boxAt.top;
       if (dy < 0.5 || to.top >= boxFrom.top - 0.5) return reveal(part, frame, siblings);
@@ -835,7 +923,7 @@ export function boxMotion({
         frames.push({ ...clipFrame([0, 0, 0, 0]), offset: clear });
       frames.push(clipFrame([0, 0, 0, 0]));
       start(part.element, frames);
-    }
+    };
 
     // A scroller's content in a send: carried from where it was drawn when the send
     // began, or from where it is drawn while the stream already carries it, so its new
@@ -847,6 +935,7 @@ export function boxMotion({
     // layout then sticks it where it stuck with the content standing that far back,
     // which is where a scroll that far back would stick it, and it changes over from
     // one head to the next as the content rides past.
+    /** @param {{element: Element}} part */
     function streamContent(part) {
       const scroller = part.element;
       const then = streamed.get(scroller) ?? streamFrom.get(scroller);
@@ -880,6 +969,7 @@ export function boxMotion({
     // The surface draws a ring that changes size while it moves, in the ring's own
     // colour, the box's own ring among them, and inside it the part's own ground, which
     // the part stands without meanwhile.
+    /** @param {Element} element @param {CSSStyleDeclaration} style @param {Box} from @param {Box} to @param {boolean} [compact] */
     function drawRing(element, style, from, to, compact = false) {
       const offset = Number.parseFloat(style.outlineOffset);
       const reach = Number.parseFloat(style.outlineWidth) + offset;
@@ -889,27 +979,31 @@ export function boxMotion({
       keeps(ringFill, "style", colour && `background: ${colour}`);
       hold(element, "outlineColor", "transparent");
       if (colour) hold(element, "backgroundColor", "transparent");
-      for (const [layer, grown] of [
+      /** @type {[Element, number][]} */
+      const layers = [
         [ringLayer, reach],
         // The fill meets the outline's inner edge, including an inward ring.
         [ringFill, offset],
-      ])
+      ];
+      for (const [layer, grown] of layers)
         start(layer, contour(from, to, grown, radius, compact));
     }
 
+    /** @param {Part} part */
     function streamWithin(part) {
       if (part.scrolls) streamContent(part);
       else part.parts.forEach(streamWithin);
     }
 
-    function place(part, frame, siblings = []) {
+    /** @param {Part} part @param {{from: Box, to: Box}} frame @param {Part[]} [siblings] @returns {void} */
+    const place = (part, frame, siblings = []) => {
       const { element, style, box: to } = part;
-      const from = was.get(element);
-      if (!from)
+      const previous = was.get(element);
+      if (!previous)
         return gesture === "send"
           ? rise(part, frame, siblings)
           : reveal(part, frame, siblings);
-      const rest = before.get(element);
+      const { from, rest } = previous;
       const sized =
         !framed.has(element) &&
         near(width(rest), width(to)) &&
@@ -937,7 +1031,7 @@ export function boxMotion({
         (a, b) => Number(!was.has(a.element)) - Number(!was.has(b.element)),
       );
       for (const inner of placed) place(inner, within, part.parts);
-    }
+    };
 
     for (const part of parts) place(part, { from: boxFrom, to: boxAt });
     // A ride under way goes on from where it is drawn through any reading, news
@@ -960,11 +1054,13 @@ export function boxMotion({
     hold(box, "backgroundColor", "transparent");
     hold(box, "overflow", "visible");
     const animations = running;
-    animations.at(-1).onfinish = () => {
-      if (running !== animations) return;
-      restoreTranslations();
-      for (const scroller of streams.keys()) contentRides(scroller, false);
-    };
+    const last = animations.at(-1);
+    if (last)
+      last.onfinish = () => {
+        if (running !== animations) return;
+        restoreTranslations();
+        for (const scroller of streams.keys()) contentRides(scroller, false);
+      };
   }
 
   return {
@@ -1030,27 +1126,28 @@ export function boxMotion({
     // hundreds of pixels (floating.js, `clientBox`).
     /** @param {() => {x: number, y: number}} place */
     placed(place) {
-      const past = rebase();
+      const { at, past } = rebase();
       const read = rests?.get(root);
       const resized =
-        !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
+        !read || !near(width(read), width(at)) || !near(height(read), height(at));
       const moved = place();
       besideAt = beside(held());
       if (!resized) return;
       carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
-      frame = shifted(frame, moved.x, moved.y);
+      frame = shifted(at, moved.x, moved.y);
     },
     // The box's outline where it is drawn now, in the window: where its motion has
     // carried it, or its rest.
     outline() {
       const moving = motions.get(box);
-      const progress = running[0]?.effect.getComputedTiming().progress ?? 1;
+      const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
       if (moving && progress < 1) return interpolate(moving.from, moving.to, progress);
       return boxOf(box.getBoundingClientRect());
     },
     // The box was drawn a moment ago at `rect`, in the window, as the card a comment's
     // Send opens was the field it replaces: the next reading draws the box's outline
     // from there, and reveals each part as that outline's edges reach it.
+    /** @param {Box} rect */
     drawnAt(rect) {
       frame = boxOf(root.getBoundingClientRect());
       motions = new Map();

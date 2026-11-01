@@ -127,10 +127,10 @@ Name a preset for its outcome: `Status strip`, not `Preset 2`.
 In this comparison, `format` names which candidate to build. Each choice contains its
 preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid, and plain label choices run in a row that wraps
-between whole labels. When the comparison needs a particular arrangement of either, set
-`--playground-choice-columns` on the authored choice control or its parent to a grid's
-columns, such as `repeat(2, minmax(0, 1fr))`.
+Rich choices form a responsive grid, and plain label choices stand one per line. When
+the comparison needs a particular arrangement of either, such as short labels in a row,
+set `--playground-choice-columns` on the authored choice control or its parent to a
+grid's columns, such as `repeat(2, minmax(0, 1fr))`.
 
 ```html
 <lf-ask id="notification-ask" data-width="available">
@@ -307,6 +307,12 @@ actions, and the page's CSS styles the buttons. The playground answers their pre
 writes the submission's words (`submit-label`, then **Undo choice**), and records the
 choice. The instruction stays where `lf-playground-output` is written, so place or
 style it as the page needs.
+
+`lf-playground-preset` sets only `lf-playground-control`s. To offer presets for a
+contributor slice, draw a button for each inside its editor that passes the preset's
+whole value to the handle's `set`; the playground records the press as one gesture,
+which Undo takes back whole. Set `aria-pressed` on the button whose value matches
+`get()`. The `shadow-scale` example draws three.
 
 Keep native editors mounted and avoid writing their value when it already matches.
 The playground owns recording the working values, presets, Reset, instruction copying

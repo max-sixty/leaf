@@ -4420,6 +4420,48 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     assert view.evaluate("v => v.scrollHeight > v.clientHeight")
 
 
+def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
+    """Once the panel reaches the window's top, each line a reply gains takes its room
+    from the open thread's view, which gives way at its top and keeps the message the
+    user is answering beside the field; taking the lines away gives the room back the
+    same way. The view once kept its scroll and gave way at its foot, so a long reply
+    covered the agent's last line."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first. " * 120
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(2)
+    view.hover()
+    page.mouse.wheel(0, 10000)
+    page.wait_for_function(
+        "v => v.scrollTop > 0 && v.scrollTop + v.clientHeight >= v.scrollHeight - 1",
+        arg=view.element_handle(),
+    )
+    settled(page)
+    beside = """v => v.getBoundingClientRect().bottom
+      - [...v.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().bottom"""
+    stood = view.evaluate(beside)
+    room = view.evaluate("v => v.clientHeight")
+    field(page).click()
+    page.keyboard.type("Line 1")
+    for n in range(2, 13):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {n}")
+        settled(page)
+        assert view.evaluate(beside) == pytest.approx(stood, abs=1), n
+    assert view.evaluate("v => v.clientHeight") < room - 60
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    settled(page)
+    assert view.evaluate("v => v.clientHeight") == room
+    assert view.evaluate(beside) == pytest.approx(stood, abs=1)
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
     browser, serve, touch
@@ -4826,6 +4868,19 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     expect(rows.first).not_to_have_attribute("href", re.compile("."))
     other = pages.locator("a.lf-fp-page", has_text="The other leaf")
     expect(other).to_have_attribute("target", "_blank")
+    # A page's title and what its agent is doing stand on one baseline, though the
+    # title is set larger (floating-panel.css, `.lf-fp-page`).
+    for row in (rows.first, other):
+        baselines = row.evaluate(
+            """row => [...row.querySelectorAll('.lf-fp-label, .lf-fp-value')].map(words => {
+              const mark = words.appendChild(document.createElement('span'));
+              mark.style.cssText = 'display: inline-block; block-size: 0';
+              const y = mark.getBoundingClientRect().top;
+              mark.remove();
+              return y;
+            })"""
+        )
+        assert len(baselines) == 2 and max(baselines) - min(baselines) < 0.1, baselines
     page.keyboard.press("Escape")
     expect(pages).to_have_count(0)
 

@@ -143,7 +143,7 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
   const thread = {
     resolved: null,
     workflows: [],
-    attention: { kind: "waiting", reason: "todo", workflow: null },
+    attention: { kind: "waiting", reason: "todo", workflow: null, todo: "t1" },
     todos: [{ id: "t1", title: "Rebuild the banner quieter", running: null }],
   };
   assert.deepEqual(threadAttention(thread, "Claude"), {

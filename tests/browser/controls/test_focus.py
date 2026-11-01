@@ -112,7 +112,10 @@ def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("thread"))).to_be_focused()
-    # The view's own top edge fades out, so the stage it fills wears its ring.
+    # The view's own top edge fades out, so the stage it fills wears its ring. The box
+    # follows the Escape's layout on the next rendering, and while it moves the ring
+    # is drawn by its moving layer, so wait for that motion to start, then finish it.
+    rendered(page)
     panel_settled(page, view="thread")
     drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]

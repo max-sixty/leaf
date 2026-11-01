@@ -107,7 +107,6 @@ session's, which `$.model.fork` keeps by resending the main thread's own last re
 """
 
 import json
-from datetime import datetime
 from pathlib import Path
 
 from .schema import SKILL_FILE
@@ -276,7 +275,8 @@ def page_facts(state: dict, events: list) -> dict:
         elif item in updates:
             subject = updates[item]["subject"]
             about = (
-                f"the user's message in thread {thread_named(subject['id'])}"
+                "the user's message in "
+                + thread_named(subject["id"]).replace('"', 'thread "', 1)
                 if subject["kind"] == "thread"
                 else f"the user's answer on {subject['kind']} {subject['id']}"
             )
@@ -435,24 +435,30 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 if claim is None or claim["id"] != session_id:
                     continue
                 identity = {"agent": claim["agent"], "session": claim["id"]}
+                current = basis(session_id) == asked
                 lines = []
-                if (mine["asks"] or mine["status"]) and basis(session_id) != asked:
-                    dropped = "another turn opened since the fork was made"
-                elif mine["asks"] or mine["status"]:
-                    for record, line in [
-                        *_ask(page_dir, page, mine["asks"], identity),
-                        *_restate(page_dir, page, mine["status"], identity),
-                    ]:
-                        wrote.append(record)
-                        lines.append(line)
-                lines.extend(
-                    _found(path, item, session_id, asked) for item in mine["findings"]
-                )
-                if lines:
-                    queue_path = session_file(session_id, QUEUED.kind)
-                    held = QUEUED.read(queue_path) or {"lines": []}
-                    QUEUED.write(queue_path, {"lines": [*held["lines"], *lines]})
-                told.extend(lines)
+                # A record refused partway leaves those before it on the page, so the
+                # agent hears of each record written, whatever stops the rest.
+                try:
+                    if (mine["asks"] or mine["status"]) and not current:
+                        dropped = "another turn opened since the fork was made"
+                    elif mine["asks"] or mine["status"]:
+                        for record, line in [
+                            *_ask(page_dir, page, mine["asks"], identity),
+                            *_restate(page_dir, page, mine["status"], identity),
+                        ]:
+                            wrote.append(record)
+                            lines.append(line)
+                    lines.extend(
+                        _found(path, item, session_id, current)
+                        for item in mine["findings"]
+                    )
+                finally:
+                    if lines:
+                        queue_path = session_file(session_id, QUEUED.kind)
+                        held = QUEUED.read(queue_path) or {"lines": []}
+                        QUEUED.write(queue_path, {"lines": [*held["lines"], *lines]})
+                    told.extend(lines)
         except FileNotFoundError:
             continue
     return {"wrote": wrote, "told": told, **({"dropped": dropped} if dropped else {})}
@@ -536,15 +542,11 @@ def _restate(page_dir: Path, page, status: list[dict], identity: dict):
         )
 
 
-def _found(path: str, item: dict, session_id: str, asked: dict | None) -> str:
-    """The line passing one finding to the agent: what the fork found, the turn it
-    read, and the words it rests on, so the agent can find the original message."""
-    opened = (asked or {}).get("opened")
-    turn = (
-        f"your turn that opened at {datetime.fromisoformat(opened):%H:%M}"
-        if opened
-        else "your last turn"
-    )
+def _found(path: str, item: dict, session_id: str, current: bool) -> str:
+    """The line passing one finding to the agent: what the fork found, which turn it
+    read, `current` where no turn has opened since, and the words it rests on, so the
+    agent can find the original message."""
+    turn = "your last turn" if current else "a turn before the user's latest message"
     quoted = "\n".join(f"> {line}" for line in item["quote"].splitlines())
     rests = (
         f"\nIt rests on these words in this session's transcript (session "

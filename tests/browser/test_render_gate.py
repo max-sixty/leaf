@@ -3004,7 +3004,7 @@ def _short_aims(page, *, every_tab):
             confirming_resize_notices(page, opening, reopening)
             # What the opening shows: the panel, and the chrome the runtime draws for
             # it, such as the margin's entries for what the panel holds.
-            read(page.locator(f'[id="{tab}"], body > .lf-chrome'), tab)
+            read(page.locator(f'[id="{tab}"], :root > .lf-chrome'), tab)
     assert seen > 30, f"only {seen} aims stood on the corpus"
     if not short:
         return []

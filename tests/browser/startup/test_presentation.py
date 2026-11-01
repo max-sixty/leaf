@@ -70,8 +70,8 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
 
 @pytest.mark.parametrize("kind", ["popover", "modal"])
 def test_a_native_surface_opened_before_modules_stays_above_leaf(browser, serve, kind):
-    """Native controls work while the runtime loads. Its arrival neither covers
-    their surface nor changes the opening order keyboard and geometry consume."""
+    """Native controls work while the runtime loads. Its arrival doesn't cover their
+    surface, and geometry reads the surface above Leaf."""
     if kind == "popover":
         control = '<button id="open" popovertarget="early">Open menu</button>'
         surface = '<div id="early" popover><button popovertarget="early" popovertargetaction="hide">Close surface</button></div>'
@@ -96,11 +96,11 @@ def test_a_native_surface_opened_before_modules_stays_above_leaf(browser, serve,
         held.clear()
         wait_until_ready(page)
         assert page.evaluate("""async () => {
-          const {stackOrder} = await window.__lfCheckApi();
+          const {stackLevel} = await window.__lfCheckApi();
           const surface = document.querySelector('#early');
           const panel = document.querySelector('.lf-floating-panel');
           const rect = panel.getBoundingClientRect();
-          return stackOrder(surface, panel) > 0 && surface.contains(
+          return stackLevel(surface) > stackLevel(panel) && surface.contains(
             document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
         }""")
         # Its authored control stays reachable after runtime activation.

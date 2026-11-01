@@ -1638,9 +1638,8 @@ export default [
       "architecture/open-layers": [
         "error",
         [
-          // Native layer observation starts before authored scripts; shadow-tree
-          // delegates its public reading to that owner after modules load.
-          "browser/runtime/prepaint.js",
+          // The owner.
+          "browser/runtime/shadow-tree.js",
         ],
       ],
       "architecture/scroll-writes": [
@@ -1665,9 +1664,8 @@ export default [
       "architecture/current-location-reads": [
         "error",
         [
-          // The one runtime reading, and the parser-time native reading it replaces.
+          // The one reading of the user’s current location.
           "browser/runtime/focus.js",
-          "browser/runtime/prepaint.js",
           // The editor asks whether its own content holds focus inside the closed
           // root it renders in, which focus.js, reading through open roots, cannot see.
           "browser/runtime/editor-view.js",

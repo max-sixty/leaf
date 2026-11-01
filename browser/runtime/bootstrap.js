@@ -218,7 +218,7 @@
         ...keys,
         keys.length === 1 ? "runs when it's ready" : "run when it's ready",
       );
-      if (!echo.isConnected) document.querySelector(".lf-chrome-root")?.append(echo);
+      if (!echo.isConnected) document.body?.append(echo);
     };
     const letGo = () => {
       held.length = 0;

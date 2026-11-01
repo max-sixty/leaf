@@ -2,12 +2,9 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { excludedByInert, renderedParent, uiInside, under } from "./shadow.js";
-import {
-  nativeLayers,
-  nativeModalAdmits,
-  watchLayerChanges,
-} from "./keyboard/layer-stack.js";
+import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
+import { chromeRoot } from "./chrome.js";
 import {
   clippingAxes,
   hasArea,
@@ -24,7 +21,7 @@ import { elementBox } from "./shown-box.js";
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {{band: Box | null, axes: {x: boolean, y: boolean}, positioned: boolean,
  * block: Element | null | undefined, scrolls: boolean}} ClipEntry
- * @typedef {{surface: HTMLElement, box: Box}} Occluder
+ * @typedef {{surface: HTMLElement, box: Box, level: number}} Occluder
  * @typedef {Map<Element, ClipEntry> & Map<typeof PAST, Set<HTMLElement>> &
  * Map<typeof OCCLUDERS, Occluder[]>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
@@ -825,12 +822,10 @@ export function paintClips(item, box, clips, aboveSurfaces, held = false) {
   // Cut away by the bands, the box keeps them, which a scroll may bring it into; under
   // headers that cover a band whole, it has none to keep.
   if (!shown) return { plane, window: window ?? null, bands };
-  for (const { surface, box: over } of aboveSurfaces ? openOccluders(clips) : []) {
-    if (
-      !overlaps(shown, over) ||
-      under(item, surface) ||
-      stackOrder(item, surface) >= 0
-    )
+  for (const { surface, box: over, level } of aboveSurfaces
+    ? openOccluders(clips)
+    : []) {
+    if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level)
       continue;
     const left = uncovered(shown, over);
     if (!left) return hidden;
@@ -1088,7 +1083,7 @@ export function coveredShare(surface, where, landed = null) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
   if (under(holder, surface) || under(surface, holder)) return 0;
-  if (stackOrder(holder, surface) >= 0) return 0;
+  if (stackLevel(holder) >= stackLevel(surface)) return 0;
   const box = landed ?? placeBox(where);
   const { left, top, right, bottom } =
     landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
@@ -1128,31 +1123,25 @@ export const clippedPlace = (where, clips, box = placeBox(where)) => {
   const holder = placeHolder(where);
   return holder && clippedContents(box, holder, clips);
 };
-// Compare the planes the browser paints, then the root stacking levels inside
-// one plane. The native layer owner supplies opening order. Within the chrome's
-// permanent layer the panel, threads and marks retain their own z-index ladder.
+// Where a box stacks among the page's root-level layers: the z-index of its outermost
+// positioned ancestor that sets one, and above all of them in the top layer. Both are
+// read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
+// The chrome's root follows `body` at the largest z-index and wins every tie by tree
+// order (base.css, at the ladder), so a chrome box reads its own rung above every level
+// a page box can read, whatever z-index the page sets.
+export const CHROME_LEVEL = 2 ** 31;
 /** @param {Element} node */
-const stacking = (node) => {
+export function stackLevel(node) {
   let level = 0;
   /** @type {Element | null} */
-  let at = node;
-  for (; at; at = renderedParent(at)) {
-    if (isNativeLayer(at)) return { layer: at, level };
-    const { position, zIndex } = getComputedStyle(at);
+  let a = node;
+  for (; a; a = renderedParent(a)) {
+    if (isNativeLayer(a)) return Infinity;
+    if (a === chromeRoot) return CHROME_LEVEL + level;
+    const { position, zIndex } = getComputedStyle(a);
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }
-  return { layer: null, level };
-};
-/** @param {Element} left @param {Element} right */
-export function stackOrder(left, right) {
-  const a = stacking(left),
-    b = stacking(right);
-  if (a.layer === b.layer) return a.level - b.level;
-  const layers = nativeLayers();
-  return (
-    layers.findIndex(({ root }) => root === a.layer) -
-    layers.findIndex(({ root }) => root === b.layer)
-  );
+  return level;
 }
 const OCCLUDERS = Symbol("occluders");
 /** @param {ClipCache} clips */
@@ -1166,6 +1155,7 @@ function openOccluders(clips) {
     .map((surface) => ({
       surface,
       box: restingBox(surface),
+      level: stackLevel(surface),
     }));
   clips.set(OCCLUDERS, open);
   return open;
@@ -1174,8 +1164,8 @@ function openOccluders(clips) {
 const area = (box) => (box.right - box.left) * (box.bottom - box.top);
 /** @param {Box} rect @param {Element} item @param {ClipCache} clips */
 function occluded(rect, item, clips) {
-  for (const { surface, box } of openOccluders(clips)) {
-    if (!overlaps(rect, box) || under(item, surface) || stackOrder(item, surface) >= 0)
+  for (const { surface, box, level } of openOccluders(clips)) {
+    if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level)
       continue;
     const remaining = uncovered(rect, box);
     if (!remaining) return null;

@@ -324,21 +324,56 @@ function patchAttributes(live, before, after, rules) {
   for (const { name, value } of [...before.attributes]) {
     if (after.hasAttribute(name)) continue;
     if (name === "class") live.classList.remove(...tokens(value));
+    else if (name === "style") restyle(live, value, "");
     else live.removeAttribute(name);
     changed = true;
   }
   for (const { name, value } of after.attributes) {
     const held = before.getAttribute(name);
     if (held !== null && rules.sameValue(held, value)) continue;
-    // Classes are a set the page shares with the runtime, so only the author's own
-    // members move; every mark and state class beside them stays.
+    // Classes and inline declarations are sets the page shares with the runtime, so
+    // only the author's own members move; every mark, state class and property the
+    // runtime wrote beside them stays.
     if (name === "class") {
       live.classList.remove(...tokens(held ?? ""));
       live.classList.add(...tokens(value));
-    } else live.setAttribute(name, value);
+    } else if (name === "style") restyle(live, held ?? "", value);
+    else live.setAttribute(name, value);
     changed = true;
   }
   if (changed) rules.touched(live);
+}
+
+// The runtime writes properties of its own inline on authored elements, `body`'s
+// included (composing/aim.js, content-layout.js), so a revision moves declarations by
+// name: one the author dropped comes off, one the author wrote goes on. An empty custom
+// property (`--x: ;`) reads back as "", and `setProperty` with "" removes rather than
+// declares, so an empty one is written as the single space that parses to it.
+/** @param {Element} live @param {string} held @param {string} next */
+function restyle(live, held, next) {
+  const { style } = /** @type {HTMLElement} */ (live);
+  const declarations = (/** @type {string} */ text) => {
+    const parsed = document.createElement("div").style;
+    parsed.cssText = text;
+    return parsed;
+  };
+  const names = (/** @type {CSSStyleDeclaration} */ declared) =>
+    Array.from({ length: declared.length }, (_, at) => declared.item(at));
+  const after = declarations(next);
+  const written = new Set(names(after));
+  for (const property of names(declarations(held)))
+    if (!written.has(property)) style.removeProperty(property);
+  const present = new Set(names(style));
+  for (const property of written) {
+    const value = after.getPropertyValue(property);
+    const priority = after.getPropertyPriority(property);
+    if (
+      !present.has(property) ||
+      style.getPropertyValue(property) !== value ||
+      style.getPropertyPriority(property) !== priority
+    )
+      style.setProperty(property, value || " ", priority);
+  }
 }
 
 // Source text, so any run of whitespace separates two classes.

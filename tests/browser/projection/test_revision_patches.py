@@ -78,8 +78,9 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
 def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(
     browser, serve
 ):
-    """Header, nav and footer participate in the same revision as main. The retained
-    body and chrome keep the user's input, current location and runtime state."""
+    """Header, nav and footer participate in the same revision as main, and keep the
+    first Tab stop ahead of Leaf's chrome. The retained body and chrome keep the
+    user's input, current location and runtime state."""
     first = leaf_page(
         "Sibling first", '<h1 id="title">Release</h1><p id="plan">Ship Monday.</p>'
     )
@@ -94,8 +95,10 @@ def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(
     page = open_page(browser, live_url(serve(first)))
     expect(page.get_by_role("banner")).to_have_count(1)
     expect(page.get_by_role("contentinfo")).to_have_count(1)
+    page.keyboard.press("Tab")
+    expect(page.locator("#name")).to_be_focused()
     page.locator("#name").fill("Maximilian")
-    page.evaluate("window.heldChrome = document.querySelector('.lf-chrome')")
+    page.evaluate("window.heldChrome = document.querySelector(':root > .lf-chrome')")
     origin = page.evaluate("performance.timeOrigin")
     second = (
         first.replace("Sibling first", "Sibling second")
@@ -116,7 +119,7 @@ def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     assert page.evaluate("performance.timeOrigin") == origin
     assert page.evaluate(
-        "window.heldChrome === document.querySelector('.lf-chrome') && window.heldChrome.matches(':popover-open')"
+        "window.heldChrome === document.querySelector(':root > .lf-chrome')"
     )
     # Removal and insertion at the shared body boundary must leave the runtime intact.
     third = second.replace(
@@ -128,7 +131,9 @@ def test_a_revision_updates_body_siblings_and_keeps_the_users_header_editor(
     expect(page).to_have_title("Sibling third")
     expect(page.locator("#site-footer")).to_have_count(0)
     expect(page.locator("#next")).to_have_text("Next release")
-    assert page.evaluate("window.heldChrome === document.querySelector('.lf-chrome')")
+    assert page.evaluate(
+        "window.heldChrome === document.querySelector(':root > .lf-chrome')"
+    )
 
 
 def test_a_revision_brings_its_page_layout_to_the_body(browser, serve):

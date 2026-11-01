@@ -108,21 +108,23 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
-/* The permanent top-layer host starts before author scripts. Its empty box takes
-   no page space; Leaf positions its surfaces against the document or viewport. */
-.lf-chrome-root {
+/* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
+   z-index there is. A box the page writes can at most tie with it, and a tie paints in
+   tree order, where nothing in `body` follows it; so it paints over every page box,
+   whatever stacking contexts the page makes, and the page rises over Leaf only through
+   the top layer (the ladder, below). Its box is empty at the origin and takes no room;
+   Leaf positions its surfaces against the document or the viewport. It inherits from
+   the root rather than `body`, so it states what Leaf's surfaces took from the page's
+   body: words that wrap, and the ground a widget's opaque controls paint, the paper its
+   surfaces stand on unless one says otherwise (floating-panel.css). */
+:root > .lf-chrome {
   position: absolute;
   inset: 0 auto auto 0;
+  z-index: 2147483647;
   width: 0;
   height: 0;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  overflow: visible;
-  background: transparent;
-  color: inherit;
+  overflow-wrap: break-word;
+  --lf-ground: var(--paper);
 }
 
 @property --lf-motion-flash {
@@ -200,9 +202,14 @@
      A number local to a component's own stacking context stays where it is written.
      A popover or modal dialog takes no rung: the top layer paints over every z-index,
      in the order the layers opened.
-     Chrome stands in one permanent native top-layer popover, above document CSS.
-     These levels order its own surfaces. Later native popovers and modal dialogs
-     stand above it in the browser's opening order (geometry.js, stackOrder). */
+     The page stands beneath all of it. The chrome's root follows `body` at the largest
+     z-index (above), so a box the page writes, whatever its z-index, never reaches a
+     rung, and these levels order only Leaf's own surfaces. A page rises over Leaf only
+     through the top layer: a modal dialog, a popover, or fullscreen. Letting page
+     z-indexes compete with the ladder was rejected: whether a page's header or overlay
+     covered the floating panel, a highlight or a pin depended on numbers neither side
+     chose against the other. `stackLevel` (geometry.js) reads a chrome box above every
+     page box for the same reason. */
   --lf-z-page-paint: 8890; /* paint on a page element */
   --lf-z-margin-raised: 8895; /* the margin item under pointer or focus */
   --lf-z-page-hints: 8898; /* page-target key chips, under the chrome */
@@ -1004,14 +1011,18 @@ body {
     display: none !important;
   }
   @media screen {
+    /* The chrome's root follows body (above), so it reads body's stamp as a sibling. */
     html[data-lf-interactive] body:not([data-lf-presented]),
-    html[data-lf-interactive] body:not([data-lf-presented]) * {
+    html[data-lf-interactive] body:not([data-lf-presented]) *,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome,
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome * {
       transition: none !important;
     }
     /* A declared shadow tree cannot see body's stamp, so transition suppression
      * reaches it as an inherited property its startup rule queries
      * (styles/shadow-leading.css). */
-    html[data-lf-interactive] body:not([data-lf-presented]) {
+    html[data-lf-interactive] body:not([data-lf-presented]),
+    html[data-lf-interactive] body:not([data-lf-presented]) ~ .lf-chrome {
       --lf-before-presentation: 1;
     }
     /* A sample document paints once its containing page has said what it wears
@@ -1092,8 +1103,8 @@ body {
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin element asks the page's
- * readings by, with no Layout and no room to grow into on either side. Stacking
- * and blending remain the author's; the chrome has its own native layer. */
+ * readings by, with no Layout and no room to grow into on either side. Stacking and
+ * blending stay the page's: the chrome stacks over the page from outside `body`. */
 main {
   container-name: lf-content-frame;
   --lf-free-l: 0px;

@@ -114,6 +114,19 @@ function patch(beforeMarkup, afterMarkup = beforeMarkup) {
   };
 }
 
+test("a revision moves the author's inline declarations and keeps the runtime's", () => {
+  const { live, install } = patch(
+    '<p style="color: red; margin: 0">Words</p>',
+    '<p style="color: blue">Words</p>',
+  );
+  const paragraph = live.querySelector("p");
+  paragraph.style.setProperty("--lf-runtime", "1px");
+  install();
+  assert.equal(paragraph.style.getPropertyValue("color"), "blue");
+  assert.equal(paragraph.style.getPropertyValue("margin-top"), "");
+  assert.equal(paragraph.style.getPropertyValue("--lf-runtime"), "1px");
+});
+
 test("runtime chrome outside the authored patch survives; detached fields do not", () => {
   const { retains } = patch("<p>Before</p>", "<p>After</p>");
   const editor = document.createElement("textarea");

@@ -1,6 +1,15 @@
 import { cancelRender, elementBox, excludedByInert, isElement, isHTML, isNativeLayer, nextRender, renderedParent, sizeObserver, under, watchScrolls } from "./bundle-portable.js";
-import { nativeLayers, nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
+import { nativeModalAdmits, uiInside, watchLayerChanges } from "./bundle-layer-stack.js";
 
+//#region runtime/chrome.js
+const chromeRoot = document.createElement("div");
+chromeRoot.className = "lf-chrome";
+const chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
+
+//#endregion
 //#region runtime/rect.js
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
@@ -410,8 +419,8 @@ function paintClips(item, box, clips, aboveSurfaces, held = false) {
 		window: window ?? null,
 		bands
 	};
-	for (const { surface, box: over } of aboveSurfaces ? openOccluders(clips) : []) {
-		if (!overlaps(shown, over) || under(item, surface) || stackOrder(item, surface) >= 0) continue;
+	for (const { surface, box: over, level } of aboveSurfaces ? openOccluders(clips) : []) {
+		if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level) continue;
 		const left = uncovered(shown, over);
 		if (!left) return hidden;
 		window ??= layoutWindow(item.ownerDocument);
@@ -558,7 +567,7 @@ function coveredShare(surface, where, landed = null) {
 	const holder = placeHolder(where);
 	if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
 	if (under(holder, surface) || under(surface, holder)) return 0;
-	if (stackOrder(holder, surface) >= 0) return 0;
+	if (stackLevel(holder) >= stackLevel(surface)) return 0;
 	const box = landed ?? placeBox(where);
 	const { left, top, right, bottom } = landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
 	const over = restingBox(surface);
@@ -576,27 +585,17 @@ const clippedPlace = (where, clips, box = placeBox(where)) => {
 	const holder = placeHolder(where);
 	return holder && clippedContents(box, holder, clips);
 };
-const stacking = (node) => {
+const CHROME_LEVEL = 2 ** 31;
+function stackLevel(node) {
 	let level = 0;
-	let at = node;
-	for (; at; at = renderedParent(at)) {
-		if (isNativeLayer(at)) return {
-			layer: at,
-			level
-		};
-		const { position, zIndex } = getComputedStyle(at);
+	let a = node;
+	for (; a; a = renderedParent(a)) {
+		if (isNativeLayer(a)) return Infinity;
+		if (a === chromeRoot) return CHROME_LEVEL + level;
+		const { position, zIndex } = getComputedStyle(a);
 		if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
 	}
-	return {
-		layer: null,
-		level
-	};
-};
-function stackOrder(left, right) {
-	const a = stacking(left), b = stacking(right);
-	if (a.layer === b.layer) return a.level - b.level;
-	const layers = nativeLayers();
-	return layers.findIndex(({ root }) => root === a.layer) - layers.findIndex(({ root }) => root === b.layer);
+	return level;
 }
 const OCCLUDERS = Symbol("occluders");
 function openOccluders(clips) {
@@ -605,15 +604,16 @@ function openOccluders(clips) {
 	const past = clips.get(PAST);
 	open = [...occluders].filter(standsNow).filter((surface) => !past?.has(surface)).map((surface) => ({
 		surface,
-		box: restingBox(surface)
+		box: restingBox(surface),
+		level: stackLevel(surface)
 	}));
 	clips.set(OCCLUDERS, open);
 	return open;
 }
 const area = (box) => (box.right - box.left) * (box.bottom - box.top);
 function occluded(rect, item, clips) {
-	for (const { surface, box } of openOccluders(clips)) {
-		if (!overlaps(rect, box) || under(item, surface) || stackOrder(item, surface) >= 0) continue;
+	for (const { surface, box, level } of openOccluders(clips)) {
+		if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level) continue;
 		const remaining = uncovered(rect, box);
 		if (!remaining) return null;
 		rect = remaining;
@@ -644,4 +644,4 @@ function uncovered(rect, box) {
 }
 
 //#endregion
-export { clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackOrder, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, visualViewport, watchRoom, whenNone, windowChromeBoxes };
+export { CHROME_LEVEL, chromeForeground, chromeRoot, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, coveredShare, declareOccluder, declareWindowChrome, frameView, growthAfterIsSeen, growthIsSeen, hasArea, headerCuts, headerInset, inWindowChrome, intersect, landingBand, landingInsets, layoutWindow, nearObserver, nearWindow, nearestScrollBy, overlaps, overlapsAcross, paintClips, placeBox, placeHolder, presented, rightCover, scrollContainer, scrollsBy, scrollsContent, seenRect, shellRight, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, slotTop, stackLevel, startsAt, stuckBox, underOccluder, union, userScrollport, visibleBand, visualViewport, watchRoom, whenNone, windowChromeBoxes };

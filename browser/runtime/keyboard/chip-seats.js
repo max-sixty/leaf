@@ -12,12 +12,18 @@
    level, in a surface standing over the page, where the chip stands above every
    surface instead (chrome.css, `.lf-key-chips`). */
 import { paintSet } from "../target-paint-geometry.js";
-import { nativeLayerHolding } from "../shadow-tree.js";
+import { CHROME_LEVEL, stackLevel } from "../geometry.js";
 
-// Document targets are beneath the chrome; a target in a native surface needs
-// the foreground chip plane, independently of the author's z-index values.
+let chipLevel = 0;
 /** @param {Element | null} target */
-const plane = (target) => (!target || nativeLayerHolding(target) ? "chrome" : "page");
+const plane = (target) => {
+  chipLevel ||=
+    CHROME_LEVEL +
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-z-page-hints"),
+    );
+  return !target || stackLevel(target) >= chipLevel ? "chrome" : "page";
+};
 
 /** @param {HTMLElement} root */
 export function chipSeats(root) {

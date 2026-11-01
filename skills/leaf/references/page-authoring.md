@@ -151,9 +151,8 @@ scheme's values. `--col` sets the reading column's width, and the spacing steps
 
 The page's authored content fills `body`, with one `main` directly inside it for the
 primary content and its Layout. A header, navigation, footer or other content can stand
-beside `main`; comments and revisions include them. Leaf's own interface also lives in
-`body`, before the authored elements, and draws in the browser's top layer. Body-child
-position selectors therefore count Leaf's elements too.
+beside `main`; comments and revisions include them. Leaf's own interface stands after
+`body`, so `body` holds only the page.
 
 The theme pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
 panel. Set the page's ground in `--paper`; a page that takes no theme paints its ground

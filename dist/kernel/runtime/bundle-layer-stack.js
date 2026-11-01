@@ -3650,17 +3650,64 @@ const annotationSheets = sheets.annotations ? [constructSheet(sheets.annotations
 
 //#endregion
 //#region runtime/keyboard/layer-stack.js
-const layerState = window.lfLayerState;
-layerState.focused = () => focused();
+let entries = [];
 const watchedRoots = /* @__PURE__ */ new WeakSet();
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativePopoverShow = HTMLElement.prototype.showPopover;
+function prune() {
+	entries = entries.filter((entry) => entry.active());
+}
+function pushNativeLayer(node, source = null) {
+	const at = entries.findIndex((entry) => entry.root === node);
+	const existing = at < 0 ? null : entries[at];
+	if (existing?.active()) return existing;
+	prune();
+	const holding = focused();
+	const entry = {
+		root: node,
+		opening: !isNativeLayer(node),
+		get kind() {
+			return nativeLayerKind(node);
+		},
+		active() {
+			return this.opening || isNativeLayer(node);
+		},
+		fromNowhere: !holding || holding === document.body,
+		opener: holding && holding !== document.body ? holding : null,
+		source
+	};
+	if (entry.opening) queueMicrotask(() => {
+		entry.opening = false;
+	});
+	entries.push(entry);
+	return entry;
+}
 function closing(event) {
 	if (event.newState !== "closed") return;
-	const entry = nativeLayers().find((candidate) => candidate.root === event.target);
+	const entry = entries.find((candidate) => candidate.root === event.target);
+	if (entry) entry.opening = false;
 	if (entry?.kind === "popover") {
 		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, entry.root)) closeNativeLayer(layer.root);
 	}
 	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), entry.root)) releaseFocus();
 }
+HTMLDialogElement.prototype.showModal = function() {
+	const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+	try {
+		return nativeDialogShowModal.call(this);
+	} finally {
+		if (entry) entry.opening = false;
+	}
+};
+HTMLElement.prototype.showPopover = function(options) {
+	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
+	try {
+		nativePopoverShow.call(this, options);
+	} finally {
+		if (entry) entry.opening = false;
+	}
+	if (entry && options?.source) entry.source = options.source;
+};
 function showNativeLayer(layer, { source, modal = true } = {}) {
 	const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
 	if (withholdFocus) layer.inert = true;
@@ -3725,7 +3772,7 @@ function closeNativeLayer(layer) {
 	const dialog = layer instanceof HTMLDialogElement;
 	if (dialog ? !layer.open : !isNativeLayer(layer)) return;
 	const currentLocation = focused();
-	const returnTo = nativeLayers().find((entry) => entry.root === layer)?.opener;
+	const returnTo = entries.find((entry) => entry.root === layer)?.opener;
 	const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
 	const inhibited = document.documentElement.lfSample ? [document.documentElement, ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)].filter((node) => !node.inert) : [];
 	closeLayer(() => {
@@ -3754,13 +3801,18 @@ const changed = (event) => {
 function watchLayers(root) {
 	if (watchedRoots.has(root)) return;
 	watchedRoots.add(root);
-	layerState.watch(root);
+	const opened = (event) => {
+		if (event.newState === "open" && event.target instanceof HTMLElement && event.target.matches("[popover], dialog")) pushNativeLayer(event.target, event.source);
+	};
+	root.addEventListener("beforetoggle", opened, true);
 	root.addEventListener("beforetoggle", closing, true);
+	root.addEventListener("toggle", opened, true);
 	root.addEventListener("toggle", changed, true);
 }
 watchLayers(document);
 function nativeLayers() {
-	return layerState.read();
+	prune();
+	return entries.filter((entry) => entry.active());
 }
 const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
 Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });

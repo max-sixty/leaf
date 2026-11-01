@@ -306,13 +306,14 @@ html[data-lf-region-capture]
   }
   /* What the layer would inherit from the document, answered at its root:
      position, so a page's broad positioning cannot make the wrapper or the legend's
-     paint host a containing block for document-attached floats; cursor, since the body
-     may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
+     paint host a containing block for document-attached floats, except the root after
+     `body`, which stands at the origin to stack over the page (base.css); cursor,
+     since the body may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
      copied says so itself (.lf-quote, .lf-msg-body). */
-  :scope,
+  :scope:not(:root > *),
   .lf-legend {
     position: static;
   }

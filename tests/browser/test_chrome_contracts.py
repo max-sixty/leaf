@@ -891,17 +891,17 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
     browser, serve
 ):
     """A box the page writes stacks beneath every surface Leaf lifts over the page,
-    whatever its z-index: Leaf occupies a native layer, so the panel with Threads
-    open paints over a page overlay at the largest z-index there is, and
-    `stackOrder`, which paint and landings ask how nodes stack, reads the
-    overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
+    whatever its z-index: Leaf's chrome follows `body` at the largest z-index and wins
+    the tie in tree order, so the panel with Threads open paints over a page overlay
+    beside `main` at the largest z-index there is, and `stackLevel`, which paint, chips
+    and landings ask where a node stacks, reads the overlay beneath the panel. The page's way over Leaf is the top layer: its own modal
     dialog paints over the panel, and reads above it."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
     open_threads(page)
     stacking = page.evaluate(
         """async () => {
-          const { stackOrder } = await window.__lfCheckApi();
+          const { stackLevel } = await window.__lfCheckApi();
           const main = document.querySelector('main');
           const overlay = document.body.appendChild(document.createElement('header'));
           overlay.id = 'page-overlay';
@@ -914,9 +914,10 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
               r.left + r.width / 2, r.top + r.height / 2);
             return hit === overlay ? 'page' : el.contains(hit) ? 'leaf' : hit?.localName;
           };
+          const panelLevel = stackLevel(panel);
           const read = {
             panel: at(panel),
-            overlayBeneath: stackOrder(overlay, panel) < 0,
+            overlayBeneath: stackLevel(overlay) < panelLevel,
           };
           overlay.remove();
           const dialog = main.appendChild(document.createElement('dialog'));
@@ -926,7 +927,7 @@ def test_the_page_paints_beneath_leaf_and_rises_only_through_the_top_layer(
           const hit = document.elementFromPoint(
             box.left + box.width / 2, box.top + box.height / 2);
           read.dialog = dialog.contains(hit);
-          read.dialogAbove = stackOrder(dialog, panel) > 0;
+          read.dialogAbove = stackLevel(dialog) > panelLevel;
           dialog.close();
           return read;
         }"""

@@ -33,7 +33,7 @@ export {
   seenRect,
   growthAfterIsSeen,
   stuckBox,
-  stackOrder,
+  stackLevel,
   shownParts,
 } from "./geometry.js";
 export { skipped } from "./shown-box.js";

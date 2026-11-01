@@ -140,7 +140,11 @@ export const byRenderedOrder = (items, placeOfItem) => {
 // dialog is part of the page it stands in. Read node kind rather than realm-specific
 // Element: a sample asks this of its frame.
 /** @param {Node | null | undefined} node */
-export const nativeLayerKind = (node) => window.lfLayerState.kind(node);
+export const nativeLayerKind = (node) => {
+  if (!isElement(node) || !node.isConnected) return null;
+  if (node.matches("dialog:modal")) return "modal";
+  return node.matches(":popover-open") ? "popover" : null;
+};
 // Whether `node` is itself a native layer, of either kind.
 /** @param {Node | null | undefined} node */
 export const isNativeLayer = (node) => nativeLayerKind(node) !== null;

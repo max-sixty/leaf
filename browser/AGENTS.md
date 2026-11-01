@@ -365,13 +365,13 @@ page's own CSS. Before a module measures, positions, stacks, isolates or tracks
 something, find the browser feature that decides it and shape the markup and CSS to
 use it:
 
-| Question                                                                   | The browser feature that answers it                                                                 |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room` |
-| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                      |
-| Which of Leaf's surfaces paints over which, with the page beneath them all | a permanent top-layer host for chrome, with the theme's `--lf-z-*` ladder inside it                 |
-| Whether a box is rendered at all                                           | `checkVisibility`                                                                                   |
-| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                         |
+| Question                                                                   | The browser feature that answers it                                                                                               |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-room`                               |
+| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
+| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
+| Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
+| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
 lives in the DOM. A module that answers one of these questions in script names in its

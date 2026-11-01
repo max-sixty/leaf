@@ -247,8 +247,7 @@ function stack(binding = null) {
 	};
 	for (const layer of visible.toReversed()) {
 		take((scope) => renderedUnder(scopeRoot(scope), layer.root) || layer === top && foreground(scope) && aboveFloor(scope));
-		if (layer.kind === "modal") parts.push(MODAL_BOUNDARY);
-		else if (layer.root.popover !== "manual") parts.push(POPOVER_BOUNDARY);
+		parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
 	}
 	if (!modal) parts.push(...pool);
 	return ordered(parts);

@@ -378,7 +378,11 @@ const byRenderedOrder = (items, placeOfItem) => {
 	}
 	return [...placed.sort((a, b) => renderedOrder(a.place, b.place)).map(({ item }) => item), ...unplaced];
 };
-const nativeLayerKind = (node) => window.lfLayerState.kind(node);
+const nativeLayerKind = (node) => {
+	if (!isElement(node) || !node.isConnected) return null;
+	if (node.matches("dialog:modal")) return "modal";
+	return node.matches(":popover-open") ? "popover" : null;
+};
 const isNativeLayer = (node) => nativeLayerKind(node) !== null;
 function nativeLayerHolding(node) {
 	for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
@@ -623,7 +627,7 @@ function liveStages() {
 const isStage = (root) => stages$1.has(root);
 const stands = (el) => {
 	const root = el.getRootNode();
-	return root === document ? document.body.contains(el) : isStage(root) && root.host.isConnected;
+	return root === document || isStage(root) && root.host.isConnected;
 };
 function* matching(node, selector) {
 	if (!isElement(node)) return;
@@ -676,7 +680,7 @@ function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
 		offerMany
 	};
 	watches.add(watch);
-	for (const root of [document.body, ...liveStages()]) enroll(watch, root);
+	for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
 	return (el) => {
 		read(observer.takeRecords());
 		offer(el);

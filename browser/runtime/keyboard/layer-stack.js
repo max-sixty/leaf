@@ -1,8 +1,6 @@
 /* The layer stack: the native layers standing over the page, in the order they opened.
 
-   Prepaint begins the one ordered list before a user can open an authored surface; this
-   module adds focus return and runtime effects without restarting that observation.
-   The list holds every popover and modal dialog standing over the page, oldest at
+   One ordered list holds every popover and modal dialog standing over the page, oldest at
    the bottom. Each pushes an entry as it opens, so their order against each other is
    recorded when it happens rather than inferred from focus ancestry and open state at
    every read. `kind` reads each open layer's native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
@@ -10,11 +8,11 @@
 
    A layer may open through a prototype method or through declarative popover activation,
    and a popover need not move focus into itself, so every opener declares its own
-   opening in prepaint: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle`
+   opening here: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle`
    at the document and at each declared shadow boundary. `beforetoggle` makes a declarative
    opening visible synchronously to the command that caused it; `toggle` follows the
    completed native transition, and carries an opening whose earlier declarations this
-   owner was not yet listening for. An opening arrives once, so a declaration naming a
+   module was not yet listening for. An opening arrives once, so a declaration naming a
    layer the stack already holds leaves its entry where the arrival put it, however many
    more times that same opening is declared. The entry keeps the control the layer was
    opened from, its `source`: a declarative opening's (`popovertarget`, `commandfor`) as
@@ -81,10 +79,53 @@ import {
 import { chromeSheet } from "../stylesheets.js";
 import { watchOwner } from "../arrivals.js";
 
-/** @typedef {{home: NonNullable<HTMLDialogElement["parentNode"]>, chrome: boolean, scope: HTMLElement | null}} ModalHome */
-const layerState = window.lfLayerState;
-layerState.focused = () => focused();
+/** @typedef {{root: HTMLElement, opening: boolean, readonly kind: ReturnType<typeof nativeLayerKind>, active: () => boolean, fromNowhere: boolean, opener: Element | null, source: Element | null}} NativeLayer
+ * @typedef {{home: NonNullable<HTMLDialogElement["parentNode"]>, chrome: boolean, scope: HTMLElement | null}} ModalHome
+ */
+/** @type {NativeLayer[]} */
+let entries = [];
 const watchedRoots = new WeakSet();
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativePopoverShow = HTMLElement.prototype.showPopover;
+
+function prune() {
+  entries = entries.filter((entry) => entry.active());
+}
+
+// An open entry is left alone wherever it sits, and not merely where it is already on
+// top: `toggle` is queued rather than synchronous, so moving a layer on that last
+// declaration would make it the newest thing on the stack after something else opened over
+// it. A closed entry is pruned and an actual reopening joins at the top.
+/** @param {HTMLElement} node @param {Element | null} [source] */
+function pushNativeLayer(node, source = null) {
+  const at = entries.findIndex((entry) => entry.root === node);
+  const existing = at < 0 ? null : entries[at];
+  if (existing?.active()) return existing;
+  prune();
+  const holding = focused();
+  // `beforetoggle` announces a declarative opening before :popover-open applies.
+  // A synchronous layer read in that interval must not prune its new entry; the
+  // native transition has completed by the next microtask.
+  const entry = {
+    root: node,
+    opening: !isNativeLayer(node),
+    get kind() {
+      return nativeLayerKind(node);
+    },
+    active() {
+      return this.opening || isNativeLayer(node);
+    },
+    fromNowhere: !holding || holding === document.body,
+    opener: holding && holding !== document.body ? holding : null,
+    source,
+  };
+  if (entry.opening)
+    queueMicrotask(() => {
+      entry.opening = false;
+    });
+  entries.push(entry);
+  return entry;
+}
 
 // A layer opened while nothing held focus has nobody to hand focus back to as it closes,
 // so the browser leaves focus on the hidden control it held until the next rendering
@@ -99,7 +140,8 @@ const watchedRoots = new WeakSet();
 /** @param {ToggleEvent} event */
 function closing(event) {
   if (event.newState !== "closed") return;
-  const entry = nativeLayers().find((candidate) => candidate.root === event.target);
+  const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry) entry.opening = false;
   if (entry?.kind === "popover")
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, entry.root))
@@ -113,6 +155,26 @@ function closing(event) {
   )
     releaseFocus();
 }
+
+HTMLDialogElement.prototype.showModal = function () {
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
+};
+
+HTMLElement.prototype.showPopover = function (options) {
+  const opening = nativeLayerKind(this) !== "popover";
+  const entry = opening ? pushNativeLayer(this) : null;
+  try {
+    nativePopoverShow.call(this, options);
+  } finally {
+    if (entry) entry.opening = false;
+  }
+  if (entry && options?.source) entry.source = options.source;
+};
 
 // Leaf opens native layers through this operation. A sample suppresses the
 // platform's automatic focusing steps before opening: they can reveal the containing
@@ -207,7 +269,7 @@ export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
   const currentLocation = focused();
-  const returnTo = nativeLayers().find((entry) => entry.root === layer)?.opener;
+  const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
     document.documentElement.lfSample &&
     currentLocation &&
@@ -259,12 +321,24 @@ const changed = (event) => {
   for (const listener of changeListeners) listener(event);
 };
 
-/** @param {Parameters<Window["lfLayerState"]["watch"]>[0]} root */
+/** @param {{addEventListener(type: "beforetoggle" | "toggle", listener: (event: ToggleEvent) => void, capture: boolean): void}} root */
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;
   watchedRoots.add(root);
-  layerState.watch(root);
+  // Native dialog commands also announce their opening here, without invoking
+  // the patched prototype. Nonmodal show() entries are pruned by isNativeLayer().
+  /** @param {ToggleEvent} event */
+  const opened = (event) => {
+    if (
+      event.newState === "open" &&
+      event.target instanceof HTMLElement &&
+      event.target.matches("[popover], dialog")
+    )
+      pushNativeLayer(event.target, event.source);
+  };
+  root.addEventListener("beforetoggle", opened, true);
   root.addEventListener("beforetoggle", closing, true);
+  root.addEventListener("toggle", opened, true);
   root.addEventListener("toggle", changed, true);
 }
 
@@ -272,7 +346,8 @@ watchLayers(document);
 
 // The layers the browser is holding, bottom to top.
 export function nativeLayers() {
-  return layerState.read();
+  prune();
+  return entries.filter((entry) => entry.active());
 }
 
 // Same-origin embedded pages consult the native owner of the document holding their
@@ -283,7 +358,7 @@ const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
 Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
 /** @param {Element} node */
 export function nativeModalAdmits(node) {
-  /** @type {Document & {[NATIVE_LAYERS]?: () => LeafNativeLayer[]}} */
+  /** @type {Document & {[NATIVE_LAYERS]?: () => NativeLayer[]}} */
   const owner = node.ownerDocument;
   const reading = owner[NATIVE_LAYERS];
   if (reading) {

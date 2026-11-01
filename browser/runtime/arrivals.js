@@ -39,8 +39,8 @@
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
-   Present means in `document.body`, or in a declared shadow stage whose host is
-   connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
+   Present means in the document, the page's body and the chrome after it alike, or in
+   a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll crosses one either, so `watchScrolls` hears the document's and every stage's.
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
@@ -180,9 +180,7 @@ export const isStage = (root) => stages.has(root);
 /** @param {Element} el */
 const stands = (el) => {
   const root = el.getRootNode();
-  return root === document
-    ? document.body.contains(el)
-    : isStage(root) && root.host.isConnected;
+  return root === document || (isStage(root) && root.host.isConnected);
 };
 
 // Every match in what a record names, the stages inside it included.
@@ -255,7 +253,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
   const observer = new MutationObserver(read);
   const watch = { selector, attributes, observer, offerMany };
   watches.add(watch);
-  for (const root of [document.body, ...liveStages()]) enroll(watch, root);
+  for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
   return (/** @type {Element} */ el) => {
     read(observer.takeRecords());
     offer(el);

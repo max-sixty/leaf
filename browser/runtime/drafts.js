@@ -832,7 +832,8 @@ function moveToPage(ctx) {
 // written under still stands; any other draft is held by a route declared for its kind
 // or an editor registered for it, each for its owner's lifetime.
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
- * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options */
+ * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
+ * @returns {import("./keyboard/bindings.js").Command} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,

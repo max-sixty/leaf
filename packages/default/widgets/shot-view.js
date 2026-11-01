@@ -142,8 +142,8 @@ function fitShotGeometry({
   };
 }
 
-/** @param {HTMLElement} host @param {ShotGeometry} geometry @param {typeof import("/runtime/widget-api.js").keeps} keeps */
-function applyShotGeometry(host, geometry, keeps) {
+/** @param {HTMLElement} host @param {ShotGeometry} geometry */
+function applyShotGeometry(host, geometry) {
   for (const [name, value] of Object.entries(geometry.vars))
     host.style.setProperty(`--lf-shot-${name}`, `${Math.round(value * 64) / 64}px`);
   keeps(host, "data-lf-shot-layout", geometry.layout);
@@ -505,7 +505,7 @@ export class ShotView {
     });
     if (geometry) {
       this.geometry = geometry;
-      applyShotGeometry(host, geometry, keeps);
+      applyShotGeometry(host, geometry);
     }
     return geometry;
   }

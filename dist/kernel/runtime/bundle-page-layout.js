@@ -6332,7 +6332,6 @@ function createReadTracking({ markRead, openThread }) {
 		});
 	}
 	function observeBody(body, reading) {
-		if (!(body instanceof Element)) throw new TypeError("A message body must be an Element");
 		if (!renderedBodies.has(body)) sizes.observe(body);
 		const registration = {
 			body,

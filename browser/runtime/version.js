@@ -14,7 +14,7 @@
  * one per document, and other surfaces import their readers directly; the controller
  * keeps travel and activation, which do. Block marks show changes, and
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
- * request. A base is a stamped version (`revisionBase`), the one a row offers.
+ * request. A base is a stamped version selected in the picker.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects changed descendants from the same comparison
  * reading. Its signal advances after the marked DOM and comparison selection have

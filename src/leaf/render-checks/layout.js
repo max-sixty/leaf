@@ -383,7 +383,10 @@ export function misplacedBoxes() {
     if (isMarginContent(el) || pinned(el)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
       if (isMarginContent(a) || pinned(a)) return true;
-      if (shownBand(a)) return true;
+      const band = shownBand(a);
+      // A clip wholly inside the column answers for its contents. A clip whose
+      // blank padding crosses the edge still owes the content drawn in that gutter.
+      if (band && band.left >= left - 1 && band.right <= right + 1) return true;
     }
     return false;
   };
@@ -428,9 +431,31 @@ export function misplacedBoxes() {
     return null;
   };
   // How far a box stands past the band from `start` to `end`.
-  /** @param {DOMRectReadOnly} box @param {number} start @param {number} end */
+  /** @param {{left: number, right: number}} box @param {number} start @param {number} end */
   const outside = (box, start, end) =>
     Math.round(Math.max(box.right - end, start - box.left));
+  // Unpainted padding can hold an outward focus ring without putting content in the
+  // margin. Read the content box in that case, including direct text whose indent
+  // may carry it back into the padding. Descendant elements get their own readings.
+  /** @param {Element} el @param {DOMRectReadOnly} box */
+  const contentBounds = (el, box) => {
+    const s = getComputedStyle(el);
+    if (draws(el) || s.boxShadow !== "none") return box;
+    if (!parseFloat(s.paddingLeft) && !parseFloat(s.paddingRight)) return box;
+    const scale = box.width / /** @type {HTMLElement} */ (el).offsetWidth || 1;
+    let left = box.left + parseFloat(s.paddingLeft) * scale;
+    let right = box.right - parseFloat(s.paddingRight) * scale;
+    const range = document.createRange();
+    for (const node of el.childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) continue;
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        left = Math.min(left, rect.left);
+        right = Math.max(right, rect.right);
+      }
+    }
+    return { left, right };
+  };
   /** @type {Map<Element, [number, boolean, Element | null, Element | null]>} */
   const over = new Map();
   for (const el of descendants) {
@@ -448,10 +473,27 @@ export function misplacedBoxes() {
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect();
-    const past =
+    let past =
       wide || host
         ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
         : outside(b, left, right);
+    if (past > 1 && !wide && !host) {
+      // Only the part drawn through ancestor clips can occupy the column's margin.
+      // A clip extended by blank padding still contains its off-screen content.
+      let { left: visibleLeft, right: visibleRight } = contentBounds(el, b);
+      /** @type {Element | null} */
+      let ancestor = el.parentElement;
+      for (; ancestor && ancestor !== main; ancestor = ancestor.parentElement) {
+        const band = shownBand(ancestor);
+        if (!band) continue;
+        visibleLeft = Math.max(visibleLeft, band.left);
+        visibleRight = Math.min(visibleRight, band.right);
+      }
+      past =
+        visibleRight <= visibleLeft
+          ? 0
+          : outside({ left: visibleLeft, right: visibleRight }, left, right);
+    }
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place

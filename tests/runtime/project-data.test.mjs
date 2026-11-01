@@ -21,8 +21,8 @@ const reading = {
 const data = { version: "v1", sources: { files: reading } };
 exported.textContent = JSON.stringify({ data });
 document.head.append(exported);
-const { loadDeferred, acceptData, notifyDataSubscribers } =
-  await import("/runtime/data.js");
+const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
+const { loadDeferred } = await import("/runtime/deferred-value.js");
 const { adoptRegistry } = await import("/runtime/registry.js");
 const { createDataProjection } = await import("/runtime/projection/data.js");
 const { LeafElement, nothing } = await import("/runtime/widget-api.js");

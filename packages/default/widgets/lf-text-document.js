@@ -1,6 +1,6 @@
 /* A document owns one text and its source/preview readings. The text is its `value`,
  * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
- * wrote when the markup binds neither (leaf-element.js, "Bound values"). Optional
+ * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, keeping the page still when switching and its scroll place independent.

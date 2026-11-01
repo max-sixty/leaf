@@ -1115,16 +1115,14 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');
-        const main = document.querySelector('main'), ms = getComputedStyle(main);
-        const mb = main.getBoundingClientRect();
+        const column = document.querySelector('main > h1').getBoundingClientRect();
         return { failed: !!box,
                  box: box ? box.getBoundingClientRect().width : 0,
                  widget: document.getElementById('bad').getBoundingClientRect().width,
                  // What the box would be floored at if nothing said otherwise: the
                  // source is a `pre`, so its longest line is its minimum width.
                  source: box ? box.querySelector('pre').scrollWidth : 0,
-                 column: mb.width - parseFloat(ms.paddingLeft)
-                         - parseFloat(ms.paddingRight) };
+                 column: column.width };
     }""")
     assert at["failed"], "the fixture must fail to render, or this proves nothing"
     assert at["source"] > at["column"], (
@@ -1729,16 +1727,18 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
-    browser, serve, subtests, direction
+    request, serve, subtests, direction, engine
 ):
     """A table granted room sizes its box to its columns, so it is no longer the
-    container its caption reads its width from; the caption is held to the box instead.
+    container its caption reads its width from; the block caption is held to the box.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
     and in a list item and a quotation, which hold it to their own width. Each holder's
     table scrolls alone, so one page holds all three."""
+    browser = request.getfixturevalue(engine)
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
 
@@ -2229,11 +2229,9 @@ def test_paper_keeps_the_column(browser, serve):
     on_screen = page.evaluate(
         "() => document.getElementById('sprint').getBoundingClientRect().width"
     )
-    column = page.evaluate("""() => {
-        const m = document.querySelector('main'), s = getComputedStyle(m);
-        const b = m.getBoundingClientRect();
-        return b.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-    }""")
+    column = page.evaluate(
+        "() => document.getElementById('prose').getBoundingClientRect().width"
+    )
     assert on_screen > column + 1, (
         "the board must be wider than the column on screen, or print proves nothing"
     )

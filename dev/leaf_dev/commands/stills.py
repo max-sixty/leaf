@@ -245,6 +245,26 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def printed_exhibit(page: Page) -> None:
+    """A breakout exhibit within the paper's prose track."""
+    page.emulate_media(media="print")
+
+
+def failed_widget(page: Page) -> None:
+    """A failed full-width exhibit beside the document's prose."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {failSoft} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+        const host = document.createElement('div');
+        host.id = 'failed-exhibit';
+        host.dataset.lfSpace = 'available';
+        document.querySelector('main').prepend(host);
+        failSoft(host, new Error('The exhibit could not render its source.'),
+            'source row: ' + 'unbroken_source_value_'.repeat(12));
+    }""")
+    expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
+
+
 def worktree_summaries(page: Page) -> None:
     """Close the initially open worktree so the list's summary columns stand together.
     Press the widget's summary by its class, since the authored evidence in the row
@@ -316,6 +336,12 @@ def markdown_preview_scrolled(page: Page) -> None:
         "selector => document.querySelector(selector).scrollTop > 0", arg=panel
     )
     scroll_settled(page, panel)
+
+
+def dynamic_request_preview(page: Page) -> None:
+    """The generated request as rendered Markdown inside its padded preview."""
+    page.locator(".source-details").first.locator("summary").click()
+    page.locator("#leaf-request-document").scroll_into_view_if_needed()
 
 
 def tab_by_keyboard(page: Page) -> None:
@@ -1639,6 +1665,14 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def breakout_captions_scrolled(page: Page) -> None:
+    """Keep the captions visible after scrolling both tables to their far ends."""
+    page.locator("table").evaluate_all("""tables => tables.forEach(table => {
+      table.scrollLeft = table.dir === 'rtl' ? -table.scrollWidth : table.scrollWidth;
+    })""")
+    settle(page)
+
+
 def table_scrolled_sideways(page: Page) -> None:
     """A table whose rows open with their names, scrolled to its far end on a phone."""
     page.locator("#security-deep-record > summary").click()
@@ -1991,6 +2025,29 @@ class State:
 
 
 STATES = (
+    State(
+        "dynamic-request-preview",
+        "dynamic-widgets",
+        dynamic_request_preview,
+        region="#leaf-request-document",
+    ),
+    State(
+        "dynamic-request-preview-dark",
+        "dynamic-widgets",
+        dynamic_request_preview,
+        scheme="dark",
+        region="#leaf-request-document",
+    ),
+    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
+    State("screen-exhibit", "lost-update", at_rest, region="main"),
+    State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
+    State(
+        "failed-widget-dark",
+        "review-a-plan",
+        failed_widget,
+        viewport=(1600, 900),
+        scheme="dark",
+    ),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "page-about-dark",
@@ -3096,6 +3153,21 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
+    ),
+    State(
+        "breakout-captions", "../tests/fixtures/pages/breakout-table-caption", at_rest
+    ),
+    State(
+        "breakout-captions-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        at_rest,
+        viewport=(390, 844),
+    ),
+    State(
+        "breakout-captions-scrolled-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        breakout_captions_scrolled,
+        viewport=(390, 844),
     ),
     State(
         "table-scrolled-phone",

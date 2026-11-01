@@ -418,8 +418,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     An Ask stood on while On me stands lets go first, then On me. A thread's Ask
     reached by `m` with Threads open stands in the thread's margin card, since the
-    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
-    then puts the card away, and only then puts Threads away."""
+    panel declines a thread about a passage. Escape closes that card beside its
+    target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -445,9 +445,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_focused()
-    page.keyboard.press("Escape")
     expect(card).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
     expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

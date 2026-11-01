@@ -308,7 +308,7 @@ RING_CASES = (
                 ("#pr-path-tree > summary", ".lf-visual-mark"),
                 (
                     "#pr-flow-tab",
-                    ".lf-rendered:has(> :is(lf-tab, lf-part)",
+                    "[data-lf-views]:has(> :is(lf-tab, lf-part)",
                 ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
@@ -645,7 +645,7 @@ AIM_BOXES = browser_function("aims.js", "offeredAims")
 # on a surface the walk has to open, and each was under the floor.
 AIM_SURFACES = (
     ".lf-fp-settle",
-    '[data-row="preview"]',
+    '.lf-copyable-text:has(pre[aria-label="Preview diagnostics"]) wa-copy-button',
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
@@ -692,9 +692,14 @@ def _each_aim_surface(page, page_dir):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # The leaf's menu, and then its Versions, which hold Compare.
-    panel_menu(page)
+    # The leaf's menu, its preview diagnostics in About, and Versions with Compare.
+    menu = panel_menu(page)
     yield
+    menu.locator('[data-row="inspection"]').click()
+    preview = page.get_by_role("button", name="Copy Preview diagnostics", exact=True)
+    expect(preview).to_be_visible()
+    yield
+    page.keyboard.press("Escape")
     panel_menu(page, "versions")
     yield
     page.keyboard.press("Escape")
@@ -1741,7 +1746,7 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         if touch
         else None
     )
-    # A preview record, because the badge it puts in the menu is one of the aims and
+    # A preview record, because its copy control in About is one of the aims and
     # exists on no page that was not served by the preview script. The comment anchored
     # on a quote puts a quote in its thread.
     served = serve(

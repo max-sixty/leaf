@@ -3317,9 +3317,12 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
     resized(page, 675, 898)
     page.emulate_media(reduced_motion="no-preference", color_scheme=scheme)
     field(page).click()
-    paste_image(field(page), solid_png(40, 30, (255, 128, 64)))
+    # A picture wide enough to reach beyond the unfolding box's horizontal cut
+    # exercises whether its top can hang above that box throughout the reveal.
+    paste_image(field(page), solid_png(240, 120, (255, 128, 64)))
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
+    expect(shelf.locator("img")).to_have_js_property("complete", True)
     page.keyboard.press("Escape")
     settled(page)
     # The panel's surface must expose its measured box before the first motion;
@@ -3375,10 +3378,14 @@ def test_the_leaf_travels_with_its_fold_and_reverses_from_where_it_stands(
             max(edges["field"], edges["leaf"]), abs=0.5
         ), edges
         attachment = shelf.bounding_box()
-        pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
-        assert any(
-            r > 200 and 90 < g < 170 and b < 100 for r, g, b in rgb_pixels(pixels)
+        assert attachment["x"] + attachment["width"] > edges["leaf"], (
+            "the fixture must extend past the reveal edge",
+            attachment,
+            edges,
         )
+        pixels = Image.open(BytesIO(page.screenshot(clip=attachment))).convert("RGB")
+        # Match the picture itself: subpixel text on the page can also be orange.
+        assert any((r, g, b) == (255, 128, 64) for r, g, b in rgb_pixels(pixels))
 
     row = reading()
     page.keyboard.press(".")

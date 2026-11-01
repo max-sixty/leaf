@@ -182,9 +182,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
         "aria-label", "Collapse all 1 call-tree root"
     )
-    file_row = page.locator("#patch .lf-diff-file").first
-    expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
-    expect(file_row).to_have_attribute(
+    file_header = page.locator("#patch .lf-diff-file summary").first
+    expect(file_header).to_have_attribute(
+        "data-lf-datum", '["gateway/limits.py","file"]'
+    )
+    expect(file_header).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
     expect(lines.nth(1)).to_have_attribute("data-root", "")
@@ -776,9 +778,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         serve.page_dir, source(restored, restored_executable), "Restore a destination"
     )
     if fresh:
+        # Generated history is drawn by the runtime, after the authored destination
+        # has parsed. Holding that runtime must not wait for its own drawing.
         page.wait_for_function("""() => document.readyState === 'interactive' &&
-          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
-        assert blocked, "startup module must remain pending during the parsed drawing"
+          document.getElementById('route') !== null""")
+        assert blocked, "startup module must remain pending after parsing"
         assert page.locator("body").get_attribute("data-lf-presented") is None
         page.unroute("**/leaf.js")
         for route in blocked:

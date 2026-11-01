@@ -518,7 +518,7 @@ def thread_code_copy(page: Page) -> None:
 
 def floating_thread_unread(page: Page) -> None:
     """The same thread holding a reply too long for its view to show whole, which stays
-    unread, so Next unread stands among the view's controls."""
+    unread, so Next unread stands on the view's head line."""
     as_agent(
         "thread",
         "reply",
@@ -528,7 +528,7 @@ def floating_thread_unread(page: Page) -> None:
         + "The queue holds each edit until the server confirms it. " * 40,
     )
     floating_thread(page)
-    expect(page.locator(".lf-fp-controls .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
 
 
 def floating_thread_retitled(page: Page) -> None:

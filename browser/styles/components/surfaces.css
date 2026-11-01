@@ -1041,7 +1041,8 @@ button.lf-thread-news {
    may drop facts, reserves that room from the notice's first paint, so the count
    arriving moves nothing under the pointer; a margin card's controls row reserves it
    in its own rule (annotation-chrome.css). A placement that draws the notice whole, as
-   the floating panel's crumb does, drops no fact and reserves no room. The count stays
+   the floating panel's head line does while its thread's name has room to give, drops
+   no fact and reserves no room. The count stays
    out of the accessible name, which already says every fact. */
 .lf-thread-content > .lf-thread-news,
 button.lf-primary-news {

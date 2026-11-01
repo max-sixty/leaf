@@ -60,9 +60,7 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
       </dl>
     </details>
     <aside><p>The draft is saved before the thread changes.</p></aside>
-    <lf-diff id="draft-patch" source="draft-patch-data" data-height="360">
-      <pre></pre>
-    </lf-diff>
+    <lf-diff id="draft-patch" source="draft-patch-data" data-height="360"></lf-diff>
   </lf-worktree>
 </lf-worktree-diffs>
 ```

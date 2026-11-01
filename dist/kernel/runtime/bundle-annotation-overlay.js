@@ -128,13 +128,19 @@ var CardAnchor = class {
 	sending(attempt) {
 		this.#sent = attempt;
 		this.#sentFrom = true;
+		this.#releaseTranscript();
 	}
 	writing() {
 		this.#sent = null;
 		this.#sentFrom = false;
 	}
+	editing() {
+		this.writing();
+		this.#keepTranscript(true);
+	}
 	leftReply() {
 		this.#sentFrom = false;
+		this.#keepTranscript(false);
 	}
 	#keepsSend(joined) {
 		return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
@@ -168,8 +174,22 @@ var CardAnchor = class {
 		const field = this.#field();
 		return Boolean(field?.checkVisibility() && (field.value !== "" || !this.#sentFrom && currentLocationIn(field.closest(".lf-thread-reply"))));
 	}
+	#transcript() {
+		return this.#surface.querySelector(".lf-thread-transcript");
+	}
+	#keepTranscript(start) {
+		const transcript = this.#transcript();
+		if (!this.#writing()) this.#releaseTranscript();
+		else if (start && transcript && !this.#heldTranscript()) this.#surface.style.setProperty("--lf-transcript-height", layoutPx(parseFloat(getComputedStyle(transcript).height)));
+	}
+	#heldTranscript() {
+		return this.#surface.style.getPropertyValue("--lf-transcript-height") !== "";
+	}
+	#releaseTranscript() {
+		if (this.#heldTranscript()) this.#surface.style.removeProperty("--lf-transcript-height");
+	}
 	#extent() {
-		const transcript = this.#surface.querySelector(".lf-thread-transcript");
+		const transcript = this.#transcript();
 		return transcript ? parseFloat(getComputedStyle(transcript).height) + transcript.scrollHeight - transcript.clientHeight : 0;
 	}
 	prepare(seat) {
@@ -202,6 +222,7 @@ var CardAnchor = class {
 			rises: !seat.adopted && !press?.edge && !this.#sent && beside,
 			commit: () => {
 				if (this.#press === captured) this.#press = press;
+				this.#keepTranscript(Boolean(this.#field()?.value));
 			}
 		};
 	}
@@ -213,6 +234,7 @@ var CardAnchor = class {
 		this.#press = null;
 		this.#side = null;
 		this.#sentFrom = false;
+		this.#releaseTranscript();
 	}
 };
 
@@ -325,7 +347,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 	}];
 	onUserInput((event) => previewSession?.anchor.pressed(event, inputCount()));
 	preview.addEventListener("lf-before-edit", (event) => {
-		if (event.composedPath().some((node) => node instanceof Element && node.matches(".lf-thread-reply"))) previewSession?.anchor.writing();
+		if (event.composedPath().some((node) => node instanceof Element && node.matches(".lf-thread-reply"))) previewSession?.anchor.editing();
 	});
 	let previewRegionMounted = false;
 	function syncPreviewTranscript() {

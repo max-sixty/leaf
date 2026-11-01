@@ -10,8 +10,16 @@
    until the next send, empty or not. A press instead keeps the control it
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
-   Above its subject, reading keeps the foot. Writing keeps the top. Beside its
-   subject, a card also rises as it grows (`rises`), read or written in: it may
+   Above its subject, reading keeps the foot. Writing keeps the top. From the reply's
+   first edit until it is sent or left empty, the transcript also keeps the height it
+   stands at, so the card grows only as the reply does. News shown into the card then
+   scrolls the transcript, and an edge the card comes to hold gives the transcript no
+   new room, so the reply box being written in stays where it stands (the user's
+   decision for news, 2026-10-31). Rejected: letting the transcript grow with the
+   news, which moved the reply box of a card under its words 42px down at 800x520 as
+   held news showed; and letting it fill the room a newly held top gives it, which
+   moved the reply 139px down at the first key typed after Send in a card above its
+   words. Beside its subject, a card also rises as it grows (`rises`), read or written in: it may
    outgrow the room below its top, and the window's foot lifts it, as a chat's
    composer grows, so the line being typed, or the answer arriving, stays in view with
    the turn it answers (the user's decisions, 2026-10-21 for writing and 2026-10-31
@@ -26,6 +34,7 @@
    overwrite a newer press captured during fitting. */
 import { TEXT_FIELD } from "../control-selectors.js";
 import { currentLocationIn, inputCount } from "../focus.js";
+import { layoutPx } from "../keeps.js";
 
 /** @typedef {"top" | "foot"} Edge */
 /** @typedef {{side: "top" | "bottom" | "left" | "right",
@@ -58,6 +67,7 @@ export class CardAnchor {
   sending(attempt) {
     this.#sent = attempt;
     this.#sentFrom = true;
+    this.#releaseTranscript();
   }
 
   // Entering or editing the native reply starts a new writing place, even while
@@ -68,9 +78,16 @@ export class CardAnchor {
     this.#sentFrom = false;
   }
 
+  // Editing the native reply, before the field changes, also holds the transcript.
+  editing() {
+    this.writing();
+    this.#keepTranscript(true);
+  }
+
   // The user left the reply, so coming back into it is writing again.
   leftReply() {
     this.#sentFrom = false;
+    this.#keepTranscript(false);
   }
 
   // Own words may reveal held news with them: that whole presentation is the send's
@@ -125,9 +142,41 @@ export class CardAnchor {
     );
   }
 
+  #transcript() {
+    return /** @type {HTMLElement | null} */ (
+      this.#surface.querySelector(".lf-thread-transcript")
+    );
+  }
+
+  // Holds the transcript at the height it stands at while the reply is written in
+  // (`--lf-transcript-height`, annotation-chrome.css), from before the first change it
+  // guards: the first edit (`editing`), or a landing that finds words in the reply.
+  // Entering the reply holds nothing yet, since a card regaining the height it stood
+  // at, as when a rewrite closes, may still be growing then. It lets go as a send
+  // starts, or once the reply is no longer written in.
+  /** @param {boolean} start whether this may start the hold */
+  #keepTranscript(start) {
+    const transcript = this.#transcript();
+    if (!this.#writing()) this.#releaseTranscript();
+    else if (start && transcript && !this.#heldTranscript())
+      this.#surface.style.setProperty(
+        "--lf-transcript-height",
+        layoutPx(parseFloat(getComputedStyle(transcript).height)),
+      );
+  }
+
+  #heldTranscript() {
+    return this.#surface.style.getPropertyValue("--lf-transcript-height") !== "";
+  }
+
+  #releaseTranscript() {
+    if (this.#heldTranscript())
+      this.#surface.style.removeProperty("--lf-transcript-height");
+  }
+
   // A press measures its own before/after, not an unrelated earlier landing.
   #extent() {
-    const transcript = this.#surface.querySelector(".lf-thread-transcript");
+    const transcript = this.#transcript();
     return transcript
       ? parseFloat(getComputedStyle(transcript).height) +
           transcript.scrollHeight -
@@ -175,6 +224,7 @@ export class CardAnchor {
       rises: !seat.adopted && !press?.edge && !this.#sent && beside,
       commit: () => {
         if (this.#press === captured) this.#press = press;
+        this.#keepTranscript(Boolean(this.#field()?.value));
       },
     };
   }
@@ -190,5 +240,6 @@ export class CardAnchor {
     this.#press = null;
     this.#side = null;
     this.#sentFrom = false;
+    this.#releaseTranscript();
   }
 }

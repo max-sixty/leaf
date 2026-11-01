@@ -568,6 +568,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-margin-thread .lf-thread-transcript {
     min-height: 1lh;
+    /* Kept while the reply is written in (card-anchor.js). */
+    max-height: var(--lf-transcript-height, none);
     overflow-y: auto;
     scroll-padding-block: var(--focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,

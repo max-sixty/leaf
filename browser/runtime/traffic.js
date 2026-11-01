@@ -27,6 +27,7 @@
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 
+/** @type {{sends: number, acked: number, asked: number, heard: number, pending: string[]}} */
 const ledger = { sends: 0, acked: 0, asked: 0, heard: 0, pending: [] };
 
 function paint() {
@@ -37,6 +38,7 @@ function paint() {
   );
 }
 
+/** @param {"sends" | "acked" | "asked" | "heard"} key */
 export function countTraffic(key) {
   ledger[key] += 1;
   paint();

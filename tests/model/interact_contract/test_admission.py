@@ -21,6 +21,7 @@ from interact_support import (
     published,
     queue_board_registry,
     refused_on,
+    served_state_error,
     wait_for,
 )
 
@@ -461,6 +462,8 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     )
 
     history = model.reading({1: question, 2: retired}, events)["history"]
+    for row in history:
+        assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"], row["undone"]) for row in history] == [
         ("e2", {"form": "choice", "chosen": ["Slow path"]}, True),
         ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
@@ -509,6 +512,8 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     )
 
     history = model.reading(question, events)["history"]
+    for row in history:
+        assert served_state_error(row, "HistoryRow") is None
     assert [(row["id"], row["gesture"]) for row in history] == [
         ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
         ("e5", {"form": "add", "words": "Ship everything"}),

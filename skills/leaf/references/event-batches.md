@@ -44,9 +44,11 @@ Events keep their stored fields and log order, and add:
 - `was`: on the user's rewrite of their own message, the words it replaced.
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
-- `waiting`: on a widget action, your questions still waiting on the user in a thread
-  about that widget, each its obligation `id` and the `text` that asked it. Its
-  `handling` says how to settle the ones the action answers.
+- `waiting`: your questions the event may have answered, each its obligation `id` and
+  the `text` that asked it: on a widget action, those still waiting on the user's
+  words in a thread about that widget; on the user's reply, those still waiting on a
+  pick on a widget you sent in that thread. Its `handling` says how to settle the ones
+  the event answers.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
   written with `leaf thread reply <answer.ref>` ([threads](threads.md)), or by your
   turn's final message where its `writer` is `"turn"`. A `kind: "markup"` answer is the
@@ -76,7 +78,7 @@ Confirm a delivery only once every part is in context, by following its
 does not confirm it. Input your harness already confirmed arrives with
 `acknowledge: null`.
 
-Confirming marks the user's updates **Got it**; it does not answer them.
+Confirming marks the user's updates **Delivered**; it does not answer them.
 
 `leaf wait` waits only on pages this session holds; to take over a page, run
 `leaf page claim <page>` first. A wait exits 0 with input, or 2 with a diagnostic
@@ -86,5 +88,6 @@ to follow.
 
 Write every answer still owed, then return to your harness's wait loop. Run
 `leaf page open <page>` to put down current starts and leave feedback open.
-When you need an answer, send a thread message with `--obligation`; page availability
-creates no obligation. While you keep working, leave the update or to-do started.
+When you need an answer, send a thread message that asks for it, with a choice in its
+markup or `--obligation` (`threads.md`, "Ask for a pick"); page availability creates no
+obligation. While you keep working, leave the update or to-do started.

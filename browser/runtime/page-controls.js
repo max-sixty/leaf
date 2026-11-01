@@ -7,7 +7,9 @@
  * a count, the `shortcut` that reaches it from the keyboard as its steps, each spelled as
  * a key chip spells it (keyboard/control-keys.js, `commandSteps`), the `group` of
  * controls it belongs with, the whole words a pointer resting on it reads where its
- * label may be cut (`title`), the text it copies where it copies one (`copies`), whether
+ * label may be cut, or, for a row that copies, what its text grants that the text
+ * doesn't say, which About shows under it (`title`), the text it copies where it
+ * copies one (`copies`), whether
  * it is `offered` now, whether its news is `urgent` (the words that say so, or null),
  * whether it is `disabled`, and the `press` that runs it, given the place the
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
@@ -25,6 +27,7 @@
 import { signal } from "/runtime/framework.js";
 import { afterScript } from "./rendering.js";
 
+/** @type {readonly string[]} */
 const EMPTY = Object.freeze([]);
 
 // Where each contributor's rows stand, among the others'.
@@ -53,22 +56,25 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // convenience for where the reader stands, such as Resume writing (`keys`), behind
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
 // reads stays short and a finger keeps a way to each.
-const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys"]);
+/** @typedef {"page" | "navigate" | "annotate" | "keys"} PageControlGroup */
 
+/** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
 let sequence = 0;
 const revision = signal(0);
 
+/** @template {string | boolean | readonly string[] | null | undefined} T
+ * @param {T | (() => T)} value @returns {T} */
 const read = (value) => (typeof value === "function" ? value() : value);
 
 /**
  * Register one row of the page's controls.
  *
- * @param {{
+ * @typedef {{
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
- *   group: string | (() => string),
+ *   group: PageControlGroup | (() => PageControlGroup),
  *   value?: string | (() => string),
  *   title?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
@@ -78,9 +84,10 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   disabled?: boolean | (() => boolean),
  *   exit?: boolean,
  *   action?: string | (() => string),
- *   press?: (held?: any) => void,
- * }} row
+ *   press?: (held: import("./history.js").WorkingPlace | null) => unknown,
+ * }} PageControl
  */
+/** @param {PageControl} row */
 export function registerPageControl(row) {
   if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
     throw new TypeError(
@@ -97,27 +104,22 @@ export function pageControls() {
   return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
     .filter((row) => read(row.offered) ?? true)
-    .map((row) => {
-      const group = read(row.group);
-      if (!GROUPS.includes(group))
-        throw new TypeError(
-          `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`,
-        );
-      return Object.freeze({
+    .map((row) =>
+      Object.freeze({
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
         title: read(row.title) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group,
+        group: read(row.group),
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         exit: Boolean(row.exit),
         action: read(row.action) ?? null,
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
-      });
-    });
+      }),
+    );
 }
 
 /** Say that a row's answer moved outside the page's readings. Several in one script are

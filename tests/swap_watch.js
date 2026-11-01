@@ -1,6 +1,6 @@
 // Watches every page for a line of occupants that grows or shrinks as one occupant
 // gives way to another: the "Shared containers determine control dimensions" rule
-// (browser/AGENTS.md, "Stability"). The browser fixture installs it on every page a test
+// (browser/AGENTS.md, "The page holds still under the user's aim"). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
 // A swap is a frame in which a box stays on the page while, among its children, one

@@ -444,7 +444,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, 
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><p id="p3">',
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
@@ -500,7 +500,7 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><a id="after-diff" href="#p3">After the diff</a><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><a id="after-diff" href="#p3">After the diff</a><p id="p3">',
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
@@ -570,7 +570,7 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
         leaf_page(
             "Review files beside a reply",
             '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
-            'view="file"><pre></pre></lf-diff>'
+            'view="file"></lf-diff>'
             '<lf-file-tree id="files" for="patch"></lf-file-tree>'
             '<a id="after-files" href="#patch">Back to the patch</a>',
         ),
@@ -637,7 +637,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     )
     source = LONG_PAGE.replace(
         "<p id='p3'>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff><a id="after-diff" href="#p3">After the diff</a><a id="second-link" href="#p3">Second link</a><p id="p3">',
+        '<lf-diff id="patch" source="review-patch"></lf-diff><a id="after-diff" href="#p3">After the diff</a><a id="second-link" href="#p3">Second link</a><p id="p3">',
     )
     source = source.replace("<body>", '<body data-annotations="page">', 1)
     url = serve(source)

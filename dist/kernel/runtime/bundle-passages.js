@@ -1,4 +1,4 @@
-import { PAGE_PAINT_ATTRIBUTE, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, under, upFrom } from "./bundle-portable.js";
+import { PAGE_PAINT_ATTRIBUTE, isElement, isHTML, isNode, isText, pageUpgraded, renderedOrder, renderedParent, renderedUnder, shadowHost, under, upFrom } from "./bundle-portable.js";
 import { COLLAPSE, SAID, TEXT_BLOCK, UI_MARKS, decisionFor, declaredRoot, inUi, overIn, pageShadowRoots, readPart, refuseShadowRoot, registry, shadowRootsIn, uiInside } from "./bundle-layer-stack.js";
 import { reportPageError } from "./bundle-layer-client.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
@@ -24,26 +24,30 @@ function alignText(before, after, units = textUnits, maxEditLength = MAX_EDIT_LE
 	})).filter((run) => run.text);
 }
 function alignInlineText(before, after) {
-	const coarse = alignText(before, after, sentenceUnits);
+	const coarse = alignText(before, after, sentenceUnits)[Symbol.iterator]();
 	const runs = [];
 	const push = (run) => {
 		const last = runs.at(-1);
 		if (last?.kind === run.kind) last.text += run.text;
 		else runs.push({ ...run });
 	};
-	for (let at = 0; at < coarse.length; at++) {
-		const run = coarse[at];
-		if (!(run.kind === "delete" && coarse[at + 1]?.kind === "insert")) {
+	let current = coarse.next();
+	while (!current.done) {
+		const run = current.value;
+		const next = coarse.next();
+		if (run.kind !== "delete" || next.done || next.value.kind !== "insert") {
 			push(run);
+			current = next;
 			continue;
 		}
-		const next = coarse[++at];
-		const fine = alignText(run.text, next.text);
-		if (fine.filter((part) => part.kind === "same").reduce((length, part) => length + part.text.length, 0) >= Math.min(run.text.length, next.text.length) * .6) fine.forEach(push);
+		const replacement = next.value;
+		const fine = alignText(run.text, replacement.text);
+		if (fine.filter((part) => part.kind === "same").reduce((length, part) => length + part.text.length, 0) >= Math.min(run.text.length, replacement.text.length) * .6) fine.forEach(push);
 		else {
 			push(run);
-			push(next);
+			push(replacement);
 		}
+		current = coarse.next();
 	}
 	return runs;
 }
@@ -77,10 +81,10 @@ function settlements() {
 			const holders = /* @__PURE__ */ new Map();
 			for (const [id, { state }] of root.effective.widgets) {
 				const tag = root.document.authored.get(id)?.tag;
-				const decision = decisions?.[tag];
+				const decision = tag === void 0 ? void 0 : decisions?.[tag];
 				const outcome = decision && state[decision.verb]?.detail?.outcome;
 				const retires = outcome ? decision.retires[outcome] : null;
-				if (retires?.length) holders.set(id, {
+				if (tag !== void 0 && retires?.length) holders.set(id, {
 					tag,
 					retires: [...retires]
 				});
@@ -107,16 +111,17 @@ function renderRetired(el, outcome) {
 	for (const [candidate, tags] of Object.entries(outcomes)) for (const tag of tags) for (const root of [el, ...el.shadowRoot ? [el.shadowRoot] : []]) for (const slot of root.children) if (slot.localName === tag) slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, candidate === outcome);
 }
 function settledAway(el) {
-	for (let at = el; at; at = at.parentElement) if (retiredSlot(at)) return true;
+	let at = el;
+	for (; at; at = at.parentElement) if (retiredSlot(at)) return true;
 	const nodes = [...el.childNodes];
-	return nodes.some((n) => n.nodeType === 1 && retiredSlot(n)) && nodes.every((n) => n.nodeType === 1 ? retiredSlot(n) || uiInside(n, el) : n.nodeType !== 3 || !n.data.trim());
+	return nodes.some((n) => isElement(n) && retiredSlot(n)) && nodes.every((n) => isElement(n) ? retiredSlot(n) || uiInside(n, el) : !isText(n) || !n.data.trim());
 }
 const GENERATED = ".lf-ui, [data-lf-gen]";
 const DATUM = "[data-lf-projection][data-lf-datum]";
 const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 const showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
 const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
-const leafSurface = (node) => node ? closestAcross(node, LEAF_SURFACE) : null;
+const leafSurface = (node) => isNode(node) ? closestAcross(node, LEAF_SURFACE) : null;
 const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
 const bareTextRefusal = (n) => {
 	const host = shadowHost(n.getRootNode());
@@ -125,11 +130,11 @@ const bareTextRefusal = (n) => {
 };
 const elementOver = (n) => {
 	if (n.parentElement) return n.parentElement;
-	throw bareTextRefusal(n);
+	if (isText(n)) throw bareTextRefusal(n);
+	throw new Error("A passage node has no element over it");
 };
 function refusesBareText(root) {
-	let bare = root.firstChild;
-	while (bare && (bare.nodeType !== Node.TEXT_NODE || !bare.data.trim())) bare = bare.nextSibling;
+	const bare = [...root.childNodes].filter(isText).find((node) => node.data.trim());
 	if (!bare) return false;
 	refuseShadowRoot(root);
 	const refusal = bareTextRefusal(bare);
@@ -142,7 +147,7 @@ function refusesBareText(root) {
 	return true;
 }
 const frameOf = (node) => {
-	for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a)) if (a.localName?.startsWith("lf-")) return a;
+	for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a)) if (a.localName?.startsWith("lf-")) return a;
 	return null;
 };
 const NO_CONTEXT = Object.freeze({
@@ -173,11 +178,13 @@ const SILENT_TAGS = /* @__PURE__ */ new Set([
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 const unmodelled = (el) => {
 	const attr = el.getAttribute("data-lf-said");
-	return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
+	const parent = el.parentElement;
+	return !(attr && parent && registry[parent.localName]?.["x-says"]?.[attr]);
 };
-const fileModelsPassage = (segments) => segments.every(({ node, gen }) => !node.parentElement.isContentEditable && (!gen || !unmodelled(gen)));
+const fileModelsPassage = (segments) => segments.every(({ node, gen }) => !isEditing(elementOver(node)) && (!gen || !unmodelled(gen)));
 const opaque = (el) => passageFences.has(el);
-const editingBoundary = (el) => Boolean(el.isContentEditable) !== Boolean(el.parentElement?.isContentEditable);
+const editingBoundary = (el) => isEditing(el) !== isEditing(el.parentElement);
+const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 function enter(ctx, el, inFrame = true) {
 	const marked = el.hasAttributes() && el.matches(MARKS);
 	const textBlock = BLOCK_TAGS.has(el.localName);
@@ -215,8 +222,7 @@ function contextAt(el, frame) {
 	for (let a = el; a; a = upFrom(a)) over.push(a);
 	let ctx = NO_CONTEXT;
 	let inFrame = !frame;
-	for (let i = over.length - 1; i >= 0; i--) {
-		const a = over[i];
+	for (const a of over.reverse()) {
 		if (a === frame) inFrame = true;
 		if (a.parentNode?.nodeType === Node.DOCUMENT_FRAGMENT_NODE) ctx = crossed(ctx);
 		ctx = enter(ctx, a, inFrame);
@@ -238,7 +244,7 @@ const READINGS = {
 };
 const authored = (root) => {
 	const frame = frameOf(root);
-	return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
+	return (n) => !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 function walk(root, onText, skip = null, onBreak = null, onElement = null) {
 	const frame = frameOf(root);
@@ -251,10 +257,10 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
 		if (skip?.(child)) return;
 		const inner = enter(ctx, child);
 		if (child.localName === "br") onBreak?.(inner);
-		else if (child.localName === "slot") {
+		else if (isHTML(child, "slot")) {
 			passed.set(child, inner);
 			onElement?.(child, inner, true);
-			for (const assigned of child.assignedNodes({ flatten: true })) assigned.nodeType === Node.TEXT_NODE ? onText(assigned, contextOver(assigned)) : visitElement(assigned, contextOver(assigned));
+			for (const assigned of child.assignedNodes({ flatten: true })) isText(assigned) ? onText(assigned, contextOver(assigned)) : isElement(assigned) && visitElement(assigned, contextOver(assigned));
 			onElement?.(child, inner, false);
 		} else {
 			const declared = declaredRoot(child);
@@ -265,17 +271,17 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
 		}
 	};
 	const visit = (node, ctx, host = null) => {
-		const element = host ?? (node.nodeType === Node.ELEMENT_NODE ? node : null);
+		const element = host ?? (isElement(node) ? node : null);
 		if (element) onElement?.(element, ctx, true);
-		for (let child = node.firstChild; child; child = child.nextSibling) if (child.nodeType === Node.TEXT_NODE) {
+		for (let child = node.firstChild; child; child = child.nextSibling) if (isText(child)) {
 			if (node.nodeType !== Node.ELEMENT_NODE && !child.data.trim()) continue;
 			if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
 			onText(child, ctx);
-		} else if (child.nodeType === Node.ELEMENT_NODE) visitElement(child, ctx);
+		} else if (isElement(child)) visitElement(child, ctx);
 		if (element) onElement?.(element, ctx, false);
 	};
 	const host = shadowHost(root);
-	visit(root, root.nodeType === Node.ELEMENT_NODE ? contextAt(root, frame) : host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
+	visit(root, isElement(root) ? contextAt(root, frame) : host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
 function textNodesUnder(root, reading = "says", boundary = null, format = "prose") {
 	const keeps = READINGS[reading];
@@ -284,8 +290,9 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 	let lineBefore = "";
 	const styles = /* @__PURE__ */ new Map();
 	const style = (element) => {
-		if (!styles.has(element)) styles.set(element, getComputedStyle(element));
-		return styles.get(element);
+		let value = styles.get(element);
+		if (!value) styles.set(element, value = getComputedStyle(element));
+		return value;
 	};
 	walk(root, (node, ctx) => {
 		if (keeps(ctx)) {
@@ -294,7 +301,7 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 				breakBefore,
 				...format === "lines" && {
 					lineBefore,
-					whiteSpace: style(renderedParent(node)).whiteSpaceCollapse
+					whiteSpace: style(node.assignedSlot ?? elementOver(node)).whiteSpaceCollapse
 				}
 			});
 			breakBefore = false;
@@ -315,7 +322,7 @@ function textNodesUnder(root, reading = "says", boundary = null, format = "prose
 	return segments;
 }
 function closestAcross(node, selector) {
-	let el = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+	let el = isElement(node) ? node : upFrom(node);
 	while (el) {
 		const hit = el.closest(selector);
 		if (hit) return hit;
@@ -324,6 +331,7 @@ function closestAcross(node, selector) {
 	return null;
 }
 const elementById = (id, root = document) => {
+	if (id == null || root === null) return null;
 	const found = root === document ? document.getElementById(id) : root.querySelector(`[id="${CSS.escape(id)}"]`);
 	if (found) return found;
 	for (const shadow of shadowRootsIn(root)) {
@@ -343,14 +351,16 @@ const layoutBox = () => {
 const authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
 const elementFromPointAcross = (x, y) => {
 	let el = document.elementFromPoint(x, y);
-	while (el && declaredRoot(el)) {
-		const inner = el.shadowRoot.elementFromPoint(x, y);
+	for (let root; el && (root = declaredRoot(el));) {
+		const inner = root.elementFromPoint(x, y);
 		if (!inner || inner === el) break;
 		el = inner;
 	}
 	return el;
 };
-const pageQueryAll = (selector) => [document, ...pageShadowRoots()].flatMap((root) => [...root.querySelectorAll(selector)]);
+const pageQueryAll = (selector) => [document, ...pageShadowRoots()].flatMap((root) => {
+	return [...root.querySelectorAll(selector)];
+});
 const beforePoint = (node, container, offset) => {
 	if (node === container) return false;
 	if (container.nodeType === Node.TEXT_NODE || offset === 0) return renderedOrder(node, container) < 0;
@@ -412,8 +422,9 @@ function readSegments(segments, mapCharacters) {
 			end
 		});
 	};
-	segments.forEach((seg, i) => {
-		if (i && (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(segments[i - 1]))) {
+	let previous;
+	for (const seg of segments) {
+		if (previous && (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(previous))) {
 			const point = {
 				node: seg.node,
 				offset: seg.start
@@ -432,7 +443,8 @@ function readSegments(segments, mapCharacters) {
 			});
 			offset = end;
 		}
-	});
+		previous = seg;
+	}
 	return mapCharacters ? {
 		text,
 		units
@@ -466,28 +478,30 @@ const says = (el, options = {}) => {
 };
 const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 function rangeOf(segments) {
+	const first = segments[0];
+	const last = segments.at(-1);
+	if (!first || !last) throw new RangeError("A passage range needs at least one segment");
 	const range = document.createRange();
-	range.setStart(segments[0].node, segments[0].start);
-	range.setEnd(segments.at(-1).node, segments.at(-1).end);
+	range.setStart(first.node, first.start);
+	range.setEnd(last.node, last.end);
 	return range;
 }
 const EDGE = "\0";
-function segmentAt({ starts }, i) {
+function segmentAt({ segments }, i) {
 	let lo = 0;
-	let hi = starts.length - 1;
-	if (hi < 0 || i < starts[0]) return -1;
+	let hi = segments.length;
 	while (lo < hi) {
-		const mid = lo + hi + 1 >> 1;
-		if (starts[mid] <= i) lo = mid;
-		else hi = mid - 1;
+		const mid = lo + hi >> 1;
+		const segment = segments[mid];
+		if (segment && segment.rawStart <= i) lo = mid + 1;
+		else hi = mid;
 	}
-	return lo;
+	return lo - 1;
 }
 function pointAt(reading, i) {
-	const k = segmentAt(reading, i);
-	if (k === -1) return null;
-	const segment = reading.segments[k];
-	const offset = i - reading.starts[k];
+	const segment = reading.segments[segmentAt(reading, i)];
+	if (!segment) return null;
+	const offset = i - segment.rawStart;
 	return offset < segment.end - segment.start ? {
 		node: segment.node,
 		offset: segment.start + offset,
@@ -495,11 +509,11 @@ function pointAt(reading, i) {
 	} : null;
 }
 function spanOf(reading, lo, hi) {
-	const { segments, starts } = reading;
+	const { segments } = reading;
 	const out = [];
-	for (let k = Math.max(0, segmentAt(reading, lo)); k < segments.length; k++) {
-		const seg = segments[k];
-		const from = starts[k];
+	let seg;
+	for (let k = Math.max(0, segmentAt(reading, lo)); seg = segments[k]; k++) {
+		const from = seg.rawStart;
 		if (from >= hi) break;
 		const a = Math.max(lo, from);
 		const b = Math.min(hi, from + seg.end - seg.start);
@@ -507,7 +521,7 @@ function spanOf(reading, lo, hi) {
 			...seg,
 			start: seg.start + a - from,
 			end: seg.start + b - from,
-			breakBefore: seg.breakBefore && a === from
+			breakBefore: Boolean(seg.breakBefore && a === from)
 		});
 	}
 	return out;
@@ -549,9 +563,9 @@ let elementReadings = /* @__PURE__ */ new WeakMap();
 let readingVocabulary;
 let readingSettled;
 let watcher = null;
-const pageReads = (over) => over?.nodeType !== 1 || READINGS.says(contextAt(over, null));
-const holdsSaid = (node) => node.nodeType === 1 && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
-const speaks = (node, read) => read && !(node.nodeType === 1 && chromeMark(node) === true) || holdsSaid(node);
+const pageReads = (over) => !isElement(over) || READINGS.says(contextAt(over, null));
+const holdsSaid = (node) => isElement(node) && (node.matches("[data-lf-said]") || node.querySelector("[data-lf-said]") !== null);
+const speaks = (node, read) => read && !(isElement(node) && chromeMark(node) === true) || holdsSaid(node);
 const changesTheReading = (record) => {
 	const { target } = record;
 	if (record.type === "childList") {
@@ -559,6 +573,7 @@ const changesTheReading = (record) => {
 		return [...record.addedNodes, ...record.removedNodes].some((n) => speaks(n, read));
 	}
 	if (record.type === "characterData") return pageReads(target.parentNode);
+	if (!isElement(target)) return false;
 	if (record.attributeName === "class") {
 		if (/(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "") === target.classList.contains("lf-ui")) return false;
 	}
@@ -638,7 +653,7 @@ function readPage() {
 		return null;
 	};
 	const parts = [];
-	const starts = [];
+	const indexed = [];
 	const positions = /* @__PURE__ */ new WeakMap();
 	const fences = /* @__PURE__ */ new Set();
 	let length = 0;
@@ -652,7 +667,10 @@ function readPage() {
 			parts.push(seg.breakBefore ? " " : EDGE);
 			length += 1;
 		}
-		starts.push(length);
+		indexed.push({
+			...seg,
+			rawStart: length
+		});
 		positions.set(seg.node, length - seg.start);
 		parts.push(seg.node.data);
 		length += seg.end - seg.start;
@@ -661,25 +679,29 @@ function readPage() {
 	if (previousCell) fences.add(length);
 	return {
 		raw: parts.join(""),
-		starts,
 		positions,
 		fences: [...fences].sort((a, b) => a - b),
-		segments
+		segments: indexed
 	};
 }
 function pageBlocks() {
 	const text = pageText();
 	if (!text.blocks) {
 		const seen = /* @__PURE__ */ new Set();
-		text.blocks = text.segments.map(({ block }) => block).filter((block) => block && !seen.has(block) && seen.add(block));
+		text.blocks = text.segments.map(({ block }) => block).filter((block) => block !== null).filter((block) => !seen.has(block) && seen.add(block));
 	}
 	return text.blocks;
 }
 function spanIn(reading, segments) {
 	const first = segments[0];
 	const last = segments.at(-1);
-	const start = first ? reading.positions.get(first.node) + first.start : 0;
-	return [start, last ? reading.positions.get(last.node) + last.end : start];
+	const position = (node) => {
+		const offset = reading.positions.get(node);
+		if (offset === void 0) throw new RangeError("A passage must belong to the page reading it is placed in");
+		return offset;
+	};
+	const start = first ? position(first.node) + first.start : 0;
+	return [start, last ? position(last.node) + last.end : start];
 }
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const LEAD_CAP = 400;
@@ -687,7 +709,7 @@ function confirmRest(raw, at, words) {
 	let i = at;
 	for (const w of words) {
 		const gap = i;
-		while (i < raw.length && (raw[i] === EDGE || /\s/.test(raw[i]))) i++;
+		while (i < raw.length && (raw[i] === EDGE || /\s/.test(raw.charAt(i)))) i++;
 		if (i === gap) return -1;
 		for (const ch of w) {
 			while (raw[i] === EDGE) i++;
@@ -703,8 +725,8 @@ function findQuote(text, quote, anchor, within) {
 	const words = quote.trim().split(/\s+/).filter(Boolean);
 	if (!words.length) return [];
 	const lead = [];
-	for (let spent = 0; words.length > lead.length;) {
-		const next = words[lead.length];
+	let spent = 0;
+	for (const next of words) {
 		if (lead.length && spent + next.length > LEAD_CAP) break;
 		lead.push(next);
 		spent += next.length + 1;
@@ -717,7 +739,7 @@ function findQuote(text, quote, anchor, within) {
 	for (const at of raw.matchAll(pattern)) {
 		const stop = confirmRest(raw, at.index + at[0].length, rest);
 		if (stop === -1 || !withinCell(text, at.index, stop)) continue;
-		if (within && !(under(pointAt(text, at.index).node, within) && under(pointAt(text, stop - 1).node, within))) continue;
+		if (within && !(under(pointAt(text, at.index)?.node, within) && under(pointAt(text, stop - 1)?.node, within))) continue;
 		const hit = {
 			from: at.index,
 			to: stop
@@ -732,12 +754,14 @@ function searchableWords() {
 	const styles = /* @__PURE__ */ new Map();
 	const reachable = /* @__PURE__ */ new Map();
 	const style = (el) => {
-		if (!styles.has(el)) styles.set(el, getComputedStyle(el));
-		return styles.get(el);
+		let value = styles.get(el);
+		if (!value) styles.set(el, value = getComputedStyle(el));
+		return value;
 	};
 	const canReveal = (el) => {
 		if (!el) return true;
-		if (reachable.has(el)) return reachable.get(el);
+		const kept = reachable.get(el);
+		if (kept !== void 0) return kept;
 		const css = style(el);
 		const result = css.display !== "none" && (css.contentVisibility !== "hidden" || el.getAttribute("hidden") === "until-found") && canReveal(renderedParent(el));
 		reachable.set(el, result);
@@ -759,7 +783,10 @@ function findText(text, query) {
 		const to = from + match[0].length;
 		const segments = spanOf(text, from, to);
 		if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
-		else pattern.lastIndex = from + String.fromCodePoint(text.raw.codePointAt(from)).length;
+		else {
+			const point = text.raw.slice(from, from + 2)[Symbol.iterator]().next();
+			if (!point.done) pattern.lastIndex = from + point.value.length;
+		}
 	}
 	return out;
 }

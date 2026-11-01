@@ -10,9 +10,16 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
   const work = await mkdtemp(join(tmpdir(), "leaf-judge-smoke-"));
   t.after(() => rm(work, { recursive: true }));
   /** @type {Record<string, string>} */
-  const phaseIds = { "": "4", _before_decision: "3" };
-  /** @type {Record<string, { page?: string }>} */
-  const phases = { 3: { page: "/before" }, 4: { page: "/final" } };
+  const phaseIds = { "": "5", _before_decision: "3", _before_revision: "4" };
+  /** @type {Record<string, { page?: string, trace: { reply: string } }>} */
+  const phases = {
+    3: { page: "/before", trace: { reply: "" } },
+    4: { page: "/recorded", trace: { reply: "" } },
+    5: {
+      page: "/final",
+      trace: { reply: "Queue: http://old/queue; handoff: http://old/handoff" },
+    },
+  };
   const context = {
     config: {
       rubric: "The final decision remains readable.",
@@ -26,6 +33,11 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
           criterion: "Preserve the user's final decision.",
           payload: "/runtime",
           condition: "html",
+          decision: {
+            route: "copied",
+            gestures: [],
+            message: "Keep the second option and record my additional review note.",
+          },
           comparison: {
             brief:
               "Build a review page. Later request: keep the chosen option visible.",
@@ -47,7 +59,7 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
       diagnostics.comparison.brief = "Build a page whose review choices remain saved.";
       diagnostics.comparison.decision_task = null;
       diagnostics.comparison.phases = { "": "1" };
-      diagnostics.phases = { 1: { page: "/final" } };
+      diagnostics.phases = { 1: { page: "/final", trace: { reply: "" } } };
     }
     const output = shortTask
       ? "<main><h1>Review choices</h1></main>"
@@ -61,19 +73,25 @@ test("Promptfoo passes the saved task pages to one judge and returns its grade",
           prompt.includes(`Saved request and later user messages:
 ${diagnostics.comparison.brief}`),
         );
+        assert.doesNotMatch(prompt, /Author output and feedback:/);
         assert.ok(
-          prompt.includes(`Author output and feedback:
+          prompt.includes(`Recorded conversation summary and comment answer:
 ${output}`),
         );
         if (!shortTask)
           assert.match(prompt, /Select the second option and submit the review/);
         assert.match(prompt, /The final decision remains readable/);
         assert.doesNotMatch(prompt, /undefined/);
+        assert.deepEqual(
+          vars.handovers,
+          shortTask ? {} : { final: diagnostics.decision },
+        );
         assert.deepEqual(vars.pages, {
           final: {
             page: "/final",
             payload: "/runtime",
             condition: diagnostics.condition,
+            author_reply: shortTask ? "" : phases[5].trace.reply,
           },
           ...(shortTask
             ? {}
@@ -82,6 +100,13 @@ ${output}`),
                   page: "/before",
                   payload: "/runtime",
                   condition: diagnostics.condition,
+                  author_reply: "",
+                },
+                before_revision: {
+                  page: "/recorded",
+                  payload: "/runtime",
+                  condition: diagnostics.condition,
+                  author_reply: "",
                 },
               }),
         });
@@ -97,7 +122,7 @@ ${output}`),
 
   // The same missing output means different things after a native failure or completion.
   const missing = structuredClone(context);
-  delete missing.providerResponse.metadata.diagnostics.phases[4].page;
+  delete missing.providerResponse.metadata.diagnostics.phases[5].page;
   missing.providerResponse.metadata.checks.page = false;
   let unexpectedCalls = 0;
   const unexpectedJudge = async () => {

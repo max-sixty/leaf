@@ -6,8 +6,7 @@
  * first in the package, so a widget's own rule for where its chip sits wins a tie. */
 :is(.lf-chip, :where(lf-option) > .tag) {
   display: inline-block;
-  font-size: var(--t-6);
-  line-height: var(--chip-lh);
+  font: var(--font-chip);
   padding: var(--chip-pad);
   box-sizing: border-box;
   max-width: 100%;
@@ -15,7 +14,6 @@
   border-radius: var(--chip-r);
   background: var(--chip);
   color: var(--ink-2);
-  font-family: var(--sans);
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
   align-self: center;

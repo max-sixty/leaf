@@ -1,9 +1,11 @@
-"""Native filesystem subscriptions for quiet page and session maintenance.
+"""Native filesystem subscriptions for session delivery and authored-file followers.
 
 The files remain authority; notifications only schedule another canonical read.
-Every follower of page files waits on a subscription from here rather than
-polling stamps. A subscription is installed before its constructor returns, and a
-generation taken before an observation retains writes arriving during it.
+Latency-sensitive followers wait on a subscription from here. Server maintenance
+and the harness page list use their existing liveness timers instead, so retained
+pages do not each consume native watcher instances. A subscription is installed
+before its constructor returns, and a generation taken before an observation
+retains writes arriving during it.
 Clock-only lifetime and activity transitions still have bounded timed reads. A
 page's subscription watches the directories its reading reads and accepts exactly
 the inputs it stamps (`served_state.reading`), so diagnostics never wake it and
@@ -256,10 +258,9 @@ def target_paths(targets: set[Path]) -> frozenset[Path]:
 
 
 class _PageChanges:
-    """One shared native subscription; row and lifetime consumers stay independent.
+    """One process's shared native subscription for explicit page followers.
 
-    A row fold may wait for a page writer while retirement must remain runnable.
-    Both consumers hold their own notification generation on this shared watcher.
+    Each follower holds its own notification generation on this shared watcher.
     """
 
     def __init__(self):

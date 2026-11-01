@@ -56,7 +56,7 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
         leaf_page(
             "inline diff thread",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            '<pre></pre></lf-diff><p id="after">Reading the paragraph after the diff.</p>',
+            '</lf-diff><p id="after">Reading the paragraph after the diff.</p>',
         )
     )
     data_model.cmd_data_set(
@@ -319,6 +319,10 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     told(page)
     rendered(page)
     expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    # The news is Leaf's, in its face, as the thread's own held news is.
+    expect(summary.locator('[data-voice="leaf"]')).to_have_text(
+        "Reopened · 1 new reply"
+    )
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
@@ -372,7 +376,7 @@ def seated_thread(
             leaf_page(
                 "diff",
                 f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
-                f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
+                f'source="review-patch"></lf-diff>{SEAT_FILLER}',
             ).replace("<body>", f'<body data-annotations="{annotations}">', 1)
         )
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
@@ -1001,7 +1005,7 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
         leaf_page(
             "diff",
             f'<h1 id="title">Review</h1>{SEAT_FILLER}<lf-diff id="patch" '
-            f'source="review-patch"><pre></pre></lf-diff>{SEAT_FILLER}',
+            f'source="review-patch"></lf-diff>{SEAT_FILLER}',
         )
     )
     data_model.cmd_data_set(
@@ -1053,7 +1057,7 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
         leaf_page(
             "diff",
             f'<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            f"<pre></pre></lf-diff>{SEAT_FILLER}",
+            f"</lf-diff>{SEAT_FILLER}",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)

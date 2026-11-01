@@ -1,7 +1,7 @@
 # Exploratory observations have no winner or fitness score.
 prompt: |-
   Explore this page for observations that would help improve the user's work with
-  an agent. Desktop fullscreen work is the priority. This is discovery, separate
+  an agent. Work at the sample's recorded desktop viewport is the priority. This is discovery, separate
   from the fixed pairwise benchmark; report what you learn, not a comparison score.
 
   The original authoring task and phase roles are frozen here:

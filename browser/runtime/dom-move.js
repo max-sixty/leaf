@@ -13,9 +13,11 @@
  * already placed node is left alone. Text, comments and fragments, which Lit inserts
  * for every new row, hold no one. An iframe still reloads there. The return value
  * matches insertBefore, including when inserting a fragment. */
+import { isElement } from "./shadow-tree.js";
 import { holdFocus, watchCurrentLocationIn } from "./focus.js";
 
-export function move(parent, node, before) {
+/** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
+export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;
   // A retained move can enter another shadow root without a focus event. Subscribe
@@ -27,7 +29,7 @@ export function move(parent, node, before) {
   )
     parent.moveBefore(node, before);
   else {
-    const restore = node.nodeType === Node.ELEMENT_NODE ? holdFocus(node) : null;
+    const restore = isElement(node) ? holdFocus(node) : null;
     parent.insertBefore(node, before);
     restore?.();
   }

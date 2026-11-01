@@ -15,10 +15,20 @@ import { widgetController } from "./widget-controller.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 
 // The value `answer` names, given the reading of the member key it is picked by.
+/** @param {unknown} answer @param {((id: string) => string | null) | null} keyOf */
 const namedValue = (answer, keyOf) => {
   if (!keyOf) return typeof answer === "string" && answer ? answer : null;
-  const values = new Set((Array.isArray(answer) ? answer : []).map(keyOf));
-  return values.size === 1 && !values.has(null) ? [...values][0] : null;
+  /** @type {unknown[]} */
+  const members = Array.isArray(answer) ? answer : [];
+  const values = new Set(
+    members.map((member) => {
+      if (typeof member !== "string")
+        throw new Error("A picked answer must name its members by id");
+      return keyOf(member);
+    }),
+  );
+  const [only, other] = values;
+  return only !== undefined && other === undefined ? only : null;
 };
 
 /** The answer one view element shows, or null where it shows none: no `x-shows`, no
@@ -28,14 +38,17 @@ const namedValue = (answer, keyOf) => {
  * user can change it, `takes(value)` whether the widget can answer `value` (null
  * clears a pick), and `answer(value, says)` sends the widget's command, returning
  * what `dispatch` returns, or null where the widget can't take `value`. */
+/** @param {Element} view */
 export function shownAnswer(view) {
   const shows = declarationFor(view, "x-shows");
   const id = shows && view.getAttribute(shows.attr);
   if (!id) return null;
   const owner = elementById(id, authoredScope(view));
-  const awaits = owner && declarationFor(owner, "x-awaits");
+  if (!owner) return null;
+  const awaits = declarationFor(owner, "x-awaits");
   const verb = awaits?.value;
-  const record = verb && declarationFor(owner, "x-state")?.[verb]?.record;
+  if (!verb || !awaits) return null;
+  const record = declarationFor(owner, "x-state")?.[verb]?.record;
   if (record?.kind !== "value" && !(record?.kind === "attribute" && awaits.key))
     return null;
   // A quoted widget is a mention with no state to show.
@@ -45,11 +58,12 @@ export function shownAnswer(view) {
   const state = reading.state?.[verb];
   if (!state) return null;
   const scope = authoredScope(owner);
-  const keyOf =
-    record.kind === "attribute"
-      ? (member) => elementById(member, scope)?.getAttribute(awaits.key) ?? null
-      : null;
-  const detailFor = (value) => {
+  const memberKey = record.kind === "attribute" ? awaits.key : null;
+  const keyOf = memberKey
+    ? (/** @type {string} */ member) =>
+        elementById(member, scope)?.getAttribute(memberKey) ?? null
+    : null;
+  const detailFor = (/** @type {string | null} */ value) => {
     if (!keyOf) return value === null ? null : { value };
     if (value === null) return { value: [] };
     const members = (reading.memberships?.[record.attr] ?? []).filter(
@@ -61,7 +75,8 @@ export function shownAnswer(view) {
     owner,
     value: namedValue(state.value, keyOf),
     available: Boolean(reading.actions[verb]?.available),
-    takes: (value) => detailFor(value) !== null,
+    takes: (/** @type {string | null} */ value) => detailFor(value) !== null,
+    /** @param {string | null} value @param {string} [says] */
     answer(value, says) {
       const detail = detailFor(value);
       return detail

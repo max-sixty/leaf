@@ -11,14 +11,20 @@
  * way reports the same box under two names. */
 import { ADDRESSABLE } from "/runtime/check-api.js";
 
+/** @param {Element} el */
 const tag = (el) => `<${el.localName}${el.matches(ADDRESSABLE) ? " id=" + el.id : ""}>`;
 
+/** @param {Node | null | undefined} el */
 export const at = (el) => {
-  if (!el?.localName) return "<?>";
+  if (!(el instanceof Element)) return "<?>";
   if (el.matches(ADDRESSABLE)) return tag(el);
-  for (let node = el; node; node = node.getRootNode?.()?.host) {
+  /** @type {Element | null} */
+  let node = el;
+  for (; node;) {
     const named = node.closest?.(ADDRESSABLE);
     if (named) return `${tag(el)} in ${tag(named)}`;
+    const root = node.getRootNode();
+    node = root instanceof ShadowRoot ? root.host : null;
   }
   return tag(el);
 };
@@ -26,23 +32,30 @@ export const at = (el) => {
 // A structured path under the nearest authored id, or the document when none exists.
 // Child indices and explicit shadow steps keep two id-less boxes distinct. Consumers
 // serialize it only when they need a map key; navigation never parses a display label.
+/** @typedef {{id: string | null, steps: ({shadow: number} | {child: number})[]}} Place */
+/** @param {Element} el @returns {Place} */
 export const place = (el) => {
+  /** @type {Place["steps"]} */
   const steps = [];
-  for (let node = el; node;) {
+  /** @type {Element | null} */
+  let node = el;
+  for (; node;) {
     if (node.matches?.(ADDRESSABLE) && document.getElementById(node.id) === node)
       return { id: node.id, steps };
+    /** @type {ParentNode | null} */
     const parent = node.parentNode;
     if (parent instanceof ShadowRoot) {
       steps.unshift({ shadow: [...parent.children].indexOf(node) });
       node = parent.host;
-    } else if (parent?.children) {
+    } else if (parent instanceof Element || parent instanceof Document) {
       steps.unshift({ child: [...parent.children].indexOf(node) });
-      node = parent.nodeType === Node.ELEMENT_NODE ? parent : null;
+      node = parent instanceof Element ? parent : null;
     } else node = null;
   }
   return { id: null, steps };
 };
 
+/** @param {Place} location */
 export function resolvePlace(location) {
   /** @type {Document | Element | null} */
   let node = location.id === null ? document : document.getElementById(location.id);
@@ -50,14 +63,15 @@ export function resolvePlace(location) {
     node =
       "shadow" in step
         ? node instanceof Element
-          ? node.shadowRoot?.children[step.shadow]
+          ? (node.shadowRoot?.children[step.shadow] ?? null)
           : null
-        : node?.children?.[step.child];
+        : (node?.children[step.child] ?? null);
   }
   return node instanceof Element ? node : null;
 }
 
 // Each record once, where a probe meets the same finding more than once.
+/** @template T @param {T[]} records @returns {T[]} */
 export const unique = (records) => {
   const seen = new Set();
   return records.filter((record) => {

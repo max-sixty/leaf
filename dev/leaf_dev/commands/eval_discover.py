@@ -14,7 +14,12 @@ from pathlib import Path
 import click
 
 from leaf_dev.arrangement_eval import judge_pages
-from leaf_dev.commands.eval_pairs import comparison_pages, samples, saved_comparison
+from leaf_dev.commands.eval_pairs import (
+    comparison_handovers,
+    comparison_pages,
+    samples,
+    saved_comparison,
+)
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("eval_discover")
@@ -61,6 +66,7 @@ def eval_discover(run: Path, sample: str, focus: str):
         ),
         DEFINITION["output_schema"],
         attempt,
+        handovers=comparison_handovers({"page": members[0]}, comparison),
     )
     result = attempt / "response.json"
     result.write_text(

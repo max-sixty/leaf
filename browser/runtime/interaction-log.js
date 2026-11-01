@@ -11,10 +11,12 @@ import { randomId } from "./ids.js";
 
 // A document with no declared root has no server to record to: an interactive export,
 // or a file opened on its own.
-const enabled = PAGE_ROOT !== null;
-const url = enabled ? new URL("api/interaction", PAGE_ROOT).href : null;
-const root = enabled ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
+const url = PAGE_ROOT !== null ? new URL("api/interaction", PAGE_ROOT).href : null;
+const root = PAGE_ROOT !== null ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = randomId();
+/** @typedef {{type: string, [field: string]: unknown}} Interaction
+ * @typedef {{body: string, bytes: number, repetitive: boolean}} QueuedInteraction */
+/** @type {QueuedInteraction[]} */
 const queue = [];
 // Bound the tab's diagnostic backlog during an outage. Repeated observations
 // yield first; the remaining sequence gaps make any loss visible to a reader.
@@ -37,14 +39,17 @@ const repetitive = new Set([
   "compositionupdate",
 ]);
 const encoder = new window.TextEncoder();
+/** @type {WeakMap<Node, number>} */
 const nodeIds = new WeakMap();
 let nextSequence = 0;
 let nextNodeId = 0;
 let sending = false;
 let inFlightCount = 0;
+/** @type {ReturnType<typeof setTimeout> | null} */
 let scheduled = null;
 
 const timestamp = () => new Date().toISOString();
+/** @param {string} pathname */
 const pagePath = (pathname) =>
   pathname === root || pathname === `${root}/`
     ? "/"
@@ -52,6 +57,7 @@ const pagePath = (pathname) =>
       ? pathname.slice(root.length)
       : pathname;
 
+/** @param {Element} node */
 function locator(node) {
   const id = node.id ? `#${node.id}` : "";
   const name = node.getAttribute("name");
@@ -59,29 +65,38 @@ function locator(node) {
   return `${node.localName}${id}${named}`;
 }
 
+/** @param {Node} node */
 function nodeIdentity(node) {
-  if (!nodeIds.has(node)) nodeIds.set(node, ++nextNodeId);
-  return nodeIds.get(node);
+  const previous = nodeIds.get(node);
+  if (previous !== undefined) return previous;
+  const id = ++nextNodeId;
+  nodeIds.set(node, id);
+  return id;
 }
 
+/** @param {EventTarget | undefined} target */
 function targetValue(target) {
   if (target instanceof window.HTMLInputElement) {
     if (target.type === "checkbox" || target.type === "radio")
       return { checked: target.checked, value: target.value };
     return { value: target.value };
   }
-  if (target instanceof Element && target.matches(`${TEXT_BOX}, select`))
-    return {
-      value: /** @type {HTMLSelectElement | HTMLTextAreaElement} */ (target).value,
-    };
+  if (
+    target instanceof Element &&
+    "value" in target &&
+    target.matches(`${TEXT_BOX}, select`)
+  )
+    return { value: target.value };
   if (target instanceof HTMLElement && target.isContentEditable)
     return { value: target.textContent };
   return {};
 }
 
+/** @param {Event & Partial<Pick<TouchEvent, "changedTouches">>} event */
 function describe(event) {
   const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
+  /** @type {Interaction} */
   const entry = {
     type: event.type,
     target: elements.map(locator),
@@ -90,7 +105,7 @@ function describe(event) {
   };
   const target = path[0];
   const control = path.find(
-    (node) =>
+    /** @returns {node is Element} */ (node) =>
       node instanceof Element &&
       node.matches(`button, a, summary, input, select, ${TEXT_BOX}, [role=button]`),
   );
@@ -167,9 +182,7 @@ function describe(event) {
   if (event.type === "resize") entry.viewport = [window.innerWidth, window.innerHeight];
   if (event.type === "visibilitychange") entry.visibility = document.visibilityState;
   if (["beforetoggle", "toggle"].includes(event.type) && target instanceof Element)
-    entry.open =
-      /** @type {Partial<HTMLDetailsElement>} */ (target).open === true ||
-      isNativeLayer(target);
+    entry.open = ("open" in target && target.open === true) || isNativeLayer(target);
   if (event.type === "fullscreenchange")
     entry.fullscreen = document.fullscreenElement
       ? {
@@ -180,6 +193,7 @@ function describe(event) {
   return entry;
 }
 
+/** @param {number} delay */
 function schedule(delay = 250) {
   if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
@@ -188,6 +202,7 @@ function schedule(delay = 250) {
   }, delay);
 }
 
+/** @param {QueuedInteraction} row */
 function append(row) {
   if (queue.length >= MAX_PENDING_ENTRIES) {
     let evict = queue.findIndex(
@@ -203,8 +218,9 @@ function append(row) {
   queue.push(row);
 }
 
+/** @param {Interaction} entry */
 function enqueue(entry) {
-  if (!enabled) return;
+  if (url === null) return;
   const common = {
     observed_at: timestamp(),
     monotonic_ms: performance.now(),
@@ -229,12 +245,13 @@ function enqueue(entry) {
   schedule();
 }
 
+/** @param {number} start @param {number} maxBytes */
 function batch(start, maxBytes) {
   const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
   let bytes = encoder.encode(prefix).length + 2;
   let count = 0;
-  while (start + count < queue.length && count < 100) {
-    const size = queue[start + count].bytes + (count ? 1 : 0);
+  for (const row of queue.slice(start, start + 100)) {
+    const size = row.bytes + (count ? 1 : 0);
     if (count && bytes + size > maxBytes) break;
     bytes += size;
     count++;
@@ -248,10 +265,11 @@ function batch(start, maxBytes) {
   };
 }
 
-function post(body) {
+/** @param {string} body @param {string} destination */
+function post(body, destination) {
   // Beacon always includes credentials; explicit fetch semantics also work from
   // an opaque sample, whose capability URL is its authority rather than cookies.
-  return fetch(url, {
+  return fetch(destination, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -261,13 +279,13 @@ function post(body) {
 }
 
 async function flush() {
-  if (sending || !queue.length) return;
+  if (url === null || sending || !queue.length) return;
   sending = true;
   const { count, body } = batch(0, 100_000);
   inFlightCount = count;
   let delay = 250;
   try {
-    const response = await post(body);
+    const response = await post(body, url);
     if (response.status >= 400 && response.status < 500) {
       // A rejected batch cannot become valid by retrying. Its sequence gap is
       // visible in later batches, and the console carries the immediate fault.
@@ -288,11 +306,12 @@ async function flush() {
   }
 }
 
+/** @param {string} type @param {Record<string, unknown>} detail */
 export function recordInteraction(type, detail = {}) {
   enqueue({ type, ...detail });
 }
 
-if (enabled) {
+if (url !== null) {
   // TODO(privacy): Add retention and redaction controls before pages are shared with
   // other users. Input values, selected text, and keyboard input are recorded now.
   for (const type of [
@@ -368,9 +387,8 @@ if (enabled) {
     });
   });
   const observer = new window.PerformanceObserver((list) => {
-    for (const resource of /** @type {PerformanceResourceTiming[]} */ (
-      list.getEntries()
-    )) {
+    for (const resource of list.getEntries()) {
+      if (!(resource instanceof PerformanceResourceTiming)) continue;
       if (resource.name.startsWith(url)) continue;
       const resourceUrl = new URL(resource.name);
       // Freshness is transport housekeeping; failed reads are explained by the
@@ -403,7 +421,7 @@ if (enabled) {
       for (let start = 0; start < queue.length;) {
         const { count, body } = batch(start, 48_000);
         start += count;
-        void post(body).catch(() => {});
+        void post(body, url).catch(() => {});
       }
     },
     true,

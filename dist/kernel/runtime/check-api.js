@@ -16,7 +16,7 @@ function validationWidgetStates(eventIds = null) {
 			return elementById(id);
 		},
 		state,
-		read: () => [...specs].filter(([, spec]) => spec.record?.kind === "body").map(([verb, spec]) => [verb, domValue(elementById(id), spec.record)])
+		read: (widget) => [...specs].flatMap(([verb, spec]) => spec.record?.kind === "body" ? [[verb, domValue(widget, spec.record)]] : [])
 	}));
 }
 

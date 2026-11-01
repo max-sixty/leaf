@@ -1536,7 +1536,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     """A retained line key with new words is not an arrival, even after lazy loading."""
     authored = leaf_page(
         "Selected data line",
-        '<h1>Review</h1><lf-diff id="patch" source="review-patch"><pre></pre>'
+        '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
         '</lf-diff><div style="height:1600px"></div><p id="away">Read here.</p>',
     )
     patch = (

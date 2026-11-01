@@ -28,8 +28,11 @@ now: "2026-10-08T01:30:00-07:00"
 default_viewports: [desktop]
 viewports:
   desktop:
+    viewport: [1280, 800]
+    description: a 1280px by 800px desktop content viewport
+  large:
     viewport: [1600, 1000]
-    description: a fullscreen 1600px by 1000px desktop window
+    description: a large 1600px by 1000px desktop content viewport
   short:
     viewport: [900, 600]
     description: a short 900px by 600px desktop window

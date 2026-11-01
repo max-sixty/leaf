@@ -13,8 +13,8 @@ measurement, and plain HTML for numbers with no repeatable source.
 For an existing interface, capture the relevant panel, card or menu with enough
 surrounding background to preserve its whole shadow. Crop or mark the capture so
 the eye lands on the point, cutting through background rather than text. Use
-`lf-shot` for before-and-after captures and a table for captures that vary along
-other axes ("Source files and media").
+`lf-shot` for before-and-after captures. Captures that vary along other axes need each
+axis labelled once, which a table does by default ("Source files and media").
 
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
 package, so create the page with `leaf page init --package diagram <page>`.
@@ -28,12 +28,15 @@ Draw what automatic layout can't place, such as a page layout, a wireframe or a
 thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
-units in a 720px column draw an 11px label at 5px. Keep the drawing schematic: a window is a
-rounded box, a line of text a grey bar, and only the figure's subject takes the accent
-colour. Put compared states side by side in one figure at one scale, drawn alike except
-where they differ. The idiom's classes use theme tokens, so the drawing follows light
-and dark schemes; an SVG file added with `leaf page media` can't. Use the
-`<figcaption>` for what the drawing can't show.
+units in a 720px column draw an 11px label at 5px. Draw only the detail the figure's
+point needs, so its subject stands out, and give the accent colour to the subject
+alone. Where the drawing shows wording or an interface that is itself being decided,
+draw it as the product shows it, so the reader judges the real thing. Draw compared
+states in one figure at one scale, alike except where they differ, side by side or one
+above the other, whichever keeps the difference large and lined up. The idiom's
+classes use theme tokens, so the drawing follows light and dark schemes; an SVG file
+added with `leaf page media` can't. Use the `<figcaption>` for what the drawing can't
+show.
 
 Use `lf-chart` for quantities, not Mermaid's charts. Keep a few numbers in prose
 when a sentence explains them clearly.
@@ -55,24 +58,33 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Use `lf-text-document` to show a text file the user can comment on without copying it
-into your HTML.
+Use `lf-text-document` to show a text file, or a passage of one, that the user can
+comment on. Write a passage that belongs to this version of the page, such as a rule you
+quote, into its `<pre>`, HTML-escaped (& before < and >), and name its origin with
+`label`. Give Markdown `preview="markdown"`:
+
+```html
+<lf-text-document id="changelog-fix" label="CHANGELOG.md" preview="markdown">
+  <pre>**Fixed** a crash when `--config` names a missing file.</pre>
+</lf-text-document>
+```
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
 exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
 discussed; `wt step diff`, when available, often covers a branch.
 `lf-diff` ships in the `diff` package: create the page with
-`leaf page init --package diff <page>`. Bind each widget to a data source:
+`leaf page init --package diff <page>`. Bind text you will refresh, such as a whole
+file or a patch, to a data source, and leave out the `<pre>`:
 
 ```html
 <lf-text-document
   id="skill-source"
   source="leaf-skill"
   label="SKILL.md"
-  language="markdown"
+  preview="markdown"
 ></lf-text-document>
 
-<lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="review-patch" collapsed></lf-diff>
 ```
 
 Then set each source to one JSON string, of a whole file, a line range, or a diff:
@@ -92,9 +104,10 @@ leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 ```
 
 A bound widget always shows its source's current value, in every version of the page
-and every thread that quotes it. To keep evidence exactly as it was reviewed, give it
-its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
-that id again. Evidence that should follow later `data set` calls shares one id.
+and every thread that quotes it. To keep evidence exactly as it was reviewed, write it
+into the widget's `<pre>`, or give it its own source id, such as `pr-patch-8f61c2a`
+for one commit's patch, and never write to that id again. Evidence that should follow
+later `data set` calls shares one id.
 
 Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
@@ -107,12 +120,13 @@ for example from a badge or transparent logo, give the image
 
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
-or the colour scheme, put them in a `<table>` with one linked capture per cell, a
+or the colour scheme, the reader should be able to tell each capture's value on every
+axis from where it stands rather than from prose away from the images, with each axis
+labelled once. The default is a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Captures of an option's outcome go inside that
-option, in such a table where there are several (`authoring-on-me.md`). Place
-captures the reader compares side by side or one above the other, so whatever moved
-shows as a misalignment.
+row's. Captures of an option's outcome go inside that option, in such a table where
+there are several (`authoring-on-me.md`). Place captures the reader compares side by
+side or one above the other, so whatever moved shows as a misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`

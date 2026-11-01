@@ -31,11 +31,13 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve
 ):
-    """Preview and source are two readings of one feed, reachable by press and key."""
+    """Preview and source are two readings of one feed, reachable by press and key.
+    The preview reads the file as a Markdown file reads: a line its editor wrapped
+    still stands in one paragraph, which a triple-click selects whole."""
     text = (
         "# A rendered document\r\n\r"
         "Read [the details](https://example.com/details).\n\n"
-        "- First item\n- Second item\n\n"
+        "- First item, which its editor\n  wrapped\n- Second item\n\n"
         "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
     )
     url = serve(
@@ -56,8 +58,14 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(document.get_by_role("link", name="the details")).to_have_attribute(
         "href", "https://example.com/details"
     )
-    expect(document.get_by_role("listitem")).to_have_text(["First item", "Second item"])
+    items = document.get_by_role("listitem")
+    expect(items).to_have_text(["First item, which its editor wrapped", "Second item"])
     expect(document.get_by_role("cell")).to_have_text(["Outcome", "Ready"])
+    items.first.click(click_count=3)
+    assert (
+        page.evaluate("getSelection().toString()").strip()
+        == "First item, which its editor wrapped"
+    )
 
     source.click()
     expect(source).to_have_attribute("aria-selected", "true")
@@ -83,6 +91,33 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     preview.press("End")
     expect(source).to_be_focused()
     expect(source).to_have_attribute("aria-selected", "true")
+
+
+def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
+    browser, serve
+):
+    """A passage the page writes in the document's <pre> needs no data source: the
+    preview renders it, and the Source tab holds it character for character."""
+    text = "**Fixed** a crash when `--config` names <missing> files.\n"
+    url = serve(
+        leaf_page(
+            "Written passage",
+            '<h1>Written passage</h1><lf-text-document id="passage" '
+            'label="CHANGELOG.md" preview="markdown"><pre>\n'
+            + text.replace("<", "&lt;").replace(">", "&gt;")
+            + "</pre></lf-text-document>",
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#passage")
+    expect(document.locator("figcaption")).to_have_text("CHANGELOG.md")
+    expect(document.locator("strong")).to_have_text("Fixed")
+    expect(document.locator(".lf-text-document-preview code")).to_have_text("--config")
+    expect(document.locator(".lf-text-document-preview")).to_contain_text(
+        "names <missing> files."
+    )
+    document.get_by_role("tab", name="Source", exact=True).click()
+    assert document.locator("code[data-code]").text_content() == text
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
@@ -584,7 +619,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serv
         "</lf-text-document>"
     )
     source = LONG_LINE_DIFF_PAGE.replace(
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>', tags
+        '<lf-diff id="patch" source="review-patch"></lf-diff>', tags
     )
     url = serve(source)
     for name in ("plain-text", "python-text"):

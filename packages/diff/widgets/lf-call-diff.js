@@ -34,74 +34,86 @@ import {
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
+/** @typedef {{body: string, key: string, location: {text: string, path: string, line: number} | null, root: boolean, meta: boolean, status: "unchanged" | "added" | "removed", originPath: (string | number)[]}} CallRecord */
+/** @param {import("../../../browser/types/contract.js").DataCalldiff} document */
 function recordsOf(document) {
-  const records = [
-    {
-      body: `calldiff diff ${document.from} → ${document.to}`,
-      key: "meta",
-      groupKey: "meta",
-      entry: "",
-      location: "",
-      path: undefined,
-      line: null,
-      root: false,
-      meta: true,
-      status: "unchanged",
-      originPath: [],
-    },
-  ];
+  /** @type {CallRecord} */
+  const meta = {
+    body:
+      (!document.trees.length && document.message) ||
+      `calldiff diff ${document.from} → ${document.to}`,
+    key: "meta",
+    location: null,
+    root: false,
+    meta: true,
+    status: "unchanged",
+    originPath: [],
+  };
   const occurrences = new Map();
-  for (const [treeIndex, { entry, tree }] of document.trees.entries()) {
-    let groupKey;
+  const groups = document.trees.map(({ entry, tree }, treeIndex) => {
+    /** @param {import("../../../browser/types/contract.js").DataCalldiffNode} node
+     * @param {string} indent @param {boolean} last @param {boolean} root
+     * @param {(string | number)[]} originPath @returns {[CallRecord, ...CallRecord[]]} */
     const walk = (node, indent, last, root, originPath) => {
       const status = node.status === "same" ? "unchanged" : node.status;
       const location =
         node.file && node.line != null
-          ? `${node.file}:${node.line}${node.endLine != null && node.endLine !== node.line ? `-${node.endLine}` : ""}`
-          : "";
-      // Native keys identify calls independently of their displayed labels and rails.
-      // Occurrences distinguish repeated calls without tying them to their parent.
+          ? {
+              text: `${node.file}:${node.line}${node.endLine != null && node.endLine !== node.line ? `-${node.endLine}` : ""}`,
+              path: node.file,
+              line: node.line,
+            }
+          : null;
+      // Occurrences distinguish repeated native keys without tying a row to its parent.
       const keyParts = [entry, node.key, status, node.file, node.line];
       const occurrenceKey = JSON.stringify(keyParts);
       const occurrence = occurrences.get(occurrenceKey) ?? 0;
       occurrences.set(occurrenceKey, occurrence + 1);
       const key = JSON.stringify([...keyParts, occurrence]);
-      if (root) groupKey = key;
-      records.push({
+      /** @type {CallRecord} */
+      const record = {
         body: `${indent}${root ? "" : last ? "└─ " : "├─ "}${node.label}`,
-        entry,
         originPath,
-        groupKey,
         key,
         location,
-        path: node.file,
-        line: node.line,
         root,
         meta: false,
         status,
-      });
+      };
       const rail = node.kind === "branch" || last || root ? "   " : "│  ";
       const childIndent = root ? "" : `${indent}${rail}`;
-      node.children.forEach((child, index) =>
-        walk(child, childIndent, index === node.children.length - 1, false, [
-          ...originPath,
-          "children",
-          index,
-        ]),
-      );
+      return [
+        record,
+        ...node.children.flatMap((child, index) =>
+          walk(child, childIndent, index === node.children.length - 1, false, [
+            ...originPath,
+            "children",
+            index,
+          ]),
+        ),
+      ];
     };
-    walk(tree, "", true, true, ["trees", treeIndex, "tree"]);
-  }
-  if (!document.trees.length && document.message) records[0].body = document.message;
-  return records;
+    const [root, ...children] = walk(tree, "", true, true, [
+      "trees",
+      treeIndex,
+      "tree",
+    ]);
+    return { root, children };
+  });
+  return { meta, groups };
 }
 
+/** @param {"div" | "summary"} [tag] */
 function buildLine(tag = "div") {
   return el(tag, "lf-call-line");
 }
 
+/** @param {HTMLElement} owner */
 function updateDisclosureControl(owner) {
-  const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
+  const groups = [...owner.querySelectorAll("details")].filter(
+    (group) =>
+      group.parentElement === owner && group.classList.contains("lf-call-group"),
+  );
   const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
   if (!button) return;
   const expand = groups.some((group) => !group.open);
@@ -109,6 +121,7 @@ function updateDisclosureControl(owner) {
   nameAction(button, expand ? "expand-all" : "collapse-all", { label });
 }
 
+/** @param {HTMLElement} owner */
 function buildToolbar(owner) {
   const toolbar = el("div", "lf-call-tools");
   // The counts this widget writes are an account of the tree, not words the page holds,
@@ -123,16 +136,20 @@ function buildToolbar(owner) {
     action: "expand-all",
   });
   button.addEventListener("click", () => {
-    const groups = [...owner.querySelectorAll(":scope > .lf-call-group")];
+    const groups = [...owner.querySelectorAll("details")].filter(
+      (group) =>
+        group.parentElement === owner && group.classList.contains("lf-call-group"),
+    );
     const open = groups.some((group) => !group.open);
     for (const group of groups) if (group.open !== open) group.open = open;
     updateDisclosureControl(owner);
     announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
   });
   toolbar.append(summary, button);
-  return toolbar;
+  return { element: toolbar, summary };
 }
 
+/** @param {HTMLElement} owner @param {string} key @param {boolean} open */
 function buildGroup(owner, key, open) {
   const group = el("details", "lf-call-group");
   group.open = open;
@@ -149,6 +166,7 @@ function buildGroup(owner, key, open) {
   return { body, group, location, summary };
 }
 
+/** @param {CallRecord[]} records */
 function groupLabel(records) {
   const added = records.filter((record) => record.status === "added").length;
   const removed = records.filter((record) => record.status === "removed").length;
@@ -162,37 +180,39 @@ function groupLabel(records) {
     .join(" · ");
 }
 
-function lineKey(record) {
-  if (!record.location) return null;
-  const side = record.status === "removed" ? "old" : "new";
-  return diffLocationKey(record.path, side, record.line);
-}
-
+/** @param {HTMLElement} owner @param {CallRecord} record */
 async function travelToLine(owner, record) {
-  const key = lineKey(record);
-  if (!key) return false;
+  const location = record.location;
+  if (!location) return false;
+  const key = diffLocationKey(
+    location.path,
+    record.status === "removed" ? "old" : "new",
+    location.line,
+  );
   return navigateToDatum(owner, "diff", key, {
-    success: `Opened ${record.location} in the exact patch`,
-    missing: `${record.location} is not present in the exact patch`,
+    success: `Opened ${location.text} in the exact patch`,
+    missing: `${location.text} is not present in the exact patch`,
   });
 }
 
+/** @param {CallRecord} record @param {HTMLElement} owner */
 function locationLink(record, owner) {
   return record.location
     ? html`<a
         class="lf-call-location"
         href=${`#${owner.getAttribute("diff")}`}
-        @click=${async (event) => {
+        @click=${async (/** @type {MouseEvent} */ event) => {
           if (event.defaultPrevented || !plainPress(event)) return;
           event.preventDefault();
           event.stopPropagation();
           await travelToLine(owner, record);
         }}
-        >${record.location}</a
+        >${record.location.text}</a
       >`
     : html`<a class="lf-call-location" hidden></a>`;
 }
 
+/** @param {CallRecord} record @param {HTMLElement} line @param {HTMLElement} owner @param {string | null} [count] */
 function renderLine(record, line, owner, count = null) {
   keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
@@ -218,15 +238,17 @@ function renderLine(record, line, owner, count = null) {
 
 // A drawn row's marks, which make it a datum on a Leaf page (`module-state.md`,
 // "Marking drawn data").
+/** @param {HTMLElement} node @param {string} key @param {string} label @param {(string | number)[] | null} path */
 function mark(node, key, label, path) {
   keeps(node, "data-lf-datum", key);
   keeps(node, "data-lf-datum-label", label);
   keeps(node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
 }
 
+/** @param {CallRecord} record */
 function labelOf(record) {
   if (record.meta) return record.body;
-  const location = record.location ? ` at ${record.location}` : "";
+  const location = record.location ? ` at ${record.location.text}` : "";
   return `${record.status} call-tree item ${record.body.trim()}${location}`;
 }
 
@@ -239,19 +261,26 @@ customElements.define(
 
     constructor() {
       super();
+      /** @type {import("../../../browser/types/contract.js").DataCalldiff | null} */
       this.value = null;
     }
+
+    /** @type {Map<string, ReturnType<typeof buildGroup>>} */
+    groups = new Map();
+    /** @type {Map<string, HTMLElement>} */
+    rows = new Map();
+    toolbar = buildToolbar(this);
+    messageNode = el("div", "lf-call-line");
 
     render() {
       this.show(this.value);
       return nothing;
     }
 
+    /** @param {import("../../../browser/types/contract.js").DataCalldiff | null} value */
     message(value) {
       this.groups = new Map();
       this.rows = new Map();
-      /** @type {HTMLElement} */
-      this.messageNode = this.messageNode ?? el("div", "lf-call-line");
       const node = this.messageNode;
       keeps(node, "class", "lf-call-line lf-call-missing");
       keepsText(node, "Waiting for call-diff data.");
@@ -260,63 +289,53 @@ customElements.define(
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
     }
 
+    /** @param {import("../../../browser/types/contract.js").DataCalldiff | null} value */
     show(value) {
-      const records = value ? recordsOf(value) : [];
-      // Drawn from its data, which lifts the height the page reserved (x-height), and
-      // held at that height again while the data is absent.
-      this.classList.toggle("lf-rendered", records.length > 0);
-      if (!records.length) {
+      this.classList.toggle("lf-rendered", value !== null);
+      if (!value) {
         this.message(value);
         return;
       }
-
-      const toolbar =
-        this.querySelector(":scope > .lf-call-tools") ?? buildToolbar(this);
-      const summary = toolbar.querySelector(".lf-call-summary");
-      const dataRows = records.filter((record) => !record.meta);
-      const roots = records.filter((record) => record.root);
-      const groupRows = new Map(roots.map((root) => [root.groupKey, []]));
-      for (const record of dataRows) groupRows.get(record.groupKey).push(record);
+      const records = recordsOf(value);
+      const dataRows = records.groups.flatMap(({ root, children }) => [
+        root,
+        ...children,
+      ]);
       const added = dataRows.filter((record) => record.status === "added").length;
       const removed = dataRows.filter((record) => record.status === "removed").length;
       keepsText(
-        summary,
-        `${roots.length} changed ${roots.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
+        this.toolbar.summary,
+        `${records.groups.length} changed ${records.groups.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
       );
-
-      const oldGroups = this.groups ?? new Map();
-      const oldRows = this.rows ?? new Map();
-      const groups = new Map(
-        roots.map((root, index) => [
-          root.groupKey,
-          oldGroups.get(root.groupKey) ?? buildGroup(this, root.groupKey, index === 0),
-        ]),
-      );
+      const oldRows = this.rows;
+      /** @type {Map<string, HTMLElement>} */
       const rows = new Map();
-      for (const record of records) {
-        const group = groups.get(record.groupKey);
-        const node =
-          oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
-        const count = record.root ? groupLabel(groupRows.get(record.groupKey)) : null;
+      /** @param {CallRecord} record @param {() => HTMLElement} fallback @param {string | null} [count] */
+      const draw = (record, fallback, count = null) => {
+        const node = oldRows.get(record.key) ?? fallback();
         renderLine(record, node, this, count);
-        if (record.root) {
-          keeps(group.location, "data-status", record.status);
-          render(locationLink(record, this), group.location);
-        }
         rows.set(record.key, node);
         mark(node, record.key, labelOf(record), record.originPath);
-      }
-      const placements = [...groups].map(([key, { group, body }]) => {
-        const [root, ...children] = groupRows.get(key);
+        return node;
+      };
+      const meta = draw(records.meta, () => buildLine());
+      const placements = records.groups.map(({ root, children }, index) => {
+        const owned =
+          this.groups.get(root.key) ?? buildGroup(this, root.key, index === 0);
+        const summary = draw(
+          root,
+          () => owned.summary,
+          groupLabel([root, ...children]),
+        );
+        keeps(owned.location, "data-status", root.status);
+        render(locationLink(root, this), owned.location);
         return {
-          group,
-          body,
-          summary: rows.get(root.key),
-          children: children.map((record) => rows.get(record.key)),
+          key: root.key,
+          ...owned,
+          summary,
+          children: children.map((record) => draw(record, () => buildLine())),
         };
       });
-      // Placed at once, a row changing groups, even to a newly arriving root, moves
-      // straight across and keeps its controls live; its group opens to show it.
       const currentLocation = focused(this.getRootNode());
       for (const { group, body, children } of placements)
         if (
@@ -325,21 +344,21 @@ customElements.define(
           )
         )
           if (!group.open) group.open = true;
-      setChildLists([
+      /** @type {[HTMLElement, HTMLElement[]][]} */
+      const lists = [
         [
           this,
           [
-            toolbar,
-            rows.get(records[0].key),
-            ...[...groups.values()].flatMap(({ group, location }) => [location, group]),
+            this.toolbar.element,
+            meta,
+            ...placements.flatMap(({ group, location }) => [location, group]),
           ],
         ],
-        ...placements.flatMap(({ group, body, summary, children }) => [
-          [group, [summary, body]],
-          [body, children],
-        ]),
-      ]);
-      this.groups = groups;
+      ];
+      for (const { group, body, summary, children } of placements)
+        lists.push([group, [summary, body]], [body, children]);
+      setChildLists(lists);
+      this.groups = new Map(placements.map((group) => [group.key, group]));
       this.rows = rows;
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       updateDisclosureControl(this);

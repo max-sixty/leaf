@@ -25,7 +25,7 @@ function retainUserIntent({ source = focused(), available = () => true, fallback
 		const at = focused();
 		const from = held?.deref();
 		const withinSource = from === document.body ? at === document.body : from?.contains(at);
-		return available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at));
+		return Boolean(available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at)));
 	};
 	current.available = available;
 	current.handoff = (move) => {
@@ -82,7 +82,7 @@ function geometryClone(source, left, top, property) {
 	clone.style.removeProperty("fill-opacity");
 	clone.style.removeProperty("stroke-opacity");
 	for (const attribute of [...clone.attributes]) {
-		const length = source[attribute.localName];
+		const length = Reflect.get(source, attribute.localName);
 		if (attribute.value.includes("%") && length instanceof SVGAnimatedLength) clone.setAttribute(attribute.name, String(length.animVal.value));
 	}
 	clone.setAttribute("transform", `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`);
@@ -100,9 +100,18 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 	const { maskId = "", veil = false } = options;
 	const width = atLayoutPrecision(right - left);
 	const height = atLayoutPrecision(bottom - top);
-	const fill = veil ? geometry.fill.map((shape) => geometryClone(shape, left, top, "fill")) : [];
-	const stroke = geometry.stroke.map((shape) => geometryClone(shape, left, top, "stroke"));
-	if ([...fill, ...stroke].some((shape) => !shape)) return false;
+	const fill = [];
+	const stroke = [];
+	if (veil) for (const shape of geometry.fill) {
+		const clone = geometryClone(shape, left, top, "fill");
+		if (!clone) return false;
+		fill.push(clone);
+	}
+	for (const shape of geometry.stroke) {
+		const clone = geometryClone(shape, left, top, "stroke");
+		if (!clone) return false;
+		stroke.push(clone);
+	}
 	const paint = [];
 	if (veil && fill.length) {
 		const defs = document.createElementNS(SVG_NS, "defs");
@@ -131,7 +140,7 @@ function paintShape(host, geometry, { left, top, right, bottom }, options = {}) 
 	keeps(host, "width", width);
 	keeps(host, "height", height);
 	const held = host.children;
-	if (paint.length !== held.length || paint.some((node, index) => !node.isEqualNode(held[index]))) host.replaceChildren(...paint);
+	if (paint.length !== held.length || paint.some((node, index) => !node.isEqualNode(held.item(index)))) host.replaceChildren(...paint);
 	return true;
 }
 function paintStand(box = null) {
@@ -163,28 +172,34 @@ const makeFrame = () => {
 };
 function standIn(stand, placed, anchored) {
 	const { levels } = placed;
-	const anchors = levels.map(({ holder }) => holder && anchoredBy(holder, stand.root));
-	anchored &&= levels.every(({ holder }, i) => !holder || anchors[i]);
+	const readings = levels.map((level) => ({
+		...level,
+		anchor: level.holder ? anchoredBy(level.holder, stand.root) : null
+	}));
+	anchored &&= readings.every(({ holder, anchor }) => !holder || anchor !== null);
 	stand.anchored = anchored;
-	stand.frames = cutFrames(levels.map(({ band, axes }, i) => ({
-		anchor: anchored ? anchors[i] : null,
+	stand.frames = cutFrames(readings.map(({ anchor, band, axes }) => ({
+		anchor: anchored ? anchor : null,
 		band,
 		axes
-	})), stand.frames, makeFrame);
-	const [outer] = stand.frames;
+	})), stand.frames.map(({ frame }) => frame), makeFrame);
+	const outer = stand.frames[0]?.frame;
 	if (outer && outer.parentNode !== stand.root) move(stand.root, outer, null);
-	const inner = stand.frames.at(-1) ?? stand.root;
+	const inner = stand.frames.at(-1)?.frame ?? stand.root;
 	if (stand.carrier.parentNode !== inner) move(inner, stand.carrier, null);
 	const band = levels.at(-1)?.band;
-	return {
-		anchored,
-		origin: anchored ? null : {
+	return anchored ? {
+		anchored: true,
+		origin: null
+	} : {
+		anchored: false,
+		origin: {
 			x: band?.left ?? 0,
 			y: band?.top ?? 0
 		}
 	};
 }
-function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
+function standBox(box, rect, stood, anchor = null, at = anchor && anchorBox(anchor)) {
 	if (stood.anchored) {
 		anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
 		return;
@@ -205,15 +220,16 @@ function standOver(stand, placed, borderRadius) {
 	const anchor = anchoredBy(placed.surface, stand.root);
 	const at = anchor && anchorBox(anchor);
 	const stood = standIn(stand, placed, Boolean(anchor));
+	const style = stand.box.style;
 	standBox(stand.box, placed.rect, stood, anchor, at);
-	Object.assign(stand.box.style, {
+	Object.assign(style, {
 		display: "block",
 		borderRadius
 	});
 	const band = token("--focus-ring-w");
 	const outside = markGap(placed.surface);
 	const gap = cramped(placed, band + outside) ? -band : outside;
-	stand.box.style.setProperty("--lf-mark-offset", layoutPx(gap));
+	style.setProperty("--lf-mark-offset", layoutPx(gap));
 	const room = Math.max(0, band + gap);
 	for (const side of [
 		"top",
@@ -294,7 +310,7 @@ function paintSet(root, { onNear = () => {} } = {}) {
 	function seat(stand, all = false) {
 		const { carrier, members } = stand;
 		const seating = new Set(members.filter(({ node, target }) => nearBy(target) && (all || node.parentElement !== carrier)));
-		const readings = [...seating].filter(({ entry }) => entry.anchor).map(({ entry }) => anchorReading(entry.anchor));
+		const readings = [...seating].flatMap(({ entry }) => entry.anchor ? [anchorReading(entry.anchor)] : []);
 		for (const reading of readings) nameAnchor(reading);
 		let cursor = carrier.firstElementChild;
 		for (const member of members) {
@@ -314,23 +330,27 @@ function paintSet(root, { onNear = () => {} } = {}) {
 		const holders = /* @__PURE__ */ new Map();
 		const targets = /* @__PURE__ */ new Set();
 		const read = items.map((item) => {
-			const { node, target = null, rect, held = false, anchor, plane = "page" } = item;
+			const { node, held = false, anchor, plane = "page" } = item;
 			const { cut: framed = true } = item;
-			if (!target) {
+			if (!item.target) {
 				const placed = {
 					surface: null,
 					levels: []
 				};
 				return {
 					node,
-					target,
+					target: null,
 					placed,
-					rect,
+					rect: item.rect,
 					plane,
 					framed,
-					key: keyOf(placed, null, plane)
+					anchor: null,
+					at: null,
+					key: keyOf(placed, null, plane, framed)
 				};
 			}
+			const target = item.target;
+			const rect = item.rect;
 			targets.add(target);
 			let placed = placement(target, false, false, clips, held);
 			const { left, top, right, bottom } = placed.rect;
@@ -343,11 +363,13 @@ function paintSet(root, { onNear = () => {} } = {}) {
 			if (!watched.has(target)) {
 				const box = anchorElement(target);
 				watched.set(target, box);
-				if (!watching.has(box)) {
-					watching.set(box, /* @__PURE__ */ new Set());
+				let observed = watching.get(box);
+				if (!observed) {
+					observed = /* @__PURE__ */ new Set();
+					watching.set(box, observed);
 					view.observe(box);
 				}
-				watching.get(box).add(target);
+				observed.add(target);
 				if (nearWindow(target, clips)) near.add(target);
 			}
 			const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && anchorReaches(anchor, root) ? anchor : null;
@@ -367,9 +389,15 @@ function paintSet(root, { onNear = () => {} } = {}) {
 					}
 				}))
 			};
-			for (const { holder } of placed.levels) if (holder && !holders.has(holder)) holders.set(holder, holder.getBoundingClientRect());
-			placed.levels = placed.levels.map((level) => {
-				const at = level.holder ? holders.get(level.holder) : {
+			const levels = placed.levels.map((level) => {
+				let at;
+				if (level.holder) {
+					at = holders.get(level.holder);
+					if (!at) {
+						at = level.holder.getBoundingClientRect();
+						holders.set(level.holder, at);
+					}
+				} else at = {
 					left: 0,
 					top: 0
 				};
@@ -381,31 +409,41 @@ function paintSet(root, { onNear = () => {} } = {}) {
 					}
 				};
 			});
+			const placedLevels = {
+				...placed,
+				levels
+			};
 			return {
 				node,
 				target,
-				placed,
+				placed: placedLevels,
 				rect: box,
 				plane,
 				framed,
 				anchor: carriedBy,
 				at: carriedBy && anchorBox(carriedBy),
-				key: keyOf(placed, carriedBy, plane, framed)
+				key: keyOf(placedLevels, carriedBy, plane, framed)
 			};
 		});
 		for (const [target, box] of watched) if (!targets.has(target)) {
 			watched.delete(target);
 			near.delete(target);
-			watching.get(box).delete(target);
-			if (watching.get(box).size) continue;
+			const observed = watching.get(box);
+			observed?.delete(target);
+			if (observed?.size) continue;
 			watching.delete(box);
 			view.unobserve(box);
 		}
 		const stood = /* @__PURE__ */ new Map();
 		let previous = null;
-		for (const { placed, key, anchor, plane, framed } of read) {
-			if (!placed || stood.has(key)) continue;
-			const stand = stands.get(key) ?? paintStand();
+		for (const item of read) {
+			if (!item.placed) continue;
+			const { placed, key, anchor, plane, framed } = item;
+			if (stood.has(key)) continue;
+			const stand = stands.get(key) ?? {
+				...paintStand(),
+				members: []
+			};
 			stands.set(key, stand);
 			keeps(stand.root, "data-lf-paint-plane", plane);
 			const next = previous ? previous.root.nextElementSibling : root.firstElementChild;
@@ -413,8 +451,10 @@ function paintSet(root, { onNear = () => {} } = {}) {
 			const how = standIn(stand, placed, Boolean(anchor));
 			stood.set(key, {
 				stand,
-				...how,
-				visibility: framed ? "always" : "anchors-visible"
+				how: {
+					...how,
+					visibility: framed ? "always" : "anchors-visible"
+				}
 			});
 			previous = stand;
 		}
@@ -424,20 +464,27 @@ function paintSet(root, { onNear = () => {} } = {}) {
 		}
 		for (const stand of stands.values()) stand.members = [];
 		const placing = /* @__PURE__ */ new Set();
-		for (const { node, target, placed, key, rect, anchor, at } of read) {
+		for (const item of read) {
+			const { node, target } = item;
 			placing.add(node);
-			const { stand = null, ...how } = placed && stood.get(key) || {};
-			const entry = entries.get(node) ?? {};
-			if (entry.stand !== stand) node.remove();
-			Object.assign(entry, {
+			const standing = item.placed ? stood.get(item.key) : null;
+			if (!item.placed || !standing) {
+				node.remove();
+				entries.set(node, null);
+				continue;
+			}
+			const { stand, how } = standing;
+			const { rect, anchor, at } = item;
+			if (entries.get(node)?.stand !== stand) node.remove();
+			const entry = {
 				stand,
 				stood: how,
 				rect,
 				anchor,
 				at
-			});
+			};
 			entries.set(node, entry);
-			stand?.members.push({
+			stand.members.push({
 				node,
 				target,
 				entry
@@ -469,7 +516,7 @@ function paintSet(root, { onNear = () => {} } = {}) {
 }
 function vacate(stand) {
 	if (!stand.frames.length && stand.carrier.parentElement === stand.root) return;
-	stand.frames = cutFrames([], stand.frames, makeFrame);
+	stand.frames = cutFrames([], stand.frames.map(({ frame }) => frame), makeFrame);
 	move(stand.root, stand.carrier, null);
 }
 function dropStand(stand) {
@@ -544,8 +591,7 @@ const aimMaskId = "lf-runtime-aim-shape-mask";
 const targetTraceShape = document.createElementNS(SVG_NS, "svg");
 targetTraceShape.classList.add("lf-target-trace-shape");
 targetTraceShape.setAttribute("aria-hidden", "true");
-let aimPlaced = null;
-let aimStood = null;
+let aimed = null;
 let traceElement = null;
 let traceSurface = null;
 let traceGeometry = null;
@@ -558,7 +604,7 @@ let locationFrame = 0;
 let locationProjected = [];
 const PROJECTED_LOCATION = "lf-projected-location";
 function clearAim() {
-	aimPlaced = aimStood = null;
+	aimed = null;
 	vacate(aimStand);
 	aimBox.style.display = "none";
 	aimBox.classList.toggle("lf-shaped", false);
@@ -567,6 +613,10 @@ function clearAim() {
 	delete aimStand.root.dataset.lfPaintPlane;
 }
 function paintAim(element, surface) {
+	if (!element) {
+		clearAim();
+		return null;
+	}
 	surface ??= element;
 	const geometry = surface && paintGeometry(surface);
 	const placed = element && placement(surface, Boolean(geometry), inChrome(element));
@@ -582,25 +632,30 @@ function paintAim(element, surface) {
 	if (!shaped) aimShape.replaceChildren();
 	keeps(aimBox, "data-for", element.id);
 	keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-	aimStood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
-	aimPlaced = placed;
+	const stood = standOver(aimStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
+	aimed = {
+		placed: {
+			...placed,
+			shown: placed.shown
+		},
+		stood
+	};
 	return placed.shown;
 }
 function labelAim(node) {
-	if (!aimPlaced) return;
-	const { rect, shown, levels } = aimPlaced;
-	const above = shown.top - node.offsetHeight - aimStood.room;
+	if (!aimed) return;
+	const { placed: { rect, shown, levels }, stood } = aimed;
+	const above = shown.top - node.offsetHeight - stood.room;
 	const room = Math.max(0, ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top));
 	const cutTop = shown.top > rect.top;
 	const at = {
 		left: Math.max(2, shown.left),
 		top: !cutTop && above >= room ? above : shown.top + 2
 	};
-	const index = cutTop ? levels.findLastIndex(({ axes, band }) => axes.y && band.top === shown.top) : shown.left > rect.left ? levels.findLastIndex(({ axes, band }) => axes.x && band.left === shown.left) : -1;
-	if (index >= 0) {
-		const home = aimStand.frames[index];
-		if (node.parentElement !== home) move(home, node, null);
-		const { band } = levels[index];
+	const cut = cutTop ? aimStand.frames.findLast(({ level: { axes, band } }) => axes.y && band.top === shown.top) : shown.left > rect.left ? aimStand.frames.findLast(({ level: { axes, band } }) => axes.x && band.left === shown.left) : void 0;
+	if (cut) {
+		const { frame, level: { band } } = cut;
+		if (node.parentElement !== frame) move(frame, node, null);
 		standBox(node, at, {
 			anchored: false,
 			origin: {
@@ -611,7 +666,7 @@ function labelAim(node) {
 		return;
 	}
 	if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
-	standBox(node, at, aimStood, aimStood.anchor, aimStood.at);
+	standBox(node, at, stood, stood.anchor, stood.at);
 }
 function clearTrace() {
 	traceElement = null;
@@ -696,8 +751,8 @@ const paintsOver = (element) => {
 };
 function drawLocation() {
 	const element = locationElement;
-	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) && placement(element, false, inChrome(element));
-	if (!placed?.shown) {
+	const placed = element?.isConnected && !locationStandsDown(element) && paintsOver(element) ? placement(element, false, inChrome(element)) : null;
+	if (!element || !placed?.shown) {
 		projectLocation([]);
 		vacate(locationStand);
 		locationBox.style.display = "none";
@@ -738,7 +793,7 @@ const land = (box, by, behavior) => {
 	});
 };
 function scrollMargin(where, side = "Top") {
-	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where)[`scrollMargin${side}`]) || 0;
+	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where).getPropertyValue(`scroll-margin-${side.toLowerCase()}`)) || 0;
 	const edges = [where.startContainer.childNodes[where.startOffset], where.endContainer.childNodes[where.endOffset - 1]].filter((edge) => edge instanceof Element);
 	return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
 }
@@ -751,25 +806,29 @@ function shownFor(where) {
 }
 const destinationBox = (where) => placeBox(shownFor(where));
 const holderOf = (where) => placeHolder(shownFor(where));
-const readingTop = (holder, box) => visibleBand(box, holder)?.top ?? landingBand(box).top;
-function topMargin(where, box, holder = holderOf(where)) {
-	const band = landingBand(box);
-	return Math.max(scrollMargin(where), readingTop(holder, box) - band.top);
+const readingTop = (holder, box, band) => visibleBand(box, holder)?.top ?? band.top;
+function topMargin(where, box, band, holder = holderOf(where)) {
+	return Math.max(scrollMargin(where), readingTop(holder, box, band) - band.top);
 }
-const landingRoom = (where, until = where) => roomAround(shownFor(where), where, until);
-function roomAround(shown, where, until = where) {
+const landingRoom = (where, until) => roomAround(shownFor(where), where, until);
+function roomAround(shown, where, until) {
 	const holder = placeHolder(shown);
-	const regions = [...scrollersOf(holder)];
+	const regions = /* @__PURE__ */ new Map();
+	let previous = null;
+	for (const box of scrollersOf(holder)) {
+		regions.set(box, previous);
+		previous = box;
+	}
 	let { width, height } = shownWindow();
 	for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
-		const band = (until === where || renderedUnder(until, box)) && landingBand(box);
+		const band = (!until || until === where || renderedUnder(until, box)) && landingBand(box);
 		if (band) {
 			const axes = box === pageScroller ? {
 				x: true,
 				y: true
 			} : clippingAxes(getComputedStyle(box));
-			const at = regions.indexOf(box);
-			const clearance = at === 0 ? topMargin(where, box, holder) + scrollMargin(until, "Bottom") : at > 0 ? Math.max(0, readingTop(regions[at - 1], box) - band.top) : 0;
+			const inner = regions.get(box);
+			const clearance = inner === null ? topMargin(where, box, band, holder) + scrollMargin(until ?? where, "Bottom") : inner ? Math.max(0, readingTop(inner, box, band) - band.top) : 0;
 			if (axes.x) width = Math.min(width, band.right - band.left);
 			if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
 		}
@@ -797,17 +856,14 @@ function alreadyShown(where) {
 }
 function ringShown(where) {
 	const box = destinationBox(where);
-	const [top, right, bottom, left] = [
-		"Top",
-		"Right",
-		"Bottom",
-		"Left"
-	].map((side) => scrollMargin(where, side));
+	const top = scrollMargin(where, "Top");
+	const right = scrollMargin(where, "Right");
+	const bottom = scrollMargin(where, "Bottom");
+	const left = scrollMargin(where, "Left");
 	return seesWhole(where, box, new DOMRect(box.left - left, box.top - top, box.width + left + right, box.height + top + bottom));
 }
-function placementBy(where, block, box, margin) {
+function placementBy(where, block, band, margin) {
 	const rect = destinationBox(where);
-	const band = landingBand(box);
 	const room = band.bottom - band.top;
 	const place = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
 	return block === "nearest" ? nearestScrollBy(rect.top - margin, rect.bottom + scrollMargin(where, "Bottom"), band.top, band.bottom) : rect.top - band.top - place;
@@ -826,15 +882,20 @@ function readingBandMoves(where, holder, block) {
 		moves: [],
 		moved: 0
 	};
+	const band = landingBand(box);
+	if (!band) return {
+		moves: [],
+		moved: 0
+	};
 	const rect = destinationBox(where);
-	const margin = topMargin(where, box);
+	const margin = topMargin(where, box, band);
 	let { top, bottom } = rect;
 	if (block === "start") top -= margin;
 	else if (block === "end") {
 		top = bottom - 1;
 		bottom += scrollMargin(where, "Bottom");
 	}
-	let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
+	let { local, moved } = verticalTravel(box, placementBy(where, block, band, margin));
 	const moves = [{
 		box,
 		local,
@@ -846,7 +907,7 @@ function readingBandMoves(where, holder, block) {
 		bottom -= moved;
 		const band = landingBand(outer);
 		if (!band) break;
-		band.top = Math.max(band.top, readingTop(inner, outer));
+		band.top = Math.max(band.top, readingTop(inner, outer, band));
 		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
 		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
 		moves.push({
@@ -869,9 +930,10 @@ function landedBox(where) {
 function scrollIntoReadingBand(where, holder, block, behavior) {
 	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
 }
-function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within = null } = {}) {
+function scrollIntoView(where, { alignment, behavior = "auto", block = "start", within = null } = {}) {
 	if (!where) return;
-	const holder = holderOf(alignment);
+	const aligned = alignment ?? where;
+	const holder = holderOf(aligned);
 	if (!holder) return;
 	const targetScroller = within ? null : scrollersOf(holder).next().value;
 	let inside = true;
@@ -883,7 +945,7 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 			const { left, right } = band;
 			const destination = destinationBox(where);
 			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
-			const byY = inside ? placementBy(where, "nearest", box, topMargin(where, box, start)) : 0;
+			const byY = inside ? placementBy(where, "nearest", band, topMargin(where, box, band, start)) : 0;
 			const by = localScrollBy(box, {
 				x: byX,
 				y: byY
@@ -892,14 +954,15 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 		}
 		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
 	}
-	if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
+	if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
 }
 onCurrentLocation((node, cause) => {
 	if (cause !== "step" || !node) return;
 	nextRender(() => {
 		if (deepFocus() !== node) return;
 		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
-		for (let box = node; box instanceof Element; box = renderedParent(box)) {
+		let box = node;
+		for (; box; box = renderedParent(box)) {
 			if (!box.matches("[data-lf-obligation]")) continue;
 			if (locationStandsDown(box)) continue;
 			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
@@ -934,12 +997,12 @@ function copyThroughSelection(value, trigger) {
 }
 function copyControl(className, { label = "", success, error, action = "copy", role = void 0 }) {
 	const copy = role ? offeredActionElement(document.createElement("wa-copy-button"), role, className, void 0, { action }) : offer("wa-copy-button", className);
-	const symbol = copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon");
-	for (const [icon, slot] of [
-		[symbol, "copy-icon"],
+	const icons = [
+		[copy.querySelector(":scope > svg[data-lf-icon]") ?? actionElement(action, "lf-copy-icon"), "copy-icon"],
 		[iconElement("check", "lf-copy-icon"), "success-icon"],
 		[iconElement("cross", "lf-copy-icon"), "error-icon"]
-	]) copy.append(Object.assign(icon, { slot }));
+	];
+	for (const [icon, slot] of icons) copy.append(Object.assign(icon, { slot }));
 	if (label) copy.copyLabel = label;
 	copy.successLabel = success;
 	copy.errorLabel = error;
@@ -947,7 +1010,7 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 	copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
 	copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
 	queueMicrotask(() => copy.addEventListener("click", (event) => {
-		if (window.isSecureContext || window !== window.top || navigator.clipboard?.writeText) return;
+		if (window.isSecureContext || window !== window.top || navigator.clipboard) return;
 		event.stopPropagation();
 		if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
 		copy.isCopying = true;
@@ -964,6 +1027,9 @@ function copyControl(className, { label = "", success, error, action = "copy", r
 	}, { capture: true }));
 	return copy;
 }
+function copyTrigger(copy) {
+	return copy?.shadowRoot?.querySelector("button") ?? null;
+}
 
 //#endregion
-export { SVG_NS, aimLayer, alreadyShown, copyControl, dropStand, fitsWhole, landedBox, landingRoom, locationLayer, mountTargetPaint, paintGeometry, paintLocation, paintSet, paintShape, paintStand, paintTrace, passOn, placement, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView, standOver, targetTraceLayer, target_paint_exports };
+export { SVG_NS, aimLayer, alreadyShown, copyControl, copyTrigger, dropStand, fitsWhole, landedBox, landingRoom, locationLayer, mountTargetPaint, paintGeometry, paintLocation, paintSet, paintShape, paintStand, paintTrace, passOn, placement, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView, standOver, targetTraceLayer, target_paint_exports };

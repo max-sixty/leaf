@@ -422,12 +422,6 @@ def mark_declared(
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
     edits = []
-    members = {
-        member
-        for holder in tree.find_all(True)
-        if (views := registry.get(holder.tag, {}).get("x-views"))
-        for member in holder.select(f":scope > :is({views['members']})")
-    }
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
@@ -439,7 +433,7 @@ def mark_declared(
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("main") is not None
         )
-        marks = {"data-lf-view": ""} if element in members else {}
+        marks = {}
         for key, mark in kernel_marks().items():
             declared = (
                 exhibits(attrs, declaration)
@@ -457,6 +451,8 @@ def mark_declared(
             else:
                 continue
             if key == "x-views":
+                # Only the browser evaluates view selectors, including before modules.
+                marks["data-lf-view-members"] = declaration[key]["members"]
                 value = "parts" if declaration[key].get("parts") else ""
             marks[mark["paint"]] = value
         sizes = [
@@ -626,18 +622,21 @@ def delivery_sheets(
     `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
     every document running the layer carries their text without a request or await.
     Shared chrome and marks are always present; physical annotation sheets are absent
-    in page mode. The browser constructs only the sheets this carrier actually holds.
+    in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
+    `layer.chrome_restyle`). The browser constructs only the sheets this carrier
+    actually holds.
     """
+
+    def text(path):
+        return rebase_css(resources[path].data.decode("utf-8"), path, address)
+
     sheets: dict = {
-        name: rebase_css(resources[path].data.decode("utf-8"), path, address)
-        for name, path in (
-            ("chrome", "/runtime/chrome.css"),
-            ("marks", "/runtime/marks.css"),
-        )
+        "chrome": text("/runtime/chrome.css") + text("/chrome.css"),
+        "marks": text("/runtime/marks.css"),
     }
     if annotation_mode(document) == "overlay":
         sheets["annotations"] = {
-            name: rebase_css(resources[path].data.decode("utf-8"), path, address)
+            name: text(path)
             for name, path in (
                 ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
                 ("marks", "/runtime/annotation-overlay/annotation-marks.css"),

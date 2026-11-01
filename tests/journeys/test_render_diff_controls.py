@@ -110,7 +110,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     url = serve(
         leaf_page(
             "Config change",
-            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+            '<h1>Config change</h1><lf-diff id="patch" source="patch-data"></lf-diff>'
             f'<lf-diff id="native"><pre>{escape(patch)}</pre></lf-diff>',
         )
     )
@@ -210,7 +210,7 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
         leaf_page(
             "Review source and prose",
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
-            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data"></lf-diff>',
             head="""<style id="response-inset-override">
               :is(.lf-fab-bar, .lf-margin-preview) {
                 --lf-thread-text-pad-block: 12px !important;

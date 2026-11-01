@@ -282,13 +282,14 @@ def cli() -> None:
 @click.option("--if-claimed", is_flag=True, expose_value=False)
 @click.option("--watch", is_flag=True)
 @click.option("--pages", is_flag=True)
-def hook(harness: str, watch: bool, pages: bool) -> None:
+@click.option("--fork", is_flag=True)
+def hook(harness: str, watch: bool, pages: bool, fork: bool) -> None:
     """Answer a native harness hook from its JSON payload on stdin."""
-    if watch and pages:
-        raise click.UsageError("--watch and --pages are mutually exclusive")
+    if watch + pages + fork > 1:
+        raise click.UsageError("--watch, --pages and --fork are mutually exclusive")
     from leaf.hooks import main
 
-    main(harness, watch=watch, pages=pages)
+    main(harness, watch=watch, pages=pages, fork=fork)
 
 
 @cli.command(hidden=True)

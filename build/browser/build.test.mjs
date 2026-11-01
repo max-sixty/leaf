@@ -8,8 +8,12 @@ import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
-import { typedHeader } from "../runtime-sources.mjs";
+import {
+  buildOutputs,
+  checkOutputs,
+  checkRuntimeModules,
+  compilerPaths,
+} from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -95,6 +99,70 @@ count("wrong");
   assert.equal(discovered.status, 0, discovered.stdout + discovered.stderr);
 });
 
+test("unimported browser and package modules are strict without a pragma", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-strict-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const typeRoot = path.join(scratch, "browser/types");
+  await mkdir(typeRoot, { recursive: true });
+  await writeFile(
+    path.join(typeRoot, "tsconfig.json"),
+    await readFile(new URL("../../browser/types/tsconfig.json", import.meta.url)),
+  );
+  await writeFile(
+    path.join(typeRoot, "tsconfig.paths.json"),
+    JSON.stringify({ compilerOptions: { types: [] } }),
+  );
+  const files = [
+    "browser/runtime/unimported.js",
+    "packages/example/widgets/unimported.js",
+    "build/entries/example/unimported.mjs",
+  ];
+  for (const file of files) {
+    await mkdir(path.dirname(path.join(scratch, file)), { recursive: true });
+    await writeFile(
+      path.join(scratch, file),
+      "export const read = (value) => value;\n",
+    );
+  }
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        path.join(root, "node_modules/typescript/bin/tsc"),
+        "--project",
+        path.join(typeRoot, "tsconfig.json"),
+        "--pretty",
+        "false",
+      ],
+      { encoding: "utf8" },
+    );
+  const untyped = check();
+  assert.equal(untyped.status, 1, untyped.stdout + untyped.stderr);
+  for (const file of files) assert.ok(untyped.stdout.includes(file));
+  assert.match(untyped.stdout, /Parameter 'value' implicitly has an 'any' type/);
+  for (const file of files)
+    await writeFile(
+      path.join(scratch, file),
+      "/** @param {string} value */\nexport const read = (value) => value;\n",
+    );
+  const typed = check();
+  assert.equal(typed.status, 0, typed.stdout + typed.stderr);
+});
+
+test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {
+  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-source-"));
+  context.after(() => rm(scratch, { recursive: true }));
+  const runtime = path.join(scratch, "browser/runtime/nested");
+  await mkdir(runtime, { recursive: true });
+  await writeFile(path.join(runtime, "types.d.ts"), "export type Value = number;\n");
+  await checkRuntimeModules(scratch);
+  await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
+  await assert.rejects(checkRuntimeModules(scratch), {
+    message:
+      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\nbrowser/runtime/nested/unimported.ts",
+  });
+});
+
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
@@ -143,14 +211,6 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
-  // Renaming a TypeScript owner must not leave its old delivery file as authored JS.
-  const orphan = "browser/runtime/removed.js";
-  await writeFile(
-    path.join(scratch, orphan),
-    typedHeader + "export const removed = 1;\n",
-  );
-  await assert.rejects(checkOutputs(outputs, scratch), /runtime\/removed\.js/);
-  await rm(path.join(scratch, orphan));
   // A kernel left behind by a merge names the command that rebuilds it.
   const kernel = path.join(scratch, "dist/kernel/leaf.js");
   await writeFile(kernel, "<<<<<<< ours\n");

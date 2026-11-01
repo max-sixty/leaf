@@ -24,6 +24,9 @@ const message = (id, extra = {}) => ({
   content_version: extra.edited?.id ?? id,
   ...extra,
 });
+// A notice's parts as the live region hears them.
+const words = (parts) => parts.map((part) => part.text).join("");
+const said = (news) => words(semanticNewsNotice(news));
 const thread = (id, msgs, attention = null) =>
   servedThread(
     msgs.map(({ unread: _unread, ...served }) => served),
@@ -142,7 +145,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(semanticNewsNotice(reopened.news), "New on me");
+  assert.equal(said(reopened.news), "New on me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -153,7 +156,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 new on me");
+  assert.equal(said(current), "2 new on me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -212,8 +215,8 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].version, "last-edit");
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Edited: Words of original. · Couldn't answer",
+    said(currentSemanticNews(changed.news, next, changed.observed)),
+    "Edited: Words of original. · Not answered",
   );
   const same = observeSemanticNews(
     changed.observed,
@@ -362,7 +365,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   });
   const result = observeSemanticNews(baseline.observed, current);
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(result.news, current, result.observed)),
+    said(currentSemanticNews(result.news, current, result.observed)),
     "Does this answer your question?",
   );
   assert.deepEqual(combineSemanticNews(result.news, result.news), result.news);
@@ -374,7 +377,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   });
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(both.news, more, both.observed)),
+    said(currentSemanticNews(both.news, more, both.observed)),
     "Does this answer your question? · New on me",
   );
 });
@@ -404,7 +407,37 @@ test("deferred news drops superseded failures and edits", () => {
       ["agent_content", "t", "recovered"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 replies in 1 thread");
+  assert.equal(said(current), "2 replies in 1 thread");
+});
+
+test("a notice sets the agent's words apart from Leaf's news", () => {
+  // The agent's words stand as it wrote them, and its acts as Leaf relays them; what
+  // became of an answer and what else is new are Leaf's, in italic where the seat
+  // draws them.
+  const voices = (news) =>
+    semanticNewsNotice(news).map((part) => [part.text, part.voice]);
+  assert.deepEqual(
+    voices([
+      { kind: "agent_content", key: "content:m1", thread: "a", message: message("m1") },
+      { kind: "response_failure", key: "failure:f1", condition: "failed" },
+      { kind: "user_obligation", key: "obligation:o1", message: "another" },
+    ]),
+    [
+      ["Words of m1.", "agent"],
+      [" · ", "leaf"],
+      ["Not answered", "leaf"],
+      [" · ", "leaf"],
+      ["New on me", "leaf"],
+    ],
+  );
+  const edited = message("m2", { edited: { id: "edit", seq: 2 } });
+  assert.deepEqual(
+    voices([
+      { kind: "agent_content", key: "content:m2", thread: "a", message: edited },
+    ]),
+    [["Edited: Words of m2.", "agent"]],
+  );
+  assert.deepEqual(semanticNewsNotice([]), []);
 });
 
 test("deferred failure wording follows its current condition and a cleared failure disappears", () => {
@@ -419,10 +452,8 @@ test("deferred failure wording follows its current condition and a cleared failu
     workflows: [responseFailure({ attempt: "attempt" }, "failed")],
   });
   assert.equal(
-    semanticNewsNotice(
-      currentSemanticNews(interrupted.news, latest, interrupted.observed),
-    ),
-    "Couldn't answer",
+    said(currentSemanticNews(interrupted.news, latest, interrupted.observed)),
+    "Not answered",
   );
   assert.deepEqual(
     currentSemanticNews(interrupted.news, reading(), interrupted.observed),
@@ -445,7 +476,7 @@ test("agent content is news while it is unread, including on the first reading",
     [["agent_content", "t", "away"]],
   );
   assert.equal(
-    semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
+    said(currentSemanticNews(opened.news, waiting, opened.observed)),
     "Words of away.",
   );
   // Taken in before the notice could show — here, or in another tab — it drops out.
@@ -529,7 +560,7 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     await delivered.promise;
   };
   await announce(news.slice(0, 2));
-  assert.equal(noticeReading().message, "2 replies in 2 threads");
+  assert.equal(words(noticeReading().message), "2 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   holdStatus(10000);
   assert.equal(noticeReading().visible, false);
@@ -543,7 +574,7 @@ test("held producer batches preserve interrupted news and merge later arrivals",
   const before = [...announcements];
   holdStatus(1);
   t.mock.timers.tick(1);
-  assert.equal(noticeReading().message, "4 replies in 2 threads");
+  assert.equal(words(noticeReading().message), "4 replies in 2 threads");
   assert.equal(noticeReading().visible, true);
   t.mock.timers.tick(30);
   await window.happyDOM.whenAsyncComplete();

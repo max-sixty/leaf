@@ -186,7 +186,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
         "utf8",
       ),
     );
-    const inputs = page.document.documentElement.lfInputs;
+    const inputs = page.window.lfInputs;
     const heard = [];
     inputs.observe((event) => heard.push(event.type));
     // Native Firefox can call a sandboxed window's wheel listener with a foreign
@@ -510,6 +510,8 @@ test("what an owner keeps of a press lasts until the press is over, and no longe
     pointer("pointerdown", target);
     kept.keep({ pointerId: 1 }, target.localName);
   };
+  // A widget can stop its release; the canonical owner still hears it first.
+  box.addEventListener("pointerup", (event) => event.stopImmediatePropagation());
   // A release leaves the press owed its click, so what was kept still reads.
   down(box);
   pointer("pointerup", box);
@@ -533,5 +535,11 @@ test("what an owner keeps of a press lasts until the press is over, and no longe
   await settled();
   assert.equal(pressing(), null);
   assert.deepEqual(overs, ["over", "over", "over"]);
+  // A native menu swallows release, so it also ends the owner's work.
+  down(box);
+  box.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true }));
+  await settled();
+  assert.equal(pressing(), null);
+  assert.deepEqual(overs, ["over", "over", "over", "over"]);
   stop();
 });

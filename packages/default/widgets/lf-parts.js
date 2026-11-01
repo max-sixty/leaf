@@ -6,6 +6,8 @@ import { TabSet } from "./lf-tabs.js";
 customElements.define(
   "lf-parts",
   class extends TabSet {
-    static parts = true;
+    get parts() {
+      return true;
+    }
   },
 );

@@ -18,8 +18,9 @@ from render_harness import (
 )
 
 
-def test_sample_view_selection_waits_across_a_reload(browser, serve):
-    """A selection the child's reload interrupts lands in the next document."""
+def test_a_reload_ends_a_sample_view_selection(browser, serve):
+    """A selection the child's reload interrupts answers false, and the next document
+    says it is ready, where the page reapplies its view."""
     page = open_page(
         browser,
         serve(
@@ -51,11 +52,14 @@ def test_sample_view_selection_waits_across_a_reload(browser, serve):
         shown => ({shown}), error => ({error: error.name}));
     }""")
     child.wait_for_function("window.waitingCommand")
+    sample.evaluate("""sample => {
+      window.readyAgain = new Promise(resolve =>
+        sample.addEventListener('lf-sample-ready', () => resolve(true), {once: true}));
+    }""")
     with child.expect_navigation(wait_until="domcontentloaded"):
         child.evaluate("location.reload()")
-    # Only the next document's own command can present the panel.
-    assert page.evaluate("window.selection") == {"shown": True}
-    sample.evaluate("async sample => await sample.ready")
+    assert page.evaluate("window.selection") == {"shown": False}
+    assert page.evaluate("window.readyAgain") is True
     assert take_browser_errors(page) == []
 
 
@@ -235,8 +239,9 @@ def test_sample_native_departure_keeps_destination_and_reset(
     assert departed_record["document"] == next(
         row["document"] for row in departed_records if row["phase"] == "upgraded"
     )
-    # The selection and `ready` wait for a next document, which only Reset brings here.
-    assert page.evaluate("window.departedCall") is None
+    # The departure ends the selection; `ready` waits for a next document, which only
+    # Reset brings here.
+    page.wait_for_function("window.departedCall === false")
     assert (
         sample.evaluate(
             """sample => Promise.race([
@@ -252,7 +257,6 @@ def test_sample_native_departure_keeps_destination_and_reset(
     sample.get_by_role("button", name="Return to page", exact=True).click()
     reset.click()
     sample.evaluate("async sample => await sample.ready")
-    assert page.evaluate("window.departedCall") is False
     expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
         "Practice page"
     )

@@ -54,6 +54,8 @@ packages. Authors can compose pages, create widgets, and share packages;
 independent packages use the same declared interfaces as the defaults. Shared
 capabilities provide difficult behavior, consistent interaction, and
 presentation craft that authors would otherwise rebuild. Each mechanism must
-justify its continuing cost through the user benefit it provides. Simplification
+justify its continuing cost through the user benefit it provides. A guarantee is
+owed to the paths users take often; a rare path the user takes in at a glance
+may move or redraw rather than carry a mechanism of its own. Simplification
 should remove machinery while preserving the freedom to compose capabilities
 beyond the bundled defaults.

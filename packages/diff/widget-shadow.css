@@ -32,8 +32,7 @@
 :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary,
 :host(lf-diff.lf-rendered) .lf-diff-metadata {
   padding: 7px var(--lf-diff-head-inset);
-  font-size: var(--t-5);
-  font-family: var(--sans);
+  font: var(--font-ui);
   color: var(--code-ink);
   background: var(--code-chrome);
 }
@@ -66,7 +65,7 @@
   > .lf-resolved-threads
   > .lf-resolved-summary::before {
   flex: none;
-  font-size: var(--t-5);
+  font: var(--font-ui);
 }
 /* The file's head is a flex row whose gap parts the arrow from the path. */
 :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before {
@@ -254,7 +253,7 @@
 }
 .lf-diff-progress {
   color: var(--code-muted);
-  font: var(--t-6) var(--sans);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -310,7 +309,7 @@
   width: fit-content;
   height: var(--lf-diff-action-h);
   margin: var(--lf-diff-action-top) 11px 0 auto;
-  font-family: var(--sans);
+  font: var(--font-ui);
 }
 /* An inline patch without comment controls has no action row to pull over. */
 .lf-diff-file-actions:empty {
@@ -389,7 +388,7 @@
   border-radius: var(--r-s);
   background: var(--accent-tint);
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
   opacity: 0;
 }
@@ -467,11 +466,10 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-/* The path is evidence — a file's name in the file's own voice — and a shadow tree
-   inherits no document rule, so the mono is stated here or it is the UA's. */
+/* The path is evidence — a file's name in the file's own face — and a shadow tree
+   inherits no document rule, so its font is named here or it is the UA's. */
 .lf-diff-path {
-  font-family: var(--mono);
-  font-size: var(--t-6);
+  font: var(--font-code);
   overflow-wrap: anywhere;
 }
 .lf-diff-additions {
@@ -486,14 +484,13 @@
 .lf-diff-evidence {
   padding: 7px 10px;
   color: var(--code-muted);
-  font: var(--t-6)/1.5 var(--sans);
+  font: var(--font-small);
   background: var(--code-chrome);
 }
 .lf-diff-stat {
   color: var(--code-muted);
-  font-weight: 400;
   margin-left: 8px;
-  font-size: var(--t-6);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -517,7 +514,9 @@
   overscroll-behavior-x: auto;
   container-type: inline-size;
   container-type: inline-size scroll-state;
-  font: var(--code-size)/var(--code-line) var(--mono);
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
   white-space: pre;
   padding: 0;
   border: 0;
@@ -590,7 +589,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   background: var(--paper);
   padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
-  font: var(--t-4)/1.5 var(--sans);
+  font: var(--font-message);
   contain: inline-size;
 }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {

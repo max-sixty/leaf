@@ -1,4 +1,4 @@
-"""The browser fixture fails the loss the "Words stay where they were typed" rule
+"""The browser fixture fails the loss the "Typed words survive" rule
 forbids (`words_watch.js`): typed words leaving the screen without a key or press."""
 
 import base64

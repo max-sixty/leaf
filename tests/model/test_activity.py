@@ -341,14 +341,12 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     assert _activity_at(claimed)["counts"]["handling"] == 1
 
     # A start the agent writes after that renews the turn, and the move it starts
-    # stops being believed once the renewal grace has passed since the next
-    # interrupt.
+    # stops being believed at the next interrupt.
     harness_says("idle", ago=5)
     assert _start(claimed, comment["id"], "Cutting the lede").exit_code == 0
     assert _activity_at(claimed)["counts"]["active"] == 1
     harness_says("idle")
-    assert _activity_at(claimed)["kind"] == "working"
-    ended = _activity_at(claimed, 3)
+    ended = _activity_at(claimed)
     assert (ended["kind"], ended["dropped"]) == ("away", True)
     assert ended["obligations"][0]["condition"] == {
         "kind": "stale",
@@ -363,9 +361,9 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
 def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     """Claude Code's record stays `busy` after a turn ends while the background
     subagents it left run. Until the record leaves `busy`, the page reads working,
-    observed in the background. The record doesn't say which turn left the work,
-    so the ended turn's start is dropped as usual. A background shell leaves the
-    record `shell`, which is idle."""
+    in the agent's last line, with the background observed beside it. A background
+    shell leaves the record `shell`, which is idle, and the page reads the turn
+    ended at once."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -402,23 +400,21 @@ def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
     assert claim_record_2 is not None
     assert claim_record_2["turn_closed"] is not None
 
-    # Within the renewal grace the start's line stands, with the step beside it.
-    ending = _activity_at(claimed)
-    assert (ending["kind"], ending["detail"], ending["observed"]) == (
-        "working",
-        "Workers are comparing layouts",
-        activity_model.BACKGROUND_DETAIL,
-    )
-    later = _activity_at(claimed, 10)
-    assert (later["kind"], later["detail"], later["dropped"]) == (
-        "working",
-        activity_model.BACKGROUND_DETAIL,
-        False,
-    )
-    assert later["obligations"][0]["condition"] == {
-        "kind": "stale",
-        "operation": "work",
-    }
+    # While the session works in the background, the start's line stands, with
+    # the step beside it.
+    for minutes in (0, 10):
+        ending = _activity_at(claimed, minutes)
+        assert (
+            ending["kind"],
+            ending["detail"],
+            ending["observed"],
+            ending["dropped"],
+        ) == (
+            "working",
+            "Workers are comparing layouts",
+            activity_model.BACKGROUND_DETAIL,
+            False,
+        )
 
     for idle in ("idle", "shell"):
         harness_says(idle)
@@ -642,8 +638,9 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
         delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = activity_reading(claimed)
-    assert (activity["kind"], activity["detail"]) == (
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
         "working",
+        "",
         "Running the checks",
     )
     assert activity["observed_kind"] == "tool"
@@ -677,14 +674,15 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     assert "stream" not in live
     assert "stream" not in live["status"]
     activity = live["activity"]
-    assert (activity["kind"], activity["detail"]) == (
+    assert (activity["kind"], activity["detail"], activity["observed"]) == (
         "working",
+        "",
         "Running the tests",
     )
     assert activity["observed_kind"] == "tool"
 
     session_model.cmd_waiting(claimed)
-    assert activity_reading(claimed)["detail"] == "Running the tests"
+    assert activity_reading(claimed)["observed"] == "Running the tests"
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.clear_stream_activity("s1", "turn-live")
@@ -772,7 +770,8 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "item": start["item"],
     }
 
-    # With nothing in hand, the step is all there is, and it is the sentence.
+    # With nothing in hand, the step is all there is, and it stays Leaf's account:
+    # the line is left for the agent to write.
     ended = CliRunner().invoke(
         cli_model.cli, ["task", "end", str(claimed), start["item"], "done"]
     )
@@ -781,7 +780,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     waiting = activity_reading(claimed)
     assert (waiting["kind"], waiting["detail"], waiting["observed"]) == (
         "working",
-        "Running the tests",
+        "",
         "Running the tests",
     )
     assert waiting["detail_source"] is None
@@ -801,7 +800,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         quiet["observed"],
     ) == (
         "working",
-        "Running the tests",
+        "",
         "tool",
         "Running the tests",
     )
@@ -1215,16 +1214,10 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
     # Fresh page work keeps its own sentence beside the comment the turn picked up.
     _, activity = declare("working", "revising the plan")
     assert (activity["kind"], activity["detail"]) == ("working", "revising the plan")
-    assert (
-        activity["counts"]["handling"],
-        activity["counts"]["handling_comments"],
-    ) == (1, 1)
+    assert activity["counts"]["handling"] == 1
     _, activity = declare("waiting")
     assert (activity["kind"], activity["detail"]) == ("working", "")
-    assert (
-        activity["counts"]["handling"],
-        activity["counts"]["handling_comments"],
-    ) == (1, 1)
+    assert activity["counts"]["handling"] == 1
 
     append_carried_log_record(
         d,
@@ -1292,14 +1285,17 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
                 5,
             )
 
-        # A turn that has only just ended still holds it, since an agent that ends its
-        # turn with work running can be back a minute later; and a status written after
-        # the turn closed carries the claim past the ending on its own.
-        for turn_ended in (30, 5 * 60):
-            _, activity = declare(
-                "working", "revising the plan", quiet_for=60, turn_ended=turn_ended
-            )
-            assert activity["kind"] == "working"
+        # A turn that has only just ended holds it no longer: with no word from the
+        # harness that work goes on, the page stops reading working at the ending.
+        # A status written after the turn closed carries the claim past it.
+        _, activity = declare(
+            "working", "revising the plan", quiet_for=60, turn_ended=30
+        )
+        assert (activity["kind"], activity["dropped"]) == ("stalled", True)
+        _, activity = declare(
+            "working", "revising the plan", quiet_for=60, turn_ended=5 * 60
+        )
+        assert activity["kind"] == "working"
 
         # Waiting on the user, with input on its way.
         _, activity = declare("waiting")

@@ -632,7 +632,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     and the parent recounts, on a poll, with nothing the user did to account
     for the shift. It is apparatus, so it is set in the sans — and the sans gives
     each digit its own width where the serif carrying the prose gives them all
-    one, which is why the figures are stated for the apparatus voice and not for
+    one, which is why the figures are stated for the apparatus face and not for
     the page. The chip is a filled pill, so its own box is what a user watches
     twitch; where apparatus leads something else, that something moves with it —
     a metric's delta sits directly after the value it follows.

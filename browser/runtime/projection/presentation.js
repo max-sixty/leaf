@@ -31,22 +31,21 @@ import { isPagePaint, renderQuiet } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 
+/** @param {import("../../types/domain.js").Projection} projection */
 function paintStateOrigins(projection) {
-  const marks = new Map(
-    [PAGE_PAINT_ATTRIBUTE.userOverride, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
-      attr,
-      new Set(),
-    ]),
-  );
+  /** @type {Set<Element>} */
+  const userOverride = new Set();
+  /** @type {Set<Element>} */
+  const reported = new Set();
+  const marks = new Map([
+    [PAGE_PAINT_ATTRIBUTE.userOverride, userOverride],
+    [PAGE_PAINT_ATTRIBUTE.reported, reported],
+  ]);
   for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
     if (origin === "restated") continue;
     const target = elementById(unit);
     if (!target || inChrome(target)) continue;
-    const attr =
-      origin === "user"
-        ? PAGE_PAINT_ATTRIBUTE.userOverride
-        : PAGE_PAINT_ATTRIBUTE.reported;
-    marks.get(attr).add(target);
+    (origin === "user" ? userOverride : reported).add(target);
   }
   const touched = new Set();
   for (const [attr, wanted] of marks) {
@@ -68,17 +67,16 @@ function paintStateOrigins(projection) {
 // as lf-suggestion does, has already run it in the publication before this writes the
 // same mark. A widget in a message's frozen markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
+/** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = widgetElement(widgetId);
     const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
-    const outcome = state[decision.verb]?.detail?.outcome ?? null;
-    keeps(
-      owner,
-      PAGE_PAINT_ATTRIBUTE.settlement,
-      decision.retires[outcome] ? outcome : null,
-    );
+    const wanted = state[decision.verb]?.detail?.outcome;
+    const outcome =
+      Object.keys(decision.retires).find((candidate) => candidate === wanted) ?? null;
+    keeps(owner, PAGE_PAINT_ATTRIBUTE.settlement, outcome);
     renderRetired(owner, outcome);
   }
 }
@@ -122,7 +120,9 @@ export function createProjectionPresentation() {
       const e = record.event;
       const target = projection.classified.get(e.kind === "undo" ? e.undoes : e.id);
       return (
-        !target || target.terminal || projectionRegionsPresented([target.e.widget])
+        !target ||
+        target.terminal ||
+        projectionRegionsPresented(record.coordinate.slice(0, 1))
       );
     });
     if (ready)
@@ -171,17 +171,21 @@ export function createProjectionPresentation() {
   // repaint.
 }
 
+/** @param {Element} root */
 export function shallowSigs(root) {
   const sigs = new Map();
+  /** @type {Map<Element | null, Map<Element, number>>} */
   const siblingPositions = new Map();
+  /** @param {Element} node */
   const isAuthored = (node) => Boolean(node.id) && authored(node)(node);
   for (const node of [root, ...root.querySelectorAll("[id]")]) {
     if (!isAuthored(node)) continue;
     const attrs = Object.fromEntries(
       [...node.attributes]
         .filter((attribute) => !isPagePaint(attribute.name))
-        .map((attribute) => [attribute.name, attribute.value])
-        .sort(([left], [right]) => left.localeCompare(right)),
+        .map((attribute) => ({ name: attribute.name, value: attribute.value }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map(({ name, value }) => [name, value]),
     );
     const parent = node.parentElement;
     let positions = siblingPositions.get(parent);

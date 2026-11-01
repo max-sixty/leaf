@@ -12,13 +12,18 @@ import { isElementName } from "./registry-contract.js";
 // attributes are words the page says. Empty only during the real fetch interval, when
 // the already-wired chrome can legitimately be used; a failed fetch still rejects
 // startup rather than becoming an empty vocabulary.
+/** A deciding verb and the member tags each outcome retires, stamped by registry.contract.stamp_decisions.
+ * @typedef {{verb: string, retires: Record<string, readonly string[]>}} Decision */
 export const registry = runtime.registry;
-export const tokenEntry = (name) => registry.$reactions.tokens[name];
+/** @param {string} name */
+export const tokenEntry = (name) => registry.$reactions?.tokens[name];
 
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
 // an idiom selector, by the `$names.widget` grammar Python reads too. Every widget
 // traversal goes through this owner rather than treating all vocabulary as widgets.
+/** @typedef {import("../types/contract.js").WidgetDeclaration} WidgetDeclaration */
+/** @returns {[string, WidgetDeclaration][]} */
 export const elementDeclarations = () =>
   Object.entries(registry).filter(([tag]) => isElementName(tag));
 
@@ -26,6 +31,7 @@ export const elementDeclarations = () =>
 // (`registry-contract.js`), where composition stamped it.
 // The layer-wide `$` declarations are frozen as they arrive, so `layerFact` hands a
 // package module the registry's own value, which it can read but not write.
+/** @param {typeof registry} declarations */
 export function adoptRegistry(declarations) {
   for (const [name, value] of Object.entries(declarations))
     if (name.startsWith("$")) freeze(value);
@@ -39,6 +45,8 @@ function freeze(value) {
   Object.freeze(value);
 }
 
+/** @typedef {{generation: string, recordSelectors: Map<string, string>, specs: {tag: string, verb: string, spec: import("../types/domain.js").ActionSpec}[]}} StateIndex */
+/** @type {StateIndex | undefined} */
 let stateIndex;
 /** @param {import("../types/domain.js").StateRecord} record */
 const recordSlot = (record) =>
@@ -49,10 +57,12 @@ function indexedState() {
     throw new Error("leaf: state vocabulary requested before registry loaded");
   if (stateIndex?.generation === generation) return stateIndex;
 
+  /** @type {StateIndex["specs"]} */
   const specs = [];
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
+  /** @type {Map<string, Set<string>>} */
   const recordTags = new Map();
   for (const { tag, spec } of specs) {
     if (!spec.record) continue;
@@ -79,14 +89,18 @@ export const recordedWidgetSelector = (record) =>
 /** @param {string} name */
 export const layerFact = (name) => registry[name];
 
-export const declarationFor = (el, key) => registry[el?.localName]?.[key];
+/** @template {keyof WidgetDeclaration} K @param {Element | null | undefined} el @param {K} key @returns {WidgetDeclaration[K] | undefined} */
+export const declarationFor = (el, key) =>
+  el ? registry[el.localName]?.[key] : undefined;
 
 // How a tag is decided, or null where no verb decides it: `verb`, the x-state verb whose
 // detail `outcome` is the decision, and `retires`, each outcome's member tags that leave
 // the page under it (x-retired-when). Composition stamps it into the vocabulary as
 // `$decisions` (Python's `registry.contract.stamp_decisions`), so nothing here re-derives it.
+/** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
+/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
 export const elementsDeclaring = (root, key, { direct = false } = {}) => {
   const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
   return candidates.filter((el) => declarationFor(el, key) !== undefined);
@@ -97,6 +111,7 @@ export const elementsDeclaring = (root, key, { direct = false } = {}) => {
 // they carry, so the twelfth widget is covered by its declaration alone — the alternative
 // keeps working perfectly on the widget it was taught and silently does nothing for the
 // next one.
+/** @param {(entry: WidgetDeclaration) => unknown} holds */
 export const tagsDeclaring = (holds) =>
   elementDeclarations()
     .filter(([, entry]) => holds(entry))
@@ -105,6 +120,7 @@ export const tagsDeclaring = (holds) =>
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each
 // value to the attribute's schema.
+/** @param {Element} el @param {Record<string, readonly (string | boolean)[]> | null | undefined} when */
 export const matchesWhen = (el, when) =>
   Object.entries(when ?? {}).every(([attr, values]) =>
     values.some((value) =>
@@ -115,6 +131,7 @@ export const matchesWhen = (el, when) =>
   );
 
 // An occurrence quotes its descendants only while its declared condition holds.
+/** @param {Element} el @param {WidgetDeclaration | null | undefined} entry */
 export const exhibits = (el, entry) => {
   const rule = entry?.["x-exhibit"];
   return typeof rule === "object" && rule !== null

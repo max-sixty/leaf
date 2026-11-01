@@ -15,7 +15,12 @@
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);
   }
-  const script = /** @type {HTMLScriptElement} */ (document.currentScript);
+  const script = (() => {
+    const entry = document.currentScript;
+    if (!(entry instanceof HTMLScriptElement))
+      throw new Error("The Leaf bootstrap needs its HTML script entry");
+    return entry;
+  })();
   const root = document.documentElement;
   // runtime/ids.js's randomId, which this classic script cannot import: a sample
   // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
@@ -29,7 +34,7 @@
   // layout, so a trusted input enters the browsing context before those handlers run.
   if (window !== window.top) {
     const nativeWindowFocus = window.focus;
-    const enterFrame = (event) => {
+    const enterFrame = /** @param {Event} event */ (event) => {
       if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
     };
     for (const type of ["pointerdown", "keydown"])
@@ -43,69 +48,77 @@
       root.lfSample = window.lfSampleBridge;
       root.lfSample.install();
     } else {
-      let port;
-      let settings;
+      /** @type {{port: MessagePort, settings: import("./sample-protocol.js").SampleSettings} | null} */
+      let connection = null;
       /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
+      /** @type {import("./sample-protocol.js").ChildMessage[]} */
       const queued = [];
+      /** @type {Set<(message: import("./sample-protocol.js").ParentMessage) => void>} */
       const listeners = new Set();
-      const send = (value) => (port ? port.postMessage(value) : queued.push(value));
+      /** @param {import("./sample-protocol.js").ChildMessage} value */
+      const send = (value) =>
+        connection ? connection.port.postMessage(value) : queued.push(value);
       /** @type {LeafSampleBridge} */
       const bridge = {
         ready,
         get settings() {
-          return settings;
+          if (!connection) throw new Error("The sample private port is not connected");
+          return connection.settings;
         },
         send,
+        install() {
+          const root = document.documentElement;
+          window.lfRootState.setRuntimeRootAttribute(
+            root,
+            "data-lf-sample-block",
+            bridge.settings.window ? null : "",
+          );
+          dress(worn);
+        },
         receive: (callback) => listeners.add(callback),
         present() {
-          document.documentElement.lfRootState.setRuntimeRootAttribute(
-            document.body,
-            "inert",
-            null,
-          );
+          window.lfRootState.setRuntimeRootAttribute(document.body, "inert", null);
         },
       };
       root.lfSample = bridge;
       window.lfSampleBridge = bridge;
+      /** @type {LeafDress} */
       let worn = { attributes: {}, properties: {} };
+      /** @param {LeafDress} [next] */
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
-        root.lfRootState.wear(root, next);
+        window.lfRootState.wear(root, next);
         worn = next;
-      };
-      bridge.install = () => {
-        const root = document.documentElement;
-        root.lfRootState.setRuntimeRootAttribute(
-          root,
-          "data-lf-sample-block",
-          settings.window ? null : "",
-        );
-        dress(worn);
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
       const nonce = randomId();
+      /** @param {MessageEvent<import("./sample-protocol.js").SampleOffer | undefined>} event */
       const connect = (event) => {
+        const port = event.ports[0];
         if (
           event.source !== window.parent ||
           event.data?.sample !== sample ||
           event.data.nonce !== nonce ||
-          !event.ports[0]
+          !port
         )
           return;
         window.removeEventListener("message", connect);
-        settings = event.data.settings;
-        port = event.ports[0];
+        const settings = event.data.settings;
+        connection = { port, settings };
         // The bootstrap element owns diagnostic readings before the entry starts.
         script.lfDocumentPort = port;
-        port.onmessage = ({ data }) => {
-          if (data.type === "dress") dress(data.detail);
-          else for (const callback of listeners) callback(data);
-        };
+        port.onmessage =
+          /** @param {MessageEvent<import("./sample-protocol.js").ParentMessage>} event */ ({
+            data,
+          }) => {
+            if (data.type === "dress") dress(data.detail);
+            else for (const callback of listeners) callback(data);
+          };
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
-        root.lfRootState.setRuntimeRootAttribute(
+        window.lfRootState.setRuntimeRootAttribute(
           root,
           "data-lf-sample-connecting",
           null,
@@ -119,7 +132,11 @@
       // shows a playground's candidate undressed. Opened as a window of its own, it
       // has no containing page to answer and paints at once.
       if (window.parent !== window)
-        root.lfRootState.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
+        window.lfRootState.setRuntimeRootAttribute(
+          root,
+          "data-lf-sample-connecting",
+          "",
+        );
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       // A frame's own navigation never keeps its document in the page cache, so a
@@ -129,9 +146,10 @@
         if (!event.persisted) send({ type: "departed" });
       });
     }
+    const sampleBridge = root.lfSample;
     window.addEventListener("lf-startup-failed", () =>
-      root.lfDocumentLifetime.whenActive("sample error", () =>
-        root.lfSample.send({
+      window.lfDocumentLifetime.whenActive("sample error", () =>
+        sampleBridge.send({
           type: "error",
           detail: root.lfStartupException ?? {
             message:
@@ -166,7 +184,7 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
-  const { takesLetters } = root.lfInputs;
+  const { takesLetters } = window.lfInputs;
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -176,9 +194,12 @@
     "CapsLock",
   ]);
   function holdEarlyKeys() {
+    /** @type {KeyboardEvent[]} */
     const held = [];
     let taken = false;
+    /** @type {((event: KeyboardEvent) => boolean) | null} */
     let ready = null;
+    /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
     const echo = document.createElement("p");
@@ -205,6 +226,7 @@
       beat = 0;
       echo.remove();
     };
+    /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
@@ -212,8 +234,9 @@
       if (echo.isConnected) show();
       else beat ||= setTimeout(show, 150);
     };
+    /** @param {KeyboardEvent} event */
     const hold = (event) => {
-      if (!root.lfKeyboard.quick) return letGo();
+      if (!window.lfKeyboard.quick) return letGo();
       if (event.isComposing || HALF_PRESSES.has(event.key)) return;
       // Shift chooses which character prints; Ctrl, Alt and Meta make a chord instead.
       const printed =
@@ -251,6 +274,7 @@
     // The controller takes a run, so the notice comes down, but the hold stands until its
     // owner has pressed the last key in it: a printed key pressed meanwhile joins the
     // same run rather than running ahead of the keys pressed before it.
+    /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
       keep = event.detail.keep;
@@ -296,16 +320,25 @@
   function observePublicStartup() {
     if (!release) return;
     let sent = false;
+    /** @type {number | null} */
     let upgradedMs = null;
+    /** @type {number | null} */
     let firstStateResponseMs = null;
+    /** @type {number | null} */
     let presentedMs = null;
+    /** @type {string | null} */
     let fault = null;
+    /** @param {number | undefined} value */
     const rounded = (value) =>
-      Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+      value !== undefined && Number.isFinite(value) && value >= 0
+        ? Math.round(value)
+        : null;
     const pageRoot = new URL(`${script.dataset.lfPageRoot}/`, location.origin);
     const stateUrl = new URL("api/state", pageRoot);
+    /** @param {readonly PerformanceEntry[]} entries */
     const readStateResponses = (entries) => {
       for (const entry of entries) {
+        if (!(entry instanceof PerformanceResourceTiming)) continue;
         const url = new URL(entry.name);
         if (
           url.origin !== stateUrl.origin ||
@@ -314,7 +347,7 @@
           entry.responseEnd <= 0
         )
           continue;
-        const ended = rounded(entry.responseEnd);
+        const ended = Math.round(entry.responseEnd);
         firstStateResponseMs =
           firstStateResponseMs === null ? ended : Math.min(firstStateResponseMs, ended);
       }
@@ -331,6 +364,7 @@
       if (presentedMs === null && document.body?.hasAttribute("data-lf-presented"))
         presentedMs = rounded(performance.now());
     };
+    /** @param {"presented" | "failed" | "abandoned" | "timeout"} outcome */
     const report = (outcome) => {
       if (sent) return;
       sent = true;
@@ -338,9 +372,9 @@
       observer.disconnect();
       readStateResponses(resources.takeRecords());
       resources.disconnect();
-      const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
-        performance.getEntriesByType("navigation")[0]
-      );
+      const navigation = performance
+        .getEntriesByType("navigation")
+        .find((entry) => entry instanceof PerformanceNavigationTiming);
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
@@ -407,6 +441,7 @@
   // with everything it is going to get. A fault that is the page's own (`page`) is
   // answered by no server: the page holds what its author wrote, so the notice says
   // the page has a problem and waits for nothing.
+  /** @param {string} reason @param {boolean} awaits @param {boolean} page */
   function recover(reason, awaits, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
@@ -453,7 +488,10 @@
       if (started) return;
       let restart = null;
       try {
-        const response = await fetch(script.dataset.lfProbe, { cache: "no-store" });
+        const probe = script.getAttribute("data-lf-probe");
+        if (probe === null)
+          throw new Error("Startup recovery requires its delivery probe");
+        const response = await fetch(probe, { cache: "no-store" });
         if (response.status === 404) {
           // The release this document names is gone, so nothing this document can load
           // will come back and only a newer one can start the page. Ask for it once,

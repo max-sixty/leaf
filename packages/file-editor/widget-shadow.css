@@ -18,7 +18,7 @@
   min-width: 0;
   overflow: auto;
   white-space: nowrap;
-  font: 600 0.9rem var(--mono);
+  font: var(--font-title);
 }
 :host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem;
@@ -27,7 +27,7 @@
   align-items: center;
   justify-content: flex-end;
   color: var(--muted);
-  font: 0.8rem var(--sans);
+  font: var(--font-small);
   /* The slot is as tall as a finger's floor leaves after the header's padding, so the
    * press of a status control, which spans the padding too, meets that floor. */
   min-block-size: max(1lh, var(--aim-floor) - 2 * var(--lf-file-editor-head-pad));
@@ -106,7 +106,7 @@
   background: var(--card);
   color: var(--ink);
   box-shadow: var(--raise-2);
-  font: 0.88rem var(--sans);
+  font: var(--font-ui);
 }
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
   display: flex;
@@ -141,7 +141,7 @@
 :host(lf-file-editor) .lf-file-editor-legend {
   flex: none;
   margin: 0 0 0.6rem;
-  font-size: 0.88rem;
+  font: var(--font-small);
   color: var(--muted);
 }
 :host(lf-file-editor) .lf-file-editor-comparison {

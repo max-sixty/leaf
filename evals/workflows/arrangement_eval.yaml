@@ -165,8 +165,11 @@ cases:
             review and not sent to the customer. Corrected current facts remain readable and reachable:
             34 affected workspaces, 09:10–09:42 UTC incident, completed queued exports, no files
             lost, no retry needed, root cause not yet confirmed and next update by 11:00 UTC.
-            Older proposed wording is not presented as the current approved reply. Judge usable
-            editing and recording outcomes, not a particular widget, editor engine or layout geometry."
+            Older proposed wording is not presented as the current approved reply.
+            On the before-decision page, complete the offered action that approves or records
+            the reply for internal review. Then change and save the wording where offered, without
+            approving it again; the changed wording must not be presented as approved.
+            Judge usable editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
       comment: &queue-comment
@@ -227,11 +230,12 @@ cases:
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
           rubric:
-            At every declared width, the page preserves the substantive information needed
-            for the user's task, makes its evidence readable and reachable, and provides the decisions
-            or navigation the request requires. The completed rollout's forty entries must remain
-            readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At desktop sizes, all six checks and their failing result stay
+            At every declared width, the error-rate chart and all forty rollout entries are
+            comfortably readable. The reader can follow the entries from oldest to newest,
+            with a usable reading area and a discoverable route through the complete log.
+            Judge whether scrolling preserves context and lets the reader
+            continue to related content and navigation without awkward switching or lost position.
+            At desktop sizes, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
             content remain reachable; a sticky box must not hold them below the window. At phone sizes,
             the regions stack without covering the log or hiding its entries.

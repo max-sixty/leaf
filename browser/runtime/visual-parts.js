@@ -19,8 +19,14 @@
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
+/** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
+ * @typedef {import("../types/contract.js").WidgetDeclaration["x-visual"]} VisualDeclaration
+ * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
+ * label: ((id: string) => string | null | undefined) | null}} Registration */
+/** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
 
+/** @param {unknown} value */
 const words = (value) =>
   String(value ?? "")
     .replace(/\s+/g, " ")
@@ -36,6 +42,8 @@ const words = (value) =>
  * called for visible destinations too. `label(id)` names a part absent from the
  * current state without revealing it.
  */
+/** @param {Element} source @param {() => Iterable<VisualPart>} read
+ * @param {{reveal?: ((id: string) => void) | null, label?: ((id: string) => string | null | undefined) | null}} [options] */
 export function registerVisualParts(
   source,
   read,
@@ -49,19 +57,22 @@ export function registerVisualParts(
 
 /** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
  * Registered inventory order is also the order of the visual's targets. */
+/** @param {Element} visual @param {VisualDeclaration | null} declaration */
 export function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
-  const { prefixes } = declaration;
-  if (prefixes)
-    return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+  if ("prefixes" in declaration)
+    return (/** @type {string} */ id) =>
+      declaration.prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
   return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
 
 /** Whether a part absent from the current inventory can still be drawn on request. */
+/** @param {Element} source */
 export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
 /** Settle the requested part, even while old pixels await a replacement. */
+/** @param {Element} source @param {string} id */
 export function revealRegisteredVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
   if (reveal) reveal(id);
@@ -69,17 +80,20 @@ export function revealRegisteredVisualPart(source, id) {
 }
 
 /** Invalid registrations or ids outside a provider's declared prefixes. */
+/** @param {Element} source @param {VisualDeclaration | null} declaration */
 export function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
   if (!registrations.has(source)) return [{ kind: "unregistered" }];
   const parts = registeredVisualParts(source);
   const admission = visualPartAdmission(source, declaration);
-  const outside = declaration.prefixes
-    ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
-    : [];
+  const outside =
+    "prefixes" in declaration && admission
+      ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
+      : [];
   return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 
+/** @param {Element} source */
 export function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
   if (!read) return [];
@@ -112,9 +126,11 @@ export function registeredVisualParts(source) {
   });
 }
 
+/** @param {Element} source @param {string} id */
 export const registeredVisualPart = (source, id) =>
   registeredVisualParts(source).find((part) => part.id === id) ?? null;
 
+/** @param {Element} source @param {string} id */
 export const registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
   if (current) return current;
@@ -122,7 +138,7 @@ export const registeredVisualPartLabel = (source, id) => {
   return words(label) || null;
 };
 
-/** @param {(part: any) => boolean} [admits] */
+/** @param {Element} source @param {Element | null} target @param {(part: VisualPart) => boolean} [admits] */
 export function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
     registeredVisualParts(source)

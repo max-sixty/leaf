@@ -28,20 +28,15 @@ const artifact = {
   files: [
     { path, content: "new bundle" },
     { path: theme, content: "new theme" },
-    { path: "browser/runtime/framework/snapshot.js", content: "new typed output" },
   ],
 };
 
 test("the trusted publisher loads its build declaration without installed dependencies", () => {
   const directory = mkdtempSync(join(tmpdir(), "dependency-publisher-"));
   try {
-    for (const name of [".github/scripts", "build", "packages", "browser/runtime"])
+    for (const name of [".github/scripts", "build", "packages"])
       mkdirSync(join(directory, name), { recursive: true });
-    for (const name of [
-      ".github/scripts/dependency-bundles.mjs",
-      "build/styles.mjs",
-      "build/runtime-sources.mjs",
-    ])
+    for (const name of [".github/scripts/dependency-bundles.mjs", "build/styles.mjs"])
       copyFileSync(new URL(`../../${name}`, import.meta.url), join(directory, name));
     execFileSync(process.execPath, [
       "--input-type=module",
@@ -147,12 +142,6 @@ test("publisher changes only bundles on the exact Dependabot branch and preserve
   assert.deepEqual(calls.find((c) => c.route.endsWith("/trees")).data.tree, [
     { path, mode: "100644", type: "blob", content: "new bundle" },
     { path: theme, mode: "100644", type: "blob", content: "new theme" },
-    {
-      path: "browser/runtime/framework/snapshot.js",
-      mode: "100644",
-      type: "blob",
-      content: "new typed output",
-    },
   ]);
   assert.deepEqual(
     calls.find((c) => c.route.endsWith("/commits") && c.method === "POST").data.parents,

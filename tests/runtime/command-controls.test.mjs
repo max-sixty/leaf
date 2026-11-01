@@ -14,6 +14,7 @@ import {
 } from "../../browser/runtime/keyboard/scopes.js";
 import {
   activeRows,
+  checked,
   commandAvailable,
   commandEntries,
   commandReady,
@@ -29,6 +30,74 @@ import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
+
+test("touch commands may declare a handler that becomes available later", () => {
+  let available = false;
+  let reads = 0;
+  const run = () => {};
+  const row = {
+    id: "readiness.live-touch",
+    title: "Restore selection",
+    keys: ["v"],
+    touch: "Restore selection",
+    when: () => available,
+    get run() {
+      reads++;
+      return available ? run : undefined;
+    },
+  };
+  assert.doesNotThrow(() => checked([row], "selection"));
+  assert.equal(reads, 0);
+  available = true;
+  assert.equal(row.run, run);
+  assert.throws(
+    () => checked([{ ...row, run: undefined }], "selection"),
+    /needs a run/,
+  );
+});
+
+test("page scope assembly validates a live declaration without reading its handler", async () => {
+  const { pageScope, pageScopes } =
+    await import("../../browser/runtime/keyboard/register.js");
+  let reads = 0;
+  const remove = pageScope("versions", {
+    rows: [
+      {
+        id: "readiness.scope-handler",
+        title: "Version action",
+        keys: ["x"],
+        touch: false,
+        get run() {
+          reads++;
+          return undefined;
+        },
+      },
+    ],
+  });
+  try {
+    pageScopes();
+    assert.equal(reads, 0);
+  } finally {
+    remove();
+  }
+});
+
+test("attaching an element scope wires declared controls without reading live handlers", () => {
+  const owner = document.createElement("section");
+  let reads = 0;
+  keys(owner, "A constructed owner", [
+    {
+      id: "readiness.constructed-handler",
+      title: "Open",
+      keys: ["x"],
+      get run() {
+        reads++;
+        return undefined;
+      },
+    },
+  ]);
+  assert.equal(reads, 0);
+});
 
 test("saved-reading commands retain their key until their input is known", async () => {
   const { applicationState, readApplication } =
@@ -206,7 +275,7 @@ test("mixed routes and their context aliases retain each Decision's readiness", 
         control: inspect,
       },
     ],
-    run: (binding) => runs.push(binding),
+    runKey: (binding) => runs.push(binding),
   };
   keys(owner, commandScope("Mixed readiness", [row], { ready: () => true }));
   const press = (key) => new window.KeyboardEvent("keydown", { key, cancelable: true });
@@ -398,7 +467,43 @@ test("a button a projected scope names activates before its declaration is paint
   control.remove();
 });
 
-// A projected entry retains native origin/surface/input without a second callback.
+test("a contribution owns current focus across its controls' shadow roots", async () => {
+  const { registerContribution, contributionEntries } =
+    await import("../../browser/runtime/contributions.js");
+  const { trackContributionControl } =
+    await import("../../browser/runtime/contribution-controls.js");
+  const owner = document.createElement("section");
+  const control = document.createElement("div");
+  const outside = document.createElement("button");
+  const inner = document.createElement("button");
+  control.attachShadow({ mode: "open" }).append(inner);
+  owner.append(control, outside);
+  document.body.append(owner);
+  const registration = registerContribution({
+    key: "shadow-current-location",
+    target: owner,
+    read: () => ({
+      entries: [
+        { key: "inspect", label: "Inspect", icon: "check", activation: "inspect" },
+      ],
+    }),
+    activate: () => {},
+  });
+  const offered = [...contributionEntries()].find((item) => item.target() === owner);
+  trackContributionControl(offered, "map", "inspect", control);
+  try {
+    inner.focus();
+    assert.equal(registration.contains(inner), true);
+    assert.equal(registration.hasCurrentLocation(), true);
+    outside.focus();
+    assert.equal(registration.hasCurrentLocation(), false);
+  } finally {
+    registration.unregister();
+    owner.remove();
+  }
+});
+
+// A projected entry invokes the same keyed command as the keyboard route.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =
     await import("../../browser/runtime/contributions.js");
@@ -414,8 +519,7 @@ test("a contribution invokes its declared command and derives refusal from it", 
       title: "Apply",
       keys: ["x"],
       when: () => available,
-      run: (_binding, context) =>
-        received.push([context.origin, context.surface, context.input]),
+      runKey: (binding) => received.push(binding),
     },
   ]);
   const cached = contributionEntry({
@@ -440,7 +544,7 @@ test("a contribution invokes its declared command and derives refusal from it", 
     }),
     true,
   );
-  assert.deepEqual(received, [[control, "map", "pointer"]]);
+  assert.deepEqual(received, ["x"]);
   available = false;
   paintKeys();
   reflectKeys();
@@ -569,7 +673,7 @@ test("a shared button selects its live state and context-only routes retain thei
         { id: "probe.first", title: "First", contextKeys: ["1"], control: button },
         { id: "probe.second", title: "Second", contextKeys: ["2"], control: second },
       ],
-      run: (binding) => result.push(binding),
+      runKey: (binding) => result.push(binding),
     },
   ]);
   reflectFirstScopes();
@@ -1453,6 +1557,48 @@ test("a widget's declared commands stand from before it is placed until it withd
     assert.throws(() => commandsChanged(owner), /not a stable command id/);
     assert.deepEqual(declared(), []);
   } finally {
+    owner.remove();
+  }
+});
+
+test("a chosen contribution offer retains its exact reading across a later update", async () => {
+  const { registerContribution, contributionEntries } =
+    await import("/runtime/contributions.js");
+  const { materializeContributionControls, activateContributionControl } =
+    await import("/runtime/contribution-controls.js");
+  const owner = document.createElement("section");
+  document.body.append(owner);
+  let label = "Before the update";
+  const registration = registerContribution({
+    key: "snapshot-control",
+    target: owner,
+    read: () => ({ entries: [{ key: "choose", glyph: "✓", label }] }),
+    activate() {},
+  });
+  try {
+    const source = [...contributionEntries()].find(
+      (source) => source.target() === owner,
+    );
+    const chosen = source.model;
+    label = "After the update";
+    registration.update();
+    assert.equal(chosen.source(), source);
+    assert.equal(chosen.source, source.model.source);
+    const before = materializeContributionControls(
+      chosen,
+      "margin",
+      activateContributionControl,
+    )(chosen.reading.entries[0]);
+    assert.match(before.textContent, /Before the update/);
+    const after = materializeContributionControls(
+      source.model,
+      "margin",
+      activateContributionControl,
+    )(source.model.reading.entries[0]);
+    assert.equal(after, before);
+    assert.match(after.textContent, /After the update/);
+  } finally {
+    registration.unregister();
     owner.remove();
   }
 });

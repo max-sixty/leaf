@@ -20,8 +20,9 @@ const { collapse, blocks, context } = kernel.$passages;
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
 // `-` meanings of their own.
-const escaped = [...collapse]
-  .map((ch) => `\\u${ch.codePointAt(0).toString(16).padStart(4, "0")}`)
+const escaped = collapse
+  .split("")
+  .map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)
   .join("");
 export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
@@ -33,8 +34,8 @@ export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @type {Record<string, {paint: string, message: boolean, authored?: string,
- *   authored_on?: string, presence?: boolean}>} */
+/** @typedef {{paint: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
+/** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
 export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);

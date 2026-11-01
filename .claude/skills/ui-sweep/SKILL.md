@@ -126,7 +126,7 @@ native-scale details where the full image can't support the judgment. Computed s
 and geometry explain a visual result but don't establish that it looks coherent. Test
 affected paint in both color schemes and in print.
 
-Judge against `browser/AGENTS.md`, "Layout and motion". Visual grammar stays a browser
+Judge against `browser/AGENTS.md`, "Leaf's interface". Visual treatment stays a browser
 judgment; automate only the concrete failures it finds.
 
 ## Reconcile

@@ -7,6 +7,7 @@ import { selectWidgets } from "./semantic-state.js";
 import { domValue } from "./projection/authored.js";
 import { elementById } from "./passages.js";
 
+/** @param {readonly string[] | null} [eventIds] */
 export function validationWidgetStates(eventIds = null) {
   return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
     id,
@@ -14,9 +15,9 @@ export function validationWidgetStates(eventIds = null) {
       return elementById(id);
     },
     state,
-    read: () =>
-      [...specs]
-        .filter(([, spec]) => spec.record?.kind === "body")
-        .map(([verb, spec]) => [verb, domValue(elementById(id), spec.record)]),
+    read: (/** @type {Element} */ widget) =>
+      [...specs].flatMap(([verb, spec]) =>
+        spec.record?.kind === "body" ? [[verb, domValue(widget, spec.record)]] : [],
+      ),
   }));
 }

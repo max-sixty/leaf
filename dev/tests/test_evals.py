@@ -271,6 +271,70 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
             )
             assert live["config"]["judge"]["id"].endswith("/arrangement_eval.py")
 
+    # A saved run can contain the same Python provider on different models. The
+    # report must join labels and keep the saved model, even after pins change.
+    from leaf_dev.commands.eval_report import report_samples
+
+    providers = [
+        provider
+        for provider in config["providers"]
+        if provider["label"].endswith("/workflow")
+    ]
+    assert len({provider["id"] for provider in providers}) == 1
+    records = []
+    for index, provider in enumerate(providers):
+        provider["config"]["model"] = f"recorded-model-{index}"
+        records.append(
+            {
+                "id": str(index),
+                "provider": {key: provider[key] for key in ("id", "label")},
+                "testCase": next(
+                    test
+                    for test in config["tests"]
+                    if test["metadata"]["case"] == "configuration"
+                ),
+                "response": {},
+            }
+        )
+    monkeypatch.setitem(module.MODELS, "claude-code", "a-new-default")
+    native = next(
+        p for p in config["providers"] if p["id"] == "anthropic:claude-agent-sdk"
+    )
+    native_model = native["config"]["model"]
+    records.append(
+        {
+            "id": "native",
+            "provider": {key: native[key] for key in ("id", "label")},
+            "testCase": next(
+                test
+                for test in config["tests"]
+                if test["metadata"]["case"] == "todo-outlasts-the-turn"
+            ),
+            "response": {},
+        }
+    )
+    run = tmp_path / "recorded-run"
+    run.mkdir()
+    (run / "results.json").write_text(
+        json.dumps({"config": config, "results": {"results": records}})
+    )
+    reported = report_samples((run,))
+    native_execution = reported["todo-outlasts-the-turn"][native["label"]][0][
+        "execution_metadata"
+    ]
+    assert native_execution["author"] == {
+        "harness": "claude-code",
+        "model": native_model,
+    }
+    assert native_execution["kind"] == "probe"
+    assert native_execution["requested_viewports"] == []
+    columns = reported["configuration"]
+    for index, provider in enumerate(providers):
+        execution = columns[provider["label"]][0]["execution_metadata"]
+        assert execution["author"]["model"] == f"recorded-model-{index}"
+        assert execution["kind"] == "workflow"
+        assert execution["requested_viewports"] == ["desktop"]
+
 
 def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
     config = module.prepare(
@@ -352,7 +416,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
 
     from leaf_dev import ROOT
     from leaf_dev import arrangement_eval as workflow
-    from leaf_dev.browser import headless_shell, load, tab
+    from leaf_dev.browser import headless_shell, load, settle, tab
 
     work = tmp_path / "originals"
     directory = tmp_path / "sample"
@@ -423,6 +487,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
                 with view.expect_popup() as opened:
                     view.get_by_role("link", name="Open handoff").click()
                 linked = opened.value
+                settle(linked)
                 expect(
                     linked.get_by_role("heading", name=f"Handoff phase {phase}")
                 ).to_be_visible()
@@ -431,6 +496,36 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
                 expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
                     "aria-checked", "true"
                 )
+    assert {p: p.read_bytes() for p in originals} == originals
+
+    # The judge receives delivered addresses as well as navigable page links.
+    reply = f"Review the queue at {urls[main]} and the handoff at {urls[handoff]}."
+    evidence = tmp_path / "judge"
+
+    def inspect_judge(_cwd, instructions, *args, **kwargs):
+        restored = json.loads((evidence / "restored-pages.json").read_text())["final"]
+        assert set(restored) == set(urls.values())
+        assert reply in instructions
+        assert all(address in instructions for address in restored.values())
+        raise RuntimeError("Judge prompt inspected without invoking a model")
+
+    monkeypatch.setattr(workflow, "run_agent", inspect_judge)
+    monkeypatch.setattr(workflow.pane_readings, "read", lambda *args: {})
+    result = workflow.judge_pages(
+        {
+            "final": {
+                "page": run.page(2),
+                "payload": ROOT,
+                "condition": "leaf",
+                "author_reply": reply,
+            }
+        },
+        {},
+        "Review the delivered queue and handoff.",
+        {},
+        evidence,
+    )
+    assert result["error"] == "Judge prompt inspected without invoking a model"
     assert {p: p.read_bytes() for p in originals} == originals
 
     # Model boundary only: the author created both servers before it settled.

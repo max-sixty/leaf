@@ -50,6 +50,7 @@ from render_harness import (
     select,
     sending,
     take_browser_errors,
+    wait_for_check_api,
     write,
 )
 
@@ -1344,9 +1345,9 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
     """Every artifact starts through Leaf's own document and state boundaries.
 
-    A published workspace owns main and keeps its bounded reading regions: the page
-    does not scroll, and each region scrolls on its own, whether that is a pane's body
-    or the workspace's body itself, as where a side-list queue is the body."""
+    A published workspace owns main and keeps reading within its bounded regions:
+    the page does not scroll, and each visible region uses a scroller inside the
+    workspace, either its own body or a containing region's."""
     framed = set(framed_root_examples())
     pages = published_pages()
     _, url = served_example(pages[0].stem)
@@ -1370,23 +1371,19 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             framed.remove(source.stem)
             expect(page.locator("body > main.layout-workspace")).to_have_count(1)
             expect(page.locator("body > main .sitenote")).to_have_count(0)
-            page.wait_for_function(WORKSPACE_REGIONS_SCROLL_ALONE)
+            wait_for_check_api(page, WORKSPACE_REGIONS_SCROLL_ALONE)
     assert not framed, f"framed examples the sweep never opened: {framed}"
 
 
-WORKSPACE_REGIONS_SCROLL_ALONE = """() => {
+WORKSPACE_REGIONS_SCROLL_ALONE = """({unconcealedReadingRegions, effectiveScroller}) => {
   const page = document.documentElement;
   const main = document.querySelector('body > main.layout-workspace');
-  const pane = '[data-lf-reading-role="pane"]';
-  const bodyOf = (box) =>
-    [...box.children].find(child => !child.matches('header, footer'));
-  const regions = [
-    ...[...main.children].filter(
-      child => !child.matches('header, footer') && !child.matches(pane)),
-    ...[...main.querySelectorAll(pane)].map(bodyOf),
-  ];
+  const regions = unconcealedReadingRegions().filter(region => main.contains(region.host));
   return page.scrollHeight === page.clientHeight && regions.length > 0
-    && regions.every(region => getComputedStyle(region).overflowY === 'auto');
+    && regions.every(region => {
+      const scroller = effectiveScroller(region);
+      return main.contains(scroller) && getComputedStyle(scroller).overflowY === 'auto';
+    });
 }"""
 
 

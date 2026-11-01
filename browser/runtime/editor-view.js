@@ -23,6 +23,9 @@ import { clamp, union } from "./rect.js";
 // CodeMirror exposes its scroll request and margin providers through this hook,
 // but does not expose a native-free version of its default reveal. Translate that
 // request only for the editor's own scrollport; Leaf owns the enclosing placement.
+/** @typedef {Parameters<Parameters<typeof import("@codemirror/view").EditorView.scrollHandler.of>[0]>[2]} ScrollOptions */
+/** @param {number} start @param {number} end @param {number} low @param {number} high
+ * @param {ScrollOptions["x"]} alignment @param {number} margin @param {number} side */
 function travel(start, end, low, high, alignment, margin, side) {
   if (alignment === "nearest") {
     if (start < low + margin) {
@@ -42,15 +45,17 @@ function travel(start, end, low, high, alignment, margin, side) {
     : end - high + margin;
 }
 
+/** @type {WeakMap<typeof import("/vendor/codemirror.esm.js"), ReturnType<typeof editorViewOver>>} */
 const classes = new WeakMap();
 /** The view class over `codemirror`, the namespace of `/vendor/codemirror.esm.js`.
- * @param {typeof import("../vendor/codemirror.esm.js")} codemirror */
+ * @param {typeof import("/vendor/codemirror.esm.js")} codemirror */
 export function leafEditorView(codemirror) {
   let made = classes.get(codemirror);
   if (!made) classes.set(codemirror, (made = editorViewOver(codemirror)));
   return made;
 }
 
+/** @param {typeof import("/vendor/codemirror.esm.js")} codemirror */
 function editorViewOver({
   Compartment,
   Direction,
@@ -60,6 +65,7 @@ function editorViewOver({
 }) {
   // The caret at `at`, as a node a reveal can land and its rectangle, read from the DOM
   // so a scroll handler may call it while the view updates (`LeafEditorView.caretAt`).
+  /** @param {import("@codemirror/view").EditorView} view @param {number} at */
   function caretAt(view, at) {
     const position = view.domAtPos(at);
     const caret = document.createRange();
@@ -71,6 +77,8 @@ function editorViewOver({
     // vertically while keeping the caret at its writing edge horizontally.
     const destination =
       position.node instanceof Element ? position.node : position.node.parentElement;
+    if (!destination)
+      throw new Error("CodeMirror returned a caret outside its editor DOM");
     const box = destination.getBoundingClientRect();
     const x = view.textDirection === Direction.LTR ? box.left : box.right;
     return {
@@ -79,15 +87,19 @@ function editorViewOver({
     };
   }
 
+  /** @param {import("@codemirror/view").EditorView} view
+   * @param {import("@codemirror/state").SelectionRange} selection @param {ScrollOptions} options
+   * @param {import("./rect.js").Box} head */
   function placeWithinEditor(view, selection, options, head) {
     const rectangle = union(
       selection.empty ? [head] : [head, caretAt(view, selection.anchor).rectangle],
     );
+    /** @type {Record<"top" | "bottom" | "left" | "right", number>} */
     const margins = { top: 0, bottom: 0, left: 0, right: 0 };
     for (const provider of view.state.facet(EditorView.scrollMargins)) {
       const supplied = provider(view);
       if (supplied)
-        for (const edge of Object.keys(margins))
+        for (const edge of EDGES)
           margins[edge] = Math.max(margins[edge], supplied[edge] ?? 0);
     }
     const port = view.scrollDOM;
@@ -142,6 +154,8 @@ function editorViewOver({
     });
   }
 
+  /** @type {(keyof import("./rect.js").Box)[]} */
+  const EDGES = ["top", "bottom", "left", "right"];
   const navigation = new Compartment();
   const reveal = EditorView.scrollHandler.of((view, selection, options) => {
     const { destination, rectangle } = caretAt(view, selection.head);
@@ -149,6 +163,7 @@ function editorViewOver({
     scrollIntoView(destination, { block: "nearest", behavior: "instant" });
     return true;
   });
+  /** @param {import("@codemirror/state").EditorState} state */
   const withNavigation = (state) =>
     navigation.get(state) === undefined
       ? state.update({ effects: StateEffect.appendConfig.of(navigation.of(reveal)) })
@@ -160,6 +175,7 @@ function editorViewOver({
     // focus has landed.
     #focusing = false;
 
+    /** @param {import("@codemirror/view").EditorViewConfig} [config] */
     constructor(config = {}) {
       super({
         ...config,
@@ -180,10 +196,12 @@ function editorViewOver({
     }
 
     /** The caret at `at`: a node a reveal can land, and its rectangle. */
-    caretAt(at) {
-      return caretAt(this, at);
+    /** @param {import("@codemirror/view").EditorView} view @param {number} at */
+    static caretAt(view, at) {
+      return caretAt(view, at);
     }
 
+    /** @param {import("@codemirror/state").EditorState} state */
     setState(state) {
       super.setState(withNavigation(state));
     }
@@ -194,6 +212,7 @@ function editorViewOver({
     focus() {
       if (!canPlaceFocus()) return;
       const selection = this.#selection();
+      if (!selection) return;
       if (
         this.root.activeElement !== this.contentDOM &&
         selection
@@ -224,7 +243,7 @@ function editorViewOver({
       const { anchor, head } = this.state.selection.main;
       const from = this.domAtPos(anchor);
       const to = this.domAtPos(head);
-      this.#selection().setBaseAndExtent(from.node, from.offset, to.node, to.offset);
+      this.#selection()?.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
     }
 
     // Firefox and WebKit lack ShadowRoot.getSelection; the document holds theirs.

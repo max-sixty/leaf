@@ -85,17 +85,19 @@ log, write the current page into a new page directory and hand over its URL.
 
 ## Page lifetime
 
-`server start` from an agent session claims the page for that session and connects
-the harness's delivery, even when the server is already running. The first serve sets
-the page's lifetime, and later serves keep it. To make a session page persistent, stop
-it and start it with `--lifetime persistent`, or start it from the user's shell.
+With its default `--lifetime session`, `server start` from an agent session claims
+the page and connects the harness's delivery, even when the server is already running.
+The first serve sets the page's lifetime, and later serves keep it. To make a session page
+persistent, stop it and start it with `--lifetime persistent`, or start it from the
+user's shell.
 
 A session page stops when no live session holds it: when a terminal harness exits, or
 when a desktop Codex chat is archived or deleted.
 
-A persistent page keeps running between sessions; starting it prepares no agent
-delivery. Tell the user
-when you start one: they now own a process that only `leaf server stop <page>` ends.
+A persistent page keeps running between sessions. Starting it with
+`--lifetime persistent` claims no page and prepares no agent delivery; only
+`leaf server stop <page>` ends it.
+Tell the user about that lifetime when handing the page over.
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
 stop <page>` disables the server; a watcher keeps watching a stopped page until it is

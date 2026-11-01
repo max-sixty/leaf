@@ -5,6 +5,23 @@
  * cannot refill a sent box or overwrite a user's edit. Only one box captures at a time.
  * This module is loaded on the first microphone press, outside page startup. */
 
+/** The browser recognition capability supplied by the composer, including prefixed implementations.
+ * @typedef {{transcript: string}} RecognitionAlternative
+ * @typedef {readonly [RecognitionAlternative, ...RecognitionAlternative[]]} RecognitionResult
+ * @typedef {Object} Recognition
+ * @property {boolean} continuous
+ * @property {boolean} interimResults
+ * @property {string} lang
+ * @property {(() => void) | null} onstart
+ * @property {((event: {results: ArrayLike<RecognitionResult>}) => void) | null} onresult
+ * @property {((event: {error: string}) => void) | null} onerror
+ * @property {(() => void) | null} onend
+ * @property {() => void} start
+ * @property {() => void} stop
+ * @property {() => void} abort
+ * @typedef {{cancel: () => void}} ActiveDictation
+ */
+/** @type {Readonly<Record<string, string>>} */
 const FAILURES = {
   "not-allowed": "Microphone access blocked",
   "service-not-allowed": "Dictation is off in this browser",
@@ -14,12 +31,16 @@ const FAILURES = {
   "no-speech": "No speech heard",
 };
 const STATUS = {
+  idle: "",
   starting: "Starting microphone…",
   listening: "Listening…",
   stopping: "Finishing…",
 };
+/** @type {ActiveDictation | null} */
 let active = null;
 
+/** @param {{Recognition: new () => Recognition, language: string, read: () => string,
+ * write: (words: string) => void, changed: () => void, announce: (news: string) => void}} options */
 export function createDictation({
   Recognition,
   language,
@@ -28,11 +49,15 @@ export function createDictation({
   changed,
   announce,
 }) {
+  /** @type {Recognition | null} */
   let session = null;
+  /** @type {keyof typeof STATUS} */
   let phase = "idle";
+  /** @type {{error: string, text: string} | null} */
   let failure = null;
   let writing = false;
 
+  /** @param {string} [news] */
   const end = (news) => {
     const previous = session;
     session = null;
@@ -56,7 +81,7 @@ export function createDictation({
       return failure;
     },
     get status() {
-      return STATUS[phase] ?? failure?.text ?? "";
+      return STATUS[phase] || failure?.text || "";
     },
     cancel,
     edited() {

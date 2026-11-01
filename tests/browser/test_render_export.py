@@ -265,7 +265,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         leaf_page(
             "offline deferred data",
             '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     patch = (
@@ -410,6 +410,11 @@ def test_an_export_keeps_utf8(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
+    imports = page.evaluate("""() => JSON.parse(
+        document.querySelector('script[type="importmap"]').textContent
+    ).imports""")
+    assert imports
+    assert all(url.startswith("blob:") for url in imports.values())
     assert page.evaluate("document.characterSet") == "UTF-8"
     assert page.evaluate("window.order") == ["head", "body"]
     assert page.evaluate("document.doctype.name") == "html"
@@ -679,8 +684,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     url = serve(
         leaf_page(
             "thread export",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
     data_model.cmd_data_set(

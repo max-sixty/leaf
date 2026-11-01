@@ -28,7 +28,6 @@
 @import "./styles/chip.css";
 @import "./styles/shot.css";
 @import "./styles/gloss.css";
-@import "./styles/apparatus.css";
 @import "./styles/options.css";
 @import "./styles/board.css";
 @import "./styles/tabs.css";
@@ -40,3 +39,4 @@
 @import "./styles/code.css";
 @import "./styles/text-document.css";
 @import "./styles/draft.css";
+@import "./styles/apparatus.css";

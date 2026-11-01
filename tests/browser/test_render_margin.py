@@ -351,41 +351,30 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     # The card's top edge stands a gap over its words' first line while the whole card
     # fits under it, as the comment box's does (comment-placement.js), and it holds at
     # the window's foot once the words scroll lower than that. The panel stands beside
-    # this margin, so it takes none of the card's height. Each scroll is read
-    # after the frame the scroll listener places the card in.
-    moved = page.evaluate(
-        """async () => {
-          const positions = () => {
-            const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-            const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
-            return {
-              card: card.top, cardBottom: card.bottom, foot: innerHeight,
-              besidePanel: card.left >= panel.right || card.right <= panel.left,
-              // The words the thread quotes start the paragraph's first line.
-              controls: (() => {
-                const range = document.createRange();
-                range.selectNodeContents(document.querySelector('#thread-text'));
-                return range.getClientRects()[0].top - 8;
-              })(),
-              scrollY,
-            };
-          };
-          const placed = () => new Promise(resolve => requestAnimationFrame(
-            () => requestAnimationFrame(resolve)));
-          // Keep the first two positions below the window's 8px boundary, so
-          // these readings exercise following the words rather than clamping.
-          scrollBy(0, 180);
-          await placed();
-          const high = positions();
-          scrollBy(0, 40);
-          await placed();
-          const higher = positions();
-          scrollBy(0, -450);
-          await placed();
-          const low = positions();
-          return {high, higher, low};
-        }"""
-    )
+    # this margin, so it takes none of the card's height. Read each scroll after rendering
+    # settles, including the layout observers that can queue another placement.
+    positions = """() => {
+        const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+        const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
+        return {
+          card: card.top, cardBottom: card.bottom, foot: innerHeight,
+          besidePanel: card.left >= panel.right || card.right <= panel.left,
+          // The words the thread quotes start the paragraph's first line.
+          controls: (() => {
+            const range = document.createRange();
+            range.selectNodeContents(document.querySelector('#thread-text'));
+            return range.getClientRects()[0].top - 8;
+          })(),
+          scrollY,
+        };
+    }"""
+    moved = {}
+    # Keep the first two positions below the window's 8px boundary, so these
+    # readings exercise following the words rather than clamping.
+    for name, distance in (("high", 180), ("higher", 40), ("low", -450)):
+        page.evaluate("distance => scrollBy(0, distance)", distance)
+        rendered(page)
+        moved[name] = page.evaluate(positions)
     assert moved["high"]["card"] == pytest.approx(moved["high"]["controls"], abs=0.5)
     assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
     assert moved["higher"]["card"] - moved["higher"]["controls"] == pytest.approx(

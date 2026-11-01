@@ -96,8 +96,13 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     select(page, (box["x"] + 1, y), (box["x"] + box["width"] - 1, y))
     assert "Adds 50" in page.evaluate("getSelection().toString()")
     expect(position).to_have_text("Step 6 of 6 · 5.2 s")
+    rows.nth(1).evaluate(
+        "row => { window.pressed = 0; row.addEventListener('click', () => pressed++); }"
+    )
     page.keyboard.press("Enter")
     expect(position).to_have_text("Step 2 of 6 · 0.2 s")
+    # The row is a span pressed as a button is, and nothing of Leaf's presses it again.
+    assert page.evaluate("pressed") == 1
     # Tab reaches the next row; Space takes the playhead there.
     page.keyboard.press("Tab")
     page.keyboard.press("Space")
@@ -150,6 +155,69 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page.set_viewport_size({"width": 700, "height": 900})
     page.evaluate(NEXT_FRAME)
     assert_labels_clear(page)
+
+
+RUNS = """<h1>Race</h1>
+<lf-timeline id="race" aria-label="The race before and after the fix">
+  <lf-run label="Before the fix">
+    <lf-lane label="Job A">
+      <lf-event id="before-a-work" at="0" end="4200" label="Adds 50"></lf-event>
+      <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
+    </lf-lane>
+    <lf-lane label="Job B">
+      <lf-event id="before-b-write" at="5200" label="Writes 70"></lf-event>
+    </lf-lane>
+  </lf-run>
+  <lf-run label="After the fix">
+    <lf-lane label="Job A">
+      <lf-event id="after-a-work" at="0" end="4200" label="Adds 50"></lf-event>
+      <lf-event id="after-a-write" at="4200" label="Writes 150, unlocks"></lf-event>
+    </lf-lane>
+    <lf-lane label="Job B">
+      <lf-event id="after-b-write" at="8500" label="Writes 120, unlocks"></lf-event>
+    </lf-lane>
+  </lf-run>
+</lf-timeline>"""
+
+
+def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
+    page = open_page(browser, serve(leaf_page("Race", RUNS), packages=("timeline",)))
+    reading = page.evaluate(
+        """() => {
+          const race = document.querySelector('#race');
+          const box = (selector) => race.querySelector(selector).getBoundingClientRect();
+          const mark = (id) => box(`[data-event="${id}"] .lf-timeline-mark`);
+          const lanes = [...race.querySelectorAll('.lf-timeline-lane')].map((lane) =>
+            lane.getBoundingClientRect());
+          const runs = [...race.querySelectorAll('.lf-timeline-run')].map((run) =>
+            run.getBoundingClientRect());
+          return {
+            before: mark('before-a-write'), after: mark('after-a-write'),
+            beforeEnd: mark('before-b-write'), afterEnd: mark('after-b-write'),
+            playhead: box('.lf-timeline-playhead-line'), lanes, runs,
+          };
+        }"""
+    )
+    # The same moment stands at the same x in every run, and the longer run reaches
+    # further along the one axis.
+    assert abs(reading["before"]["x"] - reading["after"]["x"]) < 0.5, reading
+    assert reading["afterEnd"]["x"] > reading["beforeEnd"]["x"] + 50, reading
+    # One playhead crosses every run's lanes.
+    lanes = reading["lanes"]
+    assert reading["playhead"]["top"] <= lanes[0]["top"], reading
+    assert reading["playhead"]["bottom"] >= lanes[-1]["bottom"] - 0.5, reading
+    # Each run's name stands between the run before it and its own lanes.
+    before_run, after_run = reading["runs"]
+    assert before_run["bottom"] <= lanes[0]["top"] + 0.5, reading
+    assert lanes[1]["bottom"] <= after_run["top"] + 0.5, reading
+    assert after_run["bottom"] <= lanes[2]["top"] + 0.5, reading
+    assert_labels_clear(page)
+
+    page.locator("#race").get_by_role("button", name="Next").click()
+    page.keyboard.press("ArrowRight")
+    expect(page.locator(".lf-live")).to_have_text(
+        "Step 3 of 4. Before the fix · Job B: Writes 70"
+    )
 
 
 def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(

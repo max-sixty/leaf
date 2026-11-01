@@ -3,6 +3,8 @@
 import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
 import {
+  isElement,
+  isHTML,
   excludedByInert,
   byRenderedOrder,
   composedParentNode,
@@ -47,9 +49,12 @@ export {
 //
 // A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
+/** @type {WeakSet<ShadowRoot>} */
 const refusedRoots = new WeakSet();
+/** @param {ShadowRoot} root */
 export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
+/** @param {Element} host */
 export const declaredRoot = (host) =>
   host.shadowRoot &&
   registry[host.localName]?.["x-shadow"] &&
@@ -57,6 +62,7 @@ export const declaredRoot = (host) =>
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
+/** @param {Node} root */
 export const shadowRootsIn = (root) =>
   liveStages().filter(
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
@@ -64,16 +70,18 @@ export const shadowRootsIn = (root) =>
 export const pageShadowRoots = () => shadowRootsIn(document);
 // Geometry walks the children that paint here: a host's shadow tree and a slot's
 // assigned (or fallback) content, rather than the separate light-DOM ownership tree.
+/** @param {Node} node */
 export const renderedChildren = (node) =>
-  node.localName === "slot"
+  isHTML(node, "slot")
     ? node.assignedNodes({ flatten: true })
-    : (node.shadowRoot ?? node).childNodes;
+    : (isElement(node) ? (node.shadowRoot ?? node) : node).childNodes;
 
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
 // out until one is. Null when none is: a detached node, or one outside `root`
 // altogether. A shadow tree renders where its host stands, so order and range
 // questions, which the platform answers only within one tree, are asked of this.
+/** @param {Node | null} node @param {Node} root */
 export const hostIn = (node, root) => {
   let at = node;
   while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
@@ -86,6 +94,7 @@ export const hostIn = (node, root) => {
 // importing the passage readings back.
 // The chrome over a node, read within one frame: above the frame it is nobody's, and with
 // no frame at all it is the document's own reading, unchanged.
+/** @param {Element} el @param {string} selector @param {Element | null | undefined} frame */
 export const overIn = (el, selector, frame) => {
   const near = el.closest(selector);
   return near && (!frame || under(near, frame)) ? near : null;
@@ -114,12 +123,14 @@ export const UI_MARKS = `.lf-ui, ${SAID}`;
 // it is stated once here so
 // that what a mark may hang on, what a settlement has emptied, and what a quote may
 // name cannot come apart.
+/** @param {Element | null | undefined} el @param {Element | null | undefined} within */
 export const uiInside = (el, within) => {
   const near = el && overIn(el, UI_MARKS, within);
-  return Boolean(near) && !near.matches(SAID);
+  return !!near && !near.matches(SAID);
 };
+/** @param {Node | null | undefined} node */
 export const inUi = (node) =>
-  uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
+  uiInside(isElement(node) ? node : node?.parentElement, null);
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
@@ -131,6 +142,7 @@ export let shadowRules = "";
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
 // also holds a second caller behind the first read instead of starting another.
+/** @type {Promise<void> | null} */
 let loading = null;
 export function loadShadowRules() {
   loading ??= readShadowRules();

@@ -58,12 +58,18 @@ import {
 } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
+/** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
+/** @param {unknown} target @returns {ReportTarget | null} */
 function reportTarget(target) {
   if (target === null) return null;
   if (target instanceof Element) {
     if (target.id) return { kind: "widget", id: target.id };
   } else if (
-    ["widget", "thread"].includes(target?.kind) &&
+    target !== null &&
+    typeof target === "object" &&
+    "kind" in target &&
+    "id" in target &&
+    (target.kind === "widget" || target.kind === "thread") &&
     typeof target.id === "string" &&
     target.id
   ) {
@@ -73,30 +79,39 @@ function reportTarget(target) {
     "report target must be a widget element or {kind: 'widget' | 'thread', id}",
   );
 }
+/** @param {ReportTarget | null} target */
 const targetKey = (target) =>
   target ? JSON.stringify([target.kind, target.id]) : null;
 // Each target's reports through a selection of its own, so a watcher reading one
 // target's sequence repaints when that target's reports move and no other's.
+/** @type {Map<string | null, () => readonly import("../types/contract.js").ServedView["reports"][number][]>} */
 const reportsByTarget = new Map();
+/** @param {string | null} key */
 const reportsFor = (key) => {
-  if (!reportsByTarget.has(key))
-    reportsByTarget.set(
-      key,
-      readPart((root) =>
-        (root.effective.view?.reports ?? []).filter(
-          (report) => key === null || targetKey(report.target) === key,
-        ),
+  let read = reportsByTarget.get(key);
+  if (!read) {
+    read = readPart((root) =>
+      (root.effective.view?.reports ?? []).filter(
+        (report) => key === null || targetKey(report.target) === key,
       ),
     );
-  return reportsByTarget.get(key)();
+    reportsByTarget.set(key, read);
+  }
+  return read();
 };
+/** @param {Element | ReportTarget | null} [target] */
 export const reportSequence = (target = null) =>
   reportsFor(targetKey(reportTarget(target))).map((report) => structuredClone(report));
 
 const publishedAt = readPart((root) => root.effective.view?.published_at ?? null);
-export const saidAt = (el) =>
-  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
-  publishedAt();
+/** @param {Element} el */
+export const saidAt = (el) => {
+  /** @type {HTMLTimeElement | null | undefined} */
+  const time = closestAcross(el, ".lf-msg")?.querySelector(
+    ":scope > .lf-msg-head time",
+  );
+  return time?.dateTime || publishedAt();
+};
 
 // The server's history reading: `events`, the newest logged events, newest first,
 // each already carrying its thread, whether it was undone, and a gesture's words as its
@@ -112,9 +127,11 @@ export const readHistory = readPart((root) => ({
 // A report can speak only once the renderer of its widget and coordinate chrome
 // have committed. Required asynchronous preparation is the same coordinator region
 // used by startup and pending release, not a second coordinate/event-id commit map.
+/** @param {Element | ReportTarget | null} [target] */
 export const reportsPresented = (target = null) =>
   projectionRegionsPresented([...reportWidgets(target)]);
 
+/** @param {Element | ReportTarget | null} target */
 const reportWidgets = (target) => {
   const key = targetKey(reportTarget(target));
   const widgets = new Set(target instanceof Element ? [target.id] : []);
@@ -130,6 +147,7 @@ const reportWidgets = (target) => {
 // state (a `LeafElement`, leaf-element.js): that update is its render, so only its
 // preparation, the coordinate chrome, and any other widget the reports name must have
 // committed. Read in a render, the answer is followed as the time a render shows is.
+/** @param {import("./leaf-element.js").LeafElement} target */
 export const reportsReady = (target) =>
   target.whenReady(() =>
     applicationRegionsPresented([

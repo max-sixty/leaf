@@ -285,7 +285,12 @@ const READ = { newConsumes: true, validates: false };
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
  * served state and the x-state verb, which only the generated types read. */
-export const baselineSchemas = ({ served: _served, verb: _verb, ...held }) => held;
+export const baselineSchemas = ({
+  served: _served,
+  verb: _verb,
+  widget: _widget,
+  ...held
+}) => held;
 
 /** Each change from `baseline` to `current` that some Leaf would refuse or misread,
  * as lines naming where and what; none where nothing changes either way. `baseline`
@@ -302,10 +307,16 @@ export function protocolBreaks(baseline, current) {
     for (const kind of new Set([...Object.keys(kinds), ...Object.keys(now)])) {
       const where = `event ${kind}`;
       if (!now[kind]) refused.push([where, "the kind is gone"]);
-      // Another Leaf at this number reads the log this one writes.
-      else if (!kinds[kind])
-        refused.push([where, "an older Leaf or page reads a kind it doesn't know"]);
-      else {
+      // Another Leaf at this number reads the log this one writes, and skips a kind it
+      // doesn't know. Only the registry can say whether that misreads the log, so a
+      // new kind that no earlier reading consults declares `skippable`.
+      else if (!kinds[kind]) {
+        if (!now[kind].skippable)
+          refused.push([
+            where,
+            "an older Leaf skips a kind it doesn't know: declare it skippable if no reading that Leaf computes needs it, or bump",
+          ]);
+      } else {
         compare(where, kinds[kind].record, now[kind].record, SENT, OLDER_READS);
       }
     }

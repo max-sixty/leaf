@@ -27,12 +27,12 @@ test("a playground collects its own controls and leaves quoted value slots alone
   const nestedView = createPlayground(nested);
   render(nestedView.render(), nested, { host: nested });
   const view = createPlayground(host);
-  render(view.render({ values: { ...view.values, tone: "bold" } }), host, { host });
+  render(view.render({ values: { ...view.defaults, tone: "bold" } }), host, { host });
   assert.deepEqual(
     view.controls.map((control) => control.getAttribute("name")),
     ["tone"],
   );
-  assert.deepEqual(view.values, { tone: "quiet" });
+  assert.deepEqual(view.defaults, { tone: "quiet" });
   assert.equal(quote.querySelectorAll("input").length, 0);
   assert.equal(
     view.output.querySelector(':scope > lf-playground-value[for="tone"]').textContent,

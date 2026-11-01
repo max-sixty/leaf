@@ -88,6 +88,19 @@
  * Each dependency loads only when its comparison needs it, after page presentation;
  * this module touches no document. */
 
+import { canvas2D } from "/runtime/portable-api.js";
+
+/** @typedef {{x: number, y: number, width: number, height: number}} Rectangle */
+/** @typedef {{width: number, height: number, data: Uint8Array | Uint8ClampedArray}} PixelImage */
+/** @typedef {Extract<CanvasImageSource, {width: number, height: number}>} SizedImage */
+/** @typedef {"before" | "after"} Side */
+/** @typedef {Rectangle & ({side: Side, kind: "changed"} | {side: Side, kind: "moved", d: [number, number]})} Region */
+/** @typedef {Rectangle & {frame: boolean, cells: Map<number, Rectangle>, ground?: number | null}} Block */
+/** @typedef {{block: Block} & ({state: "same" | "changed"} | {state: "moved", d: [number, number]})} BlockReading */
+/** @typedef {Rectangle & {side: Side, kind: "changed" | "moved"}} OutlineRegion */
+/** @typedef {{width: number, height: number, changed: number, throughout: boolean, regions: OutlineRegion[]}} Difference */
+/** @typedef {typeof import("/vendor/density-clustering.esm.js").DBSCAN} Clustering */
+
 const SLIGHT = 48;
 const STEP = 4;
 const LINE = 40;
@@ -105,6 +118,7 @@ const MOVED_REACH = 32;
  * `a` and `b` are ImageData, or `width`, `height`, and RGBA bytes in a `data` array of
  * their own, which each pixel is read from as one 32-bit word. Returns a promise
  * so loading the clustering library can wait until a pair needs it. */
+/** @param {PixelImage} a @param {PixelImage} b @returns {Promise<Difference>} */
 export async function differingRegions(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
@@ -142,31 +156,35 @@ export async function differingRegions(a, b) {
   // can hold only the ground beside it, as where the other image's border crosses a rule:
   // that is the border's change, not the rule's. The ground is the colour around the
   // frame, just outside the edge pixels that bound it.
-  const drawnChange = (block, image, pixels, otherImage, otherPixels) =>
-    block.cells.some((cell) => {
-      if (!struck[cell]) return false;
+  /** @param {Block} block @param {PixelImage} image @param {DataView} pixels @param {PixelImage} otherImage @param {DataView} otherPixels */
+  const drawnChange = (block, image, pixels, otherImage, otherPixels) => {
+    for (const [cell, box] of block.cells) {
+      if (!struck[cell]) continue;
       block.ground ??= around(block, image, pixels) ?? null;
-      const box = block.boxes.get(cell);
       for (let y = box.y; y < box.y + box.height; y += 1)
         for (let x = box.x; x < box.x + box.width; x += 1) {
-          const p = pixels[y * image.width + x];
+          const p = pixels.getUint32((y * image.width + x) * 4, true);
           if (block.ground !== null && distance(p, block.ground) <= STEP) continue;
           const q =
             x < otherImage.width && y < otherImage.height
-              ? otherPixels[y * otherImage.width + x]
+              ? otherPixels.getUint32((y * otherImage.width + x) * 4, true)
               : undefined;
           if (q === undefined || distance(p, q) >= SLIGHT) return true;
         }
-      return false;
-    });
-  const touched = (block, image, pixels, otherImage, otherPixels) =>
-    block.frame
-      ? drawnChange(block, image, pixels, otherImage, otherPixels)
-      : block.cells.some((cell) => struck[cell]);
+    }
+    return false;
+  };
+  /** @param {Block} block @param {PixelImage} image @param {DataView} pixels @param {PixelImage} otherImage @param {DataView} otherPixels */
+  const touched = (block, image, pixels, otherImage, otherPixels) => {
+    if (block.frame) return drawnChange(block, image, pixels, otherImage, otherPixels);
+    for (const cell of block.cells.keys()) if (struck[cell]) return true;
+    return false;
+  };
+  /** @param {Block[]} blocks @param {PixelImage} image @param {DataView} pixels @param {Block[]} others @param {PixelImage} otherImage @param {DataView} otherPixels @returns {BlockReading[]} */
   const reading = (blocks, image, pixels, others, otherImage, otherPixels) =>
     blocks.map((block) => {
       if (!touched(block, image, pixels, otherImage, otherPixels))
-        return { state: "same" };
+        return { block, state: "same" };
       let found = null;
       let nearest = Infinity;
       for (const candidate of others) {
@@ -182,9 +200,9 @@ export async function differingRegions(a, b) {
         )
           [found, nearest] = [candidate, far];
       }
-      if (!found) return { state: "changed" };
-      if (!nearest) return { state: "same" };
-      return { state: "moved", d: [found.x - block.x, found.y - block.y] };
+      if (!found) return { block, state: "changed" };
+      if (!nearest) return { block, state: "same" };
+      return { block, state: "moved", d: [found.x - block.x, found.y - block.y] };
     });
   const readBefore = reading(before, a, one, after, b, other);
   const readAfter = reading(after, b, other, before, a, one);
@@ -199,6 +217,7 @@ export async function differingRegions(a, b) {
         r * columns + Math.floor(block.x / CELL),
         r * columns + Math.ceil((block.x + block.width) / CELL),
       );
+  /** @type {Rectangle[]} */
   const bare = [];
   for (let cell = 0; cell < struck.length; cell += 1)
     if (struck[cell] && !owned[cell]) {
@@ -211,11 +230,14 @@ export async function differingRegions(a, b) {
         height: Math.min(CELL, height - y),
       });
     }
+  /** @type {[Side, PixelImage][]} */
+  const images = [
+    ["before", a],
+    ["after", b],
+  ];
+  /** @type {Region[]} */
   const unowned = merged(bare, (p, q) => near(p, q, 2 * CELL)).flatMap((box) =>
-    [
-      ["before", a],
-      ["after", b],
-    ].flatMap(([side, image]) => {
+    images.flatMap(([side, image]) => {
       const right = Math.min(box.x + box.width, image.width);
       const bottom = Math.min(box.y + box.height, image.height);
       return right > box.x && bottom > box.y
@@ -250,36 +272,43 @@ export async function differingRegions(a, b) {
 
 /* One image's outlines from its blocks and their readings, joined with the changes on
  * its side that lie in no block (`bare`), so content inside added ground is one area. */
+/** @param {Block[]} blocks @param {BlockReading[]} states @param {Uint8Array} struck @param {Side} side @param {Region[]} bare @param {Clustering} DBSCAN */
 function outlines(blocks, states, struck, side, bare, DBSCAN) {
+  /** @type {(Region & {block: Block})[]} */
   const marks = [];
-  for (const [i, block] of blocks.entries()) {
-    const { state, d } = states[i];
+  for (const reading of states) {
+    const { block, state } = reading;
     if (state === "same") continue;
     // A frame alone that moved, such as a rule, is not a place to look.
     if (state === "moved" && block.frame) continue;
-    marks.push({ ...box(block), side, kind: state, d, block });
+    marks.push(
+      state === "moved"
+        ? { ...box(block), side, kind: state, d: reading.d, block }
+        : { ...box(block), side, kind: state, block },
+    );
   }
   // Containers are outlined whole or give way, as the module header states.
   const whole = marks.filter(
     (mark) =>
       mark.kind === "changed" &&
       marks.some((inner) => contains(mark, inner)) &&
-      blocks.every(
-        (block, i) => states[i].state === "changed" || !contains(mark, block),
-      ),
+      states.every(({ block, state }) => state === "changed" || !contains(mark, block)),
   );
+  /** @param {Rectangle} mark */
   const inWhole = (mark) => whole.some((outer) => contains(outer, mark));
+  /** @param {Region & {block: Block}} mark */
   const holds = (mark) =>
     !whole.includes(mark) &&
     (mark.kind === "changed" ? blocks : marks).some(
       (inner) => inner !== mark.block && contains(mark, inner),
     );
+  /** @type {Region[]} */
   const shown = marks.filter((mark) => !holds(mark) && !inWhole(mark));
   for (const mark of marks) {
     if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;
-    const loose = mark.block.cells
-      .filter((cell) => struck[cell])
-      .map((cell) => mark.block.boxes.get(cell))
+    const loose = [...mark.block.cells]
+      .filter(([cell]) => struck[cell])
+      .map(([, cellBox]) => cellBox)
       .filter((cellBox) => !shown.some((other) => contains(other, cellBox)));
     for (const group of merged(loose, (p, q) => near(p, q, 2 * CELL))) {
       const host = shown.find(
@@ -299,20 +328,25 @@ function outlines(blocks, states, struck, side, bare, DBSCAN) {
 
 /* The blocks of one image: each with its box, its squares (numbered in the pair's
  * `columns`), each square's own box of edge pixels, and whether it is a frame. */
+/** @param {PixelImage} image @param {DataView} pixels @param {number} columns @returns {Block[]} */
 function blocksOf(image, pixels, columns) {
   const { width, height } = image;
   // Whether each pixel is unlike the one below it, and the one to its right.
   const belowDiffers = new Uint8Array(width * height);
   const rightDiffers = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i += 1) {
-    const p = pixels[i];
+    const p = pixels.getUint32(i * 4, true);
     if (
       i + width < width * height &&
-      p !== pixels[i + width] &&
-      distance(p, pixels[i + width]) > STEP
+      p !== pixels.getUint32((i + width) * 4, true) &&
+      distance(p, pixels.getUint32((i + width) * 4, true)) > STEP
     )
       belowDiffers[i] = 1;
-    if ((i + 1) % width && p !== pixels[i + 1] && distance(p, pixels[i + 1]) > STEP)
+    if (
+      (i + 1) % width &&
+      p !== pixels.getUint32((i + 1) * 4, true) &&
+      distance(p, pixels.getUint32((i + 1) * 4, true)) > STEP
+    )
       rightDiffers[i] = 1;
   }
   // An edge across rows (the pixel below differs) and across columns, on both pixels.
@@ -357,7 +391,7 @@ function blocksOf(image, pixels, columns) {
   const rows = Math.ceil(height / CELL);
   const ownColumns = Math.ceil(width / CELL);
   const count = ownColumns * rows;
-  const boxes = new Int32Array(count * 4).fill(-1);
+  const boxes = new DataView(new Uint8Array(count * 16).fill(255).buffer);
   const marked = new Uint8Array(count);
   const lined = new Uint8Array(count);
   for (let y = 0; y < height; y += 1)
@@ -368,30 +402,54 @@ function blocksOf(image, pixels, columns) {
       if (!line[i]) marked[cell] = 1;
       else lined[cell] = 1;
       const k = cell * 4;
-      if (boxes[k] < 0) {
-        boxes[k] = boxes[k + 2] = x;
-        boxes[k + 1] = boxes[k + 3] = y;
+      if (boxes.getInt32(k * 4, true) < 0) {
+        boxes.setInt32(k * 4, x, true);
+        boxes.setInt32((k + 2) * 4, x, true);
+        boxes.setInt32((k + 1) * 4, y, true);
+        boxes.setInt32((k + 3) * 4, y, true);
       } else {
-        boxes[k] = Math.min(boxes[k], x);
-        boxes[k + 1] = Math.min(boxes[k + 1], y);
-        boxes[k + 2] = Math.max(boxes[k + 2], x);
-        boxes[k + 3] = Math.max(boxes[k + 3], y);
+        boxes.setInt32(k * 4, Math.min(boxes.getInt32(k * 4, true), x), true);
+        boxes.setInt32(
+          (k + 1) * 4,
+          Math.min(boxes.getInt32((k + 1) * 4, true), y),
+          true,
+        );
+        boxes.setInt32(
+          (k + 2) * 4,
+          Math.max(boxes.getInt32((k + 2) * 4, true), x),
+          true,
+        );
+        boxes.setInt32(
+          (k + 3) * 4,
+          Math.max(boxes.getInt32((k + 3) * 4, true), y),
+          true,
+        );
       }
     }
-  const parent = Int32Array.from({ length: count }, (_, cell) => cell);
+  const parent = new DataView(new ArrayBuffer(count * 4));
+  for (let cell = 0; cell < count; cell++) parent.setInt32(cell * 4, cell, true);
+  /** @param {number} cell */
   const root = (cell) => {
-    while (parent[cell] !== cell) cell = parent[cell] = parent[parent[cell]];
+    let owner = parent.getInt32(cell * 4, true);
+    while (owner !== cell) {
+      const ancestor = parent.getInt32(owner * 4, true);
+      parent.setInt32(cell * 4, ancestor, true);
+      cell = ancestor;
+      owner = parent.getInt32(cell * 4, true);
+    }
     return cell;
   };
+  /** @param {number} one @param {number} other */
   const join = (one, other) => {
-    const [from, to] = [root(one), root(other)];
-    if (from !== to) parent[to] = from;
+    const from = root(one),
+      to = root(other);
+    if (from !== to) parent.setInt32(to * 4, from, true);
   };
   // Squares that touch join.
   for (let r = 0; r < rows; r += 1)
     for (let c = 0; c < ownColumns; c += 1) {
       const cell = r * ownColumns + c;
-      if (boxes[cell * 4] < 0) continue;
+      if (boxes.getInt32(cell * 4 * 4, true) < 0) continue;
       for (const near of [
         cell + 1,
         cell + ownColumns - 1,
@@ -401,7 +459,7 @@ function blocksOf(image, pixels, columns) {
         if (
           near < count &&
           Math.abs((near % ownColumns) - c) <= 1 &&
-          boxes[near * 4] >= 0
+          boxes.getInt32(near * 4 * 4, true) >= 0
         )
           join(cell, near);
     }
@@ -411,27 +469,29 @@ function blocksOf(image, pixels, columns) {
   // Marks join the marks beside them, in a row or a column, across a gap no wider
   // than SPACING times the shorter one's height: the space between words, or between the
   // lines of a paragraph, scales with the text, whatever the capture's pixel density.
+  /** @typedef {{id: number, left: number, top: number, right: number, bottom: number, marked: boolean, lined: boolean}} Piece */
+  /** @type {Map<number, Piece>} */
   const pieces = new Map();
   for (let cell = 0; cell < count; cell += 1) {
     const k = cell * 4;
-    if (boxes[k] < 0) continue;
+    if (boxes.getInt32(k * 4, true) < 0) continue;
     const id = root(cell);
     const piece = pieces.get(id);
     if (!piece)
       pieces.set(id, {
         id,
-        left: boxes[k],
-        top: boxes[k + 1],
-        right: boxes[k + 2],
-        bottom: boxes[k + 3],
+        left: boxes.getInt32(k * 4, true),
+        top: boxes.getInt32((k + 1) * 4, true),
+        right: boxes.getInt32((k + 2) * 4, true),
+        bottom: boxes.getInt32((k + 3) * 4, true),
         marked: !!marked[cell],
         lined: !!lined[cell],
       });
     else {
-      piece.left = Math.min(piece.left, boxes[k]);
-      piece.top = Math.min(piece.top, boxes[k + 1]);
-      piece.right = Math.max(piece.right, boxes[k + 2]);
-      piece.bottom = Math.max(piece.bottom, boxes[k + 3]);
+      piece.left = Math.min(piece.left, boxes.getInt32(k * 4, true));
+      piece.top = Math.min(piece.top, boxes.getInt32((k + 1) * 4, true));
+      piece.right = Math.max(piece.right, boxes.getInt32((k + 2) * 4, true));
+      piece.bottom = Math.max(piece.bottom, boxes.getInt32((k + 3) * 4, true));
       piece.marked ||= !!marked[cell];
       piece.lined ||= !!lined[cell];
     }
@@ -441,8 +501,7 @@ function blocksOf(image, pixels, columns) {
     .sort((p, q) => p.top - q.top);
   for (const [i, p] of marks.entries()) {
     const height = p.bottom - p.top + 1;
-    for (let j = i + 1; j < marks.length; j += 1) {
-      const q = marks[j];
+    for (const q of marks.slice(i + 1)) {
       if (q.top > p.bottom + SPACING * height) break;
       const reach = SPACING * Math.min(height, q.bottom - q.top + 1);
       const across = Math.max(q.left - p.right, p.left - q.right) - 1;
@@ -455,10 +514,11 @@ function blocksOf(image, pixels, columns) {
         join(p.id, q.id);
     }
   }
+  /** @type {Map<number, {left: number, top: number, right: number, bottom: number, frame: boolean, boxes: Map<number, Rectangle>}>} */
   const groups = new Map();
   for (let cell = 0; cell < count; cell += 1) {
     const k = cell * 4;
-    if (boxes[k] < 0) continue;
+    if (boxes.getInt32(k * 4, true) < 0) continue;
     const id = root(cell);
     let group = groups.get(id);
     if (!group)
@@ -470,22 +530,20 @@ function blocksOf(image, pixels, columns) {
           right: -1,
           bottom: -1,
           frame: true,
-          cells: [],
           boxes: new Map(),
         }),
       );
-    group.left = Math.min(group.left, boxes[k]);
-    group.top = Math.min(group.top, boxes[k + 1]);
-    group.right = Math.max(group.right, boxes[k + 2]);
-    group.bottom = Math.max(group.bottom, boxes[k + 3]);
+    group.left = Math.min(group.left, boxes.getInt32(k * 4, true));
+    group.top = Math.min(group.top, boxes.getInt32((k + 1) * 4, true));
+    group.right = Math.max(group.right, boxes.getInt32((k + 2) * 4, true));
+    group.bottom = Math.max(group.bottom, boxes.getInt32((k + 3) * 4, true));
     if (marked[cell]) group.frame = false;
     const pairCell = Math.floor(cell / ownColumns) * columns + (cell % ownColumns);
-    group.cells.push(pairCell);
     group.boxes.set(pairCell, {
-      x: boxes[k],
-      y: boxes[k + 1],
-      width: boxes[k + 2] - boxes[k] + 1,
-      height: boxes[k + 3] - boxes[k + 1] + 1,
+      x: boxes.getInt32(k * 4, true),
+      y: boxes.getInt32((k + 1) * 4, true),
+      width: boxes.getInt32((k + 2) * 4, true) - boxes.getInt32(k * 4, true) + 1,
+      height: boxes.getInt32((k + 3) * 4, true) - boxes.getInt32((k + 1) * 4, true) + 1,
     });
   }
   return [...groups.values()].map((group) => ({
@@ -494,37 +552,41 @@ function blocksOf(image, pixels, columns) {
     width: group.right - group.left + 1,
     height: group.bottom - group.top + 1,
     frame: group.frame,
-    cells: group.cells,
-    boxes: group.boxes,
+    cells: group.boxes,
   }));
 }
 
 // Whether `block` of `image` holds what `other` does at `candidate`, no pixel SLIGHT apart.
+/** @param {PixelImage} image @param {DataView} pixels @param {Rectangle} block @param {PixelImage} otherImage @param {DataView} otherPixels @param {Rectangle} candidate */
 function alike(image, pixels, block, otherImage, otherPixels, candidate) {
   for (let j = 0; j < block.height; j += 1) {
     const p = (block.y + j) * image.width + block.x;
     const q = (candidate.y + j) * otherImage.width + candidate.x;
     for (let i = 0; i < block.width; i += 1) {
-      const u = pixels[p + i];
-      const v = otherPixels[q + i];
+      const u = pixels.getUint32((p + i) * 4, true);
+      const v = otherPixels.getUint32((q + i) * 4, true);
       if (u !== v && distance(u, v) >= SLIGHT) return false;
     }
   }
   return true;
 }
 
+/** @param {Rectangle} rectangle */
 const box = ({ x, y, width, height }) => ({ x, y, width, height });
+/** @param {Rectangle} outer @param {Rectangle} inner */
 const contains = (outer, inner) =>
   outer !== inner &&
   outer.x <= inner.x &&
   outer.y <= inner.y &&
   outer.x + outer.width >= inner.x + inner.width &&
   outer.y + outer.height >= inner.y + inner.height;
+/** @param {Rectangle} p @param {Rectangle} q @param {number} reach */
 const near = (p, q, reach) =>
   p.x - reach < q.x + q.width &&
   q.x - reach < p.x + p.width &&
   p.y - reach < q.y + q.height &&
   q.y - reach < p.y + p.height;
+/** @param {Rectangle} p @param {Rectangle} q */
 const union = (p, q) => {
   const x = Math.min(p.x, q.x);
   const y = Math.min(p.y, q.y);
@@ -538,21 +600,27 @@ const union = (p, q) => {
 
 // `items` with every two that `joins` accepts replaced by their union, until it accepts
 // no two. A union keeps the fields of the item it grows from.
+/** @template {Rectangle} T @param {readonly T[]} items @param {(a: T, b: T) => boolean} joins @returns {T[]} */
 function merged(items, joins) {
-  const list = items.map((item) => ({ ...item }));
-  for (let i = 0; i < list.length; i += 1)
-    for (let j = 0; j < list.length; j += 1) {
-      if (j === i || !joins(list[i], list[j])) continue;
-      list[i] = { ...list[i], ...union(list[i], list[j]) };
-      list.splice(j, 1);
-      if (j < i) i -= 1;
-      // `list[i]` grew, so every other item is read against it again.
-      j = -1;
-    }
-  return list;
+  const list = new Set(items.map((item) => ({ ...item })));
+  for (const item of list) {
+    let grew;
+    do {
+      grew = false;
+      for (const other of list) {
+        if (item === other || !joins(item, other)) continue;
+        Object.assign(item, union(item, other));
+        list.delete(other);
+        grew = true;
+        break;
+      }
+    } while (grew);
+  }
+  return [...list];
 }
 
 // Movement keeps its correspondence; changed fragments cluster by original gaps.
+/** @param {Region[]} marks @param {Clustering} DBSCAN */
 function join(marks, DBSCAN) {
   const moves = merged(
     marks.filter((mark) => mark.kind === "moved"),
@@ -564,7 +632,9 @@ function join(marks, DBSCAN) {
     .map((mark) => Math.max(1, Math.min(mark.width, mark.height) - 2))
     .sort((a, b) => a - b);
   const scale = sizes[Math.floor(sizes.length / 2)];
+  if (scale === undefined) throw new Error("Changed fragments have no median size");
   const radius = scale * Math.min(2, Math.sqrt(changed.length) / 2);
+  /** @param {Rectangle} p @param {Rectangle} q */
   const gap = (p, q) =>
     near(p, q, 8)
       ? 0
@@ -578,24 +648,38 @@ function join(marks, DBSCAN) {
   const groups = new DBSCAN().run(changed, radius, 1, gap);
   return [
     ...moves,
-    ...groups.map((indices) => ({
-      ...changed[indices[0]],
-      ...indices.map((i) => changed[i]).reduce(union),
-    })),
+    ...groups.map((indices) =>
+      indices
+        .map((index) => {
+          const fragment = changed[index];
+          if (!fragment)
+            throw new RangeError(`DBSCAN returned an unknown fragment index: ${index}`);
+          return fragment;
+        })
+        .reduce((area, mark) => ({ ...area, ...union(area, mark) })),
+    ),
   ];
 }
 
 // The commonest colour on the ring of pixels just outside `block`'s box: the ground the
 // block stands on.
+/** @param {Rectangle} block @param {PixelImage} image @param {DataView} pixels */
 function around({ x, y, width, height }, image, pixels) {
+  /** @type {Map<number, number>} */
   const counts = new Map();
+  /** @type {number | undefined} */
   let best;
+  let population = 0;
+  /** @param {number} column @param {number} row */
   const count = (column, row) => {
     if (column < 0 || row < 0 || column >= image.width || row >= image.height) return;
-    const p = pixels[row * image.width + column];
+    const p = pixels.getUint32((row * image.width + column) * 4, true);
     const n = (counts.get(p) ?? 0) + 1;
     counts.set(p, n);
-    if (best === undefined || n > counts.get(best)) best = p;
+    if (n > population) {
+      best = p;
+      population = n;
+    }
   };
   for (let column = x - 1; column <= x + width; column += 1) {
     count(column, y - 1);
@@ -608,15 +692,17 @@ function around({ x, y, width, height }, image, pixels) {
   return best;
 }
 
+/** @param {PixelImage} image */
 function words(image) {
-  return new Uint32Array(
+  return new DataView(
     image.data.buffer,
     image.data.byteOffset,
-    image.width * image.height,
+    image.width * image.height * 4,
   );
 }
 
 // The farthest any channel of two RGBA words lies apart.
+/** @param {number} p @param {number} q */
 function distance(p, q) {
   return Math.max(
     Math.abs((p & 255) - (q & 255)),
@@ -632,9 +718,16 @@ const STRONG = 2;
 /* How the pixel at `x`, `y` changed between `a` and `b`, read as `one` and `other`:
  * 0 not at all, SLIGHT_CHANGE by less than SLIGHT levels, or STRONG, which a pixel
  * only one image has also is. */
+/** @param {PixelImage} a @param {DataView} one @param {PixelImage} b @param {DataView} other @param {number} x @param {number} y */
 function pixelChange(a, one, b, other, x, y) {
-  const p = x < a.width && y < a.height ? one[y * a.width + x] : undefined;
-  const q = x < b.width && y < b.height ? other[y * b.width + x] : undefined;
+  const p =
+    x < a.width && y < a.height
+      ? one.getUint32((y * a.width + x) * 4, true)
+      : undefined;
+  const q =
+    x < b.width && y < b.height
+      ? other.getUint32((y * b.width + x) * 4, true)
+      : undefined;
   if (p === q && p !== undefined) return 0;
   return p === undefined || q === undefined || distance(p, q) >= SLIGHT
     ? STRONG
@@ -651,11 +744,13 @@ const FAR = 2 * SLIGHT;
  * opaque at FAR levels
  * of channel distance. Pixels inside only one image's extent are opaque changes,
  * even if the image's edge is transparent. The reader supplies the highlight colour. */
+/** @param {PixelImage} a @param {PixelImage} b */
 export async function changedPixels(a, b) {
   const { default: diff } = await import("/vendor/blazediff.js");
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
   const data = new Uint8ClampedArray(width * height * 4);
+  /** @type {Parameters<typeof diff>[5]} */
   const options = {
     threshold: 0,
     includeAA: true,
@@ -679,8 +774,8 @@ export async function changedPixels(a, b) {
       const inB = x < b.width && y < b.height;
       if (inA !== inB) data[alpha] = 255;
       else if (inA) {
-        const p = one[y * a.width + x];
-        const q = other[y * b.width + x];
+        const p = one.getUint32((y * a.width + x) * 4, true);
+        const q = other.getUint32((y * b.width + x) * 4, true);
         // BlazeDiff composites transparency over a checkerboard. An alpha change
         // can match that background exactly while changing on the reader's page.
         if (data[alpha] || p >>> 24 !== q >>> 24) {
@@ -694,6 +789,7 @@ export async function changedPixels(a, b) {
 }
 
 // BlazeDiff compares equal-size buffers; transparent padding keeps image coordinates.
+/** @param {PixelImage} image @param {number} width @param {number} height */
 function padded(image, width, height) {
   if (image.width === width && image.height === height) return image.data;
   const data = new Uint8ClampedArray(width * height * 4);
@@ -707,6 +803,7 @@ function padded(image, width, height) {
 
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it
  * changed, but nowhere far enough to point at), or "areas", the one with regions. */
+/** @param {Difference} reading */
 function differenceKind({ changed, throughout, regions }) {
   if (!changed) return "identical";
   if (throughout) return "throughout";
@@ -716,6 +813,7 @@ function differenceKind({ changed, throughout, regions }) {
 /* The reading in a few words: "identical", "changed throughout", "only slight
  * changes", or how many areas changed and moved. An area that changed in place counts
  * once, though both frames outline it; one that moved counts once for its pair. */
+/** @param {Difference} reading */
 export function describeDifference(reading) {
   const kind = differenceKind(reading);
   if (kind !== "areas")
@@ -725,7 +823,7 @@ export function describeDifference(reading) {
       slight: "only slight changes",
     }[kind];
   const { changed: changedCount, moved: movedCount } = countAreas(reading.regions);
-  const areas = (n) => `${n} ${n === 1 ? "area" : "areas"}`;
+  const areas = (/** @type {number} */ n) => `${n} ${n === 1 ? "area" : "areas"}`;
   if (!changedCount) return `${areas(movedCount)} moved`;
   return `${areas(changedCount).replace(" ", " changed ")}${movedCount ? `, ${movedCount} moved` : ""}`;
 }
@@ -734,6 +832,7 @@ export function describeDifference(reading) {
  * where the two outlines overlap, is one change seen twice and counts once. Each frame
  * leaves out its own moves inside a change, so a move can be drawn in one frame alone;
  * the frame that draws more moves gives their count. */
+/** @param {OutlineRegion[]} regions */
 function countAreas(regions) {
   const changes = regions.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
@@ -751,22 +850,25 @@ function countAreas(regions) {
   };
 }
 
-/* `differingRegions`' promise for two decoded images: HTMLImageElements, ImageBitmaps,
- * or any other canvas image source, read at their natural size. Sources must keep
+/* `differingRegions`' promise for two decoded canvas image sources with numeric
+ * width and height; HTML images use their natural dimensions. Sources must keep
  * the canvas origin-clean; cross-origin images need a successful CORS response. */
+/** @param {SizedImage} a @param {SizedImage} b */
 export function compareImages(a, b) {
   return differingRegions(pixels(a), pixels(b));
 }
 
 /* `changedPixels` for two decoded images, read as `compareImages` reads them. */
+/** @param {SizedImage} a @param {SizedImage} b */
 export function compareImagePixels(a, b) {
   return changedPixels(pixels(a), pixels(b));
 }
 
+/** @param {SizedImage} image */
 function pixels(image) {
-  const width = image.naturalWidth ?? image.width;
-  const height = image.naturalHeight ?? image.height;
-  const context = new OffscreenCanvas(width, height).getContext("2d", {
+  const width = "naturalWidth" in image ? image.naturalWidth : image.width;
+  const height = "naturalHeight" in image ? image.naturalHeight : image.height;
+  const context = canvas2D(new OffscreenCanvas(width, height), {
     willReadFrequently: true,
   });
   context.drawImage(image, 0, 0);

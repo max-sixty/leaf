@@ -88,6 +88,10 @@ customElements.define('lf-source-stage', class extends HTMLElement {
         for widget_id in ("code", "diagram", "diff"):
             widget = page.locator(f"#{widget_id}")
             expect(widget).not_to_have_class(re.compile("lf-rendered"))
+            expect(widget.locator("pre")).to_be_visible()
+            assert widget.locator("pre").evaluate(
+                "el => el.checkVisibility({opacityProperty: true, visibilityProperty: true})"
+            ), widget_id
             actual = widget.evaluate(face)
             # Packages own layout: an inline diff clips its reserved first-paint
             # box. The shared source primitive supplies the readable type.

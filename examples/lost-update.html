@@ -13,119 +13,99 @@
       <p id="race-lede">
         Job A deposits 50 and job B withdraws 30 from the same account, which holds 100.
         Each job reads the balance, works for about four seconds, then writes the
-        result. The final balance should be 120. Step through each run with Previous and
-        Next, or the arrow keys; the times are illustrative.
+        result. The final balance should be 120. Step through both runs with Previous
+        and Next, or the arrow keys: the playhead marks the same moment in each. The
+        times are illustrative.
       </p>
-      <lf-tabs id="race-runs" class="layout-flow">
-        <lf-tab id="race-before-tab" label="Before the fix" class="layout-flow">
-          <p id="race-before-summary">
-            B reads the balance before A has written, so B's write is computed from a
-            read that is four seconds stale and replaces A's deposit.
-          </p>
-          <lf-timeline
-            id="race-before"
-            data-width="available"
-            aria-label="The race before the fix"
-          >
-            <lf-lane label="Job A">
-              <lf-event id="before-a-read" at="0" label="Reads balance: 100"></lf-event>
-              <lf-event
-                id="before-a-work"
-                at="200"
-                end="4200"
-                label="Adds 50"
-              ></lf-event>
-              <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
-            </lf-lane>
-            <lf-lane label="Job B">
-              <lf-event
-                id="before-b-read"
-                at="1000"
-                label="Reads balance: 100"
-              ></lf-event>
-              <lf-event
-                id="before-b-work"
-                at="1200"
-                end="5200"
-                label="Subtracts 30 from the stale 100"
-              ></lf-event>
-              <lf-event id="before-b-write" at="5200" label="Writes 70"></lf-event>
-            </lf-lane>
-            <lf-lane label="Balance">
-              <lf-event id="before-balance-start" at="0" label="100"></lf-event>
-              <lf-event id="before-balance-a" at="4200" label="150"></lf-event>
-              <lf-event
-                id="before-balance-b"
-                at="5200"
-                label="70: A's deposit is lost"
-              ></lf-event>
-            </lf-lane>
-          </lf-timeline>
-        </lf-tab>
-        <lf-tab id="race-after-tab" label="After the fix" class="layout-flow">
-          <p id="race-after-summary">
-            Each job takes a row lock before it reads. B waits until A has written and
-            unlocked, so B reads 150 and both changes survive.
-          </p>
-          <lf-timeline
-            id="race-after"
-            data-width="available"
-            aria-label="The run after the fix"
-          >
-            <lf-lane label="Job A">
-              <lf-event
-                id="after-a-read"
-                at="0"
-                label="Locks and reads: 100"
-              ></lf-event>
-              <lf-event
-                id="after-a-work"
-                at="200"
-                end="4200"
-                label="Adds 50"
-              ></lf-event>
-              <lf-event
-                id="after-a-write"
-                at="4200"
-                label="Writes 150, unlocks"
-              ></lf-event>
-            </lf-lane>
-            <lf-lane label="Job B">
-              <lf-event
-                id="after-b-wait"
-                at="1000"
-                end="4200"
-                label="Waits for A's lock"
-              ></lf-event>
-              <lf-event
-                id="after-b-read"
-                at="4300"
-                label="Locks and reads: 150"
-              ></lf-event>
-              <lf-event
-                id="after-b-work"
-                at="4500"
-                end="8500"
-                label="Subtracts 30"
-              ></lf-event>
-              <lf-event
-                id="after-b-write"
-                at="8500"
-                label="Writes 120, unlocks"
-              ></lf-event>
-            </lf-lane>
-            <lf-lane label="Balance">
-              <lf-event id="after-balance-start" at="0" label="100"></lf-event>
-              <lf-event id="after-balance-a" at="4200" label="150"></lf-event>
-              <lf-event
-                id="after-balance-b"
-                at="8500"
-                label="120: both changes kept"
-              ></lf-event>
-            </lf-lane>
-          </lf-timeline>
-        </lf-tab>
-      </lf-tabs>
+      <p id="race-before-summary">
+        Before the fix, B reads the balance before A has written, so B's write is
+        computed from a read that is four seconds stale and replaces A's deposit.
+      </p>
+      <p id="race-after-summary">
+        After the fix, each job takes a row lock before it reads. B waits until A has
+        written and unlocked, so B reads 150 and both changes survive, three seconds
+        later than the broken run finished.
+      </p>
+      <lf-timeline
+        id="race"
+        data-width="available"
+        aria-label="The race before and after the fix"
+      >
+        <lf-run label="Before the fix">
+          <lf-lane label="Job A">
+            <lf-event id="before-a-read" at="0" label="Reads balance: 100"></lf-event>
+            <lf-event id="before-a-work" at="200" end="4200" label="Adds 50"></lf-event>
+            <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
+          </lf-lane>
+          <lf-lane label="Job B">
+            <lf-event
+              id="before-b-read"
+              at="1000"
+              label="Reads balance: 100"
+            ></lf-event>
+            <lf-event
+              id="before-b-work"
+              at="1200"
+              end="5200"
+              label="Subtracts 30 from the stale 100"
+            ></lf-event>
+            <lf-event id="before-b-write" at="5200" label="Writes 70"></lf-event>
+          </lf-lane>
+          <lf-lane label="Balance">
+            <lf-event id="before-balance-start" at="0" label="100"></lf-event>
+            <lf-event id="before-balance-a" at="4200" label="150"></lf-event>
+            <lf-event
+              id="before-balance-b"
+              at="5200"
+              label="70: A's deposit is lost"
+            ></lf-event>
+          </lf-lane>
+        </lf-run>
+        <lf-run label="After the fix">
+          <lf-lane label="Job A">
+            <lf-event id="after-a-read" at="0" label="Locks and reads: 100"></lf-event>
+            <lf-event id="after-a-work" at="200" end="4200" label="Adds 50"></lf-event>
+            <lf-event
+              id="after-a-write"
+              at="4200"
+              label="Writes 150, unlocks"
+            ></lf-event>
+          </lf-lane>
+          <lf-lane label="Job B">
+            <lf-event
+              id="after-b-wait"
+              at="1000"
+              end="4200"
+              label="Waits for A's lock"
+            ></lf-event>
+            <lf-event
+              id="after-b-read"
+              at="4300"
+              label="Locks and reads: 150"
+            ></lf-event>
+            <lf-event
+              id="after-b-work"
+              at="4500"
+              end="8500"
+              label="Subtracts 30"
+            ></lf-event>
+            <lf-event
+              id="after-b-write"
+              at="8500"
+              label="Writes 120, unlocks"
+            ></lf-event>
+          </lf-lane>
+          <lf-lane label="Balance">
+            <lf-event id="after-balance-start" at="0" label="100"></lf-event>
+            <lf-event id="after-balance-a" at="4200" label="150"></lf-event>
+            <lf-event
+              id="after-balance-b"
+              at="8500"
+              label="120: both changes kept"
+            ></lf-event>
+          </lf-lane>
+        </lf-run>
+      </lf-timeline>
     </main>
   </body>
 </html>

@@ -32,10 +32,15 @@ import { shownWindow } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
+import { isElement } from "./shadow-tree.js";
 
+/** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
+ * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
+/** @type {Map<Element, OffFlowSurface>} */
 const surfaces = new Map();
 
 // The declared surface that owns a node's placement, if one floats over the page.
+/** @param {Node | null | undefined} node */
 export function offFlowSurfaceOf(node) {
   for (const [surface, { floats }] of surfaces)
     if (floats() && under(node, surface)) return surface;
@@ -43,6 +48,7 @@ export function offFlowSurfaceOf(node) {
 }
 
 // A pixel's slack, so a card the boundary holds flush at the window's head reads as shown.
+/** @param {Element} node @param {Element} surface */
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
@@ -53,33 +59,41 @@ const unseen = (node, surface) => {
   );
 };
 
-function follow(surface, node, behavior) {
-  const { floats, away, bringBack } = surfaces.get(surface);
+/** @param {OffFlowSurface} reading @param {Element} node @param {ScrollBehavior} behavior */
+function follow({ surface, floats, away, bringBack }, node, behavior) {
   if (floats() && (away() || unseen(node, surface))) bringBack(behavior);
 }
 
+/** @param {Element} surface @param {Omit<OffFlowSurface, "surface" | "floats" | "away"> &
+ * {floats?: () => boolean, away?: () => boolean}} reading */
 export function declareOffFlowSurface(
   surface,
   { floats = () => true, away = () => false, bringBack },
 ) {
-  surfaces.set(surface, { floats, away, bringBack });
+  const reading = { surface, floats, away, bringBack };
+  surfaces.set(surface, reading);
   surface.addEventListener(
     "lf-before-edit",
-    (event) => follow(surface, event.target, scrollBehavior()),
+    (event) => {
+      if (isElement(event.target)) follow(reading, event.target, scrollBehavior());
+    },
     { capture: true },
   );
 }
 // A move within a surface, a widget's shadow tree inside it included.
 onCurrentLocation((node, cause, left) => {
   if (!node || !left || cause === "return") return;
-  for (const surface of surfaces.keys())
+  for (const reading of surfaces.values()) {
+    const { surface } = reading;
     if (under(node, surface) && under(left, surface))
-      follow(surface, node, scrollBehavior());
+      follow(reading, node, scrollBehavior());
+  }
 });
 
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.
+/** @param {Element} node @param {ScrollBehavior} [behavior] */
 export function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
-  for (const surface of surfaces.keys())
-    if (under(node, surface)) follow(surface, node, behavior);
+  for (const reading of surfaces.values())
+    if (under(node, reading.surface)) follow(reading, node, behavior);
 }

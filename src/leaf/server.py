@@ -11,10 +11,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
-from .file_changes import page_changes
 from .files import read_json
 from .leases import end_if_terminated, lock_is_held
-from .page_memory import memory_of
 from .refusals import Refused
 from .schema import (
     ORPHAN_GRACE_SECS,
@@ -224,20 +222,17 @@ def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server, exiting
     as the shutdown operation (`exit_serving`).
 
-    A pass runs on each write to the page's inputs and at least every two seconds,
-    since a claimant that dies without ending its session writes nothing."""
+    A pass reads service and ownership at least every two seconds, since a
+    claimant that dies without ending its session writes nothing. Maintenance
+    uses this timer alone: retained pages must not each hold a native watcher."""
 
-    # Keep the shared native owner through neighboring gallery reads and LRU
-    # eviction for this independent supervisor's entire service lifetime.
-    _memory = memory_of(page_dir)
     orphaned_at = None
     while True:
-        changes, mark = page_changes(page_dir)
         service = read_service(page_dir)
         if not service or not service["enabled"]:
             exit_serving(0)
         if service["lifetime"] == "persistent":
-            changes.wait(mark, 2.0)
+            time.sleep(2.0)
             continue
         claim = page_claim(page_dir)
         if claim_is_active(claim):
@@ -261,7 +256,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
                 # Deleting the page removes its successful-init identity. The
                 # service has nothing left to preserve and must not recreate it.
                 exit_serving(0)
-        changes.wait(mark, min(2.0, ORPHAN_GRACE_SECS))
+        time.sleep(min(2.0, ORPHAN_GRACE_SECS))
 
 
 def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | PageAddress:

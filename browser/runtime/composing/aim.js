@@ -2,7 +2,12 @@
  * picker. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
-import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
+import {
+  coarsePointer,
+  pointerAt,
+  pressIsKeyboardActivation,
+  eventSource,
+} from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 import { setRuntimeRootStyle } from "../root-state.js";
@@ -22,6 +27,15 @@ import { pointInto } from "../pointed-place.js";
 // It comes off on blur as well as on keyup, because the sequence that switches windows takes
 // the keyup with it, and a page left armed under nobody's hand is a claim the user
 // cannot dismiss.
+/** @typedef {NonNullable<ReturnType<typeof aimTargetAt>>} AimTarget
+ * @typedef {{designMode: AimTarget | null, aim?: never, choosing?: never, continuing?: never} |
+ * {aim: AimTarget | null, choosing: boolean, designMode?: never, continuing?: never} |
+ * {continuing: ClaimedPress, designMode?: never, aim?: never, choosing?: never}} ClaimedPress
+ */
+/** @param {{marginTargetAt: (node: Element) => Element | null, refreshAim: () => void,
+ * commentOnTarget: (target: AimTarget) => unknown, drawModeActive: () => boolean,
+ * designMode: ReturnType<typeof import("../design.js").createDesignMode>,
+ * targetPicker: {active: () => boolean, choose: (target: AimTarget) => unknown}}} options */
 export function createAim({
   marginTargetAt,
   refreshAim,
@@ -41,6 +55,7 @@ export function createAim({
   // does not do. The cursor class (armChanged) reads the two sources without the mode
   // gate, since Design and Draw state cursors of their own and a gated class would go
   // stale when Design ends under a held key.
+  /** @param {boolean} held */
   const armedBy = (held) => aimIsAvailable() && (held || targetPicker.active());
   // The picker's promise under the pointer waits for a pointer that hovers: a finger's
   // last tap, on the menu entry that opened the picker, is not where it stands.
@@ -51,6 +66,7 @@ export function createAim({
   // the rule that keeps it off the touch controls is the same one that keeps F7 off them. The label
   // is spelled from the modifier through the register's own table rather than written out
   // twice in two platforms' glyphs.
+  /** @type {import("../keyboard/bindings.js").Command & {modifier: string}} */
   const AIM = {
     id: "aim.comment",
     touch: false,
@@ -70,6 +86,7 @@ export function createAim({
   // The margin layer is chrome that stands over the page, and a row there is about the
   // page element it stands by, so over a row the aim is at that element: the row is the
   // page's corner the user is pointing at, as it is in Design mode.
+  /** @param {Element | null} node */
   function onPage(node) {
     const over = node && inChrome(node) ? marginTargetAt(node) : node;
     return over && !inChrome(over) ? over : null;
@@ -82,6 +99,7 @@ export function createAim({
   }
   // The target a press names, with the row inside it the press landed on: a comment on a
   // target taller than the window stands where the user pointed (pointed-place.js).
+  /** @param {Element | null} at */
   function pointedTarget(at) {
     const target =
       at && (designMode.active() ? designMode.target(at) : aimTargetAt(at));
@@ -101,11 +119,14 @@ export function createAim({
     );
     refreshAim();
   }
+  /** @param {boolean} on */
   function setAiming(on) {
     aiming = on;
     armChanged();
   }
+  /** @param {KeyboardEvent} ev */
   const keyDown = (ev) => ev.key === AIM.modifier && setAiming(true);
+  /** @param {KeyboardEvent} ev */
   const keyUp = (ev) => ev.key === AIM.modifier && setAiming(false);
   const blur = () => setAiming(false);
   // The keydown above can go unheard: a page reloaded under a held key — the poll following
@@ -113,6 +134,7 @@ export function createAim({
   // press on the new page was claimed while nothing could paint the promise. Mouse events
   // carry that same live state, so the move re-derives the arm from the freshest carrier,
   // through the one setter, rather than trusting the latch.
+  /** @param {PointerEvent} ev */
   const pointerMove = (ev) => {
     // The shared recorder was installed before this listener, so aimedTarget reads this
     // event's unrounded point when setAiming or refreshAim asks for it below.
@@ -151,6 +173,7 @@ export function createAim({
   // can know, and lf-draft opens its editor on the click rather than on either mousedown,
   // for reasons of its own. A press of another button ends in auxclick rather than click,
   // and a link opens its new tab there, so the claim takes that too and acts on nothing.
+  /** @type {readonly ("pointerdown" | "mousedown" | "pointerup" | "mouseup" | "click" | "auxclick" | "dblclick")[]} */
   const PRESS_EVENTS = [
     "pointerdown",
     "mousedown",
@@ -172,8 +195,11 @@ export function createAim({
   // second press finds nothing armed and would reach the page as a link followed or a word
   // selected. Chromium counts clicks on mousedown but not on pointerdown, so that is where
   // the continuation is recognised.
+  /** @type {ClaimedPress | null} */
   let claimedPress = null;
+  /** @type {ClaimedPress | null} */
   let previousPress = null;
+  /** @param {MouseEvent} ev */
   function claimPress(ev) {
     // Made and dropped at the same moment, which is the start of a press: a drag already
     // under way when the key goes down keeps the events it is waiting for, and one that
@@ -182,11 +208,13 @@ export function createAim({
       previousPress = claimedPress;
       // The node pressed, not the widget host a shadow tree retargets it to: a Leaf
       // surface a widget seats in its own shadow tree is only visible from inside.
-      const pressed = ev.composedPath()[0];
+      const pressed = eventSource(ev);
       const designTarget = !targetPicker.active() && designMode.press(pressed);
       const armed =
         armedBy(ev.getModifierState(AIM.modifier)) &&
-        (designMode.active() ? designMode.target(pressed) : onPage(ev.target));
+        (designMode.active()
+          ? designMode.target(pressed)
+          : onPage(ev.target instanceof Element ? ev.target : null));
       // The item the outline is naming, through the reading that named it (aimedTarget,
       // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what

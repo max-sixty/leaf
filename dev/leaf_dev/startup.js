@@ -9,7 +9,6 @@
   const startup = {};
   const shifts = [];
   let completedAt = Infinity;
-  /** @type {Promise<void> | null} */
   let presentationPaint = null;
   function sourceName(node) {
     if (!node) return null;
@@ -139,9 +138,7 @@
       async reading() {
         await presentationPaint;
         recordShifts(shiftObserver.takeRecords());
-        const navigation = /** @type {PerformanceNavigationTiming[]} */ (
-          performance.getEntriesByType("navigation")
-        )[0];
+        const navigation = performance.getEntriesByType("navigation")[0];
         return {
           first_byte: navigation.responseStart,
           document: navigation.responseEnd,

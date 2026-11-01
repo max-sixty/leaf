@@ -89,6 +89,29 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
     assert capsys.readouterr().out == "[]\n"
 
 
+def test_pages_follower_reads_on_its_timer_without_a_native_subscription(
+    claimed, monkeypatch, capsys
+):
+    """The per-session page list follows claims without an inotify instance."""
+
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("the page list allocated a native subscription")
+
+    def release(_seconds):
+        cleanup_model.end_session("s1")
+
+    monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
+    monkeypatch.setattr(hooks_model, "time", SimpleNamespace(sleep=release))
+    hooks_model.cmd_pages({"session_id": "s1"})
+    first, last = map(json.loads, capsys.readouterr().out.splitlines())
+    assert len(first) == 1
+    assert first[0]["page_key"] == cleanup_model.page_key(claimed)
+    assert last == []
+
+
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
     """A `working` claim is written by a model's turn, and a turn can end at any token
     without running anything — so nothing writes its close, and the page was left to
@@ -122,9 +145,14 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     closed = claim_record_2["turn_closed"]
     assert closed
     assert presence_model.presence(claimed, events)["turn_closed"] == closed
-    # And what the agent said it was doing is untouched by the observation of it.
-    [task] = page_state(claimed)["browser"]["todos"]
-    assert task["running"]["text"] == "reading the reconnect traces"
+    # And what the agent said it was doing is untouched by the observation of it:
+    # the page reads the turn ended, still in the agent's last words.
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["dropped"], activity["detail"]) == (
+        "stalled",
+        True,
+        "reading the reconnect traces",
+    )
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.

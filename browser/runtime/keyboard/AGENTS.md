@@ -99,8 +99,9 @@ the row's own control beside the content it changes.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the
-⋯ beside Dictate while the field is empty, Tab from the field, or the contextual
-reaction command. Opening the picker
+⋯ beside Dictate while the field is empty, Tab from the field outside a list item
+(in one, Tab nests the item, `nestItems` in `composing/field-editor.js`), or the
+contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the

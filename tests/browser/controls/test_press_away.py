@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_harness import (
     LONG_PAGE,
+    leaf_page,
     open_page,
     panel_settled,
     stored_draft_text,
@@ -68,6 +69,75 @@ def drag(page, start, end):
     page.mouse.down()
     page.mouse.move(*end, steps=8)
     page.mouse.up()
+
+
+def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
+    webkit_browser, serve
+):
+    page = open_page(
+        webkit_browser,
+        serve(
+            leaf_page(
+                "A press across frame focus",
+                """
+<label>Parent editor<input id="parent-editor"></label>
+<button id="handoff">Return to the preview</button>
+<lf-sample id="preview" label="Preview">
+  <template id="preview-document" data-sample>
+    <input id="child-editor" value="Preview input">
+  </template>
+</lf-sample>
+<script type="module">
+  import {focusDestination, onPressAway, onUserInput} from '/runtime/widget-api.js';
+  window.completed = 0;
+  window.inputBlurs = [];
+  window.nativeBlurs = [];
+  onPressAway(path => path.some(node => node.id === 'handoff'), () => completed++);
+  onUserInput(event => {
+    if (event.type === 'blur') inputBlurs.push(document.hasFocus());
+  });
+  window.addEventListener('blur', () => nativeBlurs.push(document.hasFocus()));
+  document.querySelector('#handoff').addEventListener('mousedown', event => {
+    event.preventDefault();
+    const sample = document.querySelector('#preview');
+    focusDestination(sample.querySelector('iframe'), 'return');
+    void sample.restoreCurrentLocation();
+  });
+</script>
+""",
+            )
+        ),
+    )
+    parent = page.get_by_role("textbox", name="Parent editor")
+    child = page.frame_locator("#preview iframe").locator("#child-editor")
+    child.click()
+    parent.click()
+    page.evaluate("inputBlurs.length = 0; nativeBlurs.length = 0")
+    page.get_by_role("button", name="Return to the preview").click()
+    assert page.evaluate("nativeBlurs.includes(true)")
+    assert page.evaluate("inputBlurs") == []
+    assert page.evaluate("completed") == 1
+
+    # Losing the child document's input is a real departure, even while the parent
+    # document stays active. Its held press must not complete when release arrives.
+    child.evaluate("""async () => {
+      const {onPressAway, onUserInput} = await import('/runtime/widget-api.js');
+      window.completed = 0;
+      window.inputBlurs = [];
+      onPressAway(() => true, () => completed++);
+      onUserInput(event => {
+        if (event.type === 'blur') inputBlurs.push(document.hasFocus());
+      });
+    }""")
+    child.click()
+    child.evaluate("completed = 0; inputBlurs.length = 0")
+    page.mouse.move(*centre(child))
+    page.mouse.down()
+    parent.focus()
+    assert child.evaluate("document.hasFocus()") is False
+    page.mouse.up()
+    assert child.evaluate("inputBlurs") == [False]
+    assert child.evaluate("completed") == 0
 
 
 def test_a_press_away_puts_the_panel_s_view_away(browser, serve):

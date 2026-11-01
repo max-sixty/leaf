@@ -9,13 +9,9 @@ import { syncBuiltinESMExports } from "node:module";
 // its Writable keeps this frame ordered behind any backpressured RPC frame.
 const writeProtocol = process.stdout.write.bind(process.stdout);
 const spawn = childProcess.spawn;
-// Delegation keeps every native overload; the observer reads only ChildProcess events.
 childProcess.spawn = /** @type {typeof spawn} */ (
-  function (...arguments_) {
-    const child = /** @type {ReturnType<typeof spawn>} */ (
-      Reflect.apply(spawn, this, arguments_)
-    );
-    const [, args] = arguments_;
+  function (file, args, options) {
+    const child = spawn.call(this, file, args, options);
     if (args?.[0] === "hook" && args.includes("pi") && args.includes("--watch")) {
       child.once("close", (code) => {
         setImmediate(() => {

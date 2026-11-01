@@ -30,6 +30,7 @@ from browser.drafts import (
     editing_revision_source,
     replace_editing_document,
 )
+from browser.margin import leave_card
 from browser.threads import open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
@@ -193,6 +194,9 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
         == 1
     )
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    # Leaving the reply keeps its card; close that layer before editing beneath it.
+    leave_card(page)
     page.locator("#editable .lf-draft-body").click()
     edit = page.locator("#editable .lf-draft-edit")
     write(edit, "Rewritten page text")

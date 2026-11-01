@@ -60,3 +60,24 @@ test("a trigger drawn again is the one the picker opens from", async () => {
   draw(true);
   assert.equal(registered.at(-1), head.querySelector(".lf-react-trigger"));
 });
+
+test("a mounted reaction sends before closing the picker and revealing held news", async () => {
+  const { html, render } = await import("/runtime/framework.js");
+  const order = [];
+  const view = new ReactionStripView({
+    registerSurface: () => ({ close: () => order.push("close"), toggle() {} }),
+    actions: { setReaction: () => order.push("send") },
+    pressed: () => order.push("news"),
+  });
+  const head = document.createElement("div");
+  view.present({
+    thread: "t1",
+    message: "m1",
+    latest: true,
+    choices: tokenChoices({ ok: { glyph: "👍" } }, []),
+  });
+  document.body.replaceChildren(head, view.node);
+  render(html`${view.trigger}`, head);
+  view.node.querySelector('[data-token="ok"]').click();
+  assert.deepEqual(order, ["send", "close", "news"]);
+});

@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Shadow scale</title>
+    <meta
+      name="description"
+      content="Tune the three elevation shadows of the DecisionCard on the real card, then save the scale."
+    />
+    <style>
+      #shadow-workspace {
+        --ws-canvas: light-dark(#f3f2ee, #1f1e1b);
+        --ws-well: light-dark(#e9e7e1, #2b2a26);
+        --ws-fill: light-dark(#d6d4ce, #3d3b36);
+        --ws-rule: light-dark(#e1dfd8, #34322d);
+        --ws-ink: light-dark(#1d1c19, #ecebe6);
+        --ws-ink-2: light-dark(#45433e, #c9c7c0);
+        --ws-quiet: light-dark(#75736c, #9a978f);
+        --ws-faint: light-dark(#a9a69e, #6b6962);
+        --ws-focus: light-dark(#3b74e0, #7aa5f0);
+        --ws-save: light-dark(#14655f, #3f9d94);
+        --ws-card: light-dark(#ffffff, #f7f6f2);
+        --ws-card-ink: #1d1c19;
+        --ws-sans: Inter, system-ui, sans-serif;
+      }
+      #shadow-workspace > header h1,
+      #shadow-ask > h2 {
+        font-family: var(--ws-sans);
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+      #shadow-ask > h2 {
+        font-size: 15px;
+        color: var(--ws-ink-2);
+      }
+      #shadow-workspace lf-playground-preview {
+        align-content: stretch;
+        padding: 0;
+        border: 0;
+        background: none;
+      }
+      #shadow-instruction {
+        max-inline-size: 60rem;
+        font: 12px/1.5 var(--ws-sans);
+        color: var(--ws-quiet);
+        white-space: pre-line;
+      }
+      shadow-workshop {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 19rem;
+        min-height: 34rem;
+        background: var(--ws-canvas);
+        border-radius: 14px;
+        color: var(--ws-ink);
+        font-family: var(--ws-sans);
+      }
+      shadow-workshop button {
+        border: 0;
+        padding: 0;
+        background: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      shadow-workshop button:focus-visible {
+        outline: 2px solid var(--ws-focus);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+      .ws-stage {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        padding: 2rem 2rem 2.5rem;
+      }
+      .ws-stage-levels {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 1.75rem;
+      }
+      .ws-eyebrow {
+        font-size: 11px;
+        color: var(--ws-quiet);
+      }
+      .ws-title {
+        margin: 0.15rem 0 0;
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .ws-stage .ws-title {
+        font-size: 19px;
+      }
+      .ws-level {
+        position: relative;
+        display: grid;
+        grid-template-columns: 196px 9rem;
+        align-items: center;
+        gap: 1rem;
+      }
+      .ws-level::before {
+        content: "";
+        position: absolute;
+        left: -1.1rem;
+        top: 12%;
+        bottom: 12%;
+        width: 2px;
+        border-radius: 1px;
+        background: var(--ws-focus);
+        opacity: 0;
+        transition: opacity 120ms ease-out;
+      }
+      .ws-level[aria-pressed="true"]::before {
+        opacity: 1;
+      }
+      shadow-workshop .ws-level:focus-visible {
+        outline-offset: 6px;
+        border-radius: 8px;
+      }
+      .ws-level .decision-card {
+        transition: box-shadow 160ms ease-out;
+      }
+      .ws-level-name {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .ws-level-role {
+        display: block;
+        font-size: 11px;
+        color: var(--ws-quiet);
+      }
+      .ws-level[aria-pressed="false"] .ws-level-name {
+        color: var(--ws-quiet);
+        font-weight: 400;
+      }
+      .ws-inspector {
+        display: grid;
+        align-content: start;
+        gap: 0.9rem;
+        padding: 1.75rem 1.5rem;
+        border-left: 1px solid var(--ws-rule);
+      }
+      .ws-inspector-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+      .ws-actions {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      shadow-workshop .ws-reset {
+        font-size: 12px;
+        color: var(--ws-quiet);
+        padding: 6px 4px;
+      }
+      shadow-workshop .ws-reset:hover {
+        color: var(--ws-ink);
+      }
+      shadow-workshop .ws-save {
+        padding: 7px 12px;
+        border-radius: 7px;
+        background: var(--ws-save);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 500;
+        text-align: center;
+      }
+      shadow-workshop .ws-save:hover {
+        filter: brightness(1.08);
+      }
+      shadow-workshop .ws-save:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .ws-presets {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--ws-quiet);
+      }
+      .ws-presets > span {
+        margin-right: 4px;
+      }
+      shadow-workshop .ws-preset {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--ws-well);
+        color: var(--ws-ink-2);
+        font-size: 12px;
+      }
+      shadow-workshop .ws-preset:hover {
+        background: var(--ws-fill);
+      }
+      shadow-workshop .ws-preset[aria-pressed="true"] {
+        background: var(--ws-ink);
+        color: var(--ws-canvas);
+      }
+      .ws-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 11px;
+        margin-top: 0.4rem;
+      }
+      .ws-row b {
+        font-weight: 500;
+      }
+      .ws-row span {
+        color: var(--ws-faint);
+      }
+      shadow-workshop .ws-add {
+        color: var(--ws-quiet);
+      }
+      shadow-workshop .ws-add:disabled {
+        color: var(--ws-faint);
+        cursor: default;
+      }
+      .ws-layers {
+        display: grid;
+        gap: 6px;
+      }
+      .ws-layer {
+        display: grid;
+        grid-template-columns: 4.6rem 1fr;
+        align-items: center;
+        gap: 0.9rem;
+      }
+      .ws-layer-tile {
+        height: 26px;
+        border-radius: 4px;
+        background: var(--ws-card);
+        font-size: 11px;
+        line-height: 26px;
+        padding-left: 8px;
+        color: #75736c;
+        transition: box-shadow 160ms ease-out;
+      }
+      .ws-layer[aria-pressed="true"] .ws-layer-tile {
+        outline: 1.5px solid var(--ws-focus);
+        color: var(--ws-focus);
+      }
+      .ws-layer-text {
+        display: flex;
+        gap: 0.6rem;
+        font-size: 11px;
+        color: var(--ws-quiet);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-left: 2px solid transparent;
+        padding-left: 0.6rem;
+      }
+      .ws-layer[aria-pressed="true"] .ws-layer-text {
+        color: var(--ws-ink);
+        border-left-color: var(--ws-focus);
+      }
+      .ws-sliders {
+        display: grid;
+        gap: 6px;
+        margin-top: 0.3rem;
+      }
+      .ws-slider {
+        position: relative;
+        display: block;
+        height: 30px;
+        border-radius: 7px;
+        background: var(--ws-well);
+        overflow: hidden;
+        font-size: 12px;
+      }
+      .ws-slider::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: var(--fill, 0%);
+        background: var(--ws-fill);
+        pointer-events: none;
+      }
+      .ws-slider::after {
+        content: "";
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: calc(var(--fill, 0%) - 5px);
+        width: 2px;
+        border-radius: 1px;
+        background: var(--ws-ink);
+        opacity: 0;
+        transition: opacity 120ms ease-out;
+        pointer-events: none;
+      }
+      .ws-slider:hover::after,
+      .ws-slider:focus-within::after {
+        opacity: 0.55;
+      }
+      .ws-slider-name,
+      .ws-slider-value {
+        position: absolute;
+        top: 0;
+        line-height: 30px;
+        pointer-events: none;
+      }
+      .ws-slider-name {
+        left: 10px;
+        color: var(--ws-ink-2);
+      }
+      .ws-slider-value {
+        right: 10px;
+        font-variant-numeric: tabular-nums;
+        color: var(--ws-quiet);
+      }
+      .ws-slider input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        cursor: ew-resize;
+      }
+      .ws-slider:has(input:focus-visible) {
+        outline: 2px solid var(--ws-focus);
+        outline-offset: 2px;
+      }
+      .ws-colour {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 30px;
+        padding: 0 6px 0 10px;
+        border-radius: 7px;
+        background: var(--ws-well);
+        font-size: 12px;
+        color: var(--ws-ink-2);
+      }
+      .ws-colour > span:last-child {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--ws-quiet);
+      }
+      .ws-colour input {
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: none;
+        cursor: pointer;
+      }
+      .ws-colour input::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+      .ws-colour input::-webkit-color-swatch {
+        border: 0;
+        border-radius: 4px;
+      }
+      .ws-colour:has(input:focus-visible) {
+        outline: 2px solid var(--ws-focus);
+        outline-offset: 2px;
+      }
+      .decision-card {
+        width: 196px;
+        box-sizing: border-box;
+        padding: 14px 13px 12px;
+        background: var(--ws-card);
+        border-radius: 6px;
+        font: 13px/1.4 var(--ws-sans);
+        color: var(--ws-card-ink);
+      }
+      .decision-card__eyebrow {
+        display: block;
+        font-size: 11px;
+        color: #75736c;
+        margin-bottom: 6px;
+      }
+      .decision-card__title {
+        margin: 0 0 10px;
+      }
+      .decision-card__meta span {
+        display: block;
+        height: 2px;
+        background: #e4e2dc;
+        border-radius: 1px;
+        margin-top: 4px;
+      }
+      .decision-card__meta span:last-child {
+        width: 70%;
+      }
+      @media (width < 760px) {
+        shadow-workshop {
+          grid-template-columns: 1fr;
+        }
+        .ws-inspector {
+          border-left: 0;
+          border-top: 1px solid var(--ws-rule);
+        }
+        .ws-stage {
+          padding: 1.5rem 1rem;
+        }
+        .ws-level {
+          grid-template-columns: minmax(0, 196px) minmax(0, 7rem);
+        }
+        .ws-level .decision-card {
+          width: auto;
+        }
+      }
+    </style>
+    <script type="module">
+      import {
+        generatedElement,
+        keeps,
+        keepsText,
+        once,
+        whileInterfaceConnected,
+      } from "/runtime/widget-api.js";
+
+      // The app's current tokens (tokens.css), as layers.
+      const L = (x, y, blur, spread, opacity) => ({ x, y, blur, spread, opacity });
+      const DEFAULT_SCALE = {
+        colour: "#0e0d0a",
+        resting: [L(0, 0, 1, 0, 3), L(0, 1, 1, 0, 3), L(0, 3, 2, 0, 3)],
+        raised: [L(0, 1, 2, 0, 5), L(0, 4, 6, 0, 5), L(0, 10, 12, 0, 4)],
+        overlay: [
+          L(0, 2, 3, 0, 8),
+          L(0, 7, 6, 0, 8),
+          L(0, 15, 8, 0, 8),
+          L(0, 26, 10, 0, 8),
+        ],
+      };
+      // Starting points, each a whole scale, so one press sets all three elevations.
+      const PRESETS = [
+        [
+          "Flat",
+          {
+            colour: "#0e0d0a",
+            resting: [L(0, 0, 0, 1, 6)],
+            raised: [L(0, 0, 0, 1, 6), L(0, 1, 2, 0, 5)],
+            overlay: [L(0, 0, 0, 1, 8), L(0, 2, 4, 0, 6)],
+          },
+        ],
+        ["Soft", DEFAULT_SCALE],
+        [
+          "Deep",
+          {
+            colour: "#0e0d0a",
+            resting: [L(0, 1, 2, 0, 6), L(0, 4, 8, 0, 6)],
+            raised: [L(0, 2, 4, 0, 8), L(0, 8, 16, 0, 8), L(0, 18, 28, 0, 7)],
+            overlay: [
+              L(0, 4, 6, 0, 10),
+              L(0, 12, 18, 0, 10),
+              L(0, 24, 32, 0, 10),
+              L(0, 40, 48, -4, 12),
+            ],
+          },
+        ],
+      ];
+      // A scale's JSON with its keys in one order, so a value read back from the log
+      // compares equal to the preset it came from.
+      const KEYS = ["colour", "resting", "raised", "overlay"];
+      const canonical = (scale) =>
+        JSON.stringify(scale, [...KEYS, ...SLIDERS.map(([key]) => key)]);
+      const LEVELS = [
+        ["resting", "Resting", "Stationary surfaces"],
+        ["raised", "Raised", "Interactive planes"],
+        ["overlay", "Overlay", "Transient surfaces"],
+      ];
+      const SLIDERS = [
+        ["x", "Horizontal", -20, 20],
+        ["y", "Height", 0, 40],
+        ["blur", "Blur", 0, 48],
+        ["spread", "Spread", -10, 10],
+        ["opacity", "Opacity", 0, 30],
+      ];
+      const MAX_LAYERS = 4;
+
+      const rgb = (hex) =>
+        [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(" ");
+      const layerCss = (l, colour) =>
+        `${l.x}px ${l.y}px ${l.blur}px ${l.spread}px rgb(${rgb(colour)} / ${l.opacity / 100})`;
+      const shadowCss = (layers, colour) =>
+        layers.map((l) => layerCss(l, colour)).join(", ");
+      const summary = (l) => `${l.x}px x · ${l.y}px y · ${l.blur}px blur`;
+
+      function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        if (tag === "button") node.type = "button";
+        return node;
+      }
+
+      function card() {
+        const article = el("article", "decision-card");
+        article.append(
+          el("span", "decision-card__eyebrow", "Decision"),
+          el("p", "decision-card__title", "A shared decision stays close to the work."),
+        );
+        const meta = el("div", "decision-card__meta");
+        meta.append(el("span"), el("span"));
+        article.append(meta);
+        return article;
+      }
+
+      customElements.define(
+        "shadow-workshop",
+        class extends HTMLElement {
+          #playground = null;
+          #scale = null;
+          #level = "resting";
+          #layer = 0;
+          #cards = new Map();
+          #levelButtons = new Map();
+          #parts = {};
+
+          connectedCallback() {
+            if (!once(this)) return;
+            this.#build();
+            whileInterfaceConnected(this, {
+              declare: () => this.#declare(),
+              connect: () => this.#playground.subscribe(() => this.#paint()),
+            });
+          }
+
+          #build() {
+            const stage = el("div", "ws-stage");
+            const stageHead = el("div");
+            stageHead.append(
+              el("div", "ws-eyebrow", "Elevation"),
+              el("h3", "ws-title", "Shadow scale"),
+            );
+            const levels = el("div", "ws-stage-levels");
+            for (const [key, name, role] of LEVELS) {
+              const button = el("button", "ws-level");
+              button.setAttribute("aria-pressed", "false");
+              const c = card();
+              const words = el("span");
+              words.append(
+                el("span", "ws-level-name", name),
+                el("span", "ws-level-role", role),
+              );
+              button.append(c, words);
+              button.addEventListener("click", () => {
+                this.#level = key;
+                this.#layer = 0;
+                this.#paint();
+              });
+              this.#cards.set(key, c);
+              this.#levelButtons.set(key, button);
+              levels.append(button);
+            }
+            stage.append(stageHead, levels);
+
+            const inspector = el("div", "ws-inspector");
+            this.#parts.inspector = inspector;
+            const head = el("div", "ws-inspector-head");
+            const named = el("div");
+            this.#parts.role = el("div", "ws-eyebrow");
+            this.#parts.title = el("h3", "ws-title");
+            named.append(this.#parts.role, this.#parts.title);
+            const actions = el("div", "ws-actions");
+            this.#parts.reset = el("button", "ws-reset", "Reset");
+            this.#parts.save = el("button", "ws-save");
+            actions.append(this.#parts.reset, this.#parts.save);
+            head.append(named, actions);
+
+            // A press sets the whole slice, which the playground records as one
+            // gesture, so Undo takes a preset back whole.
+            const presets = el("div", "ws-presets");
+            presets.setAttribute("role", "group");
+            presets.setAttribute("aria-labelledby", "ws-presets-label");
+            const presetsLabel = el("span", null, "Start from");
+            presetsLabel.id = "ws-presets-label";
+            presets.append(presetsLabel);
+            this.#parts.presets = PRESETS.map(([name, scale]) => {
+              const button = el("button", "ws-preset", name);
+              button.addEventListener("click", () => this.#scale.set(scale));
+              presets.append(button);
+              return [button, canonical(scale)];
+            });
+
+            const row = el("div", "ws-row");
+            const count = el("b", null, "Shadow layers ");
+            this.#parts.count = el("span");
+            count.append(this.#parts.count);
+            this.#parts.add = el("button", "ws-add", "Add layer");
+            this.#parts.add.addEventListener("click", () => this.#addLayer());
+            row.append(count, this.#parts.add);
+
+            this.#parts.layers = el("div", "ws-layers");
+
+            const sliders = el("div", "ws-sliders");
+            this.#parts.sliders = new Map();
+            for (const [key, name, min, max] of SLIDERS) {
+              const label = el("label", "ws-slider");
+              const input = el("input");
+              input.type = "range";
+              input.min = String(min);
+              input.max = String(max);
+              input.step = "1";
+              const value = el("span", "ws-slider-value");
+              label.append(el("span", "ws-slider-name", name), value, input);
+              input.addEventListener("input", () =>
+                this.#setLayer(key, Number(input.value)),
+              );
+              this.#parts.sliders.set(key, { label, input, value, min, max });
+              sliders.append(label);
+            }
+
+            const colour = el("label", "ws-colour");
+            const swatch = el("span");
+            this.#parts.hex = el("span");
+            this.#parts.colour = el("input");
+            this.#parts.colour.type = "color";
+            this.#parts.colour.addEventListener("input", () =>
+              this.#scale.set({
+                ...this.#scale.get(),
+                colour: this.#parts.colour.value,
+              }),
+            );
+            swatch.append(this.#parts.hex, this.#parts.colour);
+            colour.append(el("span", null, "Colour"), swatch);
+            sliders.append(colour);
+
+            inspector.append(head, presets, row, this.#parts.layers, sliders);
+            for (const box of [stage, inspector]) generatedElement(box, { says: true });
+            this.append(stage, inspector);
+          }
+
+          #declare() {
+            this.#playground = this.closest("lf-playground");
+            this.#scale = this.#playground.registerContributor(
+              "scale",
+              DEFAULT_SCALE,
+              this.#parts.inspector,
+            );
+            this.#playground.registerActions({
+              submit: this.#parts.save,
+              reset: this.#parts.reset,
+            });
+            this.#playground.registerInstructionProvider(({ scale }) => {
+              const tokens = LEVELS.map(
+                ([key]) => `--shadow-${key}: ${shadowCss(scale[key], scale.colour)};`,
+              ).join("\n");
+              return `Set the shadow tokens in src/styles/tokens.css to:\n${tokens}\nThen show me the DecisionCard at all three elevations in light and dark.`;
+            });
+          }
+
+          #setLayer(key, value) {
+            const s = this.#scale.get();
+            const layers = s[this.#level].map((l, i) =>
+              i === this.#layer ? { ...l, [key]: value } : l,
+            );
+            this.#scale.set({ ...s, [this.#level]: layers });
+          }
+
+          #addLayer() {
+            const s = this.#scale.get();
+            const layers = s[this.#level];
+            if (layers.length >= MAX_LAYERS) return;
+            const last = layers.at(-1);
+            const next = { ...last, y: last.y * 2 || 2, blur: last.blur * 2 || 2 };
+            this.#layer = layers.length;
+            this.#scale.set({ ...s, [this.#level]: [...layers, next] });
+          }
+
+          #paint() {
+            if (!this.#scale) return;
+            const s = this.#scale.get();
+            const chosen = canonical(s);
+            for (const [button, scale] of this.#parts.presets)
+              keeps(button, "aria-pressed", scale === chosen);
+            for (const [key, name, role] of LEVELS) {
+              this.#cards.get(key).style.boxShadow = shadowCss(s[key], s.colour);
+              keeps(this.#levelButtons.get(key), "aria-pressed", key === this.#level);
+              if (key === this.#level) {
+                keepsText(this.#parts.role, role);
+                keepsText(this.#parts.title, name);
+              }
+            }
+            const layers = s[this.#level];
+            this.#layer = Math.min(this.#layer, layers.length - 1);
+            keepsText(this.#parts.count, `${layers.length} of ${MAX_LAYERS}`);
+            this.#parts.add.disabled = layers.length >= MAX_LAYERS;
+
+            const list = this.#parts.layers;
+            while (list.children.length > layers.length) list.lastChild.remove();
+            layers.forEach((layer, i) => {
+              let row = list.children[i];
+              if (!row) {
+                row = el("button", "ws-layer");
+                const tile = el("span", "ws-layer-tile", String(i + 1));
+                const text = el("span", "ws-layer-text");
+                text.append(el("span", null, `Layer ${i + 1}`), el("span"));
+                row.append(tile, text);
+                row.tile = tile;
+                row.summary = text.lastChild;
+                row.addEventListener("click", () => {
+                  this.#layer = i;
+                  this.#paint();
+                });
+                list.append(row);
+              }
+              keeps(row, "aria-pressed", i === this.#layer);
+              row.tile.style.marginLeft = `${i * 6}px`;
+              row.tile.style.boxShadow = shadowCss([layer], s.colour);
+              keepsText(row.summary, summary(layer));
+            });
+
+            const current = layers[this.#layer];
+            for (const [key, part] of this.#parts.sliders) {
+              const v = current[key];
+              if (part.input.value !== String(v)) part.input.value = String(v);
+              const fill = ((v - part.min) / (part.max - part.min)) * 100;
+              if (part.label.style.getPropertyValue("--fill") !== `${fill}%`)
+                part.label.style.setProperty("--fill", `${fill}%`);
+              keepsText(part.value, String(v));
+            }
+            if (this.#parts.colour.value !== s.colour)
+              this.#parts.colour.value = s.colour;
+            keepsText(this.#parts.hex, s.colour);
+          }
+        },
+      );
+    </script>
+  </head>
+  <body>
+    <main class="layout-workspace density-working" id="shadow-workspace">
+      <header><h1>Shadow scale</h1></header>
+      <lf-ask id="shadow-ask">
+        <h2>How should the DecisionCard's three elevations cast their shadows?</h2>
+        <lf-playground
+          id="shadow-playground"
+          submit-label="Save decision"
+          actions="page"
+          data-width="available"
+        >
+          <lf-playground-preview id="shadow-preview">
+            <shadow-workshop id="shadow-workshop"></shadow-workshop>
+          </lf-playground-preview>
+          <lf-playground-output id="shadow-instruction">
+            Keep the current shadow tokens in <code>src/styles/tokens.css</code>.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+    </main>
+  </body>
+</html>

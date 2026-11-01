@@ -6,8 +6,10 @@ import { readPart } from "./semantic-state.js";
 
 const live = readPart((root) => root.document.live);
 
+/** @param {string} name */
 export function connection(name) {
   return {
+    /** @param {string} path */
     async fetch(path) {
       if (offlineInteractive || !live())
         throw new Error("HTTP connections are available in live pages.");

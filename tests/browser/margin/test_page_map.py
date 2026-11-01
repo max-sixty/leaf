@@ -305,16 +305,12 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.keyboard.press(" ")
     expect(dialog).to_be_visible()
     assert page.evaluate("() => window.lfCanonicalActivations") == []
+    # Nor does a key on the status itself: it is no press.
     status.focus()
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference", exact=True)
-    reference.get_by_role("combobox", name="Search commands").fill("margin.press")
-    press = reference.locator(
-        '.lf-command-reference-command[data-lf-command="margin.press"]'
-    )
-    expect(press).to_have_attribute("data-lf-available", "false")
-    page.keyboard.press("Escape")
+    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(status).to_be_focused()
+    assert page.evaluate("() => window.lfCanonicalActivations") == []
 
     page.evaluate("() => window.lfCanonicalMarginEntry.behavior('action')")
     action = dialog.get_by_role(

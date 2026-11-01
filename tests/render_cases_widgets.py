@@ -15,6 +15,82 @@ from leaf.registry import storage as registry_storage
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 
+# A page-owned widget whose drawing, delivery and asynchronous preparation can be
+# controlled independently, for page and frozen-message presentation journeys.
+PAGE_WIDGET = """\
+import {
+  html, keeps, layerFact, LeafElement, live,
+} from "/runtime/widget-api.js";
+
+customElements.define("lf-local", class extends LeafElement {
+  createRenderRoot() {
+    return this.attachShadow({mode: "open"});
+  }
+
+  setup() {
+    layerFact("$tones");
+    keeps(this, "data-page-widget", "ready");
+    const held = globalThis.__heldLocalPresentations?.get(this.id);
+    if (held) this.controller.present(held);
+  }
+
+  // The gesture writes its own result into the output, which a deferral holds the
+  // widget's drawing over.
+  choose() {
+    this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
+    const sent = this.controller.dispatch({
+      kind: "action",
+      verb: "choose",
+      detail: { value: "chosen" },
+    });
+    if (!sent) return;
+    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
+    keeps(this, "data-delivery", "pending");
+    sent.delivery.then(accepted => {
+      keeps(this, "data-delivery", accepted ? "accepted" : "refused");
+    });
+  }
+
+  render() {
+    if (globalThis.__failLocalRender) {
+      globalThis.__failedLocalRenders =
+        Number(globalThis.__failedLocalRenders || 0) + 1;
+      throw new Error("deliberate render failure");
+    }
+    const {state, actions} = this.reading;
+    keeps(this, "data-rendered-choice", state.choose.value);
+    this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
+    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+      <output .value=${live(state.choose.value)}></output>`;
+  }
+});
+"""
+
+
+PAGE_DECLARATION = {
+    "lf-local": {
+        "description": "A page-owned local widget.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "choice": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-state": {
+            "choose": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice"},
+            }
+        },
+        "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
+    }
+}
+
+
 # ---------- anchors written without a browser ----------
 # `leaf thread create` writes an anchor by reading the mapped revision; the runtime
 # resolves it against the DOM that revision becomes. Nothing static can check that those
@@ -697,7 +773,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch"></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -707,7 +783,7 @@ PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
     '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff></lf-pane>',
+    '<lf-diff id="patch" source="review-patch"></lf-diff></lf-pane>',
     layout="workspace",
 )
 
@@ -719,7 +795,7 @@ PANE_DIFF_PAGE = leaf_page(
 MANIFEST_DIFF_PAGE = leaf_page(
     "manifest",
     "<h1 id='t'>Review</h1>"
-    + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
+    + '<lf-diff id="patch" source="review-patch" collapsed></lf-diff>',
 )
 
 # Which of a diff's source lines run past what the user can see. A row is one line of

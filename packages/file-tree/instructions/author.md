@@ -8,7 +8,7 @@ select both `file-tree` and `diff`, then place this beside the patch:
 
 ```html
 <lf-file-tree id="changed-files" for="patch" aria-label="Changed files"></lf-file-tree>
-<lf-diff id="patch" source="changes" view="file"><pre></pre></lf-diff>
+<lf-diff id="patch" source="changes" view="file"></lf-diff>
 ```
 
 The diff's `view="file"` presents the selected file beside the navigator. Give

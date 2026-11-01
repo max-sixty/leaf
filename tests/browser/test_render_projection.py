@@ -70,7 +70,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed></lf-diff>
 """,
     )
     url = serve(authored, packages=("diff",))

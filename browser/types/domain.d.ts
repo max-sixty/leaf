@@ -9,6 +9,7 @@ import type {
   MessageKind,
   ServedState,
   ServedVerb,
+  ServedAttention,
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
@@ -19,7 +20,7 @@ export interface ActionSpec {
   record?: StateRecord;
   writer?: "user" | "agent";
   text?: boolean;
-  creates?: { child: string; [key: string]: unknown };
+  creates?: { child: string; words: string };
   detail?: object | boolean;
 }
 export type Command = BrowserCommand & { attempt: string };
@@ -73,11 +74,7 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   addressable?: boolean;
   plainText?: string;
 };
-export type Attention = {
-  kind: "waiting" | "needs_user";
-  reason: string;
-  workflow: string | null;
-} | null;
+export type Attention = ServedAttention;
 export interface Thread {
   id: string;
   root: Message;
@@ -87,8 +84,12 @@ export interface Thread {
   detached_from: Anchor | null;
   rewritten_from: Anchor | null;
   revisions: readonly Revision[];
-  resolved:
-    EventMap["resolve"] | EventMap["action"] | { author: string; pending: true } | null;
+  resolved: CompleteUnion<
+    | NonNullable<
+        ServedState["browser"]
+      >["views"][string]["thread"]["threads"][number]["resolved"]
+    | { author: "user"; pending: true }
+  > | null;
   bare_reaction: boolean;
   seat: string | null;
   summaries: readonly (Pick<
@@ -152,6 +153,7 @@ export interface ActionValue {
   detail: Record<string, unknown>;
 }
 export interface UnitValue {
+  detail?: never;
   value: Record<string, string[]>;
   units: Record<string, ActionValue>;
 }

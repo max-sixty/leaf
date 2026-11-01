@@ -68,6 +68,11 @@ draws its own control as an entry with
 working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
 `receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
+The returned registration's `hasCurrentLocation()` says whether the user's focus is
+inside any control presenting that contribution, across shadow roots and presentation
+surfaces. Its `contains(node)` answers the same ownership question for an arbitrary
+node. Use the focus query when retaining a focused entry while updating its reading.
+
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
@@ -170,6 +175,13 @@ reactions, read tracking and reply draft; the package keeps layout, order, selec
 scroll and disclosure. The user's message editor opens in place of the message,
 with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
+`parts.transcript` also takes `{drawn}`. `drawn(answer)` runs once its transcript DOM
+is placed, before asynchronous widget preparation finishes, so layout and scroll can
+follow the words before the next frame. `answer` is null except when this draw answers
+the user's last turn; then it is the read-only `{turn, reply}` message keys, with
+`reply: null` while only work under way has arrived. A render abandoned before drawing
+calls nothing. The handle's `update()` still waits for the widgets' preparation.
+
 `parts.reply` takes `{hint, accessibleName, sent}`, where
 `sent()` runs after a send instead of moving the user to the thread. The reply box
 stands in a resolved thread too, and a reply there reopens it. The collection

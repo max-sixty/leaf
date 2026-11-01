@@ -56,8 +56,8 @@ linked demonstrations, through `/developing-leaf`, "Author or revise a page".
 
 Leaf's value includes comments, revisions and a retained decision record, so initial
 screenshots miss part of it, and a good page that takes much more authoring work may
-still favor plain HTML. Most comparisons reflect fullscreen desktop use, the intended
-one, around a stable core that makes progress interpretable. Beside the core, vary
+still favor plain HTML. Most comparisons use the default desktop viewport,
+around a stable core that makes progress interpretable. Beside the core, vary
 tasks, inputs, interaction sequences, models and viewports to find weaknesses it
 misses, and test each repair on a dissimilar case. Adaptive search finds failures, not
 a defect rate, so report it apart from the fixed comparisons.
@@ -68,8 +68,10 @@ Sol can author pages. Vary author models to test guidance transfer, and cross-ch
 judgments with the other allowed judge. A failure specific to one harness makes
 that harness the focus. Validate a repair on both
 harnesses, since their authors hit different refusals and read different references. `evals/workflows/eval.yaml` owns
-the viewports: `desktop` is the routine anchor, `short` constrained desktop, and an
-occasional `phone` run checks functional access.
+the viewport presets and dimensions. Use `desktop` for routine authoring and primary
+judging; occasionally add `large`, `short` or `phone` to answer a concrete layout or
+access question. Extra sizes on saved pages can be explored with `eval-discover`
+without expanding the original authoring task.
 
 ## Depth and breadth
 

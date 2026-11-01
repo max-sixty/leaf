@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import uuid
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -97,8 +98,8 @@ def _fragment(address: str | None, reference: str) -> str | None:
     )
 
 
-class AssetInliner:
-    """Give a resource graph one embedded body and one document-lifetime URL per resource.
+class _Assets(ABC):
+    """Traverse the CSS resource graph with the delivery's embedding policy.
 
     Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
     cascade layers, supports clauses, and media conditions retain browser semantics.
@@ -109,18 +110,10 @@ class AssetInliner:
     def __init__(self, read: ResourceReader):
         self.read = read
         self.resources: dict[str, Resource] = {}
-        self.embedded: dict[str, Resource] = {}
-        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
 
+    @abstractmethod
     def embed(self, resource: Resource) -> str | None:
-        """One document-lifetime address for exact bytes and their MIME type."""
-        data = resource.data
-        token = (
-            self.prefix
-            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
-        )
-        self.embedded[token] = Resource(data, resource.mime)
-        return token
+        """Embed a resource, or omit it from this delivery."""
 
     def resource(self, path: str) -> Resource:
         if path not in self.resources:
@@ -190,7 +183,26 @@ class AssetInliner:
         return self.css(resource.data.decode("utf-8"), path)
 
 
-class ReadableAssets(AssetInliner):
+class AssetInliner(_Assets):
+    """Give each resource one embedded body and one document-lifetime URL."""
+
+    def __init__(self, read: ResourceReader):
+        super().__init__(read)
+        self.embedded: dict[str, Resource] = {}
+        self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+
+    def embed(self, resource: Resource) -> str:
+        """One document-lifetime address for exact bytes and their MIME type."""
+        data = resource.data
+        token = (
+            self.prefix
+            + hashlib.sha256(resource.mime.encode() + b"\0" + data).hexdigest()
+        )
+        self.embedded[token] = Resource(data, resource.mime)
+        return token
+
+
+class ReadableAssets(_Assets):
     """The same CSS graph with unavailable binary declarations omitted.
 
     Native authored text, alt text and CSS layout work without scripts. Captured
@@ -205,7 +217,7 @@ class ReadableAssets(AssetInliner):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument]
+    artifact: RevisionArtifact, markup: list[SourceDocument], inliner: AssetInliner
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
@@ -242,7 +254,7 @@ def _module_urls(
         imports = list(captured_imports(resource.data, path, artifact.resources))
         pending.extend(target for _, _, target in imports)
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
-        urls[path] = _data_url(Resource(source, resource.mime))
+        urls[path] = inliner.embed(Resource(source, resource.mime))
     return urls | {alias: urls[path] for alias, path in widgets.items()}
 
 
@@ -261,23 +273,13 @@ def export_document(
     live sample is refused before this, by `cmd_export`.
 
     The import map is an address table: every module is the exact
-    captured module with only its parsed local imports rebound to an in-file ``data:``
-    URL. The normal application publisher, widgets, and presentation coordinator boot
+    captured module with its parsed local imports rebound to ``leaf:`` names.
+    The shared resource allocator gives each embedded module one object URL.
+    The normal application publisher, widgets, and presentation coordinator boot
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
     state = {**state, "others": []}
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
-    )
     resources = {**artifact.resources, **data_resources}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
@@ -293,6 +295,18 @@ def export_document(
     ]
     while any(inliner.prefix in text for text in authored_text):
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
+    modules = _module_urls(
+        artifact,
+        [
+            document,
+            *(
+                logged_fragment(event)
+                for event in state["events"]
+                if event.get("markup")
+            ),
+        ],
+        inliner,
+    )
     embedded_resources = {
         path: inliner.address(path)
         for path, resource in resources.items()

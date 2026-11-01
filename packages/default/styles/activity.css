@@ -1,11 +1,11 @@
 /* lf-activity: the page's history, newest first. One row is a sentence and
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn
- * as a link either way because both take the user there; the time sits after it in
- * the muted voice. A row taken back keeps its place, struck through and marked undone. */
+ * as a link either way because both take the user there; the time sits after it,
+ * muted. A row taken back keeps its place, struck through and marked undone. */
 lf-activity {
   display: block;
   margin: var(--sp-3) 0;
-  font: var(--voice-ui);
+  font: var(--font-ui);
   /* The feed it draws wears markup's reading face (`reading.css`) whatever theme the
      page takes, its rows' spacing at working density included. */
   --lf-reading-face: 1;
@@ -106,7 +106,7 @@ lf-activity .lf-activity-time::before {
 }
 lf-activity .lf-activity-undone {
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-chip);
   border: 1px solid var(--border-2);
   border-radius: var(--chip-r);
   padding: var(--chip-pad);
@@ -127,5 +127,4 @@ lf-activity .lf-activity-excerpt {
 lf-activity .lf-activity-empty {
   margin: 0;
   color: var(--muted);
-  font: var(--t-5) var(--sans);
 }

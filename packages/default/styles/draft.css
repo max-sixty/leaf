@@ -1,5 +1,5 @@
-/* Drafts read as Markdown, their controls marks on a small toolbar that hovers over
-   the box's edge at its right, so the box is its prose at rest and its editor while
+/* Drafts read as Markdown, their controls marks on a small toolbar that hovers in the
+   box's top-right corner, so the box is its prose at rest and its editor while
    editing, and neither grows nor narrows for its controls. The frame holds focus, and
    print retains saved prose. On screen it keeps the reading measure as its prose does
    (base.css), its outer width the measure. */
@@ -77,21 +77,23 @@ lf-draft > pre {
   lf-draft:has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
-  /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), whose face
-     and seat a code block's lone Copy shares: Edit and Copy at rest, Save, Discard and
-     Copy while editing, Copy keeping the last seat, and a refused save's status before
-     them. A pointer sees it on the top border while over the box or a key is in it,
-     and the open editor and a draft that asks for an edit (`needed`) always, since
-     there Edit is the way to answer. A finger sees it always, on the bottom border, since
-     on a phone the margin's entries hang past the end of the line they mark, into the
-     room over the next block, which is where a top toolbar would stand. */
+  /* The toolbar is Leaf's mark toolbar (integration.css, `.lf-mark-bar`), in the seat a
+     code block's lone Copy takes, inside the box's top-right corner: Edit and Copy at
+     rest, Save, Discard and Copy while editing, Copy keeping the last seat, and a
+     refused save's status before them. A pointer sees it while over the box or a key
+     is in it, and the open editor and a draft that asks for an edit (`needed`) always,
+     since there Edit is the way to answer. While it shows it covers the first line's
+     last words, the editor's too: the user chose one seat for every block's marks
+     over keeping the edited line clear (31 October 2026), when it stood on the top
+     border. A finger sees it always, so it stands on the bottom border there: in the
+     corner, its finger-wide reach would take every press meant for the first line's
+     end. */
   .lf-draft-tools {
     position: absolute;
     z-index: 1;
-    inset-block-start: 0;
-    /* The seat is measured from the box's outer edge, as a code block's is. */
-    inset-inline-end: calc(var(--lf-mark-bar-end) - 1px);
-    translate: 0 calc(-50% - 0.5px);
+    /* Measured from the box's outer edge, past its 1px border, as a code block's is. */
+    inset-block-start: calc(var(--lf-block-control-inset) - 1px);
+    inset-inline-end: calc(var(--lf-block-control-inset) - 1px);
     opacity: 0;
     transition: opacity 120ms;
   }
@@ -99,7 +101,7 @@ lf-draft > pre {
     align-self: center;
     padding-inline: 6px 2px;
     color: var(--danger-ink);
-    font: var(--voice-ui);
+    font: var(--font-ui);
     white-space: nowrap;
   }
   .lf-draft-status:empty {

@@ -1,4 +1,5 @@
-// Checks the Stability contract using protected reading/control landmarks.
+// Checks that the page holds still under the user's aim (browser/AGENTS.md), using
+// protected reading/control landmarks.
 //
 // Scope. The sensor credits movement the browser's own placement mechanisms produce,
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
@@ -6,7 +7,7 @@
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
-// Beside those, it credits only what the Stability contract itself declares:
+// Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
@@ -58,7 +59,7 @@
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
 // gesture's rendering would credit itself, though it carries the control the user
-// just pressed out from under their aim (browser/AGENTS.md, "Stability"). So the
+// just pressed out from under their aim (browser/AGENTS.md, "The page holds still under the user's aim"). So the
 // gesture's aim, the control a press lands on or the one holding focus for a key,
 // keeps its place on screen through that rendering, read fresh in viewport pixels
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
@@ -887,6 +888,20 @@
       };
     return null;
   };
+  // Cleanup may remove a zero-valued translate binding: `none` and `0px`
+  // are the same underlying endpoint, despite their different computed strings.
+  const sameTranslation = (property, before, after) => {
+    if (before === after) return true;
+    if (before === undefined || after === undefined) return false;
+    const first = animationTranslation(property, before);
+    const last = animationTranslation(property, after);
+    return (
+      first !== null &&
+      last !== null &&
+      first.left === last.left &&
+      first.top === last.top
+    );
+  };
   const translationAxes = (target) => {
     const parent = elementAxes(up(target));
     const zoom = Number(getComputedStyle(target).zoom);
@@ -1090,7 +1105,11 @@
                 effect.target.style.translate === binding ||
                 returning) &&
               (!returning ||
-                origin?.[property] === animatedValue(effect.target, style, property)),
+                sameTranslation(
+                  property,
+                  origin?.[property],
+                  animatedValue(effect.target, style, property),
+                )),
           )
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
@@ -1853,8 +1872,7 @@
     if (
       aim.event.type === "keydown" &&
       (!aim.event.defaultPrevented ||
-        (caretKeys.includes(aim.event.key) &&
-          document.documentElement.lfInputs?.typesText(aim.node)))
+        (caretKeys.includes(aim.event.key) && window.lfInputs?.typesText(aim.node)))
     ) {
       rendering.aim = null;
       return;
@@ -2186,8 +2204,8 @@
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
   // more. This is the one place news may carry what is read without a gesture
-  // (`browser/AGENTS.md`, "Stability": an answer the user waits for grows the
-  // panel's thread view).
+  // (the user's choice, recorded at `fitAnswer` in `floating-panel.js`: an answer the
+  // user waits for grows the panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,

@@ -84,9 +84,10 @@ lf-options:has(> lf-option > strong) > lf-option {
   padding: var(--lf-option-pad-block) var(--sp-3);
   --lf-block-frame: 1;
 }
-/* A card's add field takes the type the cards take from the page, rather than the
-   controls' face, so the words typed stand as the option they become will. */
-lf-options:has(> lf-option > strong) > .lf-another {
+/* The add field takes the type its options take, the row's font or, on a card, the
+   page's, rather than the controls' face, so the words typed stand as the option they
+   become will. */
+lf-options > .lf-another {
   font: inherit;
   color: inherit;
 }
@@ -302,25 +303,18 @@ lf-option .lf-pick {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--sans);
-  font-size: var(--t-6);
-  line-height: 1.5;
+  font: var(--font-small);
   color: var(--muted);
 }
-/* An 11px box with a 1.5px border; 8px sets the ✓ clear of the ring, which the type
- * ladder's smallest step does not. */
+/* An 11px box with a 1.5px border. */
 lf-option .lf-pick::before {
   content: "";
   width: 11px;
   height: 11px;
   flex: none;
   border: 1.5px solid var(--muted);
-  display: grid;
-  place-items: center;
+  display: block;
   box-sizing: border-box;
-  font-size: 8px;
-  line-height: 1;
-  color: var(--card);
 }
 /* The corner says arity, as a platform's radio and checkbox do: a circle picks one, a
  * rounded square any. The mark's accessible name carries the same for a listener.
@@ -356,10 +350,26 @@ lf-option .lf-pick:not([data-lf-said]) {
 lf-option[chosen] > .lf-pick {
   color: var(--ok-ink);
 }
+/* The pick fills the box and cuts the layer's check out of it (`check`,
+ * runtime/icon-paths.js), so the option's ground shows through the check. A ✓ glyph
+ * needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[chosen] > .lf-pick::before {
-  content: "✓";
   border-color: var(--ok);
   background: var(--ok);
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.25 3.15 3.15L13 4.75'/%3E%3C/svg%3E")
+      center / 9px no-repeat,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+/* A forced palette drops the fill, which would leave the check cut out of nothing, so
+ * the box fills in the palette's ink. */
+@media (forced-colors: active) {
+  lf-option[chosen] > .lf-pick::before {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: CanvasText;
+  }
 }
 /* Paper has no live mark, but the authored selection is part of the document. */
 @media print {
@@ -793,14 +803,16 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     background: transparent;
     color: inherit;
     /* The words the option they become is set in: the group's font where it states one
-       (a row), and otherwise the type the card takes from the page. */
+       (a row), and otherwise the type the card takes from the page. Under a finger the
+       entry floor sets them larger (surfaces.css), on their own taller line, so the
+       box gives back what that line adds over the option's and the row keeps the
+       option's height. */
     font: inherit;
-    line-height: var(--lf-option-line);
+    margin-block: calc((var(--lf-option-line) - 1lh) / 2);
     resize: none;
   }
   .lf-another .lf-compose-placeholder {
     font: inherit;
-    line-height: var(--lf-option-line);
   }
   .lf-another .lf-compose-submit {
     inset-inline-end: var(--lf-option-add-seat-inset);
@@ -903,7 +915,8 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
 }
 /* The reference floats to the end of the words' last line where it fits there and
  * drops under them where it doesn't, so the words keep the row's whole width and never
- * lose a line to it; its line is the words' (`1lh`), so it stands level with them. On
+ * lose a line to it; it stands one of the words' lines tall (`--lf-option-line`), its
+ * own line centred in it by padding, so it stands level with them. On
  * 23 October 2026 the user chose this over a zero-width table cell beside the words,
  * which centred the reference on the row and ended every row's words at one column,
  * but, once the reference named its block, squeezed a phone's words into a column five
@@ -911,7 +924,7 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
   float: inline-end;
   margin-inline-start: var(--lf-row-gap);
-  line-height: 1lh;
+  padding-block: calc((var(--lf-option-line) - 1lh) / 2);
 }
 /* The mark stands out of flow in the group's column, so the words open at one place on
  * every row whatever the row holds, centred on the row. The height is stated because an

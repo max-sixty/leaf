@@ -1,0 +1,131 @@
+# From the 2026-10-26 comparison of a hand-designed shadow-scale workshop with a
+# fresh agent following Leaf's instructions on the same request. The agent built a
+# careful settings form: every setting a percentage of today's token, so the layers
+# being decided appeared only in the submitted instruction, and the per-elevation
+# controls it placed in the preview, as the playground guide then prescribed,
+# squeezed the cards it was tuning.
+# Claude Code, 4 runs per arm, every run read the playground guide: on 1b8e30ef4
+# values-in-view passed 1/4 (three runs offered only multipliers such as
+# "Darkness x 1"; one showed the CSS in a disclosure) and subject-leads 0/4; with
+# "What the user is doing" in author.md, 4/4 and 2/4. All four candidate pages
+# edited the selected elevation's layers in pixels beside a CSS readout and
+# showed the cards in a list with a raised and an overlay card. subject-leads
+# failures on both arms are cards clipped at 1120-1280px.
+# The plain HTML control gets the same request. On 945fce2f8, 4 runs per condition:
+# values-in-view 4/4 on both; subject-leads Leaf 0/4, HTML 4/4, but the judge saw
+# Leaf's render-check sweep (each failure clipped at 1000-1120px) and only HTML's
+# 1280px arrival, where one HTML page overflows 142px at 1120px. Both arms are now
+# judged on the page on arrival at the run's windows, and the prompt no longer
+# names a 1440x900 window that contradicted the run's 1280x800 one. On 81d3cda07,
+# 4 runs per condition: both checks 4/4 on both; 3 Leaf pages drew their own Save
+# with actions="page". eval-pairs preferred HTML in 7 of 8 orders (6 slight) for
+# its comparison tools (hold to flip, zoom, preset swatches), and credited Leaf
+# with the card's supplied dimensions.
+description: playground-tunes-what-ships
+metadata:
+  purpose: "Playground: a tuning page leads with the subject being decided and lets
+    the user read the values the build will receive while tuning."
+  authoring: true
+  conditions:
+    - leaf
+    - html
+  tags:
+    - playground
+    - design
+vars:
+  prompt: |
+    You're helping a user decide the shadow scale for their app's design system. The
+    user said: "Asking me 'crisp, soft or pronounced?' in text is useless. I can't see
+    what my shadows look like now or what any option would look like. Build me a
+    playground where I can see my real cards and tune the shadows until they're right,
+    then save the decision."
+
+    Their shadow tokens, from src/styles/tokens.css:
+
+    ```css
+    :root {
+      --shadow-color: 14 13 10; /* #0e0d0a */
+      /* Resting: stationary surfaces such as cards in a list */
+      --shadow-resting:
+        0 0 1px rgb(var(--shadow-color) / 0.03),
+        0 1px 1px rgb(var(--shadow-color) / 0.03),
+        0 3px 2px rgb(var(--shadow-color) / 0.03);
+      /* Raised: interactive planes, such as a card under the pointer */
+      --shadow-raised:
+        0 1px 2px rgb(var(--shadow-color) / 0.05),
+        0 4px 6px rgb(var(--shadow-color) / 0.05),
+        0 10px 12px rgb(var(--shadow-color) / 0.04);
+      /* Overlay: transient surfaces such as popovers and menus */
+      --shadow-overlay:
+        0 2px 3px rgb(var(--shadow-color) / 0.08),
+        0 7px 6px rgb(var(--shadow-color) / 0.08),
+        0 15px 8px rgb(var(--shadow-color) / 0.08),
+        0 26px 10px rgb(var(--shadow-color) / 0.08);
+      --surface: #ffffff;
+      --canvas: #f3f2ee;
+      --radius-card: 6px;
+    }
+    ```
+
+    The component that wears them, the DecisionCard, rendered from
+    src/components/DecisionCard.tsx:
+
+    ```html
+    <article class="decision-card" data-elevation="resting">
+      <span class="decision-card__eyebrow">Decision</span>
+      <p class="decision-card__title">A shared decision stays close to the work.</p>
+      <div class="decision-card__meta"><span></span><span></span></div>
+    </article>
+    <style>
+      .decision-card {
+        width: 196px;
+        padding: 14px 13px 12px;
+        background: var(--surface);
+        border-radius: var(--radius-card);
+        font: 13px/1.4 Inter, system-ui, sans-serif;
+        color: #1d1c19;
+      }
+      .decision-card[data-elevation="resting"] { box-shadow: var(--shadow-resting); }
+      .decision-card[data-elevation="raised"] { box-shadow: var(--shadow-raised); }
+      .decision-card[data-elevation="overlay"] { box-shadow: var(--shadow-overlay); }
+      .decision-card__eyebrow { display: block; font-size: 11px; color: #75736c; margin-bottom: 6px; }
+      .decision-card__title { margin: 0 0 10px; }
+      .decision-card__meta span {
+        display: block;
+        height: 2px;
+        background: #e4e2dc;
+        border-radius: 1px;
+        margin-top: 4px;
+      }
+      .decision-card__meta span:last-child { width: 70%; }
+    </style>
+    ```
+
+    Build that page.
+assert:
+  - type: agent-rubric
+    metric: values-in-view
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      Read the HTML and open the rendered desktop screenshots in captures.screens.
+      The user is deciding three shadow tokens, each a stack of layers with an
+      offset, blur and opacity, plus a colour. Pass if, while tuning, the user can
+      read on the page the shadow values the build would receive: the layers' own
+      offsets, blur and opacity as controls or readouts, or the resulting CSS beside
+      the controls. Fail if the controls are only relative or abstract settings, such
+      as percentages of today's values or a single softness factor, and the resulting
+      values appear only in the submitted instruction or not at all. If no rendered
+      screenshot can be read, judge from the HTML alone.
+  - type: agent-rubric
+    metric: subject-leads
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: |
+      Open the rendered desktop screenshots in captures.screens and read the HTML.
+      Pass if the user's DecisionCards, shown at their elevations, are the most
+      prominent content on the first desktop screen, drawn at their real size or
+      larger, with the controls arranged so the user sees a card change while
+      operating the control that changes it. Fail if controls, explanation or empty
+      space take most of the screen while the cards are squeezed or pushed aside, if
+      the cards are cut off at the desktop width, or if changing a control's effect
+      can't be seen from where the control is. If no rendered screenshot can be read,
+      fail for missing evidence.

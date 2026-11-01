@@ -1,16 +1,48 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
 import json
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
+from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
 from model.test_user_views import report
+
+
+@pytest.mark.parametrize("failure", [None, "body", "finish"])
+def test_probe_observation_finishes_and_disposes_native_handle(monkeypatch, failure):
+    """A failed check or native reading still disconnects and releases its observation."""
+    calls = []
+    finding = {"code": "passive-layout-shift"}
+
+    def finish(_expression):
+        calls.append("finish")
+        if failure == "finish":
+            raise RuntimeError("finish failed")
+        return [finding]
+
+    handle = SimpleNamespace(evaluate=finish, dispose=lambda: calls.append("dispose"))
+    page = SimpleNamespace(evaluate_handle=lambda *_args: handle)
+    monkeypatch.setattr(render_checks_model, "_load_probes", lambda *_args: None)
+    error = (
+        pytest.raises(RuntimeError, match=f"{failure} failed")
+        if failure
+        else nullcontext()
+    )
+    with error:
+        with render_checks_model.observe_probe(page, "passiveLayoutShifts") as records:
+            assert records == []
+            if failure == "body":
+                raise RuntimeError("body failed")
+    assert calls == ["finish", "dispose"]
+    assert records == ([] if failure == "finish" else [finding])
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():

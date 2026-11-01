@@ -33,7 +33,7 @@ lf-motion:not(:defined)::before {
   /* Sticky apparatus stays opaque on the surface that contains the recording. */
   background: var(--lf-ground);
   --lf-head-inset: 8px;
-  font: var(--t-6)/1.5 var(--sans);
+  font: var(--font-small);
 }
 .lf-motion-transport {
   display: contents;

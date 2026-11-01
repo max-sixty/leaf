@@ -1,0 +1,15 @@
+diff --git a/dist/internal/webawesome-form-associated-element.d.ts b/dist/internal/webawesome-form-associated-element.d.ts
+index d8e95472f2fd6c9b10408d8acbb6a9060c08a720..1d3bd01d427a5763f2124cfe9b91b39f88c2b127 100644
+--- a/dist/internal/webawesome-form-associated-element.d.ts
++++ b/dist/internal/webawesome-form-associated-element.d.ts
+@@ -44,7 +44,9 @@ export declare class WebAwesomeFormAssociatedElement extends WebAwesomeElement i
+      * Validators are static because they have `observedAttributes`, essentially attributes to "watch"
+      * for changes. Whenever these attributes change, we want to be notified and update the validator.
+      */
+-    static get validators(): Validator[];
++    // A derived control may provide validators requiring its own element subtype.
++    // The base constructor exposes the collection, not a safe arbitrary input owner.
++    static get validators(): Validator<never>[];
+     static get observedAttributes(): string[];
+     /** The name of the input, submitted as a name/value pair with form data. */
+     name: string | null;

@@ -48,7 +48,7 @@ def test_response_picker_keeps_the_comment_in_place(
         url = serve(
             leaf_page(
                 "Review",
-                '<h1>Review</h1><lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+                '<h1>Review</h1><lf-diff id="patch" source="patch-data"></lf-diff>',
             ),
             layer_registry=layer,
         )

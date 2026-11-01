@@ -29,7 +29,6 @@ const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
   summary: "Loading comments and choices…",
-  voice: "leaf",
   explanation: LOADING_LINE,
   adds: LOADING_LINE,
 });
@@ -37,18 +36,15 @@ const LOADING = Object.freeze({
 // Before any answer the status says nothing until upgrade has opened the page, and then
 // that saved state is loading.
 const reach = readPart((root) => root.reach);
-const fault = readPart((root) => root.fault);
 const upgraded = signal(false);
 // The status with its words (`statusModel`), or null before there is one to say. It is
 // derived where it is read, so a presentation of it says the same words in the same tone
 // and follows the same inputs; only upgrade, which is mechanical, asks each to paint.
 function currentStatus() {
   const answer = reach();
-  if (answer === "waiting" && !upgraded.value) return null;
+  if (answer.reach === "waiting" && !upgraded.value) return null;
   const status =
-    answer === "waiting"
-      ? LOADING
-      : pageStatus(runtime.state, { reach: answer, fault: fault() });
+    answer.reach === "waiting" ? LOADING : pageStatus(runtime.state, answer);
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 export const statusReading = () => currentStatus()?.model ?? null;
@@ -76,16 +72,19 @@ document.head.append(tabLink);
 const toneProbe = el("span", "lf-dot");
 toneProbe.hidden = true;
 toneProbe.setAttribute("aria-hidden", "true");
+/** @type {Element | null} */
 let iconMark = null;
+/** @type {Map<string, string>} */
 const iconUrls = new Map();
 // The mark with one colour written over it. A style element appended last outranks the
 // file's own rules, the dark-scheme block included, since a media query carries no
 // specificity of its own. So this knows nothing about the icon beyond the class it
 // promises, and a project's own mark is painted on the same terms.
-function iconUrl(color) {
+/** @param {Element} mark @param {string} color */
+function iconUrl(mark, color) {
   let url = iconUrls.get(color);
   if (url === undefined) {
-    const svg = iconMark.cloneNode(true);
+    const svg = mark.cloneNode(true);
     const style = svg.ownerDocument.createElementNS(
       "http://www.w3.org/2000/svg",
       "style",
@@ -121,12 +120,18 @@ function paintTab() {
   keeps(toneProbe, "class", tone ? `lf-dot ${tone}` : "lf-dot");
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
-  keeps(tabLink, "href", iconUrl(getComputedStyle(toneProbe).backgroundColor));
+  keeps(
+    tabLink,
+    "href",
+    iconUrl(iconMark, getComputedStyle(toneProbe).backgroundColor),
+  );
 }
 
 // Announcements report the explanation when the page kind changes or current work
 // begins waiting for user input or approval, not on every observed work step or poll.
+/** @type {string | undefined} */
 let saidKind;
+/** @type {string | null | undefined} */
 let saidActionableWork;
 // A refused key, or a reading the page could not apply, is an error the user should see
 // wherever they are (errors.js), held while the status says it, since it asks the user to
@@ -134,15 +139,17 @@ let saidActionableWork;
 // reports it in its own face, and a change the user sends meanwhile holds its own error
 // (delivery.js). The status announces a change of kind in its own words already.
 const holdBlocked = holdingError({ announce: false });
+/** @param {ReturnType<typeof currentStatus>} current */
 function paintStatus(current) {
   holdBlocked(
-    ["refused", "broken"].includes(current?.status.kind)
+    current && ["refused", "broken"].includes(current.status.kind)
       ? current.status.summary
       : null,
   );
   if (!current) return;
   const { status, model } = current;
-  const { kind, actionableWork = null } = /** @type {any} */ (status);
+  const { kind } = status;
+  const actionableWork = "actionableWork" in status ? status.actionableWork : null;
   tone = model.tone;
   paintTab();
   // Interface readiness precedes the first saved reading. It gives a usable status, but

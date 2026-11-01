@@ -341,6 +341,18 @@ class Record(Generic[_RecordValue]):
             return None
         return cast(_RecordValue, stored)
 
+    def newer(self, path: Path) -> bool:
+        """Whether `path` holds this kind at a later shape than this Leaf's, which
+        only a newer Leaf writes, since a kind's `since` only rises. `read` takes it
+        as absent, so a reader that must not mistake it for none asks this."""
+        stored = stored_record(path) or {}
+        kind, _, since = str(stored.get("format", "")).rpartition("/")
+        return (
+            kind == f"leaf-{self.kind}"
+            and since.isdecimal()
+            and int(since) > self.since
+        )
+
     def stored(self, value: _RecordValue) -> dict:
         """`value` as `write` stores it, led by its `format`."""
         return {"format": self.format} | {
@@ -361,8 +373,8 @@ class Record(Generic[_RecordValue]):
 
 def stored_record(path: Path) -> dict | None:
     """The JSON object at `path`, whichever Leaf wrote it, or None where there is
-    none. Only retirement reads a record this way (`retire_if_gone`); every other
-    reader goes through `Record.read`."""
+    none. Only retirement (`retire_if_gone`) and `Record.newer` read a record this
+    way; every other reader goes through `Record.read`."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:

@@ -11,6 +11,7 @@
 // remove these, while retaining authored classes and delivery/module declarations.
 export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   external: "data-lf-external",
+  viewMember: "data-lf-view",
   obligation: "data-lf-obligation",
   done: "data-lf-done",
   restated: "data-lf-restated",
@@ -38,7 +39,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  viewMember: "data-lf-view",
+  viewMembers: "data-lf-view-members",
   ...RUNTIME_PAINT_ATTRIBUTE,
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).

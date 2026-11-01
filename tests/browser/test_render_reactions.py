@@ -2256,7 +2256,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
     url = serve(
         leaf_page(
             "Message reactions",
-            '<h1>Review</h1><lf-diff id="patch" source="patch"><pre></pre></lf-diff>',
+            '<h1>Review</h1><lf-diff id="patch" source="patch"></lf-diff>',
         )
     )
     data_model.cmd_data_set(

@@ -5,6 +5,7 @@
 import { guard, html } from "/runtime/framework.js";
 import { copyControl } from "./copy-control.js";
 
+/** @param {string} value @param {string} label */
 export function copyableText(label, value) {
   return html`<div class="lf-copyable-text">
     <div class="lf-copyable-head">
@@ -12,8 +13,8 @@ export function copyableText(label, value) {
       ${guard([label, value], () => {
         const copy = copyControl("", {
           label: `Copy ${label}`,
-          success: `${label[0].toUpperCase()}${label.slice(1)} copied`,
-          error: `${label[0].toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
+          success: `${label.charAt(0).toUpperCase()}${label.slice(1)} copied`,
+          error: `${label.charAt(0).toUpperCase()}${label.slice(1)} not copied · select the text to copy`,
           role: "symbol",
         });
         copy.value = value;

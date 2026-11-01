@@ -8,24 +8,57 @@
 (() => {
   if (globalThis.__leafRenderDriver) return;
 
+  /** @type {{route: string, probes: Record<string, (...args: unknown[]) => unknown> | null, error: {reason: unknown} | null} | null} */
   let loading = null;
-  // The platform records visible movement from parsing through the first settled
-  // presentation. Later interactive checks have their own gesture observations.
+  // Startup and passive checks observe separate windows through the same lifecycle.
+  // Read entries when delivered: a source node may disappear before a window ends.
+  /** @type {import("../../../browser/types/render-checks.js").RenderDriver["observeLayoutShifts"]} */
+  const observeLayoutShifts = (collect, buffered = false) => {
+    /** @param {DOMRectReadOnly} rectangle */
+    const rect = ({ x, y, width, height }) => ({ x, y, width, height });
+    /** @param {PerformanceEntry} entry @returns {entry is import("../../../browser/types/render-checks.js").NativeLayoutShift} */
+    const isLayoutShift = (entry) => entry.entryType === "layout-shift";
+    /** @param {PerformanceEntry[]} entries */
+    const read = (entries) =>
+      collect(
+        entries
+          .filter(isLayoutShift)
+          .filter((entry) => !entry.hadRecentInput)
+          .map((entry) => ({
+            startTime: entry.startTime,
+            value: entry.value,
+            sources: entry.sources.map((source) => {
+              const node = source.node;
+              return {
+                node: node instanceof Element ? node : (node?.parentElement ?? null),
+                before: rect(source.previousRect),
+                after: rect(source.currentRect),
+              };
+            }),
+          })),
+      );
+    const observer = new PerformanceObserver((list) => read(list.getEntries()));
+    if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+      observer.observe({ type: "layout-shift", buffered });
+    return () => {
+      read(observer.takeRecords());
+      observer.disconnect();
+    };
+  };
+  /** @type {import("../../../browser/types/render-checks.js").ShiftReading[]} */
   const startupShifts = [];
-  const shiftObserver = new PerformanceObserver((list) => {
-    startupShifts.push(...list.getEntries());
-  });
-  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
-    shiftObserver.observe({ type: "layout-shift", buffered: true });
+  const endStartupShifts = observeLayoutShifts(
+    (entries) => startupShifts.push(...entries),
+    true,
+  );
   const startupLayoutShifts = () => {
-    startupShifts.push(...shiftObserver.takeRecords());
-    shiftObserver.disconnect();
-    return startupShifts.filter((entry) => !entry.hadRecentInput);
+    endStartupShifts();
+    return startupShifts;
   };
 
   // The probe module is served beside the page's Leaf entry, so a page served under a
   // revision path loads that revision's probes.
-  const resolve = (route) => {
+  const resolve = (/** @type {string} */ route) => {
     const entry = /** @type {HTMLScriptElement | null} */ (
       document.querySelector("script[data-lf-entry]")
     )?.dataset.lfEntry;
@@ -34,9 +67,10 @@
 
   // Start this document's probe load if it has not begun, and say whether the module
   // has arrived. A failed load throws its error from here.
-  const load = (route) => {
+  const load = (/** @type {string} */ route) => {
     const href = resolve(route);
     if (loading?.route !== href) {
+      /** @type {NonNullable<typeof loading>} */
       const current = { route: href, probes: null, error: null };
       loading = current;
       import(href).then(
@@ -54,12 +88,18 @@
     return loading.probes !== null;
   };
 
+  /** @type {import("../../../browser/types/render-checks.js").RenderDriver["call"]} */
   const call = (request) => {
     const probe = loading?.probes?.[request.name];
     if (typeof probe !== "function")
       throw new TypeError(`unknown Leaf browser probe ${request.name}`);
     const result = probe(...request.args);
-    if (result && typeof result.then === "function")
+    if (
+      result &&
+      (typeof result === "object" || typeof result === "function") &&
+      "then" in result &&
+      typeof result.then === "function"
+    )
       throw new TypeError(
         `Leaf browser probe ${request.name} must be synchronous; ` +
           "publish a synchronous reading or readiness fact instead",
@@ -93,7 +133,8 @@
     });
     return requested;
   };
-  const framePresented = (requested) => presentedFrame >= requested;
+  const framePresented = (/** @type {number} */ requested) =>
+    presentedFrame >= requested;
 
   // The runtime's rendering facts for chrome and geometry (runtime/rendering.js).
   // Readers select quiet updates or require every preparation to have landed too.
@@ -107,9 +148,12 @@
 
   // Widget-quality comparison holds the entry while these authored boxes are laid
   // out. Retain the actual nodes so the final reading compares the same instances.
+  /** @type {import("../../../browser/types/render-checks.js").FirstBox[]} */
   let firstBoxes = [];
   const captureFirstBoxes = () => {
-    firstBoxes = [...document.querySelectorAll("body > main *")]
+    /** @type {NodeListOf<HTMLElement>} */
+    const elements = document.querySelectorAll("body > main *");
+    firstBoxes = [...elements]
       .filter((element) => element.localName.startsWith("lf-"))
       .map((element) => {
         const { width, height } = element.getBoundingClientRect();
@@ -123,6 +167,7 @@
     requestFrame,
     framePresented,
     renderingState,
+    observeLayoutShifts,
     startupLayoutShifts,
     captureFirstBoxes,
     firstBoxes: () => firstBoxes,

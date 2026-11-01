@@ -86,8 +86,7 @@ lf-code .lf-code-elided::after {
 }
 lf-code .lf-code-elided::after,
 lf-code .lf-code-elided > lf-note {
-  font-family: var(--sans);
-  font-size: var(--t-6);
+  font: var(--font-small);
   font-style: italic;
 }
 lf-code .lf-code-elided > lf-note {

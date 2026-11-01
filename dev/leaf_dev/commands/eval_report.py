@@ -10,8 +10,9 @@ The assessment also supplies the current implementation summary and changes sele
 for personal review. Native preferences remain per-order ordinal judgments; explicit
 checkpoints label their sequence, while authored repair observations stay separate.
 An optional journey separates each case's task, generated outputs and the report
-author's assessment. Only explicitly selected changes create review obligations;
-checks and rejected trials remain supporting evidence.
+author's assessment. The authored assessment groups experiments by their outcome;
+only explicitly selected changes create review obligations. Comparisons default to
+complete pairs; only explicitly aligned captures use a before/after wipe.
 
 Saved Leaf phases export through the standard exporter on disposable copies, retaining
 the page's layer and state. Plain HTML keeps its authored files. PAGE/evidence is
@@ -38,6 +39,7 @@ from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
 from leaf_dev.commands.eval_pairs import saved_comparison
+from leaf_dev.eval_records import execution_metadata
 
 # Run against the retained payload's Python APIs as well as its browser layer.
 # Exporting an old capture with today's composer can silently change its runtime.
@@ -76,10 +78,20 @@ STYLE = """
 .pair-shots img { display: block; box-sizing: border-box; max-width: 100%; height: auto; border: 1px solid var(--rule, #ccc); }
 .pair-shots > figure > figcaption { display: flex; align-items: baseline; align-content: start; flex-wrap: wrap; gap: .35rem 1rem; margin-block: 0 .5rem; font-weight: 600; }
 .capture-actions { display: inline-flex; flex-wrap: wrap; gap: .35rem .8rem; font-weight: 400; }
-.report-flat-tabs > lf-tabs { border: 0; border-radius: 0; background: transparent; margin-block: .75rem; }
-.report-flat-tabs > lf-tabs > lf-tab:not([hidden]) { padding: .75rem 0 0; }
-.report-flat-tabs > lf-tabs > .lf-tabstrip { padding-inline: 0; border-radius: 0; background: transparent; }
 .comparison-summary { margin-block: .25rem .75rem; font-family: var(--sans); font-size: .875rem; }
+.comparison-views > details { margin-block: 1rem; }
+.comparison-views > details > summary { font-weight: 600; }
+.comparison-views > section > h4 { margin-block: .75rem; }
+.change-index { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem 2rem; }
+.change-index ul { list-style: none; padding: 0; }
+.change-index li { margin-block: .75rem; }
+.change-index li small { display: block; margin-block-start: .2rem; color: var(--muted); }
+.experiment-record { margin-block: 1.5rem; border-block-start: 1px solid var(--rule); padding-block-start: 1rem; }
+.experiment-record > summary { font-size: 1.1rem; font-weight: 600; }
+.experiment-record > summary small { display: block; font-weight: 400; font-size: .875rem; color: var(--muted); }
+.report-highlights { padding-inline-start: 1.25rem; }
+.report-highlights li { margin-block: .75rem; }
+.report-score-summary td, .report-score-summary th { vertical-align: top; }
 .pair-shots details img { margin-top: .5rem; }
 .sample-links { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
 .sample-table td { vertical-align: top; }
@@ -108,7 +120,7 @@ STYLE = """
 .output-status { color: var(--muted); font-size: .875rem; }
 .report-meta { color: var(--muted); font-size: .875rem; }
 .journey-lane { margin-block: var(--sp-5); }
-.journey-lane > p, .journey-steps > li > p, #report-introduction > section { max-width: 82ch; }
+.journey-lane > p, .journey-steps > li > p, #report-introduction p, .report-highlights, #report-exceptions { max-width: 82ch; }
 .journey-outputs { margin-block: var(--sp-3); }
 .journey-outputs figure { margin: 0; }
 .journey-steps { list-style: none; padding-inline-start: var(--sp-4); border-inline-start: 2px solid var(--rule); }
@@ -118,7 +130,6 @@ STYLE = """
 .report-kind { font-family: var(--sans); font-size: .75rem; color: var(--muted); margin-block: 0 .5rem; }
 .generated-output { border: 1px solid var(--rule); padding: var(--sp-3); }
 .report-assessment { border-block-start: 1px solid var(--rule); padding-block-start: var(--sp-3); margin-block: var(--sp-3); }
-.report-support { margin-block: var(--sp-5); }
 """
 
 
@@ -160,12 +171,30 @@ def condition_labels(columns: dict) -> dict[str, str]:
     }
 
 
+def execution_status(response: dict) -> str:
+    """Read native completion before interpreting checks on its authored output."""
+    metadata = response.get("metadata") or {}
+    checks = metadata.get("checks") or {}
+    if (
+        checks.get("completed") is False
+        or (metadata.get("trace") or {}).get("completed") is False
+    ):
+        return "incomplete"
+    if response.get("error"):
+        return "error"
+    if checks.get("page") is False or not response.get("output"):
+        return "empty"
+    return "complete"
+
+
 def report_samples(runs: tuple[Path, ...]) -> dict:
     """Read every Promptfoo result, including failed attempts with no saved page."""
     found = defaultdict(lambda: defaultdict(list))
     retained: dict[str, dict] = {}
     for run in runs:
-        results = json.loads((run / "results.json").read_text())["results"]["results"]
+        document = json.loads((run / "results.json").read_text())
+        results = document["results"]["results"]
+        providers = document["config"]["providers"]
         for index, result in enumerate(results):
             # A copied native result is reusable; a revised grade is a new record.
             identity = hashlib.sha256(
@@ -196,7 +225,11 @@ def report_samples(runs: tuple[Path, ...]) -> dict:
                 "title": result.get("testCase", {}).get("description") or subject,
                 "work": work,
                 "diagnostics": diagnostics,
+                "execution_metadata": execution_metadata(result, providers),
                 "checks": metadata.get("checks") or {},
+                "assertions": result.get("testCase", {}).get("assert", []),
+                "execution": execution_status(response),
+                "execution_error": response.get("error"),
                 "shots": run / "screenshots" / work.name,
                 "runs": [run],
                 "gradingResult": result.get("gradingResult"),
@@ -400,7 +433,7 @@ def comparison_screens(
     columns: list[tuple[str, dict]],
     actions: list[str] | None = None,
     *,
-    before_after: bool = False,
+    aligned: bool = False,
     phases: list[str] | None = None,
 ) -> str:
     """Compare selected revisions at equal recorded viewport dimensions; default final."""
@@ -423,15 +456,18 @@ def comparison_screens(
         )
     common = [
         (name, tuple(size))
-        for name, size in columns[0][1]["diagnostics"]["comparison"]["widths"].items()
+        for name, size in sorted(
+            columns[0][1]["diagnostics"]["comparison"]["widths"].items(),
+            key=lambda item: item[0] != "desktop",
+        )
         if all(tuple(size) in capture[2] for capture in captures)
     ]
     if not common:
         return "<p>No matching captured viewports. Open each output to inspect it.</p>"
-    tabs = []
+    views = []
     for name, (width, height) in common:
         images = [paths[width, height] for _, _, paths in captures]
-        if before_after and all(images):
+        if aligned and all(images):
             contents = (
                 f'<lf-shot id="{anchor}-{name}-shot" before="{images[0][0]}" after="{images[1][0]}" '
                 f'alt="Before and after at {width} × {height}"></lf-shot>'
@@ -476,12 +512,13 @@ def comparison_screens(
                 )
                 + "</div>"
             )
-        tabs.append((f"{anchor}-{name}", name.capitalize(), contents))
-    return (
-        '<div class="report-flat-tabs">'
-        + tab_group(f"{anchor}-widths", tabs)
-        + "</div>"
-    )
+        label = f"{name.capitalize()} · {width} × {height}"
+        views.append(
+            f'<section id="{anchor}-{name}"><h4>{escape(label)}</h4>{contents}</section>'
+            if not views
+            else f'<details id="{anchor}-{name}"><summary>{escape(label)}</summary>{contents}</details>'
+        )
+    return f'<div id="{anchor}-widths" class="comparison-views">{"".join(views)}</div>'
 
 
 def pair_section(
@@ -498,7 +535,7 @@ def pair_section(
     heading = verdict_line(pair, labels) if pair else "Compare the outputs"
     earlier = ""
     phase_description = (
-        f"The tabs show the final saved revision (phase {versions['']}), "
+        f"The captures show the final saved revision (phase {versions['']}), "
         "before the judge's inspection actions."
     )
     if "_before_decision" in versions:
@@ -538,15 +575,16 @@ def pair_section(
         )
     return (
         f'<section id="{sid}"><h3>Pair {n}: {escape(heading)}</h3>'
+        f"{notes}"
         f"{comparison_screens(page, sid, [(label, sample) for label, _, sample in columns])}"
-        f"{earlier}{notes}"
+        f"{earlier}"
         f"<details><summary>Saved phases and run provenance</summary><p>{phase_description} "
         "Inspection actions and states, when judged, are retained in the judgment traces.</p>"
         "<p>A repeated comparison swaps the pages' left/right positions to check whether the judge's preference changes with presentation order. "
         + (
-            "This pair was judged in both orders."
+            "Recorded presentation orders appear above; an unscored order supplies no preference."
             if pair
-            else "This pair has no repeated comparison judgment; any experiment assessment is under Changes tested."
+            else "This pair has no repeated comparison judgment; any experiment assessment is under Changes to Leaf."
         )
         + "</p><p>Runs: "
         + escape(
@@ -654,13 +692,22 @@ def exported_output(
                     capture_output=True,
                     text=True,
                 )
-    except subprocess.CalledProcessError as error:
-        return f"Output export unavailable: {escape(error.stderr.strip())}"
-    except OSError as error:
-        return f"Output export unavailable: {escape(str(error))}"
+    except (subprocess.CalledProcessError, OSError) as error:
+        diagnostic = target.with_name("export-error.txt")
+        diagnostic.write_text(
+            error.stderr
+            if isinstance(error, subprocess.CalledProcessError)
+            else str(error)
+        )
+        detail = (
+            f'<a href="{escape(output_url.rstrip("/") + "/" + slot + "/export-error.txt")}" target="_blank" rel="noopener">Export diagnostic</a>'
+            if output_url
+            else f"Export diagnostic not served: <code>{escape(str(diagnostic))}</code>"
+        )
+        return f"Saved-page export unavailable · {detail}"
     if output_url:
         href = output_url.rstrip("/") + "/" + slot + "/index.html"
-        return f'<a href="{escape(href)}" target="_blank" rel="noopener">Open interactive output</a>'
+        return f'<a href="{escape(href)}" target="_blank" rel="noopener">Open saved page</a>'
     return f"Output not served: <code>{escape(str(target))}</code>"
 
 
@@ -670,12 +717,20 @@ def check_results(sample: dict) -> list[tuple[str, str]]:
         "page": "Output saved",
         "page-valid": "Page validation",
     }
+    asserted = {assertion.get("metric") for assertion in sample["assertions"]}
     return [
         (
             labels.get(name, name.replace("-", " ").capitalize()),
-            "Passed" if value else "Failed",
+            (
+                "Incomplete"
+                if name == "completed" and sample["execution"] == "incomplete"
+                else "Passed"
+                if value
+                else "Failed"
+            ),
         )
         for name, value in sample["checks"].items()
+        if name in asserted
     ]
 
 
@@ -691,6 +746,10 @@ def result_list(results: list[tuple[str, str]]) -> str:
 
 
 def check_summary(sample: dict) -> str:
+    if sample["execution"] == "incomplete":
+        return "Author did not finish"
+    if sample["execution"] == "error":
+        return "Execution unavailable"
     results = check_results(sample)
     if not results:
         return "Not checked"
@@ -700,6 +759,15 @@ def check_summary(sample: dict) -> str:
         if failed
         else f"{len(results)} checks passed"
     )
+
+
+def quality_unavailable(sample: dict) -> str | None:
+    """Execution evidence bounds which recorded grades can assess an output."""
+    return {
+        "incomplete": "Author did not finish",
+        "error": "Execution unavailable",
+        "empty": "No authored output",
+    }.get(sample["execution"])
 
 
 def quality_results(sample: dict) -> list[dict]:
@@ -727,7 +795,9 @@ def quality_name(result: dict) -> str:
     )
 
 
-def quality_status(result: dict) -> str:
+def quality_status(result: dict, sample: dict) -> str:
+    if unavailable := quality_unavailable(sample):
+        return f"Not assessed — {unavailable.lower()}"
     metadata = result.get("metadata", {})
     if metadata.get("authoring_grade"):
         status = metadata["authoring_grade"]["status"]
@@ -735,11 +805,17 @@ def quality_status(result: dict) -> str:
             status, status.replace("_", " ").capitalize()
         )
     if "page_defects" in metadata:
-        return f"{len(metadata['page_defects']['defects'])} defects found"
+        reading = metadata["page_defects"]
+        if reading["status"] == "unscored":
+            return "Unscored"
+        count = len(reading["defects"])
+        return f"{count} defect{'s' if count != 1 else ''} found"
     return "Passed" if result.get("pass") else "Failed"
 
 
 def grade_summary(sample: dict) -> str:
+    if unavailable := quality_unavailable(sample):
+        return f"No quality assessment — {unavailable.lower()}"
     results = quality_results(sample)
     if not results:
         return (
@@ -748,9 +824,13 @@ def grade_summary(sample: dict) -> str:
             else "No individual assessment"
         )
     if len(results) == 1:
-        return quality_name(results[0]) + ": " + quality_status(results[0]).lower()
-    passed = sum(result.get("pass", False) for result in results)
-    return f"{passed} of {len(results)} criteria passed"
+        return (
+            quality_name(results[0]) + ": " + quality_status(results[0], sample).lower()
+        )
+    return "; ".join(
+        f"{quality_name(result)}: {quality_status(result, sample).lower()}"
+        for result in results
+    )
 
 
 def overview(found: dict, *, table_id: str = "overview") -> str:
@@ -763,7 +843,8 @@ def overview(found: dict, *, table_id: str = "overview") -> str:
                 anchor = sample_anchor(sample)
                 rows.append(
                     f'<tr><td data-label="Task"><a href="#{task_anchor(subject)}">{escape(task_title(columns))}</a></td>'
-                    f'<td data-label="Version">{escape(labels[column])}<small>Output {sample["attempt"]} · {escape(sample.get("run_group", ""))}</small></td>'
+                    f'<td data-label="Version">{escape(labels[column])}<small>Output {sample["attempt"]} · {escape(sample.get("run_group", ""))}</small>'
+                    f"<small>{escape(sample['execution_metadata']['author']['model'] or 'Model unavailable in retained run')}</small></td>"
                     f'<td data-label="Checks">{escape(check_summary(sample))}</td>'
                     f'<td data-label="Recorded reviews">{escape(grade_summary(sample))}</td>'
                     f'<td data-label="Output"><a href="#{anchor}">View output</a></td></tr>'
@@ -775,6 +856,15 @@ def overview(found: dict, *, table_id: str = "overview") -> str:
         '<th scope="col">Output</th></tr></thead><tbody>'
         + "".join(rows)
         + "</tbody></table>"
+    )
+
+
+def capture_errors(sample: dict, phase: str) -> str:
+    return "".join(
+        f"<p><strong>{escape(name.capitalize())} capture unavailable:</strong> {escape(reason)}</p>"
+        for name, reason in sample["diagnostics"]["phases"][phase]
+        .get("capture_errors", {})
+        .items()
     )
 
 
@@ -801,7 +891,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
     quality = quality_results(sample)
     assessment = (
         "".join(
-            f'<section id="{anchor}-review-{index}"><h4>{escape(quality_name(result))} — {escape(quality_status(result))}</h4>'
+            f'<section id="{anchor}-review-{index}"><h4>{escape(quality_name(result))} — {escape(quality_status(result, sample))}</h4>'
             f"<p>{escape(result.get('reason') or '')}</p>"
             + (
                 f"<p><strong>Criterion:</strong> {escape(str(result['assertion']['value']))}</p>"
@@ -910,7 +1000,7 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
                     + "</details>"
                 )
             screens_view += "</div>"
-        content = f'<p class="sample-links">{exported}</p>{screens_view}'
+        content = f'<p class="sample-links">{exported}</p>{capture_errors(sample, phase)}{screens_view}'
         if phase == final:
             role = phase_label(sample, phase)
             final_view = (
@@ -949,14 +1039,22 @@ def sample_section(page: Path, sample: dict, label: str, output_url: str | None)
         phases_view = (
             f"<p>No saved page was recorded. {escape(sample.get('error') or '')}</p>"
         )
+    execution = f'<p class="output-status">{escape(grade_summary(sample))}.</p>'
+    if sample["execution_error"]:
+        execution += f"<p><strong>Execution error:</strong> {escape(sample['execution_error'])}</p>"
     return (
         f'<section id="{anchor}">'
         f'<p class="output-status">{escape(label)} · {escape(sample.get("run_group", ""))}</p>'
-        f"{phases_view}"
+        f"{execution}"
         f"{checks}"
+        f"{phases_view}"
         f'<details class="report-metadata"><summary>Request, sources and run details</summary>'
-        "<p>Saved interactive copies keep controls and navigation available locally; "
-        "no agent is connected and edits stay in this browser.</p>"
+        "<p>Saved pages preserve the reviewed state and support local navigation. "
+        "Leaf actions that record edits or decisions require a live page. "
+        "No agent is connected to these copies.</p>"
+        f"<p>Author: {escape(sample['execution_metadata']['author']['model'] or 'Unavailable in retained run')} "
+        f"via {escape(sample['execution_metadata']['author']['harness'])} · {escape(sample['execution_metadata']['kind'])}.</p>"
+        f"<p>Selected viewport conditions: {escape(', '.join(sample['execution_metadata']['requested_viewports']))}.</p>"
         f"<p>Captured sizes: {escape(widths)}.</p><ul>{''.join(sources)}</ul>"
         f"<dl><dt>Case ID</dt><dd>{escape(sample['subject'])}</dd>"
         f"<dt>Result ID</dt><dd>{escape(sample['result_id'])}</dd>"
@@ -1200,7 +1298,7 @@ def reference_phase(sample: dict, reference: dict) -> str:
 
 
 def journey_outputs(page: Path, step: dict, samples: dict) -> str:
-    """Keep each output's captures and interactive link on its authored revision."""
+    """Keep each output's captures and saved-page link on its authored revision."""
     selected = [
         (reference, sample_for(samples, reference))
         for reference in step.get("outputs", [])
@@ -1220,13 +1318,20 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
     outputs = []
     for index, (reference, sample) in enumerate(selected, 1):
         phase = reference_phase(sample, reference)
+        saved = bool(sample["diagnostics"]["phases"][phase].get("page"))
+        details = sample_anchor(sample) + (f"-p{phase}" if saved else "")
+        details_label = (
+            f"{phase_label(sample, phase)} and details" if saved else "Attempt details"
+        )
         condition = {"html": "HTML control", "leaf": "Leaf"}.get(
             sample["diagnostics"].get("condition"), "Generated page"
         )
-        model = reference.get("model") or (
-            f"{sample['diagnostics'].get('harness', 'Author')} · model not recorded"
+        author = sample["execution_metadata"]["author"]
+        model = (
+            author["model"]
+            or f"{author['harness']} · model unavailable in retained run"
         )
-        provenance = f"{condition} · {model} · {phase_label(sample, phase)}"
+        provenance = f"{condition} · {model} · {phase_label(sample, phase) if saved else 'No saved page'}"
         anchor = f"{step['id']}-output-{index}"
         captures = screens(page, sample, phase)
         widths = sample["diagnostics"]["comparison"]["widths"]
@@ -1248,11 +1353,12 @@ def journey_outputs(page: Path, step: dict, samples: dict) -> str:
                 else f"<details><summary>{escape(label)}</summary>{figure}</details>"
             )
         outputs.append(
-            f'<section id="{anchor}" class="generated-output"><p class="report-kind">Generated output</p>'
+            f'<section id="{anchor}" class="generated-output"><p class="report-kind">{"Generated output" if saved else "Author attempt"}</p>'
             f'<h5>{escape(reference["label"])}</h5><p class="report-meta">{escape(provenance)}</p>'
             '<p class="sample-links">'
             + sample.get("exports", {}).get(phase, "Saved output unavailable")
-            + f'<a href="#{sample_anchor(sample)}-p{phase}">{escape(phase_label(sample, phase))} and details</a></p>'
+            + f'<a href="#{details}">{escape(details_label)}</a></p>'
+            + capture_errors(sample, phase)
             + ("".join(views) or "<p>No screenshots recorded.</p>")
             + "</section>"
         )
@@ -1273,7 +1379,6 @@ def journey_view(page: Path, lanes: list[dict], samples: dict) -> str:
             f'<li id="{escape(step["id"])}">'
             + f'<p class="report-kind">{"Author attempt" if step.get("outputs") else "Supporting observation"}</p>'
             + f"<h4>{escape(step['title'])}</h4>"
-            + journey_outputs(page, step, samples)
             + f'<aside id="{escape(step["id"])}-assessment" class="report-assessment">'
             + f'<p class="report-kind">Assessment · {escape(step.get("assessment_by", "Report author"))}</p>'
             + f"<p>{escape(step['body'])}</p>"
@@ -1282,7 +1387,9 @@ def journey_view(page: Path, lanes: list[dict], samples: dict) -> str:
                 f'<a href="{escape(link["target"])}">{escape(link["label"])}</a>'
                 for link in step["links"]
             )
-            + "</p></aside></li>"
+            + "</p></aside>"
+            + journey_outputs(page, step, samples)
+            + "</li>"
             for step in lane["steps"]
         )
         sections.append(
@@ -1493,8 +1600,8 @@ def judge_preferences(
         repair_rows = "".join(
             f'<tr id="repair-{escape(item["id"])}"><th scope="row">{escape(item["title"])}</th><td>{escape(item["before"])}</td><td>{escape(item["after"])}</td><td>'
             + " · ".join(
-                linked_file(page, Path(path), output_url, f"Evidence {i}")
-                for i, path in enumerate(item["evidence"], 1)
+                linked_file(page, Path(source["path"]), output_url, source["label"])
+                for source in item["evidence"]
             )
             + "</td></tr>"
             for item in repairs
@@ -1536,9 +1643,9 @@ def implementation_summary(
     changes = []
     for change in review["changes"]:
         evidence = []
-        for number, name in enumerate(change["evidence"], 1):
-            path = Path(name)
-            evidence.append(linked_file(page, path, output_url, path.name))
+        for number, source in enumerate(change["evidence"], 1):
+            path = Path(source["path"])
+            evidence.append(linked_file(page, path, output_url, source["label"]))
             if path.suffix == ".diff" and path.is_file():
                 # The inline widget owns parsing and per-file disclosure. Preserve
                 # every patch character, including space-only context lines.
@@ -1578,7 +1685,58 @@ def implementation_summary(
     )
 
 
-def report_introduction(found: dict, latest: str) -> str:
+def campaign_view(campaign: dict | None) -> str:
+    """Draw authored causal links; timestamps alone never invent a branch or join."""
+    if not campaign:
+        return ""
+    kinds = list(dict.fromkeys(node["kind"] for node in campaign["nodes"]))
+    nodes = {node["id"]: f"n{number}" for number, node in enumerate(campaign["nodes"])}
+    lines = [
+        "flowchart TD",
+        "accTitle: Campaign journey",
+        "accDescr: " + campaign["summary"],
+    ]
+    for node in campaign["nodes"]:
+        lines.append(f"{nodes[node['id']]}[{json.dumps(node['label'])}]")
+        lines.append(f"class {nodes[node['id']]} kind-{kinds.index(node['kind'])}")
+    for edge in campaign["edges"]:
+        label = f"|{json.dumps(edge['label'])}|" if edge.get("label") else ""
+        lines.append(f"{nodes[edge['from']]} -->{label} {nodes[edge['to']]}")
+    styles = "".join(
+        f"#campaign-flow .pele-node.kind-{number} rect {{fill: color-mix(in srgb, var(--series-{number % 5 + 1}) 12%, var(--paper)); stroke: var(--series-{number % 5 + 1});}}"
+        for number, _ in enumerate(kinds)
+    )
+    legend = "".join(
+        f'<li style="border-inline-start: .3rem solid var(--series-{number % 5 + 1}); padding-inline-start: .5rem">{escape(kind)}</li>'
+        for number, kind in enumerate(kinds)
+    )
+    key = "".join(
+        f'<tr><th scope="row"><a href="{escape(node["href"])}">{escape(node["label"])}</a></th><td>{escape(node["kind"])}</td></tr>'
+        for node in campaign["nodes"]
+    )
+    return (
+        '<section id="campaign-journey" data-width="available"><h2>Campaign journey</h2>'
+        f'<p>{escape(campaign["summary"])}</p><ul class="sample-links">{legend}</ul>'
+        f'<style>{styles}</style><lf-diagram id="campaign-flow" parts="all"><pre>{escape(chr(10).join(lines))}</pre></lf-diagram>'
+        '<details><summary>Journey steps and evidence</summary><table id="campaign-step-key"><thead><tr><th scope="col">Step</th><th scope="col">Run type</th></tr></thead><tbody>'
+        f"{key}</tbody></table></details>"
+        + (
+            '<section id="viewport-policy"><h3>Viewport selection</h3>'
+            f"<p>{escape(campaign['viewports'])}</p>"
+            + (
+                f"<p><strong>Next campaign.</strong> {escape(campaign['next_campaign'])}</p>"
+                if campaign.get("next_campaign")
+                else ""
+            )
+            + "</section>"
+            if campaign.get("viewports")
+            else ""
+        )
+        + "</section>"
+    )
+
+
+def report_introduction(found: dict, latest: str, campaign: str) -> str:
     """Keep the opening to the result, with evidence in the views it describes."""
     count = sum(
         len(members) for columns in found.values() for members in columns.values()
@@ -1586,6 +1744,7 @@ def report_introduction(found: dict, latest: str) -> str:
     return (
         '<lf-tab id="report-introduction" label="Introduction">'
         + latest
+        + campaign
         + f'<p class="report-meta">{len(found)} cases · {count} saved result records</p>'
         + '<p class="sample-links"><a href="#changes-tested">Review changes to Leaf</a>'
         ' · <a href="#all-results">Inspect cases and outputs</a></p></lf-tab>'
@@ -1594,7 +1753,7 @@ def report_introduction(found: dict, latest: str) -> str:
 
 def review_sections(
     page: Path, review: dict, samples: dict, output_url: str | None
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Render the agent's explicit experiment assessment beside its retained evidence."""
 
     def output_link(sample: dict, label: str = "", phase: str | None = None) -> str:
@@ -1615,27 +1774,29 @@ def review_sections(
             + f'<a href="#{sample_anchor(sample)}">Inspect results</a></span>'
         )
 
-    def evidence_links(paths: list[str], anchor: str, label: str) -> str:
+    def evidence_links(sources: list[dict], anchor: str, label: str) -> str:
         images = [
-            value
-            for value in paths
-            if MEDIA_TYPES.get(Path(value).suffix.lower(), "").startswith("image/")
+            source
+            for source in sources
+            if MEDIA_TYPES.get(Path(source["path"]).suffix.lower(), "").startswith(
+                "image/"
+            )
         ]
         links = " · ".join(
-            linked_file(page, Path(path), output_url, Path(path).name)
-            for path in paths
-            if path not in images
+            linked_file(page, Path(source["path"]), output_url, source["label"])
+            for source in sources
+            if source not in images
         )
         captures = ""
         if images:
-            added = media_paths(page, [Path(value) for value in images])
+            added = media_paths(page, [Path(source["path"]) for source in images])
             captures = (
                 '<div class="pair-shots">'
                 + "".join(
-                    f'<figure id="{anchor}-capture-{index}"><figcaption>{escape(Path(value).stem.replace("-", " "))}</figcaption>'
-                    + shot(page, added[Path(value)], Path(value).stem)
+                    f'<figure id="{anchor}-capture-{index}"><figcaption>{escape(source["label"])}</figcaption>'
+                    + shot(page, added[Path(source["path"])], source["label"])
                     + "</figure>"
-                    for index, value in enumerate(images, 1)
+                    for index, source in enumerate(images, 1)
                 )
                 + "</div>"
             )
@@ -1663,8 +1824,14 @@ def review_sections(
         findings.append(
             f"<li><p>{escape(finding['finding'])}</p><p>{output_link(sample, sample['title'])}</p></li>"
         )
-    experiments = []
-    supporting = []
+    groups = {
+        "retained": "Retained changes",
+        "rejected": "Rejected trials",
+        "evaluation": "Evaluation corrections",
+        "exploration": "Exploration and supporting evidence",
+    }
+    experiments = {group: [] for group in groups}
+    index_entries = {group: [] for group in groups}
     for experiment in review["experiments"]:
         anchor = "experiment-" + experiment["id"]
         comparisons = []
@@ -1687,7 +1854,8 @@ def review_sections(
                     sample["diagnostics"].get("condition")
                 )
                 labels.append(
-                    f"{condition if reference_comparison else side.capitalize()} · {role}"
+                    comparison[side].get("label")
+                    or f"{condition if reference_comparison else side.capitalize()} · {role}"
                 )
             comparisons.append(
                 (
@@ -1704,6 +1872,7 @@ def review_sections(
                         if comparison.get("summary")
                         else ""
                     )
+                    + f"<p>{escape(comparison['finding'])}</p>"
                     + comparison_screens(
                         page,
                         f"{anchor}-comparison-{index}",
@@ -1715,10 +1884,9 @@ def review_sections(
                             output_link(before, phase=phases[0]),
                             output_link(after, phase=phases[1]),
                         ],
-                        before_after=not reference_comparison,
+                        aligned=comparison.get("aligned", False),
                         phases=phases,
                     )
-                    + f"<p>{escape(comparison['finding'])}</p>"
                     + evidence_links(
                         comparison["evidence"],
                         f"{anchor}-comparison-{index}-evidence",
@@ -1727,20 +1895,29 @@ def review_sections(
                 )
             )
         comparisons_view = (
-            '<div class="report-flat-tabs">'
-            + tab_group(f"{anchor}-comparisons", comparisons)
+            f'<div id="{anchor}-comparisons" class="comparison-views">'
+            + "".join(
+                f'<section id="{item}"><h3>{escape(label)}</h3>{content}</section>'
+                if number == 0
+                else f'<details id="{item}"><summary>{escape(label)}</summary>{content}</details>'
+                for number, (item, label, content) in enumerate(comparisons)
+            )
             + "</div>"
             if comparisons
             else ""
         )
         selected = experiment.get("review", False)
-        kind = experiment.get("kind", "Change" if selected else "Supporting evidence")
+        kind = experiment.get("kind", "Experiment")
         content = (
             '<header class="experiment-heading">'
             f'<p class="report-kind">{escape(kind)}</p>'
             f"<h2>{escape(experiment['title'])}</h2>"
             f'<p class="experiment-recommendation"><span>Recommendation:</span> <strong>{escape(experiment["recommendation"])}</strong></p></header>'
             f'<p class="experiment-change">{escape(experiment["change"])}</p>'
+            + f'<aside id="{anchor}-assessment" class="report-assessment"><p class="report-kind">Assessment · Report author</p>'
+            + f"<p>{escape(experiment['reason'])}</p></aside>"
+            + f'<p class="experiment-limit"><strong>Limits.</strong> {escape(experiment["limits"])}</p>'
+            + f"<!-- experiment-evidence:{experiment['id']} -->"
             + comparisons_view
             + evidence_links(
                 experiment["evidence"], f"{anchor}-evidence", "Change sources"
@@ -1753,38 +1930,52 @@ def review_sections(
                 if selected
                 else ""
             )
-            + f'<aside id="{anchor}-assessment" class="report-assessment"><p class="report-kind">Assessment · Report author</p>'
-            + f"<p>{escape(experiment['reason'])}</p></aside>"
-            + f"<details><summary>Scope and limitations</summary><p>{escape(experiment['period'])}</p><p>{escape(experiment['limits'])}</p></details>"
+            + f"<details><summary>Experiment record</summary><p>{escape(experiment['period'])}</p></details>"
         )
         if selected:
-            experiments.append(
-                f'<lf-tab id="{anchor}" label="{escape(experiment.get("label", experiment["title"]))}" summary="{escape(experiment["recommendation"])}">'
-                f'<lf-ask id="{anchor}-question">{content}</lf-ask></lf-tab>'
-            )
-        else:
-            supporting.append(
-                f'<section id="{anchor}" class="report-support">{content}</section>'
-            )
+            content = f'<lf-ask id="{anchor}-question">{content}</lf-ask>'
+        group = experiment["group"]
+        experiments[group].append(
+            f'<details id="{anchor}" class="experiment-record"><summary>{escape(experiment["title"])}'
+            f"<small>{escape(experiment['recommendation'])}</small></summary>"
+            + content
+            + "</details>"
+        )
+        index_entries[group].append(
+            f'<li><a href="#{anchor}">{escape(experiment["title"])}</a>'
+            f"<small>{escape(experiment['recommendation'])}</small></li>"
+        )
     implementation = implementation_summary(
         page, review.get("implementation"), output_url
     )
+    highlights = "".join(
+        f'<li><a href="{escape(item["href"])}"><strong>{escape(item["label"])}</strong></a> — {escape(item["text"])}</li>'
+        for item in latest.get("highlights", [])
+    )
+    exceptions = "".join(
+        f'<li><a href="{escape(item["href"])}"><strong>{escape(item["label"])}</strong></a> — {escape(item["text"])}</li>'
+        for item in latest.get("exceptions", [])
+    )
+    score_rows = "".join(
+        f'<tr><th scope="row"><a href="{escape(item["href"])}">{escape(item["label"])}</a></th>'
+        f"<td>{escape(item['before'])}</td><td>{escape(item['after'])}</td><td>{escape(item['meaning'])}</td></tr>"
+        for item in latest.get("scores", [])
+    )
     return (
         '<lf-tab id="changes-tested" label="Changes to Leaf">'
-        + (
-            '<lf-tabs id="experiments" data-width="available">'
-            + "".join(experiments)
-            + "</lf-tabs>"
-            if experiments
-            else "<p>No changes selected for review.</p>"
+        + '<h2>Changes and experiments</h2><nav id="experiment-index" class="change-index" aria-label="Changes and experiments">'
+        + "".join(
+            f'<section id="experiment-index-{group}"><h3><a href="#experiments-{group}">{label}</a></h3><ul>{"".join(index_entries[group])}</ul></section>'
+            for group, label in groups.items()
+            if index_entries[group]
         )
-        + (
-            '<details id="supporting-checks"><summary>Checks and other trials</summary>'
-            + "".join(supporting)
-            + "</details>"
-            if supporting
-            else ""
+        + '</nav><div id="experiments">'
+        + "".join(
+            f'<section id="experiments-{group}"><h2>{label}</h2>{"".join(experiments[group])}</section>'
+            for group, label in groups.items()
+            if experiments[group]
         )
+        + "</div>"
         + (
             '<details id="implementation-record"><summary>Implementation and validation record</summary>'
             + implementation
@@ -1795,8 +1986,21 @@ def review_sections(
         + "</lf-tab>",
         f'<section id="latest-run"><h2>{escape(latest["title"])}</h2>'
         + f"<p>{escape(latest['summary'])}</p>"
-        + f"<details><summary>Review findings</summary><ul>{''.join(findings)}</ul></details>"
+        + (
+            '<section id="score-summary"><h3>Results at a glance</h3><table id="score-summary-table" class="report-score-summary" data-width="available"><thead><tr>'
+            '<th scope="col">Comparison</th><th scope="col">Baseline / first result</th><th scope="col">Candidate / final result</th><th scope="col">Interpretation</th>'
+            f"</tr></thead><tbody>{score_rows}</tbody></table></section>"
+            if score_rows
+            else ""
+        )
+        + (f'<ul class="report-highlights">{highlights}</ul>' if highlights else "")
+        + (
+            f'<section id="report-exceptions"><h3>Remaining defects and limits</h3><ul>{exceptions}</ul></section>'
+            if exceptions
+            else ""
+        )
         + "</section>",
+        f'<details id="review-findings"><summary>Per-attempt findings</summary><ul>{"".join(findings)}</ul></details>',
     )
 
 
@@ -1827,20 +2031,21 @@ def eval_report(
     Serve PAGE/evidence with a static server and pass its URL as --output-url
     to open saved pages and raw evidence from the report. Without that URL the
     report names the exported files but does not claim they are reachable."""
+    assessment = json.loads(review.read_text()) if review else None
     packages = list(layer_packages(page)) if (page / "events.jsonl").exists() else []
-    if "diff" not in packages:
+    required = ["diff", *(["diagram"] if (assessment or {}).get("campaign") else [])]
+    if any(name not in packages for name in required):
         leaf(
             "page",
             "init",
             str(page),
             *[
                 argument
-                for name in [*packages, "diff"]
+                for name in dict.fromkeys([*packages, *required])
                 for argument in ("--package", name)
             ],
         )
     found = report_samples(runs)
-    assessment = json.loads(review.read_text()) if review else None
     # The story owns the reader's sequence; input-file order carries no task meaning.
     subjects_by_sample = {
         (run.resolve(), sample["sample"]): subject
@@ -1933,10 +2138,10 @@ def eval_report(
         for sample in members
         for run in sample["runs"]
     }
-    changes, introduction = (
+    changes, introduction, findings = (
         review_sections(page, assessment, samples, output_url)
         if assessment
-        else ("", "")
+        else ("", "", "")
     )
     story = (
         journey_view(page, assessment.get("journey", []), samples) if assessment else ""
@@ -1948,6 +2153,7 @@ def eval_report(
         + judge_preferences(page, records, found, assessment, output_url)
         + f'<lf-tab id="scores" label="{index_label}" group="Overview">'
         + overview(found)
+        + findings
         + f"<details><summary>Runs and score definitions</summary>{runs_text}"
         "<p>Checks are execution assertions. Quality shows recorded live, visual or text rubric "
         "judgments; the grading reasons identify their scope. It is not the aggregate assertion score. "
@@ -1966,7 +2172,9 @@ def eval_report(
         title = assessment["title"]
         body = (
             '<lf-tabs id="review-views" data-width="available">'
-            + report_introduction(found, introduction)
+            + report_introduction(
+                found, introduction, campaign_view(assessment.get("campaign"))
+            )
             + f'<lf-tab id="all-results" label="Cases &amp; outputs">{body}</lf-tab>'
             + changes
             + "</lf-tabs>"

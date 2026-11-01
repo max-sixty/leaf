@@ -41,9 +41,11 @@ appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
 at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
-several captures, such as several surfaces or states, every option sets them out
-alike, in a table of captures with the same columns (`authoring-evidence.md`, "Source
-files and media"), so the reader compares each one down the options. Vary only what
+several captures, such as several surfaces or states, line each capture up with its
+counterparts in the other options and name each surface or state once, so the reader
+compares one at a time down the options. The default is a table of captures in every
+option with the same columns in the same order (`authoring-evidence.md`, "Source files
+and media"), which the theme draws with no page CSS. Vary only what
 the choice changes, and show today in the option that keeps it, or above the options
 where none does.
 
@@ -55,7 +57,10 @@ How to build an alternative waits for the user's pick.
 ## Asking and retiring
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
-an edit, and a thread message with `--obligation` for a conversational answer.
+an edit, and a thread message with `--obligation` for a conversational answer. Put the
+widget where the question arises: a question a thread raises, such as which way to do
+what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
+pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
@@ -162,9 +167,14 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 Other unanswered questions do not block it. When permission depends on an earlier
 choice, resolve that choice first, then ask for the resulting action.
 
+Approval of an editable proposal applies to the submitted values, while later edits
+remain a working copy. A playground records its complete values together on submission
+([playground authoring](../../../packages/playground/instructions/author.md)); a draft
+edit and an options pick are independent answers. Choose a composition that keeps the
+approved wording or settings distinct from subsequent edits.
+
 The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
 If the action or evidence changes enough to invalidate the permission, explain the
 change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). Distinguish approved wording from later edits to a draft. A new
-stamp neither requests nor renews permission, and recording it does not end the page
-or report that the permitted work has been done.
+"Honor user state"). A new stamp neither requests nor renews permission, and recording
+it does not end the page or report that the permitted work has been done.

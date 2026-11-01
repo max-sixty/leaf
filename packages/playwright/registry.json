@@ -327,6 +327,22 @@
                 "callId",
                 "phase"
               ],
+              "oneOf": [
+                {
+                  "properties": {
+                    "kind": { "const": "frame" },
+                    "callId": { "type": "null" },
+                    "phase": { "const": null }
+                  }
+                },
+                {
+                  "properties": {
+                    "kind": { "const": "checkpoint" },
+                    "callId": { "type": "string" },
+                    "phase": { "enum": ["before", "action", "after"] }
+                  }
+                }
+              ],
               "additionalProperties": false
             },
             "page": {
@@ -445,7 +461,7 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`.",
+    "x-instructions": "Each direct child is one recording view: a labeled `lf-trace`, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",
     "type": "object",
     "properties": {
       "id": {
@@ -457,7 +473,7 @@
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,
-    "x-views": { "members": "lf-trace, :has(lf-trace)" },
+    "x-views": { "members": ":not(script, style, template)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }

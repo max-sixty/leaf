@@ -375,7 +375,7 @@ def test_the_website_refuses_a_page_initialized_at_another_protocol(page_dir, tm
         get(f"{root}/api/state")
     assert refused.value.code == 500
     told = json.loads(refused.value.read())["error"]
-    assert "page protocol 999" in told
+    assert "Use a newer Leaf" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):

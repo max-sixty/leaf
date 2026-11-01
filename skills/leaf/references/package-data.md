@@ -56,7 +56,10 @@ submitted settings do.
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$state.attention` in the registry). Changes to
 that verb's state reach the agent without putting a question on the user's On me list.
-Use `x-awaits` below when the widget instead asks the user for an answer.
+Use `x-awaits` below when the widget instead asks the user for an answer. A verb that
+records what the user is working on before they send it, as a playground's `tune` keeps
+its settings, declares `attention: false`: it reaches every tab and the agent's page
+state but asks the agent for nothing.
 
 Only one widget records each attribute. A member's `value` record can't use the same
 attribute as an `attribute` record on a widget around it; `page check` refuses that in
@@ -253,11 +256,16 @@ the widget needn't check it again. A `format` must be one Leaf checks: `date-tim
 timezone-aware instant, `uri` an absolute URL, and `package check` lists the rest.
 
 A widget declares the inputs it can show under `x-data`, each naming its contract, the
-attribute that carries the page's source id, and the element `property` Leaf sets to
-the value. Make that attribute required when the widget can't work without the input;
-Leaf leaves the property of an input the markup doesn't bind to the widget. Tell
-page authors how to bind it in `x-instructions`, and whoever produces the data in the
-contract's `instructions` (`packages.md`, "Package contract").
+attribute that carries the page's source id, and the element `property` Leaf sets to the
+value. Make that attribute required when the widget can't work without the input. A
+widget with `x-content: data` declares at most one input and can take its text from
+its `<pre>` instead: where the markup binds the input to nothing, Leaf sets its
+property to the `<pre>`'s text, a string, so the widget reads one property either way,
+as `lf-text-document` and `lf-diff` do. Give such an input a contract that admits a
+string; `page check` refuses a `<pre>` on a bound one. Leaf leaves the property of any
+other unbound input to the widget. Tell page authors how to bind it in
+`x-instructions`, and whoever produces the data in the contract's `instructions`
+(`packages.md`, "Package contract").
 
 ```json
 {

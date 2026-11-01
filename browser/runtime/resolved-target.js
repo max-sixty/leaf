@@ -13,6 +13,13 @@
 import { shownParts } from "./geometry.js";
 import { rangeOf } from "./passages.js";
 
+/** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
+ * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null}} ElementTarget
+ * @typedef {Resolution & {kind: "passage", place: Element | null, segments: import("./passages.js").Segment[]}} PassageTarget
+ * @typedef {Resolution & {kind: "message", message: string, place: null}} MessageTarget
+ * @typedef {ElementTarget | PassageTarget | MessageTarget} ResolvedTarget */
+
+/** @param {{element: Element, place?: Element, surface?: Element | null}} target @returns {ElementTarget} */
 export const resolvedElement = ({ element, place = element, surface = null }) => ({
   exact: true,
   status: "exact",
@@ -23,6 +30,7 @@ export const resolvedElement = ({ element, place = element, surface = null }) =>
   surface,
 });
 
+/** @param {{place: Element | null, segments: import("./passages.js").Segment[]}} target @returns {PassageTarget} */
 export const resolvedPassage = ({ place, segments }) => ({
   exact: true,
   status: "exact",
@@ -32,6 +40,7 @@ export const resolvedPassage = ({ place, segments }) => ({
   segments,
 });
 
+/** @param {{message: string}} target @returns {MessageTarget} */
 export const resolvedInMessage = ({ message }) => ({
   exact: true,
   status: "exact",
@@ -41,20 +50,25 @@ export const resolvedInMessage = ({ message }) => ({
   place: null,
 });
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetElement = (resolved) =>
   resolved?.kind === "element" ? resolved.element : null;
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetSegments = (resolved) =>
   resolved?.kind === "passage" ? resolved.segments : [];
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetPlace = (resolved) => resolved?.place ?? null;
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const exactTarget = (resolved) =>
   resolved?.exact ? (targetElement(resolved) ?? targetPlace(resolved)) : null;
 
 // A passage's whole box decides visibility; its first nonempty fragment attaches
 // chrome. A later line can begin further left without changing that attachment.
 // Native selections and durable passages read the same Range geometry.
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetRange = (resolved) => {
   const segments = targetSegments(resolved);
   // A document revision can shorten a live text node before the next anchor reading.
@@ -71,6 +85,7 @@ export const targetRange = (resolved) => {
   return rangeOf(segments);
 };
 
+/** @param {Range} range */
 export function rangeGeometry(range) {
   return {
     range,
@@ -88,6 +103,7 @@ export function rangeGeometry(range) {
 // The boxes a passage's words are drawn in: each segment's own lines, never the box of
 // an element the passage runs across. None where a revision has changed its text since
 // it resolved (`targetRange`).
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const passageBoxes = (resolved) =>
   targetRange(resolved)
     ? targetSegments(resolved)
@@ -95,14 +111,17 @@ export const passageBoxes = (resolved) =>
         .filter((box) => box.width && box.height)
     : [];
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export function passageGeometry(resolved) {
   const range = targetRange(resolved);
   return range && rangeGeometry(range);
 }
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetSurface = (resolved) =>
   resolved?.kind === "element" ? resolved.surface : null;
 
+/** @param {ResolvedTarget | null | undefined} resolved */
 export const targetParts = (resolved) => {
   const element = targetElement(resolved);
   if (!element) return [];

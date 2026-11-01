@@ -18,7 +18,7 @@
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
- * and height measure the same in every state (`browser/AGENTS.md`, "Stability"). A
+ * and height measure the same in every state (`browser/AGENTS.md`, "The page holds still under the user's aim"). A
  * failure reads "Not saved" beside Retry's symbol, with the error as the status's
  * tooltip and Retry's description. A conflict reads "Changed on disk" in the warning
  * tone, one control opening a small menu of its choices: Compare, Save draft, Use file
@@ -71,9 +71,12 @@ import { createEditor } from "./editor.js";
 customElements.define(
   "lf-file-editor",
   class extends LeafElement {
+    /** @type {(() => void) | null} */
     #placeSelection = null;
-    #view = null;
+    #view = el("div", "lf-file-editor-view lf-ui");
+    /** @type {(() => import("lit").TemplateResult) | null} */
     #template = null;
+    /** @type {(() => void) | null} */
     #drawn = null;
 
     setup() {
@@ -90,6 +93,7 @@ customElements.define(
 
     // What follows a draw runs outside the render, since configuring CodeMirror can
     // report a change that draws again.
+    /** @param {import("lit").PropertyValues} changed */
     updated(changed) {
       super.updated(changed);
       this.#drawn?.();
@@ -103,7 +107,9 @@ customElements.define(
     }
 
     initialize() {
-      const api = boundFile(this.getAttribute("binding"));
+      const binding = this.getAttribute("binding");
+      if (!binding) throw new Error("file editor needs its binding");
+      const api = boundFile(binding);
       const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
       // The host's grid gives the comparison half the editing room while it is open.
       const internals = this.attachInternals();
@@ -113,7 +119,7 @@ customElements.define(
       // The stage, the mounts and the comparison hold the file, which prints, so they are
       // plain elements and only the editor's controls are offers. `lf-ui` keeps the
       // file's words out of the page's passages.
-      const view = (this.#view = el("div", "lf-file-editor-view lf-ui"));
+      const view = this.#view;
       const mount = el("div", "lf-file-editor-edit");
       const comparisonMount = el("div", "lf-file-editor-comparison");
       shadowStage(this, [view]);
@@ -134,14 +140,15 @@ customElements.define(
       // and Escape put the menu away onto that control, so a save that settles the
       // conflict returns the reader from it to the editor. A press away from the menu
       // leaves them where they pressed.
-      const conflictControl = () => view.querySelector(".lf-file-editor-conflict");
-      const choices = () => view.querySelector(".lf-file-editor-choices");
+      const conflictControl = () => controls.conflict;
+      const choices = () => controls.menu;
       const choiceRows = () => [...choices().querySelectorAll("button")];
       const putChoicesAway = () =>
         closeLayer(
           () => closeNativeLayer(choices()),
           () => handBack(conflictControl()),
         );
+      /** @param {() => unknown} run */
       const choose = (run) => () => {
         putChoicesAway();
         run();
@@ -151,11 +158,11 @@ customElements.define(
         paint();
       });
       const keepDraft = choose(() => void flush(true, conflictControl()));
+      /** @param {ToggleEvent} event */
       const choiceOpened = (event) => {
         if (event.newState !== "open") return;
-        const [first] = choiceRows();
-        rove(choiceRows(), first);
-        focusDestination(first, "move");
+        rove(choiceRows(), controls.first);
+        focusDestination(controls.first, "move");
       };
       const choiceKeys = [
         ...rowWalk({
@@ -183,22 +190,31 @@ customElements.define(
           run: putChoicesAway,
         })),
       ];
+      /** @param {HTMLElement | null} [returnFrom] */
       const retry = (returnFrom = null) => {
         if (busy) return;
         const operation = failure;
         if (operation?.kind === "save") void flush(operation.replace, returnFrom);
         else void refresh(returnFrom);
       };
-      let base = null,
-        latest = null,
-        failure = null,
-        busy = false,
-        comparing = false,
-        comparison = null,
-        spoken = null;
-      let generation = 0,
-        timer = null,
-        slowTimer = null;
+      /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
+      /** @typedef {{kind: "read", message: string} | {kind: "save", message: string, replace: boolean}} FileFailure */
+      /** @type {FileSnapshot | null} */
+      let base = null;
+      /** @type {FileSnapshot | null} */
+      let latest = null;
+      /** @type {FileFailure | null} */
+      let failure = null;
+      let busy = false,
+        comparing = false;
+      /** @type {ReturnType<typeof createEditor> | null} */
+      let comparison = null;
+      /** @type {FileSnapshot | FileFailure | null} */
+      let spoken = null;
+      let generation = 0;
+      let timer = 0;
+      /** @type {number | null} */
+      let slowTimer = null;
       let recovering = false,
         owed = false,
         connected = false,
@@ -217,7 +233,7 @@ customElements.define(
         );
       }
       function finishSaving() {
-        clearTimeout(slowTimer);
+        if (slowTimer !== null) clearTimeout(slowTimer);
         slowTimer = null;
         if (!slow) return;
         slow = false;
@@ -251,7 +267,7 @@ customElements.define(
               : "The file changed on disk. The draft is kept.",
           );
         spoken = news;
-        if (comparing) {
+        if (comparing && latest) {
           if (!comparison)
             comparison = createEditor(comparisonMount, {
               text: editor.value,
@@ -298,7 +314,7 @@ customElements.define(
                 ${namedAction("retry", { className: "lf-file-editor-icon" })}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
-                @click=${(event) => retry(event.currentTarget)}
+                @click=${(/** @type {MouseEvent} */ event) => retry(event.currentTarget instanceof HTMLElement ? event.currentTarget : null)}
               ></button
               ><button
                 ${offered("lf-file-editor-conflict")}
@@ -363,9 +379,21 @@ customElements.define(
           </div>
         `;
       };
-      const thisBinding = this.getAttribute("binding");
+      const thisBinding = binding;
       // CodeMirror discovers its shadow root from the connected mount.
       render(this.#template(), view, this.renderOptions);
+      /** @type {HTMLButtonElement | null} */
+      const conflictButton = view.querySelector(".lf-file-editor-conflict");
+      /** @type {HTMLDivElement | null} */
+      const choicesMenu = view.querySelector(".lf-file-editor-choices");
+      const firstChoice = choicesMenu?.querySelector("button");
+      if (!conflictButton || !choicesMenu || !firstChoice)
+        throw new Error("file editor controls did not render");
+      const controls = {
+        conflict: conflictButton,
+        menu: choicesMenu,
+        first: firstChoice,
+      };
       const editor = createEditor(mount, {
         readOnly: true,
         onChange() {
@@ -385,6 +413,7 @@ customElements.define(
         if (connected && api.writable && !latest && !failure && dirty())
           timer = setTimeout(() => void flush(), delay);
       }
+      /** @param {boolean} [replace] @param {HTMLElement | null} [returnFrom] */
       async function flush(replace = false, returnFrom = null) {
         clearTimeout(timer);
         if (
@@ -397,7 +426,7 @@ customElements.define(
           (!dirty() && !(replace && latest))
         )
           return;
-        const against = replace ? latest : base;
+        const against = replace && latest ? latest : base;
         const text = editor.value;
         busy = true;
         // The host compares the file before writing, so a receipt or a stale answer
@@ -429,7 +458,7 @@ customElements.define(
           if (connected) remember();
           if (!dirty() || failure || latest || !connected) finishSaving();
           else if (!slow) {
-            clearTimeout(slowTimer);
+            if (slowTimer !== null) clearTimeout(slowTimer);
             slowTimer = null;
           }
           const returning = connected && returnFrom && focused() === returnFrom;
@@ -439,6 +468,7 @@ customElements.define(
           if (owed) void refresh();
         }
       }
+      /** @param {HTMLElement | null} [returnFrom] */
       async function refresh(returnFrom = null) {
         if (!connected) return;
         if (busy || ((failure || latest) && !returnFrom)) {
@@ -474,6 +504,7 @@ customElements.define(
           if (owed) void refresh();
         }
       }
+      /** @param {BeforeUnloadEvent} event */
       const beforeUnload = (event) => {
         if (unsettled()) {
           event.preventDefault();
@@ -486,6 +517,7 @@ customElements.define(
       };
       const pending = tabStore.get(recoveryKey);
       if (pending && api.writable) {
+        /** @type {{base: FileSnapshot, text: string}} */
         const recovered = JSON.parse(pending);
         base = recovered.base;
         editor.value = recovered.text;

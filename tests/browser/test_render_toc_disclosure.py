@@ -174,3 +174,38 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     assert rail["x"] == pytest.approx(body["x"], abs=1)
     expect(toc.locator("summary")).to_be_visible()
     expect(disclosure).not_to_have_attribute("open", "")
+
+
+def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
+    """Stacked above the body, the contents is the in-flow disclosure, since the map
+    fixed in the margin would draw over the body's first words. Stacked, the aside and
+    `.layout-sidebar` are one width, but Chromium computed them a float rounding error
+    apart at some widths (a 960px window among them), so the test reads every width in
+    a band either side of the wrap."""
+    sections = "".join(
+        f'<section id="s{n}"><h2>Section {n}</h2><p>{"Words. " * 80}</p></section>'
+        for n in range(1, 5)
+    )
+    source = leaf_page(
+        "margin contents",
+        '<aside id="rail"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        f'</div></aside><div class="layout-column" id="body"><h1>Review</h1>{sections}</div>',
+        layout="sidebar",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    readings = page.evaluate("""() => {
+      const main = document.querySelector('main');
+      const rail = document.getElementById('rail'), body = document.getElementById('body');
+      const toc = document.getElementById('contents');
+      const readings = [];
+      for (let width = 860; width <= 1100; width++) {
+        main.style.inlineSize = `${width}px`;
+        readings.push({width,
+          stacked: rail.getBoundingClientRect().bottom <= body.getBoundingClientRect().top,
+          map: getComputedStyle(toc).position === 'fixed'});
+      }
+      main.style.inlineSize = '';
+      return readings;
+    }""")
+    assert {r["stacked"] for r in readings} == {True, False}
+    assert [r["width"] for r in readings if r["map"] == r["stacked"]] == []

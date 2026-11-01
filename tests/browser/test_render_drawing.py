@@ -106,7 +106,7 @@ READ_BOX = """selector => {
 DATA_REVISION_DIFF_PAGE = leaf_page(
     "data revision drawing",
     '<h1 id="title">Review</h1><lf-diff id="drawing-diff" source="drawing-patch">'
-    "<pre></pre></lf-diff>",
+    "</lf-diff>",
 )
 DATA_REVISION_DIFF = """diff --git a/review.py b/review.py
 --- a/review.py

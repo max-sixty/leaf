@@ -28,9 +28,12 @@
  * instead of the message's: each heading and code block in the type, padding and indent
  * the page gives it there, each quote's inset, and the display's gap between two
  * outermost blocks in place of the blank lines that part them in the source, so no
- * word moves as the editor opens (browser/AGENTS.md, "Editing in
- * place"). The cascade answers what those faces are: as the editor builds, and when its
- * width changes, an empty copy of that element holding one of each block stands hidden
+ * word moves as the editor opens (browser/AGENTS.md, "Editing in place"). Such a
+ * display is a Markdown body, which reads as a file, so the field draws a line break
+ * inside a paragraph as a space, and Return among a paragraph's words writes a hard
+ * break, which the body draws as a line too (field-editor.js, `joints`, `newLine`). The
+ * cascade answers what those faces are: as the editor builds, and when its width
+ * changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
  * the classes of the lines and of the quotes' boxes name, so the field draws nothing
@@ -649,6 +652,8 @@ class LeafText extends HTMLElement {
       attributes: this.#contentAttributes(),
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
+      // Words edited where a Markdown body shows them read as that body does.
+      joined: () => this.facesOf !== null,
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),

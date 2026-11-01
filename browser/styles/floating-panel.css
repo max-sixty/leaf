@@ -198,6 +198,16 @@
     box-sizing: border-box;
     position: relative;
   }
+  /* While a view stands open, one hairline, inset as far as the words, sets the row off
+     from it, the view's controls included: its way back or its tabs belong to the view
+     they steer. Without the caret the field draws no frame and holds the status, which
+     read as the view's last row while the line stood above the controls instead. The
+     user chose the line here on 31 October 2026; rejected: a second line above the
+     field, which stacked three in the menu's foot. */
+  .lf-floating-panel[data-open] .lf-fp-row {
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
+  }
   /* The more-room mark stands over the leaf, in the corner a long
      draft leaves free beside the field's first line (floating-panel.js, `expand`). A
      widened field may hold fewer lines than the two that corner needs, so the wide row
@@ -903,10 +913,10 @@
     padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
-  /* The controls stand on the row, which their growing view never moves, set off from
-     what the view holds by a hairline inset as far as the words. Their reach stops
-     short of the row's own presses' (`--lf-reach-room`), so a press between the two
-     lands on the one the user is nearer. */
+  /* The controls stand on the row, which their growing view never moves, and read with
+     the view they steer, above the row's hairline. Their reach stops short of the row's
+     own presses' (`--lf-reach-room`), so a press between the two lands on the one the
+     user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
@@ -914,8 +924,6 @@
     min-height: 40px;
     padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
   .lf-fp-crumb {
     flex: 1 1 auto;

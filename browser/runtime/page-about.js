@@ -5,7 +5,6 @@
  * (page-controls.js) whose press copies its text, derived from the state reading where
  * it is read, so a presentation follows the reading. */
 import { pageIdentity } from "./page-identity.js";
-import { ago } from "./presence.js";
 import { SHARE_ROOT, runtime, shareUrl } from "./context.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -28,12 +27,10 @@ registerPageControl({
   },
 });
 
-// How old a Leaf payload is, so a user who meets a problem can tell whether it
+// When a Leaf payload was made, so a user who meets a problem can tell whether it
 // predates the fixes since. A payload read from Git carries its commit's date; a harness's
 // plugin cache, which drops `.git`, carries the time it copied the commit, one update
 // sweep after it landed (`layer.payload_provenance`).
-/** @param {import("../types/contract.js").ServedProvenance} provenance */
-const payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
 /** @param {import("../types/contract.js").ServedProvenance} provenance */
 const payloadDateLines = (provenance) =>
   Object.entries({ committed: provenance.committed, installed: provenance.installed })
@@ -58,19 +55,11 @@ if (SHARE_ROOT) {
   });
 }
 
-// The agent session that holds the page, which the user's comments reach: by the name
-// its harness gives it, or the start of its id where it gives none, and the directory
-// it works in, so a user with several sessions open can tell which one to turn to
-// (`presence.page_list` lists the same for every page). A session that ended still
-// holds the page until another claims it, so the row says so rather than going.
-/** @param {import("../types/contract.js").ServedReading} state */
-export function claimantValue(state) {
-  const { session_name: name, claim_session: id, session_cwd: cwd } = state;
-  const where = cwd ? cwd.split("/").findLast(Boolean) : null;
-  return [name || id?.slice(0, 8), where, state.session_alive === false && "ended"]
-    .filter(Boolean)
-    .join(" · ");
-}
+// The agent session that holds the page, which the user's comments reach: the name
+// its harness gives it, its id and the directory it works in, so a user with several
+// sessions open can tell which one to turn to (`presence.page_list` lists the same for
+// every page). A session that ended still holds the page until another claims it, so
+// the row says so rather than going.
 /** @param {import("../types/contract.js").ServedReading} state */
 export function claimantDiagnostics(state) {
   return [
@@ -90,31 +79,18 @@ registerPageControl({
   key: "claimant",
   rank: PAGE_CONTROL_RANK.claimant,
   label: "agent session",
-  value: () => {
-    const state = claimed();
-    return state ? claimantValue(state) : "";
-  },
   copies: () => {
     const state = claimed();
     return state ? claimantDiagnostics(state) : "";
   },
   offered: () => !!claimed(),
-  group: "page",
+  group: "about",
 });
 
 // The developer preview's identity: which checkout is serving this page. A user preview
 // claims the page, so every press on it, the agent's own screenshots included, comes
 // back to the session as user input; that is the mode worth marking.
 const preview = () => runtime.state?.preview ?? null;
-/** @param {NonNullable<import("../types/contract.js").ServedReading["preview"]>} preview */
-function previewLabel(preview) {
-  const identity = pageIdentity();
-  const producer = identity.layer?.producer ?? {};
-  const kind = preview.interaction === "user" ? "User" : "Preview";
-  const stem = `${kind} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
-  const age = payloadAge(producer);
-  return `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}`;
-}
 /** @param {NonNullable<import("../types/contract.js").ServedReading["preview"]>} preview */
 function previewDiagnostics(preview) {
   const identity = pageIdentity();
@@ -143,16 +119,12 @@ registerPageControl({
   key: "preview",
   rank: PAGE_CONTROL_RANK.preview,
   label: "preview diagnostics",
-  value: () => {
-    const reading = preview();
-    return reading ? previewLabel(reading) : "";
-  },
   copies: () => {
     const reading = preview();
     return reading ? previewDiagnostics(reading) : "";
   },
   offered: () => Boolean(preview()),
-  group: "page",
+  group: "about",
 });
 
 // The runtime this document runs, which the server serving it supplied
@@ -180,11 +152,6 @@ const layerShown = () => {
   const identity = pageIdentity();
   return Boolean(identity.layer && !identity.preview && layerIdentity(identity));
 };
-function layerNamed() {
-  const identity = pageIdentity();
-  const age = payloadAge(identity.layer?.producer ?? {});
-  return `Leaf ${layerIdentity(identity)}${age ? ` · ${age}` : ""}`;
-}
 function layerDiagnostics() {
   const identity = pageIdentity();
   const producer = identity.layer?.producer ?? {};
@@ -205,10 +172,9 @@ registerPageControl({
   key: "layer",
   rank: PAGE_CONTROL_RANK.layer,
   label: "Leaf version",
-  value: () => (layerShown() ? layerNamed() : ""),
   copies: () => (layerShown() ? layerDiagnostics() : ""),
   offered: layerShown,
-  group: "page",
+  group: "about",
 });
 
 // The public website support handle.
@@ -218,5 +184,5 @@ registerPageControl({
   label: "session reference",
   copies: () => runtime.sessionReference ?? "",
   offered: () => Boolean(runtime.sessionReference),
-  group: "page",
+  group: "about",
 });

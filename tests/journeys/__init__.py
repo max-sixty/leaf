@@ -9,6 +9,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    show_resolved,
 )
 
 from leaf import event_log as events_model
@@ -18,6 +19,8 @@ def listed_threads(page):
     """The keys of every thread the panel's Threads view lists, the open ones and then
     those under Resolved; Threads is put away after."""
     open_threads(page)
+    if page.locator(f"{panel_view('threads')} .lf-fp-settled").count():
+        show_resolved(page)
     keys = page.locator(f"{panel_view('threads')} .lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.key)"
     )

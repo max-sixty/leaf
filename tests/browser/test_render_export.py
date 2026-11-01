@@ -684,8 +684,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
     url = serve(
         leaf_page(
             "thread export",
-            '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
-            "</lf-diff>",
+            '<h1>Review</h1><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
     data_model.cmd_data_set(

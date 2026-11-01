@@ -393,6 +393,46 @@ def test_a_hidden_document_preview_opens_at_its_fragment_without_resizing(
     )
 
 
+def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
+    browser, serve, subtests
+):
+    """A document's Preview/Source strip stands directly under its caption, however
+    many tab strips stand over the document. Each strip passes its height on as
+    `--lf-top`, where the document's strip sticks. While the frame was a scroll
+    container, the strip stuck at that height inside the frame, below the caption and
+    over the preview's first lines (issue #5017)."""
+    url = serve(
+        leaf_page(
+            "Prompt and notes",
+            '<lf-tabs id="sections" list="side"><lf-tab id="about" label="About">'
+            '<lf-tabs id="views"><lf-tab id="prompt" label="Prompt">'
+            '<lf-text-document id="document" label="prompt.md" preview="markdown">'
+            "<pre>The prompt's first sentence.\n\nIts second paragraph.</pre>"
+            '</lf-text-document></lf-tab><lf-tab id="notes" label="Notes">'
+            "<p>Notes.</p></lf-tab></lf-tabs></lf-tab>"
+            '<lf-tab id="method" label="Method"><p>Method.</p></lf-tab></lf-tabs>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    preview = document.get_by_role("tabpanel", name="Preview", exact=True)
+    expect(preview.get_by_text("The prompt's first sentence.")).to_be_visible()
+    for width in (1280, 390):
+        with subtests.test(width=width):
+            resized(page, width, 844)
+            read = document.evaluate("""el => {
+              const caption = el.querySelector('figcaption').getBoundingClientRect();
+              const strip = el.querySelector('.lf-tabstrip').getBoundingClientRect();
+              const panel = el.querySelector('[role=tabpanel]:not([hidden])');
+              const top = panel.getBoundingClientRect();
+              const hit = document.elementFromPoint(top.left + 24, top.top + 2);
+              return {caption: caption.bottom, strip: strip.top,
+                      panelOnTop: panel.contains(hit)};
+            }""")
+            assert read["strip"] == pytest.approx(read["caption"], abs=0.5), read
+            assert read["panelOnTop"], read
+
+
 def test_document_views_remember_independently_and_follow_live_source_updates(
     browser, serve
 ):

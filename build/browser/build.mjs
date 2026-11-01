@@ -30,7 +30,7 @@
 import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
@@ -198,12 +198,6 @@ async function protocolOutputs() {
   };
 }
 
-// One strict program checks all maintained browser modules, including modules no
-// entry point imports yet. Public bundle paths resolve through their source entries
-// to the installed dependencies' declarations. Diagnostics inside committed vendor
-// output belong to the dependency; maintained source and declaration errors fail here.
-const maintainedSource = (file) => !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file);
-
 /** Refuse TypeScript under the runtime, whose modules a page runs as written. */
 export async function checkRuntimeModules(directory = root) {
   const runtime = `${assets}/runtime`;
@@ -219,31 +213,21 @@ export async function checkRuntimeModules(directory = root) {
     );
 }
 
-function typecheck(config, reports = (_file) => true) {
-  const result = spawnSync(
+// One strict program checks all maintained browser modules, including modules no
+// entry point imports yet. Public bundle paths resolve through their source entries
+// to the installed dependencies' declarations.
+function typecheck() {
+  execFileSync(
     process.execPath,
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      `${typeRoot}/${config}`,
+      `${typeRoot}/tsconfig.json`,
       "--pretty",
       "false",
     ],
-    { cwd: root, encoding: "utf8" },
+    { cwd: root, stdio: "inherit" },
   );
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
-  if (result.status === 0) return;
-  // Each diagnostic starts unindented, with its file where it has one; its
-  // continuation lines indent.
-  const diagnostics = (result.stdout + result.stderr)
-    .split(/\n(?=\S)/)
-    .filter((diagnostic) => {
-      if (!diagnostic.trim()) return false;
-      const file = /^(\S+)\(\d+,\d+\): /.exec(diagnostic)?.[1];
-      return file === undefined || reports(file);
-    });
-  if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
 export async function buildOutputs() {
@@ -258,7 +242,7 @@ export async function buildOutputs() {
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
   await checkRuntimeModules();
-  typecheck("tsconfig.json", maintainedSource);
+  typecheck();
 
   const outputs = new Map([
     [compilerPathsFile, paths],

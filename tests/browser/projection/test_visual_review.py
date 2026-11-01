@@ -183,7 +183,7 @@ def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
         details = case.locator(".lf-vr-details")
         expect(details).to_be_visible()
         expect(details.get_by_role("checkbox")).to_have_count(0)
-        expect(details.locator(".lf-vr-provenance")).to_contain_text("Capture")
+        expect(details.locator(".lf-facts")).to_contain_text("Capture")
         assert case.evaluate(reading) == baseline
         bounds = details.bounding_box()
         assert (

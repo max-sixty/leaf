@@ -160,7 +160,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [runFromCommandReference]
  * @property {boolean} [sequenceControl]
  * @property {() => boolean} [commandReferenceWhen]
- * @property {string} [menu]
+ * @property {import("../page-controls.js").PageControlGroup} [menu]
  * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command

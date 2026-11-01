@@ -1540,16 +1540,18 @@ def test_horizontal_wheel_reaches_the_diff_reader(
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
     )
+    # Force the outer-scroll case past the layer's default 100% widget width cap.
     source = leaf_page(
         "Nested patch reader",
         "<h1>Review</h1>"
         + "".join(
-            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<div id="reader-{host}" class="reader">'
             f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
             for host in hosts
         ),
-        head="<style>.reader { width: 500px; }"
-        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+        head="<style>.reader { width: 500px; overflow: auto; }"
+        "#patch-wide { width: 1000px; max-inline-size: none; }"
+        "#patch-narrow { width: 300px; }</style>",
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)

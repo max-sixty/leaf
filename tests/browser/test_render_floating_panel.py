@@ -513,7 +513,9 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
-    press that ran `z` took back an earlier gesture once its own was refused."""
+    press that ran `z` took back an earlier gesture once its own was refused. Where
+    the agent has picked that Resolve up, the press shows it first, and `z`, the key
+    the notice offers, then takes that Resolve, not the newest gesture."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -560,15 +562,30 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[other]}
     )
-    told(page)
-    with sending(page, "the undo"):
-        notice.get_by_role("button").click()
-    events = events_model.read_events(serve.page_dir)
+    # The agent picks that Resolve up, so the press shows it and says "Press again"
+    # before taking it, and `z`, the key the notice offers, then takes that Resolve too.
     (resolved,) = (
         event["id"]
-        for event in events
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "resolve" and event["parent"] == roots[first]
     )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": [resolved],
+            "phase": "opened",
+            "session": "s1",
+            "turn": "t1",
+        },
+    )
+    told(page)
+    notice.get_by_role("button").click()
+    expect(page.get_by_text("Press again to undo", exact=False)).to_be_visible()
+    with sending(page, "the undo"):
+        page.keyboard.press("z")
+    events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved
     ]

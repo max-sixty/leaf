@@ -4663,6 +4663,8 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	}
 	function undoLast() {
 		if (!settled()) return null;
+		const promised = armed && runtime.undo.find(({ event }) => armed?.is(event));
+		if (promised) return walkTo(promised);
 		const [entry] = runtime.undo;
 		return entry?.newest ? walkTo(entry) : null;
 	}

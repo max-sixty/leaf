@@ -3,7 +3,8 @@
    The server's view of the shown revision lists, newest first, the user's gestures this
    document can take back (`served_state/document.py`); nothing here judges a candidate
    again. `z` takes the head of that list only when the server marks it `newest`, the
-   user's newest gesture, so a reply sent since ends the walk; a widget's Undo, a
+   user's newest gesture, so a reply sent since ends the walk, unless the press before
+   armed another gesture (below), which it then takes; a widget's Undo, a
    reaction chip, and a reaction strip each name an exact entry, and a notice's Undo
    takes the gesture it reports by `z`'s rules (`offerUndo`). All of them withdraw
    through `withdraw`.
@@ -414,6 +415,11 @@ export function createUndo({
   }
   function undoLast() {
     if (!settled()) return null;
+    // A press after one that showed a gesture, or after a settlement's landing, takes
+    // that gesture, as its "Press again to undo" or its notice's Undo promised, even
+    // where another tab's gesture has since become the newest.
+    const promised = armed && runtime.undo.find(({ event }) => armed?.is(event));
+    if (promised) return walkTo(promised);
     const [entry] = runtime.undo;
     return entry?.newest ? walkTo(entry) : null;
   }

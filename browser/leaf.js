@@ -4,7 +4,7 @@ import "/runtime/framework.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
-import "./vendor/webawesome-chrome.js";
+import "/vendor/webawesome-chrome.js";
 import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
@@ -93,7 +93,7 @@ import {
   createCommandHints,
 } from "./runtime/keyboard/command-hints.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { atWorkLayer } from "./runtime/at-work.js";
+import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
@@ -714,7 +714,7 @@ async function boot() {
     );
     chromeRoot.append(
       legendRoot,
-      atWorkLayer,
+      marginBarLayer,
       ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,

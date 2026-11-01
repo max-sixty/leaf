@@ -195,10 +195,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         ("Capture trace", "https://trace.example/runs/17"),
     ):
         expect(first.get_by_role("link", name=label)).to_have_attribute("href", href)
-    expect(first.locator(".lf-vr-provenance")).to_contain_text("Chrome 140.0.7339.80")
-    expect(first.locator(".lf-vr-provenance")).to_contain_text(
-        "120, 80 · 640 × 220 CSS px"
-    )
+    expect(first.locator(".lf-facts")).to_contain_text("Chrome 140.0.7339.80")
+    expect(first.locator(".lf-facts")).to_contain_text("120, 80 · 640 × 220 CSS px")
     page.keyboard.press("Escape")
     first.get_by_role("button", name="Image options").click()
     first.get_by_role("checkbox", name="Full frame").check()
@@ -251,9 +249,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         )
     ).to_have_count(1)
     second.get_by_role("button", name="Capture details").click()
-    expect(second.locator(".lf-vr-provenance")).to_contain_text(
-        "2026-10-08T10:00:00-07:00"
-    )
+    expect(second.locator(".lf-facts")).to_contain_text("2026-10-08T10:00:00-07:00")
     expect(second.get_by_role("link", name="Open before page")).to_have_count(0)
     expect(second.get_by_role("link", name="Open after page")).to_have_attribute(
         "href", "https://candidate.example/rev/runs/17"

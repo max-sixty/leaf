@@ -15,9 +15,9 @@
  * keeps travel and activation, which do. Block marks show which blocks changed; runs of
  * them are the changes a reader counts and visits (`changeRuns`), and
  * `inlineComparison` / `toggleInlineComparison` disclose a change's text diffs on
- * request. A base is any earlier revision (`revisionBase`): a stamped version a row
- * offers, or the revision the user was last shown, which since-seen.js offers on
- * arrival (`offerComparison`) and which a reader's own choice outranks.
+ * request. A base is a stamped version (`revisionBase`): one a row offers, or the one
+ * the user last saw, which since-seen.js offers on arrival (`offerComparison`) and
+ * which a reader's own choice outranks.
  * `comparisonBase` names the current base and `stopComparison` ends it.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
  * reading. Its signal advances after the marked DOM and comparison selection have
@@ -314,31 +314,11 @@ export function takeInitialDocument() {
 /** @param {number} version */
 const stamped = (version) =>
   runtime.versions.find((candidate) => candidate.version === version);
-// A comparison's base: the revision the page is compared with, its document's address,
-// and its name in what the comparison says, a stamp's `vN`, else the time it went live,
-// which is what a reader coming back to an unstamped page can place. It is built from a
-// stamped version's entry or from a revision descriptor such as the state's `seen`.
-/** @typedef {import("../types/contract.js").ServedRevision | import("../types/contract.js").ServedReading["versions"][number]} RevisionEntry */
-/** @param {RevisionEntry} entry */
-export const revisionBase = (entry) =>
-  Object.freeze({
-    revision: entry.revision,
-    url: entry.url,
-    name:
-      entry.version === null && "activated_at" in entry
-        ? wentLive(entry.activated_at)
-        : `v${entry.version}`,
-  });
-/** @param {string} iso */
-const wentLive = (iso) => {
-  const at = new Date(iso);
-  const sameDay = at.toDateString() === new Date().toDateString();
-  return at.toLocaleString(undefined, {
-    ...(sameDay ? {} : { weekday: "short", day: "numeric", month: "short" }),
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+// A comparison's base, built from a stamped version's entry: the revision the page is
+// compared with, its document's address, and its name in what the comparison says.
+/** @param {import("../types/contract.js").ServedReading["versions"][number]} entry */
+export const revisionBase = ({ revision, version, url }) =>
+  Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
 // what each one was and what it changed. It was a <select>, and the two things that
 // cost were both the control's rather than the styling's. A select takes its inner
@@ -535,8 +515,8 @@ registerPageControl({
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
-// isn't present in the base version get a tinted marker, so re-reading a
-// revision is cheap. Block-level and additions-only — deleted text has no home
+// isn't present in the base version are marked, each with a bar beside it
+// (margin-bars.js), so re-reading a revision is cheap. Block-level and additions-only — deleted text has no home
 // to mark — and a widget that renders its own body is opaque to it. The base is
 // any version older than the one being read, offered by its own row in the
 // picker's menu, where the note saying what changed in words sits beside the
@@ -910,7 +890,7 @@ function viewOf(block, controls) {
 // A change is a run of marked blocks in one view with no unchanged block between them
 // in rendered order, as a diff's hunk is a run of changed lines. A reader takes such a
 // run, such as a section rewritten whole, for one edit. Each marked block keeps its own
-// tint, and everything that counts or visits changes reads the runs
+// bar (margin-bars.js), and everything that counts or visits changes reads the runs
 // (`comparisonChanges`), so a run has one margin entry, one stop of the walk and one
 // place in a widget's count. An unchanged block inside a marked one, such as a widget a
 // changed paragraph holds, doesn't end its run. A run ends where a view does, so a
@@ -1157,23 +1137,18 @@ function openInlineComparison(target, base, words) {
   const additions = [];
   const insertions = [{ offset: 0, node: label }];
   let afterOffset = 0;
-  let hasTextChange = false;
   for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
     if (run.kind === "delete") {
       const dropped = el("span", "lf-ui lf-version-inline-deletion");
       dropped.append(el("del", "", run.text));
       nodes.push(dropped);
       insertions.push({ offset: afterOffset, node: dropped });
-      hasTextChange = true;
     } else {
       // The passage reading indexes characters by code point while DOM Range offsets
       // are UTF-16. Keep the alignment cursor in the reading's units; an astral
       // character must advance it once, not by the two code units String.length sees.
       const length = [...run.text].length;
-      if (run.kind === "insert") {
-        additions.push([afterOffset, afterOffset + length]);
-        hasTextChange = true;
-      }
+      if (run.kind === "insert") additions.push([afterOffset, afterOffset + length]);
       afterOffset += length;
     }
   }
@@ -1185,7 +1160,6 @@ function openInlineComparison(target, base, words) {
   const ranges = additions.flatMap(([start, end]) =>
     rangesAt(currentReading, start, end),
   );
-  target.classList.toggle("lf-version-inline", hasTextChange);
   inlineOpen.set(target, { nodes, ranges });
   paintInlineInsertions();
   layoutChanged(target);
@@ -1195,7 +1169,6 @@ function openInlineComparison(target, base, words) {
 function closeInlineComparison(target) {
   const entry = inlineOpen.get(target);
   inlineOpen.delete(target);
-  target.classList.toggle("lf-version-inline", false);
   for (const node of entry?.nodes ?? []) node.remove();
   paintInlineInsertions();
   layoutChanged(target);
@@ -1368,7 +1341,7 @@ const pressComparison = (version) => {
     : showComparison(revisionBase(entry));
 };
 
-/** Stop marking: the way out of a comparison, whoever started it (change-walk.js). */
+/** End the comparison, as since-seen.js ends its own offer before re-basing it. */
 export const stopComparison = () => setDiff(false);
 /** The base the page's marks compare with, or null where nothing is compared. */
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);

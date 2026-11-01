@@ -733,6 +733,18 @@
     color: var(--accent);
     font-weight: 600;
   }
+  /* The count stands on the baseline of the field's words beside it, as a message
+     head's name stands on its time's (surfaces.css): its box is a line of the field's
+     face, from a strut, so both engines place the two baselines alike. Centred on a
+     line of its own, the smaller count stood higher, under a finger by a pixel and a
+     half. */
+  .lf-fp-on-user .lf-fp-num {
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--font-message);
+    }
+  }
   .lf-fp-news {
     position: absolute;
     top: 6px;
@@ -1222,8 +1234,16 @@
     gap: 8px;
     min-height: 1lh;
   }
+  /* The value is words, so it keeps the name's first line's baseline: its box is a
+     line of the name's face, from a strut, as the On me count's is (above). Centred
+     with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--font-compact);
+    }
   }
   .lf-fp-end > .lf-binding-sequence {
     grid-area: 1 / 2;
@@ -1312,11 +1332,15 @@
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark
      every link opening a tab of its own wears (declared-words.js), in a column of its
-     own at the row's end. */
+     own at the row's end. The title and what the agent is doing stand on one baseline,
+     as a row's name and end do (controls.css, `.lf-row`); centred each in its own
+     box, the smaller words stood higher. Their line stands centred in the row, and the
+     leaf and the mark centred on it. */
   .lf-fp-page {
     display: grid;
     grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
-    align-items: center;
+    align-items: baseline;
+    align-content: center;
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
@@ -1325,6 +1349,9 @@
   }
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;
+  }
+  .lf-fp-page > :is(.lf-dot, .lf-external-mark) {
+    align-self: center;
   }
   .lf-fp-page .lf-fp-value {
     overflow: hidden;
@@ -1342,9 +1369,11 @@
      wider, each word set against the row's end (floating-panel.js, `versionsList`).
      A version's press spans the row, so its wash and the shown version's mark run
      across it; Compare stands over the press's end as a press of its own, and Showing
-     lets a press on it through to the version's. */
+     lets a press on it through to the version's. The version's name, Compare and
+     Showing stand on one baseline, as a row's name and end do (controls.css,
+     `.lf-row`); centred each in its own box, the smaller Showing stood higher. */
   .lf-fp-version {
-    align-items: center;
+    align-items: baseline;
   }
   /* The press has no value, key or chevron, so its words take the first column alone,
      on one line; its number's digits share one width, so v1's note starts where v2's

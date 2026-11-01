@@ -400,7 +400,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
             head,
         )
         # A pointer reaches it: a seat's first head once cut Save off at its end.
-        control.click(trial=True, timeout=2000)
+        control.click(trial=True)
     page.keyboard.type("Z")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
     page.keyboard.press("Escape")

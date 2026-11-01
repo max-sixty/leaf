@@ -5878,22 +5878,26 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function keepFoot(entries) {
 		const view = openView();
+		if (!view) {
+			opening.foot = null;
+			return;
+		}
 		const before = opening.foot;
-		const room = view?.clientHeight;
+		const room = view.clientHeight;
 		if (before?.view === view && room !== before.room && entries.every(({ target }) => target === view)) {
 			moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
 			opening.placed = view.scrollTop;
 		}
-		opening.foot = view ? {
+		opening.foot = {
 			view,
 			room,
 			top: view.scrollTop
-		} : null;
+		};
 	}
 	function viewScrolled(event) {
 		const view = event.currentTarget;
 		const { foot } = opening;
-		if (foot?.view !== view) return sawAnswer(event);
+		if (!foot || foot.view !== view) return sawAnswer(event);
 		if (!(view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view))) foot.top = view.scrollTop;
 		sawAnswer(event);
 	}

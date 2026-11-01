@@ -2016,10 +2016,15 @@ export function createFloatingPanel({
   // each scroll as well as each reading, but for the clamp a view's growth makes at
   // its end, whose scroll arrives before the reading that answers the growth wherever
   // a script read the layout first.
+  /** @param {ResizeObserverEntry[]} entries */
   function keepFoot(entries) {
     const view = openView();
+    if (!view) {
+      opening.foot = null;
+      return;
+    }
     const before = opening.foot;
-    const room = view?.clientHeight;
+    const room = view.clientHeight;
     if (
       before?.view === view &&
       room !== before.room &&
@@ -2028,12 +2033,13 @@ export function createFloatingPanel({
       moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
       opening.placed = view.scrollTop;
     }
-    opening.foot = view ? { view, room, top: view.scrollTop } : null;
+    opening.foot = { view, room, top: view.scrollTop };
   }
+  /** @param {Event & {currentTarget: HTMLElement}} event */
   function viewScrolled(event) {
     const view = event.currentTarget;
     const { foot } = opening;
-    if (foot?.view !== view) return sawAnswer(event);
+    if (!foot || foot.view !== view) return sawAnswer(event);
     const clamped =
       view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view);
     if (!clamped) foot.top = view.scrollTop;

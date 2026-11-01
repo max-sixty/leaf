@@ -21,21 +21,21 @@ const SETTLED_KEY = "lf-settled:";
 export class SettledOptions {
   #host;
   #label;
-  #row = null;
+  #row = selectableOffer("button", "lf-settled lf-disclosure-marker");
   #isOpen = false;
 
+  /** @param {HTMLElement} host @param {{label: (option: Element) => string}} options */
   constructor(host, { label }) {
     this.#host = host;
     this.#label = label;
   }
 
   connect() {
-    if (this.#row) return;
+    if (this.#row.parentElement === this.#host) return;
     this.#build();
   }
 
   #build() {
-    this.#row = selectableOffer("button", "lf-settled lf-disclosure-marker");
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
     // The command row runs nothing: it names the settled row's keys in the group's
@@ -60,6 +60,7 @@ export class SettledOptions {
     this.#open(tabStore.get(SETTLED_KEY + this.#host.id) === "1", false);
   }
 
+  /** @param {boolean} open @param {boolean} remember */
   #open(open, remember) {
     this.#isOpen = open;
     this.sync();

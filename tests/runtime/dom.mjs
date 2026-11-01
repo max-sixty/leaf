@@ -18,6 +18,11 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { served } from "../served-paths.mjs";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// happy-dom does not implement custom element states. These tests inspect DOM
+// ownership rather than :state() styling, so keep the native state's set semantics.
+HTMLElement.prototype.attachInternals ??= function () {
+  return { states: new Set() };
+};
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
 // the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and

@@ -117,3 +117,28 @@ function presenterBoundary(presenter, enabled) {
   });
 }
 void presenterBoundary;
+
+/** @param {typeof import("../runtime/activity-words.js").pageStatus} pageStatus
+ * @param {typeof import("../runtime/activity-words.js").statusModel} statusModel
+ * @param {Parameters<typeof import("../runtime/activity-words.js").pageStatus>[0]} state
+ * @param {Parameters<typeof import("../runtime/activity-words.js").statusModel>[1]} queues
+ * @param {typeof import("../runtime/thread/workflow.js").workflowWord} workflowWord */
+function wordingBoundary(pageStatus, statusModel, state, queues, workflowWord) {
+  // @ts-expect-error The server's status detail is text, not an unchecked value.
+  pageStatus({ ...state, activity: { ...state.activity, detail: 123 } });
+  // @ts-expect-error A failed read must carry its error text.
+  pageStatus(state, { reach: "faulted" });
+  const status = pageStatus(state);
+  statusModel(
+    // @ts-expect-error A voiced part cannot smuggle a non-text value into rendering.
+    { ...status, summaryParts: [{ text: 123, voice: "agent" }] },
+    queues,
+    "Claude",
+  );
+  /** @type {IsAny<Parameters<typeof workflowWord>[0]>} */
+  const workflowIsChecked = false;
+  /** @type {IsAny<ReturnType<typeof statusModel>["summaryParts"][number]>} */
+  const partIsChecked = false;
+  return [workflowIsChecked, partIsChecked];
+}
+void wordingBoundary;

@@ -20,16 +20,30 @@ import { NOT_ANSWERED } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
 import { excerptWords } from "./words.js";
 
+/** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
+ * @typedef {import("../types/domain.js").Message} Message
+ * @typedef {{kind: "agent_content", key: string, thread: string, message: Message, version: string}} ContentNews
+ * @typedef {{kind: "response_failure", key: string, condition: "failed" | "interrupted",
+ * input: string, thread: string | null, seq: number}} FailureNews
+ * @typedef {{kind: "user_obligation", key: string, sourceKey: string, episode: number,
+ * source: string, thread: string | null, message: string | null}} ObligationNews
+ * @typedef {ContentNews | FailureNews | ObligationNews} SemanticNews
+ * @typedef {{content: Set<string>, failures: Set<string>, obligations: Set<string>, obligationEpisodes: Map<string, number>}} ObservedNews
+ */
+
+/** @param {{attempt?: string | null, id?: string | null}} record */
 const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
+/** @param {ReturnType<typeof import("./semantic-state.js").readApplication>} root */
 export function semanticNewsReading(root) {
   const view = root.effective.view;
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
+  if (!state) throw new Error("The shown page has no accepted reading");
   return {
     obligations: view.obligations,
     thread: view.thread,
@@ -39,23 +53,27 @@ export function semanticNewsReading(root) {
 
 // Unread agent content, oldest first. A failure reply is unread content too, but
 // its news is the failed response's, announced from its workflow.
+/** @param {NewsReading["thread"]} threadView */
 function unreadContent(threadView) {
   return threadView.threads
     .flatMap((thread) =>
-      thread.unread.map(({ message: id, version }) => ({
-        thread: thread.id,
-        message: thread.msgs.find((message) => message.id === id),
-        version,
-      })),
+      thread.unread.map(({ message: id, version }) => {
+        const message = thread.msgs.find((message) => message.id === id);
+        if (!message)
+          throw new Error(`Unread version ${version} names missing message ${id}`);
+        return { thread: thread.id, message, version };
+      }),
     )
-    .filter(({ message }) => !message.failure)
-    .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
+    .filter(({ message }) => !("failure" in message && message.failure))
+    .sort((a, b) => Number(moved(a.message).seq) - Number(moved(b.message).seq));
 }
 
 // What the page asks of the user, with the agent message that holds each, if any. An
 // update handed back to them is news through its failed response (`responseFailures`),
 // not a second time as an obligation.
+/** @param {NewsReading["obligations"]} items */
 function userObligations(items) {
+  /** @type {Map<string, Pick<ObligationNews, "source" | "thread" | "message">>} */
   const held = new Map();
   for (const item of items) {
     if (item.next_actor !== "user" || item.source.kind === "update") continue;
@@ -70,29 +88,33 @@ function userObligations(items) {
   return held;
 }
 
+/** @param {NewsReading["workflows"]} workflows */
 function responseFailures(workflows) {
+  /** @type {Map<string, {key: string, kind: "failed" | "interrupted", input: string, thread: string | null, seq: number}>} */
   const failures = new Map();
   for (const workflow of workflows) {
     if (
       workflow.condition?.operation !== "response" ||
-      !["failed", "interrupted"].includes(workflow.condition.kind)
+      (workflow.condition.kind !== "failed" &&
+        workflow.condition.kind !== "interrupted")
     )
       continue;
     const source = workflow.response;
-    if (!source?.attempt && !source?.id) continue;
+    if (!source) continue;
     const key = identity(source);
-    const failure = {
+    if (!key) continue;
+    failures.set(key, {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
       thread: workflow.thread,
       seq: workflow.seq,
-    };
-    failures.set(key, failure);
+    });
   }
   return failures;
 }
 
+/** @param {ObservedNews | null} prior @param {NewsReading} reading */
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
   const obligations = userObligations(reading.obligations);
@@ -104,6 +126,7 @@ export function observeSemanticNews(prior, reading) {
     obligations: new Set(obligations.keys()),
     obligationEpisodes: new Map(prior?.obligationEpisodes),
   };
+  /** @type {SemanticNews[]} */
   const news = [];
 
   for (const { thread, message, version } of content) {
@@ -146,33 +169,33 @@ export function observeSemanticNews(prior, reading) {
 // A waiting status-line notice drops assertions that the latest successfully
 // presented reading has since superseded. In particular,
 // an answer can replace a failure while the user's own command holds the line.
+/** @param {readonly SemanticNews[]} news @param {NewsReading} reading @param {ObservedNews} observed @returns {SemanticNews[]} */
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
   const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
-  return news.flatMap((item) => {
-    switch (item.kind) {
-      case "agent_content":
+  return news.flatMap(
+    /** @returns {SemanticNews[]} */ (item) => {
+      if (item.kind === "agent_content")
         return versions.has(item.version) ? [item] : [];
-      case "response_failure": {
+      if (item.kind === "response_failure") {
         const current = failures.get(item.key.slice("response:".length));
         return current ? [{ ...item, condition: current.kind }] : [];
       }
-      case "user_obligation":
-        return obligations.has(item.sourceKey) &&
-          item.episode === observed.obligationEpisodes.get(item.sourceKey)
-          ? [item]
-          : [];
-      default:
-        throw new Error(`Unknown semantic news kind ${item.kind}`);
-    }
-  });
+      return obligations.has(item.sourceKey) &&
+        item.episode === observed.obligationEpisodes.get(item.sourceKey)
+        ? [item]
+        : [];
+    },
+  );
 }
 
+/** @param {readonly SemanticNews[]} older @param {readonly SemanticNews[]} newer */
 export function combineSemanticNews(older, newer) {
   return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];
 }
 
+/** @param {number} count @param {string} singular @param {string} pluralForm */
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
@@ -185,15 +208,17 @@ const plural = (count, singular, pluralForm = `${singular}s`) =>
 // italic (glossary.md, "Reader-facing words"): what became of an answer, the counts, and
 // what else is new on the user's list by the list's name.
 const MESSAGE_WORDS = 60;
+/** @param {readonly SemanticNews[]} news */
 export function semanticNewsNotice(news) {
-  const byKind = (kind) => news.filter((item) => item.kind === kind);
-  const content = byKind("agent_content");
-  const failures = byKind("response_failure");
-  let obligations = byKind("user_obligation");
+  const content = news.filter((item) => item.kind === "agent_content");
+  const failures = news.filter((item) => item.kind === "response_failure");
+  let obligations = news.filter((item) => item.kind === "user_obligation");
+  /** @type {import("./voice.js").Said[][]} */
   const clauses = [];
 
-  if (content.length === 1) {
-    const { message } = content[0];
+  const single = content.length === 1 ? content[0] : null;
+  if (single) {
+    const { message } = single;
     obligations = obligations.filter((item) => item.message !== message.id);
     const words = excerptWords(message.text, MESSAGE_WORDS);
     clauses.push(

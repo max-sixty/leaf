@@ -10,15 +10,16 @@
 // ownership registries with later runtime changes.
 /** @type {LeafRootState["setRuntimeRootAttribute"]} */
 export const setRuntimeRootAttribute = (...args) =>
-  document.documentElement.lfRootState.setRuntimeRootAttribute(...args);
+  window.lfRootState.setRuntimeRootAttribute(...args);
 /** @type {LeafRootState["setRuntimeRootStyle"]} */
 export const setRuntimeRootStyle = (...args) =>
-  document.documentElement.lfRootState.setRuntimeRootStyle(...args);
+  window.lfRootState.setRuntimeRootStyle(...args);
 /** @type {LeafRootState["removeRuntimeRootStyle"]} */
 export const removeRuntimeRootStyle = (...args) =>
-  document.documentElement.lfRootState.removeRuntimeRootStyle(...args);
+  window.lfRootState.removeRuntimeRootStyle(...args);
 
+/** @param {HTMLElement} root */
 export const runtimeRootState = (root) => ({
-  attributes: document.documentElement.lfRootState.attributes(root),
-  styles: document.documentElement.lfRootState.styles(root),
+  attributes: window.lfRootState.attributes(root),
+  styles: window.lfRootState.styles(root),
 });

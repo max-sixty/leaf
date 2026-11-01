@@ -36,9 +36,11 @@ import { answerCloseRequest, escapeTakesAStep } from "./dispatch.js";
 import { nativeLayers, watchLayerChanges } from "./layer-stack.js";
 import { repaint } from "../repaint.js";
 
+/** @type {CloseWatcher | null} */
 let watcher = null;
 // The native layers standing when the watcher was made. One opened since stands above
 // it, its own watcher closing first.
+/** @type {ReturnType<typeof nativeLayers>} */
 let under = [];
 watchLayerChanges(() => repaint());
 

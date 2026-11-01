@@ -608,6 +608,37 @@ def card_reply_empty(page: Page) -> None:
     )
 
 
+def card_rewrite_empty(page: Page) -> None:
+    """The user's message in the first margin card, opened for a rewrite by ↑ from its
+    empty reply and emptied, so the editor says only its hint and keys."""
+    card_reply_empty(page)
+    page.keyboard.press("ArrowUp")
+    page.wait_for_function(
+        "() => document.activeElement?.closest('.lf-msg')"
+        " && !document.activeElement.closest('.lf-thread-reply')"
+    )
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Delete")
+
+
+def panel_reply_empty(page: Page) -> None:
+    """The last open thread, opened from Threads in the floating panel, with the caret
+    in its empty reply."""
+    go_to_threads(page)
+    page.locator(".lf-fp-thread:not([data-resolved])").last.click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.locator(".lf-fp-field leaf-text").click()
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+
+
+def option_empty(page: Page) -> None:
+    """An option list's empty one-line add field, focused."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    expect(field).to_be_focused()
+
+
 def card_reply(page: Page) -> None:
     """The first margin card with a reply being typed."""
     card_reply_empty(page)
@@ -661,6 +692,33 @@ def card_reply_resolved(page: Page) -> None:
     page.locator(".lf-margin-preview").get_by_role(
         "button", name="Resolve thread", exact=True
     ).click()
+
+
+def section_ring_by_keyboard(page: Page) -> None:
+    """A thread on a whole section, opened and resolved by keyboard, which hands focus
+    back to the section and rings it: where the ring stands against the section's
+    heading, which no text in a still otherwise shows."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-implementation",
+        "--text",
+        "Is this order right?",
+    )
+    marker = page.locator(
+        '[data-lf-margin-for="plan-implementation"] .lf-margin-marker'
+    )
+    marker.wait_for()
+    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
+    marker.focus()
+    page.keyboard.press("Enter")
+    resolve = page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Resolve thread", exact=True
+    )
+    resolve.focus()
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => document.activeElement?.id === 'plan-implementation'")
 
 
 def card_reply_resolved_elsewhere(page: Page) -> None:
@@ -723,6 +781,37 @@ def card_held_step(page: Page) -> None:
     as_agent("thread", "reply", root, "--ephemeral", "--text", "Checking the stop.")
     state = PageClient(served_page.get().address).state()
     wait_until_ready(page, state, through="state")
+
+
+def card_after_interjection(page: Page) -> None:
+    """An arriving answer grows a card after Send has fitted its reply against the window."""
+    card_held_step(page)
+    card = page.locator(".lf-margin-preview")
+    card.get_by_role("textbox", name="Reply", exact=True).press("Enter")
+    expect(card.locator(".lf-msg.user").last).to_contain_text(
+        "Drafting a reply while the agent works"
+    )
+    expect(card.locator(".lf-msg.user").last).not_to_have_attribute("aria-busy", "true")
+    settle(page)
+    served = served_page.get()
+    delivery = json.loads(served.leaf("wait", str(served.directory), timeout=15).stdout)
+    sent = card.locator(".lf-msg.user").last.get_attribute("data-event")
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == sent
+    )
+    served.leaf("delivery", "ack", delivery["id"])
+    served.leaf(
+        "thread",
+        "reply",
+        reference,
+        "--ephemeral",
+        "--text",
+        "The answer continues with the detail requested in the interjection. " * 5,
+    )
+    expect(card.locator(".lf-msg.agent").last).to_contain_text("The answer continues")
 
 
 def seat_held_news(page: Page) -> None:
@@ -1225,6 +1314,15 @@ def activity_feed(page: Page) -> None:
         page.locator("#triage-activity .lf-activity-row").filter(has_text="moved")
     ).to_be_visible()
     page.locator("#triage-moves").scroll_into_view_if_needed()
+
+
+def gloss_open(page: Page) -> None:
+    """A gloss's card, pinned open by a press on its phrase."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    gloss = page.locator("#bg-gloss")
+    gloss.scroll_into_view_if_needed()
+    gloss.click()
+    expect(gloss.locator(".lf-gloss-popover")).to_be_visible()
 
 
 def settled_option(page: Page) -> None:
@@ -2347,6 +2445,15 @@ STATES = (
     ),
     State("activity-feed", "triage-board", activity_feed, region="#triage-moves"),
     State(
+        "gloss-open",
+        "developer/feature-gallery",
+        gloss_open,
+        region="#bg-gloss .lf-gloss-popover",
+    ),
+    State("deck", "developer/deck", at_rest, region="#deck-catch-up"),
+    State("detail-dial", "developer/detail", at_rest, region="#detail-dial"),
+    State("file-editor", "developer/file-editor", at_rest, region="#research-file"),
+    State(
         "settled-option",
         "developer/feature-gallery",
         settled_option,
@@ -2610,6 +2717,8 @@ STATES = (
     ),
     State("command-reference-search", "review-a-plan", command_reference_search),
     State("page-map", "review-a-plan", page_map, region=".lf-page-map-dialog"),
+    # Its threads on the user's turn, tinted and saying so at their ends.
+    State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State(
         "command-reference-search-dark",
         "review-a-plan",
@@ -2640,6 +2749,12 @@ STATES = (
         "review-a-plan",
         card_reply_photo,
         region=".lf-margin-preview .lf-thread-reply",
+    ),
+    State(
+        "plan-card-after-interjection",
+        "review-a-plan",
+        card_after_interjection,
+        region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
     State(
@@ -2765,7 +2880,21 @@ STATES = (
         card_reply_empty,
         region=".lf-margin-preview .lf-thread-reply",
     ),
+    State(
+        "plan-card-rewrite-empty",
+        "review-a-plan",
+        card_rewrite_empty,
+        region=".lf-margin-preview .lf-msg:has(:focus)",
+    ),
+    State(
+        "plan-panel-reply-empty",
+        "review-a-plan",
+        panel_reply_empty,
+        region=".lf-fp-row",
+    ),
+    State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
+    State("section-ring-keyboard", "review-a-plan", section_ring_by_keyboard),
     State(
         "plan-card-reply-resolved-elsewhere",
         "review-a-plan",

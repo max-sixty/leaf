@@ -141,7 +141,17 @@ def document_port_binding_source():
 @cache
 def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
-    controls = subprocess.check_output(
+    source = (
+        'import { clippingAxes } from "./browser/runtime/rect.js";\n'
+        'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
+        'import { renderedParent } from "./browser/runtime/shadow-tree.js";\n'
+        + WATCH_PLATFORM_SOURCE.read_text()
+        + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
+        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
+        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
+        + SHIFT_WATCH_SOURCE.read_text()
+    )
+    return subprocess.check_output(
         [
             "node",
             "--import",
@@ -149,38 +159,20 @@ def shift_watch_source():
             "--input-type=module",
             "--eval",
             (
+                'import { readFileSync } from "node:fs";'
+                'import { buildSync } from "esbuild";'
                 'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
-                'import { clippingAxes } from "./browser/runtime/rect.js";'
-                'import { elementAxes, scrollAxes } from "./browser/runtime/element-frame.js";'
-                'import { shadowHost, upFrom, renderedParent } from "./browser/runtime/shadow.js";'
-                "process.stdout.write(JSON.stringify([WORKS,PRESSES,CARET_KEYS,...[clippingAxes,shadowHost,upFrom,renderedParent,elementAxes,scrollAxes].map(fn=>fn.toString())]));"
+                "const vocabulary = `const interactive=${JSON.stringify(WORKS)},"
+                "pressControls=${JSON.stringify(PRESSES)},caretKeys=${JSON.stringify(CARET_KEYS)};\n`;"
+                'const result = buildSync({stdin: {contents: vocabulary + readFileSync(0, "utf8"),'
+                'resolveDir: process.cwd()}, bundle: true, format: "iife", write: false});'
+                "process.stdout.write(result.outputFiles[0].text);"
             ),
         ],
+        input=source,
         cwd=ROOT,
         text=True,
         timeout=STATED_TIMEOUT,
-    )
-    (
-        interactive,
-        presses,
-        caret_keys,
-        clipping,
-        host,
-        parent,
-        rendered_parent,
-        element_axes,
-        axes,
-    ) = json.loads(controls)
-    return (
-        WATCH_PLATFORM_SOURCE.read_text()
-        + "\n"
-        + "const nativePerformance = window.lfWatchPlatform.performance;\n"
-        + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
-        + "const nativeTask = (callback, ...args) => window.lfWatchPlatform.later(callback, ...args);\n"
-        + f"((interactive, pressControls, caretKeys, clippingAxes) => {{\n"
-        f"const shadowHost = {host};\nconst upFrom = {parent};\n"
-        f"const renderedParent = {rendered_parent};\nconst elementAxes = {element_axes};\nconst scrollAxes = {axes};\n"
-        f"{SHIFT_WATCH_SOURCE.read_text()}\n}})({json.dumps(interactive)}, {json.dumps(presses)}, {json.dumps(caret_keys)}, {clipping});"
     )
 
 

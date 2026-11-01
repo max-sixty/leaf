@@ -74,8 +74,8 @@ ignores:
   which only Leaf reads.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
-- Working state in `tabStore`, which keeps nothing on a plain page: a read there
-  answers null.
+- State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read
+  there answers null.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -94,11 +94,13 @@ script", lists.
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
   label them with `relabel()` ("Generated controls").
-- Keep the widget's visible geometry stable as its state updates ("First paint").
+- Keep the widget's visible geometry stable as its state updates ("First paint"), and
+  meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
   values through `keeps` ("Scheduling paints", "Writes that change nothing").
-- Record the user's choices only through the widget controller, and keep working state
-  in `tabStore` (`module-state.md`, "The widget controller", "Tab-local working state").
+- Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
+  puts it: record what the user makes through the widget controller, and keep how they
+  look at the widget in `tabStore`.
 - Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
@@ -228,17 +230,21 @@ native disclosures, links and authored content need no such wait.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
 - A widget that shows one member at a time declares `x-views: {members: "selector"}`;
-  the selector matches direct authored children. Delivery marks these members, and
-  one browser owner shows the chosen member before modules load. Their native
-  `hidden` attribute is view state.
-  Read `viewMembers(holder)` for the canonical member list; the view APIs also mark
-  members of holders a module creates, using that same declaration. During setup, open the
+  the browser matches the selector against each direct authored child, including
+  while HTML is still arriving. A selector that depends on descendants, such as
+  `:has()`, can change membership as they arrive; use the child's own start tag for
+  stable first-paint membership. Delivery carries the selector so the same browser
+  owner shows the chosen member before modules load. Their native `hidden` attribute
+  is view state.
+  Read `viewMembers(holder)` for the canonical member list, including holders a module
+  creates. Reading members or the opening choice changes no DOM. During setup, open the
   member `openingView(holder)` returns, and show each later member with
   `keepView(holder, member)`, which applies native visibility and remembers it for reload.
   Passing null shows none without forgetting the last member. During an exit animation,
   `keepView(holder, member, leaving)` keeps one outgoing member visible too; call it
-  again without that member when the animation ends. Only the selected member is saved. Pass `null` as a second argument
-  to get null where neither the address nor the tab names a member, and choose then. A holder whose members share the
+  again without that member when the animation ends. Only the selected member is
+  saved. Pass `null` as a second argument to get null where neither the address nor
+  the tab names a member, and choose then. A holder whose members share the
   surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
   default is `box`), so Layouts can seat a member's sidebar in the page margin.
 

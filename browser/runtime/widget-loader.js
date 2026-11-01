@@ -1,8 +1,10 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
+import { isElement } from "./shadow-tree.js";
+
 import {
   paintDeclaredWords,
-  watchExternalLinks,
+  watchNativeContent,
   watchQuietWords,
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
@@ -63,8 +65,10 @@ const rememberedPassageRoots = new WeakSet();
 
 // Root-inclusive, like every reading of arriving markup: when a live revision brings a
 // single widget, the scope is that widget.
+/** @typedef {Document | DocumentFragment | Element} Scope */
+/** @param {Scope} scope @param {string} selector */
 const within = (scope, selector) => [
-  ...(scope.matches?.(selector) ? [scope] : []),
+  ...(isElement(scope) && scope.matches(selector) ? [scope] : []),
   ...scope.querySelectorAll(selector),
 ];
 
@@ -92,12 +96,15 @@ export function rememberPassageParts(
   }
 }
 
+/** @param {Scope} scope */
 const preservingOwners = (scope) =>
   within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
 
+/** @param {Element} root @param {[string, string | null, number]} owner @param {(node: Element) => Element} original */
 function identifyPreserving(root, owner, original = (node) => node) {
   verbatimOwnerIdentity.set(original(root), owner);
   let boundaryIndex = 0;
+  /** @param {Element} parent */
   const visit = (parent) => {
     for (const child of parent.children) {
       if (registry[child.localName]?.["x-upgrade"])
@@ -139,11 +146,13 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // Rejections reach startup and activation, which must not present markup whose
 // required module is absent.
 const registryUrl = () => runtimeResource("/registry.json");
+/** @param {string} tag */
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)
     : runtimeResource(`/widgets/${tag}.js`);
 
+/** @param {Scope} scope */
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
@@ -156,6 +165,7 @@ async function loadWidgetDependencies(scope) {
   ]);
 }
 
+/** @param {Scope} scope */
 async function importWidgetModules(scope) {
   const required = widgetImports(scope, registry);
   await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
@@ -163,6 +173,7 @@ async function importWidgetModules(scope) {
 
 // Source-only preparation must not consume authored body records. Live revisions
 // import ahead of activation, then format their copied arrivals after typed capture.
+/** @param {Scope} scope */
 export async function preloadWidgets(scope) {
   await loadWidgetDependencies(scope);
   await importWidgetModules(scope);
@@ -170,6 +181,7 @@ export async function preloadWidgets(scope) {
 
 // Startup and frozen-message presentation may consume their captured markup. Format
 // before module imports can synchronously connect an already-present custom element.
+/** @param {Scope} scope */
 export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
@@ -178,10 +190,11 @@ export async function importWidgets(scope) {
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
 // still what its author wrote, import what its tags declare, and paint its declared words.
+/** @param {Element} scope */
 async function installDocument(scope) {
   const presentation = attachApplicationPresentation("document:installation");
   try {
-    watchExternalLinks();
+    watchNativeContent();
     watchQuietWords();
     watchCodeBlocks();
     watchHeadingLinks();
@@ -208,6 +221,7 @@ async function installDocument(scope) {
 // waits for the widgets it brought and for its own dressing, never for the whole
 // application — that wait would be on a renderer whose turn cannot come until this one
 // returns, and a page that stops there has stopped answering with nothing said.
+/** @template {{roots: Element[], widgets: string[]}} T @param {Element} scope @param {() => T} patch */
 export async function patchDocument(scope, patch) {
   const presentation = attachApplicationPresentation("document:patch");
   try {
@@ -224,6 +238,8 @@ export async function patchDocument(scope, patch) {
 // the keyboard can reach. Authored state was already captured from source markup
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
+/** @param {ReturnType<typeof attachApplicationPresentation>} presentation @param {Element} scope
+ * @param {Element[]} arrived @param {() => Promise<unknown>} presented */
 async function settle(presentation, scope, arrived, presented) {
   const painted = Promise.all(arrived.map(paintDeclaredWords));
   const presenting = presentation.present();
@@ -233,6 +249,7 @@ async function settle(presentation, scope, arrived, presented) {
   reachScrollers(scope);
 }
 
+/** @param {import("./version.js").InitialDocument} captured */
 export async function prepareDocument(captured) {
   const response = await fetch(registryUrl());
   if (!admitResponse(response)) return false;
@@ -241,7 +258,9 @@ export async function prepareDocument(captured) {
   adoptRegistry(await response.json());
   if (!sameLayer(registry.$layer.generation)) return false;
   const scope = captured.source;
-  const original = (node) => captured.pairs.get(node);
+  if (!scope) throw new Error("The initial document has no authored root");
+  /** @param {Element} node */
+  const original = (node) => captured.pairs.require(node);
   rememberPassageParts(scope, ["page", null], original);
   rememberAuthoredParents(scope, null, original);
   const descriptors = stageWidgetDescriptors(scope);
@@ -263,6 +282,7 @@ export async function prepareDocument(captured) {
   return true;
 }
 
+/** @param {{buildReactionBar: () => void}} options */
 export async function upgradeWidgets({ buildReactionBar }) {
   revealLayer();
   buildReactionBar();

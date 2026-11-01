@@ -60,12 +60,12 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   gap: var(--sp-2) var(--sp-4);
   padding-block-end: var(--sp-3);
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-small);
 }
 
 .lf-worktree-total {
   color: var(--ink);
-  font-size: var(--t-5);
+  font: var(--font-title);
 }
 
 .lf-worktree-disclosure {
@@ -122,8 +122,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 }
 
 .lf-worktree-ref {
-  font-family: var(--mono);
-  font-size: var(--t-6);
+  font: var(--font-code);
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -135,7 +134,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 .lf-worktree-status,
 .lf-worktree-stats {
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -177,7 +176,7 @@ lf-worktree > :last-child {
   align-items: baseline;
   gap: var(--sp-2);
   color: var(--muted);
-  font-size: var(--t-6);
+  font: var(--font-small);
 }
 
 .lf-worktree-disclosure code {

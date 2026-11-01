@@ -29,10 +29,16 @@ const STATE_CLASSES = {
   focus: "lf-visual-mark-focus",
   here: "lf-visual-mark-here",
 };
+/** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
+/** @typedef {{overlay: HTMLDivElement, shape: SVGSVGElement,
+ * stand: import("../target-paint-geometry.js").PaintStand<import("../target-paint-geometry.js").PaintNode>, geometry: ReturnType<typeof paintGeometry>,
+ * shapeKey: string}} Overlay */
 export function createVisualMarkPaint() {
   const layer = el("div", "lf-ui lf-visual-marks");
   layer.setAttribute("aria-hidden", "true");
+  /** @type {Map<Element, VisualTarget>} */
   let targets = new Map();
+  /** @type {Map<Element, Overlay>} */
   const overlays = new Map();
   let placementFrame = 0;
   let geometryFrame = 0;
@@ -47,10 +53,10 @@ export function createVisualMarkPaint() {
   }
 
   function paintTargets(rebuildGeometry = true) {
-    for (const element of [...overlays.keys()])
+    for (const [element, record] of overlays)
       if (!targets.has(element)) {
         element.classList.toggle(PROJECTED, false);
-        dropStand(overlays.get(element).stand);
+        dropStand(record.stand);
         overlays.delete(element);
       }
 
@@ -103,6 +109,7 @@ export function createVisualMarkPaint() {
     syncStates();
   }
 
+  /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
     const nextTargets = new Map(
       [...next]

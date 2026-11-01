@@ -863,8 +863,14 @@ _TEXT = {
         f"{_line(at, v)}: takes no content — write {at[:-1]} …></{at[1:-1]}>"
     ),
     "data-body": lambda at, v: (
-        f"{_line(at, v)}: its body is one <pre> holding the text (escape < and >),"
-        " found " + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
+        f"{_line(at, v)}: "
+        + (
+            "its bound input supplies the text, so it holds no <pre>"
+            if v.get("bound")
+            else "its body is one <pre> holding the text (escape < and >)"
+        )
+        + ", found "
+        + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
     ),
     "text-outside-pre": lambda at, v: (
         f"{_line(at, v)}: text outside its <pre> — the whole body goes inside it"
@@ -1137,6 +1143,17 @@ _TEXT = {
     ),
     "markdown-needs-data": _declared(
         lambda v: "block Markdown requires x-content: data"
+    ),
+    "data-input": _declared(
+        lambda v: (
+            "its <pre> is the text of its x-data input when the markup binds"
+            " none, so x-content: data takes "
+            + {
+                "inputs": "at most one input",
+                "words": "no input with x-text-format: markdown, whose <pre> is its words",
+                "state": "no input with a body record, whose <pre> is its state",
+            }[v["reason"]]
+        )
     ),
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
@@ -2017,7 +2034,19 @@ _TEXT = {
     "undeclared-answer": lambda at, v: (
         "say what the answer leaves: --done when it delivers what was asked, --todo"
         " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
-        " the user's next move (a widget in --markup may also ask)"
+        " the user's next move"
+        + (
+            f"; or let the <{v['tag']} id={v['id']!r}> in --markup ask in its place,"
+            f" which it does with {v['needs']}"
+            if v
+            else " (a widget in --markup may also ask)"
+        )
+    ),
+    "obligation-beside-widget": lambda at, v: (
+        f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
+        " answer; drop --obligation, which would keep the message on their On me list"
+        " after they answer it, and ask anything the widget doesn't answer in a message"
+        " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

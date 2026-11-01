@@ -22,9 +22,11 @@ saved element names its action phase and its path in the accessibility tree, whi
 apart two controls with the same name.
 
 To compare recordings, import each under its own source and put their viewers inside one
-`lf-trace-compare`, with a `label` on each. Give bookmarks for corresponding steps the
-same `key`. An input can produce different results across versions, so name its identity
-separately from the outcome the reader should inspect.
+`lf-trace-compare`, with a `label` on each. Each direct child is one recording view:
+a viewer or a wrapper holding it and its caption. Put a shared introduction beside
+the comparison. Give bookmarks for corresponding steps the same `key`. An input can
+produce different results across versions, so name its identity separately from the
+outcome the reader should inspect.
 
 ### Record comparable journeys
 

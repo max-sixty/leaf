@@ -22,7 +22,7 @@ document.documentElement.style.setProperty("--thread-card", "592px");
 // beside any columns, so its room across them is itself.
 const windowBoundary = (left, top, width, height) => {
   const boundary = Object.assign(new DOMRect(left, top, width, height), {
-    inRegion: null,
+    cut: null,
     key: [left, top, left + width, top + height],
   });
   return Object.assign(boundary, { across: () => boundary });
@@ -159,7 +159,7 @@ test("a page scroll that moves a region's shown bounds keeps the side", () => {
   // A region boundary is keyed by the region's whole size, so a scroll of the page that
   // moves and clips its shown bounds chooses no side afresh, while a resize does.
   const region = (top, height, size = [0, 0, 900, 600]) =>
-    Object.assign(new DOMRect(100, top, 900, height), { inRegion: {}, key: size });
+    Object.assign(new DOMRect(100, top, 900, height), { cut: {}, key: size });
   const clear = block(120, 860, 300, 500);
   const input = {
     clear,
@@ -201,8 +201,13 @@ test("beside, clearing a margin row never costs the card width", async () => {
   const clear = block(300, 300, 300, 500);
   const options = (rowRight) => {
     const placement = commentPlacement();
-    placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
-    return placement.options(ui, {
+    const seat = placement.choose({
+      clear,
+      boundary,
+      scroller: scroller(1000),
+      coarse: false,
+    });
+    return seat.options(ui, {
       clear,
       row: clear.top,
       margin: { left: rowRight - 40, right: rowRight },
@@ -305,8 +310,13 @@ test("zoom clearance reaches the solver through the floating driver", async () =
       isRTL: () => false,
     };
     const rule = commentPlacement();
-    rule.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
-    const { reference, placement, middleware, plane } = rule.options(ui, {
+    const seat = rule.choose({
+      clear,
+      boundary,
+      scroller: scroller(1000),
+      coarse: false,
+    });
+    const { reference, placement, middleware, plane } = seat.options(ui, {
       clear,
       row: clear.top,
       margin: { left: rowRight - 40, right: rowRight },
@@ -367,8 +377,9 @@ test("a carried surface stands where it was dropped, past the attachment limit",
       const input = { clear, boundary, scroller: scroller(1000), coarse: false };
       assert.equal(rule.choose(input).side, side);
       rule.adopt({ box: dropped, placement: { ...rule.capture(), moved } });
-      assert.equal(rule.choose(input).fresh, false);
-      const { reference, placement, middleware } = rule.options(ui, {
+      const seat = rule.choose(input);
+      assert.equal(seat.fresh, false);
+      const { reference, placement, middleware } = seat.options(ui, {
         clear,
         row: clear.top,
         boundary,
@@ -404,14 +415,14 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   // An element 700px down, `scrolled` further by a scroll of the page.
   const place = async (scrolled = 0) => {
     const clear = block(300, 300, 700 - scrolled, 730 - scrolled);
-    card.choose({
+    const seat = card.choose({
       clear,
       boundary,
       scroller: scroller(1000),
       coarse: false,
     });
     const edge = "top";
-    const { reference, placement, middleware } = card.options(ui, {
+    const { reference, placement, middleware } = seat.options(ui, {
       clear,
       row: clear.top,
       lastRow: clear.bottom,
@@ -461,13 +472,13 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   // An element 700px down, with 155px of room under the card's line.
   const clear = block(300, 300, 700, 730);
   const place = async (rises = false) => {
-    card.choose({
+    const seat = card.choose({
       clear,
       boundary,
       scroller: scroller(1000),
       coarse: false,
     });
-    const { reference, placement, middleware } = card.options(ui, {
+    const { reference, placement, middleware } = seat.options(ui, {
       clear,
       row: clear.top,
       lastRow: clear.bottom,
@@ -511,9 +522,14 @@ test("chrome beside a card's columns leaves it the window's height", async () =>
   });
   const placed = async (clear) => {
     const card = commentPlacement();
-    card.choose({ clear, boundary: rowed, scroller: scroller(1000), coarse: false });
+    const seat = card.choose({
+      clear,
+      boundary: rowed,
+      scroller: scroller(1000),
+      coarse: false,
+    });
     let offered = null;
-    const { reference, placement, middleware } = card.options(ui, {
+    const { reference, placement, middleware } = seat.options(ui, {
       clear,
       row: clear.top,
       boundary: rowed,

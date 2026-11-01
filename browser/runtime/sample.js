@@ -65,17 +65,36 @@ import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./exception.js";
 import { aborted } from "./abort.js";
 
+/** @typedef {import("./sample-protocol.js").SampleReady} SampleReady
+ * @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
+ * @typedef {import("./sample-protocol.js").SampleMethod} SampleMethod
+ * @typedef {import("./sample-protocol.js").SampleResult} SampleResult
+ * @typedef {import("./sample-protocol.js").SampleCall} SampleCall
+ * @typedef {import("./sample-protocol.js").SampleNotices} SampleNotices
+ * @typedef {{ready: Promise<SampleReady>, reset: () => Promise<SampleReady>,
+ * setWindow: (value: boolean) => Promise<SampleCommands["window"]["result"]>,
+ * on: <K extends keyof SampleNotices>(type: K, callback: (detail: SampleNotices[K]) => unknown) => () => void,
+ * restoreCurrentLocation: () => Promise<boolean>,
+ * showThread: (id: string, options: {signal: AbortSignal, surface?: "page" | "panel"}) => Promise<boolean>,
+ * destroy: () => Promise<unknown>}} SampleHost
+ * @typedef {{reloading?: boolean, operation?: "release", status?: number, leafDocument?: string | null,
+ * reason?: string, document?: string | null, sample?: string | null,
+ * error?: ReturnType<typeof exceptionRecord> & {status?: number, body?: unknown}}} SampleRecordDetail
+ */
 // A page can carry many samples. Their child documents each import the runtime;
 // upgrading them together can exhaust the browser's request pool before any child
 // finishes loading its module graph. Bound simultaneous loads across this page. A
 // loaded child can keep reading slow state without holding up the next sample.
 const MAX_LOADING_SAMPLES = 3;
 let loadingSamples = 0;
+/** @type {(() => void)[]} */
 const loadWaiters = [];
 let nextHost = 0;
+/** @template T @param {(release: () => void) => T | PromiseLike<T>} work @param {AbortSignal} signal */
 async function loadWithinLimit(work, signal) {
   signal.throwIfAborted();
   if (loadingSamples === MAX_LOADING_SAMPLES) {
+    /** @type {PromiseWithResolvers<void>} */
     const { promise: turn, resolve: proceed } = Promise.withResolvers();
     loadWaiters.push(proceed);
     await Promise.race([turn, aborted(signal)]);
@@ -90,7 +109,8 @@ async function loadWithinLimit(work, signal) {
   const release = () => {
     if (released) return;
     released = true;
-    if (loadWaiters.length) loadWaiters.shift()();
+    const next = loadWaiters.shift();
+    if (next) next();
     else loadingSamples--;
   };
   try {
@@ -101,16 +121,25 @@ async function loadWithinLimit(work, signal) {
 }
 
 // The child document left before answering a call.
+/** @param {string} message */
 const departure = (message) => new DOMException(message, "SampleDepartedError");
 
+/** @type {Map<Node, SampleCall>} */
 const mounted = new Map();
+/** @param {Node} node @returns {node is HTMLIFrameElement} */
 export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
-export const sampleFrameImage = (frame, crop) => mounted.get(frame)("image", crop);
+/** @param {HTMLIFrameElement} frame @param {import("./sample-protocol.js").SampleCrop} crop */
+export function sampleFrameImage(frame, crop) {
+  const call = mounted.get(frame);
+  if (!call) throw departure("Sample frame has departed");
+  return call("image", crop);
+}
 
+/** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers] */
 const request = (url, body, headers = {}) =>
   requestJson(
-    url,
+    String(url),
     {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
@@ -120,12 +149,28 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
+/** @param {unknown} value @returns {value is {type: "leaf-sample-connect", sample: string, nonce: string}} */
+function connectionMessage(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "leaf-sample-connect" &&
+    "sample" in value &&
+    typeof value.sample === "string" &&
+    "nonce" in value &&
+    typeof value.nonce === "string"
+  );
+}
+
+/** @param {HTMLIFrameElement} frame @param {({template: string, source?: never} | {source: string, template?: never}) & {window?: boolean}} options @returns {SampleHost} */
 export function mountSample(frame, { template, source, window: asWindow = false }) {
   if ((template == null) === (source == null))
     throw new Error("a sample needs either an authored template id or source document");
   // A template is declared in its revision's document or in a message's frozen
   // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
+  /** @type {string | undefined} */
   let message;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
@@ -134,23 +179,30 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     else if (source == null) message = descriptor.document.message;
     break;
   }
+  /** @type {string | null} */
   let current = null;
+  /** @type {string | null} */
   let samplePage = null;
   let destroyed = false;
+  /** @type {Promise<SampleReady> | null} */
   let operation = null;
+  /** @type {Promise<unknown> | null} */
   let closing = null;
+  /** @type {MessagePort | null} */
   let channel = null;
   // Why the last channel closed: what a call aimed at its document rejects with.
+  /** @type {unknown} */
   let lost;
   let nextId = 0;
-  let readyResolve;
-  let readyReject;
-  let upgrading = false;
+  /** @type {PromiseWithResolvers<SampleReady> | null} */
+  let pendingInterface = null;
   let hasConnected = false;
+  /** @type {string | null} */
   let connectedNonce = null;
   const hostId = ++nextHost;
   const started = performance.now();
   let allocation = 0;
+  /** @param {string} phase @param {SampleRecordDetail} [detail] */
   const record = (phase, detail = {}) =>
     recordInteraction("sample", {
       host: hostId,
@@ -163,6 +215,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       phase,
       ...detail,
     });
+  /** @param {unknown} error @param {SampleRecordDetail} [detail] */
   const recordFailure = (error, detail = {}) =>
     record("failed", {
       error: {
@@ -175,11 +228,22 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       ...detail,
     });
   const lifetimeController = new AbortController();
+  /** @type {Set<MessagePort>} */
   const candidates = new Set();
+  /** @type {Map<import("./sample-protocol.js").SampleId, Pick<PromiseWithResolvers<SampleResult>, "resolve" | "reject">>} */
   const pending = new Map();
-  const listeners = new Map();
+  /** @type {import("./sample-protocol.js").SampleListeners} */
+  const listeners = {
+    height: new Set(),
+    input: new Set(),
+    "current-location": new Set(),
+    arrived: new Set(),
+    loading: new Set(),
+    departed: new Set(),
+  };
+  /** @template {keyof SampleNotices} K @param {K} type @param {SampleNotices[K]} detail */
   const notify = (type, detail) => {
-    for (const callback of listeners.get(type) ?? []) callback(detail);
+    for (const callback of listeners[type] ?? []) callback(detail);
   };
   keeps(
     frame,
@@ -201,6 +265,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   function visibility() {
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
   }
+  /** @param {MessagePort} port @param {number} id */
   async function readVisibility(port, id) {
     try {
       const outer = await readSampleVisibility();
@@ -223,6 +288,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       reportError(error);
     }
   }
+  /** @param {unknown} reason */
   function disconnect(reason) {
     channel?.close();
     channel = null;
@@ -235,6 +301,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   // allocation's own operation, so a reported failure already permits a fresh one.
   // A reload's upgrade, or a departure's wait, is not an operation: Reset then
   // allocates afresh.
+  /** @param {Promise<SampleReady>} work */
   function begin(work) {
     const active = work;
     operation = active;
@@ -245,6 +312,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     active.then(settled, settled);
     return active;
   }
+  /** @template T @param {PromiseLike<T>} work */
   async function settle(work) {
     try {
       return await work;
@@ -258,132 +326,139 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     }
   }
   function interfaceReady() {
-    upgrading = true;
-    return new Promise((resolve, reject) => {
-      readyResolve = (value) => {
-        upgrading = false;
-        resolve(value);
-      };
-      readyReject = (error) => {
-        upgrading = false;
-        reject(error);
-      };
-    });
+    /** @type {PromiseWithResolvers<SampleReady>} */
+    const completion = Promise.withResolvers();
+    pendingInterface = completion;
+    return completion.promise;
   }
   // A departed or replaced document's successor upgrades into the readiness
   // already pending, so a departure and the reload after it share one `ready`.
   function awaitNext() {
-    if (upgrading) return;
+    if (pendingInterface) return;
     host.ready = settle(interfaceReady());
     // Owners read its outcome from `ready`; a host nobody awaits drops it, as an
     // operation's does.
     host.ready.catch(() => {});
   }
+  /** @param {unknown} error */
   function failure(error) {
-    if (upgrading) readyReject(error);
-    else {
+    if (pendingInterface) {
+      const completion = pendingInterface;
+      pendingInterface = null;
+      completion.reject(error);
+    } else {
       begin(settle(Promise.reject(error)));
-      notify("loading");
+      notify("loading", undefined);
     }
   }
+  /** @param {MessageEvent<unknown>} event */
   function connect(event) {
+    const data = event.data;
     if (
       !current ||
       event.source !== frame.contentWindow ||
-      event.data?.sample !== new URL(current).pathname
+      !connectionMessage(data) ||
+      data.sample !== new URL(current).pathname ||
+      data.nonce === connectedNonce
     )
       return;
-    if (
-      event.data.type !== "leaf-sample-connect" ||
-      typeof event.data.nonce !== "string" ||
-      event.data.nonce === connectedNonce
-    )
-      return;
-    const nonce = event.data.nonce;
+    const nonce = data.nonce;
     const owned = current;
     const pair = new MessageChannel();
     const port = pair.port1;
     // Publish this private document endpoint at the existing diagnostic seam.
-    /** @type {HTMLScriptElement} */ (
-      document.querySelector("script[data-lf-entry]")
-    ).lfDocumentPort = port;
+    /** @type {HTMLScriptElement | null} */
+    const entry = document.querySelector("script[data-lf-entry]");
+    if (!entry) throw new Error("A sample host needs the Leaf bootstrap entry");
+    entry.lfDocumentPort = port;
     candidates.add(port);
-    port.onmessage = ({ data }) => {
-      if (data.type === "connected") {
-        if (!candidates.has(port) || current !== owned || data.nonce !== nonce) return;
-        candidates.delete(port);
-        for (const candidate of candidates) candidate.close();
-        candidates.clear();
-        const reloading = hasConnected;
-        disconnect(departure("sample document replaced"));
-        channel = port;
-        connectedNonce = nonce;
-        hasConnected = true;
-        record("connected", { reloading });
-        if (reloading) {
-          awaitNext();
-          notify("loading");
+    port.onmessage =
+      /** @param {MessageEvent<import("./sample-protocol.js").ChildMessage>} event */ ({
+        data,
+      }) => {
+        if (data.type === "connected") {
+          if (!candidates.has(port) || current !== owned || data.nonce !== nonce)
+            return;
+          candidates.delete(port);
+          for (const candidate of candidates) candidate.close();
+          candidates.clear();
+          const reloading = hasConnected;
+          disconnect(departure("sample document replaced"));
+          channel = port;
+          connectedNonce = nonce;
+          hasConnected = true;
+          record("connected", { reloading });
+          if (reloading) {
+            awaitNext();
+            notify("loading", undefined);
+          }
+          visibility();
+          return;
         }
-        visibility();
-        return;
-      }
-      // Messages from the departed realm cannot settle the next realm's calls.
-      if (channel !== port) return;
-      if (data.type === "departed") {
-        record("departed");
-        disconnect(departure("sample document navigated"));
-        // Reset need not wait for a document that may never come.
-        operation = null;
-        awaitNext();
-        notify("departed");
-        return;
-      }
-      if (data.type === "visibility-read") {
-        void readVisibility(port, data.detail.id);
-        return;
-      }
-      if (pending.has(data.id)) {
-        const { resolve, reject } = pending.get(data.id);
-        pending.delete(data.id);
-        if (data.error)
-          reject(
+        // Messages from the departed realm cannot settle the next realm's calls.
+        if (channel !== port) return;
+        if (data.type === "departed") {
+          record("departed");
+          disconnect(departure("sample document navigated"));
+          // Reset need not wait for a document that may never come.
+          operation = null;
+          awaitNext();
+          notify("departed", undefined);
+          return;
+        }
+        if (data.type === "visibility-read") {
+          void readVisibility(port, data.detail.id);
+          return;
+        }
+        if (data.type === undefined) {
+          const completion = pending.get(data.id);
+          if (!completion) return;
+          const { resolve, reject } = completion;
+          pending.delete(data.id);
+          if (data.error)
+            reject(
+              Object.assign(
+                new Error(data.error.message),
+                { stack: undefined },
+                data.error,
+              ),
+            );
+          else resolve(data.result);
+        } else if (data.type === "ready") {
+          record("upgraded");
+          const completion = pendingInterface;
+          pendingInterface = null;
+          completion?.resolve(data.detail);
+          visibility();
+        } else if (data.type === "error") {
+          failure(
             Object.assign(
-              new Error(data.error.message),
+              new Error(data.detail.message),
               { stack: undefined },
-              data.error,
+              data.detail,
             ),
           );
-        else resolve(data.result);
-      } else if (data.type === "ready") {
-        record("upgraded");
-        readyResolve(data.detail);
-        visibility();
-      } else if (data.type === "error") {
-        failure(
-          Object.assign(
-            new Error(data.detail.message),
-            { stack: undefined },
-            data.detail,
-          ),
-        );
-      } else if (data.type === "return")
-        frame.dispatchEvent(new Event("lf-sample-return"));
-      else if (data.type === "step")
-        frame.dispatchEvent(
-          new CustomEvent("lf-sample-step", {
-            bubbles: true,
-            composed: true,
-            detail: data.detail,
-          }),
-        );
-      else {
-        if (data.type === "input") inputInFrame(frame, data.detail.type);
-        notify(data.type, data.detail);
-      }
-    };
-    event.source.postMessage(
+        } else if (data.type === "return")
+          frame.dispatchEvent(new Event("lf-sample-return"));
+        else if (data.type === "step")
+          frame.dispatchEvent(
+            new CustomEvent("lf-sample-step", {
+              bubbles: true,
+              composed: true,
+              detail: data.detail,
+            }),
+          );
+        else if (data.type === "input") {
+          inputInFrame(frame, data.detail.type);
+          notify("input", data.detail);
+        } else if (data.type === "height") notify("height", data.detail);
+        else if (data.type === "current-location")
+          notify("current-location", data.detail);
+        else if (data.type === "arrived") notify("arrived", undefined);
+      };
+    frame.contentWindow?.postMessage(
       {
-        sample: event.data.sample,
+        sample: data.sample,
         nonce,
         settings: { window: asWindow, dress: dressFor(frame) ?? undefined },
       },
@@ -427,7 +502,9 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     disconnect(cause);
     for (const port of candidates) port.close();
     candidates.clear();
-    readyReject?.(cause);
+    const completion = pendingInterface;
+    pendingInterface = null;
+    completion?.reject(cause);
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
@@ -499,22 +576,25 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   function reset() {
     if (destroyed)
       return Promise.reject(new Error("the sample host has been destroyed"));
-    if (!operation) begin(replace());
-    return operation;
+    return operation ?? begin(replace());
   }
-  function call(method, detail = {}) {
+  /** @template {SampleMethod} K @overload @param {K} method @param {SampleCommands[K]["detail"]} detail @returns {Promise<SampleCommands[K]["result"]>} */
+  /** @param {SampleMethod} method @param {SampleCommands[SampleMethod]["detail"]} detail @returns {Promise<SampleResult>} */
+  function call(method, detail) {
     const ready = host.ready;
     return ready.then(() => {
       if (ready !== host.ready || !channel) throw lost;
+      const port = channel;
       const id = ++nextId;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        channel.postMessage({ id, method, detail });
+        port.postMessage({ id, method, detail });
       });
     });
   }
+  /** @type {SampleHost} */
   const host = {
-    ready: null,
+    ready: replace(),
     reset,
     // Full view keeps the realm, log and native editor; only its allocation changes.
     setWindow(value) {
@@ -522,11 +602,13 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       return call("window", { window: value });
     },
     on(type, callback) {
-      if (!listeners.has(type)) listeners.set(type, new Set());
-      listeners.get(type).add(callback);
-      return () => listeners.get(type).delete(callback);
+      const callbacks = listeners[type];
+      callbacks.add(callback);
+      return () => {
+        callbacks.delete(callback);
+      };
     },
-    restoreCurrentLocation: () => call("restore-current-location"),
+    restoreCurrentLocation: () => call("restore-current-location", {}),
     showThread(id, { signal, ...options }) {
       if (signal.aborted) return Promise.resolve(false);
       const cancel = () => channel?.postMessage({ type: "cancel-view" });
@@ -557,11 +639,12 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       return closing;
     },
   };
+  /** @param {PageTransitionEvent} event */
   const departing = (event) => {
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
   mounted.set(frame, call);
-  reset();
+  begin(host.ready);
   return host;
 }

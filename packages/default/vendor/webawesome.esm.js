@@ -1,5 +1,5 @@
 /*! Web Awesome 3.14.0 — MIT — licenses: webawesome.LICENSES.txt */
-import{a as w,b as dt,c as J,d as m,e as a,f as A,g as y,h as ht,i as ut,j as pt,k as mt,l as ft,m as bt,n as vt,o as Q,p as L,q as gt,r as S,s as C,t as O,u as E,v as wt,w as yt,x as xt}from"./webawesome/chunk-KPIIXIVK.js";import{css as Ft}from"/vendor/lit.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var kt=Ft`
+import{a as w,b as dt,c as J,d as m,e as a,f as A,g as y,h as ht,i as ut,j as pt,k as mt,l as ft,m as bt,n as vt,o as Q,p as L,q as gt,r as S,s as C,t as O,u as E,v as wt,w as yt,x as xt}from"./webawesome/chunk-ZGMFNASY.js";import{css as Ft}from"/vendor/lit.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var kt=Ft`
   :host {
     --divider-width: 0.125rem;
     --handle-size: 2.5rem;

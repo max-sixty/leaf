@@ -1621,14 +1621,16 @@ export function createFloatingPanel({
   function back() {
     const before = trail.value.at(-1);
     trail.value = trail.value.slice(0, -1);
-    transition(before);
-    // Back in the menu, the user stands on the row that opened the list.
-    if (!before || trail.value.at(-1)?.view !== "menu" || !currentLocationIn(host))
-      return;
-    const door = shownView()?.querySelector(
-      `[data-row="${CSS.escape(routeKey(before))}"]`,
-    );
-    if (door) focusDestination(door, "return");
+    // Back in the menu, the user stands on the row that opened the list. The transition
+    // leaves them to it rather than standing them on the menu's first row, which the
+    // paint's walk would follow there and back, a write that changes nothing.
+    const door =
+      before && trail.value.at(-1)?.view === "menu" ? routeKey(before) : null;
+    transition(before, { focus: door === null });
+    if (door === null) return;
+    const row = shownView()?.querySelector(`[data-row="${CSS.escape(door)}"]`);
+    if (row) focusDestination(row, "return");
+    else focusView(trail.value.at(-1), null);
   }
   function close({ handedOn = false } = {}) {
     // Closing the view ends the writing posture too. A saved page draft keeps

@@ -6408,10 +6408,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function back() {
 		const before = trail.value.at(-1);
 		trail.value = trail.value.slice(0, -1);
-		transition(before);
-		if (!before || trail.value.at(-1)?.view !== "menu" || !currentLocationIn(host)) return;
-		const door = shownView()?.querySelector(`[data-row="${CSS.escape(routeKey(before))}"]`);
-		if (door) focusDestination(door, "return");
+		const door = before && trail.value.at(-1)?.view === "menu" ? routeKey(before) : null;
+		transition(before, { focus: door === null });
+		if (door === null) return;
+		const row = shownView()?.querySelector(`[data-row="${CSS.escape(door)}"]`);
+		if (row) focusDestination(row, "return");
+		else focusView(trail.value.at(-1), null);
 	}
 	function close({ handedOn = false } = {}) {
 		writing = false;

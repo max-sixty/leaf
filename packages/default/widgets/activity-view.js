@@ -15,8 +15,13 @@ import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
 export const ACTIVITY_VIEW = "activity-reading:";
 
-function refreshTarget(link, row, write, names) {
-  const fragment = `#${encodeURIComponent(row.widget)}`;
+/** @typedef {{id: string, ts: string, actor: string, what: string, label?: string | null | undefined, widget?: string | null | undefined, thread?: string | undefined, excerpt?: string | null, undone: boolean}} ActivityRow */
+/** @typedef {{open: boolean, shown: string, label: string, news: boolean}} ActivityReading */
+/** @typedef {(fragment: string, document: Document) => Element | null} ActivityTarget */
+/** @typedef {{printing?: boolean, names?: ActivityTarget, age?: (ts: string) => string, openThread?: (id: string) => void}} ActivityCapabilities */
+/** @param {Element} link @param {string} widget @param {typeof keeps} write @param {ActivityTarget} names */
+function refreshTarget(link, widget, write, names) {
+  const fragment = `#${encodeURIComponent(widget)}`;
   const href = names(fragment, link.ownerDocument) ? fragment : null;
   // Preserve the focused node as a link becomes historical text, and back again.
   // Give it a programmatic stop before removing href; restore href before removing
@@ -26,12 +31,15 @@ function refreshTarget(link, row, write, names) {
   if (href) write(link, "tabindex", null);
 }
 
+/** @param {HTMLElement} host */
 export function createActivity(host) {
   const storageKey = ACTIVITY_VIEW + host.id;
   const saved = tabStore.get(storageKey);
+  /** @type {ActivityReading} */
   const reading = saved
     ? JSON.parse(saved)
     : { open: false, shown: "[]", label: "Show activity", news: false };
+  /** @type {{storageKey: string, reading: ActivityReading, restored: boolean, notice: Element | null, list: Element | null, empty: Element | null}} */
   const drawing = {
     storageKey,
     reading,
@@ -41,14 +49,17 @@ export function createActivity(host) {
     empty: null,
   };
   let shown = reading;
+  /** @type {ActivityCapabilities} */
   let capabilities = {};
-  const notice = (node) => {
+  const notice = (/** @type {Element | undefined} */ node) => {
     if (!node) return;
     drawing.notice = node;
     offerActionElement(node, "inline", "lf-activity-news");
   };
-  const target = (row) => {
-    if (row.thread)
+  const target = (/** @type {ActivityRow} */ row) => {
+    const thread = row.thread;
+    const openThread = capabilities.openThread;
+    if (thread)
       return html`<button
         ${ref(
           (node) =>
@@ -59,25 +70,25 @@ export function createActivity(host) {
         )}
         type="button"
         data-lf-carry=${`row-${row.id}`}
-        @click=${
-          capabilities.openThread ? () => capabilities.openThread(row.thread) : null
-        }
+        @click=${openThread ? () => openThread(thread) : null}
       >
         ${row.label}
       </button>`;
     if (!row.widget && !row.label) return nothing;
     if (!row.widget) return html`<span class="lf-activity-target">${row.label}</span>`;
+    const widget = row.widget;
     return html`<a
       class="lf-activity-target"
       data-lf-carry=${`row-${row.id}`}
       ${ref(
         (node) =>
-          node && refreshTarget(node, row, keeps, capabilities.names ?? fragmentTarget),
+          node &&
+          refreshTarget(node, widget, keeps, capabilities.names ?? fragmentTarget),
       )}
       >${row.label}</a
     >`;
   };
-  const rowTemplate = (row) =>
+  const rowTemplate = (/** @type {ActivityRow} */ row) =>
     html`<li class="lf-activity-row" ?data-lf-undone=${row.undone}>
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
@@ -94,6 +105,7 @@ export function createActivity(host) {
   const template = (next = shown, live = capabilities) => {
     shown = next;
     capabilities = live;
+    /** @type {ActivityRow[]} */
     const rows = JSON.parse(shown.shown);
     const hidden = !shown.open && !capabilities.printing;
     return html`

@@ -9,7 +9,9 @@ export const threadList = () => readThreads().threads;
 
 // The thread a name names: its id, one of its messages' ids, or this tab's attempt at
 // one (`threadNames`), indexed once for each publication's threads.
+/** @type {WeakMap<ReturnType<typeof allThreads>, Map<string, ReturnType<typeof allThreads>[number]>>} */
 const names = new WeakMap();
+/** @param {string} name */
 export function threadNamed(name) {
   const threads = allThreads();
   let index = names.get(threads);
@@ -17,4 +19,5 @@ export function threadNamed(name) {
   return index.get(name) ?? null;
 }
 // The logged id of the thread `name` names, else the name as given.
+/** @param {string} name */
 export const threadIdNamed = (name) => threadNamed(name)?.id ?? name;

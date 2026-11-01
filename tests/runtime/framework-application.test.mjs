@@ -255,7 +255,7 @@ test("semantic publication opens before subscribers and seals the newest nested 
   // coordinator readiness needs no second copy of the application's semantic epoch.
   const epoch = app.read().semanticEpoch;
   lifecycle.length = 0;
-  app.setReach("offline", "Disconnected");
+  app.setReach({ reach: "unreachable" });
   assert.equal(app.read().semanticEpoch, epoch);
   assert.deepEqual(lifecycle, [
     ["begin", 3],

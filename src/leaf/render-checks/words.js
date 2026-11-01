@@ -1,3 +1,4 @@
+import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
   quoteFrom,
@@ -9,7 +10,9 @@ import {
 import { at, place, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
+/** @param {Element} owner @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 const compositionalWords = (owner, declarations) => {
+  /** @type {{at: number, child: Element}[]} */
   const boundaries = [];
   const segments = textNodesUnder(owner, undefined, (child, at) => {
     if (!declarations[child.localName]?.["x-upgrade"]) return false;
@@ -18,7 +21,7 @@ const compositionalWords = (owner, declarations) => {
   });
   const reading = [];
   let start = 0;
-  const flush = (end) => {
+  const flush = (/** @type {number} */ end) => {
     const text = quoteFrom(segments.slice(start, end));
     if (text) reading.push({ text });
     start = end;
@@ -39,6 +42,7 @@ const compositionalWords = (owner, declarations) => {
   return reading;
 };
 
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const shownVerbatim = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-verbatim"])
@@ -109,11 +113,13 @@ export const shownVerbatim = (declarations) =>
 // the way the size check holds it out. The coin comes down the same side every time on a
 // group that has been opened and closed, which is where the test pins it.
 // Words the page hides from assistive technology and draws at under half opacity.
+/** @param {Element} el */
 const decoration = (el) => {
   if (!el.closest("[aria-hidden=true]")) return false;
   let opacity = 1;
-  for (let at = el; at; at = at.parentElement)
-    opacity *= Number(getComputedStyle(at).opacity);
+  /** @type {Element | null} */
+  let at = el;
+  for (; at; at = at.parentElement) opacity *= Number(getComputedStyle(at).opacity);
   return opacity < 0.5;
 };
 
@@ -124,10 +130,8 @@ export function coveredWords({
 } = {}) {
   const runs = paintedRuns(document.body, { holdFloating, holdHidden });
   const found = [];
-  for (let i = 0; i < runs.length; i++)
-    for (let j = i + 1; j < runs.length; j++) {
-      const a = runs[i];
-      const b = runs[j];
+  for (const [index, a] of runs.entries())
+    for (const b of runs.slice(index + 1)) {
       if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
       if (holdLabelLines && a.label && a.label === b.label) continue;
       // A faint numeral the page declares decorative, set behind a label, is drawn
@@ -173,6 +177,7 @@ export function coveredWords({
 // the reading `coveredWords` compares, for a suite test asking what a box hides. It
 // sees what the user is shown, so a word said only to a screen reader (`.lf-quiet`),
 // whose text still lays out a line box past the pixel clipping it, hides nothing.
+/** @param {string} selector */
 export const paintedWords = (selector) =>
   paintedRuns(document.querySelector(selector)).map(({ box, text }) => ({
     left: box.left,
@@ -184,11 +189,12 @@ export const paintedWords = (selector) =>
 
 // Each run of words under `root` and the box it paints, read as `coveredWords`'s
 // header says.
+/** @param {Element | null} root */
 function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   const runs = [];
-  const outOfFlow = (style) =>
+  const outOfFlow = (/** @type {CSSStyleDeclaration} */ style) =>
     style.position === "absolute" || style.position === "fixed";
-  const floating = (el) => {
+  const floating = (/** @type {Element} */ el) => {
     // The offer may be only one contribution inside a shared positioned host. Walk
     // its actual ancestry rather than jumping from offer to offer, so the geometry
     // owner can remain a generated container without making its children's words
@@ -206,9 +212,13 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   // user is given. The document scrollport is the page's route to the rest of those
   // words, not a content clip; stop before body just as the control reachability probe
   // does. The walk below stays in the light DOM, so the climb does too.
+  /** @param {Element} el @param {DOMRect} drawn @returns {DOMRect | null} */
   const painted = (el, drawn) => {
+    /** @type {DOMRect | null} */
     let box = drawn;
-    for (let ancestor = el; ancestor && ancestor !== document.body && box;) {
+    /** @type {Element | null} */
+    let ancestor = el;
+    for (; ancestor && ancestor !== document.body && box;) {
       const style = getComputedStyle(ancestor);
       // SVG text ranges retain geometry below display:none groups, and Chromium's
       // checkVisibility still returns true for them. Their ancestry paints no words.
@@ -235,7 +245,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       // viewport alone.
       if (style.position === "fixed") break;
       if (style.position === "absolute") {
-        const holder = ancestor.offsetParent;
+        /** @type {Element | null} */
+        const holder = ancestor instanceof HTMLElement ? ancestor.offsetParent : null;
         if (!holder || getComputedStyle(holder).position === "static") break;
         ancestor = holder;
         continue;
@@ -252,12 +263,15 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
   // text, whose rect is the font's own span, is trimmed; SVG, a transform or vertical
   // writing can lay the text's length along the rect's height, and an untrimmed rect
   // over-reports, the safe side.
-  const metrics = document.createElement("canvas").getContext("2d");
+  const metrics = canvas2D(document.createElement("canvas"));
+  /** @param {Element} el @param {string} data @param {DOMRect} drawn */
   const ink = (el, data, drawn) => {
     if (el.closest("svg")) return drawn;
     const style = getComputedStyle(el);
     if (!style.writingMode.startsWith("horizontal")) return drawn;
-    for (let at = el; at; at = at.parentElement) {
+    /** @type {Element | null} */
+    let at = el;
+    for (; at; at = at.parentElement) {
       const { transform, rotate, scale } = getComputedStyle(at);
       if (transform !== "none" || rotate !== "none" || scale !== "none") return drawn;
     }
@@ -274,6 +288,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
       ? new DOMRect(drawn.left, top, drawn.width, bottom - top)
       : drawn;
   };
+  if (!root) throw new Error("The text reading has no document element");
   const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   // A text walk visits text nodes.
   for (
@@ -284,6 +299,7 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
     const el = node.parentElement;
     if (
       !node.data.trim() ||
+      !el ||
       el.closest(".lf-chrome, .lf-quiet") ||
       (holdHidden && el.closest("[hidden]"))
     )
@@ -328,35 +344,42 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the user has to read.
 export function unreadSyntax() {
-  const cx = document
-    .createElement("canvas")
-    .getContext("2d", { willReadFrequently: true });
+  const cx = canvas2D(document.createElement("canvas"), { willReadFrequently: true });
+  /** @param {...string} layers @returns {[number, number, number]} */
   const paint = (...layers) => {
     cx.clearRect(0, 0, 1, 1);
     for (const c of ["white", ...layers]) {
       cx.fillStyle = c;
       cx.fillRect(0, 0, 1, 1);
     }
-    return [...cx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    const data = cx.getImageData(0, 0, 1, 1).data;
+    const pixel = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    return [pixel.getUint8(0), pixel.getUint8(1), pixel.getUint8(2)];
   };
-  const chan = (v) =>
+  const chan = (/** @type {number} */ v) =>
     (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  const lum = ([r, g, b]) => 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+  const lum = (/** @type {[number, number, number]} */ [r, g, b]) =>
+    0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+  /** @param {[number, number, number]} a @param {[number, number, number]} b */
   const ratio = (a, b) => {
-    const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
-    return (hi + 0.05) / (lo + 0.05);
+    const left = lum(a),
+      right = lum(b);
+    return (Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05);
   };
-  const under = (el) => {
+  const under = (/** @type {Element} */ el) => {
     const layers = [];
-    for (let a = el; a; a = upFrom(a))
-      layers.unshift(getComputedStyle(a).backgroundColor);
+    /** @type {Element | null} */
+    let a = el;
+    for (; a; a = upFrom(a)) layers.unshift(getComputedStyle(a).backgroundColor);
     return layers;
   };
   const seen = new Set(),
     found = new Map();
-  for (const span of openRoots(document).flatMap((r) => [
-    ...r.querySelectorAll("[data-lf-syn]"),
-  ])) {
+  for (const span of openRoots(document).flatMap((r) => {
+    /** @type {NodeListOf<HTMLElement>} */
+    const tokens = r.querySelectorAll("[data-lf-syn]");
+    return [...tokens];
+  })) {
     const style = span.style.cssText;
     if (found.has(style) || !span.textContent.trim()) continue;
     if (!span.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
@@ -402,10 +425,12 @@ export function unreadSyntax() {
 // what an element says rather than a second reading spelled here — asked of the host's
 // root where there is one, since the walk behind it substitutes a declared root for a
 // *child* and never for the element it was handed.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function silentWords(declarations) {
   const found = [];
   const all = openRoots(document);
-  const every = (tag) => all.flatMap((r) => [...r.querySelectorAll(tag)]);
+  const every = (/** @type {string} */ tag) =>
+    all.flatMap((r) => [...r.querySelectorAll(tag)]);
   for (const [tag, entry] of Object.entries(declarations))
     for (const attr of Object.keys(entry["x-says"] ?? {}))
       for (const el of every(tag)) {
@@ -458,51 +483,70 @@ export function shrunkLabelReading() {
 // <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
 // `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
 // an SVG element Chrome draws the words anyway.
+/** @param {number} floor */
 function shrunkLabels(floor) {
-  const chrome = (el) => {
-    for (let node = el; node; node = node.getRootNode().host)
+  const chrome = (/** @type {Element} */ el) => {
+    /** @type {Element | null} */
+    let node = el;
+    for (; node;) {
       if (node.closest(".lf-chrome")) return true;
+      const root = node.getRootNode();
+      node = root instanceof ShadowRoot ? root.host : null;
+    }
     return false;
   };
+  /** @typedef {{at: string, place: import("./locate.js").Place, labels: number, drawn?: number, set?: number, words?: string}} ShrunkDrawing */
+  /** @type {Map<SVGSVGElement, ShrunkDrawing>} */
   const drawings = new Map();
-  for (const text of openRoots(document).flatMap((r) => [
-    ...r.querySelectorAll("svg text"),
+  for (const svg of openRoots(document).flatMap((r) => [
+    ...r.querySelectorAll("svg"),
   ])) {
-    // A local-name selector also matches HTML templates mounted inside SVG.
-    // Only native SVG text has the geometry this reading measures.
-    if (!(text instanceof SVGTextElement) || chrome(text)) continue;
-    let svg = text.ownerSVGElement;
-    while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
-    const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
-    for (
-      let node = /** @type {Text} */ (walk.nextNode());
-      node;
-      node = /** @type {Text} */ (walk.nextNode())
-    ) {
-      const words = node.data.trim();
-      // Inside an SVG `text`, so an SVG element.
-      const holder = /** @type {Element} */ (node.parentElement);
-      // Visibility first: it answers for a run in skipped content, such as a tab not
-      // chosen, without making the browser lay that content out to find its box.
-      if (
-        !words ||
-        !holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }) ||
-        !holder.getClientRects().length
-      )
-        continue;
-      const ctm = /** @type {SVGGraphicsElement} */ (holder).getScreenCTM();
-      const set = parseFloat(getComputedStyle(holder).fontSize);
-      const drawn = set * Math.hypot(ctm.c, ctm.d);
-      if (drawn >= floor || drawn >= set - 0.05) continue;
-      const found = drawings.get(svg) ?? { at: at(svg), place: place(svg), labels: 0 };
-      found.labels += 1;
-      if (!(found.drawn <= drawn))
-        Object.assign(found, {
-          drawn: Math.round(drawn * 10) / 10,
-          set: Math.round(set * 10) / 10,
-          words: words.slice(0, 40),
-        });
-      drawings.set(svg, found);
+    if (svg.ownerSVGElement) continue;
+    for (const text of svg.querySelectorAll("text")) {
+      // A local-name selector also matches HTML templates mounted inside SVG.
+      // Only native SVG text has the geometry this reading measures.
+      if (!(text instanceof SVGTextElement) || chrome(text)) continue;
+      const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+      for (
+        let node = /** @type {Text} */ (walk.nextNode());
+        node;
+        node = /** @type {Text} */ (walk.nextNode())
+      ) {
+        const words = node.data.trim();
+        // Inside an SVG `text`, so an SVG element.
+        const holder = node.parentElement;
+        // Visibility first: it answers for a run in skipped content, such as a tab not
+        // chosen, without making the browser lay that content out to find its box.
+        if (
+          !words ||
+          !(holder instanceof SVGGraphicsElement) ||
+          !holder.checkVisibility({
+            visibilityProperty: true,
+            opacityProperty: true,
+          }) ||
+          !holder.getClientRects().length
+        )
+          continue;
+        const ctm = holder.getScreenCTM();
+        if (!ctm) continue;
+        const set = parseFloat(getComputedStyle(holder).fontSize);
+        const drawn = set * Math.hypot(ctm.c, ctm.d);
+        if (drawn >= floor || drawn >= set - 0.05) continue;
+        /** @type {ShrunkDrawing} */
+        const found = drawings.get(svg) ?? {
+          at: at(svg),
+          place: place(svg),
+          labels: 0,
+        };
+        found.labels += 1;
+        if (found.drawn === undefined || !(found.drawn <= drawn))
+          Object.assign(found, {
+            drawn: Math.round(drawn * 10) / 10,
+            set: Math.round(set * 10) / 10,
+            words: words.slice(0, 40),
+          });
+        drawings.set(svg, found);
+      }
     }
   }
   return [...drawings.values()];

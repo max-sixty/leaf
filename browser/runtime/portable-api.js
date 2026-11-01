@@ -82,3 +82,5 @@ export { describeFailure } from "./exception.js";
 
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
+
+export { publishOutput } from "./widget-output.js";

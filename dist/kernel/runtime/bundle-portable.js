@@ -1490,7 +1490,7 @@ const layoutChanged = (el) => {
 };
 const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
-const REFUSED = Symbol("why Leaf refused the declaration");
+const REFUSED$1 = Symbol("why Leaf refused the declaration");
 function commandsChanged(el) {
 	const event = new Event(COMMANDS, {
 		bubbles: true,
@@ -1498,13 +1498,13 @@ function commandsChanged(el) {
 	});
 	event[CHANGED] = el;
 	(el.isConnected ? el : window).dispatchEvent(event);
-	if (event[REFUSED]) throw event[REFUSED];
+	if (event[REFUSED$1]) throw event[REFUSED$1];
 }
 const ANNOUNCE = "lf-announce";
 const announce = (words) => window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
 const commandsChangedOn = (event) => event[CHANGED];
 const refuseCommands = (event, error) => {
-	event[REFUSED] = error;
+	event[REFUSED$1] = error;
 };
 function failSoft(el, err, source) {
 	reportFailure(el, err);
@@ -2460,4 +2460,27 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, q, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };
+//#region runtime/widget-output.js
+const OUTPUT = "lf-output";
+const PRODUCER = Symbol("output producer");
+const REFUSED = Symbol("output refusal");
+function publishOutput(element, output, value) {
+	const event = new CustomEvent(OUTPUT, {
+		bubbles: true,
+		composed: true,
+		detail: {
+			output,
+			value
+		}
+	});
+	event[PRODUCER] = element;
+	(element.isConnected ? element : window).dispatchEvent(event);
+	if (event[REFUSED]) throw event[REFUSED];
+}
+const outputProducer = (event) => event[PRODUCER];
+const refuseOutput = (event, error) => {
+	event[REFUSED] = error;
+};
+
+//#endregion
+export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };

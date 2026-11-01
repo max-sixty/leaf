@@ -150,7 +150,7 @@ export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
-export { loadDeferred, publishOutput } from "./data.js";
+export { loadDeferred } from "./data.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";

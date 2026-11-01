@@ -25,6 +25,19 @@ import { watchOwner } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { tick } from "./version-signal.js";
+import { OUTPUT, outputProducer, refuseOutput } from "./widget-output.js";
+export { publishOutput } from "./widget-output.js";
+
+window.addEventListener(OUTPUT, (event) => {
+  const element = outputProducer(event);
+  if (!element) return;
+  try {
+    const { output, value } = /** @type {CustomEvent} */ (event).detail;
+    acceptOutput(element, output, value);
+  } catch (error) {
+    refuseOutput(event, error);
+  }
+});
 
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
@@ -75,7 +88,7 @@ function outputKey(element) {
   if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
   return outputKeys.get(element);
 }
-export function publishOutput(element, output, value) {
+function acceptOutput(element, output, value) {
   const declaration = registry[element.localName]?.["x-output"]?.[output];
   if (!declaration)
     throw new Error(

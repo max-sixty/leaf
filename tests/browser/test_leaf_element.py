@@ -15,7 +15,7 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ LeafElement, html, shadowStage, whileConnected }} = await import("/runtime/portable-api.js");
+  const {{ LeafElement, html, shadowStage, whileConnected, publishOutput }} = await import("/runtime/portable-api.js");
   window.reading = document.querySelector("#reading");
   shadowStage(document.querySelector("#host"), [reading]);
   customElements.define("host-reading", class extends LeafElement {{
@@ -34,6 +34,9 @@ try {{
       this.dispatchEvent(new CustomEvent("drawn", {{detail: {{value: this.value}}}}));
     }}
   }});
+  window.outputs = [];
+  reading.addEventListener("lf-output", event => outputs.push(event.detail));
+  window.publish = value => publishOutput(reading, "rows", value);
   window.drawings = [];
   reading.addEventListener("drawn", event => drawings.push({{
     value: event.detail.value, words: reading.querySelector("p").textContent,
@@ -74,5 +77,11 @@ try {{
             {"value": "First reading", "words": "First reading"},
             {"value": "Second reading", "words": "Second reading"},
             {"value": "Away reading", "words": "Away reading"},
+        ]
+        # A plain host can hear derived output without installing Leaf's data owner.
+        page.evaluate("publish({rows: ['first']}); publish(null)")
+        assert page.evaluate("outputs") == [
+            {"output": "rows", "value": {"rows": ["first"]}},
+            {"output": "rows", "value": None},
         ]
         assert page.evaluate("!document.documentElement.lfRootState")

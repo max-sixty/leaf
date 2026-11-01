@@ -375,6 +375,12 @@ test("typed output readers retain authored scope and producer instance identity"
   const pageConsumer = document.querySelector("#page");
   await settleOutput();
   const current = dataReader(pageConsumer, "rows");
+  assert.throws(
+    () => publishOutput(pageProducer, "undeclared", { rows: [] }),
+    /output is not declared/,
+  );
+  const unnamed = document.createElement(producerTag);
+  assert.throws(() => publishOutput(unnamed, "rows", null), /requires a widget id/);
   const pageValue = { rows: ["page"] };
   publishOutput(pageProducer, "rows", pageValue);
   pageValue.rows[0] = "mutated";

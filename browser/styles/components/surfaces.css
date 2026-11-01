@@ -675,15 +675,37 @@ summary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Keep short authors intact while long names leave room for delivery metadata. */
+/* Keep short authors intact while long names leave room for delivery metadata.
+
+   Every word on a head's line stands on one baseline. The head centres each of its
+   boxes separately. The time, a receipt and a notice of news are each a line in the
+   head's face, but the name is set larger, and larger text centred on its own line
+   sits with its baseline lower, here by about a pixel. So the name's box takes its
+   line from a strut, a zero-width character in the head's face, rather than from the
+   name's own face (`line-height: 0`), and the name stands on the strut's baseline.
+   Each engine places a baseline alike in boxes of the same line and face, so the
+   name's meets the others' exactly. The strut opens only the first line, so the name
+   keeps to one line. Its box clips only sideways, since its line is shorter than the
+   name's face and clipping it would cut accents.
+
+   Rejected: aligning the head's boxes by baseline, which puts the words at the top of
+   the head, taller than their line, rather than centred on it; and a strut in the
+   metadata on the name's line, which left the notice of news, centred beside the
+   head, a pixel or more above the rest. */
 :is(.lf-msg-head, .lf-thread-working-head) b {
   flex: 0 0 auto;
   max-inline-size: 40%;
   min-width: 0;
-  overflow: hidden;
+  overflow: clip visible;
   text-overflow: ellipsis;
+  white-space: nowrap;
   font: var(--font-name);
+  line-height: 0;
   color: var(--ink);
+  &::before {
+    content: "\200b" / "";
+    font: var(--font-small);
+  }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is
@@ -813,7 +835,7 @@ summary {
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (browser/AGENTS.md,
-   "Motion"): a highlight passing across words, which are painted in ink and dimmed by
+   "Motion is brief and keeps the user oriented"): a highlight passing across words, which are painted in ink and dimmed by
    a mask to their rest face, ink at `--lf-sheen-rest`, but where the highlight
    passes. A box runs it by naming it, and sets `--lf-sheen-rest` where its own colour
    is not the default's; everything it paints lives in the keyframes, so where it stops
@@ -850,12 +872,13 @@ summary {
   }
 }
 /* Held news and header words spend separate retained allocations. A receipt may
-   change inside its metadata box, but cannot grow underneath the notice. */
+   change inside its metadata box, but cannot grow underneath the notice. The box
+   clips only sideways, so a name's accents above its line still show (above). */
 .lf-msg-head > .lf-held-header-item {
   flex: 0 0 var(--lf-held-header-width);
   max-inline-size: var(--lf-held-header-width);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: clip visible;
 }
 .lf-msg-meta.lf-held-header-item > time {
   flex-shrink: 0;
@@ -965,8 +988,8 @@ summary {
    it asks for none of the depth below the words. A seat that draws no thread shows it
    in its controls row's place, at the height the runtime measured that row at. It
    wears the inline face (controls.css) on the line of a message's head, and states
-   that line's size, at a weight above the face's, because its box stands beside the
-   head rather than in it. */
+   that line's size because its box stands beside the head rather than in it. Its
+   words are Leaf's, in Leaf's regular italic. */
 .lf-thread-news {
   flex: none;
   align-self: center;

@@ -13,8 +13,10 @@ element so its computed styles supply these boundaries; a closed popover is supp
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
-as in a diff.
+blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters.
+A widget that also declares an `x-data` input reads that input's property instead,
+which Leaf sets to the `<pre>`'s text when the markup binds nothing
+(`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
 another element gives within `authoredScope(element)`: the page's `main`, or the body
@@ -72,13 +74,16 @@ element or `null`.
 
 A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
 text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. Adopt the rendered
-`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
+block Markdown while the recorded body stays the source. It reads as a Markdown file,
+whose soft line breaks are spaces. Adopt the rendered `.lf-markdown-body` and repaint
+changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
-string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. Until
+string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
+keep each line break as typed words do; `renderMarkdown(text, false)` renders a Markdown
+file, whose soft line breaks are spaces, so its paragraphs wrap to the box. Until
 the renderer has loaded, they return the escaped source; `loadMarkdown()` resolves once
 it has, and `markdownReady()` says whether it has, so a widget showing changing prose
 repaints then.
@@ -114,6 +119,10 @@ with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
 Pass a `/media/…` path from typed data through `scopedMediaUrl(path)` before putting it
 on a generated image or link, so it resolves on published pages too.
 `isCanonicalMediaUrl(href)` says whether a path is such a `/media/…` path.
+
+`canvas2D(canvas, options)` returns the native 2D context of a canvas or offscreen
+canvas, and throws if the browser cannot create it. Pass native context options when
+the drawing needs them.
 
 ### Icons
 

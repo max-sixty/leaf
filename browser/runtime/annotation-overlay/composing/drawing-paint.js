@@ -6,6 +6,8 @@
  */
 import { exactTarget } from "../../resolved-target.js";
 
+/** @param {readonly Pick<ReturnType<typeof import("../../thread/state.js").allThreads>[number], "id" | "root" | "resolved">[]} threads
+ * @param {Pick<ReturnType<typeof import("../../anchor-placement.js").createAnchorPlacement>, "placedAt">} anchors */
 export function postedDrawings(threads, anchors) {
   const drawings = [];
   for (const thread of threads) {

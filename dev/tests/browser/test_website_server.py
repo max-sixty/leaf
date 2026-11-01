@@ -1,5 +1,9 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import base64
+import gzip
+import hashlib
+import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -50,6 +54,49 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     consume_browser_errors(
         page, "widget resource unavailable", "runtime initialization failed"
     )
+
+
+def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capsys):
+    page = browser.new_page()
+    url = "https://site-verifier.test/revision/"
+    module = b"export const broken = (; // \xe2\x98\x83"
+    page.route(
+        url,
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<script type="module" src="runtime.js"></script>',
+        ),
+    )
+    page.route(
+        url + "runtime.js",
+        lambda route: route.fulfill(
+            content_type="text/javascript",
+            headers={"Leaf-State-Source": "durable", "Set-Cookie": "private=value"},
+            body=module,
+        ),
+    )
+    failures = verify_site.observe_startup(page)
+    page.goto(url)
+    with pytest.raises(RuntimeError, match="never presented"):
+        with verify_site.capture_script_responses(page):
+            page.reload()
+            verify_site.await_presentation(page, url, failures, timeout=100)
+    evidence = json.loads(capsys.readouterr().err)
+    (script,) = evidence["scriptResponses"]
+    assert script["url"] == url + "runtime.js"
+    assert script["status"] == 200
+    assert script["headers"]["leaf-state-source"] == "durable"
+    assert "set-cookie" not in script["headers"]
+    assert script["sha256"] == hashlib.sha256(module).hexdigest()
+    assert gzip.decompress(base64.b64decode("".join(script["gzipBase64"]))) == module
+    consume_browser_errors(page, "Unexpected token")
+    # Success emits no bodies, and leaving either scope detaches its observer.
+    module = b"export const healthy = true;"
+    with verify_site.capture_script_responses(page):
+        page.reload()
+    assert capsys.readouterr().err == ""
+    page.reload()
+    assert capsys.readouterr().err == ""
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):

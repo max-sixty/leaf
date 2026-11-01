@@ -77,7 +77,7 @@ export function createPendingLedger({ newAttempt, enqueue }) {
     accept(entry, event) {
       applicationState.accept(entry.event.attempt, event);
     },
-    /** @param {Event[]} receipts */
+    /** @param {readonly Event[]} receipts */
     present(receipts) {
       applicationState.present(receipts);
       for (const receipt of receipts)

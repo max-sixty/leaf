@@ -93,7 +93,9 @@ def attention_reading(readings) -> dict:
     compares this reading on either side of the append and stores the result.
     A verb's explicit attention declaration includes its current input without
     inventing an obligation. Replacing or undoing that input changes this reading
-    even when a version's note has settled its delivery workflow.
+    even when a version's note has settled its delivery workflow. A verb declaring
+    `attention: false` records what the user is still working on and hasn't sent, so
+    its input is never part of work in hand.
     """
     work = readings.work
     page = work.page
@@ -113,7 +115,7 @@ def attention_reading(readings) -> dict:
         for projection in ([page.projection] if page is not None else [])
         + [thread.projection]
         for source, spec in projection.actions.values()
-        if source["author"] == "user"
+        if source["author"] == "user" and spec.get("attention") is not False
     ]
     return {
         "requests": [source["id"] for source, spec in inputs if spec.get("attention")],
@@ -551,7 +553,8 @@ def handed_over(
     actions = []
     for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
-            if source["author"] != "user":
+            # Work the user hasn't sent is no update (`$state.attention`).
+            if source["author"] != "user" or spec.get("attention") is False:
                 continue
             item = obligation_by_source.get(
                 (source["widget"], coordinate[1])

@@ -10,12 +10,14 @@ import { nextFrame } from "../rendering.js";
 import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
+/** @param {{goToSequenceActive: () => boolean, setGoToSequence: (on: boolean) => void, reactArmed: () => boolean, setReact: (on: boolean) => void}} options */
 export function mountKeyboard({
   goToSequenceActive,
   setGoToSequence,
   reactArmed,
   setReact,
 }) {
+  /** @param {KeyboardEvent} event */
   const run = (event) => {
     const handled = dispatchKey(event);
     // A declared Leaf command wins before a nested widget can interpret the
@@ -23,6 +25,7 @@ export function mountKeyboard({
     if (handled && event.defaultPrevented) event.stopPropagation();
     return handled;
   };
+  /** @param {KeyboardEvent} ev */
   const press = (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;
@@ -75,12 +78,12 @@ export function mountKeyboard({
     pressingHeld = true;
     const next = () => {
       if (!quickShortcuts()) keys.length = 0;
-      if (!keys.length) {
+      const [key] = keys;
+      if (!key) {
         release();
         pressingHeld = false;
         return;
       }
-      const key = keys[0];
       if (!typesText(focused()) && !keyReady(key)) {
         pause();
         pressingHeld = false;

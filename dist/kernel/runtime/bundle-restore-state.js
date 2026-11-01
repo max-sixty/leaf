@@ -1,43 +1,45 @@
 import { composedParentNode, exceptionRecord, excludedByInert, pagePresented, pageUpgraded, renderedUnder, sizeObserver, tabStore } from "./bundle-portable.js";
 import { canPlaceFocus, focusDestination, focused, nativeLayers, onCurrentLocation, onUserInput, recoveredLabelFocus, takesLetters } from "./bundle-layer-stack.js";
-import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
+import { EVERYTHING, allBindings, answers, bindingEnabledFor, bindings, commandEntries, commandReady, commandRoutes, commandRun, declaredBindings, descriptionOf, live, nativeActivationAt, nativeClaimAt, quickShortcuts, referencedCommandEntry, routedCommand, runLanding, scopeAvailable, scopeIdentity, scopesAt, scopesFor, spell, titleOf, word } from "./bundle-layer-client.js";
 import { whenArrived } from "./bundle-content-layout.js";
-import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScope, universalCommandReference } from "./bundle-data.js";
+import { DESIGN_MODE_KEY, ELEMENTS, pageScopes, stances, textEntryScopes, universalCommandReference } from "./bundle-data.js";
 
 //#region runtime/sample-child.js
 const child = document.documentElement.lfSample;
-const commands = /* @__PURE__ */ new Map();
-const observers = /* @__PURE__ */ new Map();
-function onSampleNotice(type, callback) {
-	if (!observers.has(type)) observers.set(type, /* @__PURE__ */ new Set());
-	observers.get(type).add(callback);
-	return () => observers.get(type).delete(callback);
+const commands = {};
+const observers = /* @__PURE__ */ new Set();
+function onSampleNotice(_type, callback) {
+	observers.add(callback);
+	return () => observers.delete(callback);
 }
 function registerSampleCommand(name, callback) {
-	commands.set(name, callback);
-	return () => commands.delete(name);
+	commands[name] = callback;
+	return () => {
+		delete commands[name];
+	};
 }
-function sampleNotice(type, detail = {}) {
-	child?.send({
-		type,
-		detail
-	});
+function sampleNotice(notice) {
+	child?.send(notice);
 }
-if (child) child.receive(async ({ id, method, type, detail }) => {
-	if (type) {
-		for (const callback of observers.get(type) ?? []) callback(detail);
+async function execute({ method, detail }) {
+	const command = commands[method];
+	if (!command) throw new Error(`Unknown sample command: ${method}`);
+	return await command(detail);
+}
+if (child) child.receive(async (message) => {
+	if (message.type) {
+		if (message.type === "cancel-view") for (const callback of observers) callback();
 		return;
 	}
 	try {
-		if (!commands.has(method)) throw new Error(`Unknown sample command: ${method}`);
-		const result = await commands.get(method)(detail);
+		const result = await execute(message);
 		child.send({
-			id,
+			id: message.id,
 			result
 		});
 	} catch (error) {
 		child.send({
-			id,
+			id: message.id,
 			error: exceptionRecord(error)
 		});
 	}
@@ -45,15 +47,20 @@ if (child) child.receive(async ({ id, method, type, detail }) => {
 if (child) {
 	let upgraded = false;
 	let arriving = false;
-	let height = null;
 	let currentLocation = null;
 	onCurrentLocation((node) => {
 		if (node && node !== document.body) currentLocation = node;
-		sampleNotice("current-location", { focused: Boolean(node && node !== document.body) });
+		sampleNotice({
+			type: "current-location",
+			detail: { focused: Boolean(node && node !== document.body) }
+		});
 	});
 	const input = (event) => {
 		if (!event.isTrusted || event.type === "blur") return;
-		sampleNotice("input", { type: event.type });
+		sampleNotice({
+			type: "input",
+			detail: { type: event.type }
+		});
 	};
 	onUserInput(input);
 	window.addEventListener("click", input, {
@@ -65,14 +72,6 @@ if (child) {
 		focusDestination(currentLocation, "return");
 		return document.hasFocus();
 	});
-	const measure = () => {
-		if (!document.body) return;
-		const next = Math.ceil(document.body.getBoundingClientRect().height);
-		if (next !== height) {
-			height = next;
-			sampleNotice("height", { height });
-		}
-	};
 	registerSampleCommand("image", async ({ x, y, width, height }) => {
 		const { pageImage } = await import("./bundle-page-image.js").then((n) => n.page_image_exports);
 		return pageImage({
@@ -82,27 +81,48 @@ if (child) {
 			height
 		});
 	});
-	registerSampleCommand("window", async ({ window: asWindow }) => {
-		child.settings.window = asWindow;
-		document.documentElement.lfRootState.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
-		measure();
-		return { height };
-	});
 	const inspect = () => {
 		const error = document.documentElement.dataset.lfStartupError;
-		if (error) sampleNotice("error", document.documentElement.lfStartupException ?? { message: error });
+		if (error) sampleNotice({
+			type: "error",
+			detail: document.documentElement.lfStartupException ?? { message: error }
+		});
 		if (upgraded && !arriving && pagePresented()) {
 			arriving = true;
-			whenArrived().then(() => sampleNotice("arrived"));
+			whenArrived().then(() => sampleNotice({ type: "arrived" }));
 		}
 		if (upgraded || !(document.body && pageUpgraded())) return;
 		upgraded = true;
 		child.present();
-		measure();
+		let height = Math.ceil(document.body.getBoundingClientRect().height);
+		sampleNotice({
+			type: "height",
+			detail: { height }
+		});
+		const measure = () => {
+			if (!document.body) return;
+			const next = Math.ceil(document.body.getBoundingClientRect().height);
+			if (next !== height) {
+				height = next;
+				sampleNotice({
+					type: "height",
+					detail: { height }
+				});
+			}
+		};
+		registerSampleCommand("window", ({ window: asWindow }) => {
+			child.settings.window = asWindow;
+			window.lfRootState.setRuntimeRootAttribute(document.documentElement, "data-lf-sample-block", asWindow ? null : "");
+			measure();
+			return { height };
+		});
 		sizeObserver(measure, { counted: false }).observe(document.body);
-		sampleNotice("ready", {
-			height,
-			block: document.documentElement.hasAttribute("data-lf-sample-block")
+		sampleNotice({
+			type: "ready",
+			detail: {
+				height,
+				block: document.documentElement.hasAttribute("data-lf-sample-block")
+			}
 		});
 		inspect();
 	};
@@ -145,7 +165,8 @@ const scopeRoot = (scope) => {
 const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
 const above = (node, active) => {
 	let depth = 0;
-	for (let up = active; up; up = composedParentNode(up)) {
+	let up = active;
+	for (; up; up = composedParentNode(up)) {
 		if (up === node) return depth;
 		depth += 1;
 	}
@@ -156,22 +177,26 @@ const escapeOrder = (scopes, active) => {
 	const end = boundaryAt < 0 ? scopes.length : boundaryAt;
 	const layer = scopes.slice(0, end);
 	const inner = layer.filter((scope) => innerEscape(scope, active));
-	const outer = layer.filter((scope) => !inner.includes(scope));
-	const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
-	const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
+	const outer = layer.filter((scope) => !inner.includes(scope)).map((scope) => {
+		const root = scopeRoot(scope);
+		return {
+			scope,
+			root,
+			depth: above(root, active)
+		};
+	});
 	let surface = null;
-	for (const scope of outer) {
-		const at = root.get(scope);
-		if (depth.get(scope) < 1 || at === document) continue;
-		if (!surface || renderedUnder(at, surface)) surface = at;
+	for (const { root, depth } of outer) {
+		if (depth < 1 || root === document) continue;
+		if (!surface || renderedUnder(root, surface)) surface = root;
 	}
-	const within = surface ? outer.filter((s) => renderedUnder(root.get(s), surface)) : [];
-	within.sort((a, b) => depth.get(a) - depth.get(b));
+	const within = surface ? outer.filter(({ root }) => renderedUnder(root, surface)) : [];
+	within.sort((a, b) => a.depth - b.depth);
 	const rest = outer.filter((scope) => !within.includes(scope));
 	return [
 		...inner,
-		...within,
-		...rest,
+		...within.map(({ scope }) => scope),
+		...rest.map(({ scope }) => scope),
 		...scopes.slice(end)
 	];
 };
@@ -179,7 +204,7 @@ function stack(binding = null) {
 	const active = focused();
 	const elementStack = scopesFor(active);
 	const typing = takesLetters(active);
-	const TYPING = textEntryScope();
+	const TYPING = textEntryScopes();
 	const nativeClaims = nativeClaimAt(active);
 	const activation = nativeActivationAt(active);
 	const controlScope = (nativeClaims || activation) && !typing ? {
@@ -195,11 +220,11 @@ function stack(binding = null) {
 			const ancestors = elementStack.filter(({ el, contextual }) => el !== active || contextual);
 			return [
 				...own,
-				...typing ? [TYPING] : [controlScope],
+				...typing ? TYPING : controlScope ? [controlScope] : [],
 				...ancestors
 			];
 		}
-		if (scope === TYPING && typing) return [];
+		if (typing && TYPING.includes(scope)) return [];
 		return scope;
 	});
 	const ordered = (scopes) => {
@@ -207,9 +232,9 @@ function stack(binding = null) {
 		return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
 	};
 	const layers = nativeLayers();
-	const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
-	const visible = modalAt < 0 ? layers : layers.slice(modalAt);
-	const floor = modalAt < 0 ? null : visible[0].root;
+	const modal = layers.findLast((layer) => layer.kind === "modal");
+	const visible = modal ? layers.slice(layers.indexOf(modal)) : layers;
+	const floor = modal?.root ?? null;
 	const aboveFloor = (scope) => !floor || renderedUnder(scopeRoot(scope), floor);
 	const top = visible.at(-1) ?? null;
 	const foreground = (scope) => elementStack.includes(scope) || scopeRoot(scope) === active || innerEscape(scope, active);
@@ -220,31 +245,33 @@ function stack(binding = null) {
 		for (const scope of pool) (keep(scope) ? parts : rest).push(scope);
 		pool = rest;
 	};
-	for (let index = visible.length - 1; index >= 0; index -= 1) {
-		const layer = visible[index];
+	for (const layer of visible.toReversed()) {
 		take((scope) => renderedUnder(scopeRoot(scope), layer.root) || layer === top && foreground(scope) && aboveFloor(scope));
 		parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
 	}
-	if (modalAt < 0) parts.push(...pool);
+	if (!modal) parts.push(...pool);
 	return ordered(parts);
 }
-const ownsLeafInvocation = (row) => Boolean(row.run) || [row, ...commandRoutes(row)].some((part) => part.control != null) || commandRoutes(row).some((route) => routedCommand(route));
+const ownsLeafInvocation = (row) => Boolean(row.run || row.runKey) || [row, ...commandRoutes(row)].some((part) => part.control != null) || commandRoutes(row).some((route) => routedCommand(route));
 const runsElsewhere = (row, scope, control) => {
 	if (!scope.contextual && scopeRoot(scope) === control) return false;
 	const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
-	if (controls.includes(control)) return false;
+	if (controls.some((each) => each === control)) return false;
 	return ownsLeafInvocation(row) || controls.some((each) => each != null);
 };
 const shadow = (quick = quickShortcuts()) => {
 	const claims = [];
 	let activation = null;
 	return {
-		takes: (binding, row, scope) => claims.some((c) => c(binding)) || row !== void 0 && Boolean(activation?.claims(binding)) && runsElsewhere(row, scope, activation.control),
+		takes: (...request) => {
+			const binding = request[0];
+			return claims.some((claim) => claim(binding)) || request.length === 3 && activation !== null && activation.claims(binding) && runsElsewhere(request[1], request[2], activation.control);
+		},
 		past: (scope) => {
 			if (scope.claims) claims.push(scope.claims);
 			if (scope.activation) activation = {
 				claims: scope.activation,
-				control: scope.root
+				control: scopeRoot(scope)
 			};
 			const owned = scope.el ? scope.rows.filter(ownsLeafInvocation).flatMap((row) => declaredBindings(row).filter((binding) => bindingEnabledFor(binding, quick))).filter((binding) => binding !== "Escape" && !activation?.claims(binding)) : [];
 			if (owned.length) claims.push((binding) => owned.includes(binding));
@@ -256,7 +283,8 @@ function referencedInvocation(reference) {
 	if (!reference) return null;
 	const current = referencedCommandEntry(reference);
 	if (!current || !scopesAt(reference.source).includes(reference.scope)) return null;
-	const run = reference.row.run ? () => reference.row.run(reference.binding ?? void 0) : current.route ? () => word(current.route.control ?? reference.row.control).click() : word(reference.row.control)?.isConnected ? () => word(reference.row.control).click() : null;
+	const control = word(current.route?.control ?? reference.row.control);
+	const run = commandRun(reference.row, reference.binding, control);
 	return run ? {
 		id: reference.id,
 		row: reference.row,
@@ -268,12 +296,12 @@ function referencedInvocation(reference) {
 }
 function invocationFor(row, binding, command, recovered = null) {
 	if (!command || !live(row)) return null;
-	const current = commandEntries(row, [binding]).find(({ id }) => id === command.id);
+	const current = commandEntries(row, binding === void 0 ? [] : [binding]).find(({ id }) => id === command.id);
 	if (!current) return null;
 	const reference = routedCommand(current.route);
 	if (reference) return referencedInvocation(reference);
 	const nativeControl = recovered ?? word(current.route?.control ?? row.control);
-	const run = row.run ? () => row.run(current.route?.binding ?? binding) : nativeControl?.isConnected ? () => nativeControl.click() : null;
+	const run = commandRun(row, current.route?.binding ?? binding, nativeControl);
 	return run ? {
 		id: command?.id ?? row.id,
 		row,
@@ -343,9 +371,9 @@ const escapeTakesAStep = () => {
 function answerCloseRequest() {
 	const matched = resolveKey(escapePress());
 	if (!matched || matched === INPUT_PENDING) return;
-	const keeps = Boolean(matched.row.keep);
-	announceInvocation(matched, keeps ? "keep" : null);
-	if (keeps) matched.row.keep();
+	const keep = matched.row.keep;
+	announceInvocation(matched, keep ? "keep" : null);
+	if (keep) keep();
 	else matched.run();
 }
 function dispatchKey(ev) {
@@ -390,10 +418,11 @@ function availableCommandRoutes({ commands = false, quick = quickShortcuts() } =
 		for (const row of scope.rows) {
 			if (!live(row)) continue;
 			const reachable = reachableBindings(row, scope, nearer, unclaimedEscape, commands, quick);
-			for (const binding of allBindings(row).length ? reachable : [void 0]) for (const command of commandEntries(row, [binding])) {
+			for (const binding of allBindings(row).length ? reachable : [void 0]) for (const command of commandEntries(row, binding === void 0 ? [] : [binding])) {
 				if (!invocationFor(row, binding, command)) continue;
-				if (!routes.has(row)) routes.set(row, /* @__PURE__ */ new Set());
-				routes.get(row).add(binding);
+				const reachable = routes.get(row) ?? /* @__PURE__ */ new Set();
+				reachable.add(binding);
+				routes.set(row, reachable);
 			}
 		}
 		nearer.past(scope);

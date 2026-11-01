@@ -401,23 +401,6 @@
   --t-1: 1.9375rem;
   --code-size: 0.84375rem;
   --code-line: 1.25rem;
-  /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
-     panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
-     sans, whatever the page sets its prose in, since these are the conversation about
-     the page rather than the page. Declared here, it takes the root's rung, so a
-     density the page gives its `main` leaves it alone. The line is a whole pixel at
-     either size, so a fold opening over several lines moves nothing by a fraction. It
-     keeps the entry floor, since a message turns into the editor that rewrites it.
-     Its size is a token of its own, so a measure set in it, such as the floating
-     panel's widened field (floating-panel.css, `data-expanded`), follows the face. */
-  --msg-size: max(var(--entry-floor), var(--t-5));
-  --font-message: var(--msg-size) / 1.5 var(--sans);
-  /* A name one rung larger than the small words beside it, such as a message's author
-     over its time and status, or the page's state over the leaf's menu; it also
-     resolves at the root, for the same reason. */
-  --font-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
-  /* A plan's goal, over its steps: a message's words, strong. */
-  --font-goal: 600 var(--msg-size) / 1.5 var(--sans);
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
      in the same faces (runtime/composing/text-field.js), inside a shadow root those
@@ -672,10 +655,35 @@
   --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
+/* What anyone wrote in a thread, wherever the thread stands (a card, the floating
+   panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
+   sans, whatever the page sets its prose in, since these are the conversation about
+   the page rather than the page. Declared on the root, it takes the root's rung, so a
+   density the page gives its `main` leaves it alone, and on each of the chrome's parts,
+   where a theme may restate the face or the ladder for that surface alone
+   (package-themes.md, "Leaf's chrome"). The line is a whole pixel at either size, so a
+   fold opening over several lines moves nothing by a fraction. It keeps the entry
+   floor, since a message turns into the editor that rewrites it. Its size is a token
+   of its own, so a measure set in it, such as the floating panel's widened field
+   (floating-panel.css, `data-expanded`), follows the face. */
+:root,
+.lf-chrome [part] {
+  --msg-size: max(var(--entry-floor), var(--t-5));
+  --font-message: var(--msg-size) / 1.5 var(--sans);
+  /* A name one rung larger than the small words beside it, such as a message's author
+     over its time and status, or the page's state over the leaf's menu; it also
+     resolves here, for the same reason. */
+  --font-name: 600 var(--t-working-label) / var(--lf-ui-lh) var(--sans);
+  /* A plan's goal, over its steps: a message's words, strong. */
+  --font-goal: 600 var(--msg-size) / 1.5 var(--sans);
+}
 /* Tokens derived from the type ladder. A custom property resolves where it is declared,
    and a scope restating the ladder would inherit the root's result, so these are
-   declared on every scope that restates it: the root and `.density-working` (below). */
-:is(:root, .density-working) {
+   declared on every scope that may restate it: the root, `.density-working` (below)
+   and each of the chrome's parts. */
+:root,
+.density-working,
+.lf-chrome [part] {
   /* A keyboard badge's box: the line box, which is a ratio of the font, plus the ring
      drawn around it (chrome.css dresses one). It is a token for the reason the ring's
      width is — a box somebody else holds room for has to be read back in a calc, and
@@ -686,16 +694,17 @@
      the ratio has this one home. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   /* The interface's fonts. Each is a whole font (weight, size, line height and
-     family), and every rule of Leaf's interface, one that selects an `lf-` class, sets
-     its words by naming one, `font: var(--font-small)`, or by inheriting its holder's.
+     family), and every rule of Leaf's interface, one that selects an `lf-` class in
+     the core's sheets or a bundled package's, sets its words by naming one,
+     `font: var(--font-small)`, or by inheriting its holder's.
      A rule that names a font takes its weight with it. Only a run that keeps its
      holder's font sets a weight (400, 500 or 600), to stand out from the words around
      it or back into them, as a pending thread name does inside a title. A box centres
      its words by layout, never with a line as tall as itself, so every leading is a
      font's. tests/model/test_interface_fonts.py fails a rule that sets a face of its
      own, so a new face is added here, beside the others. The faces a thread's words
-     take, `--font-message`, `--font-name` and `--font-goal`, are declared on the
-     root instead (above), so a density leaves them alone. */
+     take, `--font-message`, `--font-name` and `--font-goal`, are declared above
+     instead, on the root and each chrome part, so a density leaves them alone. */
   --font-ui: var(--t-5) / var(--lf-ui-lh) var(--sans); /* a menu, a dialog, a button */
   /* The floating panel and its lists, a rung below the chrome's, since the panel
      stands over the page rather than in place of it. */
@@ -716,9 +725,9 @@
   --font-tip: 500 var(--t-6) / 1.2 var(--sans);
   --font-chip: var(--t-6) / var(--chip-lh) var(--sans); /* a small fact (above) */
   --font-count: 600 var(--t-7) / 1 var(--sans); /* a number on a mark */
-  /* A tooltip's second line, or a status under a drawing. */
+  /* A tooltip's second line, a status under a drawing, or a chart's axes. */
   --font-fine: var(--t-7) / 1.25 var(--sans);
-  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or source, verbatim */
+  --font-code: var(--t-6) / var(--lf-ui-lh) var(--mono); /* an error or a path, verbatim */
   /* An emoji set as a picture at an icon's size, as the reaction palette holds them. */
   --font-emoji: 16px / 1 var(--sans);
 }
@@ -805,7 +814,18 @@ html:not([data-lf-live]) {
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
  * stops at it. Direct frames and propagated edges share one rule per edge, so that
  * boundary holds even when the row draws its own frame. The frame reset remains
- * independent: a row still bounds its content when its children keep their margins. */
+ * independent: a row still bounds its content when its children keep their margins.
+ *
+ * Margins don't collapse through a grid or flex item: each keeps its own children's
+ * margins inside its box, so an item opening with a heading would begin the heading's gap
+ * above the heading. A grid or flex box says so of its items, --lf-items-keep-margins: 1,
+ * and an item of it that opens with a heading takes the heading's gap as its own margin
+ * (reading.css). */
+@property --lf-items-keep-margins {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -824,7 +844,7 @@ html:not([data-lf-live]) {
 /* A box that holds its own height and scrolls inside it says so, as a bounded block
  * below does: a widget in ordinary flow grows with its content, so a scroller nobody
  * declared is the defect the widget quality check `grows-with-content` names
- * (browser/AGENTS.md, "Space and scrolling"). It does not inherit, so a box inside a
+ * (browser/AGENTS.md, "The page holds still under the user's aim"). It does not inherit, so a box inside a
  * declared one answers for its own scroll. */
 @property --lf-holds-height {
   syntax: "<integer>";
@@ -1545,7 +1565,8 @@ lf-suggestion:has(
  * transition tells no observer, so the pin was seated mid-fold and the next unrelated
  * layout pass, such as an agent's comment arriving, moved it a few pixels with no
  * input. The other route, following the transition frame by frame, slid the pin beside
- * the control just pressed, which Stability forbids. Settling at once moves the words
+ * the control just pressed, which browser/AGENTS.md, "The page holds still under the
+ * user's aim", forbids. Settling at once moves the words
  * by the padding as part of the gesture, and the pin takes its final seat once.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
@@ -1675,16 +1696,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Opening a reaction in force leaves its familiar face in place and reveals the
-   separately named removal action beside it. Its existing contour takes the shared
-   disclosure accent (above), stated beside it so the two meet on their selectors; the
-   mark does not gain a second ring or pretend the reaction itself changed. */
-.lf-react-mark[data-lf-behavior="disclosure"] {
-  border-width: 2px;
-  border-color: var(--border-2);
-  color: var(--lf-entry-ink, var(--ink));
-  box-shadow: var(--lf-entry-lift);
-}
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
    thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
@@ -1700,6 +1711,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--turn-ink);
+}
+/* A row that says the thread's word at its end, in Threads and the Page Map, says the
+   user's turn in the same green. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
   color: var(--turn-ink);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-turn="user"] {

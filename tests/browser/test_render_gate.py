@@ -3793,6 +3793,7 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
         """
 <header><h1>Room for focus</h1></header>
 <div id="focus-room" class="probe" style="overflow: auto"><p>Reading stays in the content box.</p></div>
+<div id="offscreen-room" class="probe" style="overflow: auto"><div id="offscreen" style="margin-left: 2000px; width: 100px; background: red">Reach by scrolling.</div></div>
 <div id="tinted" class="probe" style="background: #eee">Tint.</div>
 <div id="bordered" class="probe" style="border: 1px solid">Border.</div>
 <div id="indented" class="probe" style="text-indent: -16px">Words outside.</div>

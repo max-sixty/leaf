@@ -477,7 +477,23 @@ export function misplacedBoxes() {
       wide || host
         ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
         : outside(b, left, right);
-    if (past > 1 && !wide && !host) past = outside(contentBounds(el, b), left, right);
+    if (past > 1 && !wide && !host) {
+      // Only the part drawn through ancestor clips can occupy the column's margin.
+      // A clip extended by blank padding still contains its off-screen content.
+      let { left: visibleLeft, right: visibleRight } = contentBounds(el, b);
+      /** @type {Element | null} */
+      let ancestor = el.parentElement;
+      for (; ancestor && ancestor !== main; ancestor = ancestor.parentElement) {
+        const band = shownBand(ancestor);
+        if (!band) continue;
+        visibleLeft = Math.max(visibleLeft, band.left);
+        visibleRight = Math.min(visibleRight, band.right);
+      }
+      past =
+        visibleRight <= visibleLeft
+          ? 0
+          : outside({ left: visibleLeft, right: visibleRight }, left, right);
+    }
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place

@@ -223,7 +223,7 @@ function browserReading(view) {
     }
     ${
       checks
-        ? html`<dl class="lf-facts">
+        ? html`<dl>
             <dt>Horizontal overflow</dt>
             <dd>${number(checks.horizontal_overflow_px)} px</dd>
             ${observations(

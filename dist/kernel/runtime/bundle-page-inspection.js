@@ -155,7 +155,7 @@ function browserReading(view) {
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
     ${view.readiness ? html`<p>Captured while the page was settling: ${view.readiness}.</p>` : nothing}
-    ${checks ? html`<dl class="lf-facts">
+    ${checks ? html`<dl>
             <dt>Horizontal overflow</dt>
             <dd>${number(checks.horizontal_overflow_px)} px</dd>
             ${observations("Overflowing regions", checks.overflowing_regions, (row) => `${row.over} px beyond its scrollport`)}

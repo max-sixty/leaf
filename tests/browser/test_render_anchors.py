@@ -5084,7 +5084,9 @@ def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
           range.setEnd(diff, 0);
           const before = anchorForRange(range).quote;
           const afterParagraph = document.querySelector('#merge-both').firstChild;
-          range.setStart(diff, diff.childNodes.length);
+          // An empty light DOM has just offset zero, before its shadow words.
+          // Put the trailing endpoint outside the host to exclude those words.
+          range.setStartAfter(diff);
           range.setEnd(afterParagraph, afterParagraph.length);
           return [before, anchorForRange(range).quote];
         }"""

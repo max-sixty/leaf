@@ -50,7 +50,7 @@ export function geometryReading(open) {
 // Advice about document tracks: flows directly inside another flow or column share
 // its tracks. A flow under an ordinary holder owns only that holder's room. Existing
 // containment may be deliberate, so these readings never refuse a page.
-export function containedSpace() {
+function containedSpace() {
   const main = pageDocument();
   if (!main) return [];
   /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */

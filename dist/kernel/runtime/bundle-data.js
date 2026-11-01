@@ -8682,7 +8682,7 @@ function setDiff(on, base = null, pendingBase = null) {
 		tick(comparisonGeneration);
 	});
 }
-async function showComparison(base, { offered = false } = {}) {
+async function showComparison(base) {
 	setDiff(false, null, base);
 	const mine = ++diffRequest;
 	const baseRevision = base.revision;
@@ -8712,7 +8712,6 @@ async function showComparison(base, { offered = false } = {}) {
 	}
 	if (mine !== diffRequest) return;
 	const n = applyDiff(doc, baseAuthored, base, reading);
-	if (offered && !n) return setDiff(false);
 	setDiff(true, base);
 	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }

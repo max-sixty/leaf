@@ -492,7 +492,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         return owner.evaluate("""node => {
           const rect = subject => {
             const {left, top, bottom} = subject.getBoundingClientRect();
-            return {left, top, bottom};
+            return {left, top, bottom, centerY: (top + bottom) / 2};
           };
           // An empty diff reply rests as the Reply field, without a visible button.
           const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
@@ -543,7 +543,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
         restored = pose()
         for node in pending:
-            for edge in pending[node]:
+            # Dictate and Send share an aim, but Send is shorter under a mouse.
+            edges = ("left", "centerY") if node == "action" else pending[node]
+            for edge in edges:
                 assert abs(restored[node][edge] - pending[node][edge]) < 0.5, (
                     pending,
                     restored,

@@ -133,29 +133,28 @@ test("a box written in after Send stays written in once its words are erased", (
   assert.equal(anchor.newsMoves(new Set(["answer"])), true);
 });
 
-test("a reply being written holds the transcript at its height until a send", (t) => {
-  const { anchor, field, place, grow } = card(t);
-  const held = () =>
-    field.closest("aside").style.getPropertyValue("--lf-transcript-height");
-  place();
-  assert.equal(held(), "");
-  // Entering the reply holds nothing yet; the first edit does.
+test("above its subject, the next draft in the box Send left keeps the send's foot", (t) => {
+  const { anchor, field, place } = card(t);
+  const above = { ...beside, side: "top" };
   field.focus();
   anchor.writing();
-  assert.equal(held(), "");
-  anchor.editing();
   field.value = "A draft";
-  assert.equal(held(), "100px");
-  // News shown into the card scrolls the transcript rather than growing it.
-  grow(160);
-  place();
-  assert.equal(held(), "100px");
+  assert.equal(place(above), "top");
   anchor.sending("sent turn");
-  assert.equal(held(), "");
-  // The empty box Send leaves the caret in is read, so the answer may grow the card.
   field.value = "";
-  place();
-  assert.equal(held(), "");
+  anchor.presented(new Set(["sent turn"]));
+  assert.equal(place(above), "foot");
+  anchor.presented(new Set(["answer"]));
+  assert.equal(place(above), "foot");
+  // Typing the next draft there keeps the foot the send held.
+  anchor.writing();
+  field.value = "The next draft";
+  assert.equal(place(above), "foot");
+  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
+  // Leaving the reply and coming back into it writes from the top again.
+  anchor.leftReply();
+  anchor.writing();
+  assert.equal(place(above), "top");
 });
 
 test("beside its subject a card rises as it grows, unless a press or a send holds it", (t) => {

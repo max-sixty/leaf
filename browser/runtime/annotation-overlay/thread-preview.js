@@ -267,8 +267,8 @@ export function createThreadPreview({
       run: () => focusDestination(preview, "return"),
     },
   ];
-  // Capture before the control changes the card. Native editing ends a send's hold,
-  // and holds the transcript's height, before the field changes its words or geometry.
+  // Capture before the control changes the card. Native editing ends a send's hold
+  // before the field changes its words or geometry.
   onUserInput((event) => previewSession?.anchor.pressed(event, inputCount()));
   preview.addEventListener("lf-before-edit", (event) => {
     if (
@@ -276,7 +276,7 @@ export function createThreadPreview({
         .composedPath()
         .some((node) => node instanceof Element && node.matches(".lf-thread-reply"))
     )
-      previewSession?.anchor.editing();
+      previewSession?.anchor.writing();
   });
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds

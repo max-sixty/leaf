@@ -1411,7 +1411,8 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
 @pytest.mark.parametrize(("size", "how"), [((1200, 900), "key"), ((800, 520), "press")])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """Sending keeps the reply's foot through admission, then releases it for news
-    and the next draft. Clearing several lines may lower the editor's top, but cannot
+    and, beside the words, for the next draft; over them the next draft typed in the
+    same box keeps it. Clearing several lines may lower the editor's top, but cannot
     move its foot, the card's column, or the page, even for one frame."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     write(editor, "First point.\nSecond point.\nThird point.")
@@ -1525,14 +1526,21 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
             answered,
         )
 
-    # A fresh draft grows down from its first line, then scrolls within the card.
+    # A fresh draft in the box Send left the caret in grows away from the words, down
+    # from its first line beside them and up from the reply's foot over them, the
+    # transcript giving way where the card fills the room above them; then it scrolls
+    # within the card.
     editor.click()
     rendered(page)
     drafting = observe()
     begin()
     page.keyboard.insert_text("The next point.\nAnother line.")
-    grown = finish(drafting, "top", "editorTop")
-    assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
+    if accepted["side"] == "above":
+        grown = finish(drafting, "top", "foot", "editorFoot")
+        assert grown["editorTop"] < drafting["editorTop"] - 10, (drafting, grown)
+    else:
+        grown = finish(drafting, "top", "editorTop")
+        assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
     write(editor, "\n".join(f"More detail {line}." for line in range(60)))
     rendered(page)
     bounded = observe()

@@ -278,12 +278,22 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#controller;
   }
 
+  /** Hold drawing during a synchronous DOM rewrite, then draw the newest input.
+   * Leaf's controller also invalidates its page reading when the hold ends. */
+  defer() {
+    return this.#controller ? this.#controller.defer() : this.#hold();
+  }
+
   // The controller's `defer` for this widget, which refuses a second hold and releases
   // once: hold its presentation through a gesture that rewrites its nodes; the release
   // draws the newest reading at once.
   #hold() {
+    if (this.#held) throw new Error("Widget presentation is already deferred");
     this.#held = true;
+    let released = false;
     return () => {
+      if (released) return;
+      released = true;
       this.#held = false;
       this.#refresh();
     };

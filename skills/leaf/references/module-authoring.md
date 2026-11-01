@@ -289,7 +289,15 @@ reactive properties with Lit's schedule, runs `setup()` once, pauses drawing whi
 away and draws the current properties on return. The host supplies its properties
 and chooses its render root through `createRenderRoot()`; no registry creates a
 shadow root there. Leaf supplies page readings, controllers, presentation readiness
-and bound-data delivery only on a Leaf page.
+and bound-data delivery only on a Leaf page. `this.defer()` holds drawing during a
+synchronous DOM rewrite and returns an idempotent release that draws the newest
+properties. Report asynchronous preparation with `PendingTaskEvent` on either host.
+
+The same portable surface includes focus preservation, document-local scrolling,
+control construction and file-language lookup. Native focus and overflow work on a
+plain host; Leaf installs its reading regions and chrome styling when it boots.
+`beginWalk` declares the current position of a widget's navigation, which Leaf shows
+in its status line; a plain host has no Leaf status presentation.
 
 ### Retained nodes
 

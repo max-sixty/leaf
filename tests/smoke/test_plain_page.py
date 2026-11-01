@@ -342,7 +342,30 @@ try {{
         assert any("second value" in mark["text"] for mark in drawn["marks"])
         assert first_keys.isdisjoint(mark["key"] for mark in drawn["marks"])
         assert all("first value" not in mark["text"] for mark in drawn["marks"])
-        assert page.evaluate("!window.lfRootState")
+        # The same portable input/focus helpers let a reader filter the host's value
+        # and retain their search while a matching file's drawing is replaced.
+        page.evaluate(
+            "value => { document.querySelector('#diff').value = value; }",
+            first + second,
+        )
+        search = page.get_by_role("searchbox", name="Filter diff files")
+        search.fill("second")
+        expect(page.locator("#diff .lf-diff-file:visible")).to_have_count(1)
+        expect(page.locator("#diff .lf-diff-file:visible")).to_contain_text(
+            "second.txt"
+        )
+        replacement = first + patch("second.txt", "updated value")
+        page.evaluate(
+            "value => { document.querySelector('#diff').value = value; }", replacement
+        )
+        expect(page.locator("#diff .lf-diff-file:visible")).to_contain_text(
+            "updated value"
+        )
+        expect(search).to_be_focused()
+        expect(search).to_have_value("second")
+        assert page.evaluate(
+            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
+        )
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
@@ -381,4 +404,6 @@ finally {{ window.hostReady = true; }}
         button.focus()
         page.keyboard.press("Tab")
         expect(search).to_be_focused()
-        assert page.evaluate("!window.lfRootState && !window.lfInputs")
+        assert page.evaluate(
+            "!window.lfRootState && !window.lfDocumentLifetime && !window.lfViews"
+        )

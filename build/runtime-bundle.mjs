@@ -76,6 +76,8 @@ function layerPath(path, assetRoot) {
  * native.
  */
 function native(local, assetRoot) {
+  // Delivery also inlines this classic source before the module graph runs.
+  if (local === "runtime/document-inputs.js") return true;
   if (local.startsWith("page/")) return true;
   if (local.startsWith("vendor/")) return local !== signalsPath;
   return !assetRoot && local.startsWith("widgets/");

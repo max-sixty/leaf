@@ -1,15 +1,14 @@
-import { J, OUTPUT, PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, W, Z, actionElement, actionTemplate, afterScript, attachDeferredLoader, backgroundFlash, bindQueuedWork, cancelRender, d, dataBody, describeFailure, flashDuration, foldBlock, frameFor, generatedElement, iconElement, inlineStyle, isElement, isHTML, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, move, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, outputProducer, pagePresented, patchRetains, patchTree, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setChildren, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, updateSurface, watchArrivals, watchOwner, x } from "./bundle-portable.js";
-import { CARET_KEYS, COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, adoptRegistry, agentName, agentSays, applicationPresenter, applicationState, attachApplicationPresentation, blurFocused, caretAtKey, carriedFrom, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, eventSource, exhibits, focusDestination, focused, foldWidgetStates, hasObligationSource, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, leafSays, live, loadShadowRules, marks, messageKey, nativeFocusTarget, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, ringBox, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, voiced, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented } from "./bundle-layer-stack.js";
-import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, declaresCommandHandler, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, localScrollBy, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, reachable, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, startScroll, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
-import { alignInlineText, alignText, authored, authoredScope, blockAt, closestAcross, elementById, fencePassageParts, inChrome, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
+import { CARET_KEYS, HOLDS_WORD, J, OUTPUT, PAGE_PAINT_ATTRIBUTE, PRESS, PRESSES, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, TEXT_BOX, TEXT_FIELD, W, WALK, Z, actionElement, actionTemplate, afterScript, aimedTop, alreadyShown, atScrollEnd, attachDeferredLoader, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, cancelRender, caretAtKey, chosenSince, clippedContents, clippedPlace, closestAcross, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, deepFocus, describeFailure, drawn as drawn$2, eventSource, fitsWhole, flashDuration, focusDestination, focused, foldBlock, frameFor, generatedElement, growthAfterIsSeen, growthIsSeen, headerInset, holdCurrentLocation, holdFocus, iconElement, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, isElement, isHTML, keeps, keepsHidden, landedBox, landingBand, layoutChanged, layoutPx, listWalkPosition, measure, motion, motionPlays, move, moveScrollerBy, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, offeredActionElement, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, outputProducer, pagePresented, pageScroller, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, plainPress, pointerAt, presented, readCaret, recentPlaceInput, refuseOutput, registrations, renderedOrder, renderedParent, renderedUnder, renderingState, restorePointer, restrictUserIntent, retainUserIntent, roomPx, scrollBehavior, scrollChoices, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, seenRect, selectsAll, setChildren, setScroll, shownBox, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStore, takesLetters, textWidth, typesText, under, union, upFrom, updateSurface, userScrollport, visibleBand, watchArrivals, watchOwner, whenNone, x } from "./bundle-portable.js";
+import { COLLAPSE, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSABLE, TEXT_BLOCK, adoptRegistry, agentName, agentSays, announce, applicationPresenter, applicationState, ariaShortcuts, attachApplicationPresentation, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, decisionFor, declarationFor, declareCommandReadiness, declaresCommandHandler, descriptionOf, editable, el, elementDeclarations, elementsDeclaring, exhibits, foldWidgetStates, hasObligationSource, holdStatus, holdingError, html, isElementName, isReaction, keyed, keys, labelOf, lastMovedAt, layerRoot, leafSays, live as live$1, live$1 as live, loadShadowRules, marks, messageKey, nothing, notice, obligationValue, offlineData, offlineInteractive, pageClaimed, pageRange, pageUrl, paintKeys, passErrorsAt, projectCommandScope, projectView, projectionOrigins, projectionRegionsPresented, pruneScopedElements, raiseError, readApplication, readPart, ref, registry, render as render$1, repaint, repeat, reveal, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, savedReadingSettled, seatRoot, selectEnds, selectionBackward, share, spell, tagsDeclaring, threadKey, threadNames, tick, titleOf, tokenEntry, touchPresses as touchPresses$1, turns, voiced, watchCommandScopes, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, word } from "./bundle-errors.js";
+import { LayerRefused, admitReading, admitResponse, randomId, reportPageError, requestJson, revealLayer, runtimeRootState, sameLayer, setRuntimeRootAttribute } from "./bundle-layer-client.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, nameAnchor, nameable, onReadingInput, pageReadingRegion, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollerFor, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
+import { alignInlineText, alignText, authored, authoredScope, blockAt, elementById, fencePassageParts, labelWords, leafSurface, pageBlocks, pageDocument, pageQueryAll, pageText, pageWords, pointAt as pointAt$1, quoteFrom, rangeOf, readingFrom, renderRetired, segmentBlock, segmentsIn, spanIn, textNodesUnder, textUnits, verbatimBoundaryIdentity, verbatimOwnerIdentity } from "./bundle-passages.js";
 import { aborted, authoredStates, commitWidgetDescriptors, quoted, rememberAuthoredParents, stageAuthoredStates, stageWidgetDescriptors, widgetElement } from "./bundle-abort.js";
 import { isCanonicalMediaUrl, readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "./media.js";
-import { clippedContents, clippedPlace, clippingAxes, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, nearestScrollBy, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
 
 //#region runtime/obligations/model.js
 const readObligations = readPart((root) => root.effective.obligations);
-const obligationEntry = (obligation) => obligation?.source.kind === "widget" ? registry$1[obligation.source.tag]?.["x-awaits"] : void 0;
+const obligationEntry = (obligation) => obligation?.source.kind === "widget" ? registry[obligation.source.tag]?.["x-awaits"] : void 0;
 const answeredInWords = (obligation) => hasObligationSource(obligation, "message");
 
 //#endregion
@@ -531,7 +530,7 @@ function loadMarkdown(onError = null) {
 //#region runtime/storage.js
 const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 const { stored } = window.lfStorage;
-const memberSelector = (holder) => registry$1[holder.localName]?.["x-views"]?.members;
+const memberSelector = (holder) => registry[holder.localName]?.["x-views"]?.members;
 function viewMembers(holder) {
 	return window.lfViews.members(holder, memberSelector(holder));
 }
@@ -539,7 +538,7 @@ function openingView(holder, fallback = void 0) {
 	return window.lfViews.opening(holder, fallback, memberSelector(holder));
 }
 function markViews(holder) {
-	const declaration = registry$1[holder.localName]?.["x-views"];
+	const declaration = registry[holder.localName]?.["x-views"];
 	if (!declaration) return;
 	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
 	keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
@@ -557,46 +556,6 @@ const userChoice = (key, values) => Object.freeze({
 	},
 	write: (value) => userStore.set(key, value)
 });
-
-//#endregion
-//#region runtime/user-intent.js
-const passed = /* @__PURE__ */ new WeakMap();
-const passOn = (container, target) => passed.set(target, {
-	container,
-	intent: inputCount()
-});
-const displaced = (source, at) => {
-	if (!(source instanceof Node) || !at) return false;
-	const via = passed.get(at);
-	const carry = carriedFrom(at);
-	return at.contains(source) || via?.intent === inputCount() && via.container.contains(source) || carry?.inputs === inputCount() && (carry.from === source || source.contains(carry.from));
-};
-function retainUserIntent({ source = focused(), available = () => true, fallback = null, since = inputCount() } = {}) {
-	const retained = since;
-	let held = source instanceof Node ? new WeakRef(source) : null;
-	const current = () => {
-		const at = focused();
-		const from = held?.deref();
-		const withinSource = from === document.body ? at === document.body : from?.contains(at);
-		return Boolean(available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at)));
-	};
-	current.available = available;
-	current.handoff = (move) => {
-		if (!available() || retained !== inputCount()) return false;
-		const moved = current();
-		if (moved) move();
-		const at = focused();
-		held = at ? new WeakRef(at) : null;
-		return moved && current();
-	};
-	return current;
-}
-function restrictUserIntent(retained, available) {
-	const current = () => available() && retained();
-	current.available = () => available() && retained.available();
-	current.handoff = (move) => available() && retained.handoff(move);
-	return current;
-}
 
 //#endregion
 //#region runtime/drafts.js
@@ -1402,195 +1361,6 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
 }
 
 //#endregion
-//#region runtime/landing-scroll.js
-const land = (box, by, behavior) => {
-	startScroll(box);
-	setScroll(box, {
-		top: box.scrollTop + (by.top ?? 0),
-		left: box.scrollLeft + (by.left ?? 0),
-		behavior
-	});
-};
-function scrollMargin(where, side = "Top") {
-	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where).getPropertyValue(`scroll-margin-${side.toLowerCase()}`)) || 0;
-	const edges = [where.startContainer.childNodes[where.startOffset], where.endContainer.childNodes[where.endOffset - 1]].filter((edge) => edge instanceof Element);
-	return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
-}
-function shownFor(where) {
-	const ring = ringBox(where);
-	if (ring === where) return where;
-	const box = placeBox(ring);
-	const room = roomAround(ring, where);
-	return box.height <= room.height && box.width <= room.width ? ring : where;
-}
-const destinationBox = (where) => placeBox(shownFor(where));
-const holderOf = (where) => placeHolder(shownFor(where));
-const readingTop = (holder, box, band) => visibleBand(box, holder)?.top ?? band.top;
-function topMargin(where, box, band, holder = holderOf(where)) {
-	return Math.max(scrollMargin(where), readingTop(holder, box, band) - band.top);
-}
-const landingRoom = (where, until) => roomAround(shownFor(where), where, until);
-function roomAround(shown, where, until) {
-	const holder = placeHolder(shown);
-	const regions = /* @__PURE__ */ new Map();
-	let previous = null;
-	for (const box of scrollersOf(holder)) {
-		regions.set(box, previous);
-		previous = box;
-	}
-	let { width, height } = shownWindow();
-	for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
-		const band = (!until || until === where || renderedUnder(until, box)) && landingBand(box);
-		if (band) {
-			const axes = box === pageScroller ? {
-				x: true,
-				y: true
-			} : clippingAxes(getComputedStyle(box));
-			const inner = regions.get(box);
-			const clearance = inner === null ? topMargin(where, box, band, holder) + scrollMargin(until ?? where, "Bottom") : inner ? Math.max(0, readingTop(inner, box, band) - band.top) : 0;
-			if (axes.x) width = Math.min(width, band.right - band.left);
-			if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
-		}
-		if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
-	}
-	return {
-		width,
-		height
-	};
-}
-function fitsWhole(where) {
-	const box = destinationBox(where);
-	const room = landingRoom(where);
-	return box.height <= room.height && box.width <= room.width;
-}
-function seesWhole(where, box, out) {
-	const seen = seenRect(shownFor(where), /* @__PURE__ */ new Map(), out);
-	if (!seen) return false;
-	const room = landingRoom(where);
-	return (box.height > room.height || seen.top <= out.top && seen.bottom >= out.bottom) && (box.width > room.width || seen.left <= out.left && seen.right >= out.right);
-}
-function alreadyShown(where) {
-	const box = destinationBox(where);
-	return seesWhole(where, box, box);
-}
-function ringShown(where) {
-	const box = destinationBox(where);
-	const top = scrollMargin(where, "Top");
-	const right = scrollMargin(where, "Right");
-	const bottom = scrollMargin(where, "Bottom");
-	const left = scrollMargin(where, "Left");
-	return seesWhole(where, box, new DOMRect(box.left - left, box.top - top, box.width + left + right, box.height + top + bottom));
-}
-function placementBy(where, block, band, margin) {
-	const rect = destinationBox(where);
-	const room = band.bottom - band.top;
-	const place = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
-	return block === "nearest" ? nearestScrollBy(rect.top - margin, rect.bottom + scrollMargin(where, "Bottom"), band.top, band.bottom) : rect.top - band.top - place;
-}
-function verticalTravel(box, movement) {
-	const scale = scrollAxes(box).y.y;
-	const local = scale === 0 ? 0 : reachable(box, movement / scale);
-	return {
-		local,
-		moved: local * scale
-	};
-}
-function readingBandMoves(where, holder, block) {
-	const [box, ...around] = scrollersOf(holder);
-	if (!box) return {
-		moves: [],
-		moved: 0
-	};
-	const band = landingBand(box);
-	if (!band) return {
-		moves: [],
-		moved: 0
-	};
-	const rect = destinationBox(where);
-	const margin = topMargin(where, box, band);
-	let { top, bottom } = rect;
-	if (block === "start") top -= margin;
-	else if (block === "end") {
-		top = bottom - 1;
-		bottom += scrollMargin(where, "Bottom");
-	}
-	let { local, moved } = verticalTravel(box, placementBy(where, block, band, margin));
-	const moves = [{
-		box,
-		local,
-		moved
-	}];
-	let inner = box;
-	for (const outer of around) {
-		top -= moved;
-		bottom -= moved;
-		const band = landingBand(outer);
-		if (!band) break;
-		band.top = Math.max(band.top, readingTop(inner, outer, band));
-		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
-		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
-		moves.push({
-			box: outer,
-			local,
-			moved
-		});
-		inner = outer;
-	}
-	return {
-		moves,
-		moved: moves.reduce((sum, move) => sum + move.moved, 0)
-	};
-}
-function landedBox(where) {
-	const rect = destinationBox(where);
-	const { moved } = readingBandMoves(where, holderOf(where), "center");
-	return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
-}
-function scrollIntoReadingBand(where, holder, block, behavior) {
-	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
-}
-function scrollIntoView(where, { alignment, behavior = "auto", block = "start", within = null } = {}) {
-	if (!where) return;
-	const aligned = alignment ?? where;
-	const holder = holderOf(aligned);
-	if (!holder) return;
-	const targetScroller = within ? null : scrollersOf(holder).next().value;
-	let inside = true;
-	const start = holderOf(where);
-	for (let box = start; box instanceof Element; box = renderedParent(box)) {
-		if (box === targetScroller) inside = false;
-		const band = landingBand(box);
-		if (band) {
-			const { left, right } = band;
-			const destination = destinationBox(where);
-			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
-			const byY = inside ? placementBy(where, "nearest", band, topMargin(where, box, band, start)) : 0;
-			const by = localScrollBy(box, {
-				x: byX,
-				y: byY
-			});
-			if (by.left || by.top) land(box, by, "instant");
-		}
-		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
-	}
-	if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
-}
-onCurrentLocation((node, cause) => {
-	if (cause !== "step" || !node) return;
-	nextRender(() => {
-		if (deepFocus() !== node) return;
-		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
-		let box = node;
-		for (; box; box = renderedParent(box)) {
-			if (!box.matches("[data-lf-obligation]")) continue;
-			if (getComputedStyle(box).outlineStyle === "none") continue;
-			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
-			break;
-		}
-	});
-});
-
-//#endregion
 //#region runtime/thread/selectors.js
 const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 const drawnThreadId = (node) => node?.getAttribute("data-thread") ?? null;
@@ -2149,12 +1919,6 @@ function threadAttention(thread, agent) {
 
 //#endregion
 //#region runtime/syntax.js
-const registry = runtime.registry;
-const langForPath = (path) => {
-	const filename = path.slice(path.lastIndexOf("/") + 1);
-	const dot = filename.lastIndexOf(".");
-	return dot < 0 ? void 0 : registry.$languages.paths[filename.slice(dot + 1).toLowerCase()];
-};
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
 const languageOf = (code) => {
@@ -2348,9 +2112,9 @@ function markDeclared(root) {
 		if (!message) continue;
 		const tags = tagsDeclaring((entry) => entry[key]);
 		for (const tag of tags) {
-			const declared = registry$1[tag][key];
+			const declared = registry[tag][key];
 			for (const el of elementsIn(root, tag)) {
-				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
+				const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
 				if (key === "x-views") {
 					markViews(el);
 					continue;
@@ -3351,12 +3115,12 @@ function rememberPassageParts(scope = document, source = ["page", null], origina
 		identifyPreserving(root, [...source, ownerIndex], original);
 	}
 }
-const preservingOwners = (scope) => within(scope, "*").filter((root) => registry$1[root.localName]?.["x-verbatim"]);
+const preservingOwners = (scope) => within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
 function identifyPreserving(root, owner, original = (node) => node) {
 	verbatimOwnerIdentity.set(original(root), owner);
 	let boundaryIndex = 0;
 	const visit = (parent) => {
-		for (const child of parent.children) if (registry$1[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(original(child), {
+		for (const child of parent.children) if (registry[child.localName]?.["x-upgrade"]) verbatimBoundaryIdentity.set(original(child), {
 			owner,
 			index: boundaryIndex++
 		});
@@ -3370,10 +3134,10 @@ function reindexPassageOwners(scope = document, source = ["page", null]) {
 const registryUrl = () => runtimeResource("/registry.json");
 const widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`) : runtimeResource(`/widgets/${tag}.js`);
 async function loadWidgetDependencies(scope) {
-	await Promise.all([loadDeclaredMarkdown(scope), ...widgetImports(scope, registry$1).shadow ? [loadShadowRules()] : []]);
+	await Promise.all([loadDeclaredMarkdown(scope), ...widgetImports(scope, registry).shadow ? [loadShadowRules()] : []]);
 }
 async function importWidgetModules(scope) {
-	const required = widgetImports(scope, registry$1);
+	const required = widgetImports(scope, registry);
 	await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
 }
 async function preloadWidgets(scope) {
@@ -3422,7 +3186,7 @@ async function prepareDocument(captured) {
 	if (!admitResponse(response)) return false;
 	if (!response.ok) throw new Error(`leaf: registry failed to load (${response.status})`);
 	adoptRegistry(await response.json());
-	if (!sameLayer(registry$1.$layer.generation)) return false;
+	if (!sameLayer(registry.$layer.generation)) return false;
 	const scope = captured.source;
 	if (!scope) throw new Error("The initial document has no authored root");
 	const original = (node) => captured.pairs.require(node);
@@ -3433,7 +3197,7 @@ async function prepareDocument(captured) {
 	const prior = readApplication().document;
 	applicationState.captureDocument({
 		...prior,
-		registry: { ...registry$1 },
+		registry: { ...registry },
 		authored: new Map([...prior.authored, ...authored]),
 		descriptors: new Map([...prior.descriptors, ...descriptors.descriptors])
 	});
@@ -3451,71 +3215,6 @@ async function upgradeWidgets({ buildReactionBar }) {
 	buildReactionBar();
 	await installDocument(document.body);
 	return true;
-}
-
-//#endregion
-//#region runtime/held-word.js
-const HOLDS_WORD = "lf-holds-word";
-const HOLDER = `.${HOLDS_WORD}`;
-function holdToRead() {
-	let hold = null;
-	const holderIn = (event) => {
-		for (const node of event.composedPath()) if (isElement(node) && node.matches(HOLDER)) return node;
-		return null;
-	};
-	const read = (held, holder) => {
-		if (held.reading === holder) return;
-		held.reading?.removeAttribute("data-lf-held-word");
-		held.reading = holder;
-		holder?.setAttribute("data-lf-held-word", "");
-	};
-	const under = (held, event) => {
-		const holder = holderIn(event);
-		return holder?.parentElement === held.parent ? holder : null;
-	};
-	const end = (event, commit) => {
-		if (!hold || hold.pointerId !== event.pointerId) return;
-		const holder = commit && plainPress(event) ? under(hold, event) : null;
-		read(hold, null);
-		hold = null;
-		if (!holder) return;
-		claimReleaseClick();
-		nativeFocusTarget(holder).focus({
-			preventScroll: true,
-			focusVisible: false
-		});
-		holder.dispatchEvent(new MouseEvent("click", {
-			bubbles: true,
-			cancelable: true,
-			composed: true,
-			detail: 1,
-			clientX: event.clientX,
-			clientY: event.clientY
-		}));
-	};
-	document.addEventListener("pointerdown", (event) => {
-		if (hold) read(hold, null);
-		hold = null;
-		if (!event.isPrimary || !plainPress(event)) return;
-		const holder = holderIn(event);
-		if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
-		const origin = event.composedPath()[0];
-		if (isElement(origin) && origin.hasPointerCapture(event.pointerId)) origin.releasePointerCapture(event.pointerId);
-		hold = {
-			pointerId: event.pointerId,
-			parent: holder.parentElement,
-			reading: null
-		};
-		read(hold, holder);
-	}, { capture: true });
-	document.addEventListener("pointermove", (event) => {
-		if (hold?.pointerId === event.pointerId) read(hold, under(hold, event));
-	}, { capture: true });
-	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
-	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
-	document.addEventListener("contextmenu", (event) => {
-		if (hold) event.preventDefault();
-	}, { capture: true });
 }
 
 //#endregion
@@ -4299,43 +3998,10 @@ function snapSelection() {
 
 //#endregion
 //#region runtime/walk-position.js
-const HOLD_MS = 900;
-let walking = null;
-function walkPositionLabel(noun, position, total, qualifier = "") {
-	if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
-	return [
-		noun,
-		`${position} of ${total}`,
-		qualifier
-	].filter(Boolean).join(" ");
-}
-function listWalkPosition(items, current, { identity = (item) => item, qualifier = "" } = {}) {
-	if (!current) return null;
-	const target = identity(current);
-	const index = items.findIndex((item) => identity(item) === target);
-	if (index < 0) return null;
-	return {
-		target,
-		position: index + 1,
-		total: items.length,
-		qualifier
-	};
-}
-function walkPosition() {
-	if (!walking) return null;
-	const position = walking.read();
-	if (!position || position.target !== walking.target) {
-		walking = null;
-		return null;
-	}
-	return {
-		kind: walking.key,
-		target: position.target,
-		position: position.position,
-		total: position.total,
-		text: walkPositionLabel(walking.noun, position.position, position.total, position.qualifier)
-	};
-}
+window.addEventListener(WALK, () => {
+	holdStatus(900);
+	repaint();
+});
 const STEPS = Object.freeze([
 	"previous",
 	"next",
@@ -4375,24 +4041,6 @@ function rowWalk({ id, noun, plural, rows, position = () => listWalkPosition(row
 		travels: scroll,
 		runKey: (binding) => land((list) => binding === "Home" ? list[0] : list.at(-1))
 	}];
-}
-function beginWalk(key, noun, read) {
-	const position = read();
-	if (!position) {
-		walking = null;
-		return null;
-	}
-	walkPositionLabel(noun, position.position, position.total, position.qualifier);
-	walking = {
-		key,
-		noun,
-		read,
-		target: position.target
-	};
-	holdStatus(HOLD_MS);
-	const shown = walkPosition();
-	repaint();
-	return shown?.text ?? null;
 }
 
 //#endregion
@@ -6790,7 +6438,7 @@ function renderSeats(threads, commands) {
 	for (const host of hosts) {
 		const owner = host.lfThreadSeatOwner;
 		const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-		const hold = registry$1[owner.localName]?.["x-thread-seat"]?.hold;
+		const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
 		const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
 		seatFor(host, commands, () => host.lfFirstMessage ?? null).present(seatReading(owned, "page", commands, response));
 	}
@@ -7920,13 +7568,13 @@ function paintCoreControls() {
 //#endregion
 //#region runtime/references.js
 function requireReference(verb, owner, attribute) {
-	if (typeof attribute !== "string" || !Object.hasOwn(registry$1[owner.localName]?.["x-refers"] ?? {}, attribute)) throw new TypeError(`${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`);
+	if (typeof attribute !== "string" || !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)) throw new TypeError(`${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`);
 }
 function referencedProjection(owner, attribute, id = owner.getAttribute(attribute)) {
 	if (!id) return null;
-	const { tag, key } = registry$1[owner.localName]["x-refers"][attribute];
+	const { tag, key } = registry[owner.localName]["x-refers"][attribute];
 	if (tag) {
-		const within = registry$1[tag]["x-unique"][key];
+		const within = registry[tag]["x-unique"][key];
 		const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
 		const scope = scopeOf(owner);
 		return [...scope?.querySelectorAll(tag) ?? []].find((member) => scopeOf(member) === scope && member.getAttribute(key) === id) ?? null;
@@ -8671,7 +8319,7 @@ const diffBlockSel = () => [
 const diffOpaqueSel = () => [
 	...tagsDeclaring((e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data"),
 	...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-	...Object.entries(registry$1.$decisions).filter(([, { retires }]) => Object.keys(retires).length).map(([owner]) => owner),
+	...Object.entries(registry.$decisions).filter(([, { retires }]) => Object.keys(retires).length).map(([owner]) => owner),
 	"svg"
 ].join(",");
 const diffOn = Z(false);
@@ -8709,7 +8357,7 @@ function diffBlocks(root) {
 		if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
 		if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))) continue;
 		let key = diffWords(b, opaque);
-		for (const [attr, edge] of Object.entries(registry$1[b.localName]?.["x-says"] ?? {})) {
+		for (const [attr, edge] of Object.entries(registry[b.localName]?.["x-says"] ?? {})) {
 			const said = b.getAttribute(attr);
 			if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
 		}
@@ -8717,7 +8365,7 @@ function diffBlocks(root) {
 	}
 	for (const w of root.querySelectorAll(opaque)) {
 		if (w.parentElement?.closest(opaque)) continue;
-		const entry = registry$1[w.localName] ?? {};
+		const entry = registry[w.localName] ?? {};
 		const bindingAttrs = /* @__PURE__ */ new Set();
 		for (const input of Object.values(entry["x-data"] ?? {})) {
 			if (input.source) bindingAttrs.add(input.source);
@@ -8769,7 +8417,7 @@ function placeCreated(doc, widgets) {
 		const owner = doc.getElementById(id);
 		if (!owner) continue;
 		const { child, words } = creates;
-		const markdown = registry$1[child]?.["x-text-format"] === "inline-markdown";
+		const markdown = registry[child]?.["x-text-format"] === "inline-markdown";
 		for (const [unit, { detail }] of Object.entries(value.units)) {
 			if (doc.getElementById(unit)) continue;
 			const created = doc.createElement(child);
@@ -9183,7 +8831,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		}
 		marker.content = String(revision.revision);
 	}
-	const upgraded = (element) => Boolean(registry$1[element.localName]?.["x-upgrade"]);
+	const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 	function* elementsWithin(root) {
 		const inner = root instanceof HTMLTemplateElement ? root.content : root;
 		for (const child of inner.children) {
@@ -9219,7 +8867,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 		return copy;
 	};
 	const reachesMembers = (before, after, arrivingRoot) => {
-		const entry = registry$1[before.localName];
+		const entry = registry[before.localName];
 		if (entry?.["x-patch"] !== "members") return false;
 		const members = !authoredBody(sourcePairs.require(before)) && (entry["x-content"] === "members" || entry["x-views"] !== void 0);
 		return sameAuthoredMarkup(shell(before, members), shell(after, members), arrivingRoot);
@@ -9960,7 +9608,7 @@ async function notifyDataSubscribers() {
 	if (version !== null && runtime.data.version === version) setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 const declaredInput = (element, input) => {
-	const declaration = registry$1[element.localName]?.["x-data"]?.[input];
+	const declaration = registry[element.localName]?.["x-data"]?.[input];
 	if (!declaration) throw new Error(`<${element.localName}> input ${input} is not declared by this widget`);
 	return declaration;
 };
@@ -9981,7 +9629,7 @@ function outputKey(element) {
 	return key;
 }
 function acceptOutput(element, output, value) {
-	const declaration = registry$1[element.localName]?.["x-output"]?.[output];
+	const declaration = registry[element.localName]?.["x-output"]?.[output];
 	if (!declaration) throw new Error(`publishOutput(${element.localName}, ${output}) output is not declared by this widget`);
 	if (!element.id) throw new Error("publishOutput requires a widget id");
 	let owner = outputOwners.get(element);
@@ -10061,7 +9709,7 @@ const suppliedSnapshot = (value) => supplied.get(value);
 const bindsInput = (element, { source, reference }) => Boolean(source && element.getAttribute(source) || reference && element.getAttribute(reference));
 const dataRead = applicationState.select((root) => root.data.version !== null || root.phase === "offline");
 function awaitsData(element) {
-	return Object.values(registry$1[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
+	return Object.values(registry[element.localName]?.["x-data"] ?? {}).some((declaration) => declaration.source && element.getAttribute(declaration.source)) && !dataRead.read();
 }
 function dataReader(element, input, accepted) {
 	const declaration = declaredInput(element, input);
@@ -10124,7 +9772,7 @@ async function readDeferred(manifest, key) {
 	};
 	if (!current()) throw new Error(`source ${source} revision ${revision} changed before loading deferred ${key}`);
 	if (offlineInteractive) {
-		const records = registry$1.$data.contracts[manifest.contract].records;
+		const records = registry.$data.contracts[manifest.contract].records;
 		const item = offlineData().sources[source].value[records.items].find((item) => item[records.key] === key);
 		if (!item) throw new Error(`unknown record key '${key}' in data source '${source}'`);
 		if (!Object.hasOwn(item, records.deferred)) throw new Error(`record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`);
@@ -10141,4 +9789,4 @@ async function readDeferred(manifest, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, alreadyShown, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, fitsWhole, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landedBox, landingPlace, landingRoom, langForPath, leftThePage, listWalkPosition, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, restrictUserIntent, retainThreadSeats, retainUserIntent, returnPlace, revealHeld, rowWalk, saveDraft, scrollIntoReadingBand, scrollIntoView, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };
+export { DESIGN_MODE_KEY, ELEMENTS, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, awaitsData, beginThreadSeats, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed$1 as claimed, clearDraft, commandSteps, commitThreadSeats, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, copyControl, copyTrigger, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, designName, dismissReply, dismissReplyAt, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isBlockPlacement, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, leftThePage, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, pushEntry, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScopes, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, workflowStep, workflowWord };

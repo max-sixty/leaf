@@ -16,7 +16,6 @@
 import "./element-integration.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
-export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
@@ -50,22 +49,18 @@ export { under } from "./shadow.js";
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export {
   closeLayer,
-  focusDestination,
-  focused,
   handBack,
-  holdFocus,
   onCurrentLocation,
   onPress,
   onPressAway,
   openLayer,
   openerOf,
   rove,
-  currentLocationIn,
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildLists, setRenderedChildren } from "./dom-children.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
 export { obligationsIn } from "./obligations/place.js";
@@ -98,16 +93,14 @@ export { threadSummary } from "./thread/messages.js";
 // (browser/AGENTS.md, "The page holds still under the user's aim").
 export { HeldReading, heldGrowth } from "./thread/held-news.js";
 export { wireInput } from "./application.js";
-export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { isNativeLayer } from "./shadow-tree.js";
-export { HOLDS_WORD } from "./held-word.js";
 // `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
 export { PRESS, cycledRow, labelOf, rowArrows } from "./keyboard/bindings.js";
 export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
 // The claim of a scope standing over the page: every key but the command reference's.
 export { allButCommandReference } from "./keyboard/register.js";
-export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
@@ -130,7 +123,7 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { fitsWhole, scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
+export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -146,7 +139,7 @@ export {
 export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
-export { inChrome, says, wrote } from "./passages.js";
+export { says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
 export { boundFile } from "./file-api.js";
@@ -167,7 +160,6 @@ export {
   foldBlock,
   backgroundFlash,
   motion,
-  scrollBehavior,
 } from "./motion.js";
 // A package's routes past presentation both declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and then
@@ -181,13 +173,12 @@ export {
 } from "./presentation.js";
 export { copyBlock } from "./code-copy.js";
 export { copyControl } from "./copy-control.js";
-export { retainUserIntent } from "./user-intent.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewMembers } from "./storage.js";
-export { highlightBlocks, langForPath } from "./syntax.js";
+export { highlightBlocks } from "./syntax.js";
 export {
   saidAt,
   readHistory,
@@ -204,7 +195,7 @@ export {
   reachedForWords,
   worksInside,
 } from "./widget-elements.js";
-export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+export { atLayoutPrecision, keepsHidden } from "./keeps.js";
 
 // The CodeMirror view class Leaf's own editors use, built over the CodeMirror module
 // the caller imported, so CodeMirror stays off a page's opening; the runtime loads it once

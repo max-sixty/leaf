@@ -1,9 +1,7 @@
 import { __exportAll } from "./bundle-rolldown-runtime.js";
-import { afterSettling, cancelRender, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, playMotion } from "./bundle-portable.js";
-import { TEXT_FIELD, onUserInput } from "./bundle-layer-stack.js";
-import { el } from "./bundle-layer-client.js";
-import { contentRides } from "./bundle-content-layout.js";
-import { inChrome } from "./bundle-passages.js";
+import { TEXT_FIELD, afterSettling, cancelRender, contentRides, inChrome, inlineStyle, keeps, motionEasing, motionPlays, motionTime, move, nextRender, onUserInput, playMotion } from "./bundle-portable.js";
+import { el } from "./bundle-errors.js";
+import "./bundle-passages.js";
 import { SVG_NS, paintGeometry, paintShape, paintStand, placement, standBox, standOver, vacate } from "./bundle-page-layout.js";
 
 //#region runtime/target-paint.js

@@ -1,8 +1,7 @@
-import { exceptionRecord, frameVisibility, keeps, move, nextRender, onFrameVisibility, readSampleVisibility, sizeObserver, watchFrame } from "./bundle-portable.js";
-import { inputInFrame, pageUrl, runtime } from "./bundle-layer-stack.js";
+import { exceptionRecord, frameView, frameVisibility, inputInFrame, keeps, layoutWindow, move, nextRender, onFrameVisibility, presented, readSampleVisibility, sizeObserver, watchFrame, watchRoom } from "./bundle-portable.js";
+import { pageUrl, runtime } from "./bundle-errors.js";
 import { RequestError, recordInteraction, requestJson } from "./bundle-layer-client.js";
 import { aborted, widgetDescriptor } from "./bundle-abort.js";
-import { frameView, layoutWindow, presented, watchRoom } from "./bundle-geometry.js";
 import { dressFor, registerSampleDress } from "./bundle-dress.js";
 
 //#region runtime/sample.js

@@ -1,3 +1,4 @@
+import "/runtime/document-inputs.js";
 import { Directive, LitElement, PartType, directive, html, nothing, render, unsafeSVG } from "/vendor/lit.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -48,7 +49,7 @@ function cancelWork(job) {
 const child = document.documentElement.lfSample;
 let admitted = false;
 const observers = /* @__PURE__ */ new Set();
-const readings = /* @__PURE__ */ new Map();
+const readings$1 = /* @__PURE__ */ new Map();
 let readingId = 0;
 function watchFrame(frame, callback) {
 	let intersecting = false;
@@ -86,7 +87,7 @@ function watchFrame(frame, callback) {
 }
 const owners$1 = [];
 let containingView = window;
-if (!child) for (; containingView.frameElement; containingView = containingView.parent) owners$1.push(watchFrame(containingView.frameElement, publish));
+if (!child) for (; containingView.frameElement; containingView = containingView.parent) owners$1.push(watchFrame(containingView.frameElement, publish$1));
 function frameVisibility() {
 	if (child) return { visible: admitted };
 	if (owners$1.length) return { visible: owners$1.every((owner) => owner.shown()) };
@@ -101,7 +102,7 @@ function readSampleVisibility() {
 	if (!bridge) return null;
 	return new Promise((resolve, reject) => {
 		const id = ++readingId;
-		readings.set(id, {
+		readings$1.set(id, {
 			resolve,
 			reject
 		});
@@ -111,21 +112,21 @@ function readSampleVisibility() {
 		});
 	});
 }
-function publish() {
+function publish$1() {
 	const visibility = frameVisibility();
 	for (const callback of observers) callback(visibility);
 }
 if (child) child.receive(({ type, detail }) => {
 	if (type === "visibility-reading") {
-		const reading = readings.get(detail.id);
-		readings.delete(detail.id);
+		const reading = readings$1.get(detail.id);
+		readings$1.delete(detail.id);
 		if ("error" in detail) reading?.reject(Object.assign(new Error(detail.error.message), { stack: void 0 }, detail.error));
 		else reading?.resolve(detail);
 		return;
 	}
 	if (type !== "visibility") return;
 	admitted = detail.visible;
-	publish();
+	publish$1();
 });
 addEventListener("pagehide", (event) => {
 	if (!event.persisted) for (const owner of owners$1) owner.stop();
@@ -327,6 +328,10 @@ onFrameVisibility((visibility) => {
 unsettle();
 
 //#endregion
+//#region runtime/inputs.js
+const inputs = Reflect.get(window, Symbol.for("leaf.inputs"));
+
+//#endregion
 //#region vendor/signals-core.js
 var j = Symbol.for("preact-signals");
 function S() {
@@ -381,7 +386,7 @@ var l = 0;
 var _ = 0;
 var m = 0;
 var p = void 0;
-var y = 0;
+var y$1 = 0;
 function g(t) {
 	if (r !== void 0) {
 		var i = t.n;
@@ -424,7 +429,7 @@ f.prototype.U = function(t) {
 };
 f.prototype.subscribe = function(t) {
 	var i = this;
-	return x(function() {
+	return x$1(function() {
 		var o = i.value;
 		d(function() {
 			return t(o);
@@ -461,7 +466,7 @@ Object.defineProperty(f.prototype, "value", {
 					i: o.i,
 					o: p
 				});
-			})(this), this.v = t, this.i++, y++, h++;
+			})(this), this.v = t, this.i++, y$1++, h++;
 			try {
 				for (var i = this.t; i !== void 0; i = i.x) i.t.N();
 			} finally {
@@ -494,13 +499,13 @@ function O(t) {
 	t.s = o;
 }
 function v(t, i) {
-	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y - 1, this.f = 4;
+	f.call(this, void 0, i), this.x = t, this.s = void 0, this.g = y$1 - 1, this.f = 4;
 }
 v.prototype = new f();
 v.prototype.h = function() {
 	if (this.f &= -3, 1 & this.f) return !1;
-	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y)) return !0;
-	if (this.g = y, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
+	if ((36 & this.f) == 32 || (this.f &= -5, this.g === y$1)) return !0;
+	if (this.g = y$1, this.f |= 1, this.i > 0 && !U(this)) return this.f &= -2, !0;
 	var t = r;
 	try {
 		C(this), r = this;
@@ -590,7 +595,7 @@ a.prototype.d = function() {
 a.prototype.dispose = function() {
 	this.d();
 };
-function x(t, i) {
+function x$1(t, i) {
 	var o = new a(t, i);
 	try {
 		o.c();
@@ -607,7 +612,7 @@ function q(t) {
 			if (this.isUpdatePending === !1) return;
 			(i = this._$Oo) === null || i === void 0 || i.call(this);
 			let o = !0;
-			this._$Oo = x((() => {
+			this._$Oo = x$1((() => {
 				o ? (o = !1, super.performUpdate()) : this.requestUpdate();
 			}));
 		}
@@ -634,6 +639,16 @@ const isSlottable = (node) => isElement(node) || isText(node);
 const shadowHost = (root) => isShadowRoot(root) ? root.host : null;
 const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
 const isStyledElement = (node) => node.namespaceURI === "http://www.w3.org/1999/xhtml" || node.namespaceURI === "http://www.w3.org/2000/svg" || node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
+function closestAcross(node, selector) {
+	let el = isElement(node) ? node : upFrom(node);
+	while (el) {
+		const hit = el.closest(selector);
+		if (hit) return hit;
+		el = shadowHost(el.getRootNode());
+	}
+	return null;
+}
+const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 const renderedParent = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
 const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
 const renderedParentNode = (node) => (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
@@ -645,6 +660,17 @@ const renderedUnder = (node, root) => {
 	for (let at = node; at; at = renderedParentNode(at)) if (at === root) return true;
 	return false;
 };
+const overIn = (el, selector, frame) => {
+	const near = el.closest(selector);
+	return near && (!frame || under(near, frame)) ? near : null;
+};
+const SAID = "[data-lf-said]";
+const UI_MARKS = `.lf-ui, ${SAID}`;
+const uiInside = (el, within) => {
+	const near = el && overIn(el, ".lf-ui, [data-lf-said]", within);
+	return !!near && !near.matches("[data-lf-said]");
+};
+const inUi = (node) => uiInside(isElement(node) ? node : node?.parentElement, null);
 const renderedChain = (node) => {
 	const chain = [];
 	for (let at = node; at; at = renderedParent(at)) chain.push(at);
@@ -714,6 +740,932 @@ const roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 function inlineStyle(element) {
 	if (isStyledElement(element)) return element.style;
 	throw new TypeError("This element has no native inline style");
+}
+
+//#endregion
+//#region runtime/control-selectors.js
+const TEXT_FIELD = inputs.textField;
+const MODIFIER_KEYS = [
+	"Shift",
+	"Alt",
+	"Control",
+	"Meta"
+];
+const CARET_KEYS = [
+	"ArrowLeft",
+	"ArrowRight",
+	"ArrowUp",
+	"ArrowDown",
+	"Home",
+	"End",
+	"PageUp",
+	"PageDown"
+];
+const selectsAll = (event) => event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
+const TEXT_BOX = inputs.textBox;
+const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
+const PRESS_SELECTORS = [
+	"a[href]",
+	"audio[controls]",
+	"button",
+	"img[usemap]",
+	"input:not([type='hidden'])",
+	"label",
+	"select",
+	"summary",
+	TEXT_BOX,
+	"video[controls]",
+	"video[data-lf-player]",
+	"[role='button']",
+	"[role='checkbox']",
+	"[role='combobox']",
+	"[role='link']",
+	"[role='menuitem']",
+	"[role='menuitemcheckbox']",
+	"[role='menuitemradio']",
+	"[role='option']",
+	"[role='radio']",
+	"[role='scrollbar']",
+	"[role='searchbox']",
+	"[role='separator'][tabindex]",
+	"[role='slider']",
+	"[role='spinbutton']",
+	"[role='switch']",
+	"[role='tab']",
+	"[role='textbox']",
+	"[role='treeitem']"
+];
+const LENT_REACH_STOP = "data-lf-lent-reach-stop";
+const REGION_SELECTORS = [
+	`[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
+	"[contenteditable]:not([contenteditable='false'])",
+	"[draggable='true']",
+	"[role='application']",
+	"[role='grid']",
+	"[role='gridcell']",
+	"[role='listbox']",
+	"[role='menu']",
+	"[role='menubar']",
+	"[role='radiogroup']",
+	"[role='tablist']",
+	"[role='tree']",
+	"[role='treegrid']"
+];
+const PRESSES = PRESS_SELECTORS.join(",");
+const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
+
+//#endregion
+//#region runtime/pointer.js
+let x = -1;
+let y = -1;
+const remember = (ev) => {
+	x = ev.clientX;
+	y = ev.clientY;
+};
+document.addEventListener("pointermove", remember, { capture: true });
+document.addEventListener("pointerdown", remember, { capture: true });
+const pointerAt = () => ({
+	x,
+	y
+});
+const coarsePointer = matchMedia("(pointer: coarse)");
+const hoveringPointer = matchMedia("(hover: hover)");
+const pressIsKeyboardActivation = (event) => event.type === "click" && !event.detail;
+const plainPress = (event) => event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+function restorePointer(point) {
+	if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return;
+	x = point.x;
+	y = point.y;
+}
+const eventSource = (event) => event.composedPath().find((node) => isNode(node)) ?? null;
+
+//#endregion
+//#region runtime/focus.js
+function* renderedElements(node) {
+	const children = isHTML(node, "slot") ? node.assignedElements({ flatten: true }) : (isElement(node) && node.shadowRoot || node).children;
+	for (const child of children) {
+		yield child;
+		const tabIndex = child.getAttribute("tabindex");
+		if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
+		yield* renderedElements(child);
+	}
+}
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+const tabStops = (root) => [...renderedElements(root)].filter((node) => node.matches(SEQUENTIAL) && "tabIndex" in node && typeof node.tabIndex === "number" && node.tabIndex >= 0 && !node.shadowRoot?.delegatesFocus && !node.matches(":disabled") && !(isHTML(node) && node.inert) && node.checkVisibility({ visibilityProperty: true }));
+const canPlaceFocus = () => window === window.top || document.hasFocus();
+const CAUSES = /* @__PURE__ */ new Set([
+	"move",
+	"step",
+	"return",
+	"press"
+]);
+function focusDestination(destination, cause, { caret = null, ...unknown } = {}) {
+	if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+	const unexpected = Object.keys(unknown);
+	if (unexpected.length) throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+	if (!canPlaceFocus()) return;
+	const options = {
+		preventScroll: true,
+		...!pressLed() && { focusVisible: true }
+	};
+	placed(cause, () => {
+		nativeFocusTarget(destination).focus(options);
+		if (!landedOn(destination) && lendable(destination)) lendStop(destination, options);
+	});
+	if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
+}
+let placing = null;
+const placed = (cause, move) => {
+	const was = placing;
+	placing ??= cause;
+	try {
+		return move();
+	} finally {
+		placing = was;
+	}
+};
+const landedOn = (node) => node === document.body ? node.matches(":focus") : activeIn(node.getRootNode()) === node || Boolean(node.shadowRoot?.activeElement);
+const lendable = (node) => drawn$1(node) && !node.matches(TAB_STOP);
+const lent = /* @__PURE__ */ new WeakSet();
+const wearsLentStop = (element) => lent.has(element);
+function whenLeft(element, leave) {
+	const blur = () => {
+		if (activeIn(element.getRootNode()) === element) return;
+		element.removeEventListener("blur", blur);
+		leave();
+	};
+	element.addEventListener("blur", blur);
+}
+function lendStop(destination, options) {
+	if (destination.hasAttribute("tabindex")) return;
+	const giveBack = () => {
+		lent.delete(destination);
+		if (destination.getAttribute("tabindex") === "-1") destination.removeAttribute("tabindex");
+	};
+	lent.add(destination);
+	destination.setAttribute("tabindex", "-1");
+	nativeFocusTarget(destination).focus(options);
+	if (!landedOn(destination)) {
+		giveBack();
+		return;
+	}
+	whenLeft(destination, giveBack);
+}
+const CARETED = /* @__PURE__ */ new Set([
+	"text",
+	"search",
+	"url",
+	"tel",
+	"password"
+]);
+const holdsCaret = (node) => isHTML(node) && (node.matches(TEXT_BOX) || isHTML(node, "input") && CARETED.has(node.type));
+function readCaret(node) {
+	if (!node || !holdsCaret(node)) return null;
+	const { selectionStart, selectionEnd, selectionDirection } = node;
+	if (selectionStart === null || selectionEnd === null || selectionDirection === null) return null;
+	return [
+		selectionStart,
+		selectionEnd,
+		selectionDirection
+	];
+}
+const deepFocus = (at = document.activeElement) => {
+	while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+	return at;
+};
+const focusRoot = (root) => root.nodeType === Node.DOCUMENT_NODE || root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && "host" in root;
+const activeIn = (root) => focusRoot(root) ? root.activeElement : null;
+function hasNativeFocus(element) {
+	return "focus" in element && typeof element.focus === "function" && "blur" in element && typeof element.blur === "function" && "tabIndex" in element && typeof element.tabIndex === "number";
+}
+function nativeFocusTarget(element) {
+	if (!hasNativeFocus(element)) throw new TypeError(`Element ${element.localName} has no native focus capability`);
+	return element;
+}
+function blurFocused() {
+	const active = deepFocus();
+	if (active) nativeFocusTarget(active).blur();
+}
+let labelPress = null;
+const heldByLabel = () => labelPress?.held.isConnected ? labelPress.held : null;
+function finishLabelPress() {
+	const press = labelPress;
+	if (!press) return null;
+	labelPress = null;
+	return press;
+}
+function landLabelPress() {
+	if (!finishLabelPress()) return;
+	setTimeout(() => {
+		if (labelPress) return;
+		const at = deepFocus();
+		if (at && at !== document.body) return reconcile(null, pressedPath);
+		if (!drawn$1(published?.deref())) return;
+		placements += 1;
+		lastLocation = null;
+		publish(null, cause(null));
+	});
+}
+const currentLocation = Z(0);
+const focusRevision = () => currentLocation.value;
+const focused = (tree = null) => {
+	let at = heldByLabel() ?? deepFocus();
+	if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
+	return at;
+};
+const selectionOf = (node) => {
+	const root = node.getRootNode();
+	return focusRoot(root) && root.nodeType === Node.DOCUMENT_FRAGMENT_NODE && root.getSelection?.() || getSelection();
+};
+function currentLocationNodes() {
+	const at = focused();
+	const selection = getSelection();
+	return [
+		at && at !== document.body ? at : null,
+		selection?.focusNode ?? null,
+		selection?.anchorNode ?? null
+	].filter((node) => node !== null);
+}
+function currentLocationTouches(node) {
+	if (!node) return false;
+	if (currentLocationNodes().some((at) => at === node || node.contains(at))) return true;
+	const selection = selectionOf(node);
+	return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
+let restoring = false;
+let placements = 0;
+let lastLocation = null;
+const readers = /* @__PURE__ */ new Set();
+const onCurrentLocation = (read) => {
+	readers.add(read);
+	return () => readers.delete(read);
+};
+let published = null;
+let departed = false;
+let readings = 0;
+let paintDestination = null;
+let paintedFocus = null;
+let paintedWithin = /* @__PURE__ */ new Set();
+let paintedVisible = null;
+let paintedVisibleWithin = /* @__PURE__ */ new Set();
+const visibilityReaders = /* @__PURE__ */ new Set();
+const onFocusVisibility = (read) => {
+	visibilityReaders.add(read);
+	return () => visibilityReaders.delete(read);
+};
+function markFocus(node, name, present) {
+	keeps(node, `data-lf-${name}`, present ? "" : null);
+	if (!present) {
+		if (node.part?.contains(`lf-${name}`)) node.part.remove(`lf-${name}`);
+	} else if (node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && node.hasAttribute("part")) node.part.add(`lf-${name}`);
+}
+function visibleFocus(node = focused()) {
+	return node && node !== document.body && node !== document.documentElement && (node.matches(":focus-visible") || node.matches(TEXT_BOX) || node.localName === "iframe" && !pressLed()) ? node : null;
+}
+function paintFocus(node) {
+	const next = node === document.body || node === document.documentElement ? null : node;
+	if (next !== paintedFocus) {
+		if (paintedFocus) markFocus(paintedFocus, "focus", false);
+		if (next) markFocus(next, "focus", true);
+		paintedFocus = next;
+	}
+	const within = /* @__PURE__ */ new Set();
+	for (let owner = next; owner && owner !== document.body && owner !== document.documentElement; owner = renderedParent(owner)) within.add(owner);
+	for (const owner of paintedWithin) if (!within.has(owner)) markFocus(owner, "focus-within", false);
+	for (const owner of within) if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
+	paintedWithin = within;
+	const visible = visibleFocus(next);
+	if (visible !== paintedVisible) {
+		if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
+		if (visible) markFocus(visible, "focus-visible", true);
+		paintedVisible = visible;
+		for (const read of visibilityReaders) read();
+	}
+	const visibleWithin = visible ? within : /* @__PURE__ */ new Set();
+	for (const owner of paintedVisibleWithin) if (!visibleWithin.has(owner)) markFocus(owner, "focus-visible-within", false);
+	for (const owner of visibleWithin) if (!paintedVisibleWithin.has(owner)) markFocus(owner, "focus-visible-within", true);
+	paintedVisibleWithin = visibleWithin;
+}
+const refreshFocusPaint = () => {
+	const node = paintDestination?.deref();
+	if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
+	if (node?.isConnected) watchCurrentLocationAround(node);
+	paintFocus(node?.isConnected ? node : null);
+};
+let returnPaintPending = false;
+const paintAfterScript = () => {
+	if (!returnPaintPending) refreshFocusPaint();
+};
+const queueFocusPaint = () => afterScript(paintAfterScript);
+const queueReturnFocusPaint = () => {
+	if (returnPaintPending) return;
+	returnPaintPending = true;
+	nextRender(() => {
+		if (!returnPaintPending) return;
+		returnPaintPending = false;
+		refreshFocusPaint();
+	});
+};
+const paintRoots = /* @__PURE__ */ new WeakSet();
+function watchFocusPaintIn(root) {
+	if (paintRoots.has(root)) return;
+	paintRoots.add(root);
+	new MutationObserver(queueFocusPaint).observe(root, {
+		childList: true,
+		subtree: true
+	});
+	root.addEventListener("slotchange", queueFocusPaint);
+}
+function publish(node, cause) {
+	watchCurrentLocationAround(node);
+	paintDestination = node && new WeakRef(node);
+	if (cause === "return") queueReturnFocusPaint();
+	else {
+		returnPaintPending = false;
+		queueFocusPaint();
+	}
+	if (node === (published?.deref() ?? null) && !departed) return;
+	departed = false;
+	const left = published?.deref() ?? null;
+	const reading = ++readings;
+	currentLocation.value = reading;
+	if (cause === "drop") departed = true;
+	else published = node && new WeakRef(node);
+	if (node) placeInput = "focus";
+	const was = {
+		placing,
+		restoring
+	};
+	[placing, restoring] = [null, false];
+	try {
+		for (const read of readers) {
+			try {
+				read(node, cause, left);
+			} catch (error) {
+				reportError(error);
+			}
+			if (readings !== reading) return;
+		}
+	} finally {
+		placing = was.placing;
+		restoring = was.restoring;
+	}
+}
+let pressedPath = null;
+const pressedOn = (node) => pressedPath !== null && pressedPath.some((ref) => {
+	const at = ref.deref();
+	return at === node || isHTML(at, "label") && at.control === node;
+});
+const pressLed = () => pressedPath !== null;
+let stepping = null;
+const leftClosedLayer = (left) => {
+	const layer = isElement(left) ? left.closest("dialog, [popover]") : null;
+	return layer !== null && !(isHTML(layer, "dialog") && layer.open || isNativeLayer(layer));
+};
+const cause = (node, left = null) => placing ?? (leftClosedLayer(left) ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
+const read = /* @__PURE__ */ new WeakSet();
+function readFocusEvent(event) {
+	if (!("relatedTarget" in event)) return;
+	if (read.has(event)) return;
+	read.add(event);
+	if (closing$1) return;
+	if (heldByLabel()) {
+		if (placing === null) return;
+		finishLabelPress();
+	}
+	if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget))) placements += 1;
+	const at = deepFocus();
+	lastLocation = at && new WeakRef(at);
+	publish(at, cause(at, event.relatedTarget));
+}
+function watchCurrentLocationAround(node) {
+	for (let at = node; at; at = renderedParent(at)) {
+		const root = at.getRootNode();
+		if (focusRoot(root)) watchCurrentLocationIn(root);
+	}
+}
+function enter(event) {
+	if (read.has(event)) return;
+	read.add(event);
+	watchCurrentLocationAround(deepFocus());
+}
+function watchCurrentLocationIn(root) {
+	root.addEventListener("focus", enter, true);
+	root.addEventListener("focusin", readFocusEvent, true);
+	watchFocusPaintIn(root);
+}
+watchCurrentLocationIn(document);
+watchCurrentLocationAround(deepFocus());
+document.addEventListener("focusout", (event) => {
+	if (event.relatedTarget !== null) departed = true;
+	const left = eventSource(event);
+	if (!isElement(left)) return;
+	lastLocation = new WeakRef(left);
+	if (restoring) return;
+	const departure = readings;
+	setTimeout(() => {
+		if (readings !== departure) return;
+		const at = document.activeElement;
+		if (at !== null && at !== document.body) return;
+		if (heldByLabel()) return;
+		if (!drawn$1(left)) return publish(null, "drop");
+		if (left !== document.body) placements += 1;
+		if (lastLocation?.deref() === left) lastLocation = null;
+		publish(null, cause(null));
+	});
+}, true);
+const sequential = (event) => event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+function reconcile(step, pressed) {
+	if (heldByLabel()) return;
+	const deep = deepFocus();
+	const at = deep === document.body ? null : deep;
+	const was = published?.deref() ?? null;
+	if (at === was || !at && was?.localName !== "iframe") return;
+	placements += 1;
+	lastLocation = at && new WeakRef(at);
+	const input = {
+		stepping,
+		pressedPath
+	};
+	[stepping, pressedPath] = [step, pressed];
+	try {
+		publish(at, cause(at));
+	} finally {
+		stepping = input.stepping;
+		pressedPath = input.pressedPath;
+	}
+}
+function inputInFrame(frame, type) {
+	if (deepFocus() !== frame) return;
+	if (type === "keydown") pressedPath = null;
+	else if (type === "pointerdown" || type === "touchstart") pressedPath = [new WeakRef(frame)];
+	if (published?.deref() === frame) queueFocusPaint();
+	else reconcile(null, pressedPath);
+}
+addEventListener("click", () => {
+	const pressed = pressedPath;
+	setTimeout(() => {
+		reconcile(null, pressed);
+		queueFocusPaint();
+	});
+}, {
+	capture: true,
+	passive: true
+});
+const inputCount = () => inputs.count;
+const onUserInput = (read) => inputs.observe(read);
+let keyCarets = null;
+onUserInput((event) => {
+	if (event.type !== "keydown") return;
+	const carets = /* @__PURE__ */ new Map();
+	for (const node of event.composedPath()) {
+		const caret = isElement(node) && readCaret(node);
+		if (caret) carets.set(node, caret);
+	}
+	keyCarets = carets;
+	setTimeout(() => {
+		if (keyCarets === carets) keyCarets = null;
+	});
+});
+const caretAtKey = (node) => keyCarets?.get(node) ?? null;
+onUserInput((event) => {
+	if (event.type !== "blur") return;
+	landLabelPress();
+	endPress(event, false);
+});
+let placeInput = "focus";
+for (const type of [
+	"pointermove",
+	"pointerdown",
+	"wheel"
+]) addEventListener(type, () => placeInput = "pointer", {
+	capture: true,
+	passive: true
+});
+addEventListener("click", (event) => {
+	if (event.isTrusted && event.button === 0) placeInput = focused()?.contains(eventSource(event)) ? "focus" : "pointer";
+}, {
+	capture: true,
+	passive: true
+});
+const recentPlaceInput = () => placeInput;
+let press = null;
+const pressing = () => press;
+const pressReaders = /* @__PURE__ */ new Set();
+const onPress = (read) => {
+	pressReaders.add(read);
+	return () => pressReaders.delete(read);
+};
+function pressRecords() {
+	const records = /* @__PURE__ */ new WeakMap();
+	return {
+		keep(event, value) {
+			if (press?.pointerId === event.pointerId && !press.released) records.set(press, value);
+			return value;
+		},
+		kept: () => (press && records.get(press)) ?? null
+	};
+}
+const pressHolds = (event) => press !== null && press.pointerId === event.pointerId && (event.type !== "pointermove" || !press.released);
+function overPress(ended) {
+	if (press !== ended) return;
+	press = null;
+	for (const over of ended.overs) over();
+}
+const overSoon = (ended) => setTimeout(() => overPress(ended));
+const claimReleaseClick = () => {
+	if (press) press.clickClaimed = true;
+};
+document.addEventListener("click", (event) => {
+	if (!press?.clickClaimed || !event.isTrusted || pressIsKeyboardActivation(event)) return;
+	press.clickClaimed = false;
+	event.preventDefault();
+	event.stopImmediatePropagation();
+}, { capture: true });
+for (const type of ["click", "auxclick"]) addEventListener(type, (event) => {
+	if (press?.released && event.isTrusted && !pressIsKeyboardActivation(event)) overSoon(press);
+}, {
+	capture: true,
+	passive: true
+});
+onUserInput((event) => {
+	if (press?.released && event.type !== "pointerdown") overSoon(press);
+});
+const onPressAway = (away, dismiss) => onPress((start, from) => start.button === 0 && away(from) ? (end, completed) => {
+	const path = end.composedPath();
+	if (completed && away(path)) dismiss(path, from);
+} : null);
+addEventListener("pointerdown", (event) => {
+	if (!event.isPrimary) return;
+	if (press) {
+		const before = press;
+		endPress(event, false);
+		overPress(before);
+	}
+	const path = event.composedPath();
+	const begun = {
+		pointerId: event.pointerId,
+		path,
+		ends: [],
+		overs: [],
+		released: false,
+		clickClaimed: false
+	};
+	press = begun;
+	for (const read of pressReaders) {
+		const end = read(event, path);
+		if (end) begun.ends.push(end);
+	}
+	if (event.button !== 0 || labelPress) return;
+	const label = path.find((node) => isHTML(node, "label") && node.control !== null);
+	const held = label && deepFocus();
+	if (!label || !held || held === document.body) return;
+	labelPress = {
+		held,
+		pointerId: event.pointerId,
+		label
+	};
+}, {
+	capture: true,
+	passive: true
+});
+function endPress(event, completed) {
+	if (!press) return;
+	const ended = press;
+	if (!ended.released) {
+		ended.released = true;
+		for (const end of ended.ends) {
+			const over = end(event, completed);
+			if (over) ended.overs.push(over);
+		}
+	}
+	if (!completed) overSoon(ended);
+}
+for (const type of ["pointerup", "pointercancel"]) addEventListener(type, (event) => {
+	if (event.pointerId === labelPress?.pointerId && (type === "pointercancel" || !event.composedPath().includes(labelPress.label))) landLabelPress();
+	if (event.pointerId === press?.pointerId) endPress(event, type === "pointerup");
+}, {
+	capture: true,
+	passive: true
+});
+addEventListener("contextmenu", (event) => {
+	landLabelPress();
+	endPress(event, false);
+}, {
+	capture: true,
+	passive: true
+});
+addEventListener("click", landLabelPress, {
+	capture: true,
+	passive: true
+});
+const recoveredLabelKeys = /* @__PURE__ */ new WeakMap();
+const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? null;
+addEventListener("keydown", (event) => {
+	placeInput = "focus";
+	const recovering = labelPress;
+	if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+	const active = deepFocus();
+	finishLabelPress();
+	const { held } = recovering;
+	if (active === held || !held.isConnected) return;
+	focusDestination(held, "return");
+	if (deepFocus() === held) recoveredLabelKeys.set(event, held);
+}, true);
+for (const type of [
+	"keydown",
+	"pointerdown",
+	"wheel",
+	"touchstart"
+]) addEventListener(type, (event) => {
+	if (type === "pointerdown") pressedPath = event.composedPath().map((node) => new WeakRef(node));
+	else if (type === "keydown") pressedPath = null;
+	stepping = null;
+	if (type === "keydown" || type === "pointerdown") {
+		const step = event instanceof KeyboardEvent && sequential(event) ? event : null;
+		const pressed = pressedPath;
+		stepping = step;
+		setTimeout(() => {
+			if (step && stepping === step) stepping = null;
+			reconcile(step, pressed);
+			queueFocusPaint();
+		});
+	}
+	const at = deepFocus();
+	if (at && at !== document.body || heldByLabel()) return;
+	lastLocation = null;
+	publish(null, cause(null));
+}, {
+	capture: true,
+	passive: true
+});
+function ringBox(node) {
+	if (!isElement(node) || !node.matches(":focus, [data-lf-focus]")) return node;
+	for (let box = renderedParent(node); isElement(box); box = renderedParent(box)) if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+	return node;
+}
+const drawn$1 = (node) => node?.isConnected && !excludedByInert(node) && node.checkVisibility({ visibilityProperty: true });
+const dropped = () => {
+	const at = deepFocus();
+	if (at && at !== document.body) return null;
+	const node = lastLocation?.deref();
+	return node && !drawn$1(node) ? node : null;
+};
+function holdFocus(scope, { key = null } = {}) {
+	const node = heldIn(scope);
+	if (!node) return null;
+	const restore = holdOn(node);
+	if (!key) return restore;
+	let item = node;
+	while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+	if (!item || item === scope || !renderedUnder(item, scope)) return restore;
+	const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+	const items = () => [...tree.querySelectorAll(`[${key}]`)].filter((item) => renderedUnder(item, scope));
+	const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
+	const at = keys.indexOf(item.getAttribute(key));
+	const order = [
+		keys[at],
+		...keys.slice(at + 1),
+		...keys.slice(0, at).reverse()
+	];
+	let control = node;
+	while (control.getRootNode() !== item.getRootNode()) {
+		const host = shadowHost(control.getRootNode());
+		if (!host) break;
+		control = host;
+	}
+	const like = control.localName + [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+	const [same, ...rest] = order;
+	return (...standIns) => {
+		let byKey = null;
+		const keyed = (value) => {
+			if (!byKey) {
+				byKey = /* @__PURE__ */ new Map();
+				for (const each of items()) {
+					const at = each.getAttribute(key);
+					let group = byKey.get(at);
+					if (!group) {
+						group = [];
+						byKey.set(at, group);
+					}
+					group.push(each);
+				}
+			}
+			return byKey.get(value) ?? [];
+		};
+		const matching = (root) => {
+			if (root.matches(like) && drawn$1(root)) return root;
+			const assigned = isHTML(root, "slot") ? root.assignedElements({ flatten: true }) : [];
+			for (const child of assigned.length ? assigned : root.children) {
+				const found = matching(child);
+				if (found) return found;
+			}
+			return null;
+		};
+		const find = (value) => {
+			const found = keyed(value).filter(drawn$1);
+			return found.find((each) => each.matches(like)) ?? found.map(matching).find(Boolean) ?? found[0] ?? null;
+		};
+		const neighbour = (value) => () => {
+			const place = find(value);
+			if (!place || !drawn$1(place)) return null;
+			focusDestination(place, "return");
+			return landedOn(place);
+		};
+		return restore(() => find(same), ...rest.map(neighbour), ...standIns);
+	};
+}
+const heldIn = (scope) => {
+	const held = heldByLabel();
+	if (held) return renderedUnder(held, scope) ? held : null;
+	const currentLocation = deepFocus(activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement);
+	if (currentLocation && currentLocation !== document.body && renderedUnder(currentLocation, scope)) return currentLocation;
+	const node = lastLocation?.deref();
+	return node && renderedUnder(node, scope) ? dropped() : null;
+};
+const currentLocationIn = (scope) => {
+	const at = focused();
+	return Boolean(at) && at !== document.body && renderedUnder(at, scope);
+};
+function rove(items, stop) {
+	for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
+}
+const openers = /* @__PURE__ */ new WeakMap();
+function openLayer(layer, opener = focused()) {
+	openers.set(layer, opener && opener !== document.body ? opener : null);
+}
+const openerOf = (layer) => openers.get(layer) ?? null;
+let closing$1 = 0;
+let deferredLanding = null;
+let landingLayer = false;
+function layerLanding(land) {
+	return (...args) => {
+		if (!landingLayer) throw new Error("A layer's landing runs only as the layer closes");
+		return land(...args);
+	};
+}
+function closeLayer(close, land = null) {
+	closing$1 += 1;
+	let deferred = null;
+	const landingAround = landingLayer;
+	landingLayer = false;
+	try {
+		close();
+	} finally {
+		landingLayer = landingAround;
+		closing$1 -= 1;
+		if (!closing$1) [deferred, deferredLanding] = [deferredLanding, null];
+	}
+	if (closing$1) {
+		if (land) deferredLanding ??= land;
+		return;
+	}
+	const landing = land || deferred;
+	if (landing) {
+		const outer = landingLayer;
+		landingLayer = true;
+		try {
+			landing();
+		} finally {
+			landingLayer = outer;
+		}
+	}
+	const at = deepFocus();
+	if (!at || at === document.body || at === published?.deref()) return;
+	lastLocation = new WeakRef(at);
+	publish(at, "return");
+}
+function holdCurrentLocation() {
+	const at = focused();
+	const node = at && at !== document.body ? at : dropped();
+	return node ? {
+		node,
+		restore: holdOn(node)
+	} : null;
+}
+const carried = /* @__PURE__ */ new WeakMap();
+const carriedFrom = (node) => carried.get(node) ?? null;
+const isCompletion = (value) => value !== null && typeof value === "object" && "then" in value && typeof value.then === "function";
+function holdOn(held) {
+	const caret = readCaret(held);
+	const began = placements;
+	return (...standIns) => {
+		if (placements !== began) return false;
+		for (const standIn of [held, ...standIns]) {
+			if (placements !== began) return false;
+			const place = typeof standIn === "function" ? standIn() : standIn;
+			if (isCompletion(place)) return place.then((destination) => {
+				if (!isElement(destination) || !drawn$1(destination) || deepFocus() !== destination) return false;
+				return land$1(() => {
+					focusDestination(destination, "return", { caret });
+					return landedOn(destination);
+				});
+			});
+			if (place === true) return true;
+			if (!isElement(place) || !drawn$1(place)) continue;
+			if (place === held && deepFocus() === held) return true;
+			if (land$1(() => {
+				focusDestination(place, "return", { caret });
+				return landedOn(place);
+			})) {
+				const before = carriedFrom(held);
+				if (place !== held) carried.set(place, before?.inputs === inputCount() ? before : {
+					from: held,
+					inputs: inputCount()
+				});
+				return true;
+			}
+		}
+		return false;
+	};
+}
+const land$1 = (landing) => {
+	const was = restoring;
+	restoring = true;
+	try {
+		return landing();
+	} finally {
+		restoring = was;
+	}
+};
+const typesText = inputs.typesText;
+const takesLetters = inputs.takesLetters;
+function controlNavigationKeys(node) {
+	if (node?.matches("input[type=\"radio\"], [role=\"radio\"]")) return [
+		"ArrowLeft",
+		"ArrowRight",
+		"ArrowUp",
+		"ArrowDown"
+	];
+	if (node?.matches("input[type=\"range\"], [role=\"slider\"]")) return [
+		"ArrowLeft",
+		"ArrowRight",
+		"ArrowUp",
+		"ArrowDown",
+		"Home",
+		"End",
+		"PageUp",
+		"PageDown"
+	];
+	return [];
+}
+let readingBlock = () => null;
+function declareReading(read) {
+	readingBlock = read;
+}
+function releaseFocus() {
+	focusDestination(document.body, "move");
+	document.body.blur();
+}
+let released = () => {};
+function declareRelease(release) {
+	released = release;
+}
+let letGoes = 0;
+function release() {
+	const before = letGoes;
+	released();
+	if (letGoes === before) letGo();
+}
+const letGoReaders = /* @__PURE__ */ new Set();
+const onLetGo = (read) => {
+	letGoReaders.add(read);
+	return () => letGoReaders.delete(read);
+};
+function letGo(from = focused()) {
+	letGoes++;
+	const block = readingBlock(from);
+	if (!block?.isConnected) releaseFocus();
+	else {
+		focusDestination(block, "move");
+		block.blur();
+	}
+	if (from && from !== document.body) for (const read of letGoReaders) read(from);
+}
+function handBack(...destinations) {
+	const places = destinations.flatMap((node) => node && node !== document.body ? [node] : []);
+	const landed = () => {
+		const at = placements;
+		return places.some((node) => {
+			if (placements !== at) return true;
+			if (!drawn$1(node)) return false;
+			focusDestination(node, "return");
+			return landedOn(node);
+		});
+	};
+	if (landed()) return;
+	if (!places.some((node) => node.isConnected)) {
+		letGo();
+		return;
+	}
+	const yielded = !drawn$1(deepFocus());
+	if (yielded) releaseFocus();
+	const began = placements;
+	const pendingInput = inputCount();
+	nextRender(() => {
+		if (inputCount() !== pendingInput || placements !== began || yielded && deepFocus() !== document.body || landed()) return;
+		letGo();
+	});
 }
 
 //#endregion
@@ -829,7 +1781,7 @@ const pageUpgraded = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgra
 
 //#endregion
 //#region runtime/arrivals.js
-const watches = /* @__PURE__ */ new Set();
+const watches$1 = /* @__PURE__ */ new Set();
 const stages$1 = /* @__PURE__ */ new WeakSet();
 const stageRefs = /* @__PURE__ */ new Set();
 const owners = /* @__PURE__ */ new WeakMap();
@@ -975,7 +1927,7 @@ function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
 		observer,
 		offerMany
 	};
-	watches.add(watch);
+	watches$1.add(watch);
 	for (const root of [document.body, ...liveStages()]) enroll(watch, root);
 	return (el) => {
 		read(observer.takeRecords());
@@ -995,7 +1947,7 @@ function watchArrivalsIn(stage) {
 	if (stages$1.has(stage)) return;
 	stages$1.add(stage);
 	stageRefs.add(new WeakRef(stage));
-	for (const watch of watches) enroll(watch, stage);
+	for (const watch of watches$1) enroll(watch, stage);
 	stage.addEventListener("scroll", heardIn(stage), SCROLL);
 }
 const scrollListeners = /* @__PURE__ */ new Set();
@@ -1523,6 +2475,117 @@ function relabel(node, label, options = {}) {
 }
 
 //#endregion
+//#region runtime/syntax-languages.js
+const syntaxLanguages = {
+	"bash": () => import("/vendor/syntax/bash.js"),
+	"css": () => import("/vendor/syntax/css.js"),
+	"diff": () => import("/vendor/syntax/diff.js"),
+	"go": () => import("/vendor/syntax/go.js"),
+	"html": () => import("/vendor/syntax/html.js"),
+	"java": () => import("/vendor/syntax/java.js"),
+	"javascript": () => import("/vendor/syntax/javascript.js"),
+	"json": () => import("/vendor/syntax/json.js"),
+	"markdown": () => import("/vendor/syntax/markdown.js"),
+	"python": () => import("/vendor/syntax/python.js"),
+	"rust": () => import("/vendor/syntax/rust.js"),
+	"sql": () => import("/vendor/syntax/sql.js"),
+	"toml": () => import("/vendor/syntax/toml.js"),
+	"typescript": () => import("/vendor/syntax/typescript.js"),
+	"yaml": () => import("/vendor/syntax/yaml.js")
+};
+const syntaxLanguageNames = {
+	"shellscript": "bash",
+	"bash": "bash",
+	"sh": "bash",
+	"shell": "bash",
+	"zsh": "bash",
+	"css": "css",
+	"diff": "diff",
+	"go": "go",
+	"html": "html",
+	"java": "java",
+	"javascript": "javascript",
+	"js": "javascript",
+	"cjs": "javascript",
+	"mjs": "javascript",
+	"json": "json",
+	"markdown": "markdown",
+	"md": "markdown",
+	"python": "python",
+	"py": "python",
+	"rust": "rust",
+	"rs": "rust",
+	"sql": "sql",
+	"toml": "toml",
+	"typescript": "typescript",
+	"ts": "typescript",
+	"cts": "typescript",
+	"mts": "typescript",
+	"yaml": "yaml",
+	"yml": "yaml"
+};
+const syntaxLanguagePaths = {
+	"bash": "bash",
+	"cjs": "javascript",
+	"css": "css",
+	"go": "go",
+	"htm": "html",
+	"html": "html",
+	"java": "java",
+	"js": "javascript",
+	"json": "json",
+	"jsx": "javascript",
+	"markdown": "markdown",
+	"md": "markdown",
+	"mjs": "javascript",
+	"py": "python",
+	"rs": "rust",
+	"sh": "bash",
+	"sql": "sql",
+	"toml": "toml",
+	"ts": "typescript",
+	"tsx": "typescript",
+	"yaml": "yaml",
+	"yml": "yaml"
+};
+
+//#endregion
+//#region runtime/language-paths.js
+let paths = syntaxLanguagePaths;
+const installLanguagePaths = (declarations) => {
+	paths = declarations;
+};
+const langForPath = (path) => {
+	const filename = path.slice(path.lastIndexOf("/") + 1);
+	const dot = filename.lastIndexOf(".");
+	return dot < 0 ? void 0 : paths[filename.slice(dot + 1).toLowerCase()];
+};
+
+//#endregion
+//#region runtime/control-keys.js
+const PRESS = ["Enter", " "];
+const rowArrows = (node) => node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
+const DISCLOSE = (el) => {
+	const disclosure = disclosureAt(el);
+	if (!disclosure) return [
+		...PRESS,
+		"ArrowLeft",
+		"ArrowRight"
+	];
+	const { element, open } = disclosure;
+	const [back, ahead] = rowArrows(element);
+	return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
+};
+const DISCLOSURE_SELECTOR = "details > summary, :is(button, [role=\"button\"])[aria-expanded]";
+function disclosureAt(el) {
+	if (!el?.matches("details > summary, :is(button, [role=\"button\"])[aria-expanded]")) return null;
+	return {
+		element: el,
+		open: el.matches("details > summary") ? el.matches("details[open] > summary") : el.getAttribute("aria-expanded") === "true"
+	};
+}
+
+//#endregion
 //#region runtime/widget-upgrade.js
 const initialized = /* @__PURE__ */ new WeakSet();
 function once(el) {
@@ -1629,6 +2692,191 @@ function showFailure(el, text, source) {
 	}
 	el.replaceChildren(part.startNode);
 	(part._$AI ?? part._$setValue).call(part, box);
+}
+
+//#endregion
+//#region runtime/keyboard/layer-stack.js
+let styleChrome = null;
+function installLayerStyleIntegration(style) {
+	styleChrome = style;
+}
+let entries = [];
+const watchedRoots = /* @__PURE__ */ new WeakSet();
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativePopoverShow = HTMLElement.prototype.showPopover;
+function prune() {
+	entries = entries.filter((entry) => entry.active());
+}
+function pushNativeLayer(node, source = null) {
+	const at = entries.findIndex((entry) => entry.root === node);
+	const existing = at < 0 ? null : entries[at];
+	if (existing?.active()) return existing;
+	prune();
+	const holding = focused();
+	const entry = {
+		root: node,
+		opening: !isNativeLayer(node),
+		get kind() {
+			return nativeLayerKind(node);
+		},
+		active() {
+			return this.opening || isNativeLayer(node);
+		},
+		fromNowhere: !holding || holding === document.body,
+		opener: holding && holding !== document.body ? holding : null,
+		source
+	};
+	if (entry.opening) queueMicrotask(() => {
+		entry.opening = false;
+	});
+	entries.push(entry);
+	return entry;
+}
+function closing(event) {
+	if (event.newState !== "closed") return;
+	const entry = entries.find((candidate) => candidate.root === event.target);
+	if (entry) entry.opening = false;
+	if (entry?.kind === "popover") {
+		for (const layer of nativeLayers().toReversed()) if (layer.kind === "modal" && renderedUnder(layer.root, entry.root)) closeNativeLayer(layer.root);
+	}
+	if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), entry.root)) releaseFocus();
+}
+HTMLDialogElement.prototype.showModal = function() {
+	const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+	try {
+		return nativeDialogShowModal.call(this);
+	} finally {
+		if (entry) entry.opening = false;
+	}
+};
+HTMLElement.prototype.showPopover = function(options) {
+	const entry = nativeLayerKind(this) !== "popover" ? pushNativeLayer(this) : null;
+	try {
+		nativePopoverShow.call(this, options);
+	} finally {
+		if (entry) entry.opening = false;
+	}
+	if (entry && options?.source) entry.source = options.source;
+};
+function showNativeLayer(layer, { source, modal = true } = {}) {
+	const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
+	if (withholdFocus) layer.inert = true;
+	try {
+		if (layer instanceof HTMLDialogElement) {
+			if (modal) {
+				if (source) seatModal(layer, source);
+				layer.showModal();
+			} else layer.show();
+		} else {
+			if (source && !isHTML(source)) throw new TypeError("A popover source must be an HTML element");
+			layer.showPopover(source ? { source } : void 0);
+		}
+	} finally {
+		if (withholdFocus) layer.inert = false;
+	}
+}
+const modalHomes = /* @__PURE__ */ new WeakMap();
+function seatModal(dialog, source) {
+	let place = modalHomes.get(dialog);
+	if (!place) {
+		const parent = dialog.parentNode;
+		if (!parent) throw new Error("A modal dialog needs a connected home");
+		place = {
+			home: parent,
+			chrome: Boolean(dialog.closest(".lf-chrome")),
+			scope: null
+		};
+		modalHomes.set(dialog, place);
+		const home = place;
+		const restore = () => {
+			if (dialog.parentNode !== home.home) move(home.home, dialog);
+			home.scope?.remove();
+		};
+		dialog.addEventListener("close", () => {
+			if (!dialog.open) restore();
+		});
+		watchOwner(dialog, { disconnect() {
+			if (dialog.parentNode === home.home) return;
+			closeNativeLayer(dialog);
+			restore();
+		} });
+	}
+	const holder = nativeLayerHolding(source);
+	let seat = place.home;
+	if (holder && nativeLayerKind(holder) === "popover") {
+		if (renderedUnder(holder, place.home)) seat = holder;
+		else if (place.chrome) {
+			if (!place.scope) {
+				place.scope = document.createElement("div");
+				place.scope.className = "lf-chrome";
+			}
+			const root = holder.getRootNode();
+			if (root instanceof ShadowRoot) styleChrome?.(root);
+			if (place.scope.parentNode !== holder) move(holder, place.scope);
+			seat = place.scope;
+		}
+	}
+	if (dialog.parentNode !== seat) move(seat, dialog);
+}
+function closeNativeLayer(layer) {
+	const dialog = layer instanceof HTMLDialogElement;
+	if (dialog ? !layer.open : !isNativeLayer(layer)) return;
+	const currentLocation = focused();
+	const returnTo = entries.find((entry) => entry.root === layer)?.opener;
+	const returnLocally = document.documentElement.lfSample && currentLocation && renderedUnder(currentLocation, layer);
+	const inhibited = document.documentElement.lfSample ? [document.documentElement, ...nativeLayers().filter((entry) => entry.kind === "modal").map((entry) => entry.root)].filter((node) => !node.inert) : [];
+	closeLayer(() => {
+		for (const node of inhibited) node.inert = true;
+		try {
+			if (dialog) layer.close();
+			else layer.hidePopover();
+		} finally {
+			for (const node of inhibited) node.inert = false;
+		}
+	}, returnLocally && (() => {
+		if (!canPlaceFocus()) return;
+		if (returnTo) handBack(returnTo);
+		else releaseFocus();
+	}));
+}
+const changeListeners = /* @__PURE__ */ new Set();
+function watchLayerChanges(listener) {
+	changeListeners.add(listener);
+	return () => changeListeners.delete(listener);
+}
+const changed = (event) => {
+	if (!(event.target instanceof HTMLElement) || !event.target.matches("[popover], dialog")) return;
+	for (const listener of changeListeners) listener(event);
+};
+function watchLayers(root) {
+	if (watchedRoots.has(root)) return;
+	watchedRoots.add(root);
+	const opened = (event) => {
+		if (event.newState === "open" && event.target instanceof HTMLElement && event.target.matches("[popover], dialog")) pushNativeLayer(event.target, event.source);
+	};
+	root.addEventListener("beforetoggle", opened, true);
+	root.addEventListener("beforetoggle", closing, true);
+	root.addEventListener("toggle", opened, true);
+	root.addEventListener("toggle", changed, true);
+}
+watchLayers(document);
+function nativeLayers() {
+	prune();
+	return entries.filter((entry) => entry.active());
+}
+const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
+Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
+function nativeModalAdmits(node) {
+	const owner = node.ownerDocument;
+	const reading = owner[NATIVE_LAYERS];
+	if (reading) {
+		const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
+		return !modal || renderedUnder(node, modal);
+	}
+	return [...owner.querySelectorAll("dialog")].filter((dialog) => nativeLayerKind(dialog) === "modal").every((modal) => renderedUnder(node, modal));
+}
+function dismissPopoversOutside(root) {
+	for (const entry of nativeLayers().toReversed()) if (entry.kind === "popover" && entry.root.popover !== "manual" && !renderedUnder(entry.root, root)) closeNativeLayer(entry.root);
 }
 
 //#endregion
@@ -1973,12 +3221,14 @@ const installStageIntegration = (adopt) => {
 };
 function adoptShadowStage(root) {
 	watchArrivalsIn(root);
+	watchLayers(root);
 	integration$1?.(root);
 	return root;
 }
 function shadowStage(host, nodes) {
 	const root = host.shadowRoot ?? stageFor(host);
 	watchArrivalsIn(root);
+	watchLayers(root);
 	const styles = integration$1?.(root) ?? [];
 	setChildren(root, [...styles, ...nodes]);
 	for (const child of [...host.childNodes]) child.remove();
@@ -2121,9 +3371,16 @@ var LeafElement = class extends q(UpdateBoundary) {
 		if (!this.#controller) throw new Error(`${this.localName} has no authored widget controller`);
 		return this.#controller;
 	}
+	defer() {
+		return this.#controller ? this.#controller.defer() : this.#hold();
+	}
 	#hold() {
+		if (this.#held) throw new Error("Widget presentation is already deferred");
 		this.#held = true;
+		let released = false;
 		return () => {
+			if (released) return;
+			released = true;
 			this.#held = false;
 			this.#refresh();
 		};
@@ -2318,6 +3575,93 @@ function foldBlock(el, allocation = null) {
 }
 
 //#endregion
+//#region runtime/user-intent.js
+const passed = /* @__PURE__ */ new WeakMap();
+const passOn = (container, target) => passed.set(target, {
+	container,
+	intent: inputCount()
+});
+const displaced = (source, at) => {
+	if (!(source instanceof Node) || !at) return false;
+	const via = passed.get(at);
+	const carry = carriedFrom(at);
+	return at.contains(source) || via?.intent === inputCount() && via.container.contains(source) || carry?.inputs === inputCount() && (carry.from === source || source.contains(carry.from));
+};
+function retainUserIntent({ source = focused(), available = () => true, fallback = null, since = inputCount() } = {}) {
+	const retained = since;
+	let held = source instanceof Node ? new WeakRef(source) : null;
+	const current = () => {
+		const at = focused();
+		const from = held?.deref();
+		const withinSource = from === document.body ? at === document.body : from?.contains(at);
+		return Boolean(available() && retained === inputCount() && (at === document.body || at === fallback || withinSource || displaced(from, at)));
+	};
+	current.available = available;
+	current.handoff = (move) => {
+		if (!available() || retained !== inputCount()) return false;
+		const moved = current();
+		if (moved) move();
+		const at = focused();
+		held = at ? new WeakRef(at) : null;
+		return moved && current();
+	};
+	return current;
+}
+function restrictUserIntent(retained, available) {
+	const current = () => available() && retained();
+	current.available = () => available() && retained.available();
+	current.handoff = (move) => available() && retained.handoff(move);
+	return current;
+}
+
+//#endregion
+//#region runtime/rect.js
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
+const BOTH = {
+	x: true,
+	y: true
+};
+const intersect = (a, b, axes = BOTH) => ({
+	left: axes.x ? Math.max(a.left, b.left) : a.left,
+	top: axes.y ? Math.max(a.top, b.top) : a.top,
+	right: axes.x ? Math.min(a.right, b.right) : a.right,
+	bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom
+});
+const hasArea = (box) => box.right > box.left && box.bottom > box.top;
+function union(boxes) {
+	if (!boxes.length) return null;
+	const left = Math.min(...boxes.map((box) => box.left));
+	const top = Math.min(...boxes.map((box) => box.top));
+	const right = Math.max(...boxes.map((box) => box.right));
+	const bottom = Math.max(...boxes.map((box) => box.bottom));
+	return {
+		left,
+		top,
+		right,
+		bottom,
+		width: right - left,
+		height: bottom - top
+	};
+}
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+function nearestScrollBy(start, end, low, high) {
+	if (start < low && end > high) return 0;
+	const oversized = end - start > high - low;
+	if (start < low) return oversized ? end - high : start - low;
+	if (end > high) return oversized ? start - low : end - high;
+	return 0;
+}
+const clippingAxes = (style) => {
+	const clips = /^(hidden|clip|scroll|auto)$/;
+	const both = /paint|strict|content/.test(style.contain) || /^(auto|hidden)$/.test(style.contentVisibility);
+	return {
+		x: both || clips.test(style.overflowX),
+		y: both || clips.test(style.overflowY)
+	};
+};
+
+//#endregion
 //#region runtime/shown-box.js
 const skipped = (element) => {
 	if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
@@ -2366,55 +3710,1247 @@ function measure(el, take) {
 }
 
 //#endregion
-//#region runtime/syntax-languages.js
-const syntaxLanguages = {
-	"bash": () => import("/vendor/syntax/bash.js"),
-	"css": () => import("/vendor/syntax/css.js"),
-	"diff": () => import("/vendor/syntax/diff.js"),
-	"go": () => import("/vendor/syntax/go.js"),
-	"html": () => import("/vendor/syntax/html.js"),
-	"java": () => import("/vendor/syntax/java.js"),
-	"javascript": () => import("/vendor/syntax/javascript.js"),
-	"json": () => import("/vendor/syntax/json.js"),
-	"markdown": () => import("/vendor/syntax/markdown.js"),
-	"python": () => import("/vendor/syntax/python.js"),
-	"rust": () => import("/vendor/syntax/rust.js"),
-	"sql": () => import("/vendor/syntax/sql.js"),
-	"toml": () => import("/vendor/syntax/toml.js"),
-	"typescript": () => import("/vendor/syntax/typescript.js"),
-	"yaml": () => import("/vendor/syntax/yaml.js")
+//#region runtime/geometry.js
+const nativeViewport = window.visualViewport;
+if (!nativeViewport) throw new Error("Leaf requires an active visual viewport");
+const visualViewport = nativeViewport;
+const shellRight = () => document.body.getBoundingClientRect().right;
+const windowChrome = /* @__PURE__ */ new Map();
+const chromeSizes = sizeObserver(() => announceRoom(document));
+const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
+const declareWindowChrome = (boxes, elements) => {
+	windowChrome.set(boxes, elements);
+	elements.forEach(watchChrome);
 };
-const syntaxLanguageNames = {
-	"shellscript": "bash",
-	"bash": "bash",
-	"sh": "bash",
-	"shell": "bash",
-	"zsh": "bash",
-	"css": "css",
-	"diff": "diff",
-	"go": "go",
-	"html": "html",
-	"java": "java",
-	"javascript": "javascript",
-	"js": "javascript",
-	"cjs": "javascript",
-	"mjs": "javascript",
-	"json": "json",
-	"markdown": "markdown",
-	"md": "markdown",
-	"python": "python",
-	"py": "python",
-	"rust": "rust",
-	"rs": "rust",
-	"sql": "sql",
-	"toml": "toml",
-	"typescript": "typescript",
-	"ts": "typescript",
-	"cts": "typescript",
-	"mts": "typescript",
-	"yaml": "yaml",
-	"yml": "yaml"
+const standsIn = (node, elements) => Boolean(node) && elements.some((element) => under(node, element));
+const inWindowChrome = (node) => [...windowChrome.values()].some((elements) => standsIn(node, elements));
+const windowChromeBoxes = (item = null) => [...windowChrome].filter(([, elements]) => !standsIn(item, elements)).flatMap(([boxes]) => boxes());
+const layoutWindow = (doc = document) => ({
+	left: 0,
+	top: 0,
+	right: doc.documentElement.clientWidth,
+	bottom: doc.documentElement.clientHeight
+});
+function shownWindow({ within = null, gap = 0, viewport = "visual", item = null, across = null } = {}) {
+	const layout = layoutWindow();
+	const { offsetLeft, offsetTop, width, height } = viewport === "visual" ? visualViewport : {
+		offsetLeft: 0,
+		offsetTop: 0,
+		width: layout.right,
+		height: layout.bottom
+	};
+	const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
+	const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
+	let top = Math.max(offsetTop, within?.top ?? -Infinity);
+	let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
+	const middle = offsetTop + height / 2;
+	for (const box of windowChromeBoxes(item)) {
+		if (!overlapsAcross(box, across ?? {
+			left,
+			right
+		})) continue;
+		if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
+		else bottom = Math.min(bottom, box.top);
+	}
+	top += gap;
+	bottom -= gap;
+	return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+}
+function shownBand(el) {
+	const doc = el.ownerDocument;
+	if (el === doc.scrollingElement) return layoutWindow(doc);
+	const s = getComputedStyle(el);
+	const axes = clippingAxes(s);
+	if (!axes.x && !axes.y) return null;
+	const b = el.getBoundingClientRect();
+	const scaleX = isHTML(el) && el.offsetWidth ? b.width / el.offsetWidth : 1;
+	const scaleY = isHTML(el) && el.offsetHeight ? b.height / el.offsetHeight : 1;
+	const left = b.left + el.clientLeft * scaleX, top = b.top + el.clientTop * scaleY;
+	return {
+		left,
+		top,
+		right: left + el.clientWidth * scaleX,
+		bottom: top + el.clientHeight * scaleY
+	};
+}
+const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
+const scrollsBy = ({ overflowX, overflowY }) => scrollport(overflowX) || scrollport(overflowY);
+const scrolls = (el) => scrollsBy(getComputedStyle(el));
+const scrollContainer = (box) => box === box.ownerDocument.scrollingElement || scrolls(box);
+function scrollsContent(box) {
+	if (!isElement(box) || box.namespaceURI === "http://www.w3.org/2000/svg") return false;
+	const style = getComputedStyle(box);
+	return scrollport(style.overflowX) && box.scrollWidth > box.clientWidth || scrollport(style.overflowY) && box.scrollHeight > box.clientHeight;
+}
+const slotHolder = (el, scroller) => {
+	let at = el;
+	let box = el;
+	for (; box && box !== scroller; box = renderedParent(box)) if (box.nodeType === 1 && scrolls(box)) at = renderedParent(box);
+	return at;
 };
+const insetAt = (at, scroller, slot, padding) => {
+	const read = (box) => Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
+	const inset = at?.nodeType === 1 ? read(at) : 0;
+	if (inset <= read(scroller)) return 0;
+	return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
+};
+const TOP = ["--lf-top", "paddingTop"];
+function slotTop(scroller) {
+	const style = getComputedStyle(scroller);
+	return (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.getPropertyValue("--lf-top")) || 0);
+}
+const FOOT = ["--lf-bottom", "paddingBottom"];
+const edgeInset = (el, scroller, edge) => !scrollContainer(scroller) || el === scroller ? 0 : insetAt(slotHolder(el, scroller), scroller, ...edge);
+const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
+const footerInset = (el, scroller) => edgeInset(el, scroller, FOOT);
+function visibleBand(scroller, item = null) {
+	const band = shownBand(scroller);
+	if (!band || !item) return band;
+	const top = band.top + headerInset(item, scroller);
+	const bottom = band.bottom - footerInset(item, scroller);
+	return bottom > top ? {
+		...band,
+		top,
+		bottom
+	} : null;
+}
+const OPEN = 1e5;
+function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
+	return clipWalk(item, clips, false).cuts.filter(({ covered, footed }) => covered || footed).reverse().map(({ box, band, covered, footed }) => ({
+		box,
+		band: band && {
+			left: band.left - OPEN,
+			right: band.right + OPEN,
+			top: covered ? band.top : band.top - OPEN,
+			bottom: footed ? band.bottom : band.bottom + OPEN
+		}
+	}));
+}
+function stuckBox(node, within = null) {
+	let el = node;
+	for (; el?.nodeType === 1 && el !== within; el = renderedParent(el)) {
+		const style = getComputedStyle(el);
+		if (style.position === "sticky" ? sticks(el) : inWindow(el, style)) return el;
+	}
+	return null;
+}
+const inWindow = (el, style) => style.position === "fixed" && isHTML(el) && el.offsetParent === null && !style.positionAnchor.startsWith("--");
+function sticks(sticky) {
+	let scroller = renderedParent(sticky);
+	while (scroller?.nodeType === 1 && !scrollContainer(scroller)) scroller = renderedParent(scroller);
+	if (scroller?.nodeType !== 1) return false;
+	const band = shownBand(scroller);
+	if (!band) return false;
+	const style = getComputedStyle(sticky);
+	const room = getComputedStyle(scroller);
+	const padTop = Number.parseFloat(room.paddingTop) || 0;
+	const padBottom = Number.parseFloat(room.paddingBottom) || 0;
+	const box = sticky.getBoundingClientRect();
+	let parent = renderedParent(sticky);
+	while (parent && parent !== scroller && getComputedStyle(parent).display === "contents") parent = renderedParent(parent);
+	const content = band.top - scroller.scrollTop;
+	const holder = parent === scroller ? {
+		top: content + padTop,
+		bottom: content + scroller.scrollHeight - padBottom
+	} : parent && shownBox(parent);
+	if (!holder) return false;
+	const topLine = band.top + padTop + Number.parseFloat(style.top);
+	const footLine = band.bottom - padBottom - Number.parseFloat(style.bottom);
+	if (box.top <= topLine + 1 && holder.top < box.top - 1) return true;
+	if (Math.abs(box.bottom - footLine) <= 1) return true;
+	return box.bottom > footLine && holder.bottom > box.bottom + 1;
+}
+function landingBand(scroller) {
+	const band = shownBand(scroller);
+	if (!band) return null;
+	const inset = landingInsets(scroller);
+	return {
+		left: band.left + inset.left,
+		top: band.top + inset.top,
+		right: band.right - inset.right,
+		bottom: band.bottom - inset.bottom
+	};
+}
+function landingInsets(scroller) {
+	const style = getComputedStyle(scroller);
+	const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
+	return {
+		top: inset("Top"),
+		right: inset("Right"),
+		bottom: inset("Bottom"),
+		left: inset("Left")
+	};
+}
+function shownBox(el) {
+	if (el === document.scrollingElement) {
+		const { left, top, right, bottom } = layoutWindow(el.ownerDocument);
+		return new DOMRect(left, top, right - left, bottom - top);
+	}
+	return elementBox(el);
+}
+function shownParts(el) {
+	const r = el.getBoundingClientRect();
+	if (r.width && r.height) return [el];
+	return [...el.children].filter((child) => !uiInside(child, el)).flatMap((child) => shownParts(child));
+}
+const shownExtent = (el) => union(shownParts(el).map((part) => part.getBoundingClientRect()));
+function shownRect(item, clips) {
+	return clippedRect(shownBox(item), item, clips);
+}
+function seenRect(item, clips, box = placeBox(item)) {
+	const shown = clippedPlace(item, clips, box);
+	if (!shown) return null;
+	const room = shownWindow({
+		within: shown,
+		item: placeHolder(item)
+	});
+	return room.width > 0 && room.height > 0 ? {
+		left: shown.left,
+		top: room.top,
+		right: shown.right,
+		bottom: room.bottom
+	} : null;
+}
+const showsContents = (node, options) => node.getAttribute("hidden") !== "until-found" && node.checkVisibility(options);
+function presented(node) {
+	if (!showsContents(node, { visibilityProperty: true }) || excludedByInert(node) || !nativeModalAdmits(node)) return false;
+	let at = node;
+	for (; at; at = renderedParent(at)) if (at.getAttribute?.("aria-hidden") === "true") return false;
+	return true;
+}
+function frameView(frame, within) {
+	const seen = seenRect(frame, /* @__PURE__ */ new Map());
+	const shown = seen && intersect(seen, within);
+	if (!shown || !hasArea(shown)) return null;
+	const rect = frame.getBoundingClientRect();
+	const scaleX = rect.width / frame.offsetWidth || 1;
+	const scaleY = rect.height / frame.offsetHeight || 1;
+	const x = (at) => (at - rect.left) / scaleX - frame.clientLeft;
+	const y = (at) => (at - rect.top) / scaleY - frame.clientTop;
+	return {
+		left: x(shown.left),
+		top: y(shown.top),
+		right: x(shown.right),
+		bottom: y(shown.bottom)
+	};
+}
+const ROOM_MOVED = "lf-room-moved";
+const announceRoom = (target) => target.dispatchEvent(new Event(ROOM_MOVED, {
+	bubbles: true,
+	composed: true
+}));
+function watchRoom(callback) {
+	const viewport = visualViewport;
+	const listening = [
+		[window, "resize"],
+		[viewport, "scroll"],
+		[viewport, "resize"],
+		[
+			document,
+			ROOM_MOVED,
+			true
+		]
+	];
+	for (const [target, type, capture] of listening) target.addEventListener(type, callback, capture);
+	const stops = [
+		watchScrolls(callback),
+		watchLayerChanges(callback),
+		() => {
+			for (const [target, type, capture] of listening) target.removeEventListener(type, callback, capture);
+		}
+	];
+	return () => {
+		for (const stop of stops) stop();
+	};
+}
+function motionBand(item, clips) {
+	const walk = clipWalk(item, clips, false);
+	const cut = cutBy({
+		left: -Infinity,
+		top: -Infinity,
+		right: Infinity,
+		bottom: Infinity
+	}, walk.cuts.map((each) => ({
+		...each,
+		axes: {
+			...each.axes,
+			x: false
+		}
+	})), item.ownerDocument.scrollingElement, true);
+	if (!cut) return null;
+	const room = shownWindow({ within: cut });
+	if (room.height <= 0) return null;
+	const scroller = walk.cuts.find(({ box, scrolls }) => scrolls && box.scrollHeight > box.clientHeight)?.box;
+	const anchorBand = !scroller ? cut : scroller.scrollTop > 0 ? landingBand(scroller) : shownBand(scroller);
+	return anchorBand && anchorBand.top < room.bottom ? {
+		top: anchorBand.top,
+		bottom: room.bottom
+	} : null;
+}
+function growthIsSeen(node, clips = /* @__PURE__ */ new Map()) {
+	const { top, bottom, height } = node.getBoundingClientRect();
+	if (!height) return false;
+	const band = motionBand(node, clips);
+	return band !== null && bottom > band.top && top < band.bottom;
+}
+function growthAfterIsSeen(node, clips = /* @__PURE__ */ new Map()) {
+	const { bottom, height } = node.getBoundingClientRect();
+	if (!height) return false;
+	const band = motionBand(node, clips);
+	return band !== null && bottom > band.top && bottom < band.bottom;
+}
+const watches = /* @__PURE__ */ new Set();
+let watchPass = null;
+let unlisten = null;
+const readWatches = () => {
+	watchPass = null;
+	const clips = /* @__PURE__ */ new Map();
+	const left = [...watches].filter((watch) => watch.read(clips));
+	for (const watch of left) if (watches.has(watch)) watch.leave();
+};
+const rereadWatches = () => {
+	watchPass ??= nextRender(readWatches);
+};
+function whenNone(nodes, holds, leave) {
+	let held = null;
+	const watch = {
+		leave,
+		read(clips) {
+			const now = nodes.some((node) => node.isConnected && Boolean(holds(node, clips)));
+			const stopped = !now && held !== false;
+			held = now;
+			return stopped;
+		}
+	};
+	watches.add(watch);
+	unlisten ??= watchRoom(rereadWatches);
+	const observer = new IntersectionObserver(rereadWatches);
+	for (const node of nodes) observer.observe(node);
+	return () => {
+		observer.disconnect();
+		watches.delete(watch);
+		if (watches.size) return;
+		unlisten?.();
+		unlisten = null;
+		if (watchPass !== null) cancelRender(watchPass);
+		watchPass = null;
+	};
+}
+const startsAt = (item, clips) => {
+	const fragments = item.getClientRects();
+	return (fragments.length ? [...fragments] : [shownBox(item)]).map((box) => clippedRect(box, item, clips)).find(Boolean);
+};
+const clippedRect = (box, item, clips, stop) => clipped(box, item, clips, false, true, stop);
+function paintClips(item, box, clips, aboveSurfaces, held = false) {
+	const walk = clipWalk(item, clips, held);
+	const plane = walk.fixed ? "window" : "page";
+	const root = item.ownerDocument.scrollingElement;
+	const hidden = {
+		plane,
+		window: {
+			left: 0,
+			top: 0,
+			right: 0,
+			bottom: 0
+		},
+		bands: []
+	};
+	let window = walk.cuts.find(({ box: cut, covered }) => cut === root && covered)?.band;
+	const bands = [];
+	for (const cut of walk.cuts) {
+		const band = cut.band;
+		if (!band) return hidden;
+		if (cut.box !== root) bands.unshift({
+			...cut,
+			band
+		});
+	}
+	let shown = cutBy(box, walk.cuts, root, false);
+	if (!shown) return {
+		plane,
+		window: window ?? null,
+		bands
+	};
+	for (const { surface, box: over, level } of aboveSurfaces ? openOccluders(clips) : []) {
+		if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level) continue;
+		const left = uncovered(shown, over);
+		if (!left) return hidden;
+		window ??= layoutWindow(item.ownerDocument);
+		window = {
+			left: left.left > shown.left ? Math.max(window.left, over.right) : window.left,
+			top: left.top > shown.top ? Math.max(window.top, over.bottom) : window.top,
+			right: left.right < shown.right ? Math.min(window.right, over.left) : window.right,
+			bottom: left.bottom < shown.bottom ? Math.min(window.bottom, over.top) : window.bottom
+		};
+		shown = left;
+	}
+	return {
+		plane,
+		window: window ?? null,
+		bands
+	};
+}
+const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, false);
+const nearObserver = (callback) => new IntersectionObserver(callback, {
+	rootMargin: "100%",
+	scrollMargin: "600px"
+});
+function nearWindow(target, clips = /* @__PURE__ */ new Map()) {
+	if (!target.checkVisibility()) return false;
+	const box = pagePlaneRect(shownBox(target), target, clips);
+	const { right: width, bottom: height } = layoutWindow();
+	return box !== null && box.bottom >= -height && box.top <= 2 * height && box.right >= -width && box.left <= 2 * width;
+}
+const clippedContents = (box, holder, clips, stop) => clipped(box, holder, clips, true, true, stop);
+function clipped(box, item, clips, held, inWindow = true, stop) {
+	const root = item.ownerDocument.scrollingElement;
+	const shown = cutBy(box, clipWalk(item, clips, held, stop).cuts, root, inWindow && !stop);
+	return stop ? shown : shown && occluded(shown, item, clips);
+}
+function cutBy(box, cuts, root, inWindow) {
+	let shown = inWindow ? intersect(box, layoutWindow()) : box;
+	for (const { box: cut, band, axes, covered } of cuts) {
+		if (!band) return null;
+		const edges = !inWindow && cut === root ? {
+			left: -Infinity,
+			top: covered ? band.top : -Infinity,
+			right: Infinity,
+			bottom: Infinity
+		} : band;
+		shown = intersect(shown, edges, axes);
+	}
+	const { left, top, right, bottom } = shown;
+	return hasArea(shown) ? {
+		left,
+		top,
+		right,
+		bottom
+	} : null;
+}
+function clipWalk(item, clips, held, stop) {
+	let holder = item;
+	let escaped = false;
+	let containing = null;
+	const cuts = [];
+	let a = item;
+	for (; a && a !== stop; a = renderedParent(a)) {
+		let c = clips.get(a);
+		if (c === void 0) clips.set(a, c = {
+			band: shownBand(a),
+			axes: a === a.ownerDocument.scrollingElement ? {
+				x: true,
+				y: true
+			} : clippingAxes(getComputedStyle(a)),
+			positioned: isHTML(a) && ["fixed", "absolute"].includes(getComputedStyle(a).position),
+			block: isHTML(a) ? a.offsetParent : void 0,
+			scrolls: scrollContainer(a)
+		});
+		if (escaped && a === containing) escaped = false;
+		if (!escaped && (held || a !== item) && c.band) {
+			const covered = c.band.top + (!stop && c.scrolls ? insetAt(holder, a, ...TOP) : 0);
+			const footed = c.band.bottom - (!stop && c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
+			cuts.push({
+				box: a,
+				axes: c.axes,
+				scrolls: c.scrolls,
+				covered: c.axes.y && covered > c.band.top,
+				footed: c.axes.y && footed < c.band.bottom,
+				band: c.axes.y && covered >= footed ? null : c.axes.y ? {
+					...c.band,
+					top: covered,
+					bottom: footed
+				} : c.band
+			});
+		}
+		if (c.scrolls) holder = renderedParent(a);
+		if (!escaped && c.positioned) {
+			escaped = true;
+			containing = c.block;
+		}
+	}
+	return {
+		cuts,
+		fixed: escaped && !containing
+	};
+}
+const occluders = /* @__PURE__ */ new Set();
+const standsNow = (surface) => surface.checkVisibility();
+function restingBox(surface) {
+	let left = 0, top = 0;
+	let at = surface;
+	for (; at && isHTML(at); at = at.offsetParent) {
+		left += at.offsetLeft + (at === surface ? 0 : at.clientLeft);
+		top += at.offsetTop + (at === surface ? 0 : at.clientTop);
+	}
+	return {
+		left,
+		top,
+		right: left + surface.offsetWidth,
+		bottom: top + surface.offsetHeight
+	};
+}
+const declareOccluder = (surface) => {
+	occluders.add(surface);
+	watchChrome(surface);
+	return () => {
+		occluders.delete(surface);
+		chromeSizes.unobserve(surface);
+		announceRoom(document);
+	};
+};
+function rightCover() {
+	const edge = layoutWindow().right;
+	let left = Infinity;
+	for (const surface of occluders) {
+		if (!standsNow(surface)) continue;
+		const box = restingBox(surface);
+		if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
+	}
+	return left;
+}
+const PAST = Symbol("past");
+const clipsPast = (surfaces) => {
+	const clips = /* @__PURE__ */ new Map();
+	clips.set(PAST, new Set(surfaces));
+	return clips;
+};
+const clipsPastSurfaces = () => clipsPast(occluders);
+function coveredShare(surface, where, landed = null) {
+	const holder = placeHolder(where);
+	if (!holder || !occluders.has(surface) || !standsNow(surface)) return 0;
+	if (under(holder, surface) || under(surface, holder)) return 0;
+	if (stackLevel(holder) >= stackLevel(surface)) return 0;
+	const box = landed ?? placeBox(where);
+	const { left, top, right, bottom } = landed ?? clippedPlace(where, clipsPast([surface]), box) ?? box;
+	const over = restingBox(surface);
+	const across = Math.max(0, Math.min(right, over.right) - Math.max(left, over.left));
+	const room = shownWindow({ viewport: "layout" });
+	if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1) return across / (right - left || 1);
+	return across * Math.max(0, Math.min(bottom, over.bottom) - Math.max(top, over.top)) / ((right - left) * (bottom - top) || 1);
+}
+const hides = (surface, where) => coveredShare(surface, where) > .5;
+const underOccluder = (where) => [...occluders].some((surface) => hides(surface, where));
+const placeHolder = (where) => where instanceof Range ? isElement(where.startContainer) ? where.startContainer : where.startContainer.parentElement : where;
+const placeBox = (where) => where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+const clippedPlace = (where, clips, box = placeBox(where)) => {
+	if (!(where instanceof Range)) return clippedRect(box, where, clips);
+	const holder = placeHolder(where);
+	return holder && clippedContents(box, holder, clips);
+};
+function stackLevel(node) {
+	let level = 0;
+	let a = node;
+	for (; a; a = renderedParent(a)) {
+		if (isNativeLayer(a)) return Infinity;
+		const { position, zIndex } = getComputedStyle(a);
+		if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
+	}
+	return level;
+}
+const OCCLUDERS = Symbol("occluders");
+function openOccluders(clips) {
+	let open = clips.get(OCCLUDERS);
+	if (open) return open;
+	const past = clips.get(PAST);
+	open = [...occluders].filter(standsNow).filter((surface) => !past?.has(surface)).map((surface) => ({
+		surface,
+		box: restingBox(surface),
+		level: stackLevel(surface)
+	}));
+	clips.set(OCCLUDERS, open);
+	return open;
+}
+const area = (box) => (box.right - box.left) * (box.bottom - box.top);
+function occluded(rect, item, clips) {
+	for (const { surface, box, level } of openOccluders(clips)) {
+		if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level) continue;
+		const remaining = uncovered(rect, box);
+		if (!remaining) return null;
+		rect = remaining;
+	}
+	return rect;
+}
+function uncovered(rect, box) {
+	if (!overlaps(rect, box)) return rect;
+	const sides = [
+		{
+			...rect,
+			right: Math.min(rect.right, box.left)
+		},
+		{
+			...rect,
+			left: Math.max(rect.left, box.right)
+		},
+		{
+			...rect,
+			bottom: Math.min(rect.bottom, box.top)
+		},
+		{
+			...rect,
+			top: Math.max(rect.top, box.bottom)
+		}
+	].filter((side) => side.right > side.left && side.bottom > side.top);
+	return sides.length ? sides.reduce((most, side) => area(side) > area(most) ? side : most) : null;
+}
+
+//#endregion
+//#region runtime/scrolling.js
+const nativeScroller = document.scrollingElement;
+if (!(nativeScroller instanceof HTMLElement)) throw new Error("Leaf requires an active HTML document scrollport");
+const pageScroller = nativeScroller;
+const moving = /* @__PURE__ */ new WeakMap();
+const ended = /* @__PURE__ */ new WeakMap();
+const scrollSteps = /* @__PURE__ */ new WeakMap();
+const layoutMoved = /* @__PURE__ */ new WeakSet();
+const watchedLayout = /* @__PURE__ */ new WeakSet();
+const extents = /* @__PURE__ */ new WeakMap();
+const extentOf = (box) => [
+	box.scrollHeight,
+	box.clientWidth,
+	box.clientHeight
+];
+const changedExtent = (before, after) => before?.some((value, index) => value !== after[index]);
+function watchLayout(box) {
+	if (watchedLayout.has(box)) return;
+	watchedLayout.add(box);
+	extents.set(box, extentOf(box));
+	const root = box === pageScroller ? document.documentElement : box;
+	const sizes = /* @__PURE__ */ new WeakMap();
+	const measure = (node) => skipped(node) ? null : [
+		node.clientWidth,
+		node.clientHeight,
+		node.scrollHeight
+	];
+	const observer = sizeObserver((entries) => {
+		let changed = false;
+		for (const { target } of entries) {
+			const next = measure(target);
+			const before = sizes.get(target);
+			sizes.set(target, next);
+			if (next && (!before || before.some((value, index) => value !== next[index]))) changed = true;
+		}
+		if (changed) {
+			if (ended.has(box) && box.scrollTop !== ended.get(box)) layoutMoved.add(box);
+			else extents.set(box, extentOf(box));
+		}
+	}, { counted: false });
+	const observe = (node) => {
+		sizes.set(node, measure(node));
+		observer.observe(node);
+	};
+	observe(root);
+	if (box !== pageScroller) {
+		for (const child of box.children) observe(child);
+		const mutation = new MutationObserver((entries) => {
+			for (const entry of entries) {
+				for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
+				for (const node of entry.removedNodes) if (node instanceof Element) observer.unobserve(node);
+			}
+		});
+		mutation.observe(box, { childList: true });
+		watchOwner(box, { disconnect() {
+			observer.disconnect();
+			mutation.disconnect();
+			watchedLayout.delete(box);
+		} });
+	}
+}
+watchLayout(pageScroller);
+ended.set(pageScroller, pageScroller.scrollTop);
+function stopScroll(boxes) {
+	const stopped = [...boxes].flatMap((box) => {
+		const sequence = moving.get(box);
+		return sequence ? [{
+			box,
+			sequence
+		}] : [];
+	});
+	if (!stopped.length) return null;
+	for (const { box } of stopped) setScroll(box, {
+		left: box.scrollLeft,
+		top: box.scrollTop,
+		behavior: "instant"
+	});
+	return new Promise((resolve) => nextFrame(() => nextFrame(() => {
+		for (const { box, sequence } of stopped) if (moving.get(box) === sequence) moving.delete(box);
+		resolve(void 0);
+	})));
+}
+let choices = 0;
+const chosen = /* @__PURE__ */ new WeakMap();
+const kept = /* @__PURE__ */ new WeakMap();
+const scrollChoices = () => choices;
+const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
+const chooseScroll = (box) => chosen.set(box, ++choices);
+function startScroll(box) {
+	moving.set(box, { glide: true });
+	chooseScroll(box);
+}
+let travel = null;
+document.addEventListener("beforematch", () => {
+	const mark = travel = {};
+	nextFrame(() => nextFrame(() => {
+		if (travel === mark) travel = null;
+	}));
+}, { capture: true });
+const eventScroller = (target) => target === document ? pageScroller : target instanceof Element ? target : null;
+document.addEventListener("scroll", ({ target }) => {
+	const box = eventScroller(target);
+	if (!box) return;
+	if (skipped(box)) return;
+	watchLayout(box);
+	scrollSteps.set(box, (scrollSteps.get(box) ?? 0) + 1);
+	if (moving.get(box)?.glide) return;
+	const sequence = { glide: false };
+	moving.set(box, sequence);
+	nextFrame(() => nextFrame(() => {
+		if (moving.get(box) === sequence) moving.delete(box);
+	}));
+}, {
+	capture: true,
+	passive: true
+});
+function placeKept(...boxes) {
+	for (const box of boxes) kept.set(box, box.scrollTop);
+}
+document.addEventListener("scrollend", ({ target }) => {
+	const box = eventScroller(target);
+	if (!box) return;
+	if (skipped(box)) {
+		moving.delete(box);
+		scrollSteps.delete(box);
+		layoutMoved.delete(box);
+		return;
+	}
+	watchLayout(box);
+	const wasMoving = moving.get(box);
+	moving.delete(box);
+	const extent = extentOf(box);
+	const repeated = (scrollSteps.get(box) ?? 0) > 1;
+	scrollSteps.delete(box);
+	if ((wasMoving?.glide || repeated || travel !== null || ended.get(box) !== box.scrollTop && !layoutMoved.has(box) && !changedExtent(extents.get(box), extent)) && kept.get(box) !== box.scrollTop) chooseScroll(box);
+	ended.set(box, box.scrollTop);
+	layoutMoved.delete(box);
+	extents.set(box, extent);
+	kept.delete(box);
+}, {
+	capture: true,
+	passive: true
+});
+const riding = /* @__PURE__ */ new WeakSet();
+const contentRides = (box, rides) => rides ? riding.add(box) : riding.delete(box);
+function laidOutHeight(box) {
+	let end = 0;
+	for (const child of box.children) {
+		if (!child.checkVisibility()) continue;
+		if (!(child instanceof HTMLElement) || child.offsetParent !== box) return box.scrollHeight;
+		end = Math.max(end, child.offsetTop + child.offsetHeight + Number.parseFloat(getComputedStyle(child).marginBottom));
+	}
+	const padding = Number.parseFloat(getComputedStyle(box).paddingBottom);
+	return Math.min(box.scrollHeight, end + padding);
+}
+const scrollLimit = (box) => Math.max(0, (riding.has(box) ? laidOutHeight(box) : box.scrollHeight) - box.clientHeight);
+const SCROLL_SLACK = 2;
+const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
+const scrollToEnd = (box, behavior = "instant") => {
+	if (behavior !== "instant" && !atScrollEnd(box)) startScroll(box);
+	setScroll(box, {
+		top: scrollLimit(box),
+		behavior
+	});
+};
+const aims = /* @__PURE__ */ new WeakMap();
+const moveScrollerBy = (box, top, behavior = "instant") => {
+	const aim = box.scrollTop + top;
+	if (Math.abs(top) >= .5) {
+		if (behavior !== "instant" && reachable(box, top)) startScroll(box);
+		setScroll(box, {
+			top: aim,
+			behavior
+		});
+	}
+	if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1) aims.set(box, {
+		aim,
+		at: box.scrollTop
+	});
+	else aims.delete(box);
+};
+const aimedTop = (box) => {
+	const kept = aims.get(box);
+	return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
+};
+const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+
+//#endregion
+//#region runtime/scroll-containers.js
+let lookup = (node) => {
+	for (let at = node instanceof Element ? node : node?.parentElement; at; at = renderedParent(at)) if (at === pageScroller || /^(auto|scroll)$/.test(getComputedStyle(at).overflowY)) return at;
+	return pageScroller;
+};
+function installScrollerLookup(read) {
+	lookup = read;
+}
+function* scrollersOf(node) {
+	for (let box = lookup(node);; box = lookup(renderedParent(box))) {
+		for (let at = node; at !== box; at = renderedParent(at)) if (!at || getComputedStyle(at).position === "fixed") return;
+		yield box;
+		if (box === pageScroller) return;
+		node = box;
+	}
+}
+
+//#endregion
+//#region runtime/element-axes.js
+function elementAxes(source) {
+	let matrix = new window.DOMMatrix();
+	let node = source;
+	for (; isElement(node); node = renderedParent(node)) {
+		const style = getComputedStyle(node);
+		let local = new window.DOMMatrix();
+		if (style.rotate !== "none") {
+			const split = style.rotate.lastIndexOf(" ");
+			const angle = style.rotate.slice(split + 1);
+			const parts = style.rotate.slice(0, split + 1).trim().split(" ");
+			const degrees = parseFloat(angle) * (angle.endsWith("turn") ? 360 : angle.endsWith("grad") ? .9 : angle.endsWith("rad") ? 180 / Math.PI : 1);
+			const axis = parts.length === 3 ? [
+				Number(parts[0]),
+				Number(parts[1]),
+				Number(parts[2])
+			] : parts[0] === "x" ? [
+				1,
+				0,
+				0
+			] : parts[0] === "y" ? [
+				0,
+				1,
+				0
+			] : [
+				0,
+				0,
+				1
+			];
+			local = local.rotateAxisAngle(...axis, degrees);
+		}
+		if (style.scale !== "none") {
+			const scale = style.scale.split(" ").map(Number);
+			local = local.scale(scale[0], scale[1] ?? scale[0], scale[2] ?? 1);
+		}
+		if (style.transform !== "none") local = local.multiply(new window.DOMMatrix(style.transform));
+		const zoom = Number(style.zoom);
+		local = local.scale(zoom, zoom);
+		matrix = local.multiply(matrix);
+	}
+	return {
+		x: {
+			x: matrix.a,
+			y: matrix.b
+		},
+		y: {
+			x: matrix.c,
+			y: matrix.d
+		}
+	};
+}
+function scrollAxes(source) {
+	return source === source.ownerDocument.scrollingElement ? {
+		x: {
+			x: 1,
+			y: 0
+		},
+		y: {
+			x: 0,
+			y: 1
+		}
+	} : elementAxes(source);
+}
+
+//#endregion
+//#region runtime/element-frame.js
+const nativePositions = /* @__PURE__ */ new WeakMap();
+let positionProbe;
+function nativePosition(source, position, horizontal, vertical) {
+	const key = JSON.stringify([
+		position,
+		horizontal,
+		vertical
+	]);
+	const prior = nativePositions.get(source);
+	if (prior?.key === key) return prior.offset;
+	let depth = 0;
+	let split = -1;
+	for (let at = 0; at < position.length; at++) {
+		const character = position[at];
+		if (character === "(") depth++;
+		if (character === ")") depth--;
+		if (character === " " && !depth) {
+			split = at;
+			break;
+		}
+	}
+	if (split < 0) throw new TypeError(`Computed object-position has no second component: ${position}`);
+	const pixels = (value, space) => value.replace(/([-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?)%/gi, (_unit, percent) => `${Number(percent) * space / 100}px`);
+	if (!positionProbe) {
+		const measure = document.createElement("div");
+		measure.className = "lf-ui";
+		measure.dataset.lfRuntime = "";
+		measure.inert = true;
+		measure.style.cssText = "all:initial;position:fixed;visibility:hidden;contain:strict;width:0;height:0;left:0;top:0;pointer-events:none";
+		const point = document.createElement("div");
+		point.style.cssText = "all:initial;position:absolute;width:0;height:0";
+		measure.append(point);
+		positionProbe = {
+			measure,
+			point
+		};
+	}
+	const { measure, point } = positionProbe;
+	point.style.left = pixels(position.slice(0, split), horizontal);
+	point.style.top = pixels(position.slice(split + 1), vertical);
+	document.body.append(measure);
+	const resolved = getComputedStyle(point);
+	const offset = {
+		x: Number.parseFloat(resolved.left),
+		y: Number.parseFloat(resolved.top)
+	};
+	measure.remove();
+	nativePositions.set(source, {
+		key,
+		offset
+	});
+	return offset;
+}
+function elementFrame(source) {
+	const box = shownBox(source);
+	if (!box?.width || !box?.height) return null;
+	if (source instanceof window.SVGGraphicsElement) {
+		const local = source instanceof window.SVGSVGElement ? source.viewBox.baseVal.width && source.viewBox.baseVal.height ? source.viewBox.baseVal : {
+			x: 0,
+			y: 0,
+			width: Number.parseFloat(getComputedStyle(source).width),
+			height: Number.parseFloat(getComputedStyle(source).height)
+		} : source.getBBox();
+		const screen = source.getScreenCTM();
+		if (!screen) return null;
+		return {
+			box,
+			width: local.width,
+			height: local.height,
+			matrix: new window.DOMMatrix([
+				screen.a,
+				screen.b,
+				screen.c,
+				screen.d,
+				screen.e,
+				screen.f
+			])
+		};
+	}
+	const layout = elementBorderFrame(source);
+	if (!layout) return null;
+	const { width, height, matrix } = layout;
+	const style = getComputedStyle(source);
+	const native = source instanceof window.HTMLImageElement ? {
+		width: source.naturalWidth,
+		height: source.naturalHeight
+	} : source instanceof window.HTMLCanvasElement ? {
+		width: source.width,
+		height: source.height
+	} : source instanceof window.HTMLVideoElement ? {
+		width: source.videoWidth,
+		height: source.videoHeight
+	} : null;
+	if (native) {
+		if (!native.width || !native.height) return null;
+		const edge = (side) => Number.parseFloat(style[`border${side}Width`]) + Number.parseFloat(style[`padding${side}`]);
+		const contentWidth = width - edge("Left") - edge("Right");
+		const contentHeight = height - edge("Top") - edge("Bottom");
+		let sx = contentWidth / native.width;
+		let sy = contentHeight / native.height;
+		if (style.objectFit !== "fill") sx = sy = style.objectFit === "cover" ? Math.max(sx, sy) : style.objectFit === "none" ? 1 : Math.min(sx, sy, style.objectFit === "scale-down" ? 1 : Infinity);
+		const { x: dx, y: dy } = nativePosition(source, style.objectPosition, contentWidth - native.width * sx, contentHeight - native.height * sy);
+		if (![
+			sx,
+			sy,
+			dx,
+			dy
+		].every(Number.isFinite) || !sx || !sy) return null;
+		return {
+			box,
+			width: native.width,
+			height: native.height,
+			matrix: matrix.translate(edge("Left") + dx, edge("Top") + dy).scale(sx, sy)
+		};
+	}
+	return {
+		box,
+		width,
+		height,
+		matrix
+	};
+}
+function elementBorderFrame(source) {
+	const box = shownBox(source);
+	if (!box?.width || !box?.height) return null;
+	const style = getComputedStyle(source);
+	if (style.display === "contents") return {
+		box,
+		width: box.width,
+		height: box.height,
+		matrix: new window.DOMMatrix().translate(box.left, box.top)
+	};
+	const borderSize = (side, edges, fallback) => {
+		const size = Number.parseFloat(style[side]);
+		if (!Number.isFinite(size)) return fallback;
+		return style.boxSizing === "border-box" ? size : size + edges.reduce((sum, edge) => sum + Number.parseFloat(style[`padding${edge}`]) + Number.parseFloat(style[`border${edge}Width`]), 0);
+	};
+	const width = borderSize("width", ["Left", "Right"], isHTML(source) ? source.offsetWidth : void 0);
+	const height = borderSize("height", ["Top", "Bottom"], isHTML(source) ? source.offsetHeight : void 0);
+	if (width === void 0 || height === void 0) return null;
+	const { x, y } = elementAxes(source);
+	const left = box.left - Math.min(0, width * x.x, height * y.x, width * x.x + height * y.x);
+	const top = box.top - Math.min(0, width * x.y, height * y.y, width * x.y + height * y.y);
+	return {
+		box,
+		width,
+		height,
+		matrix: new window.DOMMatrix([
+			x.x,
+			x.y,
+			y.x,
+			y.y,
+			left,
+			top
+		])
+	};
+}
+function localScrollBy(source, { x, y }) {
+	const axes = scrollAxes(source);
+	const horizontal = source.scrollWidth > source.clientWidth;
+	const vertical = source.scrollHeight > source.clientHeight;
+	const along = (axis) => {
+		return [...x && axis.x ? [x / axis.x] : [], ...y && axis.y ? [y / axis.y] : []].reduce((move, amount) => Math.abs(amount) > Math.abs(move) ? amount : move, 0);
+	};
+	const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
+	const horizontalLimit = source.scrollWidth - source.clientWidth;
+	const rtl = getComputedStyle(source).direction === "rtl";
+	const reachLeft = (offset) => reach(offset, source.scrollLeft, rtl ? -horizontalLimit : 0, rtl ? 0 : horizontalLimit);
+	const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+	if (!horizontal) return {
+		left: 0,
+		top: vertical ? reachTop(along(axes.y)) : 0
+	};
+	if (!vertical) return {
+		left: reachLeft(along(axes.x)),
+		top: 0
+	};
+	const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
+	const left = (x * axes.y.y - y * axes.y.x) / determinant;
+	const top = (y * axes.x.x - x * axes.x.y) / determinant;
+	const reachableLeft = reachLeft(left);
+	const reachableTop = reachTop(top);
+	if (reachableLeft !== left && axes.y.y) return {
+		left: reachableLeft,
+		top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
+	};
+	if (reachableTop !== top && axes.x.x) return {
+		left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+		top: reachableTop
+	};
+	return {
+		left,
+		top
+	};
+}
+
+//#endregion
+//#region runtime/landing-scroll.js
+const land = (box, by, behavior) => {
+	startScroll(box);
+	setScroll(box, {
+		top: box.scrollTop + (by.top ?? 0),
+		left: box.scrollLeft + (by.left ?? 0),
+		behavior
+	});
+};
+function scrollMargin(where, side = "Top") {
+	if (!(where instanceof Range)) return Number.parseFloat(getComputedStyle(where).getPropertyValue(`scroll-margin-${side.toLowerCase()}`)) || 0;
+	const edges = [where.startContainer.childNodes[where.startOffset], where.endContainer.childNodes[where.endOffset - 1]].filter((edge) => edge instanceof Element);
+	return edges.length ? Math.max(...edges.map((edge) => scrollMargin(edge, side))) : 0;
+}
+function shownFor(where) {
+	const ring = ringBox(where);
+	if (ring === where) return where;
+	const box = placeBox(ring);
+	const room = roomAround(ring, where);
+	return box.height <= room.height && box.width <= room.width ? ring : where;
+}
+const destinationBox = (where) => placeBox(shownFor(where));
+const holderOf = (where) => placeHolder(shownFor(where));
+const readingTop = (holder, box, band) => visibleBand(box, holder)?.top ?? band.top;
+function topMargin(where, box, band, holder = holderOf(where)) {
+	return Math.max(scrollMargin(where), readingTop(holder, box, band) - band.top);
+}
+const landingRoom = (where, until) => roomAround(shownFor(where), where, until);
+function roomAround(shown, where, until) {
+	const holder = placeHolder(shown);
+	const regions = /* @__PURE__ */ new Map();
+	let previous = null;
+	for (const box of scrollersOf(holder)) {
+		regions.set(box, previous);
+		previous = box;
+	}
+	let { width, height } = shownWindow();
+	for (let box = shown instanceof Range ? holder : renderedParent(shown); box instanceof Element; box = renderedParent(box)) {
+		const band = (!until || until === where || renderedUnder(until, box)) && landingBand(box);
+		if (band) {
+			const axes = box === pageScroller ? {
+				x: true,
+				y: true
+			} : clippingAxes(getComputedStyle(box));
+			const inner = regions.get(box);
+			const clearance = inner === null ? topMargin(where, box, band, holder) + scrollMargin(until ?? where, "Bottom") : inner ? Math.max(0, readingTop(inner, box, band) - band.top) : 0;
+			if (axes.x) width = Math.min(width, band.right - band.left);
+			if (axes.y) height = Math.min(height, band.bottom - band.top - clearance);
+		}
+		if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+	}
+	return {
+		width,
+		height
+	};
+}
+function fitsWhole(where) {
+	const box = destinationBox(where);
+	const room = landingRoom(where);
+	return box.height <= room.height && box.width <= room.width;
+}
+function seesWhole(where, box, out) {
+	const seen = seenRect(shownFor(where), /* @__PURE__ */ new Map(), out);
+	if (!seen) return false;
+	const room = landingRoom(where);
+	return (box.height > room.height || seen.top <= out.top && seen.bottom >= out.bottom) && (box.width > room.width || seen.left <= out.left && seen.right >= out.right);
+}
+function alreadyShown(where) {
+	const box = destinationBox(where);
+	return seesWhole(where, box, box);
+}
+function ringShown(where) {
+	const box = destinationBox(where);
+	const top = scrollMargin(where, "Top");
+	const right = scrollMargin(where, "Right");
+	const bottom = scrollMargin(where, "Bottom");
+	const left = scrollMargin(where, "Left");
+	return seesWhole(where, box, new DOMRect(box.left - left, box.top - top, box.width + left + right, box.height + top + bottom));
+}
+function placementBy(where, block, band, margin) {
+	const rect = destinationBox(where);
+	const room = band.bottom - band.top;
+	const place = block === "start" ? margin : block === "end" ? room - rect.height - scrollMargin(where, "Bottom") : Math.max((room - rect.height) / 2, margin);
+	return block === "nearest" ? nearestScrollBy(rect.top - margin, rect.bottom + scrollMargin(where, "Bottom"), band.top, band.bottom) : rect.top - band.top - place;
+}
+function verticalTravel(box, movement) {
+	const scale = scrollAxes(box).y.y;
+	const local = scale === 0 ? 0 : reachable(box, movement / scale);
+	return {
+		local,
+		moved: local * scale
+	};
+}
+function readingBandMoves(where, holder, block) {
+	const [box, ...around] = scrollersOf(holder);
+	if (!box) return {
+		moves: [],
+		moved: 0
+	};
+	const band = landingBand(box);
+	if (!band) return {
+		moves: [],
+		moved: 0
+	};
+	const rect = destinationBox(where);
+	const margin = topMargin(where, box, band);
+	let { top, bottom } = rect;
+	if (block === "start") top -= margin;
+	else if (block === "end") {
+		top = bottom - 1;
+		bottom += scrollMargin(where, "Bottom");
+	}
+	let { local, moved } = verticalTravel(box, placementBy(where, block, band, margin));
+	const moves = [{
+		box,
+		local,
+		moved
+	}];
+	let inner = box;
+	for (const outer of around) {
+		top -= moved;
+		bottom -= moved;
+		const band = landingBand(outer);
+		if (!band) break;
+		band.top = Math.max(band.top, readingTop(inner, outer, band));
+		if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
+		({local, moved} = verticalTravel(outer, nearestScrollBy(top, bottom, band.top, band.bottom)));
+		moves.push({
+			box: outer,
+			local,
+			moved
+		});
+		inner = outer;
+	}
+	return {
+		moves,
+		moved: moves.reduce((sum, move) => sum + move.moved, 0)
+	};
+}
+function landedBox(where) {
+	const rect = destinationBox(where);
+	const { moved } = readingBandMoves(where, holderOf(where), "center");
+	return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
+}
+function scrollIntoReadingBand(where, holder, block, behavior) {
+	for (const { box, local, moved } of readingBandMoves(where, holder, block).moves) if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+}
+function scrollIntoView(where, { alignment, behavior = "auto", block = "start", within = null } = {}) {
+	if (!where) return;
+	const aligned = alignment ?? where;
+	const holder = holderOf(aligned);
+	if (!holder) return;
+	const targetScroller = within ? null : scrollersOf(holder).next().value;
+	let inside = true;
+	const start = holderOf(where);
+	for (let box = start; box instanceof Element; box = renderedParent(box)) {
+		if (box === targetScroller) inside = false;
+		const band = landingBand(box);
+		if (band) {
+			const { left, right } = band;
+			const destination = destinationBox(where);
+			const byX = nearestScrollBy(destination.left - scrollMargin(where, "Left"), destination.right + scrollMargin(where, "Right"), left, right);
+			const byY = inside ? placementBy(where, "nearest", band, topMargin(where, box, band, start)) : 0;
+			const by = localScrollBy(box, {
+				x: byX,
+				y: byY
+			});
+			if (by.left || by.top) land(box, by, "instant");
+		}
+		if (box === within || box === pageScroller || getComputedStyle(box).position === "fixed") break;
+	}
+	if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
+}
+onCurrentLocation((node, cause) => {
+	if (cause !== "step" || !node) return;
+	nextRender(() => {
+		if (deepFocus() !== node) return;
+		if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
+		let box = node;
+		for (; box; box = renderedParent(box)) {
+			if (!box.matches("[data-lf-obligation]")) continue;
+			if (getComputedStyle(box).outlineStyle === "none") continue;
+			if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
+			break;
+		}
+	});
+});
 
 //#endregion
 //#region runtime/syntax-tokens.js
@@ -2543,6 +5079,128 @@ function registeredVisualPartAt(source, target, admits = () => true) {
 		if (part) return part;
 	}
 	return null;
+}
+
+//#endregion
+//#region runtime/held-word.js
+const HOLDS_WORD = "lf-holds-word";
+const HOLDER = `.${HOLDS_WORD}`;
+function holdToRead() {
+	let hold = null;
+	const holderIn = (event) => {
+		for (const node of event.composedPath()) if (isElement(node) && node.matches(HOLDER)) return node;
+		return null;
+	};
+	const read = (held, holder) => {
+		if (held.reading === holder) return;
+		held.reading?.removeAttribute("data-lf-held-word");
+		held.reading = holder;
+		holder?.setAttribute("data-lf-held-word", "");
+	};
+	const under = (held, event) => {
+		const holder = holderIn(event);
+		return holder?.parentElement === held.parent ? holder : null;
+	};
+	const end = (event, commit) => {
+		if (!hold || hold.pointerId !== event.pointerId) return;
+		const holder = commit && plainPress(event) ? under(hold, event) : null;
+		read(hold, null);
+		hold = null;
+		if (!holder) return;
+		claimReleaseClick();
+		nativeFocusTarget(holder).focus({
+			preventScroll: true,
+			focusVisible: false
+		});
+		holder.dispatchEvent(new MouseEvent("click", {
+			bubbles: true,
+			cancelable: true,
+			composed: true,
+			detail: 1,
+			clientX: event.clientX,
+			clientY: event.clientY
+		}));
+	};
+	document.addEventListener("pointerdown", (event) => {
+		if (hold) read(hold, null);
+		hold = null;
+		if (!event.isPrimary || !plainPress(event)) return;
+		const holder = holderIn(event);
+		if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
+		const origin = event.composedPath()[0];
+		if (isElement(origin) && origin.hasPointerCapture(event.pointerId)) origin.releasePointerCapture(event.pointerId);
+		hold = {
+			pointerId: event.pointerId,
+			parent: holder.parentElement,
+			reading: null
+		};
+		read(hold, holder);
+	}, { capture: true });
+	document.addEventListener("pointermove", (event) => {
+		if (hold?.pointerId === event.pointerId) read(hold, under(hold, event));
+	}, { capture: true });
+	document.addEventListener("pointerup", (event) => end(event, true), { capture: true });
+	document.addEventListener("pointercancel", (event) => end(event, false), { capture: true });
+	document.addEventListener("contextmenu", (event) => {
+		if (hold) event.preventDefault();
+	}, { capture: true });
+}
+
+//#endregion
+//#region runtime/walk-declaration.js
+const WALK = "lf-walk";
+let walking = null;
+function walkPositionLabel(noun, position, total, qualifier = "") {
+	if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
+	return [
+		noun,
+		`${position} of ${total}`,
+		qualifier
+	].filter(Boolean).join(" ");
+}
+function listWalkPosition(items, current, { identity = (item) => item, qualifier = "" } = {}) {
+	if (!current) return null;
+	const target = identity(current);
+	const index = items.findIndex((item) => identity(item) === target);
+	if (index < 0) return null;
+	return {
+		target,
+		position: index + 1,
+		total: items.length,
+		qualifier
+	};
+}
+function walkPosition() {
+	if (!walking) return null;
+	const position = walking.read();
+	if (!position || position.target !== walking.target) {
+		walking = null;
+		return null;
+	}
+	return {
+		kind: walking.key,
+		target: position.target,
+		position: position.position,
+		total: position.total,
+		text: walkPositionLabel(walking.noun, position.position, position.total, position.qualifier)
+	};
+}
+function beginWalk(key, noun, read) {
+	const position = read();
+	if (!position) {
+		walking = null;
+		return null;
+	}
+	walkPositionLabel(noun, position.position, position.total, position.qualifier);
+	walking = {
+		key,
+		noun,
+		read,
+		target: position.target
+	};
+	const shown = walkPosition();
+	window.dispatchEvent(new Event(WALK));
+	return shown?.text ?? null;
 }
 
 //#endregion
@@ -2684,4 +5342,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SourcePairs, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, installElementIntegration, installMoveFocus, installStageIntegration, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nameAction, namedAction, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, searchField, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };
+export { ANNOUNCE, CARET_KEYS, COMMANDS, DISCLOSE, DISCLOSURE_SELECTOR, HOLDS_WORD, J, LAYOUT, LENT_REACH_STOP, LeafElement, MODIFIER_KEYS, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PRESS, PRESSES, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, SAID, SourcePairs, TAB_STOP, TEXT_BOX, TEXT_FIELD, UI_MARKS, W, WALK, WORKS, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, aimedTop, alreadyShown, announce, assignRows, atLayoutPrecision, atScrollEnd, attachDeferredLoader, axisTicks, backgroundFlash, beginWalk, bindQueuedWork, blurFocused, bodyText, byRenderedOrder, canPlaceFocus, cancelAnimation, cancelRender, canvas2D, caretAtKey, chosenSince, claimReleaseClick, clamp, clippedContents, clippedPlace, clippedRect, clippingAxes, clipsPastSurfaces, closeLayer, closeNativeLayer, closestAcross, coarsePointer, commandsChanged, commandsChangedOn, composedParentNode, contentRides, controlNavigationKeys, coveredShare, currentLocationIn, currentLocationNodes, currentLocationTouches, d, dataBody, declareOccluder, declareReading, declareRelease, declareWindowChrome, deepFocus, describeFailure, disclosureAt, dismissPopoversOutside, drawn$1 as drawn, elementDirective, elementFrame, ensureSyntaxLanguage, eventSource, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, fitsWhole, flashDuration, focusDestination, focusRevision, focused, foldBlock, foldDuration, frameFor, frameView, frameVisibility, generated, generatedElement, growthAfterIsSeen, growthIsSeen, handBack, hasArea, headerCuts, headerInset, holdCurrentLocation, holdFocus, holdRendering, holdToRead, hoveringPointer, iconElement, iconTemplate, inBaseLayer, inChrome, inUi, inWindowChrome, inlineStyle, inputCount, inputInFrame, installElementIntegration, installLanguagePaths, installLayerStyleIntegration, installMoveFocus, installScrollerLookup, installStageIntegration, intersect, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, landedBox, landingBand, landingInsets, landingRoom, langForPath, layerLanding, layoutChanged, layoutPx, layoutWindow, letGo, listWalkPosition, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, moveScrollerBy, nameAction, namedAction, nativeFocusTarget, nativeLayerHolding, nativeLayers, nativeModalAdmits, nearObserver, nearWindow, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onCurrentLocation, onFocusVisibility, onFrameVisibility, onLetGo, onMotionPreferenceChange, onPress, onPressAway, onUserInput, once, openLayer, openerOf, orderChildren, outputProducer, overIn, overlaps, overlapsAcross, pagePresented, pageScroller, pageUpgraded, paintClips, passOn, patchRetains, patchTree, placeBox, placeHolder, placeKept, placesFailure, plainPress, playMotion, pointerAt, presented, pressHolds, pressIsKeyboardActivation, pressLed, pressRecords, pressing, publishOutput, q, readCaret, readSampleVisibility, recentPlaceInput, recoveredLabelFocus, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, relabel, release, releaseFocus, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, restorePointer, restrictUserIntent, retainUserIntent, returnDuration, revealRegisteredVisualPart, revealsVisualParts, rightCover, ringBox, roomPx, rove, rowArrows, scrollAxes, scrollBehavior, scrollChoices, scrollContainer, scrollGlides, scrollIntoReadingBand, scrollIntoView, scrollLimit, scrollToEnd, scrollersOf, scrolling, scrollsBy, scrollsContent, searchField, seenRect, selectableOffer, selectableOffered, selectsAll, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, shellRight, showNativeLayer, shownBand, shownBox, shownExtent, shownParts, shownRect, shownWindow, showsContents, sizeObserver, skipped, slotTop, stackLevel, startsAt, stopScroll, stuckBox, synNodes, syntax, syntaxLanguageNames, tabStops, tabStore, takesLetters, textWidth, threadSurface, tokenLines, typesText, uiInside, under, underOccluder, union, upFrom, updateSurface, userScrollport, visibleBand, visibleFocus, visualPartAdmission, visualPartProblems, visualViewport, walkPosition, walkPositionLabel, watchArrivals, watchCurrentLocationIn, watchFrame, watchLayerChanges, watchOwner, watchRoom, watchScrollEnds, watchScrolls, wearsLentStop, whenLeft, whenNone, whileConnected, windowChromeBoxes, x$1 as x };

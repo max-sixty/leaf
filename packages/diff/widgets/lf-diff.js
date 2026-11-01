@@ -60,8 +60,8 @@ import {
   offer,
   offerAction,
   LeafElement,
+  PendingTaskEvent,
   publishOutput,
-  projectedDatum,
   threadSurface,
   releaseOutlets,
   reportFailure,
@@ -78,7 +78,7 @@ import {
   focused,
   currentLocationIn,
   commandsChanged,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -1264,7 +1264,7 @@ customElements.define(
         const fresh = [];
         /** @type {((() => unknown) | null)[]} */
         const restores = [];
-        const resume = this.controller.defer();
+        const resume = this.defer();
         try {
           const entries = plans.map(({ record, evidence, previous, prepared }) => {
             const metadata =
@@ -1704,7 +1704,7 @@ customElements.define(
       if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
       const line = findDiffLine(entry.rendered?.lines ?? [], coordinate);
-      return line ? projectedDatum(this, diffDatumKey(line)) : null;
+      return line?.node ?? null;
     }
 
     // A file navigation opens its evidence from the beginning. Its comment datum
@@ -1795,7 +1795,8 @@ customElements.define(
 
     /** @param {PromiseLike<unknown>} promise */
     present(promise) {
-      return this.controller.present(promise);
+      this.dispatchEvent(new PendingTaskEvent(promise));
+      return promise;
     }
 
     /** @param {string | null} query */

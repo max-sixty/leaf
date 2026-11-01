@@ -4,12 +4,17 @@
    sheets remain in place, and re-adoption restores any shared sheets it replaced. */
 import { installStageIntegration } from "./shadow-stage.js";
 import { shadowRules } from "./shadow.js";
-import { annotationMarkSheets, marksSheet } from "./stylesheets.js";
+import { annotationMarkSheets, chromeSheet, marksSheet } from "./stylesheets.js";
 import { watchCurrentLocationIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
-import { watchLayers } from "./keyboard/layer-stack.js";
+import { installLayerStyleIntegration } from "./keyboard/layer-stack.js";
 import { move } from "./dom-move.js";
 import { watchPassageRoot } from "./passages.js";
+
+installLayerStyleIntegration((root) => {
+  if (!root.adoptedStyleSheets.includes(chromeSheet))
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
+});
 
 /** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const styles = new WeakMap();
@@ -18,7 +23,6 @@ installStageIntegration((root) => {
     ...new Set([...root.adoptedStyleSheets, ...annotationMarkSheets, marksSheet]),
   ];
   watchDisclosures(root);
-  watchLayers(root);
   watchCurrentLocationIn(root);
   let style = styles.get(root);
   if (!style) {

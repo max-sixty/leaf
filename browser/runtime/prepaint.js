@@ -60,71 +60,14 @@
   // (`data-lf-live`, bootstrap.js).
   root.toggleAttribute("data-lf-interactive", true);
 
-  // Inputs belong to this document from its first script, even while the module
-  // graph is still loading. Delayed arrival work must not take focus or scroll
-  // back from someone already using the authored page. focus.js exposes this
-  // same counter and subscription after startup; no later listener starts over.
-  let inputs = 0;
-  /** @type {Set<(event: Event) => void>} */
-  const inputReaders = new Set();
-  // Early key holding and the runtime ask the same question of a key's origin.
-  // Selects and custom options keep typeahead without being text editors.
-  const textField = "leaf-text";
-  const textBox = `textarea, ${textField}`;
-  const typedTypes = new Set([
-    "text",
-    "search",
-    "url",
-    "tel",
-    "email",
-    "password",
-    "number",
-    "date",
-    "time",
-    "datetime-local",
-    "month",
-    "week",
-  ]);
-  /** @type {Window["lfInputs"]["typesText"]} */
-  const typesText = (node) =>
-    node instanceof Element &&
-    (node.matches(textBox) ||
-      (node instanceof HTMLElement && node.isContentEditable) ||
-      (node instanceof HTMLInputElement && typedTypes.has(node.type)));
-  /** @type {Window["lfInputs"]["takesLetters"]} */
-  const takesLetters = (node) =>
-    typesText(node) ||
-    (node instanceof Element &&
-      (node.localName === "select" || node.getAttribute("role") === "option"));
-  window.lfInputs = {
-    textField,
-    textBox,
-    typesText,
-    takesLetters,
-    get count() {
-      return inputs;
-    },
-    observe(read) {
-      inputReaders.add(read);
-      return () => inputReaders.delete(read);
-    },
-  };
-  /** @param {Event} event */
-  const input = (event) => {
-    // Firefox can send an inaccessible foreign wheel object to an arriving
-    // sandboxed window. It is not this realm's Event and reaches no document.
-    // Reject it before reading fields or handing it to the input subscribers.
-    if (!(event instanceof Event)) return;
-    // Entering a child frame blurs this Window while its document still holds
-    // input through that child. Only leaving the document supersedes its gesture.
-    if (event.type === "blur" && (event.target !== window || document.hasFocus()))
-      return;
+  // The early input owner is delivered before this script. Page lifetime subscribes
+  // to that same stream rather than making a second input listener.
+  const inputs = /** @type {DocumentInputs} */ (
+    Reflect.get(window, Symbol.for("leaf.inputs"))
+  );
+  inputs.observe((event) => {
     if (event.type !== "blur" && event.type !== "wheel") stayed();
-    inputs++;
-    for (const read of inputReaders) read(event);
-  };
-  for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"])
-    window.addEventListener(type, input, { capture: true, passive: true });
+  });
 
   // Whether the runtime could not start, named on the root (`data-lf-startup-error`)
   // for whatever reports it. A fault is `incomplete` where something the page needs
@@ -482,7 +425,7 @@
         member.parentElement &&
         member.hasAttribute("data-lf-view")
       )
-        if (reloaded && !shown && inputs === 0) {
+        if (reloaded && !shown && inputs.count === 0) {
           // Native reload fragment reveal must not override the saved view. Restore
           // after the browser removes hidden, before the next paint.
           requestAnimationFrame(initialViews);

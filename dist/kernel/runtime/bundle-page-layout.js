@@ -1862,7 +1862,9 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				a = Math.min(a, jointFrom);
 				b = Math.max(b, jointTo);
 			});
-			const hard = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length, end]).find(([at, end]) => at <= b && b <= end);
+			const breaks = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length, end]);
+			a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
+			const hard = breaks.find(([at, end]) => at <= b && b <= end);
 			const insert = `\\\n${prefix}`;
 			const changes = state.changes(hard ? [{
 				from: Math.min(a, hard[0]),

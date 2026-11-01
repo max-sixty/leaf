@@ -1010,15 +1010,16 @@ function fieldEditor(
         a = Math.min(a, jointFrom);
         b = Math.max(b, jointTo);
       });
-      // A hard break where the range ends, with the spaces before it, is a line already,
-      // so the new line begins after it.
-      const hard = placed
+      // A hard break, with the spaces before it, is a line already: one the range starts
+      // inside goes with the range, and one where it ends stays, the new line after it.
+      const breaks = placed
         .filter(({ token }) => token.type === "hardbreak")
         .map(({ from: at, to: end }) => [
           at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length,
           end,
-        ])
-        .find(([at, end]) => at <= b && b <= end);
+        ]);
+      a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
+      const hard = breaks.find(([at, end]) => at <= b && b <= end);
       const insert = `\\\n${prefix}`;
       const changes = state.changes(
         hard

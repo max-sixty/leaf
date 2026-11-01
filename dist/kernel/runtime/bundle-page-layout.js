@@ -5324,10 +5324,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 		part,
 		message: part === "message" ? thread.msgs.find((message) => message.id === id)?.key ?? null : null
 	});
-	const threadFocusTarget = (id, { part = null } = {}) => {
+	const threadFocusTarget = (id, { part = null, page = false } = {}) => {
 		const thread = threadNamed(id);
 		const candidates = [
-			thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
+			!page && thread && presentation?.owner.isConnected ? presentation.reader.destination(thread.key, addressedPart(thread, id, part)) : null,
 			surfaceFocusTarget(id, { part }),
 			preview?.focusTarget(id, { part })
 		].filter((candidate) => candidate != null);
@@ -5459,7 +5459,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 				} else {
 					if (!await opened.presented || !mayPresent()) return null;
 					if (focus !== false && !await arrive(() => {
-						const current = threadFocusTarget(id, { part });
+						const current = threadFocusTarget(id, {
+							part,
+							page
+						});
 						return current && {
 							where: current,
 							focus: current,
@@ -5470,7 +5473,10 @@ function createThreadDestinations({ placedAt, threadIdsAt, scrollToThread, arriv
 						};
 					}, { intent })) return null;
 				}
-				return threadFocusTarget(id, { part });
+				return threadFocusTarget(id, {
+					part,
+					page
+				});
 			}
 			const held = revealHeld([threadIdNamed(id)]);
 			if (held) {

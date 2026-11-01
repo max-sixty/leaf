@@ -1087,6 +1087,8 @@ export function createMarginProjection({
   let railRoom = null;
   /** @param {readonly Entry[]} inventory */
   function renderNow(inventory) {
+    // A layout read, so before this render's writes (browser/AGENTS.md).
+    const room = windowHoldsRail();
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
@@ -1211,7 +1213,7 @@ export function createMarginProjection({
       const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
       const freshChoice = fresh && threadReading(fresh);
       if (!fresh || !freshChoice) closePreview();
-      else if (!windowHoldsRail()) yieldPreview();
+      else if (!room) yieldPreview();
       else {
         const owner = threadMarginEntry(fresh);
         if (
@@ -1239,7 +1241,6 @@ export function createMarginProjection({
     // The room for the rail coming back gives the floating panel the threads its going
     // took (`yieldPreview`) back to cards (thread/destination.js, `returnToPage`), once
     // this render has drawn the entries they hang from.
-    const room = windowHoldsRail();
     if (room && railRoom === false) queueMicrotask(() => void returnToPage());
     railRoom = room;
     refreshHighlight();

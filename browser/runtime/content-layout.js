@@ -8,7 +8,7 @@ import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
-import { shellRight } from "./geometry.js";
+import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
@@ -139,18 +139,14 @@ export const railStands = (main = layoutBox()) => {
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either
-// side (`--col`, `--rail`), the width at which a column page's rail stands
-// (`railStands`), whatever this page's own Layout does with the room. A workspace keeps
-// no rail at any width, and still has this room on a desktop's window.
-export const windowHoldsRail = (main = layoutBox() ?? document.body) => {
-  const style = getComputedStyle(main);
-  /** @param {string} name */
-  const length = (name) => parseFloat(style.getPropertyValue(name)) || 0;
-  return (
-    document.body.getBoundingClientRect().width >=
-    length("--col") + 2 * length("--rail")
-  );
-};
+// side (`--lf-rail-room`, base.css), the width at which a column page's rail stands
+// (`railStands`), whatever this page's own Layout or body does with the room. A
+// workspace keeps no rail at any width, and still has this room on a desktop's window.
+export const windowHoldsRail = () =>
+  layoutWindow().right >=
+  (parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-room"),
+  ) || 0);
 
 // A page of parts' title scrolls within its fixed column. Declare that
 // surface alongside the layout, so reach need not discover it by scanning content.

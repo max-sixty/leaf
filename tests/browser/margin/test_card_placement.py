@@ -651,6 +651,25 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
     expect(typed).to_have_js_property("value", "Keep the reaper")
 
 
+def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
+    """A user reading a thread in the floating panel as the rail returns goes on in its
+    card: focus lands on the card's thread, never on the panel's view the card
+    replaces, which left them on the page's body once that view went."""
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]),
+    )
+    resized(page, 390, 760)
+    margins_laid_out(page)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+    expect(page.locator(".lf-fp-view:not([data-leaving])")).to_be_focused()
+
+    resized(page, 1440, 900)
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+
+
 def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     """The card beside a cluster's words follows it when the page moves under it.
 

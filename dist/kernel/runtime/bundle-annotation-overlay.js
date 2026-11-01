@@ -1702,6 +1702,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 	}
 	let railRoom = null;
 	function renderNow(inventory) {
+		const room = windowHoldsRail();
 		const selected = card.selection();
 		const forcedKey = selected?.forced ? selected.entry.key : null;
 		const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
@@ -1784,7 +1785,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
 			const freshChoice = fresh && threadReading(fresh);
 			if (!fresh || !freshChoice) closePreview();
-			else if (!windowHoldsRail()) yieldPreview();
+			else if (!room) yieldPreview();
 			else {
 				const owner = threadMarginEntry(fresh);
 				if (owner && !owner.checkVisibility() && forcedKey !== fresh.key && expandedOptionsKey !== fresh.key && !hosts.get(fresh.key)?.more?.hidden) {
@@ -1800,7 +1801,6 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 				}
 			}
 		}
-		const room = windowHoldsRail();
 		if (room && railRoom === false) queueMicrotask(() => void returnToPage());
 		railRoom = room;
 		refreshHighlight();

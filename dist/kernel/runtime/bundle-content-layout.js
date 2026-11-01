@@ -1,7 +1,7 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, afterScript, inlineStyle, isElement, isHTML, isText, keeps, layoutChanged, layoutPx, nativeLayerHolding, nextFrame, nextRender, pagePresented, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedParent, renderedUnder, renderingState, revealRegisteredVisualPart, revealsVisualParts, setScroll, shadowHost, sizeObserver, skipped, under, upFrom, visualPartAdmission, watchArrivals, watchOwner, watchScrolls, whileConnected } from "./bundle-portable.js";
 import { J, LENT_REACH_STOP, PRESSES, TEXT_BLOCK, TEXT_BOX, WORKS, Z, anchorKey, applicationPresented, deepFocus, documentChanged, eventSource, fragmentId, hostIn, inUi, isElementName, marks, move, onCurrentLocation, pressing, registry, shadowRootsIn, tabStops, tagsDeclaring, tick, uiInside, wearsLentStop } from "./bundle-layer-stack.js";
 import { PRESSABLE, removeRuntimeRootStyle, repaintPage, reportPageError, setRuntimeRootAttribute, setRuntimeRootStyle } from "./bundle-layer-client.js";
-import { clamp, clippedContents, headerCuts, landingBand, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
+import { clamp, clippedContents, headerCuts, landingBand, layoutWindow, nearObserver, nearWindow, overlaps, scrollContainer, scrollsBy, scrollsContent, shellRight, shownBox, shownParts, shownRect, union, userScrollport } from "./bundle-geometry.js";
 import { DATUM, authoredScope, blockAt, closestAcross, contextAround, cut, elementById, elementReading, excerptWords, fileModelsPassage, findQuote, inChrome, layoutBox, leafSurface, neighbourhood, pageDocument, pageQueryAll, pageText, quoteFrom, rangeOf, readingFrom, segmentsIn, settledAway, spanIn, textNodesUnder } from "./bundle-passages.js";
 
 //#region runtime/presence.js
@@ -2587,11 +2587,7 @@ const railStands = (main = layoutBox()) => {
 	const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
 	return shellRight() - proseRect(main).right >= width;
 };
-const windowHoldsRail = (main = layoutBox() ?? document.body) => {
-	const style = getComputedStyle(main);
-	const length = (name) => parseFloat(style.getPropertyValue(name)) || 0;
-	return document.body.getBoundingClientRect().width >= length("--col") + 2 * length("--rail");
-};
+const windowHoldsRail = () => layoutWindow().right >= (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-room")) || 0);
 const title = () => {
 	const main = document.querySelector("body > main");
 	const parts = main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1" ? main.querySelector(":scope > [data-lf-views=\"parts\"]") : null;

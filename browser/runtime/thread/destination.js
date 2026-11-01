@@ -177,12 +177,14 @@ export function createThreadDestinations({
   });
   // Prefer a shown destination in the same order opening asks: the primary reader,
   // then the page's own surfaces. Otherwise return a retained node to reveal; a
-  // hidden primary's retained rows must not mask the page's open card.
-  /** @param {string} id @param {{part?: ThreadPart}} [options] */
-  const threadFocusTarget = (id, { part = null } = {}) => {
+  // hidden primary's retained rows must not mask the page's open card. A route to the
+  // page alone (`page`) lands on the page's drawing, never on the primary's view it is
+  // about to put away, which would leave the user on nothing once it goes.
+  /** @param {string} id @param {{part?: ThreadPart, page?: boolean}} [options] */
+  const threadFocusTarget = (id, { part = null, page = false } = {}) => {
     const thread = threadNamed(id);
     const primary =
-      thread && presentation?.owner.isConnected
+      !page && thread && presentation?.owner.isConnected
         ? presentation.reader.destination(thread.key, addressedPart(thread, id, part))
         : null;
     const candidates = [
@@ -397,7 +399,7 @@ export function createThreadDestinations({
             focus !== false &&
             !(await arrive(
               () => {
-                const current = threadFocusTarget(id, { part });
+                const current = threadFocusTarget(id, { part, page });
                 return (
                   current && {
                     where: current,
@@ -411,7 +413,7 @@ export function createThreadDestinations({
           )
             return null;
         }
-        return threadFocusTarget(id, { part });
+        return threadFocusTarget(id, { part, page });
       }
       const held = revealHeld([threadIdNamed(id)]);
       if (held) {

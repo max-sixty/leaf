@@ -140,6 +140,27 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     assert places == {"rail", "pin"}, "the sweep never crossed the rail's width"
 
 
+def test_a_page_s_own_body_and_column_units_keep_its_cards(browser, serve):
+    """Whether a card stands asks the window, not the page's boxes: a page that narrows
+    its body still opens a card from its marker on a wide window. A column the page
+    states as a percentage keeps its width, and with no window width of its own
+    (base.css, `--lf-rail-room`) leaves cards opening at every width. Measuring the body
+    took the card from the first page, and registering `--col` as a length left the
+    second a 0px column."""
+    page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
+    resized(page, 1440, 900)
+    page.add_style_tag(
+        content=":root { --col: min(100%, 46rem) }"
+        " body { max-width: 860px; margin-inline: auto }"
+    )
+    margins_laid_out(page)
+    assert page.locator("#lede").evaluate(
+        "node => node.getBoundingClientRect().width"
+    ) == pytest.approx(736, abs=1)
+    page.locator('[data-lf-margin-for="lede"] .lf-margin-marker').click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+
 def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     """A first comment clears touch-sized entries and the actual focus-ring inset."""
     source = leaf_page(

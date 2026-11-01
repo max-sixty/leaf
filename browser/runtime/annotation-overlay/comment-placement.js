@@ -61,7 +61,10 @@
    leaves the least room a surface stands in below it (`LEAST_HEIGHT`), never slides up
    over it: the page scrolls that to the boundary's top to give it room (`makeRoom`),
    and past that it scrolls its own content. A subject taller than that, as a whole
-   decision can be, it covers as on a wide window. The user chose this on 31
+   decision can be, it covers as on a wide window, keeping its width; the rule follows
+   the geometry the card stands in now, so a subject that grows past the window while
+   the card stands by it is covered too, and a card Send makes from the comment box
+   takes the rule as an opened one does. The user chose this on 31
    October, after a phone's card stood 60px in from the window's edge, over a strip of
    cut-off page words, and covered the passage it was about, and a long card on a
    900px window covered its passage too. The comment box keeps the boundary's slide,
@@ -325,8 +328,8 @@ function reachableRoom(side, extent, boundary, scroller) {
 // On a narrow window, where the surface never stands over what it is about, the scroll
 // goes as far as bringing that to the boundary's edge, and the surface takes the rest.
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
-  const narrow = staysClear(extent, boundary) && !railStands();
-  if (!narrow && extent.height + COMMENT_GAP + height > boundary.height) return false;
+  const clearOf = staysClear(extent, boundary) && !railStands();
+  if (!clearOf && extent.height + COMMENT_GAP + height > boundary.height) return false;
   const overflow =
     side === "top"
       ? boundary.top - (clear.top - COMMENT_GAP - height)
@@ -334,7 +337,7 @@ export function makeRoom(side, clear, extent, height, boundary, scroller) {
   const edge =
     side === "top" ? boundary.bottom - clear.bottom : clear.top - boundary.top;
   const { available: travel, projection, direction } = roomTravel(side, scroller);
-  const movement = Math.max(0, Math.min(overflow, travel, narrow ? edge : Infinity));
+  const movement = Math.max(0, Math.min(overflow, travel, clearOf ? edge : Infinity));
   if (movement <= 0.5) return false;
   const before = scroller.scrollTop;
   moveScrollerBy(scroller, (direction * movement) / projection);
@@ -354,14 +357,14 @@ export function commentSide({
   width,
   scroller,
   coarse,
-  narrow = false,
+  clearOf = false,
 }) {
   const fits = (room) => Math.ceil(room) >= Math.ceil(width);
   if (fits(boundary.right - clear.right - COMMENT_GAP)) return "right";
   if (fits(clear.left - boundary.left - COMMENT_GAP)) return "left";
   const below = reachableRoom("bottom", extent, boundary, scroller);
   const above = reachableRoom("top", extent, boundary, scroller);
-  if (narrow && below.reachable >= LEAST_HEIGHT) return "bottom";
+  if (clearOf && below.reachable >= LEAST_HEIGHT) return "bottom";
   // Prefer a side that already shows the compact surface. Reachable room breaks
   // the tie; a fresh card may then use makeRoom to open clear of its target.
   const fitsBelow = below.shown >= LEAST_HEIGHT;
@@ -430,8 +433,14 @@ export function commentPlacement({ makesRoom = false } = {}) {
   let initialHold = null;
   // Whether the user carried the surface to where it stands (surface-grip.js).
   let moved = false;
-  // Whether the window has no room for the rail, as the side was chosen.
-  let narrow = false;
+  // Whether the surface stands clear of what it is about by the narrow window's rule
+  // (above). Each placement reads it from the geometry it stands in rather than the
+  // side's choice, so a subject that grows past the window, or a card Send hands the
+  // box's frame to, takes the rule as it stands now.
+  let clearOf = false;
+  // Whether its inline start keeps room for its whole measure, chosen with the side
+  // where it stood clear, so a subject growing past the window moves it no way across.
+  let spans = false;
   // The last landed rectangle, in client pixels from the attachment line.
   let held = null;
   // The tallest the surface has stood since its line last moved, and that line.
@@ -444,6 +453,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
     carriedInline = null;
     initialHold = null;
     moved = false;
+    spans = false;
     held = null;
     tallest = null;
   };
@@ -513,7 +523,8 @@ export function commentPlacement({ makesRoom = false } = {}) {
       // the first keeps what that one began, such as the transcript's reading.
       const fresh = side === null;
       const opening = held === null && initialHold === null;
-      if (fresh) narrow = makesRoom && staysClear(extent, boundary) && !railStands();
+      clearOf = makesRoom && staysClear(extent, boundary) && !railStands();
+      if (fresh) spans = clearOf;
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -523,7 +534,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
             width: cardMinimum(),
             scroller,
             coarse,
-            narrow,
+            clearOf,
           });
       return {
         side,
@@ -571,7 +582,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
       // card footprint before a shorter editor's own width can put that start too far
       // toward the boundary, where later typing or reopening would have to move it.
       // On a narrow window it keeps room for its whole measure instead.
-      const reserved = narrow && across ? cardMeasure() : minimumWidth;
+      const reserved = spans && across ? cardMeasure() : minimumWidth;
       const inlineStart = unanchored
         ? boundary.left
         : clamp(
@@ -686,7 +697,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
           // stands, since it slides no higher (the shift's limiter, below), where
           // Floating UI offers a sliding surface the whole boundary's height.
           const below =
-            narrow && side === "bottom"
+            clearOf && side === "bottom"
               ? (shown.bottom -
                   (box.top + (state.y - state.rects.reference.y) * scale.y)) /
                 scale.y
@@ -780,7 +791,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
                   };
               // On a narrow window, a surface under what it is about never slides up
               // over it.
-              if (narrow && side === "bottom")
+              if (clearOf && side === "bottom")
                 limited.y = Math.max(
                   limited.y,
                   state.rects.reference.y +

@@ -311,7 +311,9 @@ def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, s
     """On a window with no room for the rail, a long thread's card stands under the
     words it is about, which stay in view above it, and on a phone it spans the window.
     It slid up over the words once it outgrew the room below them, and on a phone it
-    stood in from the window's edge at the words' column, over a strip of page."""
+    stood in from the window's edge at the words' column, over a strip of page. Once
+    what it is about grows past the window, the card covers it as on a wide window,
+    where it kept to under it, off the window's foot, and keeps its width."""
     url = serve(
         NARROW_PAGE,
         events=[
@@ -346,6 +348,17 @@ def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, s
     assert card["bottom"] <= stands["height"], stands
     if size[0] < 400:
         assert card["left"] <= 8.5 and card["right"] >= stands["width"] - 8.5, stands
+
+    page.evaluate(
+        "() => { document.getElementById('asked').style.minHeight ="
+        " `${innerHeight + 56}px`; }"
+    )
+    rendered(page)
+    grown = page.evaluate(CARD_AND_WORDS)
+    assert 0 <= grown["card"]["top"], grown
+    assert grown["card"]["bottom"] <= grown["height"], grown
+    assert abs(grown["card"]["left"] - card["left"]) < 0.5, (stands, grown)
+    assert abs(grown["card"]["right"] - card["right"]) < 0.5, (stands, grown)
 
 
 def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(

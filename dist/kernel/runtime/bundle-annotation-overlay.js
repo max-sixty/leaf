@@ -1776,12 +1776,13 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			if (!fresh || !freshChoice) closePreview();
 			else {
 				const owner = threadMarginEntry(fresh);
-				if (owner && !owner.checkVisibility() && forcedKey !== fresh.key && expandedOptionsKey !== fresh.key && !hosts.get(fresh.key)?.more?.hidden) {
+				const away = owner?.closest(".lf-withheld");
+				if (owner && !away && !owner.checkVisibility() && forcedKey !== fresh.key && expandedOptionsKey !== fresh.key && !hosts.get(fresh.key)?.more?.hidden) {
 					transferThreadFocus = threadOwnerHeld;
 					unfoldOpenThreadOwner(fresh);
 					return;
 				}
-				if (!owner || !owner.checkVisibility() && forcedKey !== fresh.key) closePreview();
+				if (!owner || !away && !owner.checkVisibility() && forcedKey !== fresh.key) closePreview();
 				else {
 					card.refresh(fresh, freshChoice, owner, threadOwnerHeld);
 					for (const host of hosts.values()) syncReadingRelation(host.marker, primaryReading(host.lfEntry));

@@ -1191,8 +1191,12 @@ export function createMarginProjection({
       if (!fresh || !freshChoice) closePreview();
       else {
         const owner = threadMarginEntry(fresh);
+        // A row scrolled out of view is withheld (margin-layout.js), not gone: the card
+        // withholds itself with its target and comes back with it (thread-preview.js).
+        const away = owner?.closest(".lf-withheld");
         if (
           owner &&
+          !away &&
           !owner.checkVisibility() &&
           forcedKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
@@ -1202,7 +1206,7 @@ export function createMarginProjection({
           unfoldOpenThreadOwner(fresh);
           return;
         }
-        if (!owner || (!owner.checkVisibility() && forcedKey !== fresh.key))
+        if (!owner || (!away && !owner.checkVisibility() && forcedKey !== fresh.key))
           closePreview();
         else {
           card.refresh(fresh, freshChoice, owner, threadOwnerHeld);

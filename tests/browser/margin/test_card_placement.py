@@ -35,7 +35,8 @@ from browser.margin import (
     leave_card,
     resized_shell,
 )
-from browser.threads import append_user_reply
+from browser.threads import append_agent_reply, append_user_reply
+from leaf import event_log
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 
@@ -772,6 +773,61 @@ def test_a_scroll_that_carries_the_card_only_updates_the_rail_tab_stop(browser, 
         for change in writes
     ), writes
     assert page.evaluate(offset) == pytest.approx(before, abs=0.5)
+
+
+def test_news_while_a_card_s_row_is_scrolled_away_leaves_the_card_open(browser, serve):
+    """A row its log has scrolled out of view is withheld from the margin, not gone
+    from it, so news that repaints the margin meanwhile leaves its card open, and the
+    card comes back with the row. The repaint read the withheld row as a thread gone
+    from the margin and closed the card, so whether a card survived a scroll turned on
+    whether anything arrived while its row was away."""
+    rows = "".join(
+        f'<p id="row-{n}">The export wrote tenant {n} to its archive.</p>'
+        for n in range(30)
+    )
+    url = serve(
+        leaf_page(
+            "Scrolled away",
+            "<p>The export copies each tenant into its own archive.</p>" * 3
+            + f'<div id="log" data-bound="start" style="--lf-bound: 10rem">{rows}</div>',
+        ),
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Why did tenant 2 retry?",
+                "anchor": {"section": "row-2"},
+            }
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    root = next(
+        event
+        for event in event_log.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )["id"]
+    page.locator('[data-lf-margin-for="row-2"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rendered(page)
+    log = page.locator("#log").bounding_box()
+    page.mouse.move(log["x"] + 40, log["y"] + log["height"] / 2)
+    page.mouse.wheel(0, 400)
+    scroll_settled(page, "#log")
+    rendered(page)
+    expect(page.locator('[data-lf-margin-for="row-2"]')).to_have_class(
+        re.compile(r"\blf-withheld\b")
+    )
+    append_agent_reply(serve.page_dir, root, "Its first copy missed rows taken late.")
+    told(page)
+    rendered(page)
+    page.mouse.wheel(0, -400)
+    scroll_settled(page, "#log")
+    rendered(page)
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("missed rows taken late")
 
 
 def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):

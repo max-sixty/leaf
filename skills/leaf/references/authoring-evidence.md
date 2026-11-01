@@ -39,7 +39,8 @@ added with `leaf page media` can't. Use the `<figcaption>` for what the drawing 
 show.
 
 Use `lf-chart` for quantities, not Mermaid's charts. Keep a few numbers in prose
-when a sentence explains them clearly.
+when a sentence explains them clearly. For experiments, show each variant beside its
+baseline on a shared scale, with the changed text or setting beside its effect.
 
 Use `lf-timeline` for an order of events between actors that you describe, such as a
 race between two jobs, rather than drawing one in `svg.drawing`: it places every label

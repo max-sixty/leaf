@@ -1895,7 +1895,9 @@ def panel_menu(page, at=None, *, touch=False):
         press_visible(page, leaf, touch=touch)
         expect(host).to_have_attribute("data-rest", "row")
     if host.get_attribute("data-open") != "menu":
-        back = page.locator('.lf-fp-controls .lf-fp-back[aria-label="Back to Menu"]')
+        back = page.locator(".lf-fp-head").get_by_role(
+            "button", name="Back to Menu", exact=True
+        )
         press_visible(page, back if back.count() else leaf, touch=touch)
     panel_settled(page, view="menu")
     menu = page.locator(panel_view("menu"))

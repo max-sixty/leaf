@@ -39,7 +39,7 @@ from leaf.render_checks import rendered
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
 
 
 def thread_row(page, key):

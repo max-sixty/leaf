@@ -90,7 +90,8 @@ def page_roots(page_dir: Path) -> dict[Path, bool]:
 
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
-    claimant session's lifecycle, and each bound file. A watcher subscribes to these
+    claimant session's lifecycle and forks' hand-overs (`forks.HANDED`), which
+    change what is deliverable, and each bound file. A watcher subscribes to these
     by path, and follows a new set when the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
@@ -102,6 +103,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
+        named.append(("$forks", session_file(claim["id"], "forks").resolve()))
     return named + _bound(page_dir)
 
 

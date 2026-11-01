@@ -31,6 +31,25 @@ what fails and what still works.
 
 ## Known gaps
 
+### Report metadata in a revealed table
+
+On 2026-10-31, installed Google Chrome 156.0.8078.76, driven headlessly through
+Playwright's `chrome` channel at 1280×800, repeatedly crashed its renderer when
+the continuing hill-climb report opened Cases & outputs → Overview. The report's
+output table includes several `<small>` metadata lines in each Version cell.
+Changing only their `display: block` to `display: flow-root` preserved the layout
+and allowed repeated visits. The report stylesheet in
+`dev/leaf_dev/commands/eval_report.py` keeps that formatting context.
+
+Recheck the populated report produced by `leaf-dev eval-report`: override
+`.sample-table small { display: block !important; }`, visit another tab, then
+open the output index and capture the viewport. Compare the same source and
+browser with `display: flow-root`. Inline metadata without line breaks also
+survived, but explicit `<br>` breaks did not. Disabling CSS highlights, table
+containment, masks or background painting did not repair the observed crash.
+This is a bounded report reproduction, not a standalone browser-engine diagnosis
+or a claim about other Chrome builds or engines.
+
 ### Tab underline travel between anchors
 
 The selected-tab underline in `packages/default/styles/tabs.css` follows its

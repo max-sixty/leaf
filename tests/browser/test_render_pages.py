@@ -576,7 +576,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     told(page)
     # The view keeps the user's editing place and says the remote resolution in a
     # notice the user opens.
-    news = page.locator(".lf-fp-controls .lf-thread-news")
+    news = page.locator(".lf-fp-head .lf-thread-news")
     expect(news).to_have_text("Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()

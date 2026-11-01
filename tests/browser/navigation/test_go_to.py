@@ -766,7 +766,9 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(versions).to_be_visible()
     assert versions.evaluate("view => view.contains(document.activeElement)")
     expect(versions.locator(".lf-fp-version")).to_have_count(2)
-    expect(page.locator(".lf-fp-controls .lf-fp-back")).to_have_text("Menu")
+    expect(page.locator(".lf-fp-head .lf-fp-back")).to_have_accessible_name(
+        "Back to Menu"
+    )
     page.keyboard.press("Escape")
     expect(versions).to_have_count(0)
     expect(page.locator(PANEL)).to_have_attribute("data-open", "menu")

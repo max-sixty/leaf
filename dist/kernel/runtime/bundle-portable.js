@@ -861,6 +861,10 @@ const ACTIONS = {
 		name: "Arrange",
 		icon: "arrange"
 	},
+	back: {
+		name: "Back",
+		icon: "previous"
+	},
 	cancel: {
 		name: "Cancel",
 		icon: "cross"

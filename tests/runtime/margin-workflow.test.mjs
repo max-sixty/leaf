@@ -107,3 +107,40 @@ test("template contribution hosts paint the retained-host contract and are found
   }
   root.remove();
 });
+
+test("a refused widget move without a projection coordinate does not break the annotation inventory", async () => {
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { createAnnotationInventory } =
+    await import("/runtime/annotation-inventory.js");
+  applicationState.identify(1);
+  const attempt = "margin-unprojected-move";
+  applicationState.enqueue(
+    {
+      kind: "action",
+      attempt,
+      revision: 1,
+      widget: "unprojected-widget",
+      unit: "unprojected-widget",
+      action: "move",
+      detail: {},
+    },
+    "2026-10-31T12:00:00Z",
+  );
+  applicationState.refuse(attempt);
+  const pending = applicationState
+    .read()
+    .effective.workflows.find((item) => item.id === `rejected:${attempt}`);
+  assert.equal(pending.coordinate, null);
+  const inventory = createAnnotationInventory({
+    readObligations: () => ({ user: [] }),
+    placedAt: () => undefined,
+    openThread: () => {},
+    goToObligation: () => {},
+    scrollToElement: () => {},
+  });
+  try {
+    assert.doesNotThrow(() => inventory.collect());
+  } finally {
+    applicationState.release(new Set([attempt]));
+  }
+});

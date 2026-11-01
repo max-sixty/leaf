@@ -10,6 +10,18 @@ import { randomId } from "../ids.js";
 import { editable } from "./model.js";
 import { readThreads } from "./state.js";
 
+/** @typedef {import("../../types/domain.js").PendingCommand} PendingCommand */
+/** @typedef {ReturnType<typeof import("../pending/dispatch.js").createCommandDispatch>["post"]} Post */
+/** @template T
+ * @typedef {T extends unknown ? Omit<T, "kind" | "revision"> & {revision?: number | null} : never} CommentInput */
+/** @typedef {CommentInput<Extract<PendingCommand, {kind: "comment"}>>} CreateComment */
+/** @param {{
+ * post: Post,
+ * withdraw: ReturnType<typeof import("../undo.js").createUndo>["withdraw"],
+ * sendReaction: typeof import("../reactions.js").sendReaction,
+ * currentRevision: () => number | null,
+ * open: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"],
+ * }} dependencies */
 export function createThreadActions({
   post,
   withdraw,
@@ -17,33 +29,22 @@ export function createThreadActions({
   currentRevision,
   open,
 }) {
+  /** @param {CreateComment} command */
   const create = (command) => {
-    const {
-      text,
-      anchor,
-      revision = currentRevision(),
-      attempt = randomId(),
-      holds,
-      about,
-      drawing,
-      suggestion,
-    } = command;
-    if (!text && !drawing) return null;
+    if (!command.text && !command.drawing) return null;
+    const { revision = currentRevision(), attempt = randomId(), ...content } = command;
+    if (revision === null) return null;
     const delivery = post({
+      ...structuredClone(content),
       kind: "comment",
       revision,
-      ...(text !== undefined && { text }),
-      ...(anchor !== undefined && { anchor: structuredClone(anchor) }),
-      ...(attempt !== undefined && { attempt }),
-      ...(holds !== undefined && { holds }),
-      ...(about !== undefined && { about }),
-      ...(drawing !== undefined && { drawing: structuredClone(drawing) }),
-      ...(suggestion !== undefined && { suggestion }),
+      attempt,
     });
-    return delivery ? Object.freeze({ key: attempt, delivery }) : null;
+    return Object.freeze({ key: attempt, delivery });
   };
   // A visible local thread is a current root while saved history is loading too.
   // Its replies and settlement use the same ledger dependency on that opening send.
+  /** @param {string} key */
   const find = (key) => readThreads().threads.find((thread) => thread.key === key);
 
   /** @param {string} key @param {string} text @param {{attempt?: string}} [options] */
@@ -51,9 +52,11 @@ export function createThreadActions({
     if (!text) return null;
     const thread = find(key);
     if (!thread) return null;
+    const revision = currentRevision();
+    if (revision === null) return null;
     return post({
       kind: "reply",
-      revision: currentRevision(),
+      revision,
       parent: thread.root.id,
       text,
       ...(attempt && { attempt }),
@@ -73,7 +76,7 @@ export function createThreadActions({
       kind: "edit",
       message: messageId,
       text,
-      base,
+      ...(base !== undefined && { base }),
       ...(attempt && { attempt }),
     });
   };
@@ -93,6 +96,7 @@ export function createThreadActions({
 
   // An explicit desired state retains the meaning of a control drawn from a held
   // reading. A concurrent change that already achieved it sends nothing.
+  /** @param {string} key @param {string} messageKey @param {string} token @param {boolean} active */
   const setReaction = (key, messageKey, token, active) => {
     if (typeof active !== "boolean")
       throw new TypeError("A reaction needs its desired state");
@@ -102,11 +106,13 @@ export function createThreadActions({
       message && message.reactions?.choices.find((item) => item.name === token);
     if (!choice || active === Boolean(choice.inForce)) return null;
     if (choice.inForce) return withdraw(choice.inForce);
+    const revision = currentRevision();
+    if (revision === null) return null;
     return sendReaction(
       {
         kind: "reply",
         parent: message.id,
-        revision: currentRevision(),
+        revision,
         token,
       },
       `${message.agent}'s reply`,
@@ -115,6 +121,8 @@ export function createThreadActions({
   };
 
   return Object.freeze({
+    /** @param {string} key
+     * @param {{message?: string | null} & Parameters<ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]>[1]} options */
     async open(key, { message = null, ...options } = {}) {
       const thread = find(key);
       if (!thread) return null;
@@ -129,7 +137,9 @@ export function createThreadActions({
     create,
     reply,
     edit,
+    /** @param {string} key @param {{attempt?: string}} [options] */
     resolve: (key, options) => settle(key, true, options),
+    /** @param {string} key @param {{attempt?: string}} [options] */
     reopen: (key, options) => settle(key, false, options),
     setReaction,
   });

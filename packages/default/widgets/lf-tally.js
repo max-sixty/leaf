@@ -50,7 +50,8 @@ customElements.define(
       const items = readObligations();
       const region = this.#region();
       const ready = items.phase === "ready" && Boolean(region);
-      const held = ready ? obligationsIn(region, items.all) : [];
+      const held =
+        items.phase === "ready" && region ? obligationsIn(region, items.all) : [];
       const count = tally(held);
       // The drawing's two rooms hold the widest words, one calling the agent "the
       // agent" and one by its name; a longer count widens them once.

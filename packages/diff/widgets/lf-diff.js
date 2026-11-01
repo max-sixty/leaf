@@ -1707,6 +1707,7 @@ customElements.define(
 
     // A file navigation opens its evidence from the beginning. Its comment datum
     // stays on the header, which can remain visible while stuck over later lines.
+    /** @param {string} key @returns {Element[]} */
     lfElementsFor(key) {
       const coordinate = readDiffCoordinate(key);
       const node = coordinate?.file

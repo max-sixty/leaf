@@ -40,7 +40,12 @@ import {
 } from "../focus.js";
 import { html, render, nothing, share, signal } from "/runtime/framework.js";
 import { turns, threadKey } from "./model.js";
-import { anchorLabel, messageReading, threadSummary } from "./messages.js";
+import {
+  anchorLabel,
+  messageReading,
+  threadPassage,
+  threadSummary,
+} from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
 import { measure } from "../shown-box.js";
 import { keeps, layoutPx, roomPx } from "../keeps.js";
@@ -99,7 +104,7 @@ export function quoteReading(thread, anchors) {
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
-  const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+  const quoted = threadPassage(thread);
   const label = anchorLabel(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
@@ -762,7 +767,7 @@ export class ThreadView {
   // included. A head lends that room to its words while its controls hide, and the
   // controls stand over whatever runs into it when they show (controls.css), so the
   // fit keeps it, and Edit covers no name or time beside news. Where the room is short
-  // of its first fact the notice says one count instead (held-news.js, `newsNotice`).
+  // of its count the notice is cut (held-news.js, `newsNotice`).
   // The room is the notice's width and the narrowest head's spare width together,
   // which the two tracks trade one for one, so drawing the notice at it changes nothing
   // it was read from. A notice at a finger's floor can still leave a head short, and
@@ -955,9 +960,9 @@ export class ThreadView {
     );
     notice.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (news) {
-      // While news stands, the notice keeps the width of the words it first showed, so
-      // later news never narrows or widens it under the pointer; longer news is cut.
-      if (!notice.hasAttribute("data-room")) notice.dataset.room = news.label;
+      // While news stands, the notice keeps the width of the count it first showed, so
+      // later news never narrows or widens it under the pointer.
+      if (!notice.hasAttribute("data-room")) notice.dataset.room = news.text;
       const shown = shownRect(header, new Map());
       if (shown)
         notice.style.setProperty(
@@ -1060,7 +1065,6 @@ export class ThreadView {
     const commands = this.#commands.reply;
     return createReplyView(
       model.key,
-      this.node,
       {
         ...commands,
         actions: {

@@ -111,7 +111,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
         },
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     rendered(page)

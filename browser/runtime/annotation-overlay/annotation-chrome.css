@@ -746,13 +746,21 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     inset-inline-start: 0;
     inset-block-start: calc(50% - 3px);
   }
-  /* Each annotation carries its own gap, so one cut to nothing takes its gap too. */
+  /* Each annotation carries its own gap from the word before it, so one cut to nothing
+     takes its gap too. The first, where a message under one of the same age drops its
+     time, carries none: the head's own gap parts it from the name, "Me · Queued". */
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time, .lf-msg-new) {
-    padding-inline-start: var(--sp-2);
     flex-shrink: 1000000;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .lf-margin-thread
+    .lf-thread-transcript
+    .lf-msg-meta
+    > :not(.lf-msg-new)
+    ~ :not(time, .lf-msg-new) {
+    padding-inline-start: var(--sp-2);
   }
   /* The actions draw no ground: the transcript covers their track on the heads'
      line (above), with the ground of the message whose head holds it, tinted while
@@ -777,9 +785,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   /* The notice takes at most a notice's room beside a head's words (`--lf-news-width`,
      surfaces.css), and no more than the heads leave beside each one's name and time
-     (`--lf-news-room`, thread-card.js, `#fitMarginNews`). It drops whole the facts
-     past it and counts them in the room it keeps at its end, and where even its first
-     fact doesn't fit it says one count of all that waits (held-news.js, `newsNotice`).
+     (`--lf-news-room`, thread-card.js, `#fitMarginNews`), and it says one count of
+     all that waits (held-news.js, `newsNotice`).
      A desktop card's heads keep their names and times whole beside it. On a phone's
      card, whose three controls, notice and Edit each take a finger's width, a head
      still lacks room for both, and gives up its name first (above). Drawn whole, the
@@ -791,7 +798,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
       var(--lf-news-width),
       var(--lf-news-room, var(--lf-news-width))
     );
-    padding-inline-end: var(--lf-news-count-room);
   }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the

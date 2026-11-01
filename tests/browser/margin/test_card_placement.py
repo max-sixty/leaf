@@ -263,7 +263,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     )
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
-    expect(notice).to_have_text("2 new replies")
+    expect(notice).to_have_text("2 new")
     rendered(page)
     assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -272,6 +272,40 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     name = card.locator(".lf-msg-head b").first
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+
+
+# How far each head's first word after the name stands from it: the time, or where a
+# head has none, its first annotation's words.
+AFTER_NAME = """card => [...card.querySelectorAll('.lf-msg-head')].flatMap((head) => {
+  const first = head.querySelector('.lf-msg-meta > :not(.lf-msg-new)');
+  if (!first) return [];
+  const name = head.querySelector('b').getBoundingClientRect().right;
+  const words = first.getBoundingClientRect().left
+    + parseFloat(getComputedStyle(first).paddingInlineStart);
+  return [{first: first.localName, gap: words - name}];
+})"""
+
+
+def test_a_card_head_without_its_time_parts_its_words_from_the_name_once(
+    browser, serve
+):
+    """A message as old as the one above it drops its time, and its first annotation
+    stands where the time would: one gap from the name, "Me · Queued", where it kept
+    the time's gap as well as its own, which read as a missing word."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
+    )
+    append_user_reply(serve.page_dir, root, "And the banner where it is too.")
+    page = open_page(browser, url)
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    expect(card.get_by_text("And the banner where it is too.")).to_be_visible()
+    rendered(page)
+    heads = card.evaluate(AFTER_NAME)
+    assert [head["first"] for head in heads] == ["time", "span"], heads
+    dated, undated = heads
+    assert abs(undated["gap"] - dated["gap"]) < 0.5, heads
 
 
 # Where a card's notice stands against the user's head beside it: the notice's start,
@@ -293,9 +327,9 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     head of the user's message leaves beside its name and time, and stands clear of
     it. On a desktop card, with Previous and Next for its target's two threads, the
     head keeps "Me" and its time whole. On a phone's card, whose three controls, the
-    notice and the head's Edit each take a finger's width, the notice says one count,
-    "2 new", and the head keeps "Me" whole and gives up its time, as any narrow head
-    does before its name. Drawn whole, the notice stood over the head."""
+    notice and the head's Edit each take a finger's width, the head keeps "Me" whole and
+    gives up its time, as any narrow head does before its name. The notice says one
+    count, "2 new", on either. Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -324,10 +358,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
-    if phone:
-        expect(notice.locator(":scope > span")).to_have_attribute(
-            "data-lf-short", "2 new"
-        )
+    expect(notice).to_have_text("2 new")
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-thread="{root}"]')
     head = card.locator(".lf-msg-head").first

@@ -515,7 +515,7 @@ export function createPrimaryReader(
                 if (row !== reply.node) row.remove();
               move(node, reply.node, node.firstChild);
             };
-            const reply = createReplyView(item.key, node, commands.reply, redraw, {
+            const reply = createReplyView(item.key, commands.reply, redraw, {
               ...item.options,
               onChange: () => {
                 if (joined) void update().catch(() => {});

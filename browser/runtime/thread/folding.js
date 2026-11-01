@@ -8,8 +8,13 @@
    `returnToThread`, which own where a withdrawn gesture leaves the user).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
-   user away from the thread and leave nothing on screen to say it was resolved; `z`
-   says the reverse (undo.js). */
+   user away from the thread and leave nothing on screen to say it was resolved, and
+   offers the press that takes that settlement back, as `z` would (undo.js,
+   `offerUndo`), which says the reverse; the notice goes when the log refuses the
+   settlement or it is taken back, so its press never takes back another. It names
+   the thread by the words it is about, as the thread's head quotes them, else by its
+   name: "Resolved the thread" stood under the next thread a panel's Resolve moved the
+   user on to, and read as that thread's (the user's choice, 31 October). */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
@@ -17,6 +22,26 @@ import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
+import { excerptWords, quotedWords } from "../words.js";
+import { anchorLabel, threadName, threadPassage } from "./messages.js";
+import { threadNamed } from "./state.js";
+
+// What the notice calls the thread, cut as undo.js cuts the names its notices quote,
+// so a long passage leaves the press beside it in view.
+const NAMED = 48;
+/** @param {string} key */
+function settledName(key) {
+  const thread = threadNamed(key);
+  if (!thread) return "the thread";
+  const passage = threadPassage(thread);
+  const label = anchorLabel(
+    passage?.quote
+      ? { ...passage, quote: excerptWords(passage.quote, NAMED) }
+      : passage,
+    thread.root.about,
+  );
+  return label || quotedWords(threadName(thread), NAMED);
+}
 
 /** @typedef {() => boolean | void | Promise<boolean | void>} Landing */
 /** @param {{
@@ -27,6 +52,7 @@ import { retainUserIntent } from "../user-intent.js";
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
  * landedAway: (attempt: string) => void,
+ * offerUndo: ReturnType<typeof import("../undo.js").createUndo>["offerUndo"],
  * returnToThread: ReturnType<typeof import("../undo.js").createUndo>["returnToThread"],
  * }} dependencies */
 export async function settleThread({
@@ -37,16 +63,20 @@ export async function settleThread({
   pendingEntries,
   actions,
   landedAway,
+  offerUndo,
   returnToThread,
 }) {
   const land = prepareLanding?.();
   const since = inputCount();
   const attempt = randomId();
+  const named = settledName(key);
   const answer = resolved
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });
   if (!answer) return;
-  notice(resolved ? "Reopened the thread" : "Resolved the thread");
+  notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, {
+    press: offerUndo(attempt),
+  });
   if (land) landedAway(attempt);
   await landGesture({
     land,

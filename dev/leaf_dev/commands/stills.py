@@ -564,11 +564,9 @@ def open_card(page: Page, marker: Locator) -> None:
 
 
 def card_by_keyboard(page: Page) -> None:
-    """The first margin card, opened by Enter on its marker, so its thread holds a
-    visible focus."""
-    page.keyboard.press("Tab")  # keyboard modality, so focus is drawn
-    page.locator(".lf-margin-marker").first.focus()
-    page.keyboard.press("Enter")
+    """The first margin card, opened by `t`, the keyboard's way to the next thread, so
+    its thread holds a visible focus."""
+    page.keyboard.press("t")
     page.wait_for_function(
         "() => document.activeElement?.matches('.lf-margin-preview .lf-page-thread')"
     )
@@ -1046,11 +1044,11 @@ def image_preview(page: Page) -> None:
 
 
 def panel_by_keyboard(page: Page) -> None:
-    """Threads, opened by Go to Threads, with keyboard focus on its view."""
+    """Threads, opened by Go to Threads, with keyboard focus on its first row."""
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads]')"
+        "() => document.activeElement?.matches('.lf-fp-view[data-view=threads] .lf-fp-thread')"
     )
 
 

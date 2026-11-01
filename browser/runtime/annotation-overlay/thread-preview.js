@@ -1161,10 +1161,12 @@ export function createThreadPreview({
       }
       const row =
         left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-      /** @type {HTMLTextAreaElement | null} */
-      const field = row ? row.querySelector(REPLY_BOX) : null;
-      if (row && !(node && under(node, row)) && !field?.value)
-        scheduleThreadPreviewPosition();
+      if (row && !(node && under(node, row))) {
+        previewSession?.anchor.leftReply();
+        /** @type {HTMLTextAreaElement | null} */
+        const field = row.querySelector(REPLY_BOX);
+        if (!field?.value) scheduleThreadPreviewPosition();
+      }
     });
     declareOffFlowSurface(preview, {
       bringBack: (behavior) =>

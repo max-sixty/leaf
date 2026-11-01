@@ -283,6 +283,7 @@ function createApplication(dependencies) {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
     landedAway: undo.landedAway,
+    offerUndo: undo.offerUndo,
     returnToThread: undo.returnToThread,
   };
   const reactionView = {

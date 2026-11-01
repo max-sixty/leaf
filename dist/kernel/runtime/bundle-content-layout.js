@@ -129,6 +129,7 @@ const chromeForeground = document.createElement("dialog");
 chromeForeground.className = "lf-ui lf-foreground";
 chromeForeground.setAttribute("open", "");
 chromeForeground.setAttribute("role", "presentation");
+chromeForeground.tabIndex = -1;
 
 //#endregion
 //#region runtime/resolved-target.js

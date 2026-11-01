@@ -558,11 +558,11 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
-    # The send leaves the user on the card, holding it under the pressed Send.
-    # An answer arriving then extends it downward,
+    # The send leaves the caret in the reply, holding the card under the pressed
+    # Send. An answer arriving then extends it downward,
     # holding its top, as a turn arriving while the user reads does.
     rendered(page)
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(editor).to_be_focused()
     expect(preview).to_be_visible()
     sent = page.evaluate(CARD_AND_REPLY)
     # The sent turn may need more room above the reply row than the window has.

@@ -2,9 +2,9 @@ import { LAYOUT, PENDING_TASK, actionIcon, afterScript, agentArrivalDuration, at
 import { DRAFT_FORMAT, LIVE_ROOT, LitElement, PENDING, PRESENTATION_DOM, PRESSES, TEXT_FIELD, Z, actionForWidget, agentName, agentSays, anchorKey, annotationMarkSheets, annotationMode, applicationPresenter, applicationState, attachApplicationPresentation, attachWidgetPresentation, blurFocused, canPlaceFocus, closeLayer, closeNativeLayer, currentLocationIn, d, discussed, documentChanged, drawingSchema, drawn, editable, eventSource, focusDestination, focused, handBack, hasObligationSource, holdFocus, html, inputCount, isMessageEvent, isThreadEvent, leafSays, marksSheet, matchesWhen, move, moved, nativeFocusTarget, offlineInteractive, offlineState, onCurrentLocation, onUserInput, openLayer, openerOf, pageUrl, presentDocument, pressIsKeyboardActivation, projectionOrigins, q, queueWidgetUpdate, reactionsAt, readApplication, readPart, registry, render, runtime, saidBy, setPresentationFailureReporter, shadowRootsIn, shadowRules, showNativeLayer, tagsDeclaring, takesLetters, threadKey, tokenChoices, turns, voiced, watchCurrentLocationIn, watchLayers, watchPresentation, whenApplicationRegionsPresented, whenDocumentPresented, whenLeft, whenWidgetsPresented, wordsText, x } from "./bundle-layer-stack.js";
 import { PRESS, TEXT_ENTRY, admitResponse, announce, claimsEsc, commandAvailable, commandBinding, commandRoutes, commandRun, completeData, controlAvailabilityOutput, countTraffic, cycledRow, dataHeaders, el, hasRows, holdingError, isCommandScope, keys, layerHeaders, nativePress, notice, paintKeys, paintKeysWithin, postEvent, projectCommandScope, raiseError, randomId, recordInteraction, removeRuntimeRootStyle, repaint, reportCarried, reportPageError, responseAction, reveal, rowArrows, sameLayer, savedReadingSettled, saying, sessionIsActive, setRuntimeRootStyle, watchCommandAvailability, watchPendingTraffic } from "./bundle-layer-client.js";
 import { activityTransitionDue, addressableLabel, addressableWord, afterPresentation, ago, anchorAt, anchorBox, anchorElement, anchorForRange, anchorReaches, anchorReading, anchoringIsReady, commitPoint, cutFrames, declaredName, livePoint, markStateApplied, moveScrollerBy, nameAnchor, observeServerNow, observeWorkingGrace, reachScrollers, readingRegionFor, saidNow, scheduleDocumentLayout, scrollsWith, sectionOf, settlePageInterface, targetSegments, tickClock, visualPartLabel, widgetWord } from "./bundle-content-layout.js";
-import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted as quoted$1, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
+import { HOLDS_WORD, HeldNews, MessageView, NOT_ANSWERED, SAYS_IN, THREAD, ThreadView, Transcript, aborted, allButCommandReference, allThreads, anchorLabel, answeredInWords, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, bringBackSurfaceOf, claimed, clearDraft, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, createProjectionPresentation, createReplyView, dataReader, declareSide, descriptorStillMatches, dismissReplyAt, draftContexts, drawnThreadId, externalMark, focusThread, focusedThreadTarget, heldOut, heldThread, holdReplyCompositions, holdThreadPlace, inlineComparison, isBlockPlacement, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, listWalkPosition, loadDraft, loadMarkdown, loadMessageMarkdown, markdownReady, messageHolding, messageReading, messageText, mountFirstMessage, newsNotice, obligationHolding, obligationPlace, offerComparison, onReadingInterrupted, openMessageEditIn, opensElsewhere, orderChildren, pageCommand, pageScope, pageSelection, placeOf as placeOf$1, placePageThreads as placePageThreads$1, placedMarkdownTokens, prepareAuthoredMessage, progressFace, quoted, readObligations, readThreads, readingIsContinuous, readingReturn, registerWritingDestination, rememberWriting, renderMarginThread, renderSeats, renderSurfaces, replyDraftContext, replyIsEditing, replyThreadKey, retainThreadSeats, revealHeld, revisionBase, saveDraft, sendLanding, sendMessage, setChildren, settleAcceptedDrafts, showHeld, showHeldThread, stopComparison, strongestWorkflow, suppliedSnapshot, surfaceFocusTarget, threadAttention, threadDraft, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading as threadReading$1, threadReplyInput, threadRewrites, threadState, todoWord, toggleInlineComparison, transferDraft, watchDraft, watchDrafts, watchThreadSurfaces, wholeThread, widgetDescriptor, workflowWord } from "./bundle-data.js";
 import { clamp, clippedContents, clipsPastSurfaces, growthIsSeen, hasArea, headerCuts, intersect, layoutWindow, nearObserver, nearWindow, paintClips, placeBox, placeHolder, presented as presented$1, scrollsContent, seenRect, shownBox, shownWindow, union, watchRoom, whenNone } from "./bundle-geometry.js";
-import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
+import { closestAcross, elementById, excerptWords, inChrome, labelWords, leafSurface, pageParts, pageReadingVersion, quoteFrom, quotedWords, textNodesUnder, watchPassageRoot } from "./bundle-passages.js";
 import { alreadyShown, copyTrigger, fitsWhole, restrictUserIntent, retainUserIntent, scrollIntoReadingBand, scrollIntoView } from "./bundle-copy-control.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -4639,20 +4639,19 @@ function reactionPlace(event) {
 //#endregion
 //#region runtime/undo.js
 const WAIT = "Wait for the current change to finish before undoing";
-const quoted = (words, cap = 60) => `“${excerptWords(words, cap)}”`;
 function widgetNamed(id) {
 	const element = elementById(id);
 	if (!element) return "a widget";
 	const label = addressableLabel(element);
-	return label ? quoted(label) : `the ${addressableWord(element)}`;
+	return label ? quotedWords(label) : `the ${addressableWord(element)}`;
 }
 function actionWords(event, gesture) {
 	const widget = widgetNamed(event.widget);
 	switch (gesture?.form) {
-		case "choice": return `chose ${gesture.chosen.map((words) => quoted(words)).join(", ") || "nothing"} in ${widget}`;
-		case "move": return `moved ${quoted(gesture.unit)} to ${quoted(gesture.to)} in ${widget}`;
+		case "choice": return `chose ${gesture.chosen.map((words) => quotedWords(words)).join(", ") || "nothing"} in ${widget}`;
+		case "move": return `moved ${quotedWords(gesture.unit)} to ${quotedWords(gesture.to)} in ${widget}`;
 		case "edit": return `edited ${widget}`;
-		case "add": return `added ${quoted(gesture.words)} to ${widget}`;
+		case "add": return `added ${quotedWords(gesture.words)} to ${widget}`;
 		case "verb": return `recorded “${gesture.verb}” on ${widget}`;
 		default: return `updated ${widget}`;
 	}
@@ -4668,12 +4667,12 @@ function gestureWords(event, gesture) {
 		case "resolve":
 		case "unresolve": {
 			const thread = threadNamed(event.parent);
-			const name = thread ? quoted(threadName(thread), 48) : "a thread";
+			const name = thread ? quotedWords(threadName(thread), 48) : "a thread";
 			return `${event.kind === "resolve" ? "resolved" : "reopened"} ${name}`;
 		}
 		case "todo_end": {
 			const todo = runtime.todos.find(({ id }) => id === event.todo);
-			return TODO_ENDINGS[event.outcome](todo ? quoted(todo.title) : "a to-do");
+			return TODO_ENDINGS[event.outcome](todo ? quotedWords(todo.title) : "a to-do");
 		}
 		default: return actionWords(event, gesture);
 	}
@@ -4710,12 +4709,16 @@ const KEYS_HELD = /* @__PURE__ */ new Set([
 ]);
 const UNDO_KEYS = ["z"];
 function createUndo({ post, stateApplying, unaccountedGesture, openThread, threadPlace }) {
+	function takeable() {
+		const { effective, unresolved } = readApplication();
+		if (!effective.view) return null;
+		return /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.flatMap((entry) => entry.state === "refused" ? [] : [entry.event.attempt])]);
+	}
 	const gestures = /* @__PURE__ */ new Map();
 	function retainGesture(attempt, facts) {
-		const { effective, unresolved } = readApplication();
-		if (effective.view) {
-			const liveAttempts = /* @__PURE__ */ new Set([...effective.view.undo.map(({ event }) => event.attempt), ...unresolved.map((entry) => entry.event.attempt)]);
-			for (const kept of gestures.keys()) if (!liveAttempts.has(kept)) gestures.delete(kept);
+		const live = takeable();
+		if (live) {
+			for (const kept of gestures.keys()) if (!live.has(kept)) gestures.delete(kept);
 		}
 		gestures.set(attempt, {
 			...gestures.get(attempt),
@@ -4837,14 +4840,13 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			});
 		});
 	}
-	function undoLast() {
-		if (stateApplying() || unaccountedGesture()) {
-			raiseError(WAIT);
-			return null;
-		}
-		const entry = headEntry();
-		if (!entry) return null;
-		const event = entry.event;
+	function settled() {
+		if (!stateApplying() && !unaccountedGesture()) return true;
+		raiseError(WAIT);
+		return false;
+	}
+	function walkTo(entry) {
+		const { event } = entry;
 		const heldArm = armedFor(event);
 		const taking = heldArm && !(heldArm.returns && entry.picked_up);
 		if (!taking && needsShowing(entry)) {
@@ -4858,6 +4860,23 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 		if (returning) whenDocumentPresented().then(() => show(event, returning)).catch(() => {});
 		return answer;
 	}
+	function undoLast() {
+		if (!settled()) return null;
+		const promised = armed && runtime.undo.find(({ event }) => armed?.is(event));
+		if (promised) return walkTo(promised);
+		const entry = headEntry();
+		return entry ? walkTo(entry) : null;
+	}
+	const offerUndo = (attempt) => ({
+		action: "undo",
+		command: "history.undo",
+		run() {
+			if (!settled()) return null;
+			const entry = runtime.undo.find(({ event }) => event.attempt === attempt);
+			return entry ? walkTo(entry) : null;
+		},
+		stands: () => takeable()?.has(attempt) ?? true
+	});
 	pageCommand({
 		id: "history.undo",
 		ready: savedReadingSettled,
@@ -4881,6 +4900,7 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 	});
 	return {
 		landedAway,
+		offerUndo,
 		returnToThread,
 		retainGesture,
 		undoable,
@@ -5992,7 +6012,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
 							for (const row of node.querySelectorAll(":scope > .lf-thread-reply")) if (row !== reply.node) row.remove();
 							move(node, reply.node, node.firstChild);
 						};
-						const reply = createReplyView(item.key, node, commands.reply, redraw, {
+						const reply = createReplyView(item.key, commands.reply, redraw, {
 							...item.options,
 							onChange: () => {
 								if (joined) update().catch(() => {});
@@ -7033,7 +7053,7 @@ function createAtWork(inventory) {
 //#endregion
 //#region runtime/thread/box.js
 const threadBox$1 = (el, hint, { createComment, onDraftChanged, wireInput }) => {
-	if (inChrome(el) || quoted$1(el)) return null;
+	if (inChrome(el) || quoted(el)) return null;
 	const declaration = registry[el.localName]?.["x-thread-seat"];
 	if (!declaration || !matchesWhen(el, declaration.when)) throw new TypeError(`<${el.localName}> placed a thread outside its x-thread-seat predicate`);
 	const box = Object.assign(offer("div", "lf-thread-seat"), { lfThreadSeatOwner: el });
@@ -7743,6 +7763,7 @@ function createApplication(dependencies) {
 		pendingEntries: ledger.snapshot,
 		actions: threadActions,
 		landedAway: undo.landedAway,
+		offerUndo: undo.offerUndo,
 		returnToThread: undo.returnToThread
 	};
 	const inlineView = {

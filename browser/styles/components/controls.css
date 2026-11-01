@@ -960,8 +960,10 @@ wa-copy-button.lf-icon-action {
    as a thread's held news, the activity feed's notice, the floating panel's Next
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
-   pointer. One announcing news waiting (`data-lf-news`) takes the danger ink, as do
-   the words a seat's Resolved summary says its threads hold (thread/inline.js). The
+   pointer. One announcing news waiting (`data-lf-news`), and the count a seat's
+   Resolved summary says its threads hold (thread/inline.js), keep the accent the
+   unread dot wears, as the user chose on 31 October over the danger ink, which read
+   as an error. The
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
    pointer) until the user chose this one on 28 October. Words a press says in a
@@ -980,8 +982,8 @@ wa-copy-button.lf-icon-action {
   text-decoration: none;
   cursor: pointer;
 }
-:is(.lf-inline-action, .lf-resolved-summary *)[data-lf-news] {
-  color: var(--danger);
+.lf-resolved-summary [data-lf-news] {
+  color: var(--accent);
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
    which a finger's tap leaves behind too. */

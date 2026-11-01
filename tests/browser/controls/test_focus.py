@@ -7,9 +7,13 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
+from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import (
     PANEL_DIFF_MARKUP,
     WIDE_DIFF_PAGE,
+    current_location_ring,
+    ring_faults,
+    rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import DIFF_PAGE
@@ -18,6 +22,7 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
+    ROOT,
     expect_comment_notes,
     held_frames,
     holding,
@@ -64,6 +69,76 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
+    engine, request, serve
+):
+    """The chrome's foreground is an empty box holding the panel and the overlays, so a
+    Tab never stops on it. Firefox gave the open dialog a Tab stop of its own, which
+    drew nothing between the page's last control and the leaf."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
+    )
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("Tab")
+    expect(page.locator("#last")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+
+
+def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
+    browser, serve
+):
+    """`g T` from the page stands Threads on its first row, and Escape from a thread's
+    reply in the panel stands the user on the thread's view; each wears a ring. Both
+    once left focus on a view, which drew none, so where Enter or `r` would act was a
+    guess."""
+    url = serve(PANEL_PAGE)
+    panel_comment(
+        serve.page_dir, "Where should this explanation go?", {"section": "lede"}
+    )
+    page = open_page(browser, url)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    row = page.locator(f"{panel_view('threads')} .lf-fp-thread").first
+    expect(row).to_be_focused()
+    assert current_location_ring(page), "Threads opened by key showed no ring"
+    page.keyboard.press("Enter")
+    reply = page.locator('.lf-fp-field leaf-text[name="reply"]')
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("thread"))).to_be_focused()
+    # The view's own top edge fades out, so the stage it fills wears its ring. The box
+    # follows the Escape's layout on the next rendering, and while it moves the ring
+    # is drawn by its moving layer, so wait for that motion to start, then finish it.
+    rendered(page)
+    panel_settled(page, view="thread")
+    drawn = rings_drawn(page)
+    worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
+    assert worn == ["div.lf-fp-stage"], drawn
+    assert not (faults := ring_faults(drawn, "on the thread's view")), "\n".join(faults)
+
+
+def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
+    """On me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On me drew,
+    and On me closing then dropped them on the page."""
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page.locator(".lf-fp-on-user").click()
+    card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
+        has_text="The vendor release is the only schedule"
+    )
+    card.locator(".lf-fp-show").click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".contains(document.activeElement)"
+    )
 
 
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):

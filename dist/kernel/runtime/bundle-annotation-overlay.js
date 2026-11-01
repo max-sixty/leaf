@@ -121,14 +121,20 @@ var CardAnchor = class {
 	#sent = null;
 	#press = null;
 	#side = null;
+	#sentFrom = null;
 	constructor(surface) {
 		this.#surface = surface;
 	}
 	sending(attempt) {
 		this.#sent = attempt;
+		this.#sentFrom = "untyped";
 	}
 	writing() {
 		this.#sent = null;
+		if (this.#sentFrom) this.#sentFrom = "typed";
+	}
+	leftReply() {
+		this.#sentFrom = null;
 	}
 	#keepsSend(joined) {
 		return this.#sent !== null && (!joined?.size || joined.has(this.#sent));
@@ -160,7 +166,7 @@ var CardAnchor = class {
 	}
 	#writing() {
 		const field = this.#field();
-		return Boolean(field?.checkVisibility() && (currentLocationIn(field.closest(".lf-thread-reply")) || field.value !== ""));
+		return Boolean(field?.checkVisibility() && (field.value !== "" || this.#sentFrom !== "untyped" && currentLocationIn(field.closest(".lf-thread-reply"))));
 	}
 	#extent() {
 		const transcript = this.#surface.querySelector(".lf-thread-transcript");
@@ -189,7 +195,7 @@ var CardAnchor = class {
 			}
 		}
 		const attachment = seat.side === "top" ? "foot" : "top";
-		const ordinary = this.#sent || !writing && seat.side === "top" ? "foot" : "top";
+		const ordinary = this.#sent || seat.side === "top" && (!writing || this.#sentFrom) ? "foot" : "top";
 		const beside = seat.side === "left" || seat.side === "right";
 		return {
 			writing,
@@ -207,6 +213,7 @@ var CardAnchor = class {
 		this.#sent = null;
 		this.#press = null;
 		this.#side = null;
+		this.#sentFrom = null;
 	}
 };
 
@@ -899,8 +906,10 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				scheduleThreadPreviewPosition();
 			}
 			const row = left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
-			const field = row ? row.querySelector(REPLY_BOX) : null;
-			if (row && !(node && under(node, row)) && !field?.value) scheduleThreadPreviewPosition();
+			if (row && !(node && under(node, row))) {
+				previewSession?.anchor.leftReply();
+				if (!row.querySelector(REPLY_BOX)?.value) scheduleThreadPreviewPosition();
+			}
 		});
 		declareOffFlowSurface(preview, { bringBack: (behavior) => scrollToElement(entryPlace(previewSession?.entry) ?? previewSession?.control ?? null, behavior, "nearest") });
 		move(chromeRoot, preview, chromeForeground);

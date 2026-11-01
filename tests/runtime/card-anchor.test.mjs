@@ -118,6 +118,45 @@ test("native and restored writing reclaim the reply without comparing draft hist
   assert.equal(place(), "top");
 });
 
+test("a box written in after Send stays written in once its words are erased", (t) => {
+  const { anchor, field, place } = card(t);
+  field.focus();
+  place();
+  anchor.sending("sent turn");
+  anchor.presented(new Set(["sent turn"]));
+  // The empty box Send left the caret in lets the answer show.
+  assert.equal(anchor.newsMoves(new Set(["answer"])), false);
+  // The user types there and erases the words: still writing, so news waits.
+  anchor.writing();
+  field.value = "A";
+  field.value = "";
+  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
+});
+
+test("above its subject, the next draft in the box Send left keeps the send's foot", (t) => {
+  const { anchor, field, place } = card(t);
+  const above = { ...beside, side: "top" };
+  field.focus();
+  anchor.writing();
+  field.value = "A draft";
+  assert.equal(place(above), "top");
+  anchor.sending("sent turn");
+  field.value = "";
+  anchor.presented(new Set(["sent turn"]));
+  assert.equal(place(above), "foot");
+  anchor.presented(new Set(["answer"]));
+  assert.equal(place(above), "foot");
+  // Typing the next draft there keeps the foot the send held.
+  anchor.writing();
+  field.value = "The next draft";
+  assert.equal(place(above), "foot");
+  assert.equal(anchor.newsMoves(new Set(["answer"])), true);
+  // Leaving the reply and coming back into it writes from the top again.
+  anchor.leftReply();
+  anchor.writing();
+  assert.equal(place(above), "top");
+});
+
 test("beside its subject a card rises as it grows, unless a press or a send holds it", (t) => {
   const { anchor, field, press, grow } = card(t);
   // Read or written in, it rises from the top it holds; under its subject it only

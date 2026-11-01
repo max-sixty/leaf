@@ -1346,7 +1346,7 @@ def test_an_agent_reply_leaves_the_reply_being_typed_where_it_stands(browser, se
         },
     )
     told(page)
-    expect(preview.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(preview.locator(".lf-thread-news")).to_have_text("1 new")
     expect(preview).not_to_contain_text(
         "An agent answer arriving while the user types."
     )
@@ -1411,7 +1411,8 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
 @pytest.mark.parametrize(("size", "how"), [((1200, 900), "key"), ((800, 520), "press")])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """Sending keeps the reply's foot through admission, then releases it for news
-    and the next draft. Clearing several lines may lower the editor's top, but cannot
+    and, beside the words, for the next draft; over them the next draft typed in the
+    same box keeps it. Clearing several lines may lower the editor's top, but cannot
     move its foot, the card's column, or the page, even for one frame."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     write(editor, "First point.\nSecond point.\nThird point.")
@@ -1481,7 +1482,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(preview.locator(".lf-msg").last).to_contain_text("Third point.")
     expect(preview.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
     rendered(page)
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
+    expect(editor).to_be_focused()
     page.wait_for_function("replyMotion.frames.some(frame => frame.pending)")
     pending = finish(before, "editorFoot")
     assert pending["editorTop"] > before["editorTop"] + 20, (before, pending)
@@ -1512,7 +1513,7 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     told(page)
     if accepted["side"] == "above":
         notice = preview.locator(".lf-thread-news")
-        expect(notice).to_have_text("1 new reply")
+        expect(notice).to_have_text("1 new")
         finish(accepted, "top", "foot", "editorTop", "editorFoot")
         begin()
         notice.click()
@@ -1525,14 +1526,21 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
             answered,
         )
 
-    # A fresh draft grows down from its first line, then scrolls within the card.
+    # A fresh draft in the box Send left the caret in grows away from the words, down
+    # from its first line beside them and up from the reply's foot over them, the
+    # transcript giving way where the card fills the room above them; then it scrolls
+    # within the card.
     editor.click()
     rendered(page)
     drafting = observe()
     begin()
     page.keyboard.insert_text("The next point.\nAnother line.")
-    grown = finish(drafting, "top", "editorTop")
-    assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
+    if accepted["side"] == "above":
+        grown = finish(drafting, "top", "foot", "editorFoot")
+        assert grown["editorTop"] < drafting["editorTop"] - 10, (drafting, grown)
+    else:
+        grown = finish(drafting, "top", "editorTop")
+        assert grown["editorFoot"] > drafting["editorFoot"] + 10, (drafting, grown)
     write(editor, "\n".join(f"More detail {line}." for line in range(60)))
     rendered(page)
     bounded = observe()
@@ -1710,7 +1718,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     )
     stream_reply(serve.page_dir, root, waiting)
     told(page)
-    expect(card.locator(".lf-thread-news")).to_have_text("1 new reply")
+    expect(card.locator(".lf-thread-news")).to_have_text("1 new")
     expect(streamed).to_have_text("The answer has started.")
     expect(card.locator("leaf-text")).to_be_focused()
     rendered(page)
@@ -1839,3 +1847,37 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     assert before is not None
     stream_tokens(100)
     assert reading() == pytest.approx(before, abs=0.5)
+
+
+def test_a_press_on_a_cards_news_leaves_the_caret_in_its_reply(browser, serve):
+    """A card holding news while the user writes its reply shows it on a press of its
+    notice, and the caret stays in the reply with the words before it. The press took
+    focus from the box and landed it on the thread, as a key on the notice does."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Where should this explanation go?", {"section": "how-store"}
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    write(reply, "Drafting while the answer arrives")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": root,
+            "responds": root,
+            "text": "Under the queue's heading.",
+        },
+    )
+    told(page)
+    notice = preview.locator(".lf-thread-news")
+    expect(notice).to_be_visible()
+    notice.click()
+    expect(preview.get_by_text("Under the queue's heading.")).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "Drafting while the answer arrives")

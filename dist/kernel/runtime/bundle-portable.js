@@ -1617,6 +1617,22 @@ function foldBlock(el, allocation = null) {
 }
 
 //#endregion
+//#region runtime/tab-store.js
+const tabStore = window.lfStorage?.tabStore ?? {
+	read: () => ({
+		available: false,
+		value: null
+	}),
+	get: () => null,
+	set: () => false,
+	where: (key) => ({
+		store: "session",
+		key
+	}),
+	keys: () => []
+};
+
+//#endregion
 //#region runtime/canvas.js
 function canvas2D(canvas, options) {
 	const context = canvas.getContext("2d", options);
@@ -1675,22 +1691,6 @@ function textWidth(text, font) {
 	measuring.font = font;
 	return measuring.measureText(text).width;
 }
-
-//#endregion
-//#region runtime/tab-store.js
-const tabStore = window.lfStorage?.tabStore ?? {
-	read: () => ({
-		available: false,
-		value: null
-	}),
-	get: () => null,
-	set: () => false,
-	where: (key) => ({
-		store: "session",
-		key
-	}),
-	keys: () => []
-};
 
 //#endregion
 export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, canvas2D, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, inlineStyle, isElement, isHTML, isNativeLayer, isNode, isStage, isText, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

@@ -5,14 +5,22 @@
    moment's news, such as an arrived version or an undo, and it stands in
    one seat: the floating panel's seat for passing words, in place of the current walk
    position, which returns when the notice's time is up (floating-panel.js, `passing`). The
-   live region hears the same words. It is text rather than a control: what a notice
-   names, the panel's own controls reach. There is no second surface for news, so
-   nothing floats in a corner to become a stale pointer target. A failure is no news:
-   it goes through errors.js, which keeps it until the user has dealt with it. */
+   live region hears the same words. It is text, but for the one press a notice of the
+   user's own gesture may carry: the press that takes that gesture back (`press`,
+   undo.js's `offerUndo`), which the floating panel draws beside the words with the key
+   of the page command that makes it too, as "Resolved “One reconnect in about 40” ·
+   Undo z" (floating-panel.js, `rowNotice`). The notice stands no longer than its
+   gesture does, so its press never takes back anything else. The user chose that on
+   31 October, after a Resolve that moved the panel on left nothing there offering to
+   take it back; until then a notice was text alone, and what it named the panel's own
+   controls reached. There is no second surface for news, so nothing floats in a corner
+   to become a stale pointer target. A failure is no news: it goes through errors.js,
+   which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
-import { signal } from "/runtime/framework.js";
+import { effect, signal, untracked } from "/runtime/framework.js";
 import { ANNOUNCE } from "./widget-upgrade.js";
 import { leafSays, wordsText } from "./voice.js";
+import { onUserInput } from "./focus.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
@@ -20,6 +28,7 @@ import { leafSays, wordsText } from "./voice.js";
  * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
  * @typedef {SemanticBackground | {key: "text", value: Words}} Background
+ * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean}} NoticePress
  */
 
 export const liveEl = el("div", "lf-ui lf-live");
@@ -31,16 +40,22 @@ liveEl.setAttribute("aria-live", "polite");
 const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
+// Ends the watch on the standing notice's press (`showNotice`).
+let stopWatchingPress = () => {};
 /** @type {Background | null} */
 let showingBackground = null;
 /** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-// What the seat says and whether it shows. Errors are no notices: they go through
-// errors.js, which keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean}>>} */
-const noticePresentation = signal(Object.freeze({ message: "", visible: false }));
+// What the seat says, whether it shows, and the press it offers, or null: the action
+// it is, the page command whose key makes the same press, what it does, and whether it
+// still can, as `{action, command, run, stands}`. Errors are no notices: they go
+// through errors.js, which keeps them until they are dealt with.
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null}>>} */
+const noticePresentation = signal(
+  Object.freeze({ message: "", visible: false, press: null }),
+);
 
 export const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
@@ -55,9 +70,9 @@ export const noticeWords = (message) =>
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
-/** @param {Words} message @param {boolean} visible */
-const presentNotice = (message, visible) => {
-  noticePresentation.value = Object.freeze({ message, visible });
+/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press] */
+const presentNotice = (message, visible, press = null) => {
+  noticePresentation.value = Object.freeze({ message, visible, press });
 };
 
 /** @param {Words} msg */
@@ -77,21 +92,43 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // An undo ("Undid: Chose “Fast” · just now"), an arrival ("Updated to v3"): the
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
 // draws it where it was made; the live region alone hears it (application.js,
-// `named`). A sentence that is also a button for
-// four seconds is a target
-// the user cannot learn.
-/** @param {Words} msg @param {Background | null} background */
-function showNotice(msg, background = null) {
-  presentNotice(msg, true);
+// `named`). A notice offering a press (`press`) ends in that press's word and key, so
+// what pressing the words does reads in them.
+/** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
+function showNotice(msg, background = null, press = null) {
+  presentNotice(msg, true, press);
   showingBackground = background;
   clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => {
-    if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
-      return;
-    presentNotice(noticePresentation.peek().message, false);
-    showingBackground = null;
-  }, NOTICE_MS);
+  stopWatchingPress();
+  if (!press) noticeTimer = setTimeout(retireNotice, NOTICE_MS);
+  // A notice another has replaced is no longer this watch's to retire.
+  else
+    stopWatchingPress = effect(() => {
+      if (!press.stands() && noticePresentation.peek().press === press)
+        untracked(retireNotice);
+    });
 }
+function retireNotice() {
+  stopWatchingPress();
+  if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
+    return;
+  presentNotice(noticePresentation.peek().message, false);
+  showingBackground = null;
+}
+// A notice offering a press stands until the user's next input rather than for its
+// time, and no longer than its press can act: a gesture the log refused, or one taken
+// back by any route, takes its notice away. The panel gives its press room beside the
+// field (floating-panel.js, `rowNotice`), so one leaving on a timer moved the field's
+// controls under nobody's hand. An input on the press itself, which carries
+// `NOTICE_PRESS`, keeps it.
+const NOTICE_PRESS = "data-lf-notice-press";
+onUserInput((event) => {
+  if (!noticePresentation.peek().press) return;
+  const path = event.composedPath?.() ?? [];
+  if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
+    return;
+  retireNotice();
+});
 
 // A producer may retire a deferred assertion before it reaches the seat.
 // Skip it without spending a visible interval, then take the next queued group.
@@ -138,10 +175,11 @@ function queueBackground(entry, front = false) {
 // User commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
-/** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null}} options */
+/** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
+ * press?: NoticePress | null}} options */
 export function notice(
   msg,
-  { background = false, announce: speak = true, group = null } = {},
+  { background = false, announce: speak = true, group = null, press = null } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
@@ -152,7 +190,7 @@ export function notice(
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg);
+  showNotice(msg, null, press);
 }
 
 // Take the notice down for something the user asked for, putting a background notice
@@ -161,6 +199,7 @@ export function notice(
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
   clearTimeout(noticeTimer);
+  stopWatchingPress();
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }

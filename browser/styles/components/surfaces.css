@@ -517,6 +517,12 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
+/* A seat's threads close on their own reply boxes, and the seat's box for a new
+   thread stands a gap below them: flush, a reply being written there and the box
+   under it read as two fields of one thread. */
+.lf-thread-seat > :is(.lf-page-thread, .lf-resolved-threads) ~ .lf-say {
+  margin-top: var(--sp-3);
+}
 /* Adjacent whole threads are ruled apart; parts belong to their author's
    transcript. A seat contains only whole cards, its resolved group and reply row;
    there, inert outgoing pixels may stand between the live neighbors. */
@@ -560,13 +566,10 @@ summary {
   --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
   --lf-msg-edit-gap: 4px;
-  /* The room a held-news notice keeps at its end for the count of facts it drops
-     (`.lf-thread-news > span[data-lf-more]`, below), in the notice's own size. */
-  --lf-news-count-room: 1.6em;
-  /* The widest a news notice beside a message head's words stands, its count's room
-     included: a primary reader's, in a message head or a part, and a margin card's, in
-     its controls row (annotation-chrome.css), so the head keeps its author and time. */
-  --lf-news-width: calc(5rem + var(--lf-news-count-room));
+  /* The widest a news notice beside a message head's words stands: a primary
+     reader's, in a message head or a part, and a margin card's, in its controls row
+     (annotation-chrome.css), so the head keeps its author and time. */
+  --lf-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -951,9 +954,13 @@ summary {
   min-height: var(--lf-thread-action-room);
 }
 /* The notice's start and the visible end of the header's line are the runtime's
-   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). */
+   readings, in the header's own coordinates (thread-card.js, `#retainHeaderSlot`). It
+   stands over the message head whose line it shares, as its place after the head in
+   the tree already paints it; stating that (`z-index`) lets a reader that orders boxes
+   itself, as axe does reading contrast, find its words on top. */
 .lf-thread-content > .lf-thread-news {
   position: absolute;
+  z-index: 1;
   position-anchor: --lf-thread-headline;
   inset-inline-start: calc(
     anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)
@@ -995,92 +1002,18 @@ summary {
   align-self: center;
   white-space: nowrap;
 }
+/* The notice says one count, "2 new" (held-news.js, `newsNotice`), in figures of one
+   width, both in its words and in the room a card holds for the count it first said
+   (`data-room`, controls.css), so a count that grows keeps to that room; a room too
+   narrow for it cuts it. */
 button.lf-thread-news {
   font: var(--font-heading);
+  font-variant-numeric: tabular-nums;
 }
-/* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
-   notice is narrower than all of them, as when its room holds the news it first said,
-   the facts that don't fit wrap onto lines it doesn't show: a later fact drops whole
-   rather than cutting the one before it mid-word. Only a first fact too wide alone is
-   cut. The clip reaches half a line below the words, outside their box, so the hover
-   underline shows, and the gap between lines keeps a wrapped fact past it. It clips
-   only below, so the count of dropped facts (below) can stand past the words' end.
-   The chrome's `border-box` reset (chrome.css) counts that padding in the block size,
-   so the line's 1lh takes 1.5lh. */
 .lf-thread-news > span {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  row-gap: 1lh;
-  block-size: 1.5lh;
-  padding-block-end: 0.5lh;
-  margin-block-end: -0.5lh;
-  overflow: visible clip;
-}
-.lf-thread-news > span > span {
-  flex: none;
-  white-space: pre;
-}
-.lf-thread-news > span > :first-child {
-  flex-shrink: 1;
-  min-inline-size: 0;
-  padding-block-end: 0.5lh;
-  margin-block-end: -0.5lh;
-  overflow: clip;
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
-}
-/* A room measures its news as one line and the facts measure it in pieces, which can
-   sum a fraction of a pixel wider, so the news the room was made for would drop its
-   last fact. The first fact yields a pixel of the line to keep them on it. */
-.lf-thread-news[data-room] > span > :first-child {
-  margin-inline-end: -1px;
-}
-/* While facts are dropped, the notice counts them on the words' line, in a room just
-   past the last fact it shows: "+1" (held-news.js, `newsNotice`), since a finger never
-   sees the title that lists them. A placement that bounds the notice's width, and so
-   may drop facts, reserves that room from the notice's first paint, so the count
-   arriving moves nothing under the pointer; a margin card's controls row reserves it
-   in its own rule (annotation-chrome.css). A placement that draws the notice whole, as
-   the floating panel's crumb does, drops no fact and reserves no room. The count stays
-   out of the accessible name, which already says every fact. */
-.lf-thread-content > .lf-thread-news,
-button.lf-primary-news {
-  padding-inline-end: var(--lf-news-count-room);
-}
-.lf-thread-news > span[data-lf-more]::after {
-  content: attr(data-lf-more) / "";
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: var(--lf-news-shown, 100%);
-  inline-size: var(--lf-news-count-room);
-  text-align: end;
-  font-variant-numeric: tabular-nums;
-}
-/* Where even the first fact would be cut, the notice says one count of all that waits,
-   "2 new" or "+2" (held-news.js, `newsNotice`), at the words' start. The facts keep
-   their places, unseen, so the notice measures what it measured before; the title,
-   which says every fact, names the press while they are hidden. */
-.lf-thread-news > span[data-lf-short] > span {
-  visibility: hidden;
-}
-.lf-thread-news > span[data-lf-short]::before {
-  content: attr(data-lf-short) / "";
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  white-space: pre;
-  font-variant-numeric: tabular-nums;
-}
-.lf-thread-news > span[data-lf-short]::after {
-  content: none;
-}
-/* The counts are part of the press, but they stand out of the words' flow, where the
-   face's underline under the pointer (controls.css) doesn't reach, so they inherit
-   it, through the words. */
-.lf-thread-news > span,
-.lf-thread-news > span::before,
-.lf-thread-news > span::after {
-  text-decoration: inherit;
 }
 .lf-seat-news {
   display: flex;

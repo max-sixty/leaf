@@ -3,9 +3,10 @@ it.
 
 Everything here is bound to the machine rather than to a page. The state home
 holds this machine's claims, leases, page records, packages, and serving key,
-while the process readings say whether a pid a record names still runs and
+while the process readings say whether a pid a record names still runs,
 which programs run above this one — the walk a Codex session's lifetime comes
-from when its harness states no pid.
+from when its harness states no pid — and whether the process that ran this
+one has exited.
 
 psutil owns the process readings. It asks the kernel directly, which is what
 these need: the portable tool is `ps`, macOS ships it setuid root, and the
@@ -17,6 +18,7 @@ import process inspection."""
 
 import errno
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from .state import PLUGIN_ROOT, state_home
@@ -134,6 +136,36 @@ def ancestry() -> list[tuple[int, str]]:
         walked.append((pid, program))
         pid = parent
     return walked
+
+
+def caller_exited() -> Callable[[], bool]:
+    """Whether the process that ran this one has exited: a reading taken now and
+    repeated by calling the result.
+
+    The caller is this process's parent, or, where Leaf runs under the `uv run`
+    that `bin/leaf` execs, that uv's parent. uv waits on the command it runs, so
+    it outlives a caller that dies, and this process's own parent never changes.
+
+    The reading watches parent pids rather than the caller's pid. A process's
+    parent pid changes only when its parent exits and the kernel hands it to init
+    or a subreaper. That happens when the caller exits, even while the caller
+    waits unreaped as a zombie, and no later reuse of the caller's pid undoes it.
+    psutil refuses to read a uv whose pid was reused (`NoSuchProcess`), and that
+    refusal reads as exited."""
+    import psutil
+
+    linked = [psutil.Process()]
+    if (parent := linked[0].parent()) is not None and parent.name() == "uv":
+        linked.append(parent)
+    links = [(process, process.ppid()) for process in linked]
+
+    def exited() -> bool:
+        try:
+            return any(process.ppid() != ppid for process, ppid in links)
+        except psutil.NoSuchProcess:
+            return True
+
+    return exited
 
 
 def process_argv(pid: int) -> list[str] | None:

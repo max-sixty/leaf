@@ -1125,7 +1125,8 @@ LIFETIMES = {
     "the page (persistent from a shell outside any session)",
     "persistent": "declines the session claim, so only `leaf server stop` ends it, "
     "for a page kept up across sessions",
-    "temporary": "serves on loopback for this command only, without claiming the page",
+    "temporary": "serves on loopback without claiming the page, until interrupted or "
+    "until the process that ran this command exits",
 }
 
 

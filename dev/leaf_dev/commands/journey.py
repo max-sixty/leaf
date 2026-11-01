@@ -123,13 +123,13 @@ from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.commands.verify_site import (
     LocalWorker,
     agent_session,
-    answered,
     await_presentation,
     capture_script_responses,
     check,
     local_adapter,
     local_worker,
     observe_startup,
+    read_state,
     said,
     start_direct_agent,
     startup_profile,
@@ -388,17 +388,6 @@ def check_turn_answered(
     return published, answer
 
 
-def read_state(session: Session) -> dict:
-    """Read the page's authoritative state, as this session reaches it."""
-    response = answered(
-        session.context.request.get(
-            session.state_url, headers=session.headers, timeout=120_000
-        ),
-        session.state_url,
-    )
-    return response.json()
-
-
 def release_ask(marker: str) -> str:
     """What the user tells the agent: release `marker` passed its checks. It says what
     happened and leaves how the page shows it to the agent, as a user would, so the
@@ -515,7 +504,12 @@ def send_written(
     profile.acknowledge()
     # Read the admitted event from state rather than the intercepted response body,
     # which Playwright can wait on forever once the page has consumed it.
-    accepted = read_state(session)
+    accepted = read_state(
+        session.context.request,
+        session.state_url,
+        headers=session.headers,
+        timeout=120_000,
+    ).json()
     profile.observe(accepted)
     assert posted.request.post_data_json is not None
     attempt = posted.request.post_data_json["attempt"]
@@ -1026,7 +1020,12 @@ class BrowserEnd:
         self.pause = session.pause
 
     def state(self) -> dict:
-        return read_state(self.session)
+        return read_state(
+            self.session.context.request,
+            self.session.state_url,
+            headers=self.session.headers,
+            timeout=120_000,
+        ).json()
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the served revision's authored board names `marker`."""
@@ -1332,7 +1331,7 @@ def local_session(browser, url: str) -> Session:
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
     state_url = PageClient(url).state_url
-    state = answered(context.request.get(state_url), state_url).json()
+    state = read_state(context.request, state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 
 

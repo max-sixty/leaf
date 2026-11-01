@@ -143,7 +143,7 @@ def stranded_quotes(page):
     stranded = []
     for thread_id in ids:
         quote = thread_quote(page, thread_id)
-        if quote.count() and "detached" in quote.get_attribute("class").split():
+        if quote.count() and quote.get_attribute("data-lf-detached") is not None:
             stranded.append(quote.inner_text())
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -419,7 +419,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         quote = thread_quote(page, root["id"])
         expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
-        expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+        expect(quote).not_to_have_attribute("data-lf-detached", "")
         expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
     moves = [
         event
@@ -554,7 +554,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     page.reload()
     held = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(held).to_have_text(f"“{quote}”")
-    expect(held).not_to_have_class(re.compile("detached"))
+    expect(held).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -3396,7 +3396,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     told(page)
 
     quote = thread_quote(page, root["id"])
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     expect(quote).to_contain_text(revised_passage)
     painted = page.evaluate(
         "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
@@ -3467,7 +3467,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     quote = thread_quote(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
-    expect(quote).to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_have_attribute("data-lf-detached", "")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
     # With nowhere on the page to go, the view offers no way there.
     expect(
@@ -4672,7 +4672,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
     quote = thread_quote(page, comment_ids(serve.page_dir)[0])
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     show_on_page(page)
 
@@ -4795,7 +4795,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
         resized(page, 400, 900)
     [thread] = comment_ids(serve.page_dir)
     quote = thread_quote(page, thread)
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).not_to_have_attribute("data-lf-detached", "")
     show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")

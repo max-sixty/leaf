@@ -1679,7 +1679,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     resized(page, 1440, 900)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
-    streamed = card.locator(".lf-msg.agent .lf-msg-text")
+    streamed = card.locator(".lf-msg[data-lf-author=agent] .lf-msg-text")
     expect(streamed).to_have_text("The answer has started.")
 
     read_positions = """card => ({
@@ -1726,7 +1726,9 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
     page.route("**/api/event", hold_reply)
     card.locator(".lf-thread-reply .lf-compose-submit").click()
     holding(page, held, 1, "the reply")
-    sent = card.locator(".lf-msg.user").filter(has_text="Also include the date.")
+    sent = card.locator(".lf-msg[data-lf-author=user]").filter(
+        has_text="Also include the date."
+    )
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("aria-busy", "true")
     expect(streamed).to_have_text(waiting.strip())
@@ -1817,7 +1819,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reading(
         return card.evaluate("""card => {
           const transcript = card.querySelector('.lf-thread-transcript');
           const bounds = transcript.getBoundingClientRect();
-          const words = card.querySelector('.lf-msg.agent .lf-msg-text');
+          const words = card.querySelector('.lf-msg[data-lf-author=agent] .lf-msg-text');
           const walker = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
           const range = document.createRange();
           let text, offset = 0;

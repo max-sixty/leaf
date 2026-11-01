@@ -177,7 +177,7 @@ customElements.define(
             pre.append(elided(from, to, hi(from, to), captions));
           }
           const line = previous === null ? firstLine : document.createElement("span");
-          line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
+          line.className = "lf-code-line";
           line.dataset.line = String(n);
           // A line too long for the frame wraps, and its later rows hang from its own
           // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
@@ -195,7 +195,10 @@ customElements.define(
           // clip as every other quiet word, out of the selection with it, so a copied
           // block is still the source and nothing else. Leaf writes it from the
           // declaration, since only Leaf's theme keeps it off the screen.
-          if (hi(n)) line.dataset.lfQuiet = "highlighted";
+          if (hi(n)) {
+            line.dataset.lfHi = "";
+            line.dataset.lfQuiet = "highlighted";
+          }
           pre.append(line);
           // Moved, not copied: the authored element keeps its text and id.
           pre.append(...(byLine.get(n) ?? []));
@@ -251,12 +254,15 @@ customElements.define(
 /** @param {number} from @param {number} to @param {boolean} highlighted @param {Element[]} captions */
 function elided(from, to, highlighted, captions) {
   const row = document.createElement("span");
-  row.className = `lf-code-elided${highlighted ? " hi" : ""}`;
+  row.className = "lf-code-elided";
   row.dataset.from = String(from);
   row.dataset.to = String(to);
   const count = to - from + 1;
   row.dataset.elided = `${count} line${count === 1 ? "" : "s"}`;
-  if (highlighted) row.dataset.lfQuiet = "highlighted";
+  if (highlighted) {
+    row.dataset.lfHi = "";
+    row.dataset.lfQuiet = "highlighted";
+  }
   row.append(...captions);
   return row;
 }

@@ -959,7 +959,7 @@ diff --git a/README.md b/README.md
     for comment in comments:
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
-        assert "detached" not in view.locator(".lf-fp-quote").get_attribute("class")
+        assert view.locator(".lf-fp-quote").get_attribute("data-lf-detached") is None
 
 
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):

@@ -134,10 +134,10 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
-    reply = card.locator(".lf-msg.agent")
+    reply = card.locator(".lf-msg[data-lf-author=agent]")
     # A press leaves focus on the first message's Copy, and its controls still leave
     # with the pointer. While they show, a rule parts them from the thread's actions.
-    first = card.locator(".lf-msg.user")
+    first = card.locator(".lf-msg[data-lf-author=user]")
     first.hover()
     first.locator(".lf-msg-copy").click()
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
@@ -158,7 +158,7 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     rendered(page)
     edges = card.evaluate(
         """card => ({
-          copy: card.querySelector('.lf-msg.agent .lf-msg-copy').getBoundingClientRect().right,
+          copy: card.querySelector('.lf-msg[data-lf-author=agent] .lf-msg-copy').getBoundingClientRect().right,
           close: card.closest('.lf-margin-preview').querySelector('.lf-margin-preview-close')
             .getBoundingClientRect().right,
         })"""
@@ -203,7 +203,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
-    message = page.locator(".lf-margin-preview .lf-msg.user").first
+    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
     expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
     page.mouse.move(0, 0)
     rendered(page)
@@ -241,7 +241,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         holding(page, pending, 1, "the margin reply")
         page.wait_for_function(
             """() => __lfHeld.some(a => a.playState !== 'idle' &&
-              a.effect.target.matches('.lf-msg.agent') &&
+              a.effect.target.matches('.lf-msg[data-lf-author=agent]') &&
               a.effect.getKeyframes().some(k => '--lf-box-carry' in k))"""
         )
         page.evaluate(
@@ -249,7 +249,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
               a.currentTime = a.effect.getComputedTiming().endTime - 0.01;
             })"""
         )
-        message = page.locator(".lf-margin-preview .lf-msg.agent")
+        message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=agent]")
         edges = """m => {
           const box = m.getBoundingClientRect();
           const copy = m.querySelector('.lf-msg-copy').getBoundingClientRect();
@@ -348,7 +348,10 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
         thread = open_panel_thread(page, root)
     else:
         thread = page.locator("#cd-q .lf-page-thread").first
-    user, agent = thread.locator(".lf-msg.user"), thread.locator(".lf-msg.agent")
+    user, agent = (
+        thread.locator(".lf-msg[data-lf-author=user]"),
+        thread.locator(".lf-msg[data-lf-author=agent]"),
+    )
     expect(agent).to_contain_text("Check that these")
     rendered(page)
     mine, theirs = user.evaluate(WORDS_END), agent.evaluate(WORDS_END)
@@ -390,7 +393,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     )
     page = open_page(browser, url)
     view = open_panel_thread(page, first)
-    card = view.locator(".lf-msg.agent")
+    card = view.locator(".lf-msg[data-lf-author=agent]")
     neighbor = view.locator(".lf-msg").last
     trigger = card.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).backgroundColor") == (

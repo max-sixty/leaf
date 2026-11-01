@@ -1685,8 +1685,11 @@ function commentPlacement({ makesRoom = false } = {}) {
 			clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
 			const past = (scale) => side === "right" && margin && margin.right > clear.right + .5 && boundary.right - margin.right - 8 >= cardMeasure() * scale.x ? margin.right : null;
 			const box = new DOMRect(clear.left, clear.top, (past({ x: 1 }) ?? clear.right) - clear.left, clear.height);
-			const reserved = spans && across ? cardMeasure() : minimumWidth;
-			const inlineStart = unanchored ? boundary.left : clamp(column ?? box.right - minimumWidth, boundary.left, boundary.right - Math.min(reserved, boundary.width));
+			const spanning = spans && across;
+			const reading = spanning ? proseRect() ?? clear : null;
+			const start = spanning ? Math.min(clear.left, reading.left) : column ?? box.right - minimumWidth;
+			const spanned = spanning && Math.max(cardMeasure(), Math.max(clear.right, reading.right) - start);
+			const inlineStart = unanchored ? boundary.left : clamp(start, boundary.left, boundary.right - Math.min(spanned || minimumWidth, boundary.width));
 			let heldIn = false;
 			const attachment = ui.limitShift(() => ({
 				mainAxis: !across,
@@ -1768,7 +1771,8 @@ function commentPlacement({ makesRoom = false } = {}) {
 						height: rises ? shown.height / scale.y : below ?? state.availableHeight,
 						room: shown,
 						stood,
-						scale
+						scale,
+						measure: spanned ? Math.min(spanned, boundary.right - inlineStart) / scale.x : null
 					});
 				}
 			}));

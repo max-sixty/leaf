@@ -302,16 +302,19 @@ CARD_AND_WORDS = """() => {
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
   const words = document.getElementById('asked').getBoundingClientRect();
   return {card: {left: card.left, top: card.top, right: card.right, bottom: card.bottom},
-    words: {top: words.top, bottom: words.bottom}, width: innerWidth, height: innerHeight};
+    words: {top: words.top, bottom: words.bottom, left: words.left, right: words.right},
+    width: innerWidth, height: innerHeight};
 }"""
 
 
 @pytest.mark.parametrize("size", [(390, 844), (900, 900)], ids=["phone", "900"])
 def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, size):
     """On a window with no room for the rail, a long thread's card stands under the
-    words it is about, which stay in view above it, and on a phone it spans the window.
-    It slid up over the words once it outgrew the room below them, and on a phone it
-    stood in from the window's edge at the words' column, over a strip of page. Once
+    words it is about, which stay in view above it, covering their paragraph's width,
+    and on a phone it spans the window. It slid up over the words once it outgrew the
+    room below them, on a phone it stood in from the window's edge at the words'
+    column, over a strip of page, and at 900px it started at the words and stopped
+    short of the paragraph's end, beside strips of cut-off words. Once
     what it is about grows past the window, the card covers it as on a wide window,
     where it kept to under it, off the window's foot, and keeps its width."""
     url = serve(
@@ -346,6 +349,8 @@ def test_a_long_card_on_a_narrow_window_stands_under_its_words(browser, serve, s
     card, words = stands["card"], stands["words"]
     assert 0 <= words["top"] and card["top"] >= words["bottom"], stands
     assert card["bottom"] <= stands["height"], stands
+    assert card["left"] <= words["left"] + 0.5, stands
+    assert card["right"] >= words["right"] - 0.5, stands
     if size[0] < 400:
         assert card["left"] <= 8.5 and card["right"] >= stands["width"] - 8.5, stands
 

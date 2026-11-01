@@ -552,7 +552,7 @@ export function createThreadPreview({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale }) {
+          fit({ width, height, stood, scale, measure }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
@@ -563,15 +563,21 @@ export function createThreadPreview({
             };
             if (fresh) session.width = null;
             // A card that has stood keeps its width (`session.width`): its floor and
-            // cap are that width, or the room where the room is narrower.
+            // cap are that width, or the room where the room is narrower. Under or
+            // over a block on a narrow window it takes the width the placement gives it
+            // (`measure`, comment-placement.js) from the start, short or long.
             const room = Math.min(
-              cardMeasure(),
+              measure ?? cardMeasure(),
               width,
               (session.width ?? Infinity) / scale.x,
             );
             preview.style.setProperty(
               "--lf-thread-min-width",
-              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
+              layoutPx(
+                session.width === null && measure === null
+                  ? Math.min(cardMinimum(), room)
+                  : room,
+              ),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge

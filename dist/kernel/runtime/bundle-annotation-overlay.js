@@ -522,15 +522,15 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 				column: place.column,
 				margin: place.margin,
 				boundary,
-				fit({ width, height, stood, scale }) {
+				fit({ width, height, stood, scale, measure }) {
 					if (!stillCurrent()) return;
 					reading ??= session.transcript && {
 						end: !fresh && atScrollEnd(session.transcript),
 						latest: session.arriving
 					};
 					if (fresh) session.width = null;
-					const room = Math.min(cardMeasure(), width, (session.width ?? Infinity) / scale.x);
-					preview.style.setProperty("--lf-thread-min-width", layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room));
+					const room = Math.min(measure ?? cardMeasure(), width, (session.width ?? Infinity) / scale.x);
+					preview.style.setProperty("--lf-thread-min-width", layoutPx(session.width === null && measure === null ? Math.min(cardMinimum(), room) : room));
 					const fitted = measureThreadCard(room, Math.max(stood, height), reading);
 					const transcript = session.transcript;
 					const wanted = fitted + (transcript ? transcript.scrollHeight - transcript.clientHeight : 0);

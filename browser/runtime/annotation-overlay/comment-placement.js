@@ -55,9 +55,12 @@
    On a narrow window, one with no room for the rail beside the column
    (content-layout.js, `railStands`), a card, which asks the page for room
    (`makesRoom`), stands under the words in the page's flow it is about wherever the
-   page can make it room there, keeps room for its whole measure
-   (`--thread-card`) from the column it starts at, standing in from it only as far as
-   the window makes it, so a phone's spans the window, and, where what it is about
+   page can make it room there, covers the reading column (content-layout.js,
+   `proseRect`) and any wider block it stands under or over, and keeps room for its
+   whole measure (`--thread-card`), standing in from the column's start only as far
+   as the window makes it, so a phone's spans the window and no page words stand cut
+   off beside it, as they did beside a 900px window's card that started at its passage
+   and stopped at its measure, and, where what it is about
    leaves the least room a surface stands in below it (`LEAST_HEIGHT`), never slides up
    over it: the page scrolls that to the boundary's top to give it room (`makeRoom`),
    and past that it scrolls its own content. A subject taller than that, as a whole
@@ -78,7 +81,8 @@
    card carries its own close and step controls, and the row shows again once it closes.
    Neither choice reads the surface's own width or height, so the box
    and the card make the same one. Under or over, its inline start follows `column`,
-   independently of the block it keeps clear, and it keeps that start as it widens.
+   independently of the block it keeps clear, but for a card on a narrow window, which
+   starts at the reading column (above), and it keeps that start as it widens.
    That clearance chooses the initial seat. Once seated, quoted words carry both
    coordinates through scrolling, including out of view, even when the containing
    scrollport stays still. Held offsets use the passage's line and column, so renewing
@@ -160,7 +164,7 @@ import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
-import { railStands } from "../content-layout.js";
+import { proseRect, railStands } from "../content-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
@@ -415,10 +419,11 @@ export const cardMeasure = () => rootLength("--thread-card");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale })` sizes the surface for the room its
-   side gives, in its positioning space; `room` is the client rectangle that room stands
-   in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
-   is the height a held surface caps no lower than, or 0. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, room, stood, scale, measure })` sizes the surface for the
+   room its side gives, in its positioning space; `room` is the client rectangle that
+   room stands in, the boundary across the surface's columns (`commentBoundary`,
+   `across`); `stood` is the height a held surface caps no lower than, or 0; `measure`
+   is the width a card on a narrow window takes, short or long, or null. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -581,14 +586,23 @@ export function commentPlacement({ makesRoom = false } = {}) {
       // The compact editor and its sent card share one start. Reserve the declared
       // card footprint before a shorter editor's own width can put that start too far
       // toward the boundary, where later typing or reopening would have to move it.
-      // On a narrow window it keeps room for its whole measure instead.
-      const reserved = spans && across ? cardMeasure() : minimumWidth;
+      // On a narrow window it covers the reading column, and any wider block it
+      // stands under or over, from its start (`spanned`), and keeps room for its
+      // whole measure, so no page words stand cut off beside it.
+      const spanning = spans && across;
+      const reading = spanning ? (proseRect() ?? clear) : null;
+      const start = spanning
+        ? Math.min(clear.left, reading.left)
+        : (column ?? box.right - minimumWidth);
+      const spanned =
+        spanning &&
+        Math.max(cardMeasure(), Math.max(clear.right, reading.right) - start);
       const inlineStart = unanchored
         ? boundary.left
         : clamp(
-            column ?? box.right - minimumWidth,
+            start,
             boundary.left,
-            boundary.right - Math.min(reserved, boundary.width),
+            boundary.right - Math.min(spanned || minimumWidth, boundary.width),
           );
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
@@ -712,6 +726,9 @@ export function commentPlacement({ makesRoom = false } = {}) {
             room: shown,
             stood,
             scale,
+            measure: spanned
+              ? Math.min(spanned, boundary.right - inlineStart) / scale.x
+              : null,
           });
         },
       }));

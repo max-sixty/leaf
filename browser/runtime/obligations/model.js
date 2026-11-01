@@ -8,11 +8,17 @@
    user. */
 import { readPart } from "../semantic-state.js";
 import { registry } from "../registry.js";
+import { hasObligationSource } from "./source.js";
 
 export const readObligations = readPart((root) => root.effective.obligations);
 
+/** @param {import("../framework/application.js").ObligationRecord | null | undefined} obligation */
 export const obligationEntry = (obligation) =>
-  registry[obligation?.source.tag]?.["x-awaits"];
+  obligation?.source.kind === "widget"
+    ? registry[obligation.source.tag]?.["x-awaits"]
+    : undefined;
 // An agent message's obligation is answered in words: in its thread, it reads and is
 // answered as a message.
-export const answeredInWords = (obligation) => obligation?.source.kind === "message";
+/** @param {import("../framework/application.js").ObligationRecord | null | undefined} obligation */
+export const answeredInWords = (obligation) =>
+  hasObligationSource(obligation, "message");

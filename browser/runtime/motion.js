@@ -21,11 +21,13 @@ import { pagePresented } from "./page-paint.js";
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
 // this instead.
 const preference = matchMedia("(prefers-reduced-motion: reduce)");
+/** @type {Set<Animation>} */
 const active = new Set();
 export const reducedMotion = () => preference.matches;
 export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
+/** @param {(reduced: boolean) => void} listener */
 export function onMotionPreferenceChange(listener) {
-  const changed = (event) => listener(event.matches);
+  const changed = (/** @type {MediaQueryListEvent} */ event) => listener(event.matches);
   preference.addEventListener("change", changed);
   return () => preference.removeEventListener("change", changed);
 }
@@ -52,6 +54,7 @@ export const motionPlays = () => !reducedMotion() && pagePresented();
 // a caller passes in is still a number this module has no reason for; see browser/AGENTS.md's
 // "Motion is brief and keeps the user oriented". `motion` is the packages' door, and its signature is part of what an
 // installed package calls, so it stays as pages know it.
+/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes @param {number} ms @param {string | null} [pseudoElement] */
 export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
@@ -60,6 +63,8 @@ export const motion = (el, keyframes, ms, pseudoElement = null) =>
 // `delay` that holds the first frame until the motion starts, so a part fading in after
 // another fades out stays unseen meanwhile. That is the backward half of the fill,
 // which no undelayed motion reaches.
+/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
+ * @param {{duration: number, easing?: string, delay?: number, pseudoElement?: string | null}} options */
 export function playMotion(
   el,
   keyframes,
@@ -98,13 +103,16 @@ export function playMotion(
 // Registered <time> values resolve variables and calculations before this read; each
 // call reads the live cascade, so a revision or theme override changes CSS and Web
 // Animations together.
+/** @param {string} property @param {Element} on */
 const token = (property, on) => getComputedStyle(on).getPropertyValue(property).trim();
 // A `--lf-motion-*` duration, in milliseconds, as `on` inherits or declares it.
+/** @param {string} property @param {Element} [on] */
 export const motionTime = (property, on = document.documentElement) => {
   const value = token(property, on);
   return parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
 };
 // A `--lf-motion-*` curve, as Web Animations takes it.
+/** @param {string} property @param {Element} [on] */
 export const motionEasing = (property, on = document.documentElement) =>
   token(property, on);
 
@@ -115,6 +123,7 @@ export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival"
 
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
 // so hover, theme changes and transparent surfaces never snap back when it ends.
+/** @param {Element} el @param {number} ms */
 export function backgroundFlash(el, ms) {
   return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
@@ -149,12 +158,13 @@ export const returnDuration = () => motionTime("--lf-motion-return");
 // Unlike trailing margins, this room cannot collapse against a live neighbor's gap.
 // The caller measures only the container before composing; this owner reads the new
 // allocation, so consumers share the geometry rule.
+/** @param {HTMLElement} el @param {{container: Element, priorSize: number} | null} [allocation] */
 export function foldBlock(el, allocation = null) {
   const adjustment = allocation
     ? allocation.priorSize - allocation.container.getBoundingClientRect().height
     : 0;
   const native = CSS.supports("block-size", "calc-size(auto, size)");
-  const frames = (blockSize) => [
+  const frames = (/** @type {string} */ blockSize) => [
     { blockSize, display: "block", overflow: "clip", opacity: 1 },
     {
       blockSize: "0px",
@@ -182,6 +192,7 @@ export function foldBlock(el, allocation = null) {
     played.finished.then(release, release);
   }
   const size = parseFloat(getComputedStyle(el).blockSize) + adjustment;
-  played.effect.setKeyframes(frames(`${size}px`));
+  const effect = played.effect;
+  if (effect instanceof KeyframeEffect) effect.setKeyframes(frames(`${size}px`));
   return played;
 }

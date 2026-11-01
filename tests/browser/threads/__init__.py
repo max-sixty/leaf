@@ -38,7 +38,7 @@ from leaf.render_checks import rendered
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
 PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
-PANEL_NEWS = ".lf-fp-controls .lf-thread-news"
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
 
 
 def thread_row(page, key):
@@ -199,7 +199,7 @@ def long_diff_thread(serve, lead=""):
         leaf_page(
             "a long diff thread",
             f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
+            "</lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
     data_model.cmd_data_set(
@@ -531,7 +531,7 @@ def pressed_send_surface(browser, serve, surface):
             leaf_page(
                 "diff",
                 '<h1 id="title">Review</h1><lf-diff id="patch" '
-                'source="review-patch"><pre></pre></lf-diff>',
+                'source="review-patch"></lf-diff>',
             )
         )
         data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)

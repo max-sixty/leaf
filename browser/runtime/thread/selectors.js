@@ -9,7 +9,8 @@ import { TEXT_FIELD } from "../control-selectors.js";
 // anywhere in one stands in that thread for every reading of it, `c` included.
 export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
-export const drawnThreadId = (node) => node?.dataset.thread ?? null;
+/** @param {Element | null | undefined} node */
+export const drawnThreadId = (node) => node?.getAttribute("data-thread") ?? null;
 // Where a box the user writes in belongs: a drawn thread, or a seat holding none yet.
 export const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 export const SAY_ROW = ".lf-thread-reply, .lf-say";
@@ -20,7 +21,7 @@ export const SAY_BOX = SAY_ROW.split(", ")
 // A drawn thread's own parts: the box its reply is written in, and the control that
 // settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside
 // itself. A presentation that draws one elsewhere, as the floating panel draws the reply
-// as its field and Resolve among its view's controls, declares on the thread element
+// as its field and Resolve on its view's head line, declares on the thread element
 // where each stands (`declareThreadParts`): `reply` and `settlement`, each a function of
 // that element answering the part, or null while the thread has none there. Every reading
 // of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
@@ -31,21 +32,33 @@ export const SAY_BOX = SAY_ROW.split(", ")
 // Such a presentation also declares `whole`, the element standing for the thread as a
 // whole where its pieces stand apart, as the panel's view does for its head and its
 // field (`wholeThread`).
+/** @typedef {{
+ * reply: (thread: Element) => Element | null,
+ * settlement: (thread: Element) => HTMLElement | null,
+ * whole: (thread: Element) => Element | null,
+ * }} ThreadParts */
+/** @type {WeakMap<Element, ThreadParts>} */
 const declaredParts = new WeakMap();
+/** @param {Element} thread @param {ThreadParts} parts */
 export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
+/** @type {Pick<ThreadParts, "reply" | "settlement">} */
 const ownParts = {
   reply: (thread) => thread.querySelector(SAY_BOX),
-  settlement: (thread) =>
-    [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
-      (control) => control.closest(THREAD) === thread,
-    ) ?? null,
+  settlement: (thread) => {
+    /** @type {NodeListOf<HTMLElement>} */
+    const controls = thread.querySelectorAll(".lf-resolve, .lf-reopen");
+    return [...controls].find((control) => control.closest(THREAD) === thread) ?? null;
+  },
 };
 // The drawings of one thread from `thread` outward: itself, then each drawing of the
 // same thread around it.
+/** @param {Element} thread @returns {Generator<Element>} */
 function* drawingsOf(thread) {
   const id = drawnThreadId(thread);
+  /** @type {Element | null} */
+  let at = thread;
   for (
-    let at = thread;
+    ;
     at === thread || (at && id && drawnThreadId(at) === id);
     at = closestAcross(upFrom(at), THREAD)
   )
@@ -54,10 +67,15 @@ function* drawingsOf(thread) {
 // The whole of the thread drawn at `thread`: its outermost drawing, or the element that
 // drawing declares as the whole. It holds the thread's messages, so a reading of them
 // searches it, and it is the thread a keyboard stands on, as a reply box's way back.
+/** @param {Element} thread */
 export function wholeThread(thread) {
-  const outer = [...drawingsOf(thread)].at(-1);
+  let outer = thread;
+  for (const drawing of drawingsOf(thread)) outer = drawing;
   return declaredParts.get(outer)?.whole(outer) ?? outer;
 }
+/** @overload @param {Element} thread @param {"settlement"} name @returns {HTMLElement | null} */
+/** @overload @param {Element} thread @param {"reply"} name @returns {Element | null} */
+/** @param {Element} thread @param {"reply" | "settlement"} name */
 export function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {
     const part = (declaredParts.get(at) ?? ownParts)[name](at);

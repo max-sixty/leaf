@@ -2,11 +2,13 @@
  * text. Unavailable snapshots remain separate from the known totals. */
 import { html } from "/vendor/lit.js";
 
+/** @param {HTMLElement} host */
 export function render(host) {
   const members = [...host.querySelectorAll(":scope > lf-worktree")];
   const known = members.filter(
     (member) => member.getAttribute("status") !== "unavailable",
   );
+  /** @param {string} attribute */
   const sum = (attribute) =>
     known.reduce(
       (total, member) => total + Number(member.getAttribute(attribute) ?? 0),

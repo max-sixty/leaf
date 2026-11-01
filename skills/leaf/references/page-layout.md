@@ -34,7 +34,9 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules.
+that no Layout fits writes its own grid or flex rules. For a row of side-by-side blocks
+inside a card or a playground's preview, follow `package-themes.md`, "A theme change",
+so its items keep their top margins level.
 
 ## A page of parts
 
@@ -285,7 +287,9 @@ what it means to style, such as a class on your own controls or a widget's id be
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
 as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it. For
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

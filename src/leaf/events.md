@@ -244,8 +244,8 @@ names it or the user acts in the thread after it; `read_state.py` owns which act
 count. The result is each thread's `unread`, in browser state and `page state`. A
 `seen` event does the same for the page: it names the newest live revision a tab showed
 the user while they were there (visible and focused), posted as they leave it, and the
-newest one named is the served state's `seen`, the revision the browser marks the
-page's changes since. A hosted copy serves no `seen`, since its reader is not the page's
+newest one named is the served state's `seen`. The browser's marking of the page's
+changes since then (`since-seen.js`) is turned off for now, so no tab posts one. A hosted copy serves no `seen`, since its reader is not the page's
 user. Read records hold across tabs
 and revisions and never enter agent delivery. A page has one user for its lifetime, so
 a `read` or `seen` names no account.
@@ -294,6 +294,12 @@ to-do keeps that obligation the agent's even after the thread is resolved
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
+The agent's `todo_end` also retires a frozen widget's question the user answered in
+words, since no revision can write that widget's state; the delivery of the user's
+reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).
+A message asks by its words or by a widget in its markup, not both: only words answer
+`obligation: true`, so beside a widget it would outlast the user's pick, and
+`thread create` and `thread reply` refuse the pair.
 
 `work_reading.WorkReading.all_obligations` is the one inventory of obligations: page
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside

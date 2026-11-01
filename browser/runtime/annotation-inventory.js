@@ -21,7 +21,7 @@ import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { targetSegments } from "./resolved-target.js";
-import { projectionOrigins, stateCoordinate } from "./projection/model.js";
+import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
@@ -48,6 +48,23 @@ import {
   toggleInlineComparison,
 } from "./version.js";
 
+/** @typedef {import("./margin-model.js").AnnotationItem} AnnotationItem
+ * @typedef {import("./contributions.js").ContributionSource} ContributionSource
+ * @typedef {import("./contributions.js").ContributionOffer} ContributionOffer
+ * @typedef {import("./margin-model.js").MarginEntry<ContributionOffer>} InventoryEntry
+ * @typedef {import("./framework/application.js").Workflow} Workflow
+ * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
+ * @typedef {import("./anchor-placement.js").Placement} Placement
+ * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof inlineComparison>}} ItemSource
+ * @typedef {AnnotationItem & ItemSource} LiveItem
+ * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, words?: string | null | undefined}} Pointed
+ * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
+ * pointWords: string | null, word: string, subject: string | null, title: string | null,
+ * items: LiveItem[], offers: ContributionSource[]}} Group
+ * @typedef {Map<string | Element, Group>} Groups
+ * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["scrollToElement"]} ScrollToElement
+ */
+
 // What the inventory reads from the semantic root: the Questions, the workflows its
 // entries report, the shown revision and the agent's to-dos, and the projection whose
 // reported and overridden marks it lists once the projection's chrome has painted them.
@@ -55,6 +72,7 @@ import {
 // where the thread is placed (`placedAt`) and whether a widget seats or holds it
 // (`claimed`, `heldOut`), so a pass that moves one repaints the margin, and one that
 // moves none leaves it.
+/** @param {import("./framework/application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
   obligations: root.effective.obligations,
@@ -63,6 +81,7 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -70,11 +89,13 @@ export function createAnnotationInventory({
   goToObligation,
   scrollToElement,
 }) {
+  /** @param {string | null | undefined} value */
   const humanized = (value) =>
     String(value ?? "")
       .replace(/[-_]+/g, " ")
       .trim();
 
+  /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
     // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
@@ -89,8 +110,9 @@ export function createAnnotationInventory({
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).
-      if (node.dataset?.lfProjection && node.hasAttribute("data-lf-datum")) {
-        from = `datum:${node.dataset.lfProjection}/${node.dataset.lfDatum}:`;
+      const projection = node.getAttribute("data-lf-projection");
+      if (projection && node.hasAttribute("data-lf-datum")) {
+        from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
         break;
       }
       const parent =
@@ -111,10 +133,13 @@ export function createAnnotationInventory({
 
   // What a group stands by, for its place in the page's order: passages in one text
   // node by where in it they start.
+  /** @param {Group} group */
   const standsBy = (group) =>
     group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  /** @param {Group} group */
   const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
 
+  /** @param {Node | null} left @param {Node | null} right */
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -124,40 +149,55 @@ export function createAnnotationInventory({
 
   // Targets and generated-reading callbacks stay outside the model. Registered
   // contributions already publish their own immutable model readings.
+  /** @type {Map<string, Element>} */
   const targets = new Map();
+  /** @type {WeakMap<AnnotationItem, ItemSource>} */
   const itemSources = new WeakMap();
+  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
   // The row a pointed entry stands by (groupFor), as anchor-placement last placed it, while
   // it still stands inside its target. Where the entry stands (`entryPlace`) is that
   // row, else the target: every reading of where an entry is on the page, as against
   // what it is about, asks this.
+  /** @type {Map<string, Element>} */
   const points = new Map();
+  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPoint = (entry) =>
     entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
+  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
   // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
   // it (resolved-target.js).
+  /** @type {Map<string, Placement>} */
   const passages = new Map();
+  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPassage = (entry) => (entry ? (passages.get(entry.key) ?? null) : null);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
+  /** @param {string | null | undefined} words */
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
     return excerpt ? `“${excerpt}”` : null;
   };
+  /** @param {AnnotationItem} item */
   const sourceItem = (item) => itemSources.get(item);
+  /** @param {LiveItem} item */
   function captureItem(item) {
-    const { activate, discloses, thread, ...data } = item;
+    const { activate, discloses, ...data } = item;
     const snapshot = Object.freeze({
       ...data,
       carriesWorkflow: Boolean(workflowReceipt([item])),
     });
-    itemSources.set(snapshot, { activate, discloses, thread });
+    itemSources.set(snapshot, {
+      activate,
+      ...(discloses ? { discloses } : {}),
+    });
     return snapshot;
   }
 
   const workflows = () => runtime.workflows;
   // Selected from the published workflows rather than gathered from the items, whose
   // order is the margin's, so the strongest is the server's.
+  /** @param {readonly AnnotationItem[]} items */
   const workflowReceipt = (items) => {
     const receipts = new Set(items.map((item) => item.workflowReceipt?.id));
     return strongestWorkflow(
@@ -174,6 +214,7 @@ export function createAnnotationInventory({
   // row's its first comment gave it, a passage's from its words, `passageRow`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
   // name it.
+  /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
   function groupFor(groups, target, pointed = null) {
     const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
     const slot = pointed ? `point:${key}` : target;
@@ -203,16 +244,22 @@ export function createAnnotationInventory({
   // row and a card open on it outlive them. A re-render that removes an earlier
   // occurrence renumbers it and builds the row again, as a shifted path does an id-less
   // target's.
-  function passageRow(target, passage) {
-    const segments = targetSegments(passage);
+  /** @param {Element} target @param {readonly [import("./passages.js").Segment, ...import("./passages.js").Segment[]]} segments */
+  function passageRow(target, segments) {
     const page = textNodesUnder(target);
     const at = page.findIndex(({ node }) => node === segments[0].node);
-    const before =
-      at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const before = page.flatMap((segment, index) =>
+      index < at || at < 0
+        ? [segment]
+        : index === at
+          ? [{ ...segment, end: segments[0].start }]
+          : [],
+    );
     const words = quoteFrom(segments);
     return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
 
+  /** @param {Groups} groups @param {Element | null | undefined} target @param {LiveItem} item @param {Pointed | null} [pointed] */
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
     const group = groupFor(groups, target, pointed);
@@ -228,6 +275,8 @@ export function createAnnotationInventory({
   // A receipt's face is its category's icon and rank under the receipt's own word,
   // so one reading of a receipt never names a different stage than its text does. Its
   // line says when, in the interface's words, and what the agent said of it.
+  /** @param {Workflow | null | undefined} receipt
+   * @returns {{kind: "waiting" | "activity" | "pickup" | "queued" | "sent", word: import("./voice.js").Said, context: import("./voice.js").Words | null} | null} */
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const word = workflowWord(receipt, agentName());
@@ -254,20 +303,29 @@ export function createAnnotationInventory({
     };
   }
 
-  const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : null);
+  /** @overload @param {ThreadRecord} thread @returns {string} */
+  /** @overload @param {ThreadRecord | null | undefined} thread @returns {string | null} */
+  /** @param {ThreadRecord | null | undefined} thread */
+  function marginThreadItem(thread) {
+    return thread ? `comment:${threadKey(thread)}` : null;
+  }
 
+  /** @type {readonly InventoryEntry[]} */
   let entries = Object.freeze([]);
+  /** @type {Set<(entries: readonly InventoryEntry[]) => void>} */
   const watchers = new Set();
 
   // A resolved thread leaves the margin, unless a reply is being written in it: saved
   // words and an editing session are distinct, and only an active session keeps it. A
   // widget-held conversation retains its existing notice.
+  /** @param {ThreadRecord} thread */
   const threadHasDiscussion = (thread) =>
     !thread.resolved || replyIsEditing(threadKey(thread)) || heldOut(thread.id);
 
   // A command's subject does not depend on whether an overlay or exact widget seat
   // has realized its discussion. Attachment place and pointed row share the same
   // resolved record as collection, navigation and paint.
+  /** @param {Node | null} node */
   function threadIdsAt(node) {
     const place = placeOf(node);
     let best = null;
@@ -292,29 +350,34 @@ export function createAnnotationInventory({
   }
 
   function collectEntries() {
+    /** @type {Groups} */
     const groups = new Map();
+    /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
       // A widget's workflow names its owner, unit and verb.
-      const coordinate = /** @type {[string, string, string]} */ (receipt.coordinate);
-      receiptByCoordinate.set(stateCoordinate(...coordinate), receipt);
+      const coordinate = receipt.coordinate;
+      receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
         continue;
       const id = thread.id;
-      const target = placedAt(id)?.place;
       const placement = placedAt(id);
+      const target = placement?.place;
+      if (!target) continue;
+      const [firstSegment, ...otherSegments] = targetSegments(placement);
       const point = livePoint(target, placement?.point);
-      const pointed = point
-        ? { key: placement.pointRow, element: point, words: placement.pointWords }
-        : targetSegments(placement).length
-          ? {
-              key: passageRow(target, placement),
-              passage: placement,
-              words: thread.anchor.quote,
-            }
-          : null;
+      const pointed =
+        point && placement
+          ? { key: placement.pointRow, element: point, words: placement.pointWords }
+          : firstSegment
+            ? {
+                key: passageRow(target, [firstSegment, ...otherSegments]),
+                passage: placement,
+                words: thread.anchor.quote,
+              }
+            : null;
       add(
         groups,
         target,
@@ -340,8 +403,10 @@ export function createAnnotationInventory({
 
     // A widget's obligation and a to-do on the user have a place on the page
     // (obligations/place.js); the rest have no node.
-    const placed = () =>
-      readObligations().user.filter((item) => obligationPlace(item).node);
+    /** @param {import("./framework/application.js").ObligationRecord} item
+     * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
+    const hasPlace = (item) => Boolean(obligationPlace(item).node);
+    const placed = () => readObligations().user.filter(hasPlace);
     for (const item of placed()) {
       const id = item.id;
       const target = obligationPlace(item).node;
@@ -481,7 +546,7 @@ export function createAnnotationInventory({
         todo.owner !== "agent" ||
         todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
-        todo.revision > runtime.currentRevision
+        Number(todo.revision) > Number(runtime.currentRevision)
       )
         continue;
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
@@ -494,7 +559,7 @@ export function createAnnotationInventory({
       add(groups, target, {
         kind: "activity",
         id: `todo:${todo.id}`,
-        // A start running on it is the agent at work there (at-work.js).
+        // A start running on it is the agent at work there (margin-bars.js).
         atWork: Boolean(running),
         text: labelWords(account),
         words: [
@@ -593,6 +658,7 @@ export function createAnnotationInventory({
     return entries;
   }
 
+  /** @param {Element | null} target @param {string} account @param {ScrollToElement} scrollToElement */
   function revealTarget(target, account, scrollToElement) {
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
@@ -605,6 +671,7 @@ export function createAnnotationInventory({
   return Object.freeze({
     collect: collectEntries,
     read: () => entries,
+    /** @param {(entries: readonly InventoryEntry[]) => void} watcher */
     watch(watcher) {
       watchers.add(watcher);
       try {
@@ -624,6 +691,7 @@ export function createAnnotationInventory({
     targetPath,
     threadItem: marginThreadItem,
     threadIdsAt,
+    /** @param {AnnotationItem} item */
     activate: (item) => sourceItem(item)?.activate(),
   });
 }

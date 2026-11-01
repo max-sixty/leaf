@@ -1,7 +1,8 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
- * session's pages, the drawing of Leaf's own rows in the conversation, and the
- * fork of the conversation Leaf's clerk asks at each turn's end (`clerk`). Claude
+ * session's pages, the drawing of Leaf's own rows in the conversation, the fork
+ * of the conversation Leaf's clerk asks at each turn's end (`clerk`), and the
+ * fork that answers a thread's waiting messages at once (`forkReply`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -52,7 +53,9 @@
  * A follower (`bin/leaf hook --harness claude-code
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
- * holding none. The session takes a page only through a `leaf` command, so the
+ * holding none. It is also the session's forks lane (`src/leaf/forks.py`): each
+ * page it lists carries the threads Leaf holds for a fork to answer. The session
+ * takes a page only through a `leaf` command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
  * running; a request while one runs starts another once it exits.
@@ -74,6 +77,10 @@ import type {
 let claudePid = "";
 // Whether the user reached this machine over SSH, read once by the band.
 let remote: boolean | undefined;
+// Whether a fork answers held thread messages (`forkReply`), read once with Claude
+// Code's process: `LEAF_FORK_REPLIES=off` in Claude Code's environment leaves every
+// message to the session, as the claude-code journey's delivery steps need.
+let repliesFork = true;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
 // draws as a task notification's row, and the words of the nudge Leaf sends
@@ -89,7 +96,12 @@ type Leaf = {
   on_user: number;
   threads: { open: number; unread: number };
   activity: { kind: string; detail: string };
+  // The page's threads held for a fork (`forks.held`).
+  forks?: Held[];
 };
+
+// A thread whose waiting messages Leaf holds for a fork, as the follower prints it.
+type Held = { page: string; thread: string; inputs: string[] };
 
 // The color the word Leaf wears for each activity kind, in Claude Code's theme: the
 // tone the page's Leaf panel paints its leaf (`.lf-dot` in chrome.css), muted for the
@@ -123,8 +135,10 @@ let followAgain = false;
 /** The session's id, once Claude Code's process is known. A module loaded or reloaded
  * mid-session sees no session.start, so whichever hook comes first reads it. */
 async function sessionOf($: EngineInterface) {
-  if (!claudePid)
+  if (!claudePid) {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
+    repliesFork = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
+  }
   return $.session.id();
 }
 
@@ -195,7 +209,11 @@ function follow($: EngineInterface, session: string) {
         "--pages",
       ],
       env: environment(session),
-      input: JSON.stringify({ hook_event_name: "Pages", session_id: session }),
+      input: JSON.stringify({
+        hook_event_name: "Pages",
+        session_id: session,
+        forks: repliesFork,
+      }),
     });
   } catch (error) {
     $.ui.log(`Leaf: the pages follower could not start: ${error}`);
@@ -215,7 +233,11 @@ function follow($: EngineInterface, session: string) {
         const lines = (line + chunk.text).split("\n");
         line = lines.pop() ?? "";
         const last = lines.at(-1);
-        if (last !== undefined && following === current) show($, JSON.parse(last));
+        if (last === undefined || following !== current) continue;
+        const listed: Leaf[] = JSON.parse(last);
+        show($, listed);
+        for (const page of listed)
+          for (const held of page.forks ?? []) forkReply($, session, held);
       }
       const result = await stream.result;
       if (result.code !== 0 && following === current)
@@ -237,9 +259,10 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-/** Run one half of Leaf's clerk (`leaf hook --fork`, `clerk.cmd_fork`) with
- * `payload`, and what it printed, or undefined where it printed nothing. */
-async function clerkStep(
+/** Run one step of a fork Leaf asks for (`leaf hook --fork`: the clerk's
+ * `clerk.cmd_fork`, or a held thread's `forks.cmd_reply`) with `payload`, and what
+ * it printed, or undefined where it printed nothing. */
+async function forkStep(
   $: EngineInterface,
   session: string,
   payload: Record<string, unknown>,
@@ -291,7 +314,7 @@ async function clerk($: EngineInterface, session: string) {
     do {
       forkAgain = false;
       try {
-        const asked = await clerkStep($, session, {});
+        const asked = await forkStep($, session, {});
         if (!asked) continue;
         const reply = await $.model.fork({ prompt: asked.prompt });
         if (!reply.isAnswered) {
@@ -300,7 +323,7 @@ async function clerk($: EngineInterface, session: string) {
           });
           continue;
         }
-        const applied = await clerkStep($, session, {
+        const applied = await forkStep($, session, {
           answer: reply.text,
           basis: asked.basis,
         });
@@ -323,6 +346,64 @@ async function clerk($: EngineInterface, session: string) {
   }
 }
 
+// The tool calls the main thread is running, by their tool_use ids, which a fork
+// can't see: the main thread's last request predates them.
+const running = new Map<string, { tool: string; input: Record<string, string> }>();
+// The arguments of a call a fork's prompt names, each cut to a line's worth.
+const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
+
+// The held threads a fork has been made for, by page, thread and newest message.
+const replied = new Set<string>();
+
+/** Fork the conversation to answer a held thread's waiting messages, or hand them
+ * to the session (`src/leaf/forks.py`, whose header holds the states a thread
+ * moves through). Leaf writes the prompt and checks again that the thread is
+ * held; the module adds the calls the session is running, makes the fork, and
+ * hands back the answer, or the failure, which hands the thread over. Forks for
+ * different threads run side by side, and the follower lists a held thread until
+ * its fork decides, so each is made once. Its outcomes go to the debug log and the
+ * page's diagnostics, since the user meets the reply only as the agent's. */
+function forkReply($: EngineInterface, session: string, held: Held) {
+  const key = `${held.page} ${held.thread} ${held.inputs.at(-1)}`;
+  if (replied.has(key)) return;
+  replied.add(key);
+  void (async () => {
+    try {
+      const calls = [...running.values()];
+      const asked = await forkStep($, session, { thread: held, running: calls });
+      if (!asked) return;
+      const started = await $.clock.now();
+      let answered: Record<string, unknown>;
+      try {
+        const reply = await $.model.fork({ prompt: asked.prompt });
+        answered = reply.isAnswered
+          ? { answer: reply.text, usage: reply.usage }
+          : {
+              failed: reply.reason,
+              ...("usage" in reply ? { usage: reply.usage } : {}),
+            };
+      } catch (error) {
+        answered = { failed: String(error) };
+      }
+      const outcome = await forkStep($, session, {
+        thread: held,
+        running: calls,
+        elapsed_ms: (await $.clock.now()) - started,
+        ...answered,
+      });
+      $.ui.log(`Leaf: a fork took thread ${held.thread}: ${outcome?.outcome}`, {
+        to: "debug",
+      });
+    } catch (error) {
+      // Leaf's own step failed, so the hold runs out, and the thread goes to the
+      // session as any input does.
+      $.ui.log(`Leaf: the fork for thread ${held.thread} failed: ${error}`, {
+        to: "debug",
+      });
+    }
+  })();
+}
+
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
@@ -342,6 +423,22 @@ export const register: Register = (on) => {
       return result;
     },
   );
+
+  // Every call the main thread runs, for the prompt of a fork made meanwhile.
+  on("tool.call", async ($, e, next) => {
+    if (e.agentId !== undefined) return next(e);
+    const input: Record<string, string> = {};
+    for (const name of NAMED) {
+      const value = (e as Record<string, unknown>)[name];
+      if (typeof value === "string") input[name] = value.slice(0, 300);
+    }
+    running.set(e.tool_use_id, { tool: e.tool, input });
+    try {
+      return await next(e);
+    } finally {
+      running.delete(e.tool_use_id);
+    }
+  });
 
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {

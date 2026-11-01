@@ -694,7 +694,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "data-bound diff",
         '<h1 id="title">Review</h1><div style="height: 900px"></div>'
         '<lf-diff id="patch" source="review-patch">'
-        "<pre></pre></lf-diff>",
+        "</lf-diff>",
     )
     url = serve(authored)
     patch = """diff --git a/app.py b/app.py
@@ -857,7 +857,7 @@ diff --git a/README.md b/README.md
     expect(added).not_to_be_in_viewport()
     # The thread's view goes to the line it quotes with Show on page.
     first_thread_quote(page, serve.page_dir)
-    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -974,7 +974,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-        "<pre></pre></lf-diff>",
+        "</lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -1178,7 +1178,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
                 for case in [*accepted, *refused]
             ),
             *(
-                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
+                f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"></lf-diff>'
                 for case in [*accepted, *stored]
             ),
             f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
@@ -1221,7 +1221,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             "files": [],
             "rendered": False,
             "errors": [f"<lf-diff> failed: {case['widget']}"],
-            "source": case["patch"].rstrip("\n") or None,
+            "source": case["patch"] or None,
         }, case["id"]
     for case in stored:
         reading = readings[f"files-{case['id']}"]

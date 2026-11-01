@@ -28,6 +28,13 @@ const HERE = "lf-mark-here";
 // `rowThread()` names the thread whose row in the floating panel's Threads the pointer is
 // on, `threadRow(id)` is the row Threads draws for a thread, and `marginThread()` names
 // the thread whose margin entry the pointer is on; each is null where there is none.
+/** @typedef {Element | Range} Mark */
+/** @param {{targetPaint: ReturnType<typeof import("./visual-mark-paint.js").createVisualMarkPaint>,
+ * pointer: typeof import("../pointer.js").pointerAt,
+ * currentLocationThreadId: () => string | null,
+ * currentLocationObligation: () => Element | null,
+ * rowThread: () => string | null, threadRow: (id: string) => Element | null,
+ * marginThread: () => string | null}} capabilities */
 export function createAnchorPaint({
   targetPaint,
   pointer,
@@ -37,23 +44,33 @@ export function createAnchorPaint({
   threadRow,
   marginThread,
 }) {
+  /** @type {Map<string, Mark[]>} */
   const marked = new Map();
+  /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
-  let pendingMarks = [];
+  /** @type {Element[]} */
   let pendingOutline = [];
+  /** @type {Element[]} */
   let actionOutline = [];
+  /** @type {string | null} */
   let hovering = null;
   let hoverFromRow = false;
+  /** @type {Element[]} */
   let hoverParts = [];
+  /** @type {Element | null} */
   let hoveredRow = null;
+  /** @type {Element[]} */
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
 
-  const marksFor = (id) => marked.get(id) ?? [];
+  /** @param {string | null} id */
+  const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
+  /** @param {Iterable<Mark | readonly Mark[]>} where */
   const elementMarks = (where) =>
     [...where].flat().filter((mark) => mark instanceof Element);
 
+  /** @param {Parameters<typeof targetElement>[0]} resolved */
   const rememberVisual = (resolved) => {
     const element = targetElement(resolved);
     const surface = targetSurface(resolved);
@@ -87,7 +104,9 @@ export function createAnchorPaint({
     // describe the previous location until the mechanical repaint.
     const obligation = currentLocationObligation();
     const obligationRing =
-      obligation && (active === obligation || shownParts(obligation).includes(active));
+      active &&
+      obligation &&
+      (active === obligation || shownParts(obligation).includes(active));
     const ownsRing = active && ringBox(active) === active && !obligationRing;
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
@@ -116,6 +135,7 @@ export function createAnchorPaint({
 
   // Each element's outline classes follow the current record. Toggling the last pass's
   // elements with this one's writes only the classes that moved.
+  /** @param {Set<Element>} before */
   function paintOutlines(before) {
     const marks = new Set(elementMarks(marked.values()));
     const pending = new Set(pendingOutline);
@@ -134,6 +154,7 @@ export function createAnchorPaint({
   // element is lit only from the row: on the page the pointer is inside the element
   // anywhere in it, so the contour would stand round a section for as long as the user
   // read with the mouse resting in it. The hand still says a press opens the thread.
+  /** @param {string | null} id @param {boolean} fromRow @param {boolean} [repaintVisuals] */
   function paintHover(id, fromRow, repaintVisuals = true) {
     hovering = id;
     hoverFromRow = fromRow;
@@ -156,6 +177,7 @@ export function createAnchorPaint({
   // its margin entry or the row itself, is marked in Threads while Threads is open. A
   // thread with nothing lit on the page marks no row, so a marked row always has its
   // passage lit.
+  /** @param {string | null} id */
   function markRow(id) {
     const row = id && marksFor(id).length ? threadRow(id) : null;
     if (row === hoveredRow) return;
@@ -186,6 +208,7 @@ export function createAnchorPaint({
   // Which thread's painted mark lies under a point. Text highlights have no DOM node,
   // so their client rects are the only exact hit test. With the annotation layer hidden
   // there is no mark to be under: an unseen passage shows no hand and opens nothing.
+  /** @param {number} x @param {number} y */
   function markAt(x, y) {
     if (annotationsHidden()) return null;
     const over = document.elementFromPoint(x, y);
@@ -226,6 +249,7 @@ export function createAnchorPaint({
     });
   }
 
+  /** @param {NonNullable<ReturnType<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
     marked.clear();
@@ -240,7 +264,12 @@ export function createAnchorPaint({
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
-        reactions.push(...targetSegments(found).map((segment) => rangeOf([segment])));
+        reactions.push(
+          ...targetSegments(found).map(
+            /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
+              rangeOf([segment]),
+          ),
+        );
         continue;
       }
 
@@ -250,23 +279,28 @@ export function createAnchorPaint({
           marked.set(thread.id, targetParts(found));
         }
       } else if (!thread.root.drawing) {
-        const ranges = targetSegments(found).map((segment) => rangeOf([segment]));
+        const ranges = targetSegments(found).map(
+          /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
+            rangeOf([segment]),
+        );
         marked.set(thread.id, ranges);
         posted.push(...ranges);
       }
     }
     const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
-    pendingMarks =
+    pendingOutline =
+      draftMarked && !draft.drawing && targetElement(resolvedDraft)
+        ? targetParts(resolvedDraft)
+        : [];
+    const pending =
       draftMarked && !draft.drawing
-        ? targetElement(resolvedDraft)
-          ? targetParts(resolvedDraft)
-          : targetSegments(resolvedDraft).map((segment) => rangeOf([segment]))
+        ? targetSegments(resolvedDraft).map(
+            /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
+              rangeOf([segment]),
+          )
         : [];
     if (resolvedDraft) rememberVisual(resolvedDraft);
-    const pending = [];
-    if (targetElement(resolvedDraft)) pendingOutline = pendingMarks;
-    if (targetSegments(resolvedDraft).length) pending.push(...pendingMarks);
 
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
@@ -307,7 +341,6 @@ export function createAnchorPaint({
       element?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
-    pendingMarks = [];
     visualTargets.clear();
     hovering = null;
     hoverFromRow = false;

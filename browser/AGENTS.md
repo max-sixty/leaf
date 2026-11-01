@@ -43,10 +43,11 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   hover, focus or a key never moves its ancestors or siblings, and typing may grow a
   field but never moves it. Check: `tests/shift_watch.js`, whose header lists what it
   credits.
-- **A box's controls stand on an edge the box holds as its content changes.** The same
-  control may therefore stand at a thread card's head and at the floating panel's foot;
-  each box's header says which edge it holds (`floating-panel.js`, **Opened**;
-  `thread/card-anchor.js`).
+- **A box's controls stand on an edge the box holds as its content changes**, or the
+  box holds its size while they act. A thread card holds its head's edge; the floating
+  panel, standing on the window's foot, holds a list's foot, and a thread's height while
+  a press on its head line acts. Each box's header says how (`floating-panel.js`,
+  **Opened**; `thread/card-anchor.js`).
 - **News never moves what the reader is reading.** News from the server grows above the
   screen, where scroll anchoring absorbs it, or below it; anywhere else it waits behind a
   fixed-size control until the reader goes to it, and an editor in use stays still. An
@@ -283,7 +284,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`   |
 | Page status and what a user copies about the page                                                           | `page-status.js`, `page-about.js`, `heading-links.js`                                                                                                      |
 | Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                           |
-| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `at-work.js`                                                                                             |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`, `margin-bars.js`                                                                                         |
 | Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                          |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                          |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `leaf-element.js`                                                                                 |
@@ -323,7 +324,8 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
 name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
-class's weight off itself (`styles/chrome-guard.css`).
+class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
+purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
@@ -592,8 +594,8 @@ that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
 (`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
-`pnpm run check:browser` type-checks runtime and widget modules, strictly where a
-module is marked `// @ts-check`, which the build requires of every framework module.
+`pnpm run check:browser` strictly type-checks every maintained runtime and widget
+module; no file pragma is needed.
 `../build/browser/build.mjs` owns checker selection; `types/` holds its configuration
 and declarations. Declare a new
 global, event detail or runtime element tag in `types/runtime-globals.d.ts`.

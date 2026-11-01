@@ -269,9 +269,10 @@ FOUND = {
 QUEUED = Record(
     "clerk",
     described(
-        "The lines Leaf's clerk queued for a session's next step, in the state "
-        "home's `sessions/<digest>.clerk` (`state.session_file`): one for each "
-        "record it wrote and each finding it passes on (`clerk`).",
+        "The lines Leaf queued for a session's next step, in the state home's "
+        "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
+        "clerk wrote and each finding it passes on (`clerk`), and one for each reply "
+        "a fork of the conversation posted (`forks`).",
         object_schema({"lines": {"type": "array", "items": STRING}}),
     ),
     since=36,
@@ -396,9 +397,10 @@ def fork_prompt(pages: list[dict]) -> str:
     )
 
 
-def read_answer(text: str) -> dict:
-    """The fork's reply as an answer `ANSWER` takes, or `Refused` saying why not. A
-    fenced or prefaced object is read from its first `{` to its last `}`."""
+def read_answer(text: str, schema: dict = ANSWER) -> dict:
+    """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
+    another is given, or `Refused` saying why not. A fenced or prefaced object is
+    read from its first `{` to its last `}`."""
     from .refusals import Refused
     from .registry.schema import json_validator
 
@@ -409,7 +411,7 @@ def read_answer(text: str) -> dict:
         answer = json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
         raise Refused(f"the fork's answer is not JSON ({error.msg})") from error
-    errors = sorted(json_validator(ANSWER).iter_errors(answer), key=str)
+    errors = sorted(json_validator(schema).iter_errors(answer), key=str)
     if errors:
         raise Refused(f"the fork's answer doesn't fit its schema: {errors[0].message}")
     return answer
@@ -554,10 +556,7 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                             changed.append({"page": path, **fixed})
                         lines.append(_found(path, item, session_id, current, fixed))
                 finally:
-                    if lines:
-                        queue_path = session_file(session_id, QUEUED.kind)
-                        held = QUEUED.read(queue_path) or {"lines": []}
-                        QUEUED.write(queue_path, {"lines": [*held["lines"], *lines]})
+                    _append(session_id, lines)
                     told.extend(lines)
         except FileNotFoundError:
             continue
@@ -854,6 +853,20 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
+def queue(session_id: str, lines: list[str]) -> None:
+    """Queue `lines` for the session's next step (`queued`)."""
+    with flocked(session_lock_path(session_id)):
+        _append(session_id, lines)
+
+
+def _append(session_id: str, lines: list[str]) -> None:
+    """`queue`, for a caller already holding the session's lock."""
+    if lines:
+        path = session_file(session_id, QUEUED.kind)
+        held = QUEUED.read(path) or {"lines": []}
+        QUEUED.write(path, {"lines": [*held["lines"], *lines]})
+
+
 def _put(page_dir, page, kind, title, text, identity, passage) -> dict:
     """The record putting one ask On me as the agent's own in `page`, an open
     transaction: a question's thread, or a step's to-do on the user, on `passage` where
@@ -902,7 +915,7 @@ def _told(path: str, kind: str, title: str, text: str, passage: str, record: dic
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk."""
+    """What the session's next step hears from the clerk and the forks."""
     held = QUEUED.read(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 

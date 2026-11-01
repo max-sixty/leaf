@@ -34,6 +34,15 @@ import {
   reveal,
 } from "./widget-elements.js";
 
+/** Source diagnostics are served by `page_inspection.inspect_artifact`.
+ * @typedef {{bytes: number, rules: number, declarations: number, inline_styles: number, important: number}} CssCounts
+ * @typedef {{page: CssCounts, layer: CssCounts, sources: (CssCounts & {owner: string, path: string, line: number, kind: string, documents: string[], syntax_errors: {text: string}[]})[], coverage: string[]}} CssReport
+ * @typedef {{page: {bytes: number, inline_scripts: number, files: number}, sources: {path: string, line: number, owner: string, kind: string, bytes: number}[]}} ScriptReport
+ * @typedef {{basis: {revision: number | null}, css: CssReport, javascript: ScriptReport, page_widgets: {tag: string, path: string}[]}} SourceReport
+ * @typedef {Awaited<ReturnType<typeof readCurrentUserView>>} CurrentView
+ * @typedef {(SourceReport | {basis: {revision: number | null} | null, css: null, javascript?: never, page_widgets?: never}) & {current_view: CurrentView, source_unavailable?: string | null, source_pending?: boolean}} Report
+ * @typedef {{at: string, place?: import("/checks/locate.js").Place}} Observation
+ */
 const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-dialog-head");
@@ -79,34 +88,36 @@ for (const type of ["wa-copy", "wa-error"]) {
 
 function selectReport() {
   const text = body.querySelector('pre[aria-label="Structured diagnostics"]');
+  const selection = getSelection();
+  if (!text || !selection) return;
   const intent = retainUserIntent();
   reveal(text, intent);
   focusDestination(text, "move");
   const range = document.createRange();
   range.selectNodeContents(text);
-  const selection = getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
   scrollIntoView(text, { block: "start", behavior: scrollBehavior() });
 }
 chromeForeground.append(dialog);
 
+/** @type {AbortController | null} */
 let request = null;
+/** @type {Report | null} */
 let report = null;
+/** @type {string | null} */
 let sourceError = null;
 let loading = false;
+/** @type {WeakMap<object, WeakRef<Element>>} */
 let destinations = new WeakMap();
+/** @type {string | null} */
 let navigationError = null;
+/** @param {number} value */
 const number = (value) => value.toLocaleString();
-const metrics = (values) =>
-  html`<dl class="lf-inspection-metrics">
-    ${[
-      ["UTF-8 bytes", values.bytes],
-      ["CSS rules", values.rules],
-      ["Declarations", values.declarations],
-      ["Inline styles", values.inline_styles],
-      ["!important", values.important],
-    ].map(
+/** @param {Record<string, number>} values */
+const counts = (values) =>
+  html`<dl class="lf-facts">
+    ${Object.entries(values).map(
       ([label, value]) =>
         html`<div>
           <dt>${label}</dt>
@@ -114,12 +125,23 @@ const metrics = (values) =>
         </div>`,
     )}
   </dl>`;
+/** @param {CssCounts} values */
+const metrics = (values) =>
+  counts({
+    "UTF-8 bytes": values.bytes,
+    "CSS rules": values.rules,
+    Declarations: values.declarations,
+    "Inline styles": values.inline_styles,
+    "!important": values.important,
+  });
 
-const sourcesOf = (owner) =>
-  report.css.sources.filter((source) => source.owner === owner);
-const sourceRows = (owner) =>
+/** @param {CssReport} css @param {string} owner */
+const sourcesOf = (css, owner) =>
+  css.sources.filter((source) => source.owner === owner);
+/** @param {CssReport} css @param {string} owner */
+const sourceRows = (css, owner) =>
   html`<dl>
-    ${sourcesOf(owner).map(
+    ${sourcesOf(css, owner).map(
       (source) => html`
         <dt><code>${source.path}:${source.line}</code></dt>
         <dd>
@@ -133,6 +155,7 @@ const sourceRows = (owner) =>
     )}
   </dl>`;
 
+/** @template {Observation} T @param {string} label @param {readonly T[]} rows @param {(row: T) => string} describe */
 const observations = (label, rows, describe) =>
   html` <dt>${label}</dt>
     <dd>
@@ -158,9 +181,11 @@ const observations = (label, rows, describe) =>
       }
     </dd>`;
 
+/** @param {Observation} row */
 async function showOnPage(row) {
   const target = destinations.get(row)?.deref();
-  const view = report.current_view;
+  const view = report?.current_view;
+  if (!view) return;
   if (runtime.currentRevision !== view.revision || !target?.isConnected) {
     navigationError =
       "This location changed. Close and reopen diagnostics to inspect the current page.";
@@ -177,8 +202,9 @@ async function showOnPage(row) {
   scrollIntoView(target, { block: "center", behavior: scrollBehavior() });
 }
 
+/** @param {CurrentView} view */
 function browserReading(view) {
-  if (!view.viewport) return html`<p>${view.unavailable}</p>`;
+  if (!("viewport" in view)) return html`<p>${view.unavailable}</p>`;
   const checks = view.checks?.reading.checks;
   return html` <p>
       Captured ${new Date(view.observed_at).toLocaleString()} ·
@@ -219,7 +245,7 @@ function browserReading(view) {
             )}
             ${observations(
               "Arrangement",
-              view.checks.reading.layout.arrangement,
+              view.checks?.reading.layout.arrangement ?? [],
               (row) => `${row.rows} items by row · ${row.path}`,
             )}
           </dl>`
@@ -232,6 +258,7 @@ function browserReading(view) {
 }
 
 function present() {
+  if (!report) return;
   report.source_unavailable = sourceError;
   report.source_pending = loading;
   const serialized = JSON.stringify(report, null, 2);
@@ -281,14 +308,14 @@ function present() {
                 </p>
                 ${metrics(report.css.page)}
                 ${
-                  sourcesOf("page").length
+                  sourcesOf(report.css, "page").length
                     ? html`<h3>Page sources and locations</h3>
-                        ${sourceRows("page")}`
+                        ${sourceRows(report.css, "page")}`
                     : nothing
                 }
                 <details>
                   <summary>Selected layer CSS</summary>
-                  ${metrics(report.css.layer)}${sourceRows("layer")}
+                  ${metrics(report.css.layer)}${sourceRows(report.css, "layer")}
                 </details>
               `
             : nothing
@@ -298,11 +325,11 @@ function present() {
         report.javascript
           ? html`<section aria-label="Authored JavaScript">
               <h2 class="lf-label">Authored JavaScript</h2>
-              <p>
-                ${number(report.javascript.page.bytes)} page-owned bytes ·
-                ${number(report.javascript.page.inline_scripts)} inline scripts ·
-                ${number(report.javascript.page.files)} files
-              </p>
+              ${counts({
+                "Page-owned bytes": report.javascript.page.bytes,
+                "Inline scripts": report.javascript.page.inline_scripts,
+                Files: report.javascript.page.files,
+              })}
               <details>
                 <summary>JavaScript sources</summary>
                 <dl>
@@ -351,6 +378,8 @@ function present() {
 }
 
 async function loadSource() {
+  const current = report;
+  if (!current?.basis) return;
   request?.abort();
   const attempt = new AbortController();
   request = attempt;
@@ -359,13 +388,14 @@ async function loadSource() {
   if (currentLocationIn(body)) focusDestination(close, "move");
   present();
   try {
+    /** @type {SourceReport} */
     const source = await requestJson(
-      pageUrl(`api/inspect?revision=${report.basis.revision}`),
+      pageUrl(`api/inspect?revision=${current.basis.revision}`),
       { signal: attempt.signal },
       "Page diagnostics",
     );
     if (request !== attempt || !dialog.open) return;
-    report = { ...source, current_view: report.current_view };
+    report = { ...source, current_view: current.current_view };
   } catch (error) {
     if (request !== attempt || !dialog.open) return;
     sourceError = `Source inspection unavailable: ${describeFailure(error)}`;
@@ -377,6 +407,7 @@ async function loadSource() {
   }
 }
 
+/** @param {ReturnType<typeof retainUserIntent>} intent */
 export async function openPageInspection(intent) {
   const resolver = offlineInteractive
     ? null
@@ -386,17 +417,21 @@ export async function openPageInspection(intent) {
   destinations = new WeakMap();
   navigationError = null;
   if (!copyResult.hidden) copyResult.hidden = true;
-  // Keep the captured node itself: a widget redraw at the same positional path must
-  // not turn an old observation into a route to a different element.
-  const retain = (value) => {
-    if (!value || typeof value !== "object") return;
-    if (resolver && value.place && !Array.isArray(value.place)) {
-      const target = resolver.resolvePlace(value.place);
-      if (target) destinations.set(value, new WeakRef(target));
+  // Keep the captured node itself: a later redraw must not retarget an old observation.
+  if (resolver && "checks" in current_view && current_view.checks) {
+    const { checks, layout } = current_view.checks.reading;
+    const observations = [
+      ...checks.overflowing_regions,
+      ...checks.scrollbar_clearance,
+      ...checks.shrunk_labels.drawings,
+      ...layout.arrangement,
+    ];
+    for (const observation of observations) {
+      if (!observation.place) continue;
+      const target = resolver.resolvePlace(observation.place);
+      if (target) destinations.set(observation, new WeakRef(target));
     }
-    for (const child of Object.values(value)) retain(child);
-  };
-  if ("checks" in current_view) retain(current_view.checks);
+  }
   const available =
     !offlineInteractive && sessionIsActive() && Number.isInteger(current_view.revision);
   report = {
@@ -418,7 +453,7 @@ export async function openPageInspection(intent) {
         .map(
           (entry) =>
             html`${copyableText(
-              entry.label[0].toUpperCase() + entry.label.slice(1),
+              entry.label.charAt(0).toUpperCase() + entry.label.slice(1),
               entry.copies,
             )}${entry.title ? html`<p>${entry.title}</p>` : nothing}`,
         )}`,

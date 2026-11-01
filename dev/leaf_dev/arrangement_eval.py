@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import traceback
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from html import escape
@@ -819,16 +820,14 @@ def capture(run: Run) -> dict[int, dict]:
     }
 
 
-def comment_answer(run: Run, reply: str) -> str:
+def comment_answer(run: Run, reply: str, page: Path) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
-    it together with the final page."""
+    it from the retained comment phase together with the final page."""
     if not run.leaf_condition:
         return reply
     thread = run.recorded("comment").get("event")
-    answers = (
-        successful_replies(read_events(run.authored_page), thread) if thread else []
-    )
+    answers = successful_replies(read_events(page), thread) if thread else []
     return "\n\n".join(
         f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
     )
@@ -980,47 +979,51 @@ def execute_scenario(
         "phases": {},
     }
     harness_costs = []
-    with scratch(payload if run.leaf_condition else None) as child_work:
-        author(run, child_work)
-        trace = read_trace(work / "stream.jsonl")
-        split = phase_traces(trace)
-        order = list(phases(case))
-        session = dict(
-            zip(
-                order,
-                resumed([trace_summary(split.get(p, [])) for p in order]),
-                strict=True,
-            )
+    failure = None
+    try:
+        with scratch(payload if run.leaf_condition else None) as child_work:
+            author(run, child_work)
+    except Exception as error:
+        failure = "".join(traceback.format_exception(error))
+    trace = read_trace(work / "stream.jsonl")
+    split = phase_traces(trace)
+    order = list(phases(case))
+    session = dict(
+        zip(
+            order,
+            resumed([trace_summary(split.get(p, [])) for p in order]),
+            strict=True,
         )
-        if run.leaf_condition:
-            served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
-            diagnostics["handed_over"] = served is not None and served in replies(
-                split.get(1, [])
+    )
+    if run.leaf_condition:
+        served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
+        diagnostics["handed_over"] = served is not None and served in replies(
+            split.get(1, [])
+        )
+        if scenario.comment:
+            diagnostics["comment_delivered"] = any(
+                r["type"] == "eval_received" for r in trace
             )
-            if scenario.comment:
-                diagnostics["comment_delivered"] = any(
-                    r["type"] == "eval_received" for r in trace
-                )
-                remark = run.recorded("comment")
-                diagnostics["comment"] = remark
-        if scenario.decision:
-            made = run.recorded("decision")
-            harness_costs.append((made.get("trace") or {}).get("cost_usd"))
-            diagnostics["decision"] = made
-        captures = capture(run)
-        answer = ""
-        for phase in order:
-            summary = session[phase]
-            page = run.page(phase)
-            row = {
-                "trace": summary,
-                **captures.get(phase, {}),
-            }
-            if page:
-                row["page"] = str(page)
-                if phase == 3:
-                    answer = comment_answer(run, summary["reply"])
-            diagnostics["phases"][phase] = row
+            remark = run.recorded("comment")
+            diagnostics["comment"] = remark
+    if scenario.decision:
+        made = run.recorded("decision")
+        harness_costs.append((made.get("trace") or {}).get("cost_usd"))
+        diagnostics["decision"] = made
+    captures = capture(run) if failure is None else {}
+    answer = ""
+    for phase in order:
+        summary = session[phase]
+        page = run.page(phase)
+        row = {
+            "trace": summary,
+            **captures.get(phase, {}),
+        }
+        if page:
+            row["page"] = str(page)
+            if phase == 3:
+                answer = comment_answer(run, summary["reply"], page)
+        diagnostics["phases"][phase] = row
     checks["completed"] = all(session[phase]["completed"] for phase in order)
     checks["page"] = run.page(order[-1]) is not None
     authoring = [session[p]["cost_usd"] for p in order]
@@ -1028,7 +1031,7 @@ def execute_scenario(
         "author": observed_sum(authoring),
         "harness": observed_sum(harness_costs),
     }
-    failure = next(
+    failure = failure or next(
         (error for phase in order if (error := author_failure(split.get(phase, [])))),
         None,
     )

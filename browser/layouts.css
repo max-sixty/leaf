@@ -391,7 +391,12 @@
       &[data-lf-space="available"] {
         justify-self: center;
       }
+      /* A native caption joins the anonymous table grid, whose width is the
+       * columns' full scrollable width. An inline block belongs to this scrollport
+       * instead, so its percentage limit and sticky position use the same box. */
       > caption {
+        display: inline-block;
+        vertical-align: top;
         max-inline-size: 100%;
       }
     }

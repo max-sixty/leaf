@@ -184,7 +184,7 @@
 :where(:root, .lf-thread-transcript) caption {
   position: sticky;
   --lf-head-inset: 0px;
-  inset-inline-start: 0;
+  inset-inline: 0;
   max-inline-size: 100cqi;
 }
 /* A cell's marks, the ring of a cell the user is on, as a thread's target once its card

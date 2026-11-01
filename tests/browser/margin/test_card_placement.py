@@ -405,11 +405,11 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
 def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     """A card holding news while the user writes: the notice takes only the room the
     head of the user's message leaves beside its name and time, and stands clear of
-    it. On a desktop card, with Previous and Next for its target's two threads, the
-    head keeps "Me" and its time whole. On a phone's card, whose three controls, the
-    notice and the head's Edit each take a finger's width, the head keeps "Me" whole and
-    gives up its time, as any narrow head does before its name. The notice says one
-    count, "2 new", on either. Drawn whole, the notice stood over the head."""
+    it. The head keeps "Me" and its time whole: on a desktop card, with Previous and
+    Next for its target's two threads, and on a phone's, whose three controls, the
+    notice and the head's Edit each take a finger's width, since a phone's card spans
+    the window (comment-placement.js). The notice says one count, "2 new", on either.
+    Drawn whole, the notice stood over the head."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the logo where it is", {"section": "h-how"}
@@ -448,7 +448,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, phone):
     assert stands["notice"] >= stands["head"] - 0.5, stands
     assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] != phone for time in times), times
+    assert times and all(time["whole"] for time in times), times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")

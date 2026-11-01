@@ -24,7 +24,7 @@ follow from it:
   heading reads differently from one set in a full page of the product.
 - **A subtle difference is compared in place.** The eye catches a faint change, such
   as a step in a shadow's softness, when one version replaces the other in the same
-  spot at a size where it shows, and loses it between two copies set apart.
+  spot at a size where it shows.
 - **Controls speak in what ships.** A control set in the values the build will
   receive, such as a layer's offset, blur and opacity, or a threshold in milliseconds,
   lets the user read the decision off the control. A setting expressed relative to

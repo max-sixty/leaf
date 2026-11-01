@@ -286,7 +286,13 @@ import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsNotice } from "./thread/held-news.js";
-import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
+import {
+  atScrollEnd,
+  moveScrollerBy,
+  SCROLL_SLACK,
+  scrollLimit,
+  scrollToEnd,
+} from "./scrolling.js";
 import { showReturnTurn } from "./thread/reply-landing.js";
 import {
   coveredShare,
@@ -531,7 +537,7 @@ export function createFloatingPanel({
                               : nothing
                           }
                           ?data-leaving=${route === leaving}
-                          @scroll=${sawAnswer}
+                          @scroll=${viewScrolled}
                         >
                           ${viewOf(route).draw(route)}
                         </div>`,
@@ -1408,6 +1414,7 @@ export function createFloatingPanel({
    *   drawnSections: Map<string, string> | null,
    *   waiting: { key: string, message: string, label: string } | null,
    *   placed: number | null,
+   *   foot: { view: HTMLElement, room: number, top: number } | null,
    *   onPageSeat: boolean,
    *   unreadSeat: boolean | null,
    *   quoteExpanded: boolean,
@@ -1425,6 +1432,7 @@ export function createFloatingPanel({
     drawnSections: null,
     waiting: null,
     placed: null,
+    foot: null,
     onPageSeat: false,
     unreadSeat: null,
     quoteExpanded: false,
@@ -1644,8 +1652,9 @@ export function createFloatingPanel({
   // draw lands the view. That may change the box's size, and the browser
   // delivers no observer a box shallower than the view later in the frame it resized,
   // so the box is read again here, before that frame paints what moved.
-  const fit = sizeObserver(() => {
+  const fit = sizeObserver((entries) => {
     stood = openView()?.offsetHeight ?? null;
+    keepFoot(entries);
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -1993,6 +2002,48 @@ export function createFloatingPanel({
     if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
     opening.waiting = null;
     paint();
+  }
+  // A thread's view stands on its foot, beside the field, and keeps what stands there
+  // as the room the box gives it changes. Where the box reaches the window's top, a line
+  // the field gains takes its room from the view rather than carrying the view up, so
+  // the view gives way at its top and its words move up with the field, as they do
+  // while the box has room: the message the user is answering stays beside their words.
+  // A line taken away gives the room back the same way. The user asked for this on 31
+  // October, when a long reply covered the agent's last line, the view having kept its
+  // scroll and given way at its foot. A change of what the view holds, a reply drawn or
+  // a send, is placed by its own reading (`fitAnswer`, `landing`), so a reading where
+  // the transcript changed size too keeps nothing. Where the foot stood is kept from
+  // each scroll as well as each reading, but for the clamp a view's growth makes at
+  // its end, whose scroll arrives before the reading that answers the growth wherever
+  // a script read the layout first.
+  /** @param {ResizeObserverEntry[]} entries */
+  function keepFoot(entries) {
+    const view = openView();
+    if (!view) {
+      opening.foot = null;
+      return;
+    }
+    const before = opening.foot;
+    const room = view.clientHeight;
+    if (
+      before?.view === view &&
+      room !== before.room &&
+      entries.every(({ target }) => target === view)
+    ) {
+      moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
+      opening.placed = view.scrollTop;
+    }
+    opening.foot = { view, room, top: view.scrollTop };
+  }
+  /** @param {Event & {currentTarget: HTMLElement}} event */
+  function viewScrolled(event) {
+    const view = event.currentTarget;
+    const { foot } = opening;
+    if (!foot || foot.view !== view) return sawAnswer(event);
+    const clamped =
+      view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view);
+    if (!clamped) foot.top = view.scrollTop;
+    sawAnswer(event);
   }
   // The leaf's menu stands on the leaf and grows upward, so anything news adds to it, or
   // takes from it, carries everything above up or down the window: a row a revision

@@ -55,6 +55,7 @@ export function createPassageSelection({ restore }) {
       const anchor = selectionAnchor(selection);
       if (anchor?.quote) previous = { anchor, backward: selectionBackward(selection) };
     },
+    /** @type {import("../keyboard/bindings.js").Command} */
     command: {
       id: "selection.restore",
       keys: ["v"],

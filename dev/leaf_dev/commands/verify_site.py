@@ -24,6 +24,8 @@ on this machine (`local_adapter`), and the local Worker (`local_worker`).
 from __future__ import annotations
 
 import base64
+import gzip
+import hashlib
 import json
 import shutil
 import subprocess
@@ -42,7 +44,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from playwright.sync_api import APIResponse, BrowserContext, Page
+from playwright.sync_api import APIRequestContext, APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -132,6 +134,23 @@ def answered[Response: HttpAnswer](response: Response, url: str) -> Response:
     return response
 
 
+def read_state(
+    request: APIRequestContext,
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    timeout: float | None = None,
+) -> APIResponse:
+    """Read state with one native connection-reset retry, safe for this idempotent GET.
+
+    HTTP failures still surface through ``answered``. Publish-site's transport
+    capture records failed attempts even when the retry succeeds.
+    """
+    return answered(
+        request.get(url, headers=headers, timeout=timeout, max_retries=1), url
+    )
+
+
 def observe_startup(page: Page) -> list[Finding]:
     """Every verifier page records milestones and the errors that stop reaching them."""
     record_startup(page)
@@ -155,6 +174,73 @@ def await_presentation(
             f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
             + said(failures)
         ) from None
+
+
+@contextmanager
+def capture_script_responses(page: Page):
+    """Keep the reload's actual script responses if its verification fails.
+
+    The CI log is the retained artifact, so bodies are gzip/base64 with short lines.
+    Decode by joining `gzipBase64`, base64-decoding, then gzip-decompressing. These
+    are Playwright's decoded response bytes, not a new request or wire compression.
+    Only delivery headers are retained; cookies and other credentials are excluded.
+    """
+    scripts = []
+    delivery_headers = {
+        "content-type",
+        "content-length",
+        "content-encoding",
+        "etag",
+        "cache-control",
+        "cf-cache-status",
+        "cf-ray",
+        "leaf-release",
+        "leaf-state-source",
+    }
+
+    def finished(request):
+        if request.resource_type != "script":
+            return
+        response = request.response()
+        if response is None:
+            return
+        script = {
+            "url": response.url,
+            "status": response.status,
+            "headers": {
+                name: value
+                for name, value in response.headers.items()
+                if name in delivery_headers
+            },
+        }
+        body = None
+        try:
+            body = response.body()
+        except PlaywrightError as error:
+            script["bodyError"] = str(error)
+        scripts.append((script, body))
+
+    page.on("requestfinished", finished)
+    try:
+        yield
+    except Exception:
+        for script, body in scripts:
+            if body is not None:
+                script["sha256"] = hashlib.sha256(body).hexdigest()
+                encoded = base64.b64encode(gzip.compress(body, mtime=0)).decode("ascii")
+                script["gzipBase64"] = [
+                    encoded[start : start + 4096]
+                    for start in range(0, len(encoded), 4096)
+                ]
+        print(
+            json.dumps(
+                {"scriptResponses": [script for script, _ in scripts]}, indent=2
+            ),
+            file=sys.stderr,
+        )
+        raise
+    finally:
+        page.remove_listener("requestfinished", finished)
 
 
 def activation_url(page_url: str, state: dict) -> str:
@@ -293,9 +379,7 @@ def verify_page(
         return startup
 
     state_url = urljoin(url, "api/state")
-    passive_response = answered(
-        context.request.get(state_url, timeout=120_000), state_url
-    )
+    passive_response = read_state(context.request, state_url, timeout=120_000)
     check(
         passive_response.headers.get("leaf-session") == "passive",
         f"{state_url} left the edge before interaction",
@@ -314,13 +398,11 @@ def verify_page(
     )
     if settle_after_activation is not None:
         settle_after_activation()
-    state_response = answered(
-        context.request.get(
-            state_url,
-            headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
-            timeout=120_000,
-        ),
+    state_response = read_state(
+        context.request,
         state_url,
+        headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
+        timeout=120_000,
     )
     check(
         state_response.headers.get("leaf-session") == "active",
@@ -449,7 +531,7 @@ def verify_cross_tab_activation(
         # Docker changes host interfaces; the page under test must remain passive.
         neighbor = f"{origin}/"
         state_url = urljoin(neighbor, "api/state")
-        state = answered(context.request.get(state_url), state_url).json()
+        state = read_state(context.request, state_url).json()
         check(
             activation_read(context, activation_url(neighbor, state)) is not None,
             f"{neighbor} {STILL_STARTING}",
@@ -464,7 +546,7 @@ def verify_cross_tab_activation(
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, failures)
-    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
+    passive = read_state(context.request, state_url, timeout=120_000)
     check(
         passive.headers.get("leaf-session") == "passive",
         f"{state_url} activated before the cross-tab interaction",
@@ -512,7 +594,7 @@ def user_session(
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
     await_presentation(page, url, failures)
-    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
+    passive = read_state(context.request, state_url, timeout=120_000)
     if direct_agent:
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
@@ -535,8 +617,8 @@ def user_session(
         f"{activation} did not activate a private container for its agent",
     )
     headers = {"Leaf-Release": release} if release is not None else None
-    state_response = answered(
-        context.request.get(state_url, headers=headers, timeout=120_000), state_url
+    state_response = read_state(
+        context.request, state_url, headers=headers, timeout=120_000
     )
     # The edge answers a passive read with the deployed release, so the release header
     # is the container's own only once the session has left the edge.
@@ -734,7 +816,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     # Read through the real HTTP owner too; it must agree with the fixture's commits.
     context = browser.new_context()
     context.add_cookies(cookies)
-    current = answered(context.request.get(state_url), state_url).json()
+    current = read_state(context.request, state_url).json()
     check(
         current["active"]["revision"] == seeded["revision"],
         "private revision was not activated",
@@ -778,7 +860,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     page.locator(".lf-fp-view[data-view=thread]").get_by_text(
         "Saved before the container stopped.", exact=True
     ).wait_for(state="visible")
-    state_response = answered(context.request.get(state_url), state_url)
+    state_response = read_state(context.request, state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",
         "saved state woke its container",
@@ -838,7 +920,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     )
     check(uploaded.json().get("path"), "the next write did not upload media")
     wait_for_host_network()
-    resumed = answered(context.request.get(state_url), state_url).json()
+    resumed = read_state(context.request, state_url).json()
     check(
         {seeded["comment"], seeded["choice"]}
         <= {event["id"] for event in resumed["events"]},

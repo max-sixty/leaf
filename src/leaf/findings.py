@@ -2020,7 +2020,19 @@ _TEXT = {
     "undeclared-answer": lambda at, v: (
         "say what the answer leaves: --done when it delivers what was asked, --todo"
         " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
-        " the user's next move (a widget in --markup may also ask)"
+        " the user's next move"
+        + (
+            f"; or let the <{v['tag']} id={v['id']!r}> in --markup ask in its place,"
+            f" which it does with {v['needs']}"
+            if v
+            else " (a widget in --markup may also ask)"
+        )
+    ),
+    "obligation-beside-widget": lambda at, v: (
+        f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
+        " answer; drop --obligation, which would keep the message on their On me list"
+        " after they answer it, and ask anything the widget doesn't answer in a message"
+        " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

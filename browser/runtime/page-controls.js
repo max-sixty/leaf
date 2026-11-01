@@ -56,7 +56,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // convenience for where the reader stands, such as Resume writing (`keys`), behind
 // Navigate only where no keyboard is there to reach it, so the menu a keyboard user
 // reads stays short and a finger keeps a way to each.
-const GROUPS = Object.freeze(["page", "navigate", "annotate", "keys"]);
+/** @typedef {"page" | "navigate" | "annotate" | "keys"} PageControlGroup */
 
 /** @type {Map<string, PageControl & {sequence: number}>} */
 const rows = new Map();
@@ -74,7 +74,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
- *   group: string | (() => string),
+ *   group: PageControlGroup | (() => PageControlGroup),
  *   value?: string | (() => string),
  *   title?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
@@ -104,27 +104,22 @@ export function pageControls() {
   return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
     .filter((row) => read(row.offered) ?? true)
-    .map((row) => {
-      const group = read(row.group);
-      if (!GROUPS.includes(group))
-        throw new TypeError(
-          `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`,
-        );
-      return Object.freeze({
+    .map((row) =>
+      Object.freeze({
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
         title: read(row.title) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group,
+        group: read(row.group),
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         exit: Boolean(row.exit),
         action: read(row.action) ?? null,
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
-      });
-    });
+      }),
+    );
 }
 
 /** Say that a row's answer moved outside the page's readings. Several in one script are

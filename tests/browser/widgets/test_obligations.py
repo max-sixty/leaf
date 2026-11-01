@@ -1617,8 +1617,17 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     comment's outline gives, so the walk's mark and the thread's cannot disagree about
     where a boxless decision is. The outermost mark still names the decision, one place for the
     user to be located."""
-    styled = OBLIGATIONS_PAGE.replace(
-        "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+    # Keep the boxless element's slots in one prose cell. As direct children of
+    # main they become separate grid items, so the fixture no longer describes
+    # one decision below the preceding question.
+    styled = (
+        OBLIGATIONS_PAGE.replace(
+            '<lf-suggestion id="sug-refill">', '<div><lf-suggestion id="sug-refill">'
+        )
+        .replace("</lf-suggestion>", "</lf-suggestion></div>", 1)
+        .replace(
+            "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
+        )
     )
     page = open_page(browser, serve(styled))
     resized(page, 900, 400)

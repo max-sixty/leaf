@@ -13,6 +13,18 @@ lf-dial {
 html[data-lf-interactive] lf-dial {
   min-block-size: calc(var(--lf-line) + var(--sp-2));
 }
+/* Measure the three labels in their actual face before the buttons arrive. Zero
+   width separators prevent kerning across button boundaries. The inset is the
+   three buttons' padding and borders, the row's frame, and its two gaps. */
+html[data-lf-interactive] lf-dial:not(:defined)::before {
+  content: "Skim\200b Read\200b Everything";
+  display: block;
+  visibility: hidden;
+  white-space: nowrap;
+  font: var(--font-ui);
+  font-weight: 500;
+  padding-inline: calc(3 * (10px + 1px) + 2px + 1px + var(--sp-1));
+}
 .lf-dial-depths {
   display: flex;
   align-items: center;

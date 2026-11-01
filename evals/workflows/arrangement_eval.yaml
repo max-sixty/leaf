@@ -345,7 +345,16 @@ cases:
             radius and visible details. It retains the headline and detail facts and displays
             the corrected body about twenty minutes and not retrying a submitted payment. A settings
             summary alone does not establish that the preview matches. Recording the design remains
-            distinct from implementation or deployment."
+            distinct from implementation or deployment. After inspecting the correctly recorded final
+            result, exercise any offered route to explore or edit a variation. Change at least one
+            meaningful setting. Check that the preview and its labels describe the current working
+            configuration, while the recorded configuration remains identifiable and unchanged.
+            Exercise Reset and reload through visible routes and inspect which configuration each
+            presents. Verify a new submission and Undo if offered, distinguishing exploration from
+            a newly recorded decision. Use ordinary pointer and keyboard input, and inspect readable
+            screenshots. A static label claiming the changed preview is the recorded result is a
+            defect. A page need not offer further editing; preserved task capabilities and clear
+            records matter, not a prescribed layout or wording."
   dependency-review:
     inputs:
       comment:

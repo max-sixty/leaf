@@ -84,18 +84,19 @@ let loading = false;
 let destinations = /* @__PURE__ */ new WeakMap();
 let navigationError = null;
 const number = (value) => value.toLocaleString();
-const metrics = (values) => html`<dl class="lf-facts">
-    ${Object.entries({
+const counts = (values) => html`<dl class="lf-facts">
+    ${Object.entries(values).map(([label, value]) => html`<div>
+          <dt>${label}</dt>
+          <dd>${number(value)}</dd>
+        </div>`)}
+  </dl>`;
+const metrics = (values) => counts({
 	"UTF-8 bytes": values.bytes,
 	"CSS rules": values.rules,
 	Declarations: values.declarations,
 	"Inline styles": values.inline_styles,
 	"!important": values.important
-}).map(([label, value]) => html`<div>
-          <dt>${label}</dt>
-          <dd>${number(value)}</dd>
-        </div>`)}
-  </dl>`;
+});
 const sourcesOf = (css, owner) => css.sources.filter((source) => source.owner === owner);
 const sourceRows = (css, owner) => html`<dl>
     ${sourcesOf(css, owner).map((source) => html`
@@ -154,7 +155,7 @@ function browserReading(view) {
     </details>
     ${view.unavailable ? html`<p>${view.unavailable}</p>` : nothing}
     ${view.readiness ? html`<p>Captured while the page was settling: ${view.readiness}.</p>` : nothing}
-    ${checks ? html`<dl>
+    ${checks ? html`<dl class="lf-facts">
             <dt>Horizontal overflow</dt>
             <dd>${number(checks.horizontal_overflow_px)} px</dd>
             ${observations("Overflowing regions", checks.overflowing_regions, (row) => `${row.over} px beyond its scrollport`)}
@@ -209,11 +210,11 @@ function present() {
       </section>
       ${report.javascript ? html`<section aria-label="Authored JavaScript">
               <h2 class="lf-label">Authored JavaScript</h2>
-              <p>
-                ${number(report.javascript.page.bytes)} page-owned bytes ·
-                ${number(report.javascript.page.inline_scripts)} inline scripts ·
-                ${number(report.javascript.page.files)} files
-              </p>
+              ${counts({
+		"Page-owned bytes": report.javascript.page.bytes,
+		"Inline scripts": report.javascript.page.inline_scripts,
+		Files: report.javascript.page.files
+	})}
               <details>
                 <summary>JavaScript sources</summary>
                 <dl>

@@ -249,6 +249,13 @@ dl:is(.facts, .lf-facts) dt {
   color: var(--muted);
   font-weight: 400;
 }
+/* A label stands a step below its value. Leaf's own lists sit among the interface's
+ * words, so their labels take its small font, as a field's label over its box does; a
+ * page's labels step down from its prose in its theme (the reading theme's
+ * `dl.facts dt`). */
+dl.lf-facts dt {
+  font: var(--font-small);
+}
 dl:is(.facts, .lf-facts) dd {
   margin: 0;
   overflow-wrap: anywhere;

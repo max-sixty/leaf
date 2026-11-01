@@ -187,7 +187,7 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     first_state = first.locator("body").evaluate(
         "new URL('api/state', document.baseURI).href"
     )
-    first.locator(".lf-fp-controls .lf-fp-settle").click()
+    first.locator(".lf-fp-head .lf-fp-settle").click()
     wait_for(
         lambda: [e["kind"] for e in page.request.get(first_state).json()["events"]],
         lambda kinds: "resolve" in kinds,

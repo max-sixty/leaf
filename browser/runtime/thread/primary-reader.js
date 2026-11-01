@@ -48,8 +48,8 @@ import { turns } from "./model.js";
    thread, as a card's reply row does. The thread itself, where a walk or a notice lands the keyboard, is
    the drawing the presentation declares around the parts, as the panel's view is.
    The notice of what the reader holds back (held-news.js) stands where the
-   presentation nominates it (`parts.news`), as the floating panel stands it among its
-   view's controls, after the way back. Where it nominates none, the notice
+   presentation nominates it (`parts.news`), as the floating panel stands it on its
+   view's head line, before the thread's presses. Where it nominates none, the notice
    stands at the end of the first part's head, in room every such head keeps for it,
    so news arriving moves none of the head's words. */
 /** @typedef {Pick<ReturnType<typeof import("./state.js").readThreads>, "phase" | "threads">} PrimaryCollection */

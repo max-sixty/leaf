@@ -124,7 +124,8 @@
     background: var(--lf-fp-surface);
     /* The box never runs past the window's top, where an open view keeps its head and
        Close: a long draft and an open view share the window, the view taking what the
-       field leaves and scrolling inside it (`.lf-fp-opened`). */
+       field leaves and scrolling inside it (`.lf-fp-opened`), a thread's keeping what
+       stands at its foot beside the field (floating-panel.js, `keepFoot`). */
     max-height: calc(
       100dvh - var(--lf-head-room) - 2 * var(--lf-floating-gap) - var(--lf-safe-bottom)
     );
@@ -702,9 +703,9 @@
   .lf-fp-quick > .lf-fp-exit {
     width: var(--lf-fp-aim);
   }
-  /* A view's Close at its controls' end (floating-panel.js, `closeAbove`) takes the
-     face of the presses before it. */
-  .lf-fp-controls > .lf-fp-chip {
+  /* A view's Close at the end of its head line or its tabs takes the face of the presses
+     before it. */
+  :is(.lf-fp-head > .lf-fp-aux, .lf-fp-controls) > .lf-fp-chip {
     flex: none;
     justify-content: center;
     min-width: max(var(--lf-fp-press), var(--aim-floor));
@@ -731,6 +732,18 @@
   .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);
     font-weight: 600;
+  }
+  /* The count stands on the baseline of the field's words beside it, as a message
+     head's name stands on its time's (surfaces.css): its box is a line of the field's
+     face, from a strut, so both engines place the two baselines alike. Centred on a
+     line of its own, the smaller count stood higher, under a finger by a pixel and a
+     half. */
+  .lf-fp-on-user .lf-fp-num {
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--font-message);
+    }
   }
   .lf-fp-news {
     position: absolute;
@@ -861,7 +874,9 @@
   }
   /* The pointer's fold: a corner mark (controls.css) riding the box's top-right corner,
      shown while the pointer is near that corner (floating-panel.js, `data-corner`). It
-     fades rather than moves, so nothing shifts under the pointer. */
+     fades rather than moves, so nothing shifts under the pointer. An open view's Close
+     holds that corner, so the mark waits for the view to go rather than stand beside
+     ✕ and Resolve. */
   .lf-fp-minimize {
     top: -9px;
     right: -9px;
@@ -872,7 +887,7 @@
       visibility 0s var(--lf-motion-disclosure);
   }
   @media (hover: hover) {
-    .lf-floating-panel[data-rest="row"][data-corner] .lf-fp-minimize {
+    .lf-floating-panel[data-rest="row"][data-corner]:not([data-open]) .lf-fp-minimize {
       opacity: 1;
       visibility: visible;
       transition: opacity var(--lf-motion-disclosure);
@@ -917,7 +932,7 @@
     display: grid;
   }
 
-  /* ---------- an opened view: its name over it, its controls at its foot ---------- */
+  /* ---------- an opened view: its head line over it, a list's tabs at its foot ---------- */
   /* Drawn only while a view is open, since it stands over the page while it is
      (geometry.js, `declareOccluder`). */
   /* A symbol in a view stands as tall as the panel's other presses, a line under a
@@ -931,19 +946,60 @@
   .lf-floating-panel:not([data-open]) .lf-fp-opened {
     display: none;
   }
-  /* The name, with nothing to press, stands at the edge the view grows from, so it
-     takes no room where only a heading for assistive tech stands, as On's does. */
-  .lf-fp-head:has(> .lf-fp-title:not(.lf-quiet)) {
+  /* The head line, over what the view holds, in two parts (floating-panel.js,
+     **Opened**): the view's name, after a ‹ alone at the line's start where there is a
+     way back, on the words' edge, a thread's facts after it; then the view's presses,
+     ending in its Close in the top-right corner. A list, whose name is the tab its foot
+     shows, has no head line where only a heading for assistive tech stands. */
+  .lf-fp-head:has(> :not(.lf-fp-name, .lf-quiet), > .lf-fp-name > :not(.lf-quiet)) {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 2px;
     min-height: 36px;
     padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
-  /* The controls stand on the row, which their growing view never moves, set off from
-     what the view holds by a hairline inset as far as the words. Their reach stops
-     short of the row's own presses' (`--lf-reach-room`), so a press between the two
-     lands on the one the user is nearer. */
+  .lf-fp-head:has(> .lf-fp-name > .lf-fp-back) {
+    padding-inline-start: 6px;
+  }
+  /* The name takes the room the presses leave, and they keep the line's end and their
+     room, a name that names the view to assistive tech alone included, so the name
+     alone gives way to a long title. Where the presses don't fit beside ‹, as on a
+     phone beside Next unread and Show on page, they go to a line of their own under the
+     name, at its end, as a list's presses do beside its tabs. The facts stand in the
+     name's part, so news arriving never sends the presses to that line. */
+  .lf-fp-name {
+    flex: 1 1 0;
+    min-width: max(var(--lf-icon-action-face), var(--aim-floor));
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  /* A name the line shows none of, a list's, takes none of its room. */
+  .lf-fp-name:not(:has(> :not(.lf-quiet))) {
+    display: contents;
+  }
+  .lf-fp-head > .lf-fp-aux {
+    flex: none;
+    margin-inline-start: auto;
+  }
+  .lf-fp-name > .lf-fp-facts {
+    margin-inline-start: auto;
+  }
+  /* A hairline inset as far as the words sets what an open view holds off from the line
+     under it: a list's tabs, or the row, under a view with no tabs, such as a thread
+     over its reply. */
+  .lf-fp-controls,
+  .lf-floating-panel[data-open]
+    .lf-fp-opened:has(> .lf-fp-controls[hidden])
+    + .lf-fp-row {
+    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
+  }
+  /* A list's tabs stand on the row, which their growing view never moves. Their reach
+     stops short of the row's own presses' (`--lf-reach-room`), so a press between the
+     two lands on the one the user is nearer. */
   .lf-fp-controls {
     display: flex;
     align-items: center;
@@ -951,8 +1007,6 @@
     min-height: 40px;
     padding: 3px 6px var(--lf-reach-room) calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
-    background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
-      calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
   }
   .lf-fp-crumb {
     flex: 1 1 auto;
@@ -971,15 +1025,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* The two ways back, a view's to the list it came from and the menu's to the page
-     menu, are one press: a row (controls.css, `.lf-row`) holding the chevron and the
-     name of where it leads, in the ink, washed under the pointer. It is as wide as its
-     words, since a view's way back shares its line with the thread's facts and
-     presses, where no row could run the panel's width, and in the menu that width says
-     it leaves the list rather than standing in it. Its chevron stands 8px into its
-     wash, as a menu row's words do, so the menu's way back starts on its rows' edge;
-     a view's reaches out by those 8px, so its chevron starts on the view's words. */
-  :is(.lf-fp-back, .lf-fp-menu-back) {
+  /* The menu's way back to the page menu is a row (controls.css, `.lf-row`) holding
+     the chevron and the menu's name, in the ink, washed under the pointer. It is as
+     wide as its words, which say it leaves the list rather than standing in it, and
+     its chevron stands 8px into its wash, as a menu row's words do, so it starts on
+     its rows' edge. */
+  .lf-fp-menu-back {
     flex: none;
     align-self: flex-start;
     display: inline-flex;
@@ -988,35 +1039,39 @@
     min-height: var(--lf-fp-press);
     padding: 0 8px 0 6px;
   }
-  :is(.lf-fp-back, .lf-fp-menu-back) .lf-fp-chevron {
+  .lf-fp-menu-back .lf-fp-chevron {
     flex: none;
     scale: -1 1;
     margin: 0;
   }
-  .lf-fp-crumb > .lf-fp-back {
-    margin-inline-start: -8px;
-  }
-  /* The thread's facts after the way back, the news it holds, take the room the crumb
-     leaves, so news arriving moves nothing else. They stand further from the controls
-     after them than those stand from each other, so they read as facts about the
-     thread rather than as controls. */
-  .lf-fp-facts {
+  .lf-fp-back {
     flex: none;
+  }
+  /* The thread's facts after its name, the news it holds, stand at the end of the name's
+     part, before the presses, so news arriving moves no press and takes its room from
+     the name. They stand further from the presses than those stand from each other, so
+     they read as facts about the thread rather than as presses. The name gives way
+     first; where it is gone and the part still lacks room, as on a phone beside Next
+     unread and Show on page, the news takes its short form ("1 new", "+1"; held-news.js,
+     `newsNotice`) rather than be cut off. */
+  .lf-fp-name > .lf-fp-title {
+    flex-shrink: 1000;
+  }
+  .lf-fp-facts {
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: baseline;
     gap: 6px;
-    margin-inline: auto 12px;
+    margin-inline-end: 12px;
   }
-  /* What Threads holds while the user reads it stands over the rows it would have
-     moved, starting where their marks do, as a list's heading does (controls.css,
-     `.lf-rows-head`) and a view's title does: its line grows the box upward from the
-     row the box stands on, so no row moves (floating-panel.js, `threadsListing`). */
+  /* What Threads holds while the user reads it stands on a line over its rows,
+     starting where their marks do, as a list's heading does (controls.css,
+     `.lf-rows-head`) and a view's title does. The line grows the box upward from the
+     row it stands on, so no row moves (floating-panel.js, `threadsListing`). */
   .lf-fp-head:has(> .lf-fp-joined) {
-    display: flex;
-    align-items: center;
     min-height: 32px;
     padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
-    box-sizing: border-box;
   }
   .lf-fp-joined {
     display: flex;
@@ -1025,12 +1080,13 @@
   .lf-fp-news-outlet {
     display: contents;
   }
-  /* The news qualifies the thread as its place does, so it takes the size of the
-     crumb's words. It stands on the crumb's baseline at the height of its words, a line
-     an em tall, so its arrival grows no line: the room a pointer aims at reaches above
-     and below them, as tall as a control's. */
+  /* The news qualifies the thread, so it takes the size of the head line's words. It
+     stands at the height of its words, a line an em tall, so its arrival grows no line.
+     The room a pointer aims at reaches above and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
     --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
+    flex: 0 1 auto;
+    min-width: 0;
     align-self: auto;
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
@@ -1056,12 +1112,10 @@
   .lf-fp-controls[data-named] > .lf-fp-aux {
     margin-inline-start: auto;
   }
-  /* Filter strips share the available width with the crumb and fixed actions. Their
-     tabs scroll at full size when space runs out, keeping Search and Close reachable.
-     The tabs take turns in the controls row with a thread's controls, so they keep
-     their face under a finger too and reach the pointer's floor as the row's other
-     presses do: floor-tall tabs stood the row taller than the thread's controls that
-     replace them. The strip scrolls, which would clip a reach beyond its box, so it
+  /* Filter strips share the available width with the presses after them. Their tabs
+     scroll at full size when space runs out, keeping Search and Close reachable. The
+     tabs keep their face under a finger and reach the pointer's floor as the presses
+     beside them do. The strip scrolls, which would clip a reach beyond its box, so it
      keeps the reach's room inside its box and takes none in the row. */
   .lf-fp-filters {
     --lf-fp-tab: 26px;
@@ -1123,7 +1177,7 @@
   .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
     outline: var(--focus-ring);
   }
-  :is(.lf-fp-on-page, .lf-fp-next-unread)[data-unoffered] {
+  :is(.lf-fp-on-page, .lf-fp-next-unread, .lf-fp-close)[data-unoffered] {
     visibility: hidden;
   }
   /* Next unread is an inline press (controls.css) after its symbol, standing in the
@@ -1261,8 +1315,16 @@
     gap: 8px;
     min-height: 1lh;
   }
+  /* The value is words, so it keeps the name's first line's baseline: its box is a
+     line of the name's face, from a strut, as the On me count's is (above). Centred
+     with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;
+    line-height: 0;
+    &::before {
+      content: "\200b" / "";
+      font: var(--font-compact);
+    }
   }
   .lf-fp-end > .lf-binding-sequence {
     grid-area: 1 / 2;
@@ -1351,11 +1413,15 @@
   /* A page in All pages: its leaf in its agent's tone, its title, and what its agent is
      doing, which gives way to the title and is cut where the row ends; then the mark
      every link opening a tab of its own wears (declared-words.js), in a column of its
-     own at the row's end. */
+     own at the row's end. The title and what the agent is doing stand on one baseline,
+     as a row's name and end do (controls.css, `.lf-row`); centred each in its own
+     box, the smaller words stood higher. Their line stands centred in the row, and the
+     leaf and the mark centred on it. */
   .lf-fp-page {
     display: grid;
     grid-template-columns: auto minmax(0, max-content) minmax(6em, 1fr) 0.75em;
-    align-items: center;
+    align-items: baseline;
+    align-content: center;
     gap: 8px;
     min-height: 34px;
     padding: 5px 8px;
@@ -1364,6 +1430,9 @@
   }
   .lf-fp-page .lf-dot {
     --lf-mark-w: 14px;
+  }
+  .lf-fp-page > :is(.lf-dot, .lf-external-mark) {
+    align-self: center;
   }
   .lf-fp-page .lf-fp-value {
     overflow: hidden;
@@ -1381,9 +1450,11 @@
      wider, each word set against the row's end (floating-panel.js, `versionsList`).
      A version's press spans the row, so its wash and the shown version's mark run
      across it; Compare stands over the press's end as a press of its own, and Showing
-     lets a press on it through to the version's. */
+     lets a press on it through to the version's. The version's name, Compare and
+     Showing stand on one baseline, as a row's name and end do (controls.css,
+     `.lf-row`); centred each in its own box, the smaller Showing stood higher. */
   .lf-fp-version {
-    align-items: center;
+    align-items: baseline;
   }
   /* The press has no value, key or chevron, so its words take the first column alone,
      on one line; its number's digits share one width, so v1's note starts where v2's

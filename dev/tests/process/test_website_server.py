@@ -244,6 +244,9 @@ class _DeployedPage:
     def on(self, event: str, handler) -> None:
         pass
 
+    def remove_listener(self, event: str, handler) -> None:
+        pass
+
     def goto(self, url: str, **kwargs) -> _Read:
         return _Read({})
 

@@ -2455,12 +2455,6 @@ const PAGE_CONTROL_RANK = Object.freeze({
 	keyboard: 95,
 	exit: 120
 });
-const GROUPS = Object.freeze([
-	"page",
-	"navigate",
-	"annotate",
-	"keys"
-]);
 const rows = /* @__PURE__ */ new Map();
 let sequence = 0;
 const revision = Z(0);
@@ -2476,24 +2470,20 @@ function registerPageControl(row) {
 }
 function pageControls() {
 	revision.value;
-	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => {
-		const group = read(row.group);
-		if (!GROUPS.includes(group)) throw new TypeError(`Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`);
-		return Object.freeze({
-			key: row.key,
-			label: read(row.label),
-			value: read(row.value) ?? "",
-			title: read(row.title) ?? "",
-			shortcut: read(row.shortcut) ?? EMPTY,
-			group,
-			copies: read(row.copies) ?? "",
-			urgent: read(row.urgent) ?? null,
-			exit: Boolean(row.exit),
-			action: read(row.action) ?? null,
-			disabled: Boolean(read(row.disabled)),
-			press: row.press ?? null
-		});
-	});
+	return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true).map((row) => Object.freeze({
+		key: row.key,
+		label: read(row.label),
+		value: read(row.value) ?? "",
+		title: read(row.title) ?? "",
+		shortcut: read(row.shortcut) ?? EMPTY,
+		group: read(row.group),
+		copies: read(row.copies) ?? "",
+		urgent: read(row.urgent) ?? null,
+		exit: Boolean(row.exit),
+		action: read(row.action) ?? null,
+		disabled: Boolean(read(row.disabled)),
+		press: row.press ?? null
+	}));
 }
 const pageControlsChanged = () => afterScript(tell);
 function tell() {

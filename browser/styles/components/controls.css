@@ -642,13 +642,16 @@ summary,
  * mark carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
- * does every mark on it. Used by authored controls and packages alike. */
+ * does every mark on it. A list that sets its marks on a heading's edge hangs each
+ * face out by that padding, `--choice-pad`. Used by authored controls and packages
+ * alike. */
 .choice {
+  --choice-pad: max(var(--sp-1), var(--focus-ring-room));
   display: inline-flex;
   align-items: center;
   justify-self: start;
   gap: var(--sp-1);
-  padding: max(var(--sp-1), var(--focus-ring-room));
+  padding: var(--choice-pad);
   min-block-size: var(--aim-floor);
   min-inline-size: var(--aim-floor);
   box-sizing: border-box;

@@ -230,8 +230,24 @@ const unmark = (node) => {
   for (const name of MARKS) node.removeAttribute(name);
 };
 
+/** @param {SourceLine} line @param {boolean} canComment */
+function lineNumber(line, canComment) {
+  const number = offer(canComment ? "button" : "span", "lf-diff-line-number");
+  if (number instanceof HTMLButtonElement) {
+    number.type = "button";
+    number.tabIndex = -1;
+    number.classList.add("lf-diff-comment", "lf-diff-line-comment");
+    number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
+    number.setAttribute(LINE_KEY, diffDatumKey(line));
+  }
+  relabel(number, String(line.side === "old" ? line.oldLine : line.newLine), {
+    says: "echo",
+  });
+  return number;
+}
+
 // Pierre owns parsing, highlighting and word differences. Leaf gives each source
-// line one native row: its number is the comment control, and a conversation can
+// line one native row: its number offers Comment while a surface is registered, and a conversation can
 // follow that row without a second gutter column to reconcile or measure.
 /** @param {NativeFile} file @param {DocumentFragment} content */
 function renderedLines(file, content) {
@@ -255,16 +271,9 @@ function renderedLines(file, content) {
     const row = document.createElement("div");
     row.className = "lf-diff-line";
     keeps(row, "data-line-type", node.getAttribute("data-line-type"));
-    const comment = offer("button", "lf-diff-comment lf-diff-line-comment");
-    comment.type = "button";
-    comment.tabIndex = -1;
-    comment.setAttribute("aria-label", `Comment on ${lineLabel(record)}`);
-    comment.setAttribute(LINE_KEY, key);
-    relabel(comment, String(record.side === "old" ? record.oldLine : record.newLine), {
-      says: "echo",
-    });
+    const number = lineNumber(record, false);
     node.replaceWith(row);
-    row.append(comment, node);
+    row.append(number, node);
     return { ...record, node, row, content: node.innerHTML };
   });
 }
@@ -985,6 +994,8 @@ customElements.define(
     /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} */
     #shown;
     #showing = false;
+    /** @type {ReturnType<typeof threadSurface>["open"]} */
+    #opener = null;
     // The rendering the update under way started, which its `updateComplete` waits for.
     /** @type {Promise<void> | undefined} */
     #rendered;
@@ -1036,9 +1047,13 @@ customElements.define(
     shouldUpdate(changed) {
       const ready = super.shouldUpdate(changed);
       if (!ready) return false;
-      // Only new evidence or preparation interrupted by departure needs a draw;
-      // a no-op update would clear a completed refusal.
-      return this.#shown === undefined || this.value !== this.#shown;
+      // Evidence and annotation availability are independent inputs. Other no-op
+      // updates must not clear a completed refusal.
+      return (
+        this.#shown === undefined ||
+        this.value !== this.#shown ||
+        threadSurface(this).open !== this.#opener
+      );
     }
 
     setup() {
@@ -1157,6 +1172,7 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
+      this.#opener = threadSurface(this).open;
       return nothing;
     }
 
@@ -1165,8 +1181,9 @@ customElements.define(
     /** @param {import("lit").PropertyValues} changed */
     updated(changed) {
       super.updated(changed);
-      this.#rendered = undefined;
+      for (const entry of this.fileEntries ?? []) this.reconcileEntryComments(entry);
       if (this.#delivered === this.#shown) return;
+      this.#rendered = undefined;
       this.#shown = this.#delivered;
       this.#showing = true;
       const rendering = this.show(this.#delivered);
@@ -1322,6 +1339,7 @@ customElements.define(
           if (this.singleFile || entries.length < 2) this.diffTools = null;
           else this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
+          for (const entry of entries) this.reconcileEntryComments(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
           // A file the patch dropped goes with its outlets, which core's composer leaves first.
@@ -1689,6 +1707,7 @@ customElements.define(
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
       paintFileDetails(entry, entry.record);
+      this.reconcileEntryComments(entry);
       return restore;
     }
 
@@ -1778,19 +1797,43 @@ customElements.define(
         const button =
           target instanceof Element ? target.closest(".lf-diff-line-comment") : null;
         const line = button?.nextElementSibling;
-        if (line) threadSurface(this).open(line);
+        if (line) threadSurface(this).open?.(line);
       });
       entry.node.addEventListener("beforematch", () => {
         if (this.singleFile) this.selectFile(entry);
         else this.clearFilter();
       });
-      const label = entry.record.path || "file";
-      const fileComment = commentButton(
-        label,
-        () => threadSurface(this).open(fileNode(entry)),
-        "lf-diff-file-comment",
-      );
-      entry.actions.prepend(fileComment);
+    }
+
+    // A surface owns whether Comment is available. Its registration can arrive after
+    // the evidence, or leave while the same value remains, so this updates retained
+    // affordances independently of parsing and preserves the source rows themselves.
+    /** @param {FileEntry} entry */
+    reconcileEntryComments(entry) {
+      const opener = threadSurface(this).open;
+      const fileComment = entry.actions.querySelector(".lf-diff-file-comment");
+      if (opener && !fileComment) {
+        entry.actions.prepend(
+          commentButton(
+            entry.record.path || "file",
+            () => threadSurface(this).open?.(fileNode(entry)),
+            "lf-diff-file-comment",
+          ),
+        );
+      } else if (!opener && fileComment) {
+        const restore = holdFocus(fileComment);
+        fileComment.remove();
+        restore?.(entry.header);
+      }
+      for (const line of entry.rendered?.lines ?? []) {
+        const previous = line.row.firstElementChild;
+        if (!previous || (previous.localName === "button") === Boolean(opener))
+          continue;
+        const restore = holdFocus(previous);
+        const number = lineNumber(line, Boolean(opener));
+        previous.replaceWith(number);
+        restore?.(number);
+      }
     }
 
     /** @param {PromiseLike<unknown>} promise */

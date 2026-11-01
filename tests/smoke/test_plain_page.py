@@ -295,7 +295,7 @@ def test_a_host_sets_a_diff_value_and_reads_its_drawn_marks(browser):
     markup = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Host-owned diff</title>
 <script type="importmap">{json.dumps(layer_import_map(ROOT))}</script>
-</head><body><lf-diff id="diff"></lf-diff>
+</head><body><button id="show-both">Show both files</button><lf-diff id="diff"></lf-diff>
 <script type="module">
 const diff = document.querySelector("lf-diff");
 window.drawings = [];
@@ -309,6 +309,9 @@ diff.addEventListener("drawn", event => drawings.push({{
 try {{
   await import("/widgets/lf-diff.js");
   diff.value = {json.dumps(first)};
+  document.querySelector("#show-both").onclick = () => {{
+    diff.value = {json.dumps(first + second)};
+  }};
 }} catch (error) {{
   document.querySelector("#failure").textContent = error.stack;
 }} finally {{
@@ -327,6 +330,10 @@ try {{
         drawn = page.evaluate("drawings.at(-1)")
         assert drawn["value"] == first
         assert drawn["marks"], drawn
+        expect(
+            page.get_by_role("button", name="Comment on", exact=False)
+        ).to_have_count(0)
+        expect(page.locator("#diff .lf-diff-line-number").first).to_have_text("1")
         assert any("first value" in mark["text"] for mark in drawn["marks"])
         first_keys = {mark["key"] for mark in drawn["marks"]}
 
@@ -339,15 +346,16 @@ try {{
         drawn = page.evaluate("drawings.at(-1)")
         assert drawn["value"] == second
         assert drawn["marks"], drawn
+        expect(
+            page.get_by_role("button", name="Comment on", exact=False)
+        ).to_have_count(0)
+        expect(page.locator("#diff .lf-diff-line-number").first).to_have_text("1")
         assert any("second value" in mark["text"] for mark in drawn["marks"])
         assert first_keys.isdisjoint(mark["key"] for mark in drawn["marks"])
         assert all("first value" not in mark["text"] for mark in drawn["marks"])
         # The same portable input/focus helpers let a reader filter the host's value
         # and retain their search while a matching file's drawing is replaced.
-        page.evaluate(
-            "value => { document.querySelector('#diff').value = value; }",
-            first + second,
-        )
+        page.get_by_role("button", name="Show both files").click()
         search = page.get_by_role("searchbox", name="Filter diff files")
         search.fill("second")
         expect(page.locator("#diff .lf-diff-file:visible")).to_have_count(1)

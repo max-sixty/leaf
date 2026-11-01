@@ -42,18 +42,12 @@ Preact Signals it exports `signal`, for private state a command's `when` reads
 
 ### A widget that also runs off Leaf
 
-A widget that must also run on a page without Leaf's runtime, such as a chart another
-app shows, imports only from `/runtime/portable-api.js`, the part of the helper
-surface any document can load; `widget-api.js` re-exports all of it.
-The retained-node and write helpers under “Rendering” are available through either
-surface too.
-The control constructors and template directives under “Generated controls”
-are portable too: use the same offers and generated-word markers on either host. The host maps
-`/runtime/` and `/vendor/` to a Leaf install with an import map of its own, as a Leaf
-page does, and runs none of Leaf's runtime. Such a widget extends `HTMLElement` and
-draws into the box the page gives it. Leaf hears from it only through standard events
-it dispatches on itself and declarations it leaves on its elements, which a plain page
-ignores:
+A widget reused off Leaf imports `/runtime/portable-api.js`, re-exported by
+`widget-api.js`. Retained-node helpers, writes and generated controls work on both
+hosts. The host maps `/runtime/` and `/vendor/` to a Leaf install with its own import
+map and gives the element its drawing box. Use `LeafElement` ("Drawing what a widget
+reads") or extend `HTMLElement`. Leaf adds its services through events and element
+declarations that a plain host can ignore:
 
 - Drawing under way: `this.dispatchEvent(new PendingTaskEvent(promise))`, the Web
   Components Community Group's `pending-task` protocol. Leaf holds the page's
@@ -286,20 +280,17 @@ finishes later starts there and extends `getUpdateComplete`. `this.controller` i
 controller. Call `requestUpdate()` after a change Leaf can't see, such as revealing held
 news, and `performUpdate()` to draw at once.
 
-`LeafElement` is also exported from `portable-api.js`. On a plain host it draws
-reactive properties with Lit's schedule, runs `setup()` once, pauses drawing while
-away and draws the current properties on return. The host supplies its properties
-and chooses its render root through `createRenderRoot()`; no registry creates a
-shadow root there. Leaf supplies page readings, controllers, presentation readiness
-and bound-data delivery only on a Leaf page. `this.defer()` holds drawing during a
-synchronous DOM rewrite and returns an idempotent release that draws the newest
-properties. Report asynchronous preparation with `PendingTaskEvent` on either host.
+`LeafElement` is portable: a plain host supplies reactive properties and chooses
+`createRenderRoot()`. Lit schedules drawing; `setup()` runs once, drawing pauses
+while disconnected and resumes with current properties. Leaf adds page readings,
+controllers, presentation and bound-data delivery. `this.defer()` holds drawing
+through a synchronous rewrite; its idempotent release draws current properties.
+Use `PendingTaskEvent` for asynchronous preparation on either host.
 
-The same portable surface includes focus preservation, document-local scrolling,
-control construction and file-language lookup. Native focus and overflow work on a
-plain host; Leaf installs its reading regions and chrome styling when it boots.
-`beginWalk` declares the current position of a widget's navigation, which Leaf shows
-in its status line; a plain host has no Leaf status presentation.
+Portable focus, scrolling and controls use the document's native behavior; Leaf
+adds reading regions and chrome styling. `langForPath` reads shipped defaults on
+a plain host and its composed language map on Leaf. `beginWalk` declares navigation
+position; only Leaf supplies the status presentation.
 
 ### Retained nodes
 

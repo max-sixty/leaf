@@ -37,7 +37,7 @@ try {{
   // The same thread handle can be kept before a host registers a surface.
   window.surface = threadSurface(reading);
   surface.update();
-  window.opened = surface.open(reading);
+  window.initialOpener = surface.open;
   releaseOutlets(reading);
   window.outputs = [];
   reading.addEventListener("lf-output", event => outputs.push(event.detail));
@@ -75,8 +75,8 @@ try {{
         page.evaluate("document.querySelector('#host').shadowRoot.append(reading)")
         expect(page.locator("#reading p")).to_have_text("Away reading")
         assert page.evaluate("reading.setups") == 1
-        assert page.evaluate("opened") is False
-        assert page.evaluate("surface.open(reading)") is False
+        assert page.evaluate("initialOpener") is None
+        assert page.evaluate("surface.open") is None
         assert page.evaluate("reading.connections") == [
             "connected",
             "disconnected",

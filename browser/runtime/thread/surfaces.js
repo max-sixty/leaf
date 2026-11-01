@@ -42,7 +42,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 
-import { registrations, updateSurface } from "./surface-handles.js";
+import { registrations, setRegistration, updateSurface } from "./surface-handles.js";
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
 /** @typedef {import("../anchor-placement.js").ResolvedTarget} ThreadPlacement */
 /** @typedef {{anchor: NonNullable<import("../../types/domain.js").Anchor> & {datum: string},
@@ -150,17 +150,16 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       ? (registration.placements?.pendingAt()?.place ?? null)
       : null;
   });
-  let active = true;
   /** @type {Registration["handle"]} */
   const handle = {
     read: readThreads,
     reveal(key) {
-      if (!active) return false;
+      if (registrations.get(owner) !== registration) return false;
       const thread = readThreads().threads.find((item) => item.key === key);
       return thread ? reveal(thread.id) : false;
     },
     open(node) {
-      if (!active) return false;
+      if (registrations.get(owner) !== registration) return false;
       const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
       if (
         !target ||
@@ -177,9 +176,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     },
     update: () => updateSurface(registration),
     unregister() {
-      if (!active) return;
-      active = false;
-      registrations.delete(owner);
+      if (registrations.get(owner) !== registration) return;
+      setRegistration(owner, null);
       clearRegistration(registration);
       updateSurface(registration);
     },
@@ -205,7 +203,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     reconcileQueued: false,
     cancelRender: () => {},
   };
-  registrations.set(owner, registration);
+  setRegistration(owner, registration);
   updateSurface(registration);
   return registration.handle;
 }
@@ -326,7 +324,7 @@ export function renderSurfaces(collection, placements, commands) {
       const { render, owner } = registration;
       if (registrations.get(owner) !== registration) continue;
       if (!owner.isConnected) {
-        registrations.delete(owner);
+        setRegistration(owner, null);
         clearRegistration(registration);
         continue;
       }

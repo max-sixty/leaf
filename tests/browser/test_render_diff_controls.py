@@ -337,7 +337,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
             "Browse patch files",
             "<h1>Review the importer</h1>"
             '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
-            f'<lf-diff id="patch" source="change" view="{view}" collapsed><pre></pre></lf-diff>',
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(
@@ -478,7 +478,7 @@ def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, sc
     tree_markup = '<lf-file-tree id="files" for="patch"></lf-file-tree>'
     evidence_markup = (
         '<div id="evidence"><p>Inspect the changes in each file.</p>'
-        '<lf-diff id="patch" source="change" view="file"><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="change" view="file"></lf-diff>'
         "</div>"
     )
     regions = (
@@ -602,7 +602,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     Both inline and bound patches use the widget's render lifecycle."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
     diff = (
-        '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
+        '<lf-diff id="d-bad" source="bad-patch"></lf-diff>'
         if bound
         else f'<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>'
     )
@@ -638,7 +638,7 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
     """A departure cuts short preparation, but a settled return keeps its native rows."""
     patch = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n"
     diff = (
-        '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="patch-data"></lf-diff>'
         if bound
         else f'<lf-diff id="patch"><pre>{patch}</pre></lf-diff>'
     )
@@ -686,7 +686,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
         leaf_page(
             "Retry a file diff",
             '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
-            'collapsed><pre></pre></lf-diff><button id="after" '
+            'collapsed></lf-diff><button id="after" '
             'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
         )
     )
@@ -806,7 +806,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         leaf_page(
             "Identify sources",
             "<h1>Identify sources</h1>"
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
@@ -883,7 +883,7 @@ diff --git a/other.md b/other.md
     url = serve(
         leaf_page(
             "Lazy source",
-            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
@@ -1052,7 +1052,7 @@ new mode 100755
             "Closed evidence",
             "<h1>Closed evidence</h1>"
             + "".join(
-                f'<lf-diff id="{name.lower()}" source="source-{name.lower()}" collapsed><pre></pre></lf-diff>'
+                f'<lf-diff id="{name.lower()}" source="source-{name.lower()}" collapsed></lf-diff>'
                 for name in ids
             ),
         )
@@ -1395,16 +1395,15 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
 
     tag = "lf-call-diff" if kind == "call" else "lf-diff"
     attributes = 'diff="patch"' if kind == "call" else ""
-    body = "" if kind == "call" else "<pre></pre>"
     extra = (
-        '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>'
         if kind == "call"
         else ""
     )
     url = serve(
         leaf_page(
             "Fold evidence",
-            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}>{body}</{tag}>'
+            f'<h1>Review</h1><div style="height:1100px"></div><{tag} id="evidence" source="change" {attributes}></{tag}>'
             '<button id="after">Continue review</button>' + extra,
         ),
         packages=("diff",),

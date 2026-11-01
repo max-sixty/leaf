@@ -34,7 +34,10 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
-that no Layout fits writes its own grid or flex rules.
+that no Layout fits writes its own grid or flex rules. A grid or flex row of the page's
+own that sets blocks side by side declares `--lf-holds-edge: 1`. Without it, where the
+row opens a card or a playground's preview, its first item loses its top margin and the
+items beside it keep theirs (`package-themes.md`, "A theme change").
 
 ## A page of parts
 
@@ -76,6 +79,10 @@ Direct children of `layout-column` and `layout-flow` are grid items: their verti
 margins add rather than collapse, and `float` does not place them beside prose.
 Automatic inline margins make an unsized item shrink to its content; give it
 `inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
+An item that opens with a heading, or with an eyebrow over one, takes the heading's
+gap as its own top margin, so its box starts at the heading. Set that gap with the
+theme's `--h2-start` and `--h3-start` on `:root`. A top margin page CSS gives the item
+replaces the gap, and one it gives the heading adds to it.
 
 ```html
 <main class="layout-column">
@@ -281,7 +288,9 @@ what it means to style, such as a class on your own controls or a widget's id be
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
 as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it. For
+reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 

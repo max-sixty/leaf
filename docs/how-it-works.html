@@ -843,8 +843,9 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each to-do on the user it added for something the agent left to the
-                    user in chat, with the to-do's id and how to end it.
+                    Each question it asked in a thread, and each step it put On me as a
+                    to-do, for something the agent left to the user in chat, with its
+                    words, its id and how to withdraw it.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1141,8 +1142,9 @@ flowchart TD
                 holding a page, Leaf's hooks module forks the conversation. The fork is
                 a copy of the conversation that answers one question without calling
                 tools, and the agent never sees the exchange. Leaf shows the fork each
-                page's On me and the to-dos on the user already ended, and asks it to
-                name each of the following that the agent left to the user:
+                page's On me and the questions and to-dos on the user already answered,
+                ended or withdrawn, and asks it to name each of the following that the
+                agent left to the user:
               </p>
               <ul id="fork-checks">
                 <li>a decision, such as which of two designs to keep</li>
@@ -1154,15 +1156,24 @@ flowchart TD
               </ul>
               <p id="fork-excludes">
                 The fork leaves out what an On me item already holds, what the user has
-                answered since, and what the agent will settle itself. Leaf skips an ask
-                with the same title as a to-do on the user, open or ended.
+                answered since, and what the agent will settle itself. For each ask it
+                says whether it is a question or a step the user takes and confirms with
+                Done, and gives the words of the passage it concerns, if one does. A
+                question gets a thread title and a message of a few sentences that the
+                user can answer without the chat; a step gets a title naming the action
+                whole. Leaf skips an ask whose title an ask the agent made already has.
               </p>
               <p id="fork-writes">
-                Leaf opens each remaining ask as a to-do on the user, authored by the
-                agent's session, so it appears On me like one the agent wrote and
-                nothing on the page marks where it came from. At its next prompt or tool
-                call, the agent reads a line naming each to-do and its id, and keeps it
-                or ends it with <code>leaf task end</code>.
+                Leaf opens each remaining question as a thread, its message written as
+                the agent's with an obligation, as
+                <code>leaf thread create --obligation</code> writes one, and puts each
+                step On me as the agent's to-do on the user, as
+                <code>leaf task create --on user</code> does. Each stands on that
+                passage, or on the page as a whole where the fork named none or the page
+                doesn't show its words once. It stays On me until the user replies or
+                presses Done, and nothing on the page marks where it came from. At its
+                next prompt or tool call, the agent reads what Leaf wrote and its id,
+                and withdraws any of it with <code>leaf task end</code>.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -2417,9 +2428,10 @@ flowchart TD
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task create … --on user</code></strong> Puts a task
-                such as trying a build on On me. <kbd>m</kbd> reaches it; its
-                <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the agent. A
-                thread question has no Done button: the user’s reply answers it.
+                such as trying a build on On me. <kbd>m</kbd> reaches it and opens On me
+                on it; its <em>Done</em> button, or <kbd>x</kbd>, ends it and tells the
+                agent. A thread question has no Done button: the user’s reply answers
+                it.
               </li>
               <li id="updates-written-comment">
                 <strong

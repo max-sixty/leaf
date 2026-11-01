@@ -753,7 +753,7 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     expect(page.locator(".lf-fp-send")).to_be_visible()
     # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
+        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
@@ -1027,7 +1027,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     # the arrows as soon as it matches.
     search.get_by_role("searchbox").fill("Paragraph 1")
     count = page.locator(".lf-page-search-status")
-    expect(count).to_have_text("1/11")
+    expect(count).to_have_text("1 of 11")
     expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     for width in (360, 390, 540, 1280):
@@ -1040,12 +1040,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
         assert abs(query["y"] + query["height"] - close["y"] - close["height"]) < 1
         assert search.get_by_role("searchbox").bounding_box()["width"] >= 60
     following.click()
-    expect(count).to_have_text("2/11")
+    expect(count).to_have_text("2 of 11")
     previous.click()
     previous.click()
-    expect(count).to_have_text("11/11")
+    expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
-    expect(count).to_have_text("1/1")
+    expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
     # the box; a control painted over the words keeps its own press. The press aims at
     # the words, since the mark moves to them a frame after the count changes.
@@ -2490,7 +2490,9 @@ def test_floating_status_records_feedback_only_when_its_words_show(
         with page.expect_response(lambda response: batch_has(response, "keydown")):
             page.keyboard.press("Backspace")
         expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment"))
-        expect(field(page).locator(".lf-key-badge")).to_contain_text("⏎")
+        expect(
+            field(page).locator(".lf-compose-placeholder > .lf-key-badge")
+        ).to_have_text("⏎")
         assert visible() == []
     with page.expect_response(lambda response: batch_has(response, "reply_visible")):
         if hidden_by == "draft":
@@ -2695,9 +2697,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     # The sheen runs on the field's placeholder part, inside the field's closed tree,
     # where no animation list reaches: a moving mask dims the words, and the field reads
     # differently from one moment to the next.
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     ink = """node => getComputedStyle(node).color"""
 
     def sheen(running):
@@ -2765,9 +2765,7 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
-    words = page.locator(
-        ".lf-fp-field .lf-compose-placeholder > span:not(.lf-compose-placeholder-lead)"
-    )
+    words = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     peek = page.locator(".lf-fp-peek")
 
     def alpha():
@@ -3640,14 +3638,15 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(chooser).to_have_value("list")
     chooser.select_option("summary")
     summary = view.locator(".lf-fp-work-summary")
-    # Leaf says the summary, and the agent's own line stands in its own face within it.
+    # Leaf says the summary, and the agent's own words, its line and a to-do's title,
+    # stand in its own face within it.
     expect(summary).to_contain_text(
         "Working on 1; 1 up next. Now: Drafting the note's first line."
     )
-    expect(summary.locator('[data-voice="agent"]')).to_have_text(
-        ["Drafting the note's first line"]
-    )
     expect(summary).to_contain_text("Last done: Tidy the wording")
+    expect(summary.locator('[data-voice="agent"]')).to_have_text(
+        ["Drafting the note's first line", "Tidy the wording"]
+    )
     expect(view.locator(".lf-fp-on-line")).to_have_count(0)
 
     page.reload()
@@ -3702,11 +3701,13 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     expect(view).to_be_visible()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
-    # Each version says the note its stamp gave it after its name, whole on hover.
+    # Each version says the note its stamp gave it after its name, whole on hover, and a
+    # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_have_attribute(
-        "title", "two"
-    )
+    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    first = view.locator(".lf-fp-version .lf-fp-item").first
+    expect(first).to_have_accessible_name("v2 (latest version) two")
+    expect(first).to_have_accessible_description("")
     # The list is one stop for Tab, which the arrows walk from the first version through
     # each version and its Compare to the way back at its foot.
     stops = view.locator("button:not(:disabled)")
@@ -4060,10 +4061,11 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve, reduce_mo
 
 
 def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
-    """The menu's head says the agent's state in its one line, in the state's ink, and
-    under that only what the status's disclosure adds to the line: while the agent
-    works, the disclosure's sentence restates the line, so what waits on the user is all
-    it adds. The line names the state itself, so no word for it stands above."""
+    """The menu's head says the agent's state in its one line, and under that only what
+    the status's disclosure adds to the line: while the agent works, the disclosure's
+    sentence restates the line, so what waits on the user is all it adds. The line
+    names the state itself, so no word for it stands above, and a line that only
+    reports, as work under way does, reads in ink, as the row's status does."""
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -4077,7 +4079,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--accent)';
+          ink.style.color = 'var(--ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();
@@ -4416,6 +4418,48 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     assert shown["y"] + shown["height"] <= controls["y"] + 0.5, (shown, controls)
     assert controls["y"] + controls["height"] <= words["y"] + 0.5, (controls, words)
     assert view.evaluate("v => v.scrollHeight > v.clientHeight")
+
+
+def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
+    """Once the panel reaches the window's top, each line a reply gains takes its room
+    from the open thread's view, which gives way at its top and keeps the message the
+    user is answering beside the field; taking the lines away gives the room back the
+    same way. The view once kept its scroll and gave way at its foot, so a long reply
+    covered the agent's last line."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first. " * 120
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(2)
+    view.hover()
+    page.mouse.wheel(0, 10000)
+    page.wait_for_function(
+        "v => v.scrollTop > 0 && v.scrollTop + v.clientHeight >= v.scrollHeight - 1",
+        arg=view.element_handle(),
+    )
+    settled(page)
+    beside = """v => v.getBoundingClientRect().bottom
+      - [...v.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect().bottom"""
+    stood = view.evaluate(beside)
+    room = view.evaluate("v => v.clientHeight")
+    field(page).click()
+    page.keyboard.type("Line 1")
+    for n in range(2, 13):
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.type(f"Line {n}")
+        settled(page)
+        assert view.evaluate(beside) == pytest.approx(stood, abs=1), n
+    assert view.evaluate("v => v.clientHeight") < room - 60
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    settled(page)
+    assert view.evaluate("v => v.clientHeight") == room
+    assert view.evaluate(beside) == pytest.approx(stood, abs=1)
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -4824,6 +4868,19 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     expect(rows.first).not_to_have_attribute("href", re.compile("."))
     other = pages.locator("a.lf-fp-page", has_text="The other leaf")
     expect(other).to_have_attribute("target", "_blank")
+    # A page's title and what its agent is doing stand on one baseline, though the
+    # title is set larger (floating-panel.css, `.lf-fp-page`).
+    for row in (rows.first, other):
+        baselines = row.evaluate(
+            """row => [...row.querySelectorAll('.lf-fp-label, .lf-fp-value')].map(words => {
+              const mark = words.appendChild(document.createElement('span'));
+              mark.style.cssText = 'display: inline-block; block-size: 0';
+              const y = mark.getBoundingClientRect().top;
+              mark.remove();
+              return y;
+            })"""
+        )
+        assert len(baselines) == 2 and max(baselines) - min(baselines) < 0.1, baselines
     page.keyboard.press("Escape")
     expect(pages).to_have_count(0)
 
@@ -5338,12 +5395,16 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
                 words.setStartAfter(mark);
                 words.setEnd(line, line.childNodes.length);
                 const rows = [...words.getClientRects()];
-                const style = getComputedStyle(line);
+                // The marker is the item's box's, the nearest list item holding the line.
+                let item = line;
+                while (item && getComputedStyle(item).display !== 'list-item')
+                  item = item.parentElement?.closest('.cm-content *') ?? null;
+                const style = item && getComputedStyle(item);
                 return {
                   words: rows[0].left - content.left,
                   top: rows[0].top - content.top,
                   wrapped: rows.at(-1).left - content.left,
-                  marker: style.display === 'list-item' ? style.listStyleType : null,
+                  marker: style && style.listStyleType !== 'none' ? style.listStyleType : null,
                   source: getComputedStyle(mark).webkitTextFillColor !== 'rgba(0, 0, 0, 0)',
                   height: content.height,
                 };
@@ -5365,6 +5426,7 @@ def test_a_draft_draws_a_list_as_the_message_will(browser, serve):
     assert away[0]["wrapped"] == away[0]["words"], away
     page.keyboard.press("ControlOrMeta+Home")
     page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
     near = drafted()
     assert (near[0]["marker"], near[0]["source"]) == (None, True), near
     assert near[0]["words"] == away[0]["words"]

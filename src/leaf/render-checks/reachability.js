@@ -5,6 +5,7 @@ import { at, place, unique } from "./locate.js";
 // An overlay that takes no presses at rest, such as the contents map's spine, stands
 // over the page by design and reveals over it when the user reaches for it, so the box
 // it has at rest is not the room it shows in.
+/** @param {CSSStyleDeclaration} style */
 export const restsOverPage = (style) =>
   style.position === "fixed" && style.pointerEvents === "none";
 
@@ -18,9 +19,10 @@ export const restsOverPage = (style) =>
 // containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
 // reads the same fact for its ancestors), and it denies the way in exactly where the
 // axis has no scroller of its own.
+/** @param {CSSStyleDeclaration} style */
 export function sealedAxes(style) {
   const contained = /paint|strict|content/.test(style.contain);
-  const sealed = (overflow) =>
+  const sealed = (/** @type {string} */ overflow) =>
     overflow === "hidden" ||
     overflow === "clip" ||
     (contained && !userScrollport(overflow));
@@ -138,6 +140,7 @@ export function clippedControls() {
 // the page from it. Its scroll behavior says so in its computed style, which a widget that
 // lost its rules doesn't take on, so a map dropped into the flow at that width is
 // still caught.
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
@@ -226,11 +229,12 @@ export function unreachableWords() {
   // body and stands in none — but a widget riding a message stands in the
   // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
   // never of the words beneath it, which are inside a widget either way.
+  /** @param {Element | null} el */
   const widget = (el) => {
     for (let a = el; a; a = a.parentElement) if (a.tagName.startsWith("LF-")) return a;
   };
   // The anchor pass's own rule: the nearest element that answers wins.
-  const speaks = (el) =>
+  const speaks = (/** @type {Element} */ el) =>
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
@@ -250,7 +254,7 @@ export function unreachableWords() {
     n = /** @type {Text} */ (walk.nextNode())
   ) {
     const el = n.parentElement;
-    if (!n.data.trim()) continue;
+    if (!n.data.trim() || !el) continue;
     // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
     // here wherever the widget stands, a message included; the panel around a
     // widget riding one is not, which is what the note on thread chrome means.
@@ -296,6 +300,7 @@ export function wordsInFormControls() {
   return [...document.querySelectorAll("[data-lf-said]")]
     .filter((el) => el.closest(form))
     .map((el) => {
+      /** @type {Element | null} */
       let widget = el;
       while (widget && !widget.tagName.startsWith("LF-")) widget = widget.parentElement;
       return widget

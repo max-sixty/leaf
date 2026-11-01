@@ -323,7 +323,8 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 (`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
 name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
-class's weight off itself (`styles/chrome-guard.css`).
+class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
+purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
@@ -592,8 +593,8 @@ that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
 (`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
-`pnpm run check:browser` type-checks runtime and widget modules, strictly where a
-module is marked `// @ts-check`, which the build requires of every framework module.
+`pnpm run check:browser` strictly type-checks every maintained runtime and widget
+module; no file pragma is needed.
 `../build/browser/build.mjs` owns checker selection; `types/` holds its configuration
 and declarations. Declare a new
 global, event detail or runtime element tag in `types/runtime-globals.d.ts`.

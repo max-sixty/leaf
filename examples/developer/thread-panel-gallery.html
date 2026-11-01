@@ -17,10 +17,6 @@
         min-width: 0;
       }
 
-      #thread-panel-views .lf-sample-frame {
-        min-height: 40rem;
-      }
-
       @media (max-width: 1100px) {
         #thread-panel-views {
           grid-template-columns: minmax(0, 1fr);
@@ -81,7 +77,7 @@
             One expanded discussion and two labeled rows, with next moves and unread
             replies.
           </p>
-          <lf-sample id="overview-sample" label="open thread list">
+          <lf-sample id="overview-sample" label="open thread list" window>
             <template
               id="overview-page"
               data-sample
@@ -126,7 +122,7 @@
             Threads folds the closed discussion under Resolved; pressing the heading
             lists it, and opening it offers Reopen.
           </p>
-          <lf-sample id="resolved-sample" label="resolved thread">
+          <lf-sample id="resolved-sample" label="resolved thread" window>
             <template id="resolved-page" data-sample data-sample-threads="edf09a41">
               <h1>Workshop room</h1>
               <p id="tpg-resolved">
@@ -140,7 +136,7 @@
         <section id="panel-summary">
           <h2>Long discussion</h2>
           <p>A selected thread with a folded summary and newer messages below it.</p>
-          <lf-sample id="summary-sample" label="summarized thread">
+          <lf-sample id="summary-sample" label="summarized thread" window>
             <template id="summary-page" data-sample data-sample-threads="c1a39980">
               <h1>Afternoon workshop</h1>
               <p id="tpg-summary">

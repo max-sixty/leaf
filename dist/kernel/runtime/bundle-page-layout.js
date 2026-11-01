@@ -4828,12 +4828,13 @@ function createUndo({ post, stateApplying, unaccountedGesture, openThread, threa
 			current.shown = true;
 			if (!nodes.length) return;
 			let landed = false;
-			stop = whenNone(nodes, (node, clips) => {
-				const shown = seenRect(node, clips);
+			stop = whenNone(nodes, (node) => {
+				const shown = seenRect(node, clipsPastSurfaces());
 				landed ||= Boolean(shown);
 				return shown;
 			}, () => {
-				if (landed && armed === current) disarm();
+				const scrolledAway = nodes.some((node) => node.isConnected);
+				if (landed && scrolledAway && armed === current) disarm();
 			});
 		});
 	}

@@ -209,9 +209,11 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     page.evaluate(RELEASE_FOCUS)
 
     open_versions(page)
-    expect(page.locator(".lf-fp-menu")).to_have_attribute("data-level", "versions")
+    expect(page.locator(panel_view("versions"))).to_be_visible()
     page.keyboard.press("Escape")
+    expect(page.locator(panel_view("versions"))).to_have_count(0)
     page.keyboard.press("Escape")
+    expect(page.locator(panel_view("menu"))).to_have_count(0)
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -489,7 +491,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(card("sug-window")).to_have_count(1)
     # The picked group has left the user's list for its Done.
     expect(card("picked")).to_have_attribute("data-list", "done")
-    page.locator(".lf-fp-filters button").nth(1).click()
+    page.locator(".lf-fp-filters button").nth(2).click()
     agent_rows = page.locator('.lf-fp-on-item[data-list="agent"]')
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")

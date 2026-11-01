@@ -430,7 +430,7 @@ def share_link(page: Page) -> None:
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
+    page.locator('.lf-fp-item[data-row="share"]').click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
     link = about.get_by_label("Link", exact=True)
@@ -1701,8 +1701,8 @@ def option_thread_open(page: Page) -> None:
 
 
 def more_menu(page: Page) -> None:
-    """The leaf's menu, opened: the agent's state at its head over the page's
-    controls."""
+    """The leaf's menu, the On view's first tab, opened: the agent's state at its head
+    over the page's controls, the field its search and the tabs at its foot."""
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").wait_for()
 
@@ -1742,7 +1742,7 @@ def versions_menu(page: Page) -> None:
     """Versions, opened from the leaf's menu: a row for each version, with its note."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="versions"]').click()
-    page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version").first.wait_for()
+    page.locator(".lf-fp-version").first.wait_for()
 
 
 def ask_by_keyboard(page: Page) -> None:

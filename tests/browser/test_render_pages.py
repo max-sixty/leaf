@@ -66,6 +66,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     resized,
     root_overflow,
@@ -594,8 +595,10 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
-    menu = page.locator(".lf-fp-menu[data-level=versions]")
-    row = menu.locator(".lf-fp-version .lf-fp-item").first
+    versions = page.locator(panel_view("versions"))
+    expect(versions).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
     broken = []
@@ -616,7 +619,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         lambda message: "read failed" in message.text
     ) as fault:
         nudge(d)
-    expect(menu).to_be_visible()
+    expect(versions).to_be_visible()
     expect(row).to_be_focused()
     page.lf_errors.remove(console_finding(fault.value))
 
@@ -3470,6 +3473,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     assert "this one does" not in (field.get_attribute("placeholder") or "")
     assert "this one does" not in page.locator(".lf-live").text_content()

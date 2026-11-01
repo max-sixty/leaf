@@ -1014,7 +1014,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(note).to_be_visible()
     expect(note).to_have_text("Nothing waiting on me.")
     # The agent's tab says the same of its list.
-    page.locator(".lf-fp-filters button").nth(1).click()
+    page.locator(".lf-fp-filters button").nth(2).click()
     expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-rows-empty")).to_have_text(
         re.compile(r"Nothing waiting on \S+\.")
     )

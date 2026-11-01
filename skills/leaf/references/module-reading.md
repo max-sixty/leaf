@@ -80,6 +80,12 @@ changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
+An entry declaring `x-prepaint` names the attribute that gives the notation of the
+widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
+its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
+page first paints at that rendering's size. The module still reads the `<pre>`, and
+replaces both when it draws.
+
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. They
 keep each line break as typed words do; `renderMarkdown(text, false)` renders a Markdown

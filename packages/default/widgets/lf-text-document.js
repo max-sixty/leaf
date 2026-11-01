@@ -5,9 +5,12 @@
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, which keeps its scroll place independent. Where the text can arrive after
  * first paint, the viewport is `--lf-bound` tall, so switching keeps the page still. A
- * Markdown preview of written text instead takes its rendered height, which the
- * server's first paint already holds (`x-prepaint`), and its Source tab takes its own
- * height, so a switch the reader asks for reflows what follows the document.
+ * Markdown preview of written text instead takes its rendered height, which its first
+ * paint already holds (`x-prepaint`), and its Source tab takes its own height, so a
+ * switch the reader asks for reflows what follows the document. A document the reader
+ * left on Source in this tab first paints at its preview's height and takes its
+ * source's when it draws, after a reload or a revision that replaces it; that path is
+ * rare, so nothing holds its box.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
  * copying the source never includes line numbers. The Markdown preview renders a file,

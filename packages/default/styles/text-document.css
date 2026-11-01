@@ -78,16 +78,18 @@ lf-text-document code[data-code] {
    height. A short document leaves room under its last line, and a long one reads by
    scrolling inside the box rather than at full length in the page.
 
-   A Markdown preview of written text is the exception the first paint allows: the
-   server draws its rendering beside the `<pre>` (`x-prepaint`), so the page first
-   paints at the preview's own height, and each tab takes its own height up to the
-   bound. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of text.
+   A Markdown preview of written text is the exception the first paint allows: Leaf
+   draws its rendering beside the `<pre>` before the module does (`x-prepaint`), so the
+   page first paints at the preview's own height, and each tab takes its own height up
+   to the bound. A one-paragraph quote in a 28rem box drew a 530px frame around 156px
+   of text.
 
    The module draws the figure once it loads, after first paint, so until then the
    host wears the figure's frame in place of its written `<pre>`, draws its label as the
    caption, wrapping as the caption will, and keeps the room the tab strip and the box
    will take, or shows the server's rendering under the strip's room. Without the
-   runtime, as in a page read with scripts off, the `<pre>` shows its text. */
+   runtime, as in a page read with scripts off, the `<pre>` shows its text, or the
+   server's rendering of a Markdown preview in its place (base.css). */
 @media screen {
   lf-text-document[data-lf-bound] {
     max-block-size: none;
@@ -126,24 +128,33 @@ lf-text-document code[data-code] {
     &[preview]::after {
       block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
     }
-    /* The server's rendering stands where the preview will, in the page's type, which
-       the drawn widget takes rather than the source face an undrawn data widget wears
-       (reading.css). */
+    /* The frame's ground under the caption is the figure's, and the strip and panel
+       below it are the tabs' card (tabs.css), which the rendering wears from the strip's
+       room down, clipped at the frame's rounded corners as the figure clips the tabs. */
+    &[preview] {
+      background: var(--paper);
+    }
     &:has(> [data-lf-prepaint]) {
-      font: inherit;
-      color: inherit;
+      overflow: clip;
       &::after {
         content: none;
       }
     }
     & > [data-lf-prepaint] {
       box-sizing: border-box;
-      margin-block-start: var(--lf-tabstrip-h);
-      max-block-size: var(--lf-bound, 28rem);
+      max-block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
+      padding-block-start: calc(var(--lf-tabstrip-h) + var(--sp-4));
       overflow: hidden;
-      background: var(--paper);
+      background: var(--card);
     }
   }
+}
+/* The server's rendering stands where the preview will, in the page's type, which the
+   drawn widget takes rather than the source face an undrawn data widget wears
+   (reading.css), with scripts or without them. */
+lf-text-document:has(> [data-lf-prepaint]) {
+  font: inherit;
+  color: inherit;
 }
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
    frame. Its lines are positioned boxes on the capture's ground, which paint over an

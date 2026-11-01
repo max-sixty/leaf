@@ -365,6 +365,39 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   }
 });
 
+test("an arriving written Markdown file first paints its rendering beside its exact source", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { importWidgets } = await import("/runtime/widget-loader.js");
+  const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
+  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  try {
+    const scope = new DOMParser()
+      .parseFromString(
+        '<main><lf-file-contract notation="markdown"><pre>**Fixed** words\nwrap on.</pre></lf-file-contract>' +
+          '<lf-file-contract notation="html"><pre>&lt;b&gt;bold&lt;/b&gt;</pre></lf-file-contract></main>',
+        "text/html",
+      )
+      .querySelector("main");
+    // A message's markup takes this path; a revision's arrivals call the prepaint alone.
+    await importWidgets(scope);
+    const [file, frame] = scope.children;
+    const rendering = ":scope > .lf-markdown-body[data-lf-prepaint]";
+    assert.equal(file.querySelectorAll(rendering).length, 1);
+    prepaintDeclaredFiles(scope);
+    const bodies = file.querySelectorAll(rendering);
+    assert.equal(bodies.length, 1, "one rendering, however often arrival paints");
+    assert.equal(bodies[0].querySelector("strong")?.textContent, "Fixed");
+    assert.equal(bodies[0].querySelector("br"), null, "a file's soft break is a space");
+    assert.equal(
+      file.querySelector(":scope > pre")?.textContent,
+      "**Fixed** words\nwrap on.",
+    );
+    assert.equal(frame.querySelector("[data-lf-prepaint]"), null);
+  } finally {
+    delete registry["lf-file-contract"];
+  }
+});
+
 test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
   const { registry } = await import("/runtime/registry.js");
   const { loadDeclaredMarkdown, formatDeclaredMarkdown } =

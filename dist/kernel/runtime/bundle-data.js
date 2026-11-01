@@ -2368,8 +2368,13 @@ function inlineMarkdownFragment(text, breaks = true) {
 	parsed.innerHTML = renderInlineMarkdown(text, breaks);
 	return parsed.content;
 }
+const unpaintedFiles = (scope) => {
+	const elements = elementsDeclaring(scope, "x-prepaint");
+	if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
+	return elements.filter((element) => element.getAttribute(String(declarationFor(element, "x-prepaint"))) === "markdown" && element.querySelector(":scope > pre") && !element.querySelector(":scope > [data-lf-prepaint]"));
+};
 async function loadDeclaredMarkdown(scope) {
-	if (!(isElement(scope) && declarationFor(scope, "x-text-format")) && !elementsDeclaring(scope, "x-text-format").length) return;
+	if (!(isElement(scope) && declarationFor(scope, "x-text-format")) && !elementsDeclaring(scope, "x-text-format").length && !unpaintedFiles(scope).length) return;
 	let failure;
 	if (!await loadMarkdown((error) => failure = error)) throw new Error(`leaf: Markdown renderer failed to load: ${describeFailure(failure)}`);
 }
@@ -2401,6 +2406,17 @@ function formatDeclaredMarkdown(scope) {
 			words.append(parsed);
 			node.replaceWith(words);
 		}
+	}
+}
+function prepaintDeclaredFiles(scope) {
+	const files = unpaintedFiles(scope);
+	if (files.length && !tokenize) throw new Error("leaf: Markdown prepaint requires its loaded renderer");
+	for (const file of files) {
+		const body = generatedElement(document.createElement("div"), { says: false });
+		body.className = "lf-markdown-body";
+		body.setAttribute("data-lf-prepaint", "");
+		body.innerHTML = renderMarkdown(dataBody(file), false);
+		file.prepend(body);
 	}
 }
 function paintMarkdown(element, source) {
@@ -2922,6 +2938,7 @@ async function preloadWidgets(scope) {
 async function importWidgets(scope) {
 	await loadWidgetDependencies(scope);
 	formatDeclaredMarkdown(scope);
+	prepaintDeclaredFiles(scope);
 	await importWidgetModules(scope);
 }
 async function installDocument(scope) {
@@ -9566,6 +9583,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 				}
 				commitWidgetDescriptors({ bindings });
 				formatDeclaredMarkdown(arriving);
+				prepaintDeclaredFiles(arriving);
 				arrived.push(arriving);
 			}
 			return arriving;

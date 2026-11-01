@@ -3,7 +3,11 @@
  * wrote when the markup binds neither (leaf-element.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
- * viewport, keeping the page still when switching and its scroll place independent.
+ * viewport, which keeps its scroll place independent. Where the text can arrive after
+ * first paint, the viewport is `--lf-bound` tall, so switching keeps the page still. A
+ * Markdown preview of written text instead takes its rendered height, which the
+ * server's first paint already holds (`x-prepaint`), and its Source tab takes its own
+ * height, so a switch the reader asks for reflows what follows the document.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
  * copying the source never includes line numbers. The Markdown preview renders a file,

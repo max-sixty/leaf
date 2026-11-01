@@ -97,7 +97,8 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     browser, serve
 ):
     """A passage the page writes in the document's <pre> needs no data source: the
-    preview renders it, and the Source tab holds it character for character."""
+    preview renders it, in a box as tall as its rendering rather than the bound a
+    bound document keeps, and the Source tab holds it character for character."""
     text = "**Fixed** a crash when `--config` names <missing> files.\n"
     url = serve(
         leaf_page(
@@ -116,6 +117,12 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     expect(document.locator(".lf-text-document-preview")).to_contain_text(
         "names <missing> files."
     )
+    view, rendering = document.evaluate(
+        """host => [host.querySelector('lf-tab:not([hidden])'),
+          host.querySelector('.lf-text-document-preview')]
+          .map(box => box.getBoundingClientRect().height)"""
+    )
+    assert abs(view - rendering) < 1, (view, rendering)
     document.get_by_role("tab", name="Source", exact=True).click()
     assert document.locator("code[data-code]").text_content() == text
 

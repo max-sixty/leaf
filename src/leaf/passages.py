@@ -179,9 +179,11 @@ def block_markdown():
     return _markdown_dialect(True)
 
 
-def markdown_markup(source: str) -> str:
-    """The shared safe block Markdown dialect, as inert markup for passage reading."""
-    return block_markdown().render(source)
+def markdown_markup(source: str, *, breaks: bool = True) -> str:
+    """The shared safe block Markdown dialect, as inert markup for passage reading.
+    `breaks` reads soft line breaks as hard ones, as words written in Leaf keep them;
+    a file's soft breaks are spaces."""
+    return _markdown_dialect(breaks).render(source)
 
 
 def feed_markdown(parser, source: str) -> None:

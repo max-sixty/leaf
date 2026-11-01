@@ -101,7 +101,15 @@ Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Op
 5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks
 alone: the fork found 59 of the 63 labelled asks missing from On me; 62 of its 64
 findings were labelled asks and 2 borderline, none false; 2 of 39 runs at clean turn
-ends named anything. Warm, a fork cost $0.08 (median). Claude Code's fork reuses the
+ends named anything. Warm, a fork cost $0.08 (median). The same replay of the
+reference on 2026-10-31 (`fork4.py`, `score4.py`, `REPORT4.md`) found 63 of the 63
+asks, named one at 1 of 39 clean turn ends, and named 87 out-of-date passages, 81 of
+them real and 1 false, and 7 pieces of unshown work, 6 real and none false; the
+sample held no settled item, and one case added for it found both in 3 of 3 runs. Its
+3 status lines were all false. Warm, a fork cost $0.125 and wrote about seven times
+the output. Rewording what failed, measured on those cases (`fork5.py`), cleared the
+false and chat-reply findings at the cost of one hedged but true one. Claude Code's
+fork reuses the
 session's cached prefix only while its system prompt, tools and effort match the
 session's, which `$.model.fork` keeps by resending the main thread's own last request.
 """

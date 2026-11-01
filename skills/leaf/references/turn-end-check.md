@@ -30,7 +30,7 @@ and the agent takes the user's answer or withdraws the ask. For each, give:
   The user reads it on the page, perhaps days later and without the chat, so say
   what is waiting, why it arises and what each answer leads to, naming things as
   the page does, and end with the question. It shows in a narrow card, so keep it
-  to three or four short sentences of Markdown, and link a pull request or commit
+  to at most four short sentences of Markdown, and link a pull request or commit
   by its URL where the conversation gives one. For a step, leave it empty.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
@@ -41,14 +41,17 @@ and the agent takes the user's answer or withdraws the ask. For each, give:
 
 The agent acts on these itself, so Leaf passes each to it as a message. Name:
 
-- `stale`: what a page still says that the work or the conversation has since
-  changed, such as a result, a capture, a lede, a question it still asks, or a
-  section the user dropped in chat. The agent revises the page.
+- `stale`: what a page, not a reply, still says that the work or the conversation
+  has since changed, such as a result, a capture, a lede, a question it still asks,
+  or a section the user dropped in chat. Name only what the conversation shows the
+  page saying now, quoting its words where it holds them, and leave out what the
+  page might still say. The agent revises the page.
 - `settled`: an On me item the user has answered elsewhere, such as in chat, or
   that the work has made moot. The agent records the answer or withdraws the item.
 - `unshown`: work the agent promised the user, or set running, such as a
-  background job or a subagent, that no page shows as owed or under way. The agent
-  decides whether it belongs on its list.
+  background job or a subagent, that no page shows as owed or under way. Leave out
+  servers, watchers and wait loops that only serve the agent's own checks. The
+  agent decides whether it belongs on its list.
 
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
 rereading the conversation, and as `quote` the words it rests on, the agent's or

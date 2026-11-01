@@ -317,7 +317,11 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
     const runtime = join(outputRoot, "runtime");
     await Promise.all(
       (await readdir(runtime, { recursive: true }))
-        .filter((file) => file.endsWith(".js"))
+        .filter(
+          (file) =>
+            file.endsWith(".js") &&
+            !native(browserPath(join("runtime", file)), assetRoot),
+        )
         .map((file) => rm(join(runtime, file))),
     );
   }

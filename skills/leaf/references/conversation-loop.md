@@ -196,11 +196,17 @@ In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On me doesn't
 hold. It asks each question in a new thread as your message with `--obligation`, puts
 each step On me as your to-do on the user, places either on the passage it concerns
-or the page, and tells you at your next step what it wrote. That catches what slips;
-it doesn't ask for you, so keep asking by the routes below. What it writes is yours
-like anything you write: the user's reply reaches you as any reply does, and you end
-one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id being
-`message:<id>`.
+or the page, and tells you at your next step what it wrote. Where a few of a page's
+words have gone stale, it swaps in new ones and tells you the old and new words;
+change them back or rewrite them if they're wrong, and carry the change into any
+file you build the page from. It also tells you what else it found, such as a page
+that still says what has since changed, an On me item the user settled elsewhere, or
+work you set running that no page shows, for you to act on where it still holds;
+`turn-end-check.md` is what it asks. That catches what
+slips; it doesn't ask for you, so keep asking by the routes below. What it writes is
+yours like anything you write: the user's reply reaches you as any reply does, and you
+end one that isn't theirs with `leaf task end <page> <id> dropped`, a question's id
+being `message:<id>`.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each

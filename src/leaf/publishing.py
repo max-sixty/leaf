@@ -18,6 +18,7 @@ a replacement prepared against other inputs.
 
 import hashlib
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -90,6 +91,25 @@ def write_authored_files(
             target = page / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
+
+
+@contextmanager
+def replaced_authored_files(
+    page: Path, incoming: dict[str, bytes], previous: dict[str, bytes]
+):
+    """Install `incoming` over `previous`, the authored inputs the caller read, for
+    the block, which checks and publishes them under the caller's page transaction;
+    a block that raises leaves the inputs as they were."""
+    try:
+        write_authored_files(page, incoming, previous)
+        yield
+    except BaseException:
+        write_authored_files(
+            page,
+            previous,
+            authored_files(page / "index.html", page / "page"),
+        )
+        raise
 
 
 def _stamp_reading(events: list, checked, revision: int):
@@ -254,14 +274,6 @@ def cmd_stamp(
         previous = authored_files(page_dir / "index.html", page_dir / "page")
         if authored_digest(previous) != digest:
             raise Refused("authored inputs changed; reconcile them before retrying")
-        try:
-            write_authored_files(page_dir, incoming, previous)
+        with replaced_authored_files(page_dir, incoming, previous):
             readings, checked = _checked(page_dir, page.events)
             return _stamp_locked(page_dir, page, readings, checked, body, completes)
-        except BaseException:
-            write_authored_files(
-                page_dir,
-                previous,
-                authored_files(page_dir / "index.html", page_dir / "page"),
-            )
-            raise

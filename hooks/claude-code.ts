@@ -327,8 +327,11 @@ async function clerk($: EngineInterface, session: string) {
           answer: reply.text,
           basis: asked.basis,
         });
+        const wrote = applied.wrote.length;
+        const changed = applied.changed.length;
+        const told = applied.told.length;
         $.ui.log(
-          `Leaf: the clerk added ${applied.wrote.length} to On me${applied.dropped ? `, then dropped the rest: ${applied.dropped}` : ""}`,
+          `Leaf: the clerk wrote ${wrote} record${wrote === 1 ? "" : "s"}, changed ${changed} passage${changed === 1 ? "" : "s"} and told the agent ${told} line${told === 1 ? "" : "s"}${applied.dropped ? `, and wrote no records on a page where ${applied.dropped}` : ""}`,
           { to: "debug" },
         );
       } catch (error) {

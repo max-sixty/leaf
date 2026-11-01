@@ -843,9 +843,10 @@ flowchart TD
                 <tr>
                   <th scope="row">Turn-end check (experimental)</th>
                   <td>
-                    Each question it asked in a thread, and each step it put On me as a
-                    to-do, for something the agent left to the user in chat, with its
-                    words, its id and how to withdraw it.
+                    Each question it asked in a thread and step it put On me as a to-do,
+                    with its words, its id and how to withdraw it, each stale passage it
+                    fixed, with the old and new words, and what else the fork found out
+                    of date, with the words it rests on.
                   </td>
                   <td>
                     In Claude Code, at the next prompt or tool call after a turn ends
@@ -1136,32 +1137,49 @@ flowchart TD
             <details id="turn-end-fork">
               <summary>Turn-end check in Claude Code (experimental)</summary>
               <p id="fork-purpose">
-                Late in a long session, an agent can leave something to the user in its
-                chat reply without putting it On me, so On me misses something the user
-                owes. In Claude Code, when the agent finishes a reply in a session
-                holding a page, Leaf's hooks module forks the conversation. The fork is
-                a copy of the conversation that answers one question without calling
-                tools, and the agent never sees the exchange. Leaf shows the fork each
-                page's On me and the questions and to-dos on the user already answered,
-                ended or withdrawn, and asks it to name each of the following that the
-                agent left to the user:
+                Late in a long session, the page can drift from the conversation: the
+                agent leaves something to the user only in its chat reply, so On me
+                misses it, or a page goes on saying what the work has since changed. In
+                Claude Code, when the agent finishes a reply in a session holding a
+                page, Leaf's hooks module forks the conversation. The fork is a copy of
+                the conversation that answers one question without calling tools, and
+                the agent never sees the exchange. Leaf sends it the skill's
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/turn-end-check.md"
+                  >turn-end check</a
+                >
+                with Leaf's rule for what goes On me, as the agent reads it, and for
+                each page its text as the user reads it, its On me, the questions and
+                to-dos on the user already answered, ended or withdrawn, and the items
+                it shows under way. The fork names:
               </p>
               <ul id="fork-checks">
-                <li>a decision, such as which of two designs to keep</li>
-                <li>an answer to a question the agent asked</li>
-                <li>permission for an action the agent proposed, such as a push</li>
                 <li>
-                  a step the user is to take, such as signing in or trying a build
+                  each decision, answer, permission or step the agent left to the user
+                  that no On me item holds, such as which of two designs to keep or
+                  trying a build
+                </li>
+                <li>
+                  what a page still says that the work or the conversation has since
+                  changed, such as a result or a section the user dropped in chat
+                </li>
+                <li>
+                  an On me item the user answered elsewhere, or the work made moot
+                </li>
+                <li>
+                  work the agent promised or set running, such as a background job, that
+                  no page shows
                 </li>
               </ul>
               <p id="fork-excludes">
-                The fork leaves out what an On me item already holds, what the user has
-                answered since, and what the agent will settle itself. For each ask it
-                says whether it is a question or a step the user takes and confirms with
-                Done, and gives the words of the passage it concerns, if one does. A
-                question gets a thread title and a message of a few sentences that the
-                user can answer without the chat; a step gets a title naming the action
-                whole. Leaf skips an ask whose title an ask the agent made already has.
+                Among asks, the fork leaves out what an On me item already holds, what
+                the user has answered since, and what the agent will settle itself. For
+                each ask it says whether it is a question or a step the user takes and
+                confirms with Done, and gives the words of the passage it concerns, if
+                one does. A question gets a thread title and a message of a few
+                sentences that the user can answer without the chat; a step gets a title
+                naming the action whole. Leaf skips an ask whose title an ask the agent
+                made already has.
               </p>
               <p id="fork-writes">
                 Leaf opens each remaining question as a thread, its message written as
@@ -1171,17 +1189,35 @@ flowchart TD
                 <code>leaf task create --on user</code> does. Each stands on that
                 passage, or on the page as a whole where the fork named none or the page
                 doesn't show its words once. It stays On me until the user replies or
-                presses Done, and nothing on the page marks where it came from. At its
-                next prompt or tool call, the agent reads what Leaf wrote and its id,
-                and withdraws any of it with <code>leaf task end</code>.
+                presses Done, and nothing on the page marks where it came from.
+              </p>
+              <p id="fork-fixes">
+                Where a few of a page's words have gone stale, the fork can give the
+                words to put in their place. Leaf makes that change itself where the
+                page shows the old words once: it finds the place in the page's source
+                the user reads them from, swaps in just the words that change, checks
+                that the page then reads as the fork asked, saves it as any save is
+                checked, and tells the agent the old and new words, so the agent can
+                change them back or rewrite them. A fix that needs more than a sentence,
+                or that Leaf can't place, goes to the agent instead.
+              </p>
+              <p id="fork-findings">
+                Only the agent settles an On me item or adds to its own list, so the
+                other findings reach it as messages. Each gives the fork's summary and
+                the words from the conversation it rests on, which lead the agent to the
+                original message even after a compaction. At its next prompt or tool
+                call, the agent reads these and each record and change Leaf made, and
+                withdraws a question or step it disagrees with as it would its own.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
                 user's next message waits for it. It reads the conversation from the
-                session's prompt cache and answers in a few seconds. Leaf writes nothing
-                more once another turn has opened, since the fork's reading is then out
-                of date. When a fork fails or its answer isn't the JSON Leaf asked for,
-                Leaf writes nothing and records the failure in Claude Code's debug log.
+                session's prompt cache and answers in a few seconds. Leaf writes no
+                record and changes no page once another turn has opened, since the
+                fork's reading is then out of date; a finding still reaches the agent,
+                naming the turn it came from. When a fork fails or its answer isn't the
+                JSON Leaf asked for, Leaf writes nothing and records the failure in
+                Claude Code's debug log.
               </p>
             </details>
             <details id="host-entry-points">

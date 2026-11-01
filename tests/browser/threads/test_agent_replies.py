@@ -794,6 +794,16 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     expect(words).to_contain_text("what each one needs before it can start")
 
 
+# Whether a box's words stand whole inside it, to the fraction of a pixel that
+# scrollWidth rounds away.
+WORDS_FIT = """box => {
+  const words = document.createRange();
+  words.selectNodeContents(box);
+  return words.getBoundingClientRect().width <= box.firstElementChild
+    .getBoundingClientRect().width + 0.01;
+}"""
+
+
 def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
     width it first stood at. Its name is the count it shows, so a voice user saying it
@@ -825,6 +835,8 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     expect(notice).to_have_accessible_description("1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
+    # The room "1 new" made holds "2 new" whole, figures of one width in both.
+    assert notice.evaluate(WORDS_FIT), "the notice cut its count short"
 
 
 def test_a_streaming_answer_hides_the_working_message_and_its_progress(

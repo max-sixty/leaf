@@ -313,25 +313,38 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			riding.to += dy;
 		}
 	}
+	function beside(edges) {
+		const by = edges?.by;
+		const plane = edges?.plane ?? null;
+		if (!by?.isConnected || plane && !plane.isConnected) return null;
+		const at = by.getBoundingClientRect();
+		const origin = plane?.getBoundingClientRect() ?? {
+			left: 0,
+			top: 0
+		};
+		return {
+			by,
+			plane,
+			x: at.left - origin.left,
+			y: at.top - origin.top
+		};
+	}
 	function rebase() {
 		const at = boxOf(root.getBoundingClientRect());
 		const edges = held();
 		const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
 		const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
 		frame = at;
-		const by = edges?.by?.isConnected ? {
-			element: edges.by,
-			box: boxOf(edges.by.getBoundingClientRect())
-		} : null;
-		const past = by && besideAt?.element === by.element ? {
-			x: by.box.left - besideAt.box.left - dx,
-			y: by.box.top - besideAt.box.top - dy
+		carryReadings(dx, dy);
+		const now = beside(edges);
+		const past = now && besideAt?.by === now.by && besideAt.plane === now.plane ? {
+			x: now.x - besideAt.x,
+			y: now.y - besideAt.y
 		} : {
 			x: 0,
 			y: 0
 		};
-		besideAt = by;
-		carryReadings(dx, dy);
+		besideAt = now;
 		return past;
 	}
 	const interpolate = (from, to, progress) => {
@@ -837,6 +850,7 @@ function boxMotion({ root, box, surface: surfaceClass, lift, outset, observer, h
 			const read = rests?.get(root);
 			const resized = !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
 			const moved = place();
+			besideAt = beside(held());
 			if (!resized) return;
 			carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
 			frame = shifted(frame, moved.x, moved.y);

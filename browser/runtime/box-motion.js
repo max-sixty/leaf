@@ -218,12 +218,15 @@ const rings = (style) =>
 // chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
 // outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
 // for one drawn inside its edge as a border is. observer: reads the box again when any
-// part changes size. held(): the root's edges that hold it in its plane, and the
-// anchor of what it stands by, or null for a box fixed in the window.
+// part changes size. held(): the root's edges that hold it in its plane, the anchor of
+// what it stands by, and the element the plane moves with (`plane`), null for the
+// window's; or null for a box fixed in the window.
 /** @param {{
  * root: HTMLElement, box: HTMLElement, surface: string, lift: number, outset: number,
  * observer: ResizeObserver,
- * held?: () => {x: "left" | "right", y: "top" | "bottom", by?: Element | null} | null,
+ * held?: () => {
+ *   x: "left" | "right", y: "top" | "bottom", by?: Element | null, plane?: Element | null,
+ * } | null,
  * }} options */
 export function boxMotion({
   root,
@@ -271,8 +274,8 @@ export function boxMotion({
   // first as far as the edges holding the root moved since (`rebase`), and a box held
   // by its foot that grows at its top reads as growing, not as moving.
   let frame = null;
-  // What the box stands by, and where it was at the last reading or placement, in the
-  // window, or null for a box that stands by nothing (`rebase`).
+  // What the box stands by, and where it stood in the box's plane at the last reading
+  // or placement, or null for a box that stands by nothing (`beside`).
   let besideAt = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   let timing = null;
@@ -327,27 +330,36 @@ export function boxMotion({
       riding.to += dy;
     }
   }
+  // What the box stands by, and where it stands in the plane that holds the box: from
+  // the element the plane moves with, or from the window. It is read off those
+  // elements, never off the box, which Chromium lays out off its spot until the next
+  // frame after a placement takes it into its anchor's plane: a reading of the box then
+  // is off by the same amount in every part, and carried whole, but a move of the box
+  // against its anchor would read as one.
+  function beside(edges) {
+    const by = edges?.by;
+    const plane = edges?.plane ?? null;
+    if (!by?.isConnected || (plane && !plane.isConnected)) return null;
+    const at = by.getBoundingClientRect();
+    const origin = plane?.getBoundingClientRect() ?? { left: 0, top: 0 };
+    return { by, plane, x: at.left - origin.left, y: at.top - origin.top };
+  }
   // Carries every reading kept as far as the edges holding the root moved since
-  // (`frame`), and returns how far what the box stands by moved past it meanwhile, as a
-  // scroll moves a passage past a box the window's edge holds.
+  // (`frame`), and returns how far what the box stands by moved in the box's plane
+  // meanwhile, as a scroll moves a passage past a box the window's edge holds.
   function rebase() {
     const at = boxOf(root.getBoundingClientRect());
     const edges = held();
     const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
     const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
     frame = at;
-    const by = edges?.by?.isConnected
-      ? { element: edges.by, box: boxOf(edges.by.getBoundingClientRect()) }
-      : null;
-    const past =
-      by && besideAt?.element === by.element
-        ? {
-            x: by.box.left - besideAt.box.left - dx,
-            y: by.box.top - besideAt.box.top - dy,
-          }
-        : { x: 0, y: 0 };
-    besideAt = by;
     carryReadings(dx, dy);
+    const now = beside(edges);
+    const past =
+      now && besideAt?.by === now.by && besideAt.plane === now.plane
+        ? { x: now.x - besideAt.x, y: now.y - besideAt.y }
+        : { x: 0, y: 0 };
+    besideAt = now;
     return past;
   }
   const interpolate = (from, to, progress) => {
@@ -1023,6 +1035,7 @@ export function boxMotion({
       const resized =
         !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
       const moved = place();
+      besideAt = beside(held());
       if (!resized) return;
       carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
       frame = shifted(frame, moved.x, moved.y);

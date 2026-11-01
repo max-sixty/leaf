@@ -1255,7 +1255,8 @@ const heldEdges = (floating) => {
 	return placed ? {
 		x: placed.edges.left,
 		y: placed.edges.top,
-		by: placed.anchor
+		by: placed.anchor,
+		plane: placed.frame
 	} : null;
 };
 const physicalContext = (context) => context instanceof Element ? context : context?.parentElement;

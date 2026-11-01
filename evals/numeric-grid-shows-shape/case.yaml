@@ -26,6 +26,43 @@ assert:
       `<details>`. Fail if the table is the primary presentation, or if the chart
       omits a group or the five-week sequence.
 variants:
+  experiment-comparison:
+    metadata:
+      purpose: "Make an experiment's changes and measured effects comparable with its baseline."
+      tags:
+        - authoring
+        - charts
+    vars:
+      prompt: |
+        Write the results section for our prompt experiment so I can decide what to
+        keep. Each condition ran the same 50 held-out tasks once on each model.
+        We haven't run repeats or estimated uncertainty. Here's the notebook export;
+        each cell counts tasks where that behavior passed.
+
+        | Behavior | Current, model A | Current, model B | Check, model A | Check, model B | Example, model A | Example, model B |
+        | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+        | Correct answer | 32/50 | 36/50 | 39/50 | 37/50 | 34/50 | 41/50 |
+        | Explains assumptions | 21/50 | 30/50 | 22/50 | 29/50 | 33/50 | 38/50 |
+        | Concise answer | 42/50 | 40/50 | 41/50 | 40/50 | 30/50 | 29/50 |
+
+        Current says "Answer the user's question." Check appends "Check your
+        arithmetic before answering." Example appends "Give a worked example."
+        No other settings changed.
+
+        The page directory is not reachable here. Reply with the section's HTML
+        fragment rather than writing a file.
+    assert:
+      - type: llm-rubric
+        metric: comparable-experiment-evidence
+        value: |
+          Pass when each treatment's effect against Current is directly readable
+          for each behavior and model: adjacent baseline/treatment cells, a shared
+          chart scale, or stated differences qualify. Copying the six-column export
+          alone fails because each treatment's baseline is several columns away.
+          The changed instruction must be beside its corresponding comparison.
+          Do not require a specific widget or a chart. Fail on an omitted behavior
+          or model, wrong values, an invented tradeoff winner, or a claim that these
+          single runs establish significance or a general reliability ranking.
   traffic-mix:
     # Added after ordinary Leaf reports repeatedly described useful experiences
     # without showing them. Unlike the complete configuration tasks, this request

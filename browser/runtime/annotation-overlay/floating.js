@@ -274,6 +274,22 @@ export function floatingPlacement({ floating, update }) {
   let stand = placedAt;
   let placementProof = null;
   let stopScrollInvalidation = null;
+  // Where an answer stands the box, in client coordinates, from the measurement it was
+  // solved against rather than read off the box, which may not yet be laid out where a
+  // scroll the browser carried it through has put it, or, just taken into its anchor's
+  // plane, where that anchor stands.
+  function clientBox(answer) {
+    const { offset, scale } = answer.middlewareData.anchorAt;
+    const { width, height } = answer.middlewareData.held;
+    return offset
+      ? new DOMRect(
+          (answer.x - offset.x) * scale.x,
+          (answer.y - offset.y) * scale.y,
+          width * scale.x,
+          height * scale.y,
+        )
+      : floating.getBoundingClientRect();
+  }
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
     // for; `autoUpdate` declares which mechanical changes invalidate its placement.
@@ -398,12 +414,17 @@ export function floatingPlacement({ floating, update }) {
         : null;
       return answer;
     },
+    // Writes the answer's spot in its plane, and returns how far that moved the box, by
+    // the answer's own measure (`clientBox`).
     stand(answer) {
+      const from = floating.getBoundingClientRect();
       stand(answer);
+      const to = clientBox(answer);
+      const moved = { x: to.left - from.left, y: to.top - from.top };
       if (!placementProof) {
         stood.delete(floating);
         tenure = Object.freeze({});
-        return;
+        return moved;
       }
       const { edges, width, height, block } = answer.middlewareData.held;
       const { offset, scale } = answer.middlewareData.anchorAt;
@@ -439,22 +460,9 @@ export function floatingPlacement({ floating, update }) {
           size: Object.freeze({ width: width * scale.x, height: height * scale.y }),
         }),
       );
+      return moved;
     },
-    // Where an answer stands the box, in client coordinates, from the measurement it was
-    // solved against rather than read off the box, which may not yet be laid out
-    // where a scroll the browser carried it through has put it.
-    clientBox(answer) {
-      const { offset, scale } = answer.middlewareData.anchorAt;
-      const { width, height } = answer.middlewareData.held;
-      return offset
-        ? new DOMRect(
-            (answer.x - offset.x) * scale.x,
-            (answer.y - offset.y) * scale.y,
-            width * scale.x,
-            height * scale.y,
-          )
-        : floating.getBoundingClientRect();
-    },
+    clientBox,
     // Discards any placement in flight, leaving the box where it stands.
     supersede() {
       epoch += 1;

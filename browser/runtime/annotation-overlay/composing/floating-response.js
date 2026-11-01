@@ -517,13 +517,15 @@ export function createFloatingResponsePlacement({
         // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
         // moves travels when it follows a change of the box's size (box-motion.js,
         // `placed`).
+        // A drag the grip carried ends where the placement stands the box.
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
-          fabPosition.stand(position);
+          const moved = fabPosition.stand(position);
+          carry.placed();
+          return moved;
         };
         if (following) following.placed(stand);
         else stand();
-        carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();

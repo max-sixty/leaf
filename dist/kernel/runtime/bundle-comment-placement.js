@@ -1302,6 +1302,11 @@ function floatingPlacement({ floating, update }) {
 	let stand = placedAt;
 	let placementProof = null;
 	let stopScrollInvalidation = null;
+	function clientBox(answer) {
+		const { offset, scale } = answer.middlewareData.anchorAt;
+		const { width, height } = answer.middlewareData.held;
+		return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
+	}
 	return {
 		watch(element, reference, autoUpdate) {
 			if (element === watched && autoUpdate === observer) return;
@@ -1394,11 +1399,17 @@ function floatingPlacement({ floating, update }) {
 			return answer;
 		},
 		stand(answer) {
+			const from = floating.getBoundingClientRect();
 			stand(answer);
+			const to = clientBox(answer);
+			const moved = {
+				x: to.left - from.left,
+				y: to.top - from.top
+			};
 			if (!placementProof) {
 				stood.delete(floating);
 				tenure = Object.freeze({});
-				return;
+				return moved;
 			}
 			const { edges, width, height, block } = answer.middlewareData.held;
 			const { offset, scale } = answer.middlewareData.anchorAt;
@@ -1439,12 +1450,9 @@ function floatingPlacement({ floating, update }) {
 					height: height * scale.y
 				})
 			}));
+			return moved;
 		},
-		clientBox(answer) {
-			const { offset, scale } = answer.middlewareData.anchorAt;
-			const { width, height } = answer.middlewareData.held;
-			return offset ? new DOMRect((answer.x - offset.x) * scale.x, (answer.y - offset.y) * scale.y, width * scale.x, height * scale.y) : floating.getBoundingClientRect();
-		},
+		clientBox,
 		supersede() {
 			epoch += 1;
 		},

@@ -623,9 +623,13 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         anchored.commit();
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
-        following.placed(() => placementDriver.stand(position));
+        // A drag the grip carried ends where the placement stands the card.
+        following.placed(() => {
+          const moved = placementDriver.stand(position);
+          carry.placed();
+          return moved;
+        });
         session.width ??= preview.getBoundingClientRect().width;
-        carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;

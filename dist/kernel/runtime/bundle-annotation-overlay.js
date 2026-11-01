@@ -546,9 +546,12 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			session.arriving = false;
 			const { scale } = session.side.landed(position);
 			anchored.commit();
-			following.placed(() => placementDriver.stand(position));
+			following.placed(() => {
+				const moved = placementDriver.stand(position);
+				carry.placed();
+				return moved;
+			});
 			session.width ??= preview.getBoundingClientRect().width;
-			carry.placed();
 			preview.style.removeProperty("visibility");
 			session.withheldFocus?.();
 			session.withheldFocus = null;
@@ -2741,11 +2744,12 @@ function createFloatingResponsePlacement({ bar: fabBar, input: fabInput, respons
 			editingAttachment = response.open ? attachment : null;
 			const stand = () => {
 				keeps(fabBar, "data-lf-placement", position.placement);
-				fabPosition.stand(position);
+				const moved = fabPosition.stand(position);
+				carry.placed();
+				return moved;
 			};
 			if (following) following.placed(stand);
 			else stand();
-			carry.placed();
 			nativeAttachment = response.open && fabPosition.follows();
 			positioned(true);
 			stoodAgain();

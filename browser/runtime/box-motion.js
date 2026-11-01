@@ -192,6 +192,10 @@ const clipFrame = (sides, radius = 0) => ({
   clipPath: `inset(var(--lf-box-cut) round ${radius}px)`,
   "--lf-box-cut": sides.map((side) => `${side}px`).join(" "),
 });
+// The part of a move `moved` that a plane moving `limit` accounts for: no farther than
+// the plane moved, and only in its direction.
+const planeShare = (moved, limit) =>
+  moved * limit > 0 ? Math.sign(limit) * Math.min(Math.abs(moved), Math.abs(limit)) : 0;
 const radiusOf = (style) => Number.parseFloat(style.borderTopLeftRadius) || 0;
 const seeThrough = (color) => /^(transparent|rgba\(.*,\s*0\))$/.test(color);
 const paints = (style) =>
@@ -267,8 +271,8 @@ export function boxMotion({
   // first as far as the edges holding the root moved since (`rebase`), and a box held
   // by its foot that grows at its top reads as growing, not as moving.
   let frame = null;
-  // Where what the box stands by was at the last reading or placement, in the window,
-  // or null for a box that stands by nothing (`rebase`).
+  // What the box stands by, and where it was at the last reading or placement, in the
+  // window, or null for a box that stands by nothing (`rebase`).
   let besideAt = null;
   // The timing of the last reading, which a send's scroll reads again with (`stream`).
   let timing = null;
@@ -306,22 +310,9 @@ export function boxMotion({
   // The window changed size: the next reading takes the box as it stands, rather than
   // trail the window's edge by a tween.
   addEventListener("resize", forget);
-  // Carries every reading kept as far as the plane carried the box since (`frame`), and
-  // says whether what the box stands by moved farther than that, as a scroll moves a
-  // passage past a box the window's edge holds.
-  function rebase() {
-    const at = boxOf(root.getBoundingClientRect());
-    const edges = held();
-    const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
-    const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
-    frame = at;
-    const by = edges?.by?.isConnected ? boxOf(edges.by.getBoundingClientRect()) : null;
-    const passed =
-      !!besideAt &&
-      !!by &&
-      !(near(by.left - besideAt.left, dx) && near(by.top - besideAt.top, dy));
-    besideAt = by;
-    if (near(dx, 0) && near(dy, 0)) return passed;
+  // Moves every reading kept, and what is moving, as far as the plane carried the box.
+  function carryReadings(dx, dy) {
+    if (near(dx, 0) && near(dy, 0)) return;
     if (rests)
       rests = new Map(
         [...rests].map(([element, rest]) => [element, shifted(rest, dx, dy)]),
@@ -335,7 +326,29 @@ export function boxMotion({
       riding.from += dy;
       riding.to += dy;
     }
-    return passed;
+  }
+  // Carries every reading kept as far as the edges holding the root moved since
+  // (`frame`), and returns how far what the box stands by moved past it meanwhile, as a
+  // scroll moves a passage past a box the window's edge holds.
+  function rebase() {
+    const at = boxOf(root.getBoundingClientRect());
+    const edges = held();
+    const dx = frame && edges ? at[edges.x] - frame[edges.x] : 0;
+    const dy = frame && edges ? at[edges.y] - frame[edges.y] : 0;
+    frame = at;
+    const by = edges?.by?.isConnected
+      ? { element: edges.by, box: boxOf(edges.by.getBoundingClientRect()) }
+      : null;
+    const past =
+      by && besideAt?.element === by.element
+        ? {
+            x: by.box.left - besideAt.box.left - dx,
+            y: by.box.top - besideAt.box.top - dy,
+          }
+        : { x: 0, y: 0 };
+    besideAt = by;
+    carryReadings(dx, dy);
+    return past;
   }
   const interpolate = (from, to, progress) => {
     const rect = between(from, to, progress);
@@ -990,25 +1003,29 @@ export function boxMotion({
       }
     },
     // The box's placement stands it (`place`): once the box has a motion, its owner
-    // stands every placement through here. A placement can change the edges that hold
-    // the box, as a line taking it past the window's foot holds it by that foot, so the
-    // plane's carry is read first, by the edges that held it until then. What the
-    // placement moves is then the box's own change or its plane's. Standing it at a
-    // size its motion has not read yet, with what it stands by where the plane left it,
-    // the placement follows that change of size: the next reading takes no carry, so
-    // the box travels from where it was drawn. Otherwise it follows the plane, as a
-    // scroll does that re-solves a box held at the window's edge, or one that brings
-    // its passage back beside it as it grows: the next reading carries the box by the
-    // edges holding it now, and travels only what changed within it. So an owner reads
-    // a change of the box's size only once the placement that change asks for has
-    // stood it.
+    // stands every placement through here, and reads a change of the box's size only
+    // once the placement that change asks for has stood it. A placement can change the
+    // edges that hold the box, as a line taking it past the window's foot holds it by
+    // that foot, so the plane's carry is read first, by the edges that held it until
+    // then. What the placement moves then is the plane's or the box's own. At the size
+    // last read it is the plane's, as when a scroll re-solves a box held at the window's
+    // edge: the next reading carries the box by the edges that hold it now. At a new
+    // size it is the box's own and travels from where the box was drawn, but for as far
+    // as what the box stands by moved past it meanwhile, as a scroll moves a passage
+    // past a box the window's edge holds: the plane carries that much. `place` says how
+    // far it moved the box by its own answer: in Chromium, a box it just took into its
+    // anchor's plane lays out off its spot until the browser next places it, by
+    // hundreds of pixels (floating.js, `clientBox`).
+    /** @param {() => {x: number, y: number}} place */
     placed(place) {
-      const passed = rebase();
+      const past = rebase();
       const read = rests?.get(root);
       const resized =
         !read || !near(width(read), width(frame)) || !near(height(read), height(frame));
-      place();
-      if (resized && !passed) frame = null;
+      const moved = place();
+      if (!resized) return;
+      carryReadings(planeShare(moved.x, past.x), planeShare(moved.y, past.y));
+      frame = shifted(frame, moved.x, moved.y);
     },
     // The box's outline where it is drawn now, in the window: where its motion has
     // carried it, or its rest.

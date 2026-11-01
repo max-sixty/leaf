@@ -116,7 +116,7 @@ let navigationError = null;
 const number = (value) => value.toLocaleString();
 /** @param {CssCounts} values */
 const metrics = (values) =>
-  html`<dl class="lf-inspection-metrics">
+  html`<dl class="lf-facts">
     ${Object.entries({
       "UTF-8 bytes": values.bytes,
       "CSS rules": values.rules,

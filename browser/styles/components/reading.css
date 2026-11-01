@@ -523,6 +523,32 @@
     dd {
       margin: 0 0 8px 0;
     }
+    /* A list of facts, each label beside its value: a page's summary facts (`dl.facts`,
+     * the reading theme's) and every set of labelled values Leaf shows itself
+     * (`dl.lf-facts`), such as About's counts and a capture's details. One layout for
+     * all of them, so a reader learns where a value stands once. The labels take a
+     * column as wide as the longest of them, up to two fifths of the list, and wrap past
+     * that, so a long label never leaves its value a ribbon of a few words a line; the
+     * values take the rest and line up on one edge. A `div` may hold a label with its
+     * value, as HTML allows. */
+    dl:is(.facts, .lf-facts) {
+      display: grid;
+      grid-template-columns: fit-content(40%) minmax(0, 1fr);
+      align-items: baseline;
+      gap: var(--sp-1) var(--sp-3);
+    }
+    dl:is(.facts, .lf-facts) > div {
+      display: contents;
+    }
+    dl:is(.facts, .lf-facts) dt {
+      color: var(--muted);
+      font-weight: 400;
+    }
+    dl:is(.facts, .lf-facts) dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
+    }
 
     /* The apparatus face, said once per layer. Every label, caption, chip, badge,
      * disclosure summary and column heading on the page is the page pointing at its own

@@ -84,7 +84,7 @@ let loading = false;
 let destinations = /* @__PURE__ */ new WeakMap();
 let navigationError = null;
 const number = (value) => value.toLocaleString();
-const metrics = (values) => html`<dl class="lf-inspection-metrics">
+const metrics = (values) => html`<dl class="lf-facts">
     ${Object.entries({
 	"UTF-8 bytes": values.bytes,
 	"CSS rules": values.rules,

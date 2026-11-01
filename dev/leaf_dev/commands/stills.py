@@ -338,6 +338,12 @@ def markdown_preview_scrolled(page: Page) -> None:
     scroll_settled(page, panel)
 
 
+def dynamic_request_preview(page: Page) -> None:
+    """The generated request as rendered Markdown inside its padded preview."""
+    page.locator(".source-details").first.locator("summary").click()
+    page.locator("#leaf-request-document").scroll_into_view_if_needed()
+
+
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
     page.keyboard.press("Tab")
@@ -2019,6 +2025,19 @@ class State:
 
 
 STATES = (
+    State(
+        "dynamic-request-preview",
+        "dynamic-widgets",
+        dynamic_request_preview,
+        region="#leaf-request-document",
+    ),
+    State(
+        "dynamic-request-preview-dark",
+        "dynamic-widgets",
+        dynamic_request_preview,
+        scheme="dark",
+        region="#leaf-request-document",
+    ),
     State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
     State("screen-exhibit", "lost-update", at_rest, region="main"),
     State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),

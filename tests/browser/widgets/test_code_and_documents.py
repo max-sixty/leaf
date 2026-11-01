@@ -116,6 +116,17 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     expect(document.locator(".lf-text-document-preview")).to_contain_text(
         "names <missing> files."
     )
+    # The preview's padding is the visible inset, without the paragraph's margins.
+    insets = document.locator(".lf-text-document-preview").evaluate(
+        """box => {
+          const paragraph = box.querySelector('p').getBoundingClientRect();
+          const frame = box.getBoundingClientRect();
+          const style = getComputedStyle(box);
+          return [paragraph.top - frame.top, frame.bottom - paragraph.bottom,
+                  parseFloat(style.paddingTop), parseFloat(style.paddingBottom)];
+        }"""
+    )
+    assert insets[:2] == insets[2:], insets
     document.get_by_role("tab", name="Source", exact=True).click()
     assert document.locator("code[data-code]").text_content() == text
 

@@ -168,6 +168,7 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
 lf-text-document div.lf-text-document-preview {
   --lf-reading-face: 1;
+  --lf-block-frame: 1;
   padding: var(--sp-4);
   overflow-wrap: anywhere;
 }

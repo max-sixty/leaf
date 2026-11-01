@@ -668,6 +668,27 @@ def test_a_growing_margin_reply_keeps_the_previous_turn_visible(browser, serve):
     assert editor.evaluate("input => input.scrollTop > 0")
 
 
+def test_a_card_at_its_end_keeps_its_last_turn_as_the_window_shortens(browser, serve):
+    """A transcript standing at its end keeps its last turn beside the reply box
+    whatever takes its room, here the window shortening. The card read whether it
+    stood at its end as it refitted, after the room had already gone, so the last
+    turn slid under the reply box by the height the window lost."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
+    expect(transcript).to_be_visible()
+    rendered(page)
+    past_end = "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    assert transcript.evaluate(past_end) <= 1
+    room = transcript.evaluate("list => list.clientHeight")
+    resized(page, 1440, 700)
+    rendered(page)
+    assert transcript.evaluate("list => list.clientHeight") < room - 100
+    assert transcript.evaluate(past_end) <= 1
+
+
 @pytest.mark.parametrize("comment_repeats", [0, 17])
 def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats):
     """Visible and already clipped transcripts both yield writing space."""

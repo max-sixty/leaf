@@ -1,7 +1,7 @@
 import { LAYOUT, afterScript, cancelAnimation, cancelRender, generatedElement, keeps, keepsHidden, keepsText, layoutPx, nativeLayerHolding, nextAnimation, nextFrame, nextRender, offer, offerAction, renderedOrder, renderedUnder, roomPx, setScroll, sizeObserver, skipped, tabStore, under } from "./bundle-portable.js";
 import { TEXT_FIELD, Z, bareReaction, closeLayer, coarsePointer, currentLocationIn, declareRelease, drawn, focusDestination, focused, handBack, holdFocus, hostIn, html, inputCount, layerLanding, letGo, move, onCurrentLocation, onPressAway, onUserInput, pressLed, render, ringBox, rove, sameAnchor, tabStops, turns, visibleFocus } from "./bundle-layer-stack.js";
 import { closeControl, cycledRow, el, keys, nativePress, notice, pageRange, paintKeys, paintKeysWithin, repaint, rowArrows, setRuntimeRootAttribute } from "./bundle-layer-client.js";
-import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollLimit, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
+import { atScrollEnd, chromeForeground, chromeRoot, exactTarget, keepFoot, moveScrollerBy, pageScroller, passageGeometry, placeKept, pointBand, rangeGeometry, readingRegionFor, registerReadingRegion, scrollLimit, scrollToEnd, scrollerFor, targetElement, targetParts, targetRange, targetSegments, targetSurface, visualAt } from "./bundle-content-layout.js";
 import { ANNOTATIONS_KEY } from "./bundle-restore-state.js";
 import { anchorLabel, arrivalOf, beginWalk, carryingThreadPlace, claimSeatReplies, claimed, currentLocationThreadId, declareOffFlowSurface, declareSide, keepThreadLanding, listWalkPosition, pageCommand, pageRung, pageScope, pageSelection, placeKeeper, releaseAuthoredUnder, releaseReplies, revealHeld, rowWalk, selectionAnchor, setChildLists, setChildren, showReturnTurn, threadFocusDestination, threadIdNamed, threadNamed } from "./bundle-data.js";
 import { clamp, rightCover, seenRect, shownBox, shownParts, shownWindow, showsContents, slotTop, union, watchRoom } from "./bundle-geometry.js";
@@ -343,6 +343,8 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		session.stopRegion?.();
 		session.stopRegion = null;
 		session.transcript = transcript;
+		session.stopFoot?.();
+		session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
 		session.place = transcript ? placeKeeper(transcript, {
 			items: ".lf-msg[data-event]",
 			identity: (message) => message.getAttribute("data-event")
@@ -412,6 +414,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 		cancelRender(session.positionFrame);
 		placementDriver.supersede();
 		session.stopRegion?.();
+		session.stopFoot?.();
 		preview.style.removeProperty("visibility");
 		previewSession = null;
 	}
@@ -660,6 +663,7 @@ function createThreadPreview({ inventory, renderMarginThread, placedAt, scrollTh
 			place: null,
 			reading: null,
 			stopRegion: null,
+			stopFoot: null,
 			side: commentPlacement(),
 			anchor: new CardAnchor(preview),
 			itemView: null,

@@ -51,7 +51,7 @@ import {
   scrollIntoReadingBand,
   scrollIntoView,
 } from "../landing-scroll.js";
-import { aimedTop, atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import { aimedTop, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
 /** @param {Element} held @param {Element} control */
@@ -275,8 +275,6 @@ export function sendLanding(input) {
 // paid for.
 /** @type {WeakMap<Element, number>} */
 const rowHeights = new WeakMap();
-/** @type {WeakMap<Element, {transcript: Element, height: number, atTail: boolean}>} */
-const transcriptPlaces = new WeakMap();
 /** @param {Element} reply */
 const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
@@ -321,19 +319,9 @@ export function followBoxGrowth(input) {
   // its message, keeps its caret in view itself: aimed at the whole box, a landing here
   // pulled a long one's top into view on every key.
   if (!reply) return;
-  // A separate transcript gives up height rather than being covered by the editor.
-  // A reader at its tail keeps the turn beside the growing box; someone reading back
-  // keeps their own offset. The editor's before-edit reading precedes its layout.
-  const transcript = separateTranscript(held);
-  if (transcript) {
-    const place = transcriptPlaces.get(input);
-    if (
-      place?.transcript === transcript &&
-      place.atTail &&
-      transcript.clientHeight < place.height
-    )
-      scrollToEnd(transcript);
-    transcriptPlaces.delete(input);
+  // A separate transcript gives up height rather than being covered by the editor, and
+  // keeps the words beside the box itself (scrolling.js, `keepFoot`).
+  if (separateTranscript(held)) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;
   }
@@ -349,23 +337,16 @@ export function followBoxGrowth(input) {
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
-// The editor's place before its own edit: a pinned row's height, or a separate
-// transcript's tail and room. Arrival also reads its initial place.
+// The editor's place before its own edit: a pinned row's height. Arrival also reads
+// its initial place.
 /** @param {Element} input */
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
-  // A box in the transcript has no row to hold nor a tail to keep beside it.
+  // A box in the transcript has no row to hold.
   if (!reply) return;
   // The edit may be the one that takes a natural row to its sticky floor.
   rowHeights.set(input, reply.getBoundingClientRect().height);
-  const transcript = separateTranscript(held);
-  if (transcript)
-    transcriptPlaces.set(input, {
-      transcript,
-      height: transcript.clientHeight,
-      atTail: atScrollEnd(transcript),
-    });
 }
 
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood

@@ -1,7 +1,7 @@
 import { LAYOUT, PAGE_PAINT_ATTRIBUTE, actionTemplate, bindQueuedWork, byRenderedOrder, cancelRender, canvas2D, describeFailure, holdRendering, iconTemplate, inlineStyle, isElement, isHTML, keeps, keepsHidden, keepsText, layoutPx, motionEasing, motionPlays, motionTime, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offered, offeredAction, pagePresented, pageUpgraded, playMotion, reducedMotion, renderedOrder, renderedUnder, renderingState, scrollBehavior, scrollGlides, scrolling, setScroll, shadowHost, sizeObserver, skipped, tabStore, under as under$1, upFrom, watchScrollEnds, watchScrolls, whileConnected } from "./runtime/bundle-portable.js";
 import { CARET_KEYS, COLLAPSE, J, LitElement, MODIFIER_KEYS, PRESENTATION_DOM, PRESSES, SHARE_ROOT, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, WEBSITE_DELIVERY, WORKS, Z, agentName, agentSays, annotationMode, annotationSheets, applicationPresenter, applicationState, bareReaction, blurFocused, carriesObligation, chromeSheet, claimReleaseClick, closeLayer, closeNativeLayer, coarsePointer, currentLocationIn, d, decisionFor, declareReading, dismissPopoversOutside, documentChanged, drawn, eventSource, focusDestination, focusRevision, focused, fragmentId, guard, handBack, hasObligationSource, holdFocus, hostIn, html, inUi, isNews, itemNoun, itemOutcome, keyed, layerLanding, leafSays, letGo, live, marksSheet, move, nativeLayers, nativeModalAdmits, noChange, nothing, offlineInteractive, onCurrentLocation, onPress, onPressAway, onUserInput, openLayer, openerOf, pointerAt, pressHolds, pressIsKeyboardActivation, pressRecords, q, readPart, ref, registry, release, releaseFocus, render, repeat, rove, runtime, runtimeResource, saidBy, sameAnchor, selectsAll, shareUrl, showNativeLayer, tagsDeclaring, takesLetters, threadCounts, threadKey, threadNames, tick, tokenEntry, typesText, voiceOf, voiced, watchLayerChanges, whenApplicationPresented, wordsText, x } from "./runtime/bundle-layer-stack.js";
 import { EVERYTHING, LINK, PRESS, PRESSABLE, advertisesKeys, allBindings, announce, bindingEnabled, bindings, buttonCommand, claimsEsc, clampedRow, closeControl, commandBinding, commandDeclarationsWithin, commandPresentations, commandRoutes, commandRun, commandScope, commandsWithin, contextBindings, contextScopes, cycledRow, decisionControls, declaredBindings, descriptionOf, dismissError, dismissErrors, dragHeld, el, errorsReading, hasRows, holdingError, keys, labelOf, live as live$1, liveEl, mountRepaint, namedAction, nativePress, notice, noticeReading, noticeWords, pageRange, paintKeys, paintKeysWithin, parsed, passErrors, passErrorsAt, programmaticSelection, projectCommandScope, pruneScopedElements, quickShortcuts, raiseError, reflectFirstScopes, reflectKeys, repaint, repaintPage, reportPageError, reveal, routedCommand, rowArrows, savedReadingSettled, saying, scopeRefs, scopesAt, scopesFor, searchField, seeErrors, selectEnds, selectionBackward, setNoticeContext, setQuickShortcuts, setRuntimeRootStyle, spell, spokenBinding, submitBindings, titleOf, uploadMedia, watchCommandAvailability, word } from "./runtime/bundle-layer-client.js";
-import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
+import { ADDRESSABLE, PAGE_CONTROL_RANK, PRESENTATION, UPGRADE, addressableLabel, addressableSays, addressableWord, afterPresentation, ago, aimTargetAt, aimTargets, anchorFor, anchoringIsReady, annotationAt, atScrollEnd, chromeForeground, chromeRoot, designPressAt, effectiveScroller, elementFrame, exactTarget, fragmentTarget, holdArrivingBounds, isAddressable, keepFoot, lightSeat, livePoint, markPagePresented, markPageUpgraded, moveScrollerBy, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageScroller, placePoints, pointInto, railStands, reachScrollers, readingRegionFor, registerPageControl, registerReadingRegion, resolveAnchor, resolvedInMessage, revealAddressed, scrollChainOf, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, setAnchoringReady, settlePageInterface, shortAgo, targetElement, targetParts, targetPlace, targetRange, targetSegments, unclaimedVisualGesture, userReadingRegion, visualAt, visualParts, visualSelector, whenArrived } from "./runtime/bundle-content-layout.js";
 import { activeCommandLabel, answerCloseRequest, availableCommandRoutes, dispatchKey, escapeTakesAStep, executeCommand, innermostStance, invokePress, keyReady, onSampleNotice, registerSampleCommand, restoreUserView, sampleNotice, userIn } from "./runtime/bundle-restore-state.js";
 import { DESIGN_MODE_KEY, ELEMENTS, PAGE_DRAFT, RESOLVED, THREAD, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, beginWalk, bringBackSurfaceOf, claimTraversals, commandSteps, comparisonBase, comparisonChanges, createAnchorTravel, createPassageSelection, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, declareSide, declareThreadParts, designName, dismissReply, draftHasContent, drawnThreadId, focusedThreadTarget, followBoxGrowth, gesturedOn, heldObligation, heldPagePlace, heldThread, holdPagePlace, holdToRead, initializeServedDocument, isExternalPageLink, landingPlace, leftThePage, listWalkPosition, loadDraft, messageHolding, messageReading, messageText, mirrorDraft, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, onReadingInterrupted, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, placeKeeper, placeOf, prepareDocument, quoteReading, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, releaseReplies, rememberWriting, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, returnPlace, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendMessage, settleThread, showHeld, showReturnTurn, snapSelection, stepFrom, stopComparison, subjectPlace, takeInitialDocument, tellDraft, threadAttention, threadHeading, threadIn, threadList, threadName, threadNamed, threadTodos, titlePending, todoWord, touchPresses, upgradeWidgets, userChoice, versionPicker, versionsReading, walkOrigin, walkPosition, walkPositionLabel, workflowStep, workflowWord } from "./runtime/bundle-data.js";
 import { clamp, clippedContents, coveredShare, declareOccluder, declareWindowChrome, intersect, landingBand, layoutWindow, overlaps, overlapsAcross, placeHolder, presented, seenRect, shownBox, shownParts, shownRect, stackLevel, startsAt, underOccluder, union, windowChromeBoxes } from "./runtime/bundle-geometry.js";
@@ -4998,7 +4998,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                           ${ref(declareView)}
                           style=${route === top && opening.room !== null ? `height: ${opening.room}px` : nothing}
                           ?data-leaving=${route === leaving}
-                          @scroll=${viewScrolled}
+                          @scroll=${sawAnswer}
                         >
                           ${viewOf(route).draw(route)}
                         </div>`)}
@@ -5552,7 +5552,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		drawnSections: null,
 		waiting: null,
 		placed: null,
-		foot: null,
 		onPageSeat: false,
 		unreadSeat: null,
 		quoteExpanded: false,
@@ -5703,9 +5702,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (target) focusDestination(target, "move");
 	}
 	let viewMovingUntil = 0;
-	const fit = sizeObserver((entries) => {
+	const fit = sizeObserver(() => {
 		stood = openView()?.offsetHeight ?? null;
-		keepFoot(entries);
 		followBox();
 	});
 	const follow = sizeObserver(() => {
@@ -5875,31 +5873,6 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
 		opening.waiting = null;
 		paint();
-	}
-	function keepFoot(entries) {
-		const view = openView();
-		if (!view) {
-			opening.foot = null;
-			return;
-		}
-		const before = opening.foot;
-		const room = view.clientHeight;
-		if (before?.view === view && room !== before.room && entries.every(({ target }) => target === view)) {
-			moveScrollerBy(view, before.top + before.room - room - view.scrollTop);
-			opening.placed = view.scrollTop;
-		}
-		opening.foot = {
-			view,
-			room,
-			top: view.scrollTop
-		};
-	}
-	function viewScrolled(event) {
-		const view = event.currentTarget;
-		const { foot } = opening;
-		if (!foot || foot.view !== view) return sawAnswer(event);
-		if (!(view.clientHeight > foot.room && view.scrollTop < foot.top && atScrollEnd(view))) foot.top = view.scrollTop;
-		sawAnswer(event);
 	}
 	let held = null;
 	let seats = [];
@@ -6428,11 +6401,20 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			stop();
 			viewRegions.delete(view);
 		}
-		for (const view of stage.querySelectorAll(".lf-fp-view")) if (!viewRegions.has(view)) viewRegions.set(view, registerReadingRegion({
-			id: `floating-panel-view-${++regionCount}`,
-			host: view,
-			body: view
-		}));
+		for (const view of stage.querySelectorAll(".lf-fp-view")) if (!viewRegions.has(view)) {
+			const stopRegion = registerReadingRegion({
+				id: `floating-panel-view-${++regionCount}`,
+				host: view,
+				body: view
+			});
+			const stopFoot = view.hasAttribute("data-lf-thread-view") ? keepFoot(view, { kept: () => {
+				if (view === openView()) opening.placed = view.scrollTop;
+			} }) : null;
+			viewRegions.set(view, () => {
+				stopRegion();
+				stopFoot?.();
+			});
+		}
 	}
 	declareView(controls);
 	declareView(replyOutlet);

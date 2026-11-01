@@ -340,3 +340,62 @@ export const aimedTop = (box) => {
 /** @param {Element} box @param {number} top */
 export const reachable = (box, top) =>
   Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+
+// A box standing on its foot beside a field that writes into it, as a thread's view in
+// the panel stands on its field and a card's transcript on its reply box, keeps what
+// stands at its foot as the field takes room from it or gives it back: the box gives way
+// at its top, so the message the user is answering stays beside their words. A reading
+// in which what the box holds changed size too keeps nothing, leaving that change to the
+// code that places it, a reply drawn or a send. Where the foot stood is read at each of
+// the box's scrolls and readings, before the next change of its room. Read when that
+// change is answered, by a keystroke's handler or a card's fit, it was read too late
+// wherever the room had already changed, which Firefox showed for a draft from another
+// tab or a resized window. The exception is the clamp a growth makes at the box's end,
+// whose scroll can arrive before the reading that answers the growth. `atEnd` keeps the
+// foot only while it is the box's end: a card read back keeps its reader's offset
+// (thread-preview.js, `measureThreadCard`). `kept` hears each move the keeper makes.
+/** @param {HTMLElement} box @param {{atEnd?: boolean, kept?: () => void}} [options]
+ * @returns {() => void} */
+export function keepFoot(box, { atEnd = false, kept } = {}) {
+  /** @type {{room: number, top: number, end: boolean} | null} */
+  let foot = null;
+  const observer = sizeObserver((entries) => {
+    const room = box.clientHeight;
+    if (
+      foot &&
+      room !== foot.room &&
+      (!atEnd || foot.end) &&
+      entries.every(({ target }) => target === box)
+    ) {
+      moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
+      kept?.();
+    }
+    foot = { room, top: box.scrollTop, end: atScrollEnd(box) };
+  });
+  observer.observe(box);
+  for (const child of box.children) observer.observe(child);
+  const children = new MutationObserver((records) => {
+    for (const { addedNodes, removedNodes } of records) {
+      for (const node of addedNodes)
+        if (node instanceof Element) observer.observe(node);
+      for (const node of removedNodes)
+        if (node instanceof Element) observer.unobserve(node);
+    }
+  });
+  children.observe(box, { childList: true });
+  const scrolled = () => {
+    if (
+      !foot ||
+      (box.clientHeight > foot.room && box.scrollTop < foot.top && atScrollEnd(box))
+    )
+      return;
+    foot.top = box.scrollTop;
+    foot.end = atScrollEnd(box);
+  };
+  box.addEventListener("scroll", scrolled, { passive: true });
+  return () => {
+    observer.disconnect();
+    children.disconnect();
+    box.removeEventListener("scroll", scrolled);
+  };
+}

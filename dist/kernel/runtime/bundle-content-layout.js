@@ -930,6 +930,41 @@ const aimedTop = (box) => {
 	return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 const reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+function keepFoot(box, { atEnd = false, kept } = {}) {
+	let foot = null;
+	const observer = sizeObserver((entries) => {
+		const room = box.clientHeight;
+		if (foot && room !== foot.room && (!atEnd || foot.end) && entries.every(({ target }) => target === box)) {
+			moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
+			kept?.();
+		}
+		foot = {
+			room,
+			top: box.scrollTop,
+			end: atScrollEnd(box)
+		};
+	});
+	observer.observe(box);
+	for (const child of box.children) observer.observe(child);
+	const children = new MutationObserver((records) => {
+		for (const { addedNodes, removedNodes } of records) {
+			for (const node of addedNodes) if (node instanceof Element) observer.observe(node);
+			for (const node of removedNodes) if (node instanceof Element) observer.unobserve(node);
+		}
+	});
+	children.observe(box, { childList: true });
+	const scrolled = () => {
+		if (!foot || box.clientHeight > foot.room && box.scrollTop < foot.top && atScrollEnd(box)) return;
+		foot.top = box.scrollTop;
+		foot.end = atScrollEnd(box);
+	};
+	box.addEventListener("scroll", scrolled, { passive: true });
+	return () => {
+		observer.disconnect();
+		children.disconnect();
+		box.removeEventListener("scroll", scrolled);
+	};
+}
 
 //#endregion
 //#region runtime/reach.js
@@ -2624,4 +2659,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, keepFoot, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };

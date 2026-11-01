@@ -2210,6 +2210,69 @@ def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
     assert tinycss2.serialize(later[0].prelude).strip() == ".y"
 
 
+def test_a_chrome_sheet_scopes_each_style_rule_where_it_stands(tmp_path):
+    """Each style rule of a package's chrome.css is wrapped in the chrome's scope at a
+    weight the chrome's own rules don't reach, inside the conditions and layers that
+    hold it. Every other at-rule stays as written where it stood, so a @font-face under
+    @media keeps its condition and a @layer statement keeps its place in the order.
+    What a browser would drop, such as a stray `;` or a loose declaration, is
+    dropped rather than failing composition or, once nested, coming back as a
+    declaration on the chrome's root. A layer whose packages restyle nothing adds no
+    rule."""
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    for root in (kernel, package):
+        root.mkdir()
+    (kernel / "base.css").write_text("")
+    assert layer_model.composed_sheets([kernel, package])["chrome.css"] == b""
+    (package / "chrome.css").write_text(
+        '[part~="panel"] { animation: turn 1s; }\n'
+        "@keyframes turn { to { rotate: 1turn; } }\n"
+        "@layer one { .a { color: blue; } }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        '[part~="card"] { display: none; } }\n'
+        '@media print { [part~="card"] { color: red }; }\n'
+        "@supports (display: grid) { color: red; }\n"
+        '@media screen { color: red; [part~="card"] { color: blue; } }\n'
+        'a { color: red; }; [part~="card"] { color: blue; }\n'
+    )
+
+    scoped = layer_model.CHROME_RESTYLE.format
+    assert layer_model.composed_sheets([kernel, package])["chrome.css"].decode() == (
+        scoped('[part~="panel"] { animation: turn 1s; }') + "\n"
+        "@keyframes turn { to { rotate: 1turn; } }\n"
+        "@layer one { " + scoped(".a { color: blue; }") + " }\n"
+        "@layer two, one;\n"
+        "@media screen { @font-face { font-family: X; src: local(Y); } "
+        + scoped('[part~="card"] { display: none; }')
+        + " }\n"
+        "@media print { " + scoped('[part~="card"] { color: red }') + "}\n"
+        "@supports (display: grid) { }\n"
+        "@media screen {  }\n" + scoped("a { color: red; }") + "\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "css",
+    [
+        "@scope (body) { #outside { color: red; } }",
+        "@media screen { @scope (body) { p { color: red; } } }",
+        '[part~="card"] { @scope (&) { :scope > p { color: red; } } }',
+    ],
+)
+def test_a_chrome_sheet_holding_scope_is_refused(tmp_path, css):
+    """An @scope of the theme's own would stand beside the chrome's and reach the page,
+    or, nested in a rule, match nothing in Chromium, so composition refuses it by
+    name rather than serving either."""
+    kernel, package = tmp_path / "kernel", tmp_path / "package"
+    for root in (kernel, package):
+        root.mkdir()
+    (kernel / "base.css").write_text("")
+    (package / "chrome.css").write_text(css)
+    with pytest.raises(Refused, match=r"chrome\.css holds @scope"):
+        layer_model.composed_sheets([kernel, package])
+
+
 def test_a_sheet_composes_the_files_it_imports_in_place(tmp_path):
     """A package splits its sheet into files with `@import` and needs no build: each
     file's rules stand where its import stood, in the layer it asks for, and each file
@@ -2311,7 +2374,7 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
         json.dumps({"lf-contribution": element_declaration("lf-contribution")})
     )
     assert layer_model.composed_sheets([schema_model.ASSETS, package]) == before
-    for name in ("defaults.css", "widget-shadow.css"):
+    for name in ("defaults.css", "widget-shadow.css", "chrome.css"):
         (package / name).write_text("lf-contribution { color: green; }")
     staged = tmp_path / "installed"
     staged.mkdir()

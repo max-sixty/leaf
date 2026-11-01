@@ -3,37 +3,46 @@
  * Every composer the runtime builds is a `leaf-text`. Inside a closed shadow root it
  * runs CodeMirror over the draft's exact source, and draws that source the way a sent
  * message will read: inline code in code type, emphasis and strong in their weights, a
- * link as a link, a heading in bold, a list item at the message's inset under the
- * message's own marker, a picture as the picture, drawn after its source while the
- * caret is in it, and a link that leaves the page with the mark the page draws after
- * one (declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers, a picture's source) is hidden unless the selection touches the
- * construct. List markers reveal their source only inside the marker: the caret after
- * its trailing space is ready to type content, so even an empty new item already shows
- * its bullet or number. The user can move back into the marker to edit every source
+ * link as a link, a heading in bold, a quote and a list item at the message's insets at
+ * every level, an item under the message's own marker, a task item's box as the
+ * message's disabled checkbox, a rule as the rule, an entity as the character it
+ * names, a picture as the picture, drawn after its source while the caret is in it,
+ * and a link that leaves the page with the mark the page draws after one
+ * (declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
+ * hashes, list markers, a rule's dashes, an escape's or a break's backslash, an
+ * entity's name, a picture's source) is hidden unless the selection touches the
+ * construct; the spaces that lead a line, which the message drops, stay hidden. A
+ * table and a link's reference definition stay as typed (`DRAWN` in field-editor.js
+ * lists what is drawn). List markers reveal their source only inside the marker: the
+ * caret after its trailing space is ready to type content, so even an empty new item
+ * already shows its bullet or number. The user can move back into the marker to edit every source
  * character. Nothing is converted: the value is always the source the user typed,
  * which is what the agent reads. The constructs come from the renderer that sends the
  * message (`markdownTokens`), never from a second grammar, so the preview and the
- * message agree on what is a link, a heading or code. CodeMirror's own Markdown
- * grammar serves only editing: Shift+Enter continuing a list.
+ * message agree on what is a link, a heading or code, Shift+Enter continues the
+ * quotes and list items the message will hold, and Tab and Shift+Tab nest a list item
+ * and take it out a level.
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
  * instead of the message's: each heading and code block in the type, padding and indent
- * the page gives it there, each outermost block's quote and list insets, and the
- * display's gap between two outermost blocks in place of the blank lines that part them
- * in the source, so no word moves as the editor opens (browser/AGENTS.md, "Editing in
- * place"). The cascade answers what those faces are: as the editor builds, and when its
- * width changes, an empty copy of that element holding one of each block stands hidden
+ * the page gives it there, each quote's inset, and the display's gap between two
+ * outermost blocks in place of the blank lines that part them in the source, so no
+ * word moves as the editor opens (browser/AGENTS.md, "Editing in place"). Such a
+ * display is a Markdown body, which reads as a file, so the field draws a line break
+ * inside a paragraph as a space, and Return among a paragraph's words writes a hard
+ * break, which the body draws as a line too (field-editor.js, `joints`, `newLine`). The
+ * cascade answers what those faces are: as the editor builds, and when its width
+ * changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
- * the lines' classes name, so the field draws nothing differently without one. A code
- * fence's line and a Setext heading's rule then stand for the block's padding while the
- * caret is away from that line. A list's inner gaps, a quote's inner blocks and a table
- * keep the source's lines. Rejected: rules the theme states for each element also stated
- * for parts the field exposes, which can set type but not the gaps, since CodeMirror
- * measures a line without its margins and a gap collapses two blocks'; and a style
- * attribute on each line, which CodeMirror writes again on every redraw.
+ * the classes of the lines and of the quotes' boxes name, so the field draws nothing
+ * differently without one. A list's inner gaps, a quote's inner blocks, a rule, a code
+ * fence's lines and a table keep the source's lines. Rejected: rules the theme states
+ * for each element also stated for parts the field exposes, which can set type but not
+ * the gaps, since CodeMirror measures a line without its margins and a gap collapses
+ * two blocks'; and a style attribute on each line, which CodeMirror writes again on
+ * every redraw.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -116,9 +125,10 @@
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
  * EditContext supplies no native insertion after CodeMirror handles the press, so this
- * editing route is explicit. Shift+Enter inserts a line and continues a list or
- * quote. A host the page marks `aria-multiline="false"`, such as an option's title,
- * holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
+ * editing route is explicit. Shift+Enter inserts a line and continues each quote and
+ * list item the caret stands in; on a line holding only their markers, it leaves the
+ * innermost (`continueBlocks`, field-editor.js). A host the page marks
+ * `aria-multiline="false"`, such as an option's title, holds one line: Shift+Enter inserts nothing, a line break pasted or inserted any other
  * way becomes a space, and its owner reserves Return. Mod+Z
  * and Mod+Shift+Z walk one history: the words' edits, and the steps an owner records
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
@@ -210,10 +220,10 @@ sheet.replaceSync(`
      rules stop at this root. A heading is bold, as the platform draws one, at the size
      of the words around it. A block is drawn line by line, so a code block's frame is
      each line's sides, closed above its first line and below its last. Syntax that holds
-     its room while the caret is away, as a code fence's line does, is there unseen and
-     unspoken. Its glyphs go unfilled while its colour stays the words', because the
-     caret can stand at the end of unseen text, as just past a new item's marker, and the
-     browser draws it in that text's colour. */
+     its room while the caret is away, as a rule's or a code fence's line does, is there
+     unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
+     because the caret can stand at the end of unseen text, as just past a new item's
+     marker, and the browser draws it in that text's colour. */
   .lf-md-mark { color: var(--muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
   code { font-family: var(--mono); font-size: var(--code-inline-size);
@@ -222,19 +232,25 @@ sheet.replaceSync(`
   .lf-md-heading { font-weight: bold; }
   .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
     text-underline-offset: var(--link-underline-offset); }
+  /* A quote and a list item are boxes around their lines (field-editor.js, \`box\`), as
+     the message's blockquote and li are, so their words stand where the message's do at
+     every level of nesting. An item stands one list inset in, under the platform's own
+     list marker, as in the message, so it is the same bullet or number at the same
+     place: the inset is the item's margin, as it is its list's padding in the message,
+     since the platform draws the marker outside the item's border. */
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted);
-    --lf-marker-inset: var(--quote-inset); }
-  /* A quote's and a list item's words stand where the message's do, and the source's
-     marker stands in the inset before them, unseen while the caret is away, so
-     revealing it moves no word. A list item's lines stand one list inset in per level,
-     under the platform's own list marker, as in the message, so it is the same bullet
-     or number at the same place. */
-  .lf-md-item { margin-inline-start: calc(var(--lf-list-depth) * var(--list-inset));
-    --lf-marker-inset: var(--list-inset); }
-  .lf-md-marker { display: inline-flex; justify-content: flex-end; white-space: pre;
-    inline-size: var(--lf-marker-inset);
-    margin-inline-start: calc(-1 * var(--lf-marker-inset)); }
+    padding-inline-start: var(--quote-inset); color: var(--muted); }
+  .lf-md-item { margin-inline-start: var(--list-inset); }
+  /* The source's markers that open a line stand in the insets before its words, each as
+     wide as its container's rule and inset, so each stands beside the rule it draws,
+     unseen while the caret is away, and revealing one moves no word: their run takes no
+     room, and stands back from the words by its own width. */
+  .lf-md-markers { display: inline-flex; inline-size: 0; justify-content: flex-end; }
+  .lf-md-marker { display: inline-flex; flex: none; justify-content: flex-end;
+    white-space: pre; box-sizing: content-box; }
+  .lf-md-item-marker { inline-size: var(--list-inset); }
+  .lf-md-quote-marker { inline-size: var(--quote-inset);
+    border-inline-start: var(--quote-rule); border-inline-start-color: transparent; }
   .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
@@ -246,25 +262,31 @@ sheet.replaceSync(`
     padding-inline: var(--pre-inset); }
   .lf-md-code-first { border-block-start: 1px solid var(--code-border);
     border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  /* A sent pre reserves 8px below its lines for a horizontal scrollbar. */
   .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r);
-    padding-block-end: 8px; }
+    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
   /* A picture fits the field as media fits its container on the page, centred on its
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  /* A rule's line is the sent hr, a line tall with its stroke through the middle
+     (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
+     reaching it moves nothing (browser/AGENTS.md, "Stability"). */
+  .lf-md-rule {
+    background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
+  /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
+     press on any drawn source does; Chromium's disabled box would take it and do
+     nothing. */
+  .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
     margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
     background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
     user-select: none;
     -webkit-user-select: none; }
-  /* A fence's line, while the caret is away from it, stands for the sent pre's padding,
-     and code with no fence lines takes that padding at its ends instead. A field that
-     edits in place reads its display's padding over this (\`readFaces\`). */
-  .lf-face-fence-open, .lf-face-fence-close { line-height: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-first { padding-block-start: var(--pre-pad-block); }
-  .lf-md-code-bare.lf-md-code-last { padding-block-end: calc(var(--pre-pad-block) + 8px); }
+  /* A fence's line is a line of the code box, the sent pre's padding of one code line
+     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
+     draft ends, where no fence line stands, takes that padding on the code's own line
+     instead. */
+  .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 
 // The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as
@@ -630,6 +652,8 @@ class LeafText extends HTMLElement {
       attributes: this.#contentAttributes(),
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
+      // Words edited where a Markdown body shows them read as that body does.
+      joined: () => this.facesOf !== null,
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),

@@ -1,4 +1,6 @@
-/* A bound document owns one source and its source/preview readings. Optional
+/* A document owns one text and its source/preview readings. The text is its `value`,
+ * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
+ * wrote when the markup binds neither (leaf-element.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, keeping the page still when switching and its scroll place independent.
@@ -88,8 +90,9 @@ customElements.define(
       });
     }
 
-    // The text, set by whoever hosts the widget: Leaf from the bound source (the
-    // registry's `x-data.document.property`), or null while that source has none.
+    // The text, set by whoever hosts the widget: Leaf from the bound source or output
+    // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+    // while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {

@@ -169,6 +169,7 @@ function drawingThumbnail(drawing, target) {
 //#endregion
 //#region runtime/composing/input.js
 const INPUT_DRAFT = Symbol("composition draft");
+const NEW_LINE = "New line";
 const SEND_DWELL = 150;
 var CompositionField = class extends q(LitElement) {
 	createRenderRoot() {
@@ -397,7 +398,9 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const suffix = !advertising ? "" : focusedHere.value ? sendKeys : enteringHint.value;
 			const status = dictationStatus();
 			const word = status || label();
-			const placeholder = suffix && !status ? `${word} ${suffix}` : word;
+			const lineKey = sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+			const lineHint = focusedHere.value && !status ? lineKey : "";
+			const placeholder = suffix && !status ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}` : word;
 			if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
 			const ariaLabel = name();
 			if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
@@ -405,7 +408,10 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 			const lead = status ? "" : hintLead();
 			render(suffix && !status || parts != null || lead ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span>${parts ?? word}</span><kbd class="lf-key-badge">${suffix}</kbd>
+              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><kbd class="lf-key-badge">${suffix}</kbd>${lineHint ? html`<span class="lf-compose-placeholder-line"
+                      >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                    >` : nothing}
             </span>` : nothing, ta);
 			let error = inputError.value;
 			if (error && !(ta.isConnected && ta.checkVisibility())) {
@@ -418,7 +424,7 @@ function createCompositionInputs({ uploadMedia, inputHint }) {
 				else watchError.unobserve(ta);
 			}
 			const action = sendLabel();
-			const newline = sendKeys === spell("Enter") && !oneLine ? ` · ${spell("Shift+Enter")} new line` : "";
+			const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
 			const phase = dictationPhase();
 			const live = phase === "starting" || phase === "listening";
 			const failed = loadingFailure || dictation?.failure;
@@ -2834,7 +2840,7 @@ const pageSearchControls = [
 	nextMatchControl
 ];
 const noMatches = "No matches";
-const searchCount = (position, total) => `${position}/${total}`;
+const searchCount = (position, total) => `${position} of ${total}`;
 function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, updateFab, fabAnchorAt, pointerModeActive, readTargets, armChanged, searchInPanel }) {
 	const canChoose = () => anchoringIsReady() && !pointerModeActive();
 	const pickerMode = Z("closed");
@@ -2952,7 +2958,7 @@ function createTargetPicker({ scrollToRange, hintChrome, commentOnTarget, update
 	}
 	function presentSearchStatus() {
 		const query = pageSearchInput.value.trim();
-		const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : "0/0";
+		const status = !query ? nothing : matches.value.length ? searchCount(active + 1, matches.value.length) : searchCount(0, 0);
 		const label = !query ? null : matches.value.length ? `Match ${active + 1} of ${matches.value.length}` : noMatches;
 		keeps(pageSearchStatus, "aria-label", label);
 		keeps(pageSearchStatus, "title", label);
@@ -4408,7 +4414,7 @@ const chosenGrouping = userChoice("lf-on-me-grouping", ON_ME_GROUPINGS);
 const groupingLabel = (grouping) => grouping === "plan" ? `By ${agentName()}` : grouping === "kind" ? "By kind" : "By place";
 const namedIn = (step) => [...step.item ? [step.item.id] : [], ...step.steps.flatMap(namedIn)];
 const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
-function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, announce, actions }) {
+function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareNavigationStep, arrive, readableDestination, showOnMe, announce, actions }) {
 	const stopElement = (stop) => stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.thread !== null ? threadPlace(stop.thread) : subjectPlace(stop.subject);
 	const pagePlace = (stop) => {
 		const at = stopElement(stop);
@@ -4566,6 +4572,7 @@ function createQueueWalk({ arriveAtRecord, arriveAtThread, threadPlace, prepareN
 		const ready = arriveAt(next).then((arrived) => {
 			if (!arrived) return false;
 			announce(beginWalk("queue", null, () => position(region)) ?? walkPositionLabel(null, list.indexOf(next) + 1, list.length, `${region ? WITHIN : QUALIFIER} · ${next.noun}`));
+			if (next.kind === "obligation" && next.obligation.source.kind === "todo") showOnMe();
 			return true;
 		});
 		ready.catch(() => {});
@@ -4764,6 +4771,7 @@ customElements.define("leaf-floating-panel", FloatingPanel);
 function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPresentation, observeFeedback, firstUnread, afterReadingPass, obligations: obligationView, queueActions, arrivesAt, onMe, withdraw, settlement, placedAt, openThreadSubject, atLastResort, annotationsHidden }) {
 	const host = new FloatingPanel();
 	host.className = "lf-ui lf-floating-panel";
+	host.setAttribute("part", "panel");
 	const ease = () => motionEasing("--lf-motion-box-ease", host);
 	const foldEase = () => motionEasing("--lf-motion-panel-fold-ease", host);
 	const resizeMs = () => motionTime("--lf-motion-box-resize", host);
@@ -5536,6 +5544,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		observer: follow
 	});
 	const { ground } = following;
+	ground.setAttribute("part", "panel");
 	function streamSend() {
 		following.stream();
 	}
@@ -5813,7 +5822,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			disabled: entry.disabled,
 			role: menuOpen.value ? "menuitem" : null,
 			row: entry.key,
-			title: entry.value || null
+			title: entry.title || entry.value || null
 		}), copy);
 		return copy;
 	}
@@ -5858,7 +5867,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const keyboard = all.find((entry) => entry.key === "keyboard");
 		const fold = all.find((entry) => entry.key === `command:${FOLD}`);
 		const groups = Object.keys(GROUPS).filter((group) => all.some((entry) => groupOf(entry) === group && listed(entry)));
-		const { tone, summaryParts, adds, addsParts, publication } = status();
+		const { summaryParts, adds, addsParts, publication } = status();
 		const said = adds ? statusParts(addsParts) : "";
 		const explains = publication ? html`${said}${adds ? " " : nothing}${voiced(leafSays(publication.copy))}${publication.examplesUrl ? html`<a class="lf-fp-face" href=${publication.examplesUrl}
                   >${publication.examples}</a
@@ -5912,18 +5921,13 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			})),
 			{
 				key: "",
-				draw: () => html`<hr />`
+				draw: () => html`<hr class="lf-fp-rule" />`
 			},
 			...[keyboard, fold].filter(Boolean).map(seat)
 		];
 		const now = new Map(offered.map((row) => [row.key, row]));
 		seats = held?.seats ?? offered;
-		return html`<div
-        class="lf-fp-state"
-        role="none"
-        data-tone=${tone || nothing}
-        ?data-held=${held !== null}
-      >
+		return html`<div class="lf-fp-state" role="none" ?data-held=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
@@ -5942,10 +5946,9 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </div>` : nothing}
       <div class="lf-fp-versions lf-rows" role="none">
         ${repeat(versions, (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`, (entry) => html`<div class="lf-fp-version" role="none" ?data-current=${entry.current}>
-              ${menuItem(html`${entry.name}${entry.note ? html`<span class="lf-fp-note">${entry.note}</span>` : nothing}`, nothing, () => showVersion(entry), {
-			title: entry.note,
-			current: entry.current
-		})}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
+              ${menuItem(html`${entry.name}${entry.note ? html` <span class="lf-fp-note" title=${entry.note}
+                        >${entry.note}</span
+                      >` : nothing}`, nothing, () => showVersion(entry), { current: entry.current })}${entry.current ? html`<span class="lf-fp-showing" aria-hidden="true">Showing</span>` : nothing}${entry.comparable ? html`<button
                       type="button"
                       role="menuitem"
                       class="lf-fp-face lf-fp-quiet lf-fp-compare"
@@ -6002,7 +6005,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
           >
             Dismiss
           </button>
-        </div>`)}${errors.length > 1 ? html`<hr />
+        </div>`)}${errors.length > 1 ? html`<hr class="lf-fp-rule" />
             ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
 	}
 	function shownThreads() {
@@ -6121,7 +6124,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         data-key=${thread.key}
         ?data-unread=${isNews(thread)}
         ?data-resolved=${thread.resolved}
-        ?data-yours=${threadAttention(thread, agentName())?.kind === "needs_user"}
+        data-lf-turn=${threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing}
         @click=${() => open({
 			view: "thread",
 			thread: thread.key
@@ -6300,6 +6303,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
+	}
+	function showOnMe() {
+		const turned = chooseQueueTab("you");
+		if (!showing({ view: "queue" })) open({ view: "queue" }, { focus: false });
+		else if (turned) paint();
 	}
 	function pressMark() {
 		if (!onUserCount() && newCount()) {
@@ -6544,18 +6552,27 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
                 Reply
               </button>` : nothing}`;
 		} else if (choices?.length) answers = html`${choices.map((choice) => {
+			const press = () => {
+				choice.press();
+				paint();
+			};
+			if (choice.commits) return html`<button
+            ${offeredAction("commit", "lf-fp-commit")}
+            title=${choice.description || nothing}
+            aria-pressed=${String(choice.chosen)}
+            @click=${press}
+          >
+            ${capital(choice.label)}
+          </button>`;
 			const told = Boolean(choice.description || choice.recommended);
 			return html`<button
           type="button"
           class="lf-fp-face lf-fp-answer"
           ?data-told=${told}
           aria-pressed=${String(choice.chosen)}
-          @click=${() => {
-				choice.press();
-				paint();
-			}}
+          @click=${press}
         >
-          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says"
+          ${told ? html`<span class="lf-fp-choice-name">${capital(choice.label)}</span>${choice.recommended ? html` <span class="lf-fp-choice-tag">recommended</span>` : nothing}${choice.description ? html`<span class="lf-fp-choice-says" title=${choice.description}
                           >${choice.description}</span
                         >` : nothing}` : capital(choice.label)}
         </button>`;
@@ -6683,7 +6700,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			});
 		}
 		return html`<div class="lf-fp-on-list lf-rows">
-      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
+      ${repeat(rows, (row) => row.key, (row) => row.rule ? html`<hr class="lf-fp-rule lf-fp-on-rule" />` : row.item ? line(row.item, row.group) : html`<h3 class="lf-rows-head">
                   <span class="lf-fp-label">${row.group.title}</span
                   ><span class="lf-row-end"
                     >${row.group.count ?? row.group.items.length}</span
@@ -6793,7 +6810,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
             </p>` : nothing}${last ? html`<p>
               ${voiced([
 			leafSays("Last done: "),
-			excerptWords(queueTitle(last), 60),
+			agentSays(excerptWords(queueTitle(last), 60)),
 			leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`)
 		])}
             </p>` : nothing}
@@ -7503,6 +7520,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		pageComment,
 		searchPage,
 		doors,
+		showOnMe,
 		showForSample,
 		openThread,
 		captureCurrentLocation,
@@ -7947,11 +7965,12 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 	function choicesOf(item) {
 		const source = sourceNode(item);
 		if (!source) return null;
-		return actionsFor(source, sourceOwner(item)).map(({ id, label, description, recommended, control }) => Object.freeze({
+		return actionsFor(source, sourceOwner(item)).map(({ id, label, description, recommended, commits, control }) => Object.freeze({
 			id,
 			label,
 			description,
 			recommended,
+			commits,
 			chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
 			press: () => presentedActionControl(control).click()
 		}));
@@ -8654,7 +8673,7 @@ if (SHARE_ROOT) registerPageControl({
 	key: "share",
 	rank: PAGE_CONTROL_RANK.share,
 	label: "link",
-	value: "Grants access to all Leaf pages on this machine.",
+	title: "Grants access to all Leaf pages on this machine.",
 	copies: shareUrl,
 	group: "page"
 });
@@ -10612,6 +10631,7 @@ async function boot() {
 		prepareNavigationStep: anchorTravel.prepareNavigationStep,
 		arrive: anchorTravel.arrive,
 		readableDestination: anchorTravel.readableDestination,
+		showOnMe: () => floatingPanel.showOnMe(),
 		announce
 	});
 	const changeWalk = createChangeWalk();

@@ -50,7 +50,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     ) == page.evaluate(
         r"() => getComputedStyle(document.body).getPropertyValue('--mono').trim().replace(/\s+/g, ' ')"
     )
-    assert hint.locator("span:not(.lf-compose-placeholder-lead)").evaluate(
+    assert hint.locator(".lf-compose-placeholder-words").evaluate(
         "label => getComputedStyle(label).fontFamily"
     ) == field.evaluate("box => getComputedStyle(box).fontFamily")
     write(field, "Something the author missed")

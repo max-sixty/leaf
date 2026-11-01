@@ -40,6 +40,7 @@ import {
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
+  scrollLimit,
 } from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
@@ -118,6 +119,8 @@ export function createThreadPreview({
   // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
+  // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+  preview.setAttribute("part", "card");
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => previewSession !== null;
@@ -424,6 +427,15 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   function measureThreadCard(room, cap, reading) {
     preview.style.setProperty("--lf-thread-width", layoutPx(room));
+    const transcript = previewSession.transcript;
+    // Growing a top-held card may reveal new words below, but must not reveal lines
+    // the reader had already scrolled past. Leave that scroll travel in its transcript.
+    // Follow the tail only after this fit, when the available room is known.
+    if (reading?.keepTop && transcript)
+      cap = Math.min(
+        cap,
+        preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
+      );
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const overflow = [
@@ -521,13 +533,16 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ scroller: place.scroller });
+    const boundary = commentBoundary({
+      scroller: place.scroller,
+      at: { x: place.column ?? place.extent.left, y: place.row },
+    });
     session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const scroller = place.scroller;
+    const { scroller } = boundary;
     const seat = session.side.choose({
       clear: place.clear,
       row: place.row,
@@ -550,13 +565,18 @@ export function createThreadPreview({
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ width, height, stood, scale }) {
+          fit({ width, height, stood, scale, stationary }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
             // Send landing. Hold this reading through every middleware measurement:
             // an intermediate cap must not turn an earlier offset into end-following.
+            const priorReading =
+              session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && atScrollEnd(session.transcript),
+              end: !fresh && (priorReading?.end ?? atScrollEnd(session.transcript)),
+              scroll: priorReading?.scroll ?? session.transcript.scrollTop,
+              keepTop:
+                stationary && !fresh && anchored.edge === "top" && !anchored.writing,
               latest: session.arriving,
             };
             if (fresh) session.width = null;
@@ -574,9 +594,9 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Written beside its subject, it has the
-            // boundary's whole height (`rises`): a growing editor lifts it from the
-            // window's foot, then scrolls internally.
+            // last moved where that is more. Beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor or an arriving
+            // answer lifts it from the window's foot, then it scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
@@ -604,6 +624,7 @@ export function createThreadPreview({
       .then((position) => {
         if (!position || !stillCurrent()) return;
         session.arriving = false;
+        session.reading = null;
         // The spot the rule stood the card at before the boundary shifted it in, so a
         // card opened low in the window rises back to it once a scroll gives it room.
         const { scale } = session.side.landed(position);
@@ -619,11 +640,12 @@ export function createThreadPreview({
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing. Each
-        // edge's cut is its own property, which the card's clip and its growth out of
-        // the comment box both read (annotation-chrome.css).
-        const region = boundary.inRegion;
+        // cuts the words, as does the edge of a block its row has crossed (`cut`). An
+        // edge further out than the card paints cuts nothing, and stands at that reach,
+        // so a scroll that moves it there writes nothing. Each edge's cut is its own
+        // property, which the card's clip and its growth out of the comment box both
+        // read (annotation-chrome.css).
+        const region = boundary.cut;
         const cuts = region
           ? [
               (region.top - card.top) / scale.y,
@@ -717,6 +739,7 @@ export function createThreadPreview({
       withheldFocus: null,
       transcript: null,
       place: null,
+      reading: null,
       stopRegion: null,
       side: commentPlacement(),
       anchor: new CardAnchor(preview),
@@ -773,6 +796,11 @@ export function createThreadPreview({
       lastBox.bottom >= listBox.top &&
       lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
       atScrollEnd(session.transcript);
+    session.reading = session.transcript && {
+      input: inputCount(),
+      scroll: session.transcript.scrollTop,
+      end: follow,
+    };
     const present = () => {
       const targetHeading =
         targetFor(entry)?.querySelector(":scope > strong")?.textContent;
@@ -790,6 +818,9 @@ export function createThreadPreview({
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+      // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
+      // actions line, which on a 311px phone already leaves the message heads no room;
+      // " of " made it 12px wider, which pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
@@ -813,7 +844,6 @@ export function createThreadPreview({
       if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
-    if (follow) scrollToEnd(session.transcript);
   }
 
   function stepPreviewThread(step) {

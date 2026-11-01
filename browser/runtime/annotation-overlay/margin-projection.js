@@ -51,6 +51,7 @@ import {
   scheduleMarginEntryLabels,
   scheduleMarginLayout,
   standsFolded,
+  standsWithheld,
   unregisterMarginRow,
 } from "./margin-layout.js";
 
@@ -452,7 +453,7 @@ export function createMarginProjection({
     return [...markerRows()].filter(
       (row) =>
         !row.hidden &&
-        !row.closest(".lf-withheld") &&
+        !standsWithheld(row) &&
         row.checkVisibility({ visibilityProperty: true }),
     );
   }
@@ -1191,9 +1192,9 @@ export function createMarginProjection({
       if (!fresh || !freshChoice) closePreview();
       else {
         const owner = threadMarginEntry(fresh);
-        // A row scrolled out of view is withheld (margin-layout.js), not gone: the card
-        // withholds itself with its target and comes back with it (thread-preview.js).
-        const away = owner?.closest(".lf-withheld");
+        // A withheld row is not gone: the card withholds itself with its target and
+        // comes back with it (thread-preview.js).
+        const away = owner && standsWithheld(owner);
         if (
           owner &&
           !away &&

@@ -863,6 +863,12 @@ const folded = new WeakSet();
 /** @param {Element} row */
 export const standsFolded = (row) => folded.has(row);
 
+// Whether the row holding `node` is withheld because its target doesn't show: a scroll
+// carried it out of view, or the document hides it. The row is not gone, so what hangs
+// from it, its card or its keyboard stop, waits for it to come back.
+/** @param {Element} node */
+export const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
+
 // Where `part` of `row`, or the row itself, is painted. A carried row's own box reads a
 // frame late after a scroll (`scheduleScrollReading`), so it is read where the row's
 // target now stands, by the offsets the last pass seated the row at (`standsBy`): the

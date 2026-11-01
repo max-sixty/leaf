@@ -592,6 +592,7 @@ function contentBox(scroller) {
 const seats = /* @__PURE__ */ new WeakMap();
 const folded = /* @__PURE__ */ new WeakSet();
 const standsFolded = (row) => folded.has(row);
+const standsWithheld = (node) => Boolean(node.closest(".lf-withheld"));
 function paintedBox(part, row) {
 	const box = part.getBoundingClientRect();
 	if (!row) return box;
@@ -1955,4 +1956,4 @@ function commentPlacement() {
 }
 
 //#endregion
-export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow };
+export { COMMENT_GAP, THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, marginSpot, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow };

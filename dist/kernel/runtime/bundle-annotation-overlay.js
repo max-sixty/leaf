@@ -9,7 +9,7 @@ import { blockAt, closestAcross, elementFromPointAcross, inChrome, labelWords, p
 import { retainUserIntent } from "./bundle-copy-control.js";
 import { SVG_NS, activateContributionControl, awaitingUser, canFold, choosePrimary, clearContributionControls, clusterProjection, contributionEntry, contributionEntryRecord, contributionEntrySource, dropStand, entryEngaged, entryHasMarginHost, focusedOfferOf, markerFace, materializeContributionControls, optionsOffered, paintGeometry, paintShape, paintStand, placement, presentContributionEntry, presentContributionReceipts, primaryReading, readingBehavior, readingChoices, readingContext, readingFace, readingKey, readingLabel, readingState, spokenContext, spokenSubject, standOver, syncContributionSelection, syncContributionUnread, threadReading, unreadIn } from "./bundle-page-layout.js";
 import { boxMotion, paintTrace } from "./bundle-box-motion.js";
-import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
+import { THREAD_CARD, cardMeasure, cardMinimum, commentAttachment, commentBoundary, commentPlacement, commentReference, floatingGeometry, floatingPlacement, floatingSelections, floatingUi, heldEdges, layoutMarginRows, makeRoom, marginColumn, mountMarginLayer, paintedBox, registerMarginRow, scheduleMarginEntryLabels, scheduleMarginLayout, standsFolded, standsWithheld, syncMarginContentLayout, unregisterMarginRow } from "./bundle-comment-placement.js";
 
 //#region runtime/annotation-overlay/surface-grip.js
 const SLOP = 3;
@@ -1327,7 +1327,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 		return `${`${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
 	}
 	function availableRows() {
-		return [...markerRows()].filter((row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility({ visibilityProperty: true }));
+		return [...markerRows()].filter((row) => !row.hidden && !standsWithheld(row) && row.checkVisibility({ visibilityProperty: true }));
 	}
 	const markerBox = (row) => paintedBox(row, row.closest("leaf-margin-cluster"));
 	function visibleRows() {
@@ -1776,7 +1776,7 @@ function createMarginProjection({ inventory, refreshInventory, renderAnnotations
 			if (!fresh || !freshChoice) closePreview();
 			else {
 				const owner = threadMarginEntry(fresh);
-				const away = owner?.closest(".lf-withheld");
+				const away = owner && standsWithheld(owner);
 				if (owner && !away && !owner.checkVisibility() && forcedKey !== fresh.key && expandedOptionsKey !== fresh.key && !hosts.get(fresh.key)?.more?.hidden) {
 					transferThreadFocus = threadOwnerHeld;
 					unfoldOpenThreadOwner(fresh);

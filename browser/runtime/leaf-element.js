@@ -50,31 +50,11 @@
    what dependent DOM readers wait for (`#committed`).
    `setup()` runs once, on the first connection, before the first render.
 
-   Bound values. A module reads each x-data input through the plain property its
-   declaration names (`property`): before each update that the input's delivery
-   moves, this element sets `this[property]` to the delivered value, or null while the
-   source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`x-content: data`) declares at most one input,
-   and where the markup binds it to nothing, to a source or to another widget's output,
-   the widget reads the text the page wrote in its `<pre>` the same way: this element
-   sets the input's property to that string once, at setup, since the widget's drawing
-   replaces the `<pre>`. Any other unbound input, and one a module hosts on an element
-   it made without a `<pre>`, is left to the widget and whoever else hosts it.
-
-   The widget marks the items it drew with plain attributes (projection/data.js) and
-   dispatches a non-bubbling `drawn` event whose detail names one bound property and
-   the value it drew from it, `{value}`. A seat's stamp carries one source and revision,
-   so a widget with several bound inputs marks the items of one of them and names that
-   one. This element finds the snapshot that supplied the value and stamps the marks
-   with it, so a draw that finishes after a newer value arrived keeps the revision it
-   drew. An object value is one delivery's copy, which names its snapshot for as long
-   as the widget holds it (`suppliedSnapshot`, data.js). A primitive value has no
-   identity, so this element keeps the one the widget last reported and every one set
-   since, each with its snapshot: a widget draws a value it holds or one handed to it
-   after, so a report retires only the values set before the one it names. Equal
-   primitive values share a revision, a digest of the value. A null value, or an input
-   the markup leaves unbound, names words no bound value supplied, stamped without a
-   source. Off a Leaf page no one listens, and the marks mean nothing. */
+   Leaf's bound-value integration lives in element-data.js. It initializes authored
+   inputs before setup, delivers values before the update gate, and stamps the marks
+   a widget reports through its ordinary `drawn` event. Objects and primitives keep
+   the snapshot that supplied the drawing, including one completed after a newer
+   delivery. This lifecycle owns when those operations run, not their data meaning. */
 import { LitElement, SignalWatcher, render, untracked } from "/runtime/framework.js";
 import {
   attachApplicationPresentation,
@@ -85,7 +65,6 @@ import {
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import {
-  dataBody,
   failSoft,
   failSoftUnreported,
   once,
@@ -94,16 +73,9 @@ import {
 } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import {
-  awaitsData,
-  bindsInput,
-  dataReader,
-  joinDataDelivery,
-  suppliedSnapshot,
-} from "./data.js";
+import { ElementData } from "./element-data.js";
 import { registry } from "./registry.js";
 import { adoptShadowStage } from "./shadow-stage.js";
-import { projectMarked } from "./projection/data.js";
 
 let regions = 0;
 
@@ -177,12 +149,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #updating = false;
   #leaveData = null;
   #scheduled = null;
-  // The x-data inputs that name a property, `{input, property, bound, read}`, with
-  // `read` the delivery reader of one the markup binds.
-  #inputs = [];
-  // Each bound property's last snapshot set, and the primitive values a `drawn` can
-  // still name with the snapshot that supplied each, in the order they were set.
-  #sent = new Map();
+  #data = null;
 
   createRenderRoot() {
     return registry[this.localName]?.["x-shadow"]
@@ -234,24 +201,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#regionName = this.#descriptor
       ? null
       : `element:${this.localName}#${this.id}:${++regions}`;
-    this.#inputs = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(
-      ([input, declaration]) =>
-        declaration.property
-          ? [
-              {
-                input,
-                property: declaration.property,
-                bound: bindsInput(this, declaration),
-                read: null,
-              },
-            ]
-          : [],
-    );
-    if (this.#inputs.length)
-      this.addEventListener("drawn", (event) => {
-        if (event.target === this)
-          this.#drawn(/** @type {CustomEvent} */ (event).detail);
-      });
+    this.#data = new ElementData(this, () => this.#stage());
     placesFailure(this, (box) => {
       const root = this.renderRoot ?? this;
       // A widget showing a shadow stage over its host shows the box as that stage,
@@ -267,8 +217,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       return true;
     });
     try {
-      if (this.#writesInput())
-        for (const { property } of this.#inputs) this[property] = dataBody(this);
+      this.#data.initialize();
       this.setup();
     } catch (error) {
       this.#broken = true;
@@ -285,20 +234,6 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** The module's one-time build, on the first connection, before the first render. */
   setup() {}
 
-  // Whether the page wrote this data widget's input in its `<pre>`: one it holds while
-  // the markup binds no declared input. A module that makes the element without a
-  // `<pre>` hosts the input itself.
-  #writesInput() {
-    const declaration = registry[this.localName];
-    return Boolean(
-      declaration?.["x-content"] === "data" &&
-      this.querySelector(":scope > pre") &&
-      !Object.values(declaration["x-data"] ?? {}).some((input) =>
-        bindsInput(this, input),
-      ),
-    );
-  }
-
   /** The widget's complete reading (`widgetController(this).read()`), collected; null
    *  for an element the registry does not declare a widget, such as a quoted one. */
   get reading() {
@@ -313,69 +248,6 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** The widget's controller, for `dispatch` and `present`. */
   get controller() {
     return this.#controller;
-  }
-
-  // Deliver before the widget decides whether to draw. Reading the input here
-  // follows it even when shouldUpdate skips an unchanged value.
-  #deliverInputs() {
-    for (const entry of this.#inputs) {
-      if (!entry.bound) continue;
-      entry.read ??= dataReader(this, entry.input, () => this.#stage());
-      const snapshot = entry.read();
-      const sent = this.#sent.get(entry.property);
-      if (sent && sent.snapshot === snapshot) continue;
-      const value = snapshot ? snapshot.value : null;
-      const primitives = sent?.primitives ?? new Map();
-      if (value !== null && typeof value !== "object") {
-        primitives.delete(value);
-        primitives.set(value, snapshot);
-      }
-      this.#sent.set(entry.property, { snapshot, primitives });
-      this[entry.property] = value;
-    }
-  }
-
-  // The widget reports the value it drew, by the property it read it from, once its
-  // marks for that drawing stand.
-  #drawn(detail) {
-    try {
-      const named = this.#inputs.filter(
-        ({ property }) => detail && Object.hasOwn(detail, property),
-      );
-      if (named.length !== 1 || Object.keys(detail).length !== 1)
-        throw new Error(
-          `<${this.localName}> drawn must name one bound property (${this.#inputs
-            .map(({ property }) => property)
-            .join(", ")}) with the value it drew`,
-        );
-      const [{ property, bound }] = named;
-      const value = detail[property];
-      const snapshot =
-        !bound || value === null
-          ? null
-          : typeof value === "object"
-            ? suppliedSnapshot(value)
-            : this.#retire(property, value);
-      if (snapshot === undefined)
-        throw new Error(
-          `<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`,
-        );
-      projectMarked(this, snapshot);
-    } catch (error) {
-      failSoft(this, error);
-    }
-  }
-
-  // The snapshot of the primitive `value` a widget reported drawing from `property`,
-  // retiring the values set before it, which it no longer holds.
-  #retire(property, value) {
-    const primitives = this.#sent.get(property)?.primitives;
-    if (!primitives?.has(value)) return undefined;
-    for (const earlier of primitives.keys()) {
-      if (earlier === value) break;
-      primitives.delete(earlier);
-    }
-    return primitives.get(value);
   }
 
   // The controller's `defer` for this widget, which refuses a second hold and releases
@@ -409,14 +281,14 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#drawing = this.#ticket ?? this.#claim();
     this.#ticket = null;
     if (!this.#draws()) return false;
-    this.#deliverInputs();
+    this.#data.deliver();
     return super.shouldUpdate(changed);
   }
 
   // Whether the element has a reading to draw: none after a `setup()` that threw,
   // while its reading lacks a declared verb, or while its data is undelivered.
   #draws() {
-    return !this.#broken && this.#complete() && !awaitsData(this);
+    return !this.#broken && this.#complete() && !this.#data.awaitsDelivery();
   }
 
   update(changed) {
@@ -522,10 +394,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       : attachApplicationPresentation(this.#regionName);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
-    if (registry[this.localName]?.["x-data"])
-      this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
-      );
+    this.#leaveData = this.#data.connect(
+      this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
+    );
     this.#present();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }

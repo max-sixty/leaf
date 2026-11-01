@@ -8067,6 +8067,83 @@ document.addEventListener(PENDING_TASK, (event) => {
 });
 
 //#endregion
+//#region runtime/element-data.js
+var ElementData = class {
+	#element;
+	#stage;
+	#inputs;
+	#sent = /* @__PURE__ */ new Map();
+	constructor(element, stage) {
+		this.#element = element;
+		this.#stage = stage;
+		const declaration = registry[element.localName];
+		this.#inputs = Object.entries(declaration?.["x-data"] ?? {}).flatMap(([input, declaration]) => declaration.property ? [{
+			input,
+			property: declaration.property,
+			bound: bindsInput(element, declaration),
+			read: null
+		}] : []);
+		if (this.#inputs.length) element.addEventListener("drawn", (event) => {
+			if (event.target === element) this.#drawn(event.detail);
+		});
+	}
+	initialize() {
+		const element = this.#element;
+		const declaration = registry[element.localName];
+		if (declaration?.["x-content"] === "data" && element.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(element, input))) for (const { property } of this.#inputs) element[property] = dataBody(element);
+	}
+	awaitsDelivery() {
+		return awaitsData(this.#element);
+	}
+	connect(region) {
+		return registry[this.#element.localName]?.["x-data"] ? joinDataDelivery(region) : null;
+	}
+	deliver() {
+		for (const entry of this.#inputs) {
+			if (!entry.bound) continue;
+			entry.read ??= dataReader(this.#element, entry.input, this.#stage);
+			const snapshot = entry.read();
+			const sent = this.#sent.get(entry.property);
+			if (sent && sent.snapshot === snapshot) continue;
+			const value = snapshot ? snapshot.value : null;
+			const primitives = sent?.primitives ?? /* @__PURE__ */ new Map();
+			if (value !== null && typeof value !== "object") {
+				primitives.delete(value);
+				primitives.set(value, snapshot);
+			}
+			this.#sent.set(entry.property, {
+				snapshot,
+				primitives
+			});
+			this.#element[entry.property] = value;
+		}
+	}
+	#drawn(detail) {
+		const element = this.#element;
+		try {
+			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
+			if (named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${element.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
+			const [{ property, bound }] = named;
+			const value = detail[property];
+			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
+			if (snapshot === void 0) throw new Error(`<${element.localName} id=${element.id}> drew a ${property} Leaf did not set`);
+			projectMarked(element, snapshot);
+		} catch (error) {
+			failSoft(element, error);
+		}
+	}
+	#retire(property, value) {
+		const primitives = this.#sent.get(property)?.primitives;
+		if (!primitives?.has(value)) return void 0;
+		for (const earlier of primitives.keys()) {
+			if (earlier === value) break;
+			primitives.delete(earlier);
+		}
+		return primitives.get(value);
+	}
+};
+
+//#endregion
 //#region runtime/leaf-element.js
 let regions = 0;
 var UpdateBoundary = class extends LitElement {
@@ -8120,8 +8197,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 	#updating = false;
 	#leaveData = null;
 	#scheduled = null;
-	#inputs = [];
-	#sent = /* @__PURE__ */ new Map();
+	#data = null;
 	createRenderRoot() {
 		return registry[this.localName]?.["x-shadow"] ? adoptShadowStage(super.createRenderRoot()) : this;
 	}
@@ -8156,15 +8232,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
 		}
 		this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
-		this.#inputs = Object.entries(registry[this.localName]?.["x-data"] ?? {}).flatMap(([input, declaration]) => declaration.property ? [{
-			input,
-			property: declaration.property,
-			bound: bindsInput(this, declaration),
-			read: null
-		}] : []);
-		if (this.#inputs.length) this.addEventListener("drawn", (event) => {
-			if (event.target === this) this.#drawn(event.detail);
-		});
+		this.#data = new ElementData(this, () => this.#stage());
 		placesFailure(this, (box) => {
 			const root = this.renderRoot ?? this;
 			if (root === this && this.shadowRoot) return false;
@@ -8175,7 +8243,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 			return true;
 		});
 		try {
-			if (this.#writesInput()) for (const { property } of this.#inputs) this[property] = dataBody(this);
+			this.#data.initialize();
 			this.setup();
 		} catch (error) {
 			this.#broken = true;
@@ -8187,10 +8255,6 @@ var LeafElement = class extends q(UpdateBoundary) {
 		});
 	}
 	setup() {}
-	#writesInput() {
-		const declaration = registry[this.localName];
-		return Boolean(declaration?.["x-content"] === "data" && this.querySelector(":scope > pre") && !Object.values(declaration["x-data"] ?? {}).some((input) => bindsInput(this, input)));
-	}
 	get reading() {
 		return this.#controller?.read() ?? null;
 	}
@@ -8199,48 +8263,6 @@ var LeafElement = class extends q(UpdateBoundary) {
 	}
 	get controller() {
 		return this.#controller;
-	}
-	#deliverInputs() {
-		for (const entry of this.#inputs) {
-			if (!entry.bound) continue;
-			entry.read ??= dataReader(this, entry.input, () => this.#stage());
-			const snapshot = entry.read();
-			const sent = this.#sent.get(entry.property);
-			if (sent && sent.snapshot === snapshot) continue;
-			const value = snapshot ? snapshot.value : null;
-			const primitives = sent?.primitives ?? /* @__PURE__ */ new Map();
-			if (value !== null && typeof value !== "object") {
-				primitives.delete(value);
-				primitives.set(value, snapshot);
-			}
-			this.#sent.set(entry.property, {
-				snapshot,
-				primitives
-			});
-			this[entry.property] = value;
-		}
-	}
-	#drawn(detail) {
-		try {
-			const named = this.#inputs.filter(({ property }) => detail && Object.hasOwn(detail, property));
-			if (named.length !== 1 || Object.keys(detail).length !== 1) throw new Error(`<${this.localName}> drawn must name one bound property (${this.#inputs.map(({ property }) => property).join(", ")}) with the value it drew`);
-			const [{ property, bound }] = named;
-			const value = detail[property];
-			const snapshot = !bound || value === null ? null : typeof value === "object" ? suppliedSnapshot(value) : this.#retire(property, value);
-			if (snapshot === void 0) throw new Error(`<${this.localName} id=${this.id}> drew a ${property} Leaf did not set`);
-			projectMarked(this, snapshot);
-		} catch (error) {
-			failSoft(this, error);
-		}
-	}
-	#retire(property, value) {
-		const primitives = this.#sent.get(property)?.primitives;
-		if (!primitives?.has(value)) return void 0;
-		for (const earlier of primitives.keys()) {
-			if (earlier === value) break;
-			primitives.delete(earlier);
-		}
-		return primitives.get(value);
 	}
 	#hold() {
 		this.#held = true;
@@ -8260,11 +8282,11 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#drawing = this.#ticket ?? this.#claim();
 		this.#ticket = null;
 		if (!this.#draws()) return false;
-		this.#deliverInputs();
+		this.#data.deliver();
 		return super.shouldUpdate(changed);
 	}
 	#draws() {
-		return !this.#broken && this.#complete() && !awaitsData(this);
+		return !this.#broken && this.#complete() && !this.#data.awaitsDelivery();
 	}
 	update(changed) {
 		super.update(changed);
@@ -8329,7 +8351,7 @@ var LeafElement = class extends q(UpdateBoundary) {
 		this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render") : attachApplicationPresentation(this.#regionName);
 		const parentChanged = this.#connectedParent !== this.parentElement;
 		this.#connectedParent = this.parentElement;
-		if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
+		this.#leaveData = this.#data.connect(this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName);
 		this.#present();
 		if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
 	}

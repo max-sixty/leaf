@@ -797,7 +797,7 @@ def displaced(before, boxes, news=False):
     rather than moved, which is a thing both sweeps below deliberately allow.
 
     `news` reads the rule for a change nobody gestured (`browser/AGENTS.md`,
-    "Stability"): a box whose own words changed may grow or shrink into free room, so its
+    "The page holds still under the user's aim"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
     free room may lie on either side: a box packed against the run to its right grows
     leftward into the room before it, and the edge that holds still is its place. A box that grew by pushing its neighbours still fails, as
@@ -1652,13 +1652,16 @@ RUN_INK = 90
 def _read_ring_pixels(page, answers):
     """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
     at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
-    hits, and drop the samples, ink and rectangle from each answer.
+    hits. Confirm candidate covers at their sampled pixel too: an outline is not a
+    hit surface, so hit testing alone can mistake a box beneath it for a cover.
+    Drop the samples, ink and rectangle from each answer.
 
     The screenshot is taken a round trip after the reading, so a caller reads a page at
     rest (`rendered`); one still repainting can read a ring where it no longer is."""
-    sampled = [seen for seen in answers if seen["runs"]]
+    sampled = [seen for seen in answers if seen["runs"] or seen["coverPoints"]]
     if sampled:
         points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
+        points.extend(c["point"] for seen in sampled for c in seen["coverPoints"])
         # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
         left = math.floor(min(x for x, _ in points))
         top = math.floor(min(y for _, y in points))
@@ -1672,25 +1675,24 @@ def _read_ring_pixels(page, answers):
         scale = image.width / clip["width"]
     for seen in answers:
         runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
+
+        def painted_at(point, ink=ink):
+            x, y = point
+            pixel = rgb_pixel(
+                image,
+                (
+                    min(int((x - left) * scale), image.width - 1),
+                    min(int((y - top) * scale), image.height - 1),
+                ),
+            )
+            return sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < RUN_INK
+
+        visible = {
+            c["index"] for c in seen.pop("coverPoints") if painted_at(c["point"])
+        }
+        seen["covers"] = [c for i, c in enumerate(seen["covers"]) if i not in visible]
         for run in runs:
-            painted = [
-                sum(
-                    abs(a - b)
-                    for a, b in zip(
-                        rgb_pixel(
-                            image,
-                            (
-                                min(int((x - left) * scale), image.width - 1),
-                                min(int((y - top) * scale), image.height - 1),
-                            ),
-                        ),
-                        ink,
-                        strict=True,
-                    )
-                )
-                < RUN_INK
-                for x, y in run["points"]
-            ]
+            painted = [painted_at(point) for point in run["points"]]
             share = sum(painted) / len(painted)
             if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
                 seen["covers"].append(

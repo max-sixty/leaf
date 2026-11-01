@@ -59,6 +59,7 @@ import {
 } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
+import { voiced } from "../voice.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
@@ -83,11 +84,7 @@ function workingView(working, controls = nothing) {
                   ? html`<time datetime=${working.timestamp}>${working.age}</time>`
                   : nothing
               }
-              ${
-                working.condition
-                  ? html`<span data-voice="leaf">${working.condition}</span>`
-                  : nothing
-              }</span
+              ${working.condition ? voiced(working.condition) : nothing}</span
             >`
           : nothing
       }

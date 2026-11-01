@@ -1,4 +1,4 @@
-"""The browser fixture fails the layout shifts the "Stability" rule forbids
+"""The browser fixture fails the layout shifts "The page holds still under the user's aim" forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 import re
@@ -3770,7 +3770,14 @@ def gesture_motion_page(browser):
 
 @pytest.mark.parametrize(
     "fault,finish",
-    [("", False), ("child", False), ("consumer", False), ("", True), ("child", True)],
+    [
+        ("", False),
+        ("child", False),
+        ("consumer", False),
+        ("", True),
+        ("child", True),
+        ("underlying", True),
+    ],
 )
 def test_a_direct_custom_property_translation_keeps_only_its_own_motion(
     browser, fault, finish
@@ -3788,8 +3795,7 @@ def test_a_direct_custom_property_translation_keeps_only_its_own_motion(
 <p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
 <script>start.onclick=()=>{
 window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
-  {duration:1000});
-motion.onfinish=()=>panel.style.translate='';
+  {duration:1000,fill:'both'});
 motion.pause();motion.currentTime=150;
 }</script></body>""")
     )
@@ -3802,7 +3808,12 @@ motion.pause();motion.currentTime=150;
         """({fault, finish}) => {
           if (fault === 'child') control.style.marginLeft = '55px';
           if (fault === 'consumer') panel.style.translate = '80px 0px';
-          if (finish) motion.finish();
+          if (finish) {
+            motion.finish();
+            // Cleanup retires the temporary consumer before releasing the effect.
+            panel.style.translate = fault === 'underlying' ? '80px 0px' : '';
+            motion.cancel();
+          }
           else motion.currentTime = 800;
           trigger.style.left = '40px';
         }""",

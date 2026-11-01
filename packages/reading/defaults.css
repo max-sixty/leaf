@@ -10,7 +10,7 @@
  * and the root's colour scheme, which lets
  * the tokens' light-dark() pairs follow the reader's preference.
  *
- * Three voices, because the page already has three kinds of words and the norms
+ * Three faces, because the page already has three kinds of words and the norms
  * turn on telling them apart. What the page *says* is set in a text serif: prose
  * a user reads closely and points at. Dense working surfaces such as tables
  * use the sans too: their words are compared across rows rather than read in sequence.
@@ -75,7 +75,7 @@ html {
     letter-spacing: normal;
   }
 }
-/* The apparatus voice (`reading.css`, beside `summary`) for the theme's idioms. */
+/* The apparatus face (`reading.css`, beside `summary`) for the theme's idioms. */
 .eyebrow,
 .tag,
 dl.facts dt {
@@ -125,6 +125,18 @@ dl.facts dt {
 .eyebrow + :is(h1, h2, h3) {
   margin-top: 10px;
 }
+/* A column item opening with the pair takes the pair's gap as its own margin, as one
+   opening with its heading does (browser/styles/components/reading.css). */
+@container style(--lf-items-keep-margins: 1) {
+  :where(:has(> .eyebrow:first-child + h2)) {
+    margin-block-start: var(--h2-start);
+    --lf-frame-start: 1;
+  }
+  :where(:has(> .eyebrow:first-child + h3)) {
+    margin-block-start: var(--h3-start);
+    --lf-frame-start: 1;
+  }
+}
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 h1 + .lede {
@@ -160,9 +172,9 @@ section.panel {
 section.panel > :is(h2, h3):first-child {
   margin: 0 0 10px;
 }
-/* A panel's name takes the label voice (base.css, `.lf-label`). */
+/* A panel's name takes the label font (base.css, `.lf-label`). */
 section.panel > :is(h2, h3):first-child {
-  font: var(--voice-label);
+  font: var(--font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);

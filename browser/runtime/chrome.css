@@ -322,7 +322,7 @@ html[data-lf-region-capture] main * {
     user-select: none;
     -webkit-user-select: none;
     --lf-mark-w: 16px;
-    font: var(--voice-ui);
+    font: var(--font-ui);
     color: var(--ink);
     letter-spacing: normal;
     word-spacing: normal;
@@ -459,7 +459,7 @@ html[data-lf-region-capture] main * {
   .lf-anchor-status {
     margin-inline-start: 7px;
     color: var(--muted);
-    font: var(--voice-status);
+    font: var(--font-status);
   }
 
   .lf-quote {
@@ -467,7 +467,7 @@ html[data-lf-region-capture] main * {
     padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2);
     color: var(--muted);
-    font: var(--voice-compact);
+    font: var(--font-compact);
     cursor: pointer;
     overflow-wrap: anywhere;
   }
@@ -743,7 +743,7 @@ html[data-lf-region-capture] main * {
     padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2))
       max(10px, var(--lf-safe-bottom))
       max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
-    font: var(--voice-ui);
+    font: var(--font-ui);
     color: var(--muted);
     border-top: 1px solid var(--rule);
     max-height: 20dvh;
@@ -775,7 +775,7 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-preference small {
     overflow: hidden;
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -809,7 +809,7 @@ html[data-lf-region-capture] main * {
     margin: 6px 0;
     overflow: hidden;
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
@@ -889,7 +889,7 @@ html[data-lf-region-capture] main * {
     grid-area: desc;
     overflow: hidden;
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
     white-space: nowrap;
     text-overflow: ellipsis;
     opacity: 0;
@@ -928,7 +928,7 @@ html[data-lf-region-capture] main * {
   .lf-command-reference-scope {
     flex: none;
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
   }
   /* A row's command is its one control: the button stretches over the row, so a press
      on its keys or description runs it too, and the row wears its wash and focus ring. */
@@ -972,7 +972,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-dialog-title {
     flex: 1;
-    font: var(--voice-title);
+    font: var(--font-title);
   }
   /* A press here is a row (controls.css, `.lf-row`), and a status beside it lays out
      as one (`.lf-row-plain`), so their words share one edge. The user's turn paints
@@ -1041,13 +1041,13 @@ html[data-lf-region-capture] main * {
     padding: var(--focus-ring-room);
     scroll-padding: var(--focus-ring-room);
   }
-  /* Each section of the report is a region of the dialog, named in the label voice
+  /* Each section of the report is a region of the dialog, named in the label font
      (page-inspection.js gives its h2 `.lf-label`), ranking below the dialog's title. What
      names one value, a copyable text's or a list's (h3), is muted and small, as a
      metric's term is, so no value's name outranks its section's. A heading stands
      nearer what it names than what precedes it. A disclosure in a section is one of
-     its items, in the dialog's own voice rather than the reading theme's bold
-     summary. */
+     its items, in the dialog's own font rather than markup's bold summary
+     (reading.css). */
   .lf-inspection-body h2 {
     margin-block: 22px 6px;
   }
@@ -1059,7 +1059,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-inspection-body h3,
   .lf-copyable-head > span {
-    font: var(--voice-small);
+    font: var(--font-small);
     color: var(--muted);
   }
   .lf-inspection-body h3 {
@@ -1074,14 +1074,8 @@ html[data-lf-region-capture] main * {
     margin-block: 10px;
   }
   .lf-inspection-body summary {
-    cursor: pointer;
     padding-block: 4px;
-    font: var(--voice-ui);
-  }
-  .lf-inspection-body pre {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font: var(--voice-code);
+    font: var(--font-ui);
   }
   .lf-copyable-head {
     display: flex;
@@ -1089,14 +1083,21 @@ html[data-lf-region-capture] main * {
     justify-content: space-between;
     gap: 8px;
   }
+  /* A copyable text is identifiers, links and reports, one `name: value` to a line. It
+     wraps rather than scrolling sideways, so it keeps no room under its last line for a
+     scrollbar's track, as a code block does (reading.css). A value too long for the
+     rest of its line, such as a fingerprint, moves whole to the next, so the reader can
+     compare it at a glance. */
   .lf-copyable-text pre {
     margin-block: 0 10px;
     padding: 8px;
     border: 1px solid var(--border-2);
-    border-radius: var(--r);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    font: var(--voice-code);
+    font: var(--font-code);
+  }
+  .lf-copyable-text pre::after {
+    content: none;
   }
   .lf-inspection-metrics {
     display: flex;
@@ -1105,7 +1106,7 @@ html[data-lf-region-capture] main * {
   }
   .lf-inspection-metrics dt {
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
   }
   .lf-inspection-metrics dd {
     margin: 0;
@@ -1114,6 +1115,15 @@ html[data-lf-region-capture] main * {
   .lf-page-map-search {
     width: 100%;
     margin-top: 10px;
+  }
+  /* The list, and the line standing in its rows' place, reach into the sheet's padding
+     by the rows' inset (controls.css, `.lf-row`), so the rows' marks and their group
+     headings start where the title and the search do, and the rows' ends stop where
+     the search does, as the command reference sets its rows; each row's wash keeps
+     that room past its words. */
+  .lf-page-map-list,
+  .lf-page-map-dialog > .lf-rows-empty {
+    margin-inline: -8px;
   }
   .lf-page-map-list {
     margin-top: 6px;
@@ -1209,6 +1219,15 @@ html[data-lf-region-capture] main * {
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
+  /* Where the agent is at work (at-work.js): a bar in the margin beside its target, in
+     the accent its margin entry wears while it works. It comes and goes with the work,
+     whose start the margin entry's pulse acknowledges. */
+  .lf-at-work-bar {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 1.5px;
+    background: var(--accent);
+  }
   .lf-page-search-match {
     position: absolute;
     box-sizing: border-box;
@@ -1216,13 +1235,14 @@ html[data-lf-region-capture] main * {
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
+  /* As wide as "99 of 99", so the field keeps its width as the count changes. */
   .lf-page-search-status {
-    inline-size: 5ch;
+    inline-size: 7ch;
     overflow: hidden;
     text-overflow: ellipsis;
     min-height: 1lh;
     color: var(--muted);
-    font: var(--voice-small);
+    font: var(--font-small);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
@@ -1247,7 +1267,7 @@ html[data-lf-region-capture] main * {
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 0 5px;
-    font: var(--voice-small);
+    font: var(--font-small);
     background: color-mix(in srgb, var(--accent) 12%, var(--card));
     color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
@@ -1272,7 +1292,7 @@ html[data-lf-region-capture] main * {
     white-space: nowrap;
     padding: 1px 6px;
     border-radius: var(--r-s);
-    font: var(--voice-small);
+    font: var(--font-small);
     background: var(--accent);
     color: var(--paper);
   }

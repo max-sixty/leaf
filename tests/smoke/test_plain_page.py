@@ -13,8 +13,9 @@ serves its own pages: this tree's runtime, the compiled kernel where it is curre
 beside the composed layer's widgets and vendor modules. A widget that imports only the portable helpers
 (`runtime/portable-api.js`) defines itself, draws, and shows a body it cannot draw as
 an error box and an `error` event the host may hear, with nothing in the console. What
-Leaf adds to a widget it reads off the widget, so here there is none of it: no key
-bound or advertised, no Copy control, no quiet word. Its own buttons still work.
+Leaf adds to a widget it reads off the widget, so here there is none of it: no
+widget key bound or advertised, no Copy control, no quiet word. Its own buttons still
+work, and so do its spans offered as buttons, by Enter and Space too.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf
@@ -245,6 +246,16 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         expect(current).to_contain_text("Artifact ready")
         page.keyboard.press("Shift+Tab")
         expect(previous).to_be_focused()
+        # A step row is a span, so its words stay selectable, with a button's role:
+        # Enter and Space press it as they do a button, with no key of Leaf's.
+        rows = page.locator("#lf-timeline .lf-timeline-step")
+        rows.first.focus()
+        page.keyboard.press("Enter")
+        expect(current).to_contain_text("Compile")
+        page.keyboard.press("Tab")
+        expect(rows.nth(1)).to_be_focused()
+        page.keyboard.press("Space")
+        expect(current).to_contain_text("Artifact ready")
         page.evaluate(
             """() => { window.drawnAt = [];
             document.querySelector("#lf-motion").renderFrame = (t) => drawnAt.push(t); }"""

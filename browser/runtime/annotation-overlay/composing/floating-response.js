@@ -65,8 +65,8 @@ export function createFloatingResponsePlacement({
   scrollToElement,
   scrollToRange,
 }) {
-  const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: rightCover() });
+  const floatBoundary = (scroller) =>
+    commentBoundary({ scroller, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -85,14 +85,14 @@ export function createFloatingResponsePlacement({
   let editingAttachment = null;
   // An explicit open on a hidden subject retains a window seat until it returns.
   let windowPosture = false;
-  // The reading region the last placement stood the box in, whose boundary holds a
+  // The box that scrolled the box's row at its last placement, whose boundary holds a
   // carry in.
-  let fabRegion = null;
+  let fabScroller = pageScroller;
   // Carried by its grip, the box stands where the user drops it, relative to its
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
     surface: fabBar,
-    bounds: () => floatBoundary(fabRegion),
+    bounds: () => floatBoundary(fabScroller),
     dropped(box) {
       if (!response.anchor || !response.floating) return;
       if (box && response.open)
@@ -109,13 +109,15 @@ export function createFloatingResponsePlacement({
   // mounts: the box the user sees.
   const fabField = () => fabInput.parentElement;
   // The box follows every change of its layout as the panel and the card do
-  // (box-motion.js): a line the field gains or loses, the measure it widens into. The
-  // field's frame is the box, drawn by a surface behind it, and the composer holding
-  // the field and the pictures hanging off it is what moves, so the grip beside it,
-  // whose clip opens its middle to the field's presses, is never cut. It reads in the
-  // plane its placement stands it in (floating.js, `heldEdges`), so a scroll or a carry
-  // that moves it whole moves nothing in it. A box no placement stands has nothing to
-  // move from, and one seated in a widget's outlet stands in that widget's flow.
+  // (box-motion.js): a line the field gains or loses, the measure it widens into, which
+  // a key changes at once but for a line it takes away (box-motion.js, "Whose change
+  // it is"). The field's frame is the box, drawn by a surface behind it, and the
+  // composer holding the field and the pictures hanging off it is what moves, so the
+  // grip beside it, whose clip opens its middle to the field's presses, is never cut.
+  // It reads in the plane its placement stands it in (floating.js, `heldEdges`), so a
+  // scroll or a carry that moves it whole moves nothing in it. A box no placement
+  // stands has nothing to move from, and one seated in a widget's outlet stands in
+  // that widget's flow.
   let following = null;
   const readFab = () => {
     if (!following && !response.open) return;
@@ -427,9 +429,10 @@ export function createFloatingResponsePlacement({
       }
     }
     if (response.open && nativeAttachment && geometry && !windowPosture) return true;
-    const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
+    const boundary =
+      place.scroller === pageScroller ? windowBoundary : floatBoundary(place.scroller);
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    fabRegion = place.region;
+    fabScroller = place.scroller;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
@@ -461,7 +464,7 @@ export function createFloatingResponsePlacement({
       column: place.column,
       extent: place.extent,
       boundary,
-      scroller: place.scroller,
+      scroller: boundary.scroller,
       coarse: coarsePointer.matches,
     });
 

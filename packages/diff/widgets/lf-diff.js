@@ -35,7 +35,6 @@ import {
   HOLDS_WORD,
   announce,
   beginWalk,
-  dataBody,
   failSoft,
   ensureSyntaxLanguage,
   focusDestination,
@@ -877,15 +876,14 @@ customElements.define(
     #marked = new Set();
 
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
-    // bound source (the registry's `x-data.document.property`), or null while that
-    // source has none. An unbound widget initializes an unset value from its
-    // authored inline patch. An explicit null clears the drawing.
+    // bound source (the registry's `x-data.document.property`), or from the written
+    // `<pre>`; null while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
       super();
-      /** @type {string | {files: any[]} | null | undefined} */
-      this.value = undefined;
+      /** @type {string | {files: any[]} | null} */
+      this.value = null;
     }
 
     shouldUpdate(changed) {
@@ -990,11 +988,6 @@ customElements.define(
       commandsChanged(this);
       this.authorNotes = [...this.querySelectorAll(":scope > lf-diff-note")];
       this.unplacedNotes = document.createElement("div");
-      if (!this.hasAttribute("source") && this.value === undefined) {
-        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-        // can be a lone space — so only the closing newline is the <pre>'s layout.
-        this.value = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-      }
       whileConnected(this, (signal) => {
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,

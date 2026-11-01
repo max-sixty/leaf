@@ -358,9 +358,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-close {
     flex: none;
   }
-  /* A reading region the card stands in cuts it at the region's edge
-     (thread-preview.js, `placeThreadPreview`); with no region the cuts are unset, and
-     the declaration with them, so nothing clips the card. */
+  /* A reading region the card stands in, or a block whose edge its row has crossed,
+     cuts it at that edge (thread-preview.js, `placeThreadPreview`); with neither the
+     cuts are unset, and the declaration with them, so nothing clips the card. */
   .lf-margin-preview {
     clip-path: inset(
       var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)
@@ -449,7 +449,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     align-items: center;
     gap: 0;
     color: var(--muted);
-    font: var(--voice-fine);
+    font: var(--font-fine);
   }
   .lf-margin-preview-position {
     white-space: nowrap;
@@ -583,6 +583,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     margin-inline: calc(-1 * var(--lf-transcript-room));
     margin-block-start: calc(-1 * var(--lf-transcript-room));
     margin-block-end: calc(-1 * var(--lf-transcript-room));
+  }
+  /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
+     subgrid's items on its parent's tracks without subtracting the room an `auto`
+     scrollbar takes (2026-10-30), so on a platform whose scrollbars take room (Linux,
+     Windows, macOS with a mouse) the words would run under the bar and the
+     transcript could scroll sideways by the bar's width. Both subtract a
+     `scrollbar-gutter: stable` gutter, so the transcript holds one once its turns
+     overflow, when the bar takes that room anyway (thread-preview.js says until
+     when). Rejected:
+     holding the gutter always, which on such a platform would wrap a short thread's
+     words narrower than the draft they were sent from. */
+  .lf-margin-thread .lf-thread-transcript[data-lf-overflows] {
+    scrollbar-gutter: stable;
   }
   /* The row holds paper in the actions' track that sticks on the heads' line, so
      words pass beneath the actions only where a message's head row paints over it

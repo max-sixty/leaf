@@ -1,7 +1,7 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { excludedByInert, renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { excludedByInert, renderedParent, uiInside, under } from "./shadow.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import {
@@ -255,8 +255,8 @@ export function scrollsContent(box) {
 // holder puts the stacked value on a box that does not scroll (base.css, at `--lf-top`).
 const slotHolder = (el, scroller) => {
   let at = el;
-  for (let box = el; box && box !== scroller; box = upFrom(box))
-    if (box.nodeType === 1 && scrolls(box)) at = upFrom(box);
+  for (let box = el; box && box !== scroller; box = renderedParent(box))
+    if (box.nodeType === 1 && scrolls(box)) at = renderedParent(box);
   return at;
 };
 // The inset read at `at`, the box where the slot counts from `scroller`.
@@ -694,7 +694,11 @@ export const startsAt = (item, clips) => {
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
-const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+// `stop` reads only native ancestor bands before that boundary. Viewport, occluders
+// and sticky headers belong to the outer plane; margin seats keep their place while
+// their CSS frames apply those cuts.
+export const clippedRect = (box, item, clips, stop) =>
+  clipped(box, item, clips, false, true, stop);
 // What cuts paint standing over an item's `box`, by the plane each cut stands in.
 // `plane` is the one the paint stands in: the window's where a fixed box escapes every
 // clip around it, and the page's otherwise, which the root scroll carries. `bands` are
@@ -774,12 +778,17 @@ export function nearWindow(target, clips = new Map()) {
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
-export const clippedContents = (box, holder, clips) =>
-  clipped(box, holder, clips, true);
-function clipped(box, item, clips, held, inWindow = true) {
+export const clippedContents = (box, holder, clips, stop) =>
+  clipped(box, holder, clips, true, true, stop);
+function clipped(box, item, clips, held, inWindow = true, stop) {
   const root = item.ownerDocument.scrollingElement;
-  const shown = cutBy(box, clipWalk(item, clips, held).cuts, root, inWindow);
-  return shown && occluded(shown, item, clips);
+  const shown = cutBy(
+    box,
+    clipWalk(item, clips, held, stop).cuts,
+    root,
+    inWindow && !stop,
+  );
+  return stop ? shown : shown && occluded(shown, item, clips);
 }
 // `box` less the bands of `cuts`, each on the axes it clips, or null where they leave
 // none of it. In the window's plane the window cuts it; in the page's plane the root's
@@ -807,7 +816,7 @@ function cutBy(box, cuts, root, inWindow) {
 // with that band less the headers stuck over its top and the footers over its foot, and
 // whether a fixed box among the item's ancestors escapes every clip further out, the
 // root's included.
-function clipWalk(item, clips, held) {
+function clipWalk(item, clips, held, stop) {
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
   // read. Its position matters when the item is itself fixed: a fixed box escapes its
@@ -825,7 +834,7 @@ function clipWalk(item, clips, held) {
   let escaped = false,
     containing = null;
   const cuts = [];
-  for (let a = item; a; a = upFrom(a)) {
+  for (let a = item; a && a !== stop; a = renderedParent(a)) {
     let c = clips.get(a);
     if (c === undefined) {
       clips.set(
@@ -849,8 +858,10 @@ function clipWalk(item, clips, held) {
     }
     if (escaped && a === containing) escaped = false;
     if (!escaped && (held || a !== item) && c.band) {
-      const covered = c.band.top + (c.scrolls ? insetAt(holder, a, ...TOP) : 0);
-      const footed = c.band.bottom - (c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
+      const covered =
+        c.band.top + (!stop && c.scrolls ? insetAt(holder, a, ...TOP) : 0);
+      const footed =
+        c.band.bottom - (!stop && c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
       cuts.push({
         box: a,
         axes: c.axes,
@@ -865,7 +876,7 @@ function clipWalk(item, clips, held) {
               : c.band,
       });
     }
-    if (c.scrolls) holder = upFrom(a);
+    if (c.scrolls) holder = renderedParent(a);
     if (!escaped && c.positioned) {
       escaped = true;
       containing = c.block;

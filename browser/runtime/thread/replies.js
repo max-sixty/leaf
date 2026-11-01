@@ -416,13 +416,6 @@ export const replyIsEditing = (key) => {
   return compositions.has(replyContext(key));
 };
 
-// Cards, the margin and reply routes share one admission: open conversation, or a
-// settled conversation whose native editing session still owns its words. A reply
-// part a presentation nominates stands in a resolved thread too, where its place is
-// already given and a reply reopens the thread (primary-reader.js).
-export const replyAvailable = (thread) =>
-  !thread.resolved || replyIsEditing(threadKey(thread));
-
 // A live revision carries an actual editing session, under its draft subscription's
 // exact generation. A fresh document has not materialized its native owner yet: the
 // session stands through that route's awaited landing, then either has an owner or
@@ -455,7 +448,7 @@ export function createReplyView(
   {
     onChange = () => {},
     editLast = null,
-    hint = "Reply",
+    hint = /** @type {() => string} */ (() => "Reply"),
     hintLead = () => "",
     accessibleName = "Reply",
     busy = () => false,
@@ -505,6 +498,8 @@ export function createReplyView(
       return composition.controls.input;
     },
     cancelDictation: () => composition.sync.cancelDictation(),
+    // Paint the box again where what its `hint` reads has changed.
+    sync: () => composition.sync(),
     // A view drawing the thread takes its session's row where no view holds it: one
     // released to the park, or one whose view went. It does so once it stands in the
     // document, `shown`, so the move keeps the user in the row (dom-move.js).

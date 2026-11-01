@@ -35,7 +35,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { exceptionRecord, exceptionText } from "./exception.js";
+import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -291,8 +291,13 @@ export const revealLayer = () => {
 // orders the user's own gestures through it, and the error report below, which
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller.
-export const postEvent = async (event, held = runtime.data) => {
+// for both. Whether a send waits on the one before it belongs to the caller, and so
+// whether it must outlive the document (`keepalive`), as a tab's last word does.
+export const postEvent = async (
+  event,
+  held = runtime.data,
+  { keepalive = false } = {},
+) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   if (!layerKnown) await layerReady;
@@ -307,6 +312,7 @@ export const postEvent = async (event, held = runtime.data) => {
         ...dataHeaders(held),
       }),
       body: JSON.stringify(event),
+      keepalive,
     });
     recordInteraction("event_response", {
       kind: event.kind,
@@ -421,10 +427,11 @@ window.addEventListener("error", (e) => {
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
   reportPageError(
-    exceptionRecord(e.error).stack
-      ? e.error
-      : `${e.message} (${e.filename}:${e.lineno})`,
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
   );
 });
 window.addEventListener("unhandledrejection", (e) => {

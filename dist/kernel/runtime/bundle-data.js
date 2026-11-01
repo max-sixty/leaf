@@ -1,5 +1,5 @@
 import { PAGE_PAINT_ATTRIBUTE, RUNTIME_PAINT_ATTRIBUTE, actionTemplate, afterScript, backgroundFlash, bindQueuedWork, cancelRender, dataBody, flashDuration, foldBlock, frameFor, generatedElement, keeps, keepsHidden, layoutChanged, layoutPx, measure, motion, motionPlays, nextAnimation, nextFrame, nextRender, offer, offerAction, offered, offeredAction, pagePresented, renderedOrder, renderedParent, renderedUnder, renderingState, roomPx, scrollBehavior, setScroll, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, under, upFrom, watchArrivals, watchOwner } from "./bundle-portable.js";
-import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focused, foldWidgetStates, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, live, loadShadowRules, marks, messageKey, move, moved, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
+import { CARET_KEYS, COLLAPSE as COLLAPSE$1, J, LIVE_ROOT, PENDING, PRESENTATION_DOM, PRESSES, TEXT_BLOCK, TEXT_BOX, TEXT_FIELD, W, Z, adoptRegistry, agentName, agentSays, applicationPresenter, applicationState, attachApplicationPresentation, authoredRank, caretAtKey, claimReleaseClick, currentLocationIn, currentLocationNodes, currentLocationTouches, d, decisionFor, declarationFor, deepFocus, drawn as drawn$2, editable, elementDeclarations, elementsDeclaring, exhibits, focusDestination, focused, foldWidgetStates, holdCurrentLocation, holdFocus, html, inUi, inputCount, isElementName, isReaction, keyed, lastMovedAt, layerRoot, leafSays, live, loadShadowRules, marks, messageKey, move, moved, nothing, obligationValue, offlineData, offlineInteractive, onCurrentLocation, onLetGo, onPress, onPressAway, onUserInput, pageClaimed, pageUrl, plainPress, pointerAt, projectView, projectionOrigins, projectionRegionsPresented, readApplication, readCaret, readPart, recentPlaceInput, recordedWidgetSelector, ref, registry as registry$1, render as render$1, repeat, restorePointer, revisionLabel, runtime, runtimeModule, runtimeResource, sameAnchor, seatRoot, selectsAll, share, stateSpecs, tagsDeclaring, takesLetters, threadKey, threadNames, tick, tokenEntry, turns, typesText, voiced, watchPresentation, whenApplicationPresented, whenApplicationRegionsPresented, whenDocumentPresented, whenWidgetsPresented, x } from "./bundle-layer-stack.js";
 import { LayerRefused, PRESS, PRESSABLE, admitReading, admitResponse, announce, ariaShortcuts, authoredBody, bindings, buttonCommand, checked, clampedRow, commandAvailable, commandRoutes, commandScope, commandsOn, cycledRow, declareCommandReadiness, descriptionOf, el, holdStatus, holdingError, keys, labelOf, live as live$1, notice, pageRange, paintKeys, passErrorsAt, projectCommandScope, pruneScopedElements, raiseError, randomId, repaint, reportPageError, requestJson, reveal, revealLayer, runtimeRootState, sameLayer, savedReadingSettled, selectEnds, selectionBackward, setRuntimeRootAttribute, spell, titleOf, touchPresses as touchPresses$1, watchCommandScopes, word } from "./bundle-layer-client.js";
 import { ADDRESSABLE, PAGE_CONTROL_RANK, addressableWord, addressedElements, ago, aimTargetAt, aimedTop, anchorBox, anchorForPassage, anchorForRange, anchorReading, anchorView, anchoringIsReady, atScrollEnd, chosenSince, chromeForeground, chromeRoot, claimReachStop, containingReadingRegionFor, cutFrames, datumAimTarget, datumLabel, effectiveScroller, followingItsEnd, fragmentTarget, headerLevels, isAddressable, leadingTitle, livePoint, moveScrollerBy, nameAnchor, nameable, onReadingInput, pageReadingRegion, pageScroller, placeKept, projectedDatum, reachScrollers, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, releaseReachStop, resolveAnchor, revealAddressed, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, sectionLabel, sectionOf, settleDocumentLayout, shortAgo, shownRegionBounds, stopScroll, targetElement, targetPlace, targetSegments, unconcealedReadingRegions, visualPartLabel, watchReadingRegionTransitions } from "./bundle-content-layout.js";
 import { clippedContents, clippedPlace, growthAfterIsSeen, growthIsSeen, headerInset, inWindowChrome, landingBand, placeBox, placeHolder, presented, seenRect, shownBox, shownRect, shownWindow, showsContents, slotTop, stuckBox, union, userScrollport, visibleBand, whenNone } from "./bundle-geometry.js";
@@ -974,6 +974,37 @@ function claimed$1(url) {
 }
 
 //#endregion
+//#region runtime/storage.js
+const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
+const { stored } = document.documentElement.lfStorage;
+const memberSelector = (holder) => registry$1[holder.localName]?.["x-views"]?.members;
+function viewMembers(holder) {
+	return document.documentElement.lfViews.members(holder, memberSelector(holder));
+}
+function openingView(holder, fallback = void 0) {
+	return document.documentElement.lfViews.opening(holder, fallback, memberSelector(holder));
+}
+function markViews(holder) {
+	const declaration = registry$1[holder.localName]?.["x-views"];
+	if (!declaration) return;
+	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
+	keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
+}
+function keepView(holder, member, leaving = null) {
+	markViews(holder);
+	return document.documentElement.lfViews.keep(holder, member, leaving);
+}
+const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+const userStore = document.documentElement.lfStorage.userStore;
+const userChoice = (key, values) => Object.freeze({
+	read: () => {
+		const value = userStore.get(key);
+		return values.includes(value) ? value : null;
+	},
+	write: (value) => userStore.set(key, value)
+});
+
+//#endregion
 //#region runtime/syntax.js
 const registry = runtime.registry;
 const langForPath = (path) => registry.$languages.paths[path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()];
@@ -1016,39 +1047,6 @@ async function highlightBlocks(root) {
 		}
 	}
 }
-
-//#endregion
-//#region runtime/storage.js
-const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
-const { stored } = document.documentElement.lfStorage;
-function viewMembers(holder) {
-	const declaration = registry$1[holder.localName]?.["x-views"];
-	if (!declaration) return [];
-	keeps(holder, marks["x-views"].paint, declaration.parts ? "parts" : "");
-	for (const child of holder.children) {
-		const member = !child.hasAttribute("data-lf-gen") && child.matches(declaration.members);
-		if (!member && child.hasAttribute("data-lf-view") && child.getAttribute("hidden") === "until-found") child.removeAttribute("hidden");
-		child.toggleAttribute("data-lf-view", member);
-	}
-	return document.documentElement.lfViews.members(holder);
-}
-function openingView(holder, ...fallback) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.opening(holder, ...fallback);
-}
-function keepView(holder, member, leaving = null) {
-	viewMembers(holder);
-	return document.documentElement.lfViews.keep(holder, member, leaving);
-}
-const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-const userStore = document.documentElement.lfStorage.userStore;
-const userChoice = (key, values) => Object.freeze({
-	read: () => {
-		const value = userStore.get(key);
-		return values.includes(value) ? value : null;
-	},
-	write: (value) => userStore.set(key, value)
-});
 
 //#endregion
 //#region runtime/declared-words.js
@@ -1171,11 +1169,16 @@ function renderExternalLink(link) {
 	});
 	state.painted = linkAttributes(link);
 }
-function watchExternalLinks() {
-	watchArrivals("a", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
-		arrive: renderExternalLink,
+function watchNativeContent() {
+	const { keepDisclosure, finishEarlyContent } = document.documentElement.lfStorage;
+	watchArrivals("a, details", ["href", ...EXTERNAL_LINK_ATTRIBUTES], {
+		arrive: (element) => {
+			if (element instanceof HTMLDetailsElement) keepDisclosure(element);
+			else renderExternalLink(element);
+		},
 		leave: leaveExternalLink
 	});
+	finishEarlyContent();
 }
 function paintDeclaredWords(root) {
 	renderSaid(root);
@@ -1196,7 +1199,7 @@ function markDeclared(root) {
 			for (const el of elementsIn(root, tag)) {
 				const value = key === "x-exhibit" ? exhibits(el, registry$1[tag]) : declared;
 				if (key === "x-views") {
-					viewMembers(el);
+					markViews(el);
 					continue;
 				}
 				keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
@@ -1533,7 +1536,8 @@ const RUNG_LADDER = [
 	"floating panel",
 	"draw mode",
 	"design mode",
-	"page"
+	"page",
+	"changes"
 ];
 const PAGE_COMMANDS = [
 	"comment.create",
@@ -1546,6 +1550,8 @@ const PAGE_COMMANDS = [
 	"page.search.repeat",
 	"thread.walk",
 	"queue.walk",
+	"change.walk",
+	"change.marks.stop",
 	"page.move",
 	"scroll.move",
 	"reading.align.top",
@@ -2215,7 +2221,7 @@ let render = escapedSource;
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
-const renderMarkdown = (text) => render(text);
+const renderMarkdown = (text, breaks = true) => render(text, breaks);
 function renderedWords(html, imageAlt = false) {
 	const parsed = document.createElement("template");
 	parsed.innerHTML = html;
@@ -2226,7 +2232,7 @@ function fragmentWords(fragment, imageAlt = false) {
 	if (imageAlt) for (const image of fragment.querySelectorAll("img")) image.replaceWith(document.createTextNode(image.alt));
 	return fragment.textContent;
 }
-const markdownWords = (text) => renderedWords(render(text));
+const markdownWords = (text) => renderedWords(renderMarkdown(text));
 const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 function inlineMarkdownFragment(text, breaks = true) {
 	const parsed = document.createElement("template");
@@ -2270,12 +2276,14 @@ function formatDeclaredMarkdown(scope) {
 }
 function paintMarkdown(element, source) {
 	if (element.dataset.lfSourceWords === source && !element.hasAttribute("data-lf-prepaint")) return;
-	const markup = renderMarkdown(source);
+	const markup = renderMarkdown(source, false);
 	if (element.dataset.lfSourceWords !== source) element.dataset.lfSourceWords = source;
 	if (element.innerHTML !== markup) element.innerHTML = markup;
 }
 const characters = new Intl.Segmenter(void 0, { granularity: "grapheme" });
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+	const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+	if (!cell && start >= at && source.startsWith(raw, start)) return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
 	const positions = [at];
 	let sourceAt = at;
 	let inlineAt = 0;
@@ -2300,21 +2308,27 @@ function placedMarkdownTokens(source) {
 	starts.push(source.length);
 	const found = [];
 	let inlineAt = 0;
-	for (const [index, token] of tokens.entries()) {
+	let previous;
+	for (const token of tokens) {
+		const before = previous;
+		previous = token;
 		const from = token.map ? starts[token.map[0]] : 0;
 		const to = token.map ? starts[token.map[1]] : source.length;
 		if (token.type !== "inline") {
-			if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block")) found.push({
+			if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type))) found.push({
 				token,
 				from,
 				to,
 				markers: token.meta?.markers?.map(([line, a, b]) => [starts[line] + a, starts[line] + b]),
-				contentLines: token.type === "heading_open" ? tokens[index + 1].map.map((at) => starts[at]) : void 0,
 				words: token.nesting ? null : token.content
 			});
 			continue;
 		}
-		const positions = inlineSourcePositions(source, token.meta.sourceContent, Math.max(from, inlineAt), to);
+		let wordsAt = Math.max(from, inlineAt);
+		for (const { token: block, markers } of found) if (/^(blockquote|list_item)_open$/.test(block.type)) {
+			for (const [a, b] of markers) if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
+		}
+		const positions = inlineSourcePositions(source, token.meta.sourceContent, wordsAt, to, /^t[dh]_open$/.test(before?.type));
 		const stack = [];
 		for (const child of token.children) {
 			if (!child.meta?.source) continue;
@@ -2335,12 +2349,16 @@ function placedMarkdownTokens(source) {
 				if (child.markup && child.markup !== "linkify" && child.markup !== "autolink") b = a + child.markup.length;
 				placed.to = positions[b];
 				placed.contentTo = positions[a];
-			} else if (child.type !== "html_inline") found.push({
+			} else found.push({
 				token: child,
 				from: positions[a],
 				to: positions[b],
-				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? safeUrl(child.attrGet("src")) ? "" : renderedWords(renderInlineMarkdown(source.slice(positions[a], positions[b]))) : child.content,
-				escapes: (child.meta.escapes ?? []).map((at) => positions[at])
+				words: child.type === "softbreak" || child.type === "hardbreak" ? "\n" : child.type === "image" ? safeUrl(child.attrGet("src")) ? "" : renderedWords(renderInlineMarkdown(source.slice(positions[a], positions[b]))) : child.type === "html_inline" ? "" : child.content,
+				spelled: (child.meta.spelled ?? []).map(([from, to, shown]) => [
+					positions[from],
+					positions[to],
+					shown
+				])
 			});
 		}
 		inlineAt = positions.at(-1);
@@ -2445,13 +2463,17 @@ function sourcePositions(markdown) {
 				} else if (token.type === "link_open") span = [from, token.meta.sourceAt];
 				else if (token.type === "link_close") span = [token.meta.sourceAt, state.pos];
 				if (token.markup === "linkify" || emitted.some((item) => item.markup === "linkify") && token.type === "text") {
-					const start = pendingFrom + markdown.linkify.match(state.src.slice(pendingFrom, state.pos)).at(-1).index;
+					const start = state.tokens.slice(count).find((item) => !emitted.includes(item))?.meta.source[1] ?? pendingFrom;
 					span = token.type === "link_open" ? [start, start] : token.type === "link_close" ? [state.pos, state.pos] : [start, state.pos];
 				} else if (emitted.some((item) => item.markup === "autolink")) span = token.type === "link_open" ? [from, from + 1] : token.type === "link_close" ? [state.pos - 1, state.pos] : [from + 1, state.pos - 1];
 				token.meta = {
 					...token.meta,
 					source: span,
-					escapes: token.info === "escape" && token.content !== token.markup ? [span[0]] : []
+					spelled: token.type === "text_special" && token.content !== token.markup ? [[...span, token.content]] : token.type === "hardbreak" && state.src[span[0]] === "\\" ? [[
+						span[0],
+						span[0] + 1,
+						""
+					]] : []
 				};
 			}
 			return ok;
@@ -2461,22 +2483,22 @@ function sourcePositions(markdown) {
 	const keepJoined = (before, after) => {
 		const alive = new Set(after);
 		let first = null;
-		let escapes = [];
-		for (const { token, source, escaped } of before) {
-			escapes.push(...escaped);
+		let spelled = [];
+		for (const { token, source, spellings } of before) {
+			spelled.push(...spellings);
 			if (source && !first && (token.type !== "text" || token.content)) first = source;
 			if (alive.has(token)) {
 				if (source && first && token.type === "text") token.meta.source = [first[0], source[1]];
-				if (token.meta) token.meta.escapes = escapes;
+				if (token.meta) token.meta.spelled = spelled;
 				first = null;
-				escapes = [];
+				spelled = [];
 			}
 		}
 	};
 	const snapshot = (tokens) => tokens.map((token) => ({
 		token,
 		source: token.meta?.source,
-		escaped: token.meta?.escapes ?? []
+		spellings: token.meta?.spelled ?? []
 	}));
 	const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
 	markdown.inline.ruler2.getRules = (chain) => secondRules(chain).map((rule) => (state) => {
@@ -2494,13 +2516,15 @@ function sourcePositions(markdown) {
 		for (const token of state.tokens) if (token.type === "inline") {
 			token.meta ??= {};
 			let inLink = 0;
-			token.meta.beforeLinks = token.children.map((child) => {
+			token.meta.beforeLinks = token.children.map((child, index) => {
 				if (child.type === "link_open") inLink++;
 				else if (child.type === "link_close") inLink--;
 				let source = child.meta?.source;
 				if (!inLink && source && child.type === "text" && child.content) {
 					const at = token.meta.sourceContent.slice(source[0], source[1]).indexOf(child.content);
 					if (at < 0) throw new Error("leaf: Markdown text token lost its source");
+					const box = token.children[index - 1];
+					if (at && box?.type === "html_inline") box.meta = { source: [source[0], source[0] + at] };
 					source = [source[0] + at, source[0] + at + child.content.length];
 					child.meta.source = source;
 				}
@@ -2570,17 +2594,13 @@ function sourcePositions(markdown) {
 		}
 	});
 }
-const BLOCK_LEAVES = /* @__PURE__ */ new Set([
-	"fence",
-	"code_block",
-	"hr"
-]);
+const BLOCK_LEAVES = /* @__PURE__ */ new Set(["fence", "hr"]);
 function makeMarkdown(module, breaks) {
 	const markdown = new module.MarkdownIt({
 		html: false,
 		breaks,
 		linkify: true
-	}).use(module.taskLists, { enabled: false });
+	}).disable(["lheading", "code"]).use(module.taskLists, { enabled: false });
 	markdown.linkify.set({ fuzzyLink: false });
 	markdown.core.ruler.after("block", "blank_lines", (state) => {
 		const lines = state.src.split("\n");
@@ -2651,10 +2671,11 @@ function makeMarkdown(module, breaks) {
 function loadMarkdown(onError = null) {
 	const attempt = ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
 		const markdown = makeMarkdown(module, true);
-		let singleLine;
+		let softBreaks;
 		let positioned;
-		render = (text) => markdown.render(text);
-		renderInline = (text, breaks) => (breaks ? markdown : singleLine ??= makeMarkdown(module, false)).renderInline(text);
+		const dialect = (breaks) => breaks ? markdown : softBreaks ??= makeMarkdown(module, false);
+		render = (text, breaks) => dialect(breaks).render(text);
+		renderInline = (text, breaks) => dialect(breaks).renderInline(text);
 		tokenize = (text) => {
 			if (!positioned) {
 				positioned = makeMarkdown(module, true);
@@ -2740,7 +2761,7 @@ async function importWidgets(scope) {
 async function installDocument(scope) {
 	const presentation = attachApplicationPresentation("document:installation");
 	try {
-		watchExternalLinks();
+		watchNativeContent();
 		watchQuietWords();
 		watchCodeBlocks();
 		watchHeadingLinks();
@@ -3795,60 +3816,35 @@ var MessageEditor = class {
 
 //#endregion
 //#region runtime/thread/workflow.js
-const queuedFor = (agent) => `Queued for ${agent}`;
+const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
 const STAGES = Object.freeze({
-	sending: {
-		label: queuedFor,
-		voice: "leaf"
-	},
-	sent: {
-		label: queuedFor,
-		voice: "leaf"
-	},
-	queued: {
-		label: "Up next",
-		voice: "leaf"
-	},
-	picked_up: {
-		label: "Delivered",
-		voice: "leaf"
-	},
-	working: {
-		label: "On it",
-		voice: "agent"
-	},
-	replying: {
-		label: "Replying",
-		voice: "leaf"
-	},
-	answered: {
-		label: "Answered",
-		voice: "agent"
-	}
+	sending: queuedFor,
+	sent: queuedFor,
+	queued: () => leafSays("Up next"),
+	picked_up: () => leafSays("Delivered"),
+	working: () => agentSays("On it"),
+	replying: () => agentSays("Replying"),
+	answered: () => agentSays("Answered")
 });
-const CONDITION_LABELS = Object.freeze({
+const CONDITION_WORDS = Object.freeze({
 	ended: "Stopped",
 	interrupted: "Interrupted",
 	stale: "Gone quiet",
 	failed: "Failed"
 });
-const waitingForDelivery = (agent) => `Still queued for ${agent}`;
-const NOT_ANSWERED = "Not answered";
-const workflowLabel = (workflow, agent, { answered = false } = {}) => {
-	if (!workflow) return "";
-	if (workflow.condition) return workflow.condition.kind === "stale" && workflow.condition.operation === "delivery" ? waitingForDelivery(agent) : workflow.condition.kind === "failed" && workflow.condition.operation === "response" ? NOT_ANSWERED : CONDITION_LABELS[workflow.condition.kind] ?? "Failed";
-	if (workflow.stage === "answered" && !answered) return "";
-	const label = STAGES[workflow.stage]?.label ?? "";
-	return typeof label === "function" ? label(agent) : label;
+const NOT_ANSWERED = leafSays("Not answered");
+const RESOLVED = leafSays("Resolved");
+const workflowWord = (workflow, agent, { answered = false } = {}) => {
+	if (!workflow) return null;
+	const { condition } = workflow;
+	if (condition) return condition.kind === "stale" && condition.operation === "delivery" ? leafSays(`Still queued for ${agent}`) : condition.kind === "failed" && condition.operation === "response" ? NOT_ANSWERED : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
+	if (workflow.stage === "answered" && !answered) return null;
+	return STAGES[workflow.stage]?.(agent) ?? null;
 };
-const workflowVoice = (workflow) => !workflow ? "agent" : workflow.condition ? "leaf" : STAGES[workflow.stage]?.voice ?? "agent";
-const workflowTitle = (workflow, agent) => {
-	if (!workflow) return "";
-	return [workflowLabel(workflow, agent, { answered: true }), workflow.detail].filter(Boolean).join(" · ");
-};
+const workflowTitle = (workflow, agent) => [workflowWord(workflow, agent, { answered: true })?.text, workflow?.detail].filter(Boolean).join(" · ");
 const progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
-const workflowStep = (workflow, agent) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow, agent);
+const workflowStep = (workflow, agent) => progressFace(workflow) === "working" && workflow.detail ? agentSays(workflow.detail) : workflowWord(workflow, agent);
 const isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 const handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
 const tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
@@ -3857,34 +3853,25 @@ function strongestWorkflow(workflows) {
 	for (const candidate of workflows) if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
 	return strongest;
 }
-const todoLabel = (running) => running ? "On it" : "Still to do";
+const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 function threadAttention(thread, agent) {
 	if (thread.resolved) return null;
 	const workflow = thread.attention?.workflow ? thread.workflows.find((candidate) => candidate.id === thread.attention.workflow) ?? null : null;
-	if (thread.attention?.kind === "needs_user") {
-		const answering = thread.attention.reason === "obligation";
-		return Object.freeze({
-			kind: "needs_user",
-			label: answering ? "Your turn" : workflow?.subject.kind === "thread" ? "Send it again" : "Try it again",
-			voice: answering ? "agent" : "leaf",
-			workflow
-		});
-	}
+	if (thread.attention?.kind === "needs_user") return Object.freeze({
+		kind: "needs_user",
+		word: thread.attention.reason === "obligation" ? agentSays("Your turn") : leafSays(workflow?.subject.kind === "thread" ? "Send it again" : "Try it again"),
+		workflow
+	});
 	if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") return Object.freeze({
 		kind: "waiting",
-		label: todoLabel(thread.todos[0].running),
-		voice: "agent",
+		word: todoWord(thread.todos[0].running),
 		workflow: null
 	});
-	if (thread.attention?.kind === "waiting") {
-		const label = workflowLabel(workflow, agent);
-		return Object.freeze({
-			kind: "waiting",
-			label: label || (thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
-			voice: label ? workflowVoice(workflow) : "leaf",
-			workflow
-		});
-	}
+	if (thread.attention?.kind === "waiting") return Object.freeze({
+		kind: "waiting",
+		word: workflowWord(workflow, agent) ?? leafSays(thread.attention.reason === "uncertain" ? "Uncertain" : "Waiting"),
+		workflow
+	});
 	return null;
 }
 
@@ -4172,9 +4159,8 @@ function messageReading(message, { authoredRank = 0, reactions, workflows, leave
 		pending: workflow?.stage === "sending",
 		base: message.content_version,
 		workflow,
-		workflowLabel: workflowLabel(workflow, agentName()),
+		workflowWord: workflowWord(workflow, agentName()),
 		workflowTitle: workflowTitle(workflow, agentName()),
-		workflowVoice: workflowVoice(workflow),
 		body: Object.freeze({
 			kind,
 			text: message.text ?? "",
@@ -4282,11 +4268,8 @@ var MessageView = class {
           ></button>` : nothing;
 		const react = model.reactions ? this.#reaction.trigger : nothing;
 		const copy = model.markdown && !editing ? this.#copyControl(model.markdown) : nothing;
-		const receipt = model.workflowLabel ? html`<span
-          class="lf-msg-sending"
-          title=${model.workflowTitle}
-          data-voice=${model.workflowVoice}
-          >${model.workflowLabel}</span
+		const receipt = model.workflowWord ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${voiced(model.workflowWord)}</span
         >` : nothing;
 		const header = html`
       <div class="lf-msg-head" data-lf-reflow="text">
@@ -4296,10 +4279,8 @@ var MessageView = class {
                   ><span class="lf-quiet">New</span></span
                 >` : nothing}
           ${receipt}
-          ${model.leaves ? html`<span class="lf-msg-leaves">${model.leaves}</span>` : nothing}
-          ${model.failure ? html`<span class="lf-msg-failure" data-voice="leaf"
-                  >${NOT_ANSWERED}</span
-                >` : nothing}
+          ${model.leaves ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>` : nothing}
+          ${model.failure ? html`<span class="lf-msg-failure">${voiced(NOT_ANSWERED)}</span>` : nothing}
           ${model.body.kind === "suggestion" ? html`<span class="lf-suggest-label">Suggestion</span>` : nothing}
           ${model.edited ? html`<span class="lf-edited" title=${model.edited}>edited</span>` : nothing}
           ${this.#kept ? html`<span
@@ -5059,7 +5040,6 @@ const replyIsEditing = (key) => {
 	sessions.value;
 	return compositions.has(replyContext(key));
 };
-const replyAvailable = (thread) => !thread.resolved || replyIsEditing(threadKey(thread));
 async function restoreReplyEditing(editing, land) {
 	if (!editing?.mirrored || !draftEditingStands(editing)) return null;
 	const context = editing.context;
@@ -5071,7 +5051,7 @@ async function restoreReplyEditing(editing, land) {
 		if (compositions.get(context) === session && !available(session.owner)) closeSession(context);
 	}
 }
-function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = "Reply", hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
+function createReplyView(key, commands, redraw, { onChange = () => {}, editLast = null, hint = (() => "Reply"), hintLead = () => "", accessibleName = "Reply", busy = () => false, sending = null, sent = null } = {}) {
 	const fresh = () => {
 		const row = offer("div", "lf-thread-reply");
 		const input = offer(TEXT_FIELD);
@@ -5115,6 +5095,7 @@ function createReplyView(key, commands, redraw, { onChange = () => {}, editLast 
 			return composition.controls.input;
 		},
 		cancelDictation: () => composition.sync.cancelDictation(),
+		sync: () => composition.sync(),
 		claim(shown) {
 			const owner = compositions.get(composition.context)?.owner;
 			if (owner && owner !== composition && !owner.binding && !owner.retired && shown()) binding.take(owner);
@@ -5458,10 +5439,7 @@ onPress((start) => {
 	return releasePress;
 });
 const currentLocationThreadId = () => heldThreadId() ?? pressed;
-const mayReplyTo = (id, intent) => restrictUserIntent(intent, () => {
-	const thread = allThreads().find((candidate) => candidate.id === id);
-	return Boolean(thread && replyAvailable(thread));
-});
+const mayReplyTo = (id, intent) => restrictUserIntent(intent, () => allThreads().some((candidate) => candidate.id === id));
 async function replyDestination(id, open, intent, { destination = (thread) => threadPart(thread, "reply"), scroll = true } = {}) {
 	const mayReply = mayReplyTo(id, intent);
 	if (!mayReply()) return null;
@@ -5639,6 +5617,7 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 	const appendedAtEnd = news.appended && was.messages.filter(({ key }) => !retired.has(key)).every((message, index) => now.messages[index]?.key === message.key);
 	const turn = was.messages.findLastIndex((message) => message.author === "user" && !message.progress);
 	const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+	const currentTurn = now.messages.findIndex((message) => message.key === was.messages[turn]?.key);
 	return {
 		news,
 		changed,
@@ -5646,7 +5625,10 @@ function threadChange(was, now, { progressOpen = false } = {}) {
 		folds,
 		appendedAtEnd,
 		footFold,
-		answers: turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key))
+		answers: currentTurn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed, ...folds.messages].some((key) => asked.has(key)) ? Object.freeze({
+			turn: was.messages[turn].key,
+			reply: now.messages.slice(currentTurn + 1).find((message) => !message.progress)?.key ?? null
+		}) : null
 	};
 }
 function withheld(was, now) {
@@ -5705,6 +5687,7 @@ function newsNotice(header = false) {
 	const node = offerAction("inline", header ? "lf-thread-header-action lf-thread-news" : "lf-thread-news");
 	keeps(node, "data-lf-news", "");
 	const words = document.createElement("span");
+	words.dataset.voice = "leaf";
 	node.append(words);
 	let total = 0;
 	const dropped = sizeObserver(() => {
@@ -5714,9 +5697,9 @@ function newsNotice(header = false) {
 		keeps(words, "data-lf-more", count ? `+${count}` : null);
 		let short = null;
 		if (facts[0].scrollWidth > facts[0].clientWidth + 1) {
-			const style = getComputedStyle(node);
-			const room = node.clientWidth - parseFloat(style.paddingInlineStart);
-			const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+			const room = node.clientWidth - parseFloat(getComputedStyle(node).paddingInlineStart);
+			const face = getComputedStyle(words);
+			const font = `${face.fontStyle} ${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
 			short = textWidth(`${total} new`, font) <= room ? `${total} new` : `+${total}`;
 		}
 		keeps(words, "data-lf-short", short);
@@ -5846,7 +5829,8 @@ var HeldNews = class {
 			const held = was && shown && !this.#released.has(thread.key) ? threadChange(was, thread, { progressOpen: this.#view(thread.key)?.progressOpen ?? false }) : null;
 			if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held)) return {
 				...thread,
-				news: null
+				news: null,
+				change: held
 			};
 			this.#holds.add(thread.key);
 			const { news } = held;
@@ -5854,7 +5838,8 @@ var HeldNews = class {
 				...thread.reread(withheld(was.source, thread.source)),
 				working: news.working ? was.working : thread.working,
 				...news.settled === "Reopened" && { settlement: null },
-				news
+				news,
+				change: null
 			};
 		});
 		const waiting = this.#threads.size;
@@ -6247,7 +6232,7 @@ function workingView(working, controls = nothing) {
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
               >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition ? html`<span data-voice="leaf">${working.condition}</span>` : nothing}</span
+              ${working.condition ? voiced(working.condition) : nothing}</span
             >` : nothing}
       ${controls}
     </div>
@@ -6639,7 +6624,7 @@ function workingMessage(thread, attention, messages) {
 		stopped.detail,
 		stopped.detail_seq,
 		false,
-		workflowLabel(stopped, agentName()),
+		workflowWord(stopped, agentName()),
 		stopped.agent
 	] : [
 		said,
@@ -6693,7 +6678,7 @@ function threadReading(thread, surface, commands) {
 	const attention = threadAttention(thread, agentName());
 	const asking = new Set(thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message));
 	const openTodos = new Set(thread.todos.map(({ id }) => id));
-	const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? todoLabel(null) : null;
+	const leaves = (message) => asking.has(message.id) ? leafSays("Waiting on me") : message.todo && openTodos.has(message.id) ? todoWord(null) : null;
 	const presented = new Set(thread.msgs.map(({ id }) => id));
 	const messages = turns(thread).filter((message) => !presented.has(message.completed_by)).map((message) => messageReading(message, {
 		authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
@@ -6720,7 +6705,6 @@ function threadReading(thread, surface, commands) {
 			word,
 			label
 		}),
-		reply: replyAvailable(thread),
 		todos: Object.freeze(thread.userTodos.map(({ id, title }) => Object.freeze({
 			id,
 			title
@@ -6751,8 +6735,6 @@ var ThreadView = class {
 	}
 	#transcript;
 	#reply = null;
-	#replyShown = false;
-	#draftFrame = 0;
 	#settlesAt = null;
 	#marginControls = null;
 	#news = newsNotice();
@@ -6879,8 +6861,6 @@ var ThreadView = class {
 		const bodyPlace = published ? this.#continuity?.before([...this.#transcript.views.filter((view) => view.editing).map(({ node }) => node), ...this.#transcript.leaving(model)]) : null;
 		const restoreFocus = holdFocus(this.node);
 		this.#model = model;
-		const reply = model.reply || replyIsEditing(model.key);
-		this.#replyShown = reply;
 		const marginControls = model.surface === "margin" ? this.#marginControls : null;
 		if (marginControls && prior) marginControls.anchor.presented(threadChange(prior, model)?.joined);
 		const notice = this.#news;
@@ -6901,7 +6881,7 @@ var ThreadView = class {
 			arrived: Boolean(prior),
 			appends: model.surface === "margin"
 		});
-		if (reply && !this.#reply) this.#reply = this.#createReply(model);
+		this.#reply ??= this.#createReply(model);
 		keeps(notice.node, "data-lf-reflow", marginControls ? null : "text");
 		const body = html`
       ${threadTodos(model.todos, (id) => this.#commands.todos.done(id))}${this.#transcript.node}
@@ -6912,14 +6892,14 @@ var ThreadView = class {
     `;
 		render$1(html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${reply ? this.#continuity?.gap ?? nothing : nothing}
-        ${reply ? this.#reply.node : nothing}
+        ${this.#continuity?.gap ?? nothing} ${this.#reply.node}
       `, this.node);
 		if (!marginControls && model.news) measure(this.node, () => this.#retainHeaderSlot());
 		else this.#releaseHeaderSlot();
 		if (marginControls && model.news) measure(this.node, () => this.#watchMarginNews());
 		else this.#releaseMarginNews();
 		this.#continuity?.after(bodyPlace);
+		if (prior && Boolean(prior.resolved) !== Boolean(model.resolved)) this.#reply.sync();
 		restoreFocus?.(handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node));
 		return this.node;
 	}
@@ -7109,14 +7089,6 @@ var ThreadView = class {
 		};
 	};
 	#createReply(model) {
-		const replyChanged = () => {
-			if (!this.#reply || this.#draftFrame) return;
-			this.#draftFrame = nextRender(() => {
-				this.#draftFrame = 0;
-				if (!this.#reply) return;
-				if (this.#model.resolved) this.repaint();
-			});
-		};
 		const commands = this.#commands.reply;
 		return createReplyView(model.key, {
 			...commands,
@@ -7131,17 +7103,13 @@ var ThreadView = class {
 				}
 			}
 		}, () => this.repaint(), {
-			onChange: replyChanged,
+			hint: () => this.#model?.resolved ? "Reply to reopen" : "Reply",
 			editLast: this.#rewrites.editLast,
 			sending: () => this.#marginControls?.sending?.()
 		});
 	}
 	commit() {
 		this.#transcript.commit();
-		if (!this.#replyShown && this.#reply) {
-			this.#reply.dispose();
-			this.#reply = null;
-		}
 	}
 	claimReply(shown) {
 		this.#reply?.claim(shown);
@@ -7201,6 +7169,7 @@ var ThreadSeat = class {
 	#views = /* @__PURE__ */ new Map();
 	#resolved = null;
 	#folding = /* @__PURE__ */ new Map();
+	#settled = /* @__PURE__ */ new Set();
 	#place = () => {};
 	#model = EMPTY;
 	#shown = EMPTY;
@@ -7245,7 +7214,8 @@ var ThreadSeat = class {
 			releaseReplies(view.node);
 			view.retire();
 		}
-		const settled = shown.threads.filter((thread) => thread.surface !== "margin" && thread.resolved && !thread.reply);
+		const settled = shown.threads.filter((thread) => thread.surface !== "margin" && thread.resolved && (!replyIsEditing(thread.key) || this.#settled.has(thread.key)));
+		this.#settled = new Set(settled.map(({ key }) => key));
 		if (!settled.length) this.#resolved = null;
 		else this.#resolved ??= new ResolvedThreads(() => {
 			if (!this.#folding.size) return;
@@ -8103,7 +8073,7 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (typeof key !== "string" || !key) throw new TypeError("navigateToDatum key must be a non-empty string");
 		let source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const url = new URL(window.location.href);
@@ -8117,29 +8087,15 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 		if (!mayArrive()) return false;
 		source = referencedProjection(owner, attribute);
 		if (!source) {
-			if (missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
 		const destination = addressedElements(source, key)[0] ?? null;
-		departure.plan(destination);
 		if (!destination) {
-			await arrive(() => {
-				const where = referencedProjection(owner, attribute);
-				return where && {
-					where,
-					focus: null,
-					scroll: [{
-						at: where,
-						block: "start"
-					}]
-				};
-			}, {
-				intent: mayArrive,
-				departure
-			});
-			if (mayArrive() && missing) announce(missing);
+			if (missing) notice(missing);
 			return false;
 		}
+		departure.plan(destination);
 		const arrived = await arrive(() => {
 			const source = referencedProjection(owner, attribute);
 			const where = source && addressedElements(source, key)[0];
@@ -8156,7 +8112,10 @@ function createAnchorTravel({ anchors, refreshThread, focusForNavigation, thread
 			intent: mayArrive,
 			departure
 		});
-		if (mayArrive() && (arrived ? success : missing)) announce(arrived ? success : missing);
+		if (mayArrive()) {
+			if (arrived && success) announce(success);
+			else if (!arrived && missing) notice(missing);
+		}
 		return arrived;
 	}
 	function placeScroll({ at, align = at, block = "center", behavior = scrollBehavior(), when }, replacedView) {
@@ -8313,8 +8272,8 @@ function authoredAttributes(root) {
 }
 const versionedHeadNode = (node) => !node.hasAttribute("data-lf-runtime") && (node.localName === "title" || node.localName === "style" || node.localName === "base" || node.localName === "meta" && (node.hasAttribute("name") || node.hasAttribute("property")) || node.localName === "link");
 const authoredMarkup = (root) => {
+	for (const member of root.querySelectorAll(`[${RUNTIME_PAINT_ATTRIBUTE.viewMember}]`)) member.removeAttribute("hidden");
 	for (const name of Object.values(RUNTIME_PAINT_ATTRIBUTE)) for (const element of root.querySelectorAll(`[${name}]`)) element.removeAttribute(name);
-	for (const member of root.querySelectorAll("[data-lf-view]")) member.removeAttribute("hidden");
 	for (const preview of root.querySelectorAll("[data-lf-prepaint]")) preview.remove();
 	return root;
 };
@@ -8360,6 +8319,24 @@ function takeInitialDocument() {
 	return captured;
 }
 const stamped = (version) => runtime.versions.find((candidate) => candidate.version === version);
+const revisionBase = ({ revision, version, url, activated_at }) => Object.freeze({
+	revision,
+	url,
+	name: version != null ? `v${version}` : wentLive(activated_at)
+});
+const wentLive = (iso) => {
+	const at = new Date(iso);
+	const sameDay = at.toDateString() === (/* @__PURE__ */ new Date()).toDateString();
+	return at.toLocaleString(void 0, {
+		...sameDay ? {} : {
+			weekday: "short",
+			day: "numeric",
+			month: "short"
+		},
+		hour: "numeric",
+		minute: "2-digit"
+	});
+};
 const currentVersionToken = () => runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 const draftRevisions = () => {
 	const revisions = /* @__PURE__ */ new Set();
@@ -8380,7 +8357,7 @@ function menuRows(state, notes) {
 		note: notes[entry.version] ?? null,
 		current: entry.version === runtime.currentStamp,
 		active: false,
-		comparable: comparable(entry.version)
+		comparable: comparable(entry.revision)
 	}));
 	for (const revision of draftRevisions()) {
 		const active = revision === state.active.revision;
@@ -8409,8 +8386,8 @@ function pickerModel(state) {
 			token: currentVersionToken(),
 			compared: diffOn.value || diffPendingBase.value !== null,
 			news: behind,
-			keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase.value}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since v${diffBase.value} — pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
-			ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with v${diffPendingBase.value}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with v${diffBase.value}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
+			keyTitle: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}` : diffOn.value ? `${currentLabel}: showing what changed since ${diffBase.value.name} — pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
+			ariaLabel: offered ? diffPendingBase.value !== null ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}` : diffOn.value ? `${currentLabel}: comparing with ${diffBase.value.name}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
 		}),
 		latest: Object.freeze({
 			failed: sourceFailed,
@@ -8426,11 +8403,11 @@ function pickerModel(state) {
 		}),
 		rows: state === null || runtime.active === null ? Object.freeze([]) : menuRows(state, runtime.browser?.version_notes ?? {}),
 		selection: Object.freeze({
-			base: diffPendingBase.value ?? (diffOn.value ? diffBase.value : null),
+			base: (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ?? null,
 			currentRevision: runtime.currentRevision,
 			on: diffOn.value,
 			pendingBase: diffPendingBase.value,
-			baseRevision: stamped(diffBase.value)?.revision ?? null
+			baseRevision: diffBase.value?.revision ?? null
 		})
 	});
 }
@@ -8619,8 +8596,8 @@ function servedElements() {
 	}
 	return served;
 }
-function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-	const baseView = baseReading.views[String(stamped(baseVersion).revision)];
+function applyDiff(doc, baseAuthored, baseRevision, baseReading) {
+	const baseView = baseReading.views[String(baseRevision.revision)];
 	const baseProjection = projectView(baseView);
 	const declaredAlike = ({ e, spec }) => {
 		const current = baseAuthored.get(e.widget)?.specs.get(e.action);
@@ -8720,9 +8697,9 @@ function openInlineComparison(target) {
 	const before = diffWordsOf.get(target).was;
 	const reading = authoredReading(target);
 	const current = currentVersionToken();
-	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since v${diffBase.value}` : `v${diffBase.value} → ${current}`);
+	const label = el("span", "lf-ui lf-quiet lf-version-inline-label", before === null ? `New since ${diffBase.value.name}` : `${diffBase.value.name} → ${current}`);
 	label.id = inlineId(target);
-	label.setAttribute("aria-label", before === null ? `New since version ${diffBase.value}` : `Inline comparison from version ${diffBase.value} to ${current}`);
+	label.setAttribute("aria-label", before === null ? `New since ${diffBase.value.name}` : `Inline comparison from ${diffBase.value.name} to ${current}`);
 	const nodes = [label];
 	const additions = [];
 	const insertions = [{
@@ -8758,7 +8735,7 @@ function openInlineComparison(target) {
 	});
 	paintInlineInsertions();
 	layoutChanged(target);
-	return before === null ? `v${diffBase.value} had nothing here` : `showing an inline diff from v${diffBase.value}`;
+	return before === null ? `${diffBase.value.name} had nothing here` : `showing an inline diff from ${diffBase.value.name}`;
 }
 function closeInlineComparison(target) {
 	const entry = inlineOpen.get(target);
@@ -8767,14 +8744,14 @@ function closeInlineComparison(target) {
 	for (const node of entry?.nodes ?? []) node.remove();
 	paintInlineInsertions();
 	layoutChanged(target);
-	return `inline diff from v${diffBase.value} hidden`;
+	return `inline diff from ${diffBase.value.name} hidden`;
 }
 const inlineComparison = (target) => {
 	const words = diffOn.value ? diffWordsOf.get(target) : void 0;
 	return words && words.was !== words.is && words.is === comparisonWords(target) ? {
 		id: inlineId(target),
 		open: inlineOpen.has(target),
-		offer: `v${diffBase.value} → ${currentVersionToken()}`
+		offer: `${diffBase.value.name} → ${currentVersionToken()}`
 	} : null;
 };
 function toggleInlineComparison(target) {
@@ -8783,10 +8760,7 @@ function toggleInlineComparison(target) {
 	tick(comparisonGeneration);
 	return said;
 }
-const comparable = (version) => {
-	const base = stamped(version);
-	return runtime.currentRevision !== null && base !== void 0 && base.revision < runtime.currentRevision;
-};
+const comparable = (revision) => runtime.currentRevision !== null && revision < runtime.currentRevision;
 function setDiff(on, base, pendingBase = null) {
 	W(() => {
 		diffOn.value = on;
@@ -8802,17 +8776,11 @@ function setDiff(on, base, pendingBase = null) {
 		tick(comparisonGeneration);
 	});
 }
-async function showComparison(base) {
+async function showComparison(base, { offered = false } = {}) {
 	setDiff(false, null, base);
 	const mine = ++diffRequest;
-	const baseVersion = stamped(base);
-	const baseRevision = baseVersion?.revision;
-	if (baseRevision == null) {
-		diffPendingBase.value = null;
-		raiseError(`Couldn't load v${base}`);
-		return;
-	}
-	const documentRequest = authoredDocument(baseVersion.url);
+	const baseRevision = base.revision;
+	const documentRequest = authoredDocument(base.url);
 	let doc;
 	let reading;
 	let baseAuthored;
@@ -8829,16 +8797,26 @@ async function showComparison(base) {
 	} catch {
 		if (mine === diffRequest) {
 			diffPendingBase.value = null;
-			raiseError(`Couldn't load v${base}`);
+			raiseError(`Couldn't load ${base.name}`);
 		}
 		return;
 	}
 	if (mine !== diffRequest) return;
 	const n = applyDiff(doc, baseAuthored, base, reading);
+	if (offered && !n) return setDiff(false);
 	setDiff(true, base);
-	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since v${base}` : `No text changes since v${base}`);
+	notice(n ? `${n} changed passage${n === 1 ? "" : "s"} since ${base.name}` : `No text changes since ${base.name}`);
 }
-const pressComparison = (base) => diffOn.value && base === diffBase.value || diffPendingBase.value === base ? setDiff(false) : showComparison(base);
+function offerComparison(base) {
+	if (selectedBase() !== null || !comparable(base.revision)) return;
+	showComparison(base, { offered: true });
+}
+const pressComparison = (version) => {
+	const entry = stamped(version);
+	if (!entry) return;
+	return selectedBase()?.revision === entry.revision ? setDiff(false) : showComparison(revisionBase(entry));
+};
+const stopComparison = () => setDiff(false);
 const comparisonBase = () => diffOn.value ? diffBase.value : null;
 const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 function comparisonChanges(owner = null) {
@@ -9592,7 +9570,7 @@ function createVersionController({ initialDocument, compositionInput, openThread
 				restoreRetainedCurrentLocation(handoff.retainedCurrentLocation);
 				restoreCarryScroll();
 				await restoreEditingContinuity(handoff, currentIntent);
-				if (handoff.comparison !== null && stamped(handoff.comparison)) showComparison(handoff.comparison);
+				if (handoff.comparison) showComparison(handoff.comparison);
 				return;
 			}
 			if (navigationType === "navigate" && !aimedAt && savedView && savedView.revision !== runtime.currentRevision) restoreView(savedView, currentIntent);
@@ -9816,4 +9794,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyAvailable, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoLabel, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowLabel, workflowStep, workflowVoice };
+export { DESIGN_MODE_KEY, ELEMENTS, HOLDS_WORD, HeldNews, HeldReading, MessageView, NOT_ANSWERED, PAGE_DRAFT, PAGE_SCOPE, RESOLVED, SAYS_IN, SAY_BOX, THREAD, ThreadView, Transcript, aborted, acceptData, allButCommandReference, allThreads, anchorLabel, answeredInWords, arrivalOf, authoredHolder, authoredStates, awaitsData, beginThreadSeats, beginWalk, bindsInput, blocksOnScreen, bringBackSurfaceOf, captureDraftEditing, capturePlace, carryingThreadPlace, claimSeatReplies, claimTraversals, claimed, clearDraft, commandSteps, commitThreadSeats, commitWidgetDescriptors, comparisonBase, comparisonChanges, completeReadingReturn, copyBlock, createAnchorTravel, createPassageSelection, createProjectionPresentation, createReplyView, createRewriteRestore, createVersionController, createWritingResume, currentLocationOrigin, currentLocationThreadId, dataReader, declareOffFlowSurface, declareSide, declareThreadParts, descriptorStillMatches, designName, dismissReply, dismissReplyAt, domValue, draftContexts, draftHasContent, draftStore, drawnThreadId, externalMark, focusThread, focusedThreadTarget, followBoxGrowth, gesturedOn, heldGrowth, heldObligation, heldOut, heldPagePlace, heldThread, highlightBlocks, holdPagePlace, holdReplyCompositions, holdThreadPlace, holdToRead, initializeServedDocument, inlineComparison, inlineMarkdownFragment, isExternalPageLink, isPageWidgetWorkflow, isWorkflowProgress, joinDataDelivery, keepRefusedWords, keepThreadLanding, keepView, landingPlace, langForPath, leftThePage, listWalkPosition, loadDeferred, loadDraft, loadDraftPayload, loadMarkdown, loadMessageMarkdown, markdownReady, markdownSourceOffset, markdownWords, messageHolding, messageReading, messageText, mirrorDraft, mountFirstMessage, mountHistory, newsNotice, notifyDataSubscribers, obligationEntry, obligationHolding, obligationPlace, obligationsIn, observeOutputs, offerComparison, onReadingInterrupted, openMessageEditIn, openingView, opensElsewhere, orderChildren, pageCommand, pageDoor, pageRung, pageScope, pageScopes, pageSelection, paintCoreControls, paintMarkdown, placeKeeper, placeNode, placeOf, placePageThreads, placedMarkdownTokens, prepareAuthoredMessage, prepareDocument, progressFace, publishOutput, pushEntry, quoteReading, quoted, readBoxPlace, readObligations, readPlace, readThreads, readingBlock, readingIsContinuous, readingReturn, registerWritingDestination, releaseAuthoredUnder, releaseOutlets, releaseReplies, rememberWriting, renderMarginThread, renderMarkdown, renderSeats, renderSurfaces, replaceEntry, replyCompositionHasDraft, replyContext, replyDraftContext, replyDraftsHold, replyIsEditing, replyThreadKey, restorePlace, retainThreadSeats, returnPlace, revealHeld, revisionBase, rowWalk, saveDraft, scrollThreadIntoView, selectionAnchor, sendDraft, sendLanding, sendMessage, servedElements, setChildLists, setChildren, setRenderedChildren, settleAcceptedDrafts, settleThread, shallowSigs, showHeld, showHeldThread, showReturnTurn, snapSelection, stances, stepFrom, stopComparison, storedDraft, strongestWorkflow, subjectPlace, suppliedSnapshot, surfaceFocusTarget, takeInitialDocument, tellDraft, textEntryScope, threadAttention, threadDraft, threadFocusDestination, threadHeading, threadIdNamed, threadIn, threadList, threadName, threadNamed, threadPart, threadReading, threadReplyInput, threadRewrites, threadState, threadSummary, threadSurface, threadTodos, titlePending, todoWord, toggleInlineComparison, touchPresses, transferDraft, universalCommandReference, upgradeWidgets, userChoice, userStore, versionPicker, versionsReading, viewMembers, walkOrigin, walkPosition, walkPositionLabel, watchDraft, watchDrafts, watchThreadSurfaces, whereDraft, wholeThread, widgetDescriptor, workflowStep, workflowWord };

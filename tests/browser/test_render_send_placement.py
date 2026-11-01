@@ -43,6 +43,7 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
+    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -58,9 +59,12 @@ from render_harness import (
     select,
     selection_field,
     sending,
+    told,
     write,
 )
 
+from browser.threads import append_agent_reply
+from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
@@ -1113,6 +1117,233 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     assert (
         field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
         == grown
+    )
+
+
+@pytest.mark.parametrize("subject", ["shot-fit", "shot-actual", "pane"])
+def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
+    browser, serve, subject
+):
+    """A card stands in the box that scrolls its row out of view. A screenshot in the
+    page's flow scrolls nothing down, whether at Fit, which shows its whole image, or at
+    100%, which only pans it sideways, and a pane the page scrolls scrolls nothing
+    itself. So a comment ⌥-clicked into the shot stands beside it rather than over it,
+    and one on words in the pane takes the window's room: the answer that arrives grows
+    the card, rather than scrolling inside a card the shot or the pane cuts short."""
+    shot = None
+    if subject.startswith("shot"):
+        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        resized(page, 1440, 900)
+        shot = page.locator("#rn-console-shot")
+        shot.scroll_into_view_if_needed()
+        if subject == "shot-actual":
+            shot.get_by_role("button", name="Image options").click()
+            shot.get_by_role("button", name="100%", exact=True).click()
+            page.keyboard.press("Escape")
+        width = shot.bounding_box()["width"]
+        shot.locator("wa-comparison").click(
+            modifiers=["Alt"], position={"x": width / 4, "y": 80}
+        )
+    else:
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Notes in flow",
+                    '<lf-pane id="notes" label="Notes"><div>'
+                    '<p id="note">The export keeps each tenant in an archive.</p>'
+                    + "<p>More notes on the export.</p>" * 4
+                    + "</div></lf-pane>",
+                )
+            ),
+        )
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#notes"), "flow")
+        box = page.locator("#note").bounding_box()
+        select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+        page.locator(".lf-fab-input").click()
+    write(page.locator(".lf-fab-input"), "Why this?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    root = next(
+        event
+        for event in reversed(event_log.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )["id"]
+    append_agent_reply(serve.page_dir, root, "Because each tenant restores alone. " * 8)
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    assert card.locator(".lf-thread-transcript").evaluate(
+        "list => list.scrollHeight <= list.clientHeight + 1"
+    ), card.evaluate("card => getComputedStyle(card).maxHeight")
+    if shot:
+        right = shot.bounding_box()["x"] + shot.bounding_box()["width"]
+        assert card.bounding_box()["x"] >= right - 0.5, (card.bounding_box(), right)
+
+
+def test_a_row_pointed_in_a_scrolling_pane_keeps_its_card_in_the_pane(browser, serve):
+    """⌥-clicking a row deep in a pane whose rows have no ids comments on the whole
+    pane, at that row. The pane scrolls the row, so the card stands in the pane and
+    stops at its top as the row scrolls away, rather than standing over the pane above."""
+    findings = "".join(
+        f"<p>Finding {n}: the export wrote tenant {n} to its archive.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stacked panes",
+                '<div id="stack"><lf-pane id="summary" label="Summary"><div>'
+                + "<p>What the reader should take from the findings.</p>" * 12
+                + '</div></lf-pane><lf-pane id="findings" label="Findings"><div>'
+                + findings
+                + "</div></lf-pane></div>",
+                head="<style>#stack{display:grid;grid-template-rows:360px 1fr}</style>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    pane = page.locator("#findings")
+    pane_scroll_behavior(page, pane, "bounded")
+    rows = pane.locator(":scope > div")
+    rows.evaluate("rows => { rows.scrollTop = 300; }")
+    pane.locator("p").nth(20).click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    write(page.locator(".lf-fab-input"), "Why this row?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rows.evaluate("rows => { rows.scrollTop += 600; }")
+    rendered(page)
+    assert card.bounding_box()["y"] >= rows.bounding_box()["y"] - 0.5, (
+        card.bounding_box(),
+        rows.bounding_box(),
+    )
+
+
+def test_a_card_stays_in_a_pane_whose_rows_all_show(browser, serve):
+    """A workspace pane scrolls its rows whether or not they overflow it yet, so a
+    comment on words in a short pane beside a long one keeps its card inside that pane
+    rather than standing over its neighbour."""
+    findings = "".join(
+        f"<p>Finding {n}: the export wrote tenant {n} to its archive.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Short pane",
+                '<div id="split"><lf-pane id="findings" label="Findings"><div>'
+                + findings
+                + '</div></lf-pane><lf-pane id="notes" label="Notes"><div>'
+                '<p>Notes open the pane.</p><p id="note">The export keeps each tenant '
+                "in an archive of its own.</p></div></lf-pane></div>",
+                head=regions_side_by_side("split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    notes = page.locator("#notes")
+    pane_scroll_behavior(page, notes, "bounded")
+    box = page.locator("#note").bounding_box()
+    select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+    page.locator(".lf-fab-input").click()
+    write(page.locator(".lf-fab-input"), "Why these words?")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    rendered(page)
+    inner, outer = card.bounding_box(), notes.bounding_box()
+    assert outer["x"] - 0.5 <= inner["x"], (inner, outer)
+    assert inner["x"] + inner["width"] <= outer["x"] + outer["width"] + 0.5, (
+        inner,
+        outer,
+    )
+    assert outer["y"] - 0.5 <= inner["y"], (inner, outer)
+    assert inner["y"] + inner["height"] <= outer["y"] + outer["height"] + 0.5, (
+        inner,
+        outer,
+    )
+
+
+def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
+    browser, serve
+):
+    """A bounded log scrolls inside the page as a paragraph does, so a card on one of its
+    rows stands in the rail beside it, where the row's margin entry stands, and grows
+    past the log's foot. Rows arriving leave it where it stands: held to the log's room,
+    a card opened while the log was short moved into the log once the log filled. The
+    log cuts the card only once the row has crossed its top."""
+    rows = "".join(
+        f'<p id="row-{n}">The export wrote tenant {n} to its archive.</p>'
+        for n in range(2)
+    )
+    url = serve(
+        leaf_page(
+            "Export log",
+            "<p>The export copies each tenant into its own archive.</p>" * 3
+            # Last, so the rows arriving move nothing below it.
+            + f'<div id="log" data-bound="start" style="--lf-bound: 10rem">{rows}</div>',
+        ),
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Why did tenant 1 retry?",
+                "anchor": {"section": "row-1"},
+            }
+        ],
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    root = next(
+        event
+        for event in event_log.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )["id"]
+    append_agent_reply(serve.page_dir, root, "Its first copy missed four rows. " * 14)
+    told(page)
+    log = page.locator("#log")
+    page.locator('[data-lf-margin-for="row-1"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    opened = card.bounding_box()
+    log.evaluate(
+        """log => { for (let n = 2; n < 30; n++) { const row = document.createElement('p');
+          row.textContent = `The export wrote tenant ${n} to its archive.`;
+          log.append(row); } }"""
+    )
+    rendered(page)
+    filled, box = card.bounding_box(), log.bounding_box()
+    assert filled["x"] >= box["x"] + box["width"] - 0.5, (filled, box)
+    assert filled["height"] > box["height"], (filled, box)
+    for axis in ["x", "y", "height"]:
+        assert filled[axis] == pytest.approx(opened[axis], abs=0.5), (opened, filled)
+    row = page.locator("#row-1")
+    log.evaluate(
+        "(log, row) => { log.scrollTop += row.getBoundingClientRect().bottom"
+        " - log.getBoundingClientRect().top + 10; }",
+        row.element_handle(),
+    )
+    scroll_settled(page, "#log")
+    rendered(page)
+    cut = card.evaluate(
+        "card => card.getBoundingClientRect().top"
+        " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"
+    )
+    assert cut == pytest.approx(log.bounding_box()["y"], abs=0.5), (
+        cut,
+        log.bounding_box(),
     )
 
 

@@ -265,7 +265,7 @@ def test_interactive_export_hydrates_captured_deferred_values_offline(
         leaf_page(
             "offline deferred data",
             '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     patch = (
@@ -685,7 +685,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
         leaf_page(
             "thread export",
             '<h1>Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     data_model.cmd_data_set(

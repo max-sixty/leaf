@@ -35,7 +35,12 @@
    a newer reading gesture ends that authority. Size is fitted before paint, so a sent
    reply does not grow twice. Margin location and its keyboard ladder own dismissal
    and target landing; the card keeps Send's focus on the thread that received it. */
-import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
+import {
+  atScrollEnd,
+  moveScrollerBy,
+  pageScroller,
+  scrollToEnd,
+} from "../scrolling.js";
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
@@ -55,7 +60,7 @@ import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
-import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
+import { registerReadingRegion, scrollerFor } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
@@ -113,6 +118,8 @@ export function createThreadPreview({
   // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
+  // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+  preview.setAttribute("part", "card");
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => previewSession !== null;
@@ -148,7 +155,7 @@ export function createThreadPreview({
   // about, at the width it was carried at, until its placement chooses afresh.
   const carry = surfaceGrip({
     surface: preview,
-    bounds: () => commentBoundary({ region: previewSession?.region }),
+    bounds: () => commentBoundary({ scroller: previewSession?.scroller }),
     dropped(box) {
       const session = previewSession;
       if (!session) return;
@@ -286,7 +293,9 @@ export function createThreadPreview({
           identity: (message) => message.dataset.event,
         })
       : null;
-    if (previewRegionMounted && transcript)
+    if (previewRegionMounted && transcript) {
+      // The transcript's width and shown turns when its gutter was last decided.
+      let decided = "";
       previewSession.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
@@ -299,13 +308,25 @@ export function createThreadPreview({
           // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
+          // Once its turns overflow, the transcript holds its scrollbar's gutter
+          // (`data-lf-overflows`, annotation-chrome.css) until its width or the
+          // number of turns it shows changes. The gutter narrows the turns, and a
+          // narrowed picture is shorter, so turns can overflow without the gutter and
+          // fit with it: dropping the gutter whenever they fit brought it back the
+          // next frame, and so on every frame. A transcript that stops overflowing
+          // otherwise, as when the window grows taller or the reply box empties,
+          // keeps its words the gutter's width narrower until then.
+          const messages = transcript.querySelectorAll(":scope > .lf-msg");
+          const overflows = transcript.scrollHeight > transcript.clientHeight;
+          const shown = [...messages].filter((message) => !message.hidden).length;
+          const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);
           const top =
             transcript.getBoundingClientRect().top + transcript.clientTop + room;
           // A later message's head spans the actions' track (annotation-chrome.css),
           // so while its line shares the actions' it keeps to its own track and its
           // controls stand aside.
-          for (const message of transcript.querySelectorAll(":scope > .lf-msg")) {
+          for (const message of messages) {
             const head = message.querySelector(":scope > .lf-msg-head");
             const box = head?.getBoundingClientRect();
             keeps(
@@ -333,8 +354,12 @@ export function createThreadPreview({
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
           keeps(card, "data-lf-scrolled", above ? "" : null);
+          if (overflows || shape !== decided)
+            keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+          decided = shape;
         },
       });
+    }
   }
   let previewSession = null;
   const placementDriver = floatingPlacement({
@@ -455,8 +480,7 @@ export function createThreadPreview({
         extent: box,
         row: box.top,
         margin: null,
-        region: null,
-        scroller: effectiveScroller(cluster),
+        scroller: scrollerFor(cluster),
       };
     }
     const thread = threadCardThread(session);
@@ -499,13 +523,16 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ region: place.region });
-    session.region = place.region;
+    const boundary = commentBoundary({
+      scroller: place.scroller,
+      at: { x: place.column ?? place.extent.left, y: place.row },
+    });
+    session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const scroller = place.scroller;
+    const { scroller } = boundary;
     const seat = session.side.choose({
       clear: place.clear,
       row: place.row,
@@ -552,9 +579,9 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Written beside its subject, it has the
-            // boundary's whole height (`rises`): a growing editor lifts it from the
-            // window's foot, then scrolls internally.
+            // last moved where that is more. Beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor or an arriving
+            // answer lifts it from the window's foot, then it scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
@@ -597,11 +624,12 @@ export function createThreadPreview({
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing. Each
-        // edge's cut is its own property, which the card's clip and its growth out of
-        // the comment box both read (annotation-chrome.css).
-        const region = boundary.inRegion;
+        // cuts the words, as does the edge of a block its row has crossed (`cut`). An
+        // edge further out than the card paints cuts nothing, and stands at that reach,
+        // so a scroll that moves it there writes nothing. Each edge's cut is its own
+        // property, which the card's clip and its growth out of the comment box both
+        // read (annotation-chrome.css).
+        const region = boundary.cut;
         const cuts = region
           ? [
               (region.top - card.top) / scale.y,
@@ -703,7 +731,7 @@ export function createThreadPreview({
       // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
       // comment's card 13px wider than its box.
       width: origin?.box.width ?? null,
-      region: null,
+      scroller: pageScroller,
       // Whether the card's motion has read the card at its first spot (`followCard`).
       followed: false,
     };
@@ -768,6 +796,9 @@ export function createThreadPreview({
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+      // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
+      // actions line, which on a 311px phone already leaves the message heads no room;
+      // " of " made it 12px wider, which pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

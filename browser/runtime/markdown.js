@@ -10,13 +10,18 @@ const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const escapedSource = (text) => escapeHtml(text);
+/** @type {(text: string, breaks?: boolean) => string} */
 let render = escapedSource;
 /** @type {(text: string, breaks?: boolean) => string} */
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;
 
-export const renderMarkdown = (text) => render(text);
+// `breaks` reads a soft line break as a hard one, since a message keeps the breaks its
+// writer typed. A Markdown file's soft breaks are spaces, as CommonMark and GitHub
+// render a file: its lines wrap for its editor, not its reader. A Markdown body
+// (`paintMarkdown`), such as a draft, reads as a file.
+export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 export function renderedWords(html, imageAlt = false) {
@@ -35,7 +40,7 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-export const markdownWords = (text) => renderedWords(render(text));
+export const markdownWords = (text) => renderedWords(renderMarkdown(text));
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
 export function inlineMarkdownFragment(text, breaks = true) {
@@ -96,14 +101,17 @@ export function formatDeclaredMarkdown(scope) {
   }
 }
 // Keep the exact source on its reading surface. Passage capture reads the rendered
-// children; revision comparison reads source, so formatting never becomes state.
+// children; revision comparison reads source, so formatting never becomes state. The
+// body reads as a Markdown file, its soft line breaks spaces, as the server's prepaint
+// draws it (`leaf.passages.markdown_markup`) and the field editing it in place draws
+// them (composing/field-editor.js, `joints`).
 export function paintMarkdown(element, source) {
   if (
     element.dataset.lfSourceWords === source &&
     !element.hasAttribute("data-lf-prepaint")
   )
     return;
-  const markup = renderMarkdown(source);
+  const markup = renderMarkdown(source, false);
   if (element.dataset.lfSourceWords !== source) element.dataset.lfSourceWords = source;
   if (element.innerHTML !== markup) element.innerHTML = markup;
 }
@@ -112,7 +120,12 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // Align within the parser's declared block span, rather than reimplement its block
 // normalization. That normalization can both remove prefixes and expand a tab into
 // spaces. The shared lossless aligner maps either transformation back to source.
-function inlineSourcePositions(source, raw, at, limit) {
+function inlineSourcePositions(source, raw, at, limit, cell) {
+  // A block whose words the parser kept verbatim ends with them, so each sits where it
+  // was typed, after whatever markers opened the block. A table cell shares its line.
+  const start = at + source.slice(at, limit).trimEnd().length - raw.length;
+  if (!cell && start >= at && source.startsWith(raw, start))
+    return Array.from({ length: raw.length + 1 }, (_, i) => start + i);
   // Even an empty inline token has one boundary (for example, an empty table cell).
   const positions = [at];
   let sourceAt = at;
@@ -134,6 +147,9 @@ function inlineSourcePositions(source, raw, at, limit) {
 // the paired construct's whole span and the span of its words for editor decoration.
 // Native block rules record markers before container prefixes are restored. Their
 // line-relative spans survive newline normalization when mapped onto the source.
+// A token's `spelled` lists the spans of its source that the message shows as other
+// characters, each `[from, to, shown]`: an escape or an entity, which the message shows
+// as the character it names, and a break's backslash, which it shows as nothing.
 export function placedMarkdownTokens(source) {
   const tokens = markdownTokens(source);
   if (!tokens) return [];
@@ -145,14 +161,14 @@ export function placedMarkdownTokens(source) {
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const [index, token] of tokens.entries()) {
+  let previous;
+  for (const token of tokens) {
+    const before = previous;
+    previous = token;
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
-      if (
-        token.map &&
-        (token.nesting === 1 || token.type === "fence" || token.type === "code_block")
-      )
+      if (token.map && (token.nesting === 1 || BLOCK_LEAVES.has(token.type)))
         found.push({
           token,
           from,
@@ -161,20 +177,23 @@ export function placedMarkdownTokens(source) {
             starts[line] + a,
             starts[line] + b,
           ]),
-          // A heading's inline token owns its content lines, excluding Setext syntax.
-          contentLines:
-            token.type === "heading_open"
-              ? tokens[index + 1].map.map((at) => starts[at])
-              : undefined,
           words: token.nesting ? null : token.content,
         });
       continue;
     }
+    // The words start past the container markers on their first line, so a list
+    // item's `*` is never read as the emphasis after it.
+    let wordsAt = Math.max(from, inlineAt);
+    for (const { token: block, markers } of found)
+      if (/^(blockquote|list_item)_open$/.test(block.type))
+        for (const [a, b] of markers)
+          if (a >= wordsAt && a < starts[token.map[0] + 1] && b > wordsAt) wordsAt = b;
     const positions = inlineSourcePositions(
       source,
       token.meta.sourceContent,
-      Math.max(from, inlineAt),
+      wordsAt,
       to,
+      /^t[dh]_open$/.test(before?.type),
     );
     const stack = [];
     for (const child of token.children) {
@@ -198,7 +217,7 @@ export function placedMarkdownTokens(source) {
           b = a + child.markup.length;
         placed.to = positions[b];
         placed.contentTo = positions[a];
-      } else if (child.type !== "html_inline") {
+      } else {
         found.push({
           token: child,
           from: positions[a],
@@ -212,8 +231,14 @@ export function placedMarkdownTokens(source) {
                   : renderedWords(
                       renderInlineMarkdown(source.slice(positions[a], positions[b])),
                     )
-                : child.content,
-          escapes: (child.meta.escapes ?? []).map((at) => positions[at]),
+                : child.type === "html_inline"
+                  ? ""
+                  : child.content,
+          spelled: (child.meta.spelled ?? []).map(([from, to, shown]) => [
+            positions[from],
+            positions[to],
+            shown,
+          ]),
         });
       }
     }
@@ -347,15 +372,17 @@ function sourcePositions(markdown) {
               span = [token.meta.sourceAt, state.pos];
             }
             // A bare URL's inline rule starts at its colon, with the scheme still pending.
+            // The rule takes the scheme off the pending words and pushes the rest, which
+            // end where the link starts.
             if (
               token.markup === "linkify" ||
               (emitted.some((item) => item.markup === "linkify") &&
                 token.type === "text")
             ) {
-              const matched = markdown.linkify
-                .match(state.src.slice(pendingFrom, state.pos))
-                .at(-1);
-              const start = pendingFrom + matched.index;
+              const kept = state.tokens
+                .slice(count)
+                .find((item) => !emitted.includes(item));
+              const start = kept?.meta.source[1] ?? pendingFrom;
               span =
                 token.type === "link_open"
                   ? [start, start]
@@ -373,10 +400,12 @@ function sourcePositions(markdown) {
             token.meta = {
               ...token.meta,
               source: span,
-              escapes:
-                token.info === "escape" && token.content !== token.markup
-                  ? [span[0]]
-                  : [],
+              spelled:
+                token.type === "text_special" && token.content !== token.markup
+                  ? [[...span, token.content]]
+                  : token.type === "hardbreak" && state.src[span[0]] === "\\"
+                    ? [[span[0], span[0] + 1, ""]]
+                    : [],
             };
           }
           return ok;
@@ -388,18 +417,18 @@ function sourcePositions(markdown) {
   const keepJoined = (before, after) => {
     const alive = new Set(after);
     let first = null;
-    let escapes = [];
-    for (const { token, source, escaped } of before) {
-      escapes.push(...escaped);
+    let spelled = [];
+    for (const { token, source, spellings } of before) {
+      spelled.push(...spellings);
       // Emphasis combines two delimiter tokens and erases the spare text token.
       // Its source delimiter must not become part of the following joined words.
       if (source && !first && (token.type !== "text" || token.content)) first = source;
       if (alive.has(token)) {
         if (source && first && token.type === "text")
           token.meta.source = [first[0], source[1]];
-        if (token.meta) token.meta.escapes = escapes;
+        if (token.meta) token.meta.spelled = spelled;
         first = null;
-        escapes = [];
+        spelled = [];
       }
     }
   };
@@ -407,7 +436,7 @@ function sourcePositions(markdown) {
     tokens.map((token) => ({
       token,
       source: token.meta?.source,
-      escaped: token.meta?.escapes ?? [],
+      spellings: token.meta?.spelled ?? [],
     }));
   const secondRules = markdown.inline.ruler2.getRules.bind(markdown.inline.ruler2);
   markdown.inline.ruler2.getRules = (chain) =>
@@ -426,16 +455,21 @@ function sourcePositions(markdown) {
       if (token.type === "inline") {
         token.meta ??= {};
         let inLink = 0;
-        token.meta.beforeLinks = token.children.map((child) => {
+        token.meta.beforeLinks = token.children.map((child, index) => {
           if (child.type === "link_open") inLink++;
           else if (child.type === "link_close") inLink--;
           let source = child.meta?.source;
           if (!inLink && source && child.type === "text" && child.content) {
             // Task-list presentation removes its checkbox prefix from the text token.
             // Retain the exact words' source, before linkify splits or normalizes them.
+            // The prefix is the source of the checkbox the presentation put before the
+            // words, the one inline markup the renderer passes (html is off).
             const raw = token.meta.sourceContent.slice(source[0], source[1]);
             const at = raw.indexOf(child.content);
             if (at < 0) throw new Error("leaf: Markdown text token lost its source");
+            const box = token.children[index - 1];
+            if (at && box?.type === "html_inline")
+              box.meta = { source: [source[0], source[0] + at] };
             source = [source[0] + at, source[0] + at + child.content.length];
             child.meta.source = source;
           }
@@ -518,13 +552,18 @@ function sourcePositions(markdown) {
 }
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "hr"]);
 
-function makeMarkdown(module, breaks) {
-  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true }).use(
-    module.taskLists,
-    { enabled: false },
-  );
+// The parser every reading uses, from the loaded markdown-it module. Exported for the
+// test that holds the draft's preview to every rule it enables
+// (tests/runtime/markdown-preview.test.mjs).
+export function makeMarkdown(module, breaks) {
+  // Setext headings and indented code are off: a `---` under a line is a rule, not a
+  // heading, and leading spaces are text, so neither surprises a writer, and a fence
+  // is the one way to write code. passages.py reads the same dialect.
+  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true })
+    .disable(["lheading", "code"])
+    .use(module.taskLists, { enabled: false });
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });
@@ -612,13 +651,12 @@ function makeMarkdown(module, breaks) {
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
-    let singleLine;
+    let softBreaks;
     let positioned;
-    render = (text) => markdown.render(text);
-    renderInline = (text, breaks) =>
-      (breaks ? markdown : (singleLine ??= makeMarkdown(module, false))).renderInline(
-        text,
-      );
+    const dialect = (breaks) =>
+      breaks ? markdown : (softBreaks ??= makeMarkdown(module, false));
+    render = (text, breaks) => dialect(breaks).render(text);
+    renderInline = (text, breaks) => dialect(breaks).renderInline(text);
     tokenize = (text) => {
       if (!positioned) {
         positioned = makeMarkdown(module, true);

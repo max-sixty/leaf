@@ -253,6 +253,20 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         expect(page.locator("#relative-font [data-line]").last).to_contain_text(
             "A wrapped row uses its inherited code font."
         )
+        # A code size the page sets on one diff sizes that diff's source, here the
+        # 1em of the text it stands in, while a diff that sets none keeps the theme's.
+        sizes = page.evaluate("""() => {
+          const size = (el) => getComputedStyle(el).fontSize;
+          const code = (id) => document.getElementById(id)
+            .shadowRoot.querySelector('code[data-code]');
+          const relative = document.getElementById('relative-font');
+          return {
+            text: size(relative.parentElement),
+            relative: size(code('relative-font')),
+            theme: size(code('code')),
+          };
+        }""")
+        assert sizes["relative"] == sizes["text"] != sizes["theme"], sizes
     finally:
         for route in boot:
             route.continue_()
@@ -633,9 +647,9 @@ def two_diff_page(serve):
     page."""
     return serve(
         LONG_LINE_DIFF_PAGE.replace(
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
-            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
-            '<lf-diff id="manifest-patch" source="review-manifest"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="review-patch"></lf-diff>',
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<lf-diff id="manifest-patch" source="review-manifest"></lf-diff>',
         )
     )
 
@@ -1569,7 +1583,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
     source = leaf_page(
         "Sideways patch",
         '<h1>Review</h1><div id="sideways">'
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+        '<lf-diff id="patch" source="review-patch"></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
         "#patch { width: 1000px; }</style>",
@@ -1871,7 +1885,7 @@ def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, 
 
     source = leaf_page(
         "Annotated patch",
-        '<lf-diff id="patch" source="review-patch" collapsed><pre></pre>'
+        '<lf-diff id="patch" source="review-patch" collapsed>'
         '<lf-diff-note id="old-note" file="app.py" side="old" at="2">'
         "Explain the old line.</lf-diff-note>"
         '<lf-diff-note id="new-note" file="app.py" side="new" at="2">'

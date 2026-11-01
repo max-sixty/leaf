@@ -1,13 +1,16 @@
-/* A bound document owns one source and its source/preview readings. Optional
+/* A document owns one text and its source/preview readings. The text is its `value`,
+ * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
+ * wrote when the markup binds neither (leaf-element.js, "Bound values"). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, keeping the page still when switching and its scroll place independent.
  * Pierre draws numbered source using the same static renderer as diffs. Its sheets
  * are scoped to the listing; gutter glyphs are generated content, so selecting or
- * copying the source never includes line numbers. The source and Markdown renderers
- * reconcile unchanged text across source updates. HTML lives in a separate frame
- * so its styles and scripts cannot access Leaf’s document. Source provenance is
- * stamped with its text before awaiting the frame's presentation. */
+ * copying the source never includes line numbers. The Markdown preview renders a file,
+ * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
+ * source and Markdown renderers reconcile unchanged text across source updates. HTML
+ * lives in a separate frame so its styles and scripts cannot access Leaf’s document.
+ * Source provenance is stamped with its text before awaiting the frame's presentation. */
 import {
   failSoft,
   generatedElement,
@@ -87,8 +90,9 @@ customElements.define(
       });
     }
 
-    // The text, set by whoever hosts the widget: Leaf from the bound source (the
-    // registry's `x-data.document.property`), or null while that source has none.
+    // The text, set by whoever hosts the widget: Leaf from the bound source or output
+    // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+    // while a bound source has none.
     static properties = { value: { attribute: false } };
 
     constructor() {
@@ -155,7 +159,7 @@ customElements.define(
         let loaded = this.frameLoaded;
         if (preview === "markdown") {
           const template = document.createElement("template");
-          template.innerHTML = renderMarkdown(source);
+          template.innerHTML = renderMarkdown(source, false);
           setRenderedChildren(this.preview, template.content.childNodes);
         } else if (
           preview === "html" &&

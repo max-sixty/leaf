@@ -59,6 +59,8 @@
 import { TAB_STOP } from "../control-selectors.js";
 import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import {
+  clippedContents,
+  clippedRect,
   scrollsContent,
   shellRight,
   shownBand,
@@ -263,14 +265,22 @@ function carrierAnchor(subject, sources, scroller) {
 // The margin follows `main` or, on a page without one, the body.
 export const marginColumn = () => layoutBox() || document.body;
 
-// The rail lies beside the column, so it stands beside the rows of what flows in the
-// column: the document's own, and a bounded block's, which scrolls inside the document
-// as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
-const railBeside = (scroller) => {
-  if (scroller === pageScroller) return true;
-  const block = boundedBlockOf(scroller);
-  return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+// Where the rows `scroller` scrolls stand: the bounded blocks around them, innermost
+// first, each by the box that scrolls it (`blocks`), and the box whose flow holds the
+// outermost (`flow`). A bounded block scrolls inside the box around it as a paragraph
+// does, so the flow is the first box out that is not one: the page, or a pane.
+export const flowOf = (scroller) => {
+  const blocks = [];
+  for (let block; (block = boundedBlockOf(scroller));) {
+    blocks.push(scroller);
+    scroller = scrollerFor(upFrom(block));
+  }
+  return { blocks, flow: scroller };
 };
+// The rail lies beside the column, so it stands beside the rows of what flows in the
+// column: the document's own, and a bounded block's. A pane is not in that flow, so its
+// rows pin wherever it stands.
+const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -560,34 +570,12 @@ function laneFor(scroller) {
   return lane;
 }
 
-// The part of a box its scrollers show, short of the document's own: each scroller's band
-// between the box and the document cuts it. The window does not count, since a row
-// scrolled off it is still the user's to walk to. `stop` ends the walk at a scroller
-// short of the document, for a reading that must not change as that scroller scrolls.
-// `bands` caches each box's band for one reading.
 const EVERYWHERE = {
   left: -Infinity,
   top: -Infinity,
   right: Infinity,
   bottom: Infinity,
 };
-function clippedBand(el, rect, bands, stop = pageScroller) {
-  let { left, top, right, bottom } = rect;
-  for (
-    let at = renderedParent(el);
-    at && at !== pageScroller && at !== stop;
-    at = renderedParent(at)
-  ) {
-    let band = bands.get(at);
-    if (band === undefined) bands.set(at, (band = shownBand(at)));
-    if (!band) continue;
-    left = Math.max(left, band.left);
-    top = Math.max(top, band.top);
-    right = Math.min(right, band.right);
-    bottom = Math.min(bottom, band.bottom);
-  }
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
-}
 
 // How far right the figure a target belongs to reaches: the furthest of its own box and
 // the boxes holding it inside `main`, so a card in a board grown past the rail stands its
@@ -683,7 +671,7 @@ function coverIn(root, band, target, bands, stop) {
         words.selectNodeContents(node);
         for (const box of words.getClientRects()) {
           if (!meets(box)) continue;
-          const shown = clippedBand(node, box, bands, stop);
+          const shown = clippedContents(box, renderedParent(node), bands, stop);
           if (shown && shown.right - shown.left > 1 && shown.bottom - shown.top > 1)
             cover.push(shown);
         }
@@ -703,14 +691,14 @@ function coverIn(root, band, target, bands, stop) {
         (node.shadowRoot || node.matches(OPAQUE) || control) &&
         node.checkVisibility()
       ) {
-        const shown = clippedBand(node, box, bands, stop);
+        const shown = clippedRect(box, node, bands, stop);
         if (shown) cover.push(shown);
         if (shown && control) controls.push(shown);
         // A widget's own buttons stand in its shadow tree, or are slotted into it, out
         // of the walk's reach.
         for (const inner of node.shadowRoot ? controlsIn(node) : []) {
           if (!inner.checkVisibility()) continue;
-          const part = clippedBand(inner, inner.getBoundingClientRect(), bands, stop);
+          const part = clippedRect(inner.getBoundingClientRect(), inner, bands, stop);
           if (part) controls.push(part);
         }
         continue;
@@ -735,7 +723,7 @@ function coverIn(root, band, target, bands, stop) {
       if (!overlaps(box, seat) || getComputedStyle(node).display === "inline")
         return false;
       if (renderedUnder(node, target) || !node.checkVisibility()) return false;
-      const shown = clippedBand(node, box, bands, stop);
+      const shown = clippedRect(box, node, bands, stop);
       return Boolean(shown) && overlaps(shown, seat);
     });
   return { cover, controls, beside };
@@ -914,7 +902,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
     // A board or table can clip the target across without owning its reading region.
     // Seat only in the room it shows; otherwise the seat can leave the scroller and
     // targetShown withholds an otherwise reachable action.
-    const clipped = clippedBand(target, EVERYWHERE, bands, stop);
+    const clipped = clippedRect(EVERYWHERE, target, bands, stop);
     pins.push({
       key: entry,
       held: entry.holding ?? null,
@@ -1018,11 +1006,12 @@ function setStyle(row, property, value) {
 // of the target, or of the passage a row quotes, and none where its scrollers show none.
 function targetShown(target, extent, stands, bands) {
   const shown = (part) =>
-    part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
+    part.checkVisibility() &&
+    clippedRect(part.getBoundingClientRect(), part, bands, pageScroller);
   if (!visibleTargetParts(target).some(shown)) return false;
-  if (!extent || !clippedBand(target, extent, bands)) return false;
+  if (!extent || !clippedRect(extent, target, bands, pageScroller)) return false;
   if (!stands) return true;
-  const view = clippedBand(target, EVERYWHERE, bands);
+  const view = clippedRect(EVERYWHERE, target, bands, pageScroller);
   return (
     stands.top >= view.top - 1 &&
     (stands.right === undefined || stands.right <= view.right + 1)
@@ -1200,9 +1189,9 @@ export function layoutMarginRows() {
     const whole = shownExtent(target);
     // A passage's row is about its words, so it stands within what shows of them and
     // is withheld once they are scrolled away, though the rest of the target shows.
-    const block = whole && clippedBand(target, whole, bands, scroller);
+    const block = whole && clippedRect(whole, target, bands, scroller);
     const extent = words.length
-      ? whole && clippedBand(target, union(words), bands, scroller)
+      ? whole && clippedRect(union(words), target, bands, scroller)
       : block;
     const line = point?.getBoundingClientRect() ?? words[0];
     const top =
@@ -1372,11 +1361,11 @@ export function layoutMarginRows() {
       const rail = stands && railBeside(read.scroller);
       const levels = holders
         .map((holder, i) => {
-          const band = clippedBand(
-            holder,
+          const band = clippedRect(
             shownBand(holder) ?? holder.getBoundingClientRect(),
+            holder,
             bands,
-            holders[i + 1],
+            holders[i + 1] ?? pageScroller,
           );
           const anchor = anchorElement(holder);
           const axes = i

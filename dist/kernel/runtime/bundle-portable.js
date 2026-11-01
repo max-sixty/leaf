@@ -472,6 +472,7 @@ ${evidence}`}`;
 //#region runtime/page-paint.js
 const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 	external: "data-lf-external",
+	viewMember: "data-lf-view",
 	obligation: "data-lf-obligation",
 	done: "data-lf-done",
 	restated: "data-lf-restated",
@@ -497,7 +498,7 @@ const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
 });
 const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 	class: "class",
-	viewMember: "data-lf-view",
+	viewMembers: "data-lf-view-members",
 	...RUNTIME_PAINT_ATTRIBUTE,
 	mediaWidth: "data-lf-media-width",
 	mediaHeight: "data-lf-media-height",
@@ -803,7 +804,7 @@ const ICONS = {
 	start: "<path d=\"M3.5 3v10M12.5 3.5 6 8l6.5 4.5z\"/>",
 	subtract: "<path d=\"M3 8h10\"/>",
 	unfold: "<path d=\"M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5\"/>",
-	undo: "<path d=\"M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1\"/>",
+	undo: "<path d=\"M5.5 2.75 2.75 5.5l2.75 2.75M3 5.5h6.25a3.5 3.5 0 0 1 0 7H6.5\"/>",
 	up: "<path d=\"m4 9.75 4-4 4 4\"/>",
 	waiting: "<circle cx=\"8\" cy=\"8\" r=\"5\"/><path d=\"M8 5v3.25l2 1.25\"/>"
 };
@@ -866,7 +867,7 @@ const ACTIONS = {
 	},
 	discard: {
 		name: "Discard",
-		icon: "cross"
+		icon: "undo"
 	},
 	done: {
 		name: "Done",
@@ -1039,6 +1040,31 @@ function actionOffers(base) {
 }
 
 //#endregion
+//#region runtime/role-button-press.js
+const ROLE_BUTTON_OFFER = "[role=\"button\"][data-lf-offer=\"button\"]:not(button)";
+const offerPressed = (ev) => {
+	const target = ev.composedPath()[0];
+	return target instanceof HTMLElement && target.matches("[role=\"button\"][data-lf-offer=\"button\"]:not(button)") && target.getAttribute("aria-disabled") !== "true" && !(ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) ? target : null;
+};
+let spaceOn = null;
+addEventListener("keydown", (ev) => {
+	const offer = offerPressed(ev);
+	if (!offer || ev.defaultPrevented || ev.isComposing) return;
+	if (ev.key === "Enter") {
+		if (!ev.repeat) offer.click();
+	} else if (ev.key === " ") {
+		ev.preventDefault();
+		spaceOn = offer;
+	}
+});
+addEventListener("keyup", (ev) => {
+	if (ev.key !== " ") return;
+	const offer = spaceOn;
+	spaceOn = null;
+	if (offer && offer === offerPressed(ev) && !ev.defaultPrevented) offer.click();
+});
+
+//#endregion
 //#region runtime/element-markers.js
 const offerElement = (node, cls, pressable = false) => {
 	if (node instanceof HTMLButtonElement && !node.hasAttribute("type")) keeps(node, "type", "button");
@@ -1087,7 +1113,6 @@ const selectableOfferElement = (node, role, cls, face) => {
 	].filter(Boolean).join(" "));
 	keeps(node, "data-lf-gen", "1");
 	keeps(node, "data-lf-offer", role);
-	keeps(node, "data-lf-selectable-offer", "");
 };
 const selectableOffer = (role, cls, label, face) => {
 	const node = document.createElement("span");
@@ -1621,4 +1646,4 @@ const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 };
 
 //#endregion
-export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };
+export { ANNOUNCE, COMMANDS, LAYOUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, measure, motion, motionEasing, motionPlays, motionTime, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, pagePresented, pageUpgraded, placesFailure, playMotion, readSampleVisibility, reducedMotion, refuseCommands, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setScroll, shadowHost, showAction, sizeObserver, skipped, stagesFailure, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchArrivalsIn, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected };

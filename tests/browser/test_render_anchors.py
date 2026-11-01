@@ -842,7 +842,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         )
     )
     assert "system-ui" in raised["font"], (
-        f"the response bar speaks in the document's voice: {raised['font']}"
+        f"the response bar is set in the document's font: {raised['font']}"
     )
     assert (
         page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
@@ -4395,7 +4395,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     authored = leaf_page(
         "file comment",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -4574,7 +4574,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
         leaf_page(
             "Back from a diff thread",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            f"<pre></pre></lf-diff><section id=far>{filler}</section>",
+            f"</lf-diff><section id=far>{filler}</section>",
         )
     )
     data_model.cmd_data_set(
@@ -4641,7 +4641,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 <lf-tabs id="views">
   <lf-tab id="overview" label="Overview"><p>Start here.</p></lf-tab>
   <lf-tab id="patch-tab" label="Patch">
-    <lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>
+    <lf-diff id="patch" source="review-patch"></lf-diff>
   </lf-tab>
 </lf-tabs>
 """,
@@ -4752,7 +4752,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     authored = leaf_page(
         "deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(
@@ -4850,7 +4850,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
         leaf_page(
             "deferred diff",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed><pre></pre></lf-diff>",
+            "collapsed></lf-diff>",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
@@ -4888,7 +4888,7 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     authored = leaf_page(
         "changing deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
 
@@ -4949,7 +4949,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         leaf_page(
             "deferred provenance",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed><pre></pre></lf-diff>",
+            "collapsed></lf-diff>",
         )
     )
     original = """diff --git a/app.py b/app.py
@@ -5006,7 +5006,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     authored = leaf_page(
         "failed deferred diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed></lf-diff>",
     )
     url = serve(authored)
     data_model.cmd_data_set(

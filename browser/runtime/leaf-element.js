@@ -109,6 +109,7 @@ let regions = 0;
 
 // Keep failures inside SignalWatcher's effect so its dependency subscription survives.
 class UpdateBoundary extends LitElement {
+  /** @param {unknown} error */
   signalUpdateFailed(error) {
     throw error;
   }
@@ -122,12 +123,16 @@ class UpdateBoundary extends LitElement {
 }
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
-  #signalError = null;
+  /** @type {{error?: unknown}} */
+  #signalError = {};
+  /** @type {(() => void) | null} */
   #stopReadiness = null;
+  /** @param {unknown} error */
   signalUpdateFailed(error) {
-    this.#signalError = { error };
+    this.#signalError.error = error;
   }
 
+  /** @param {Parameters<LitElement["requestUpdate"]>} args */
   requestUpdate(...args) {
     const wasPending = this.isUpdatePending;
     const result = super.requestUpdate(...args);
@@ -138,13 +143,14 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.hasUpdated && this.isUpdatePending && (!wasPending || !this.#updating))
       untracked(() => {
         if (this.#connected && this.#region && !this.#ticket)
-          this.#ticket = this.#claim();
+          this.#ticket = this.#claim(this.#region);
       });
     return result;
   }
 
   /** Finish this render when its presentation prerequisites are ready. Readiness
    * does not claim another presentation, which would invalidate its own proof. */
+  /** @param {() => unknown} read */
   whenReady(read) {
     if (untracked(read)) return true;
     if (!this.#stopReadiness) {
@@ -158,36 +164,54 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return false;
   }
 
+  /** @type {import("./framework/application.js").WidgetDescriptor | null} */
   #descriptor = null;
+  /** @type {import("./widget-controller.js").WidgetController | null} */
   #controller = null;
+  /** @type {string[]} */
   #verbs = [];
+  /** @type {import("./framework/presentation.js").PresentationHandle | null} */
   #region = null;
+  /** @type {string | null} */
   #regionName = null;
-  #connected = false;
+  get #connected() {
+    return this.#region !== null;
+  }
+  /** @type {HTMLElement | null} */
   #connectedParent = null;
   // The open claim the next update that draws settles.
+  /** @type {import("./framework/presentation.js").PresentationTicket | null} */
   #ticket = null;
   #held = false;
   // The fail-soft box standing until the next update that draws; a `setup()` that threw
   // leaves the element broken, drawing nothing.
+  /** @type {HTMLElement | null} */
   #box = null;
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
+  /** @type {import("./framework/presentation.js").PresentationTicket | null} */
   #drawing = null;
   #updating = false;
+  /** @type {(() => unknown) | null} */
   #leaveData = null;
+  /** @type {Promise<void> | null} */
   #scheduled = null;
   // The x-data inputs that name a property, `{input, property, bound, read}`, with
   // `read` the delivery reader of one the markup binds.
+  /** @type {{input: string, property: string, bound: boolean, read: ReturnType<typeof dataReader> | null}[]} */
   #inputs = [];
   // Each bound property's last snapshot set, and the primitive values a `drawn` can
   // still name with the snapshot that supplied each, in the order they were set.
+  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
   #sent = new Map();
 
+  /** @returns {HTMLElement | DocumentFragment} */
   createRenderRoot() {
-    return registry[this.localName]?.["x-shadow"]
-      ? adoptShadowStage(super.createRenderRoot())
-      : this;
+    if (!registry[this.localName]?.["x-shadow"]) return this;
+    const root = super.createRenderRoot();
+    if (!(root instanceof ShadowRoot))
+      throw new Error("A shadow widget needs a shadow render root");
+    return adoptShadowStage(root);
   }
 
   scheduleUpdate() {
@@ -252,7 +276,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
         if (event.target === this)
           this.#drawn(/** @type {CustomEvent} */ (event).detail);
       });
-    placesFailure(this, (box) => {
+    placesFailure(this, (/** @type {HTMLElement} */ box) => {
       const root = this.renderRoot ?? this;
       // A widget showing a shadow stage over its host shows the box as that stage,
       // which its next stage replaces, as any shadow widget does.
@@ -268,7 +292,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     });
     try {
       if (this.#writesInput())
-        for (const { property } of this.#inputs) this[property] = dataBody(this);
+        for (const { property } of this.#inputs)
+          Object.assign(this, { [property]: dataBody(this) });
       this.setup();
     } catch (error) {
       this.#broken = true;
@@ -307,11 +332,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   /** The widget's state, with every admitted and unresolved record folded in. */
   get state() {
-    return this.reading.state;
+    return this.controller.read().state;
   }
 
   /** The widget's controller, for `dispatch` and `present`. */
   get controller() {
+    if (!this.#controller)
+      throw new Error(`${this.localName} has no authored widget controller`);
     return this.#controller;
   }
 
@@ -331,24 +358,26 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
         primitives.set(value, snapshot);
       }
       this.#sent.set(entry.property, { snapshot, primitives });
-      this[entry.property] = value;
+      Object.assign(this, { [entry.property]: value });
     }
   }
 
   // The widget reports the value it drew, by the property it read it from, once its
   // marks for that drawing stand.
+  /** @param {Record<string, unknown>} detail */
   #drawn(detail) {
     try {
       const named = this.#inputs.filter(
         ({ property }) => detail && Object.hasOwn(detail, property),
       );
-      if (named.length !== 1 || Object.keys(detail).length !== 1)
+      const entry = named[0];
+      if (!entry || named.length !== 1 || Object.keys(detail).length !== 1)
         throw new Error(
           `<${this.localName}> drawn must name one bound property (${this.#inputs
             .map(({ property }) => property)
             .join(", ")}) with the value it drew`,
         );
-      const [{ property, bound }] = named;
+      const { property, bound } = entry;
       const value = detail[property];
       const snapshot =
         !bound || value === null
@@ -368,6 +397,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   // The snapshot of the primitive `value` a widget reported drawing from `property`,
   // retiring the values set before it, which it no longer holds.
+  /** @param {string} property @param {unknown} value */
   #retire(property, value) {
     const primitives = this.#sent.get(property)?.primitives;
     if (!primitives?.has(value)) return undefined;
@@ -395,10 +425,11 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#verbs.every((verb) => verb in state);
   }
 
+  /** @param {Parameters<LitElement["shouldUpdate"]>[0]} changed */
   shouldUpdate(changed) {
     // A draw queued as the element left waits for its return, whether or not the arrival
     // batch has told it yet.
-    if (!this.#connected || !this.isConnected) {
+    if (!this.#region || !this.isConnected) {
       return false;
     }
     if (this.#held) return false;
@@ -406,7 +437,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     // runs is the next's. Before the first successful draw, Lit can retry a skipped
     // update without requestUpdate claiming it. Every connected update owns a claim,
     // including one that draws nothing and settles immediately.
-    this.#drawing = this.#ticket ?? this.#claim();
+    this.#drawing = this.#ticket ?? this.#claim(this.#region);
     this.#ticket = null;
     if (!this.#draws()) return false;
     this.#deliverInputs();
@@ -419,6 +450,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return !this.#broken && this.#complete() && !awaitsData(this);
   }
 
+  /** @param {Parameters<LitElement["update"]>[0]} changed */
   update(changed) {
     super.update(changed);
     this.#box?.remove();
@@ -437,20 +469,10 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     this.#drawing = null;
     this.#updating = true;
     try {
-      this.#signalError = null;
+      const boundary = (this.#signalError = {});
       super.performUpdate();
-      if (this.#signalError) throw this.#signalError.error;
-      if (this.#drawing)
-        // A failure names the widget; the claim it rejects reports nothing again.
-        this.#drawing.resolve(
-          this.updateComplete.then(
-            () => undefined,
-            (error) => {
-              reportFailure(this, error);
-              throw error;
-            },
-          ),
-        );
+      if ("error" in boundary) throw boundary.error;
+      this.#settleDrawing();
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
@@ -458,6 +480,18 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
       this.#drawing = outer;
       this.#updating = updating;
     }
+  }
+
+  #settleDrawing() {
+    this.#drawing?.resolve(
+      this.updateComplete.then(
+        () => undefined,
+        (error) => {
+          reportFailure(this, error);
+          throw error;
+        },
+      ),
+    );
   }
 
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
@@ -472,6 +506,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     if (this.#draws()) render(this.render(), this.renderRoot, this.renderOptions);
   }
 
+  /** @param {Parameters<LitElement["updated"]>[0]} changed */
   updated(changed) {
     super.updated(changed);
     // The render may have changed what this widget's commands read from its nodes.
@@ -480,6 +515,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   // Every failure is reported here, naming the widget; a claim's rejection then shows
   // the box through the coordinator's fallback, which reports nothing again.
+  /** @param {unknown} error @param {import("./framework/presentation.js").PresentationTicket | null} ticket */
   #failed(error, ticket) {
     if (!ticket) return failSoft(this, error);
     reportFailure(this, error);
@@ -488,21 +524,22 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
 
   // A claim on the region for the reading as it stands, which a failure settles with
   // the fail-soft box.
-  #claim() {
-    return this.#region.present((reason) => failSoftUnreported(this, reason));
+  /** @param {import("./framework/presentation.js").PresentationHandle} region */
+  #claim(region) {
+    return region.present((reason) => failSoftUnreported(this, reason));
   }
 
   // Claim the region for a reading that draws later, leaving the claim open.
   #stage() {
-    if (!this.#connected || this.#ticket || !this.#region) return;
-    this.#ticket = this.#claim();
+    if (this.#ticket || !this.#region) return;
+    this.#ticket = this.#claim(this.#region);
   }
 
   // Claim the region for the reading as it stands, and draw it on the next update; a
   // claim the next update cannot draw stays open until one does.
   #present({ now = false } = {}) {
     if (!this.#region) return;
-    this.#ticket = this.#claim();
+    this.#ticket = this.#claim(this.#region);
     if (this.#held) return;
     this.requestUpdate();
     if (now) {
@@ -516,28 +553,27 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   #connect() {
-    this.#connected = true;
+    const name = this.#descriptor
+      ? `widget:${this.#descriptor.id}:render`
+      : (this.#regionName ??= `element:${this.localName}#${this.id}:${++regions}`);
     this.#region = this.#descriptor
       ? attachWidgetPresentation(this.#descriptor.id, "render")
-      : attachApplicationPresentation(this.#regionName);
+      : attachApplicationPresentation(name);
     const parentChanged = this.#connectedParent !== this.parentElement;
     this.#connectedParent = this.parentElement;
-    if (registry[this.localName]?.["x-data"])
-      this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
-      );
+    if (registry[this.localName]?.["x-data"]) this.#leaveData = joinDataDelivery(name);
     this.#present();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
 
   #disconnect() {
-    this.#connected = false;
+    const region = this.#region;
+    this.#region = null;
     this.#stopReadiness?.();
     this.#stopReadiness = null;
     this.#leaveData?.();
     this.#leaveData = null;
     this.#ticket = null;
-    this.#region?.disconnect();
-    this.#region = null;
+    region?.disconnect();
   }
 }

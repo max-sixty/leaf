@@ -1,6 +1,7 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -197,6 +198,25 @@ def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
     _load_probes(page, _timeout(page, None))
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
+
+
+@contextmanager
+def observe_probe(page, name: str, *args):
+    """Own a probe's native finish closure; fill its records when the scope ends.
+
+    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
+    observation in this document and disconnects it even if the caller's work fails.
+    """
+    _load_probes(page, _timeout(page, None))
+    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
+    records = []
+    try:
+        yield records
+    finally:
+        try:
+            records.extend(handle.evaluate("finish => finish()"))
+        finally:
+            handle.dispose()
 
 
 def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:

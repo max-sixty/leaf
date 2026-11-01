@@ -12,10 +12,12 @@
  * things to keep level. Every probe that crosses a shadow boundary imports it rather
  * than restating it, for the same reason UNMARKABLE_ITEMS imports its two readings
  * from the runtime: what one probe walks and what another walks cannot come apart. */
+/** @template {Document | ShadowRoot | Element} Root
+ * @param {Root} root @returns {(Root | ShadowRoot)[]} */
 export const openRoots = (root) => [
   root,
-  ...(root.shadowRoot ? openRoots(root.shadowRoot) : []),
-  ...[...root.querySelectorAll("*")]
-    .filter((el) => el.shadowRoot)
-    .flatMap((el) => openRoots(el.shadowRoot)),
+  ...(root instanceof Element && root.shadowRoot ? openRoots(root.shadowRoot) : []),
+  ...[...root.querySelectorAll("*")].flatMap((el) =>
+    el.shadowRoot ? openRoots(el.shadowRoot) : [],
+  ),
 ];

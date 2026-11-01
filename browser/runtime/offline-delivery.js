@@ -6,18 +6,25 @@
    addresses and the import map share that allocator and module identity. document.write
    hands the existing composed source to the native parser, including classic scripts,
    import maps and declarative shadow trees; it creates no alternate renderer. */
+/** @typedef {{mime: string, base64: string}} Resource */
 window.setTimeout(() => {
   const packageScript = document.querySelector("script[data-lf-export]");
+  if (!packageScript) throw new Error("Offline delivery has no resource package");
+  /** @type {{prefix: string, document: string, resources: Record<string, Resource>}} */
   const exported = JSON.parse(packageScript.textContent);
+  /** @type {Map<string, string>} */
   const addresses = new Map();
   const reference = new RegExp(`${exported.prefix}[a-f0-9]{64}`, "g");
+  /** @param {string} source @returns {string} */
   const rebase = (source) =>
-    source.replace(reference, (token) =>
-      Object.hasOwn(exported.resources, token) ? address(token) : token,
-    );
-  function address(token) {
-    if (addresses.has(token)) return addresses.get(token);
-    const resource = exported.resources[token];
+    source.replace(reference, (token) => {
+      const resource = exported.resources[token];
+      return resource ? address(token, resource) : token;
+    });
+  /** @param {string} token @param {Resource} resource @returns {string} */
+  function address(token, resource) {
+    const held = addresses.get(token);
+    if (held !== undefined) return held;
     const bytes = Uint8Array.fromBase64(resource.base64);
     const body =
       resource.mime === "text/css"

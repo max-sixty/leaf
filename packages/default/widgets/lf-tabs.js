@@ -133,13 +133,14 @@ import {
 } from "/runtime/widget-api.js";
 
 const PLACE_KEY = "lf-tabs-place:";
+/** @param {Element} owner */
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
     (child) =>
-      (child.nodeType === Node.ELEMENT_NODE &&
-        !child.matches("script, style, template")) ||
-      (child.nodeType === Node.TEXT_NODE && child.textContent.trim()),
+      (child instanceof Element && !child.matches("script, style, template")) ||
+      (child instanceof Text && child.data.trim()),
   );
+/** @param {Element} owner */
 const soleSubstantiveElement = (owner) => {
   const children = substantiveChildren(owner);
   return children.length === 1 && children[0] instanceof Element ? children[0] : null;
@@ -147,21 +148,32 @@ const soleSubstantiveElement = (owner) => {
 
 export class TabSet extends LeafElement {
   // Whether the set is a page's parts (lf-parts.js).
-  static parts = false;
-  #parts = /** @type {typeof TabSet} */ (this.constructor).parts;
+  get parts() {
+    return false;
+  }
+  #parts = this.parts;
+  /** @type {Map<Element, HTMLElement>} */
+  /** @type {Map<Element, HTMLElement>} */
   #buttons = new Map(); // panel → its strip button
+  /** @type {Element[]} */
   #panels = [];
+  /** @type {{panel: Element, group: string | null, panels: Element[]}[]} */
   #runs = [];
   #down = false;
   // The open panel, a signal because the strip's Enter row reads which tab is open.
+  /** @type {import("@preact/signals-core").Signal<Element | null>} */
   #active = signal(null);
   #root = false;
+  /** @type {(MutationObserver) | null} */
   #contextObserver = null;
-  #strip = null;
+  #strip = offer("div", "lf-tabstrip scroll");
+  /** @type {(() => void) | null} */
   #stopHeader = null;
   #side = false;
   #pageFlow = false;
+  /** @type {(ReturnType<typeof backgroundFlash>) | null} */
   #revealMotion = null;
+  /** @type {(() => void) | null} */
   #stopList = null;
 
   createRenderRoot() {
@@ -191,20 +203,23 @@ export class TabSet extends LeafElement {
     //
     // A press is a span wearing the role rather than a <button> (see `offer`), which
     // is what makes a drag across the name possible at all.
-    const strip = offer("div", "lf-tabstrip scroll");
-    this.#strip = strip;
+    const strip = this.#strip;
     strip.setAttribute("role", "tablist");
     if (down) strip.setAttribute("aria-orientation", "vertical");
     // Group runs are fixed by authored panels. Lit owns every generated child;
     // panel nodes stay outside its render root, with native reading and focus state.
-    for (const [index, panel] of panels.entries()) {
+    /** @type {{panel: Element, group: string | null, panels: Element[]} | undefined} */
+    let run;
+    for (const panel of panels) {
       const group = panel.getAttribute("group");
-      if (!index || (side && group !== panels[index - 1].getAttribute("group")))
-        this.#runs.push({ panel, group, panels: [] });
-      this.#runs.at(-1).panels.push(panel);
+      if (!run || (side && group !== run.group)) {
+        run = { panel, group, panels: [] };
+        this.#runs.push(run);
+      }
+      run.panels.push(panel);
       if (!panel.classList.contains("scroll")) panel.classList.add("scroll");
       panel.setAttribute("role", "tabpanel");
-      panel.setAttribute("aria-label", panel.getAttribute("label"));
+      keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
@@ -218,7 +233,10 @@ export class TabSet extends LeafElement {
     // of its own, so focus inside it, which is the whole of when this scope holds, is
     // always one of these buttons.
     const tabs = () => [...this.#buttons.values()];
+    const focusedTab = () => tabs().find((button) => button === focused());
+    /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
+      if (!next) return;
       // The strip is always on screen; focus scrolling a stuck tab back to its place
       // in flow would move the view being left before the switch records it.
       focusDestination(next, "move");
@@ -226,7 +244,9 @@ export class TabSet extends LeafElement {
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
-    const [back, ahead] = rowArrows(this);
+    const arrows = rowArrows(this);
+    const back = arrows[0];
+    const ahead = arrows[1];
     strip.lfCommands = {
       title: "On a tab",
       rows: [
@@ -237,8 +257,10 @@ export class TabSet extends LeafElement {
 
           // The tab already open has nothing for this press to do, so the line does not
           // name it there; the walk beside it is what moves.
-          when: () => focused() !== this.#buttons.get(this.#active.value),
-          run: () => focused().click(),
+          when: () => focused() !== this.#currentButton(),
+          run: () => {
+            focusedTab()?.click();
+          },
         },
         {
           id: "tab.walk",
@@ -259,9 +281,9 @@ export class TabSet extends LeafElement {
           title: "walk the tabs",
           repeat: true,
           travels: true,
-          run: (binding) => {
+          runKey: (binding) => {
             const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
-            walk(cycledRow(tabs(), focused(), step));
+            walk(cycledRow(tabs(), focusedTab(), step));
           },
         },
         {
@@ -273,7 +295,7 @@ export class TabSet extends LeafElement {
           ],
           title: "first / last",
           travels: true,
-          run: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
+          runKey: (binding) => walk(binding === "Home" ? tabs()[0] : tabs().at(-1)),
         },
       ],
     };
@@ -285,7 +307,7 @@ export class TabSet extends LeafElement {
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
     // measures final geometry.
-    this.#activate(openingView(this), "arrival");
+    this.#activate(openingView(this) ?? null, "arrival");
     if (this.#root) {
       this.#replaceLocation(this.#active.value);
     }
@@ -381,6 +403,12 @@ export class TabSet extends LeafElement {
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
 
+  #currentButton() {
+    const active = this.#active.value;
+    return active ? this.#buttons.get(active) : undefined;
+  }
+
+  /** @param {Element} panel */
   #tab(panel) {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
@@ -426,14 +454,14 @@ export class TabSet extends LeafElement {
     return html`<span
       ${selectableOffered("tab", "lf-tab-btn")}
       ${ref((button) => {
-        if (button) this.#buttons.set(panel, button);
+        if (button instanceof HTMLElement) this.#buttons.set(panel, button);
       })}
       aria-controls=${panel.id}
       aria-label=${panel.getAttribute("label")}
       aria-selected=${panel === this.#active.value}
       aria-description=${description || nothing}
       tabindex=${panel === this.#active.value ? 0 : -1}
-      @click=${(event) =>
+      @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
       ><span class="lf-tab-name" ${generated({ says: true })}
         >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
@@ -460,8 +488,10 @@ export class TabSet extends LeafElement {
     >`;
   }
 
+  /** @param {Element | null} active @param {"ordinary" | "reveal" | "history" | "arrival"} reason @param {boolean} [pointer] */
   #activate(active, reason, pointer = false) {
-    if (!this.#buttons.has(active)) return;
+    const activeButton = active ? this.#buttons.get(active) : undefined;
+    if (!active || !activeButton) return;
     // The open tab pressed again, or walked to, is the user's way back to it after
     // scrolling the row away.
     if (active === this.#active.value) {
@@ -512,7 +542,7 @@ export class TabSet extends LeafElement {
       // Selection changes in this task. Lit's scheduled update then
       // keeps its dependency subscription current without replacing any nodes.
       render(this.render(), this.#strip);
-      const button = this.#buttons.get(active);
+      const button = activeButton;
       this.#showTab(button);
       this.#revealMotion?.cancel();
       this.#revealMotion = null;
@@ -521,12 +551,12 @@ export class TabSet extends LeafElement {
       // motion's shared gate answers reduced motion and initial presentation.
       if (previous && reason === "reveal") {
         const name = button.querySelector(":scope > .lf-tab-name");
-        this.#revealMotion = backgroundFlash(name, flashDuration());
+        if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
       else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
 
-      for (const panel of [previous, active].filter(Boolean)) {
+      for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);
         if (child) layoutChanged(child);
       }
@@ -537,6 +567,7 @@ export class TabSet extends LeafElement {
 
   // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
   // the traversal and the landing agree on an id inside a widget's shadow tree.
+  /** @param {readonly Element[]} panels @param {string} [hash] */
   #panelForLocation(panels, hash = location.hash) {
     if (!this.#root) return null;
     const target = fragmentTarget(hash);
@@ -552,7 +583,8 @@ export class TabSet extends LeafElement {
     // read it; in any other `main` they stand as if placed anywhere else.
     const main = this.parentElement;
     this.#root =
-      Boolean(main?.matches("body > main")) &&
+      !!main &&
+      main.matches("body > main") &&
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
@@ -589,7 +621,8 @@ export class TabSet extends LeafElement {
   // none of it. Which the list is follows the window, so the strip's size observer asks
   // again.
   #declareHeader() {
-    const over = !this.#parts || Boolean(this.#active.value && this.#listOver());
+    const over =
+      !this.#parts || Boolean(this.#active.value && this.#listOver(this.#active.value));
     const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
     if (header === Boolean(this.#stopHeader)) return;
     this.#stopHeader?.();
@@ -597,14 +630,16 @@ export class TabSet extends LeafElement {
   }
 
   // Whether a page's list of parts stands over the open part rather than beside it.
-  #listOver() {
+  /** @param {Element} panel */
+  #listOver(panel) {
     const list = this.#strip.getBoundingClientRect();
-    return list.right > this.#active.value.getBoundingClientRect().left + 1;
+    return list.right > panel.getBoundingClientRect().left + 1;
   }
 
   // A press at one edge of the strip, which pages the names that run past it (the
   // package theme shows it only while there is more that way). It takes no tab stop:
   // the tabs are the keyboard's route, and a focused tab brings itself into view.
+  /** @param {"start" | "end"} to */
   #edge(to) {
     return html`<span class="lf-tabstrip-scroll" data-to=${to} aria-hidden="true"
       ><span
@@ -641,10 +676,12 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
+  /** @param {HTMLElement | undefined} btn */
   #showTab(btn) {
     const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
+    if (!run) return;
     const label = run.querySelector(":scope > .lf-tab-group");
     if (label && getComputedStyle(strip).flexDirection === "row") {
       const inset = landingInsets(strip);
@@ -660,8 +697,10 @@ export class TabSet extends LeafElement {
       return;
     }
     const range = label && document.createRange();
-    range?.setStartBefore(label);
-    range?.setEndAfter(btn);
+    if (range && label) {
+      range.setStartBefore(label);
+      range.setEndAfter(btn);
+    }
     scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
       within: strip,
@@ -682,13 +721,14 @@ export class TabSet extends LeafElement {
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();
-    this.#showTab(this.#buttons.get(this.#active.value));
+    this.#showTab(this.#currentButton());
   };
 
   #stopSelectionMotion = () => {
     keeps(this.#strip, "data-lf-selection-travel", null);
   };
 
+  /** @param {AbortSignal} signal */
   #listenForHistory(signal) {
     // Back or Forward to an entry in another view switches to it, as a press does.
     // One within the open view is the browser's to restore (history.js).
@@ -708,17 +748,20 @@ export class TabSet extends LeafElement {
     );
   }
 
+  /** @param {Element} panel */
   #locationFor(panel) {
     const url = new URL(location.href);
     url.hash = panel.id;
     return url;
   }
 
+  /** @param {Element | null} panel */
   #replaceLocation(panel) {
     if (!panel || location.hash) return;
     replaceEntry(this.#locationFor(panel));
   }
 
+  /** @param {Element} panel */
   #pushLocation(panel) {
     if (location.hash === `#${panel.id}`) return;
     pushEntry(this.#locationFor(panel));
@@ -727,11 +770,11 @@ export class TabSet extends LeafElement {
   // A page-flow view starts where its strip sticks, so an offset short of that is the
   // shared header, not a place in the view. A part starts where it stands, less the
   // list where that sticks over it as a row.
-  #start() {
+  /** @param {Element} panel */
+  #start(panel) {
     if (this.#parts) {
-      const top =
-        this.#active.value.getBoundingClientRect().top + pageScroller.scrollTop;
-      if (!this.#listOver()) return top;
+      const top = panel.getBoundingClientRect().top + pageScroller.scrollTop;
+      if (!this.#listOver(panel)) return top;
       return (
         top - parseFloat(getComputedStyle(this.#strip).top) - this.#strip.offsetHeight
       );
@@ -747,18 +790,21 @@ export class TabSet extends LeafElement {
   // words, so the place survives what moves the pixels while the view is hidden: a
   // resize, a new revision. It is kept per browser tab like the open tab itself, so a
   // reload still returns each view to its place. A view left at its start keeps none.
+  /** @param {Element} panel */
   #leave(panel) {
-    const read = pageScroller.scrollTop > this.#start() + 0.5;
+    const read = pageScroller.scrollTop > this.#start(panel) + 0.5;
     tabStore.set(this.#placeKey(panel), read ? JSON.stringify(capturePlace()) : null);
   }
 
   // A view reopens at its place. One without keeps the header as the user has it,
   // clamped to the view's start so a stuck strip stays stuck.
+  /** @param {Element} panel @param {number} from */
   #open(panel, from) {
-    const start = this.#start();
+    const start = this.#start(panel);
     let place = null;
     try {
-      place = JSON.parse(tabStore.get(this.#placeKey(panel)));
+      const stored = tabStore.get(this.#placeKey(panel));
+      if (stored !== null) place = JSON.parse(stored);
     } catch {
       // An unreadable place is no place.
     }
@@ -769,6 +815,7 @@ export class TabSet extends LeafElement {
     if (place) restorePlace(place);
   }
 
+  /** @param {Element} panel */
   #placeKey(panel) {
     return `${PLACE_KEY}${this.id}:${panel.id}`;
   }

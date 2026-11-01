@@ -5,7 +5,8 @@ import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 const { lastMovedAt, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { threadName, threadSummary } = await import("/runtime/thread/messages.js");
+const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
+  await import("/runtime/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/markdown.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
 
@@ -433,4 +434,24 @@ test("news answers only a user turn that still stands", async () => {
   });
   // Undo removes the interjection while work on the original question continues.
   assert.equal(threadChange(before, reading([root], "More work")).answers, null);
+});
+
+test("Copy retains the original authored HTML after the public thread reading", async () => {
+  const { adoptRegistry } = await import("/runtime/registry.js");
+  adoptRegistry({ $layer: { generation: "authored-copy" } });
+  const markup = "<p>A <strong>captured</strong> answer.</p>";
+  const source = agent("authored-copy", {
+    kind: "comment",
+    text: "Agent words",
+    markup,
+  });
+  const prepared = await prepareAuthoredMessage(source, source.id);
+  const [thread] = readThreadRecords(
+    [servedThread([source])],
+    { ...NO_DOCUMENT, messageBodies: new Map([[source.id, prepared.body]]) },
+    new Map(),
+    [],
+  );
+  const message = messageReading(thread.root, { workflows: [], reactions: null });
+  assert.equal(message.markdown, `Agent words\n\n${markup}`);
 });

@@ -2,6 +2,7 @@
  * in the host's light DOM and the browser distributes it through the slot. */
 import { html, nothing } from "/vendor/lit.js";
 
+/** @param {HTMLElement} host */
 export function render(host) {
   const branch = host.getAttribute("branch");
   const head = host.getAttribute("head");
@@ -10,7 +11,8 @@ export function render(host) {
     .join(" · ");
   const status = host.getAttribute("status");
   // Counts already say a row changed; only Clean/Unavailable need another word.
-  const word = { clean: "Clean", unavailable: "Unavailable" }[status];
+  const word =
+    status === "clean" ? "Clean" : status === "unavailable" ? "Unavailable" : undefined;
   const files = Number(host.getAttribute("files"));
   const binary = Number(host.getAttribute("binary-files"));
   return html`<details

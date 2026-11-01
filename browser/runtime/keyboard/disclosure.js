@@ -51,9 +51,14 @@ import { inChrome } from "../passages.js";
 const disclosureWatch = new MutationObserver((records) => {
   // Every record is an attribute's, so its target is an element.
   for (const r of records)
-    if (/** @type {Element} */ (r.target).getAttribute(r.attributeName) !== r.oldValue)
+    if (
+      r.target instanceof Element &&
+      r.attributeName !== null &&
+      r.target.getAttribute(r.attributeName) !== r.oldValue
+    )
       paintKeysWithin(r.target);
 });
+/** @param {Node} root */
 export const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {
     subtree: true,
@@ -61,23 +66,27 @@ export const watchDisclosures = (root) =>
     attributeOldValue: true,
   });
 
+/** @param {Element | null} el */
 export const DISCLOSE = (el) => {
-  const open = disclosed(el);
-  if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
-  const [back, ahead] = rowArrows(el);
-  return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
+  const disclosure = disclosureAt(el);
+  if (!disclosure) return [...PRESS, "ArrowLeft", "ArrowRight"];
+  const { element, open } = disclosure;
+  const [back, ahead] = rowArrows(element);
+  return inChrome(element) ? PRESS : [...PRESS, open ? back : ahead];
 };
 
 export const DISCLOSURE_SELECTOR =
   'details > summary, :is(button, [role="button"])[aria-expanded]';
 
-// Which way the disclosure at this element is set: open, shut, or null where it is
-// not a disclosure at all — which is a question asked from wherever the user happens to
-// be, the reference listing a scope the page has rather than the one they are in.
-export function disclosed(el) {
-  return !el?.matches?.(DISCLOSURE_SELECTOR)
-    ? null
-    : el.matches("details > summary")
-      ? el.parentElement.open
-      : el.getAttribute("aria-expanded") === "true";
+// The disclosure at this element and whether it is open, or null where none stands.
+// The reference asks from wherever the user is, listing scopes the page has.
+/** @param {Element | null} el */
+export function disclosureAt(el) {
+  if (!el?.matches(DISCLOSURE_SELECTOR)) return null;
+  return {
+    element: el,
+    open: el.matches("details > summary")
+      ? el.matches("details[open] > summary")
+      : el.getAttribute("aria-expanded") === "true",
+  };
 }

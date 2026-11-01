@@ -2276,7 +2276,7 @@ function formatDeclaredMarkdown(scope) {
 }
 function paintMarkdown(element, source) {
 	if (element.dataset.lfSourceWords === source && !element.hasAttribute("data-lf-prepaint")) return;
-	const markup = renderMarkdown(source);
+	const markup = renderMarkdown(source, false);
 	if (element.dataset.lfSourceWords !== source) element.dataset.lfSourceWords = source;
 	if (element.innerHTML !== markup) element.innerHTML = markup;
 }

@@ -28,18 +28,25 @@
    browser-owned following (`composing/floating-response.js`).
 
    Both stand in one boundary (`commentBoundary`): the part of the window the page
-   shows, within the region that scrolls the pointed row, else the target
-   (`scrollerFor`), where that holds a card, else within the page shell. That region's
-   edges cut the row as it scrolls, so they cut the surface too. A region in flow
-   scrolls nothing itself, so a surface on words in a pane the page scrolls stands in
-   the page, or in whatever box scrolls that pane; which boxes scroll is the
-   stylesheet's to say (reading-regions.js). Rejected: the innermost reading region
-   around the row, whether or not it scrolled, which stopped a card on words in a pane
-   the page scrolls at that pane's foot while the window had room. Also rejected: the
-   innermost box with rows to scroll, which stood a comment in a workspace pane whose
-   rows all show over the pane beside it; and the region that scrolls the target,
-   which stood a comment pointed at a row deep in a pane that is itself the target
-   over the pane beside it.
+   shows, within the region whose flow holds the pointed row, else the target, where
+   that region holds a card, else within the page shell. That region is the box that
+   scrolls the row (`scrollerFor`), unless the row is in a bounded block, which scrolls
+   inside the box around it as a paragraph does; then it is the box that scrolls the
+   block (margin-layout.js, `flowOf`), so a comment on a log row stands in the rail
+   beside the log, where its margin row stands. The region's edges cut the row as it
+   scrolls, so they cut the card too. A block's edges cut the card only once its row has
+   crossed one, and never move it, so the card leaves with its row as the row's words
+   leave the log. A region in flow scrolls nothing itself, so a surface on words in a
+   pane the page scrolls stands in the page, or in whatever box scrolls that pane;
+   which boxes scroll is the stylesheet's to say (reading-regions.js). Rejected: the
+   block that scrolls the row, which capped a card on a log row at the log's height and,
+   once a short log filled, moved its card from the rail into the log. Also rejected:
+   the innermost reading region around the row, whether or not it scrolled, which
+   stopped a card on words in a pane the page scrolls at that pane's foot while the
+   window had room; the innermost box with rows to scroll, which stood a comment in a
+   workspace pane whose rows all show over the pane beside it; and the region that
+   scrolls the target, which stood a comment pointed at a row deep in a pane that is
+   itself the target over the pane beside it.
 
    The side is chosen once, for the thread's footprint rather than the box's, so the box
    stands where its card can: right of `clear` where that room holds the card's minimum
@@ -55,7 +62,9 @@
    On a narrow window, one with no room for the rail beside the column
    (content-layout.js, `railStands`), a card, which asks the page for room
    (`makesRoom`), stands under the words in the page's flow it is about wherever the
-   page can make it room there, covers the reading column (content-layout.js,
+   page can make it room there (the page is the region whose flow holds them, above,
+   for a row in a log the page scrolls too; words in a pane, which scrolls itself, it
+   covers as on a wide window), covers the reading column (content-layout.js,
    `proseRect`) and any wider block it stands under or over, and keeps room for its
    whole measure (`--thread-card`), standing in from the column's start only as far
    as the window makes it, so a phone's spans the window and no page words stand cut
@@ -111,7 +120,9 @@
    it has stood since its line last moved (`fit`'s `stood`), whichever is more. One
    that `rises` holds its top but has the boundary's whole height, so the boundary
    lifts it as it outgrows the room below; its held top is the spot before that lift,
-   so shrinking brings it back down to where it stood. Against
+   so shrinking brings it back down to where it stood. A card under its words on a
+   narrow window never rises, since that lift would carry it over them: it has only
+   the room below where it stands. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
    rewrite opening over long words, a fold, an edit, lowers its top, and growing back
    raises it again to where it stood. A scroll moves the line and keeps only the
@@ -163,7 +174,7 @@ import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
 
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
-import { marginSpot } from "./margin-layout.js";
+import { flowOf, marginSpot } from "./margin-layout.js";
 import { proseRect, railStands } from "../content-layout.js";
 import { floatingGeometry, positioningScale } from "./floating.js";
 
@@ -246,49 +257,68 @@ export const COMMENT_GAP = 8;
 export const LEAST_HEIGHT = 96;
 
 // The room both surfaces stand in: the part of the window the page shows, within the
-// shown bounds of the reading region whose body is `scroller`, the box that scrolls the
-// surfaces' row (`scrollerFor`), where those hold the card's minimum width and the least
+// shown bounds of the region whose flow holds the surfaces' row (`flowOf` the box that
+// scrolls the row, `scroller`), where those hold the card's minimum width and the least
 // height, else within the page shell, whose right edge stops short of the root
 // scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
-// boundary names the region's shown bounds it stands in (`inRegion`), which then cut the
-// surface. Its `key` is what holds the side (`choose`): the window's edges, or the
-// region's whole box size and the window's, since a scroll of the page moves and clips a
-// region's shown bounds without changing the room it has, and a resize changes it.
+// boundary names the box that scrolls that room (`scroller`), which makes room for a
+// surface, and the edges that cut the card (`cut`), or null where none do: the region's,
+// and each edge of a bounded block around the row that the attachment `at` (the row's
+// line and column) has crossed. Its top cuts once the card's own top, a gap above the
+// line, has passed it, so the cut grows from nothing. Crossing an edge cuts the card
+// and never moves it: bounding the room there pushed a card hanging past a log's foot
+// up over its row once the row's line passed the foot. Its `key` is what holds the side
+// (`choose`): the window's edges, or the region's whole box size and the window's,
+// since a scroll of the page moves and clips a region's shown bounds without changing
+// the room it has, and a resize changes it.
 // It spans every column the surface could stand in, so the side is chosen from it;
 // `across(columns)` is the same room for a surface standing in those columns, where
 // chrome beside them, such as the floating panel's row under the page column, takes
 // none of its height (`shownWindow`).
-/** @param {{scroller?: Element, right?: number}} [options] */
-export function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+/** @param {{scroller?: Element, at?: {x: number, y: number} | null, right?: number}} [options] */
+export function commentBoundary({
+  scroller = pageScroller,
+  at = null,
+  right = Infinity,
+} = {}) {
   const room = (within) => {
     const across = (columns) =>
       shownWindow({ within, gap: COMMENT_GAP, across: columns });
     return Object.assign(across(null), { across });
   };
-  const bounds = scroller !== pageScroller && shownRect(scroller, new Map());
-  const inRegion = bounds && room(bounds);
-  if (
-    inRegion &&
-    Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
-    inRegion.height >= LEAST_HEIGHT
-  ) {
-    const whole = scroller.getBoundingClientRect();
-    return Object.assign(inRegion, {
-      inRegion: bounds,
-      key: [
-        whole.width,
-        whole.height,
-        window.visualViewport.width,
-        window.visualViewport.height,
-      ],
-    });
+  const { blocks, flow } = flowOf(scroller);
+  const bounds = flow !== pageScroller && shownRect(flow, new Map());
+  const region = bounds && room(bounds);
+  const inRegion =
+    region &&
+    Math.ceil(region.width) >= Math.ceil(cardMinimum()) &&
+    region.height >= LEAST_HEIGHT;
+  const cut = inRegion
+    ? { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom }
+    : { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+  for (const block of at ? blocks : []) {
+    const shown = shownRect(block, new Map());
+    if (!shown) continue;
+    if (at.y - COMMENT_GAP < shown.top) cut.top = Math.max(cut.top, shown.top);
+    if (at.y > shown.bottom) cut.bottom = Math.min(cut.bottom, shown.bottom);
+    if (at.x < shown.left) cut.left = Math.max(cut.left, shown.left);
+    if (at.x > shown.right) cut.right = Math.min(cut.right, shown.right);
   }
-  const shell = room({ right: Math.min(shellRight(), right) });
+  const shell = inRegion ? region : room({ right: Math.min(shellRight(), right) });
+  const whole = inRegion ? flow.getBoundingClientRect() : shell;
   return Object.assign(shell, {
-    inRegion: null,
-    key: [shell.left, shell.top, shell.right, shell.bottom],
+    cut: inRegion || Object.values(cut).some(Number.isFinite) ? cut : null,
+    scroller: flow,
+    key: inRegion
+      ? [
+          whole.width,
+          whole.height,
+          window.visualViewport.width,
+          window.visualViewport.height,
+        ]
+      : [whole.left, whole.top, whole.right, whole.bottom],
   });
 }
 
@@ -349,9 +379,11 @@ export function makeRoom(side, clear, extent, height, boundary, scroller) {
 }
 
 // Whether a card on a narrow window can stand clear of what it is about: in the page's
-// flow, with the least room a surface stands in left beside it.
+// flow (`commentBoundary`'s `scroller`), with the least room a surface stands in left
+// beside it.
 const staysClear = (extent, boundary) =>
-  !boundary.inRegion && extent.height + COMMENT_GAP + LEAST_HEIGHT <= boundary.height;
+  boundary.scroller === pageScroller &&
+  extent.height + COMMENT_GAP + LEAST_HEIGHT <= boundary.height;
 
 // The side a comment's surface takes, as a Floating UI side.
 export function commentSide({
@@ -722,7 +754,7 @@ export function commentPlacement({ makesRoom = false } = {}) {
               Math.min(minimumWidth, boundary.width) / scale.x,
               Math.min(state.availableWidth, lane / scale.x),
             ),
-            height: rises ? shown.height / scale.y : (below ?? state.availableHeight),
+            height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
             room: shown,
             stood,
             scale,

@@ -1630,7 +1630,7 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
         leaf_page(
             "Rename allocation",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data">'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
             layout=None,
         ),
         packages=("diff",),

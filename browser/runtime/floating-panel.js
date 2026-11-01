@@ -3739,7 +3739,7 @@ export function createFloatingPanel({
           ? html`<p>
               ${voiced([
                 leafSays("Last done: "),
-                excerptWords(queueTitle(last), 60),
+                agentSays(excerptWords(queueTitle(last), 60)),
                 leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`),
               ])}
             </p>`

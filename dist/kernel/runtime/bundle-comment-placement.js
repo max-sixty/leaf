@@ -274,11 +274,18 @@ function carrierAnchor(subject, sources, scroller) {
 	return carriedAnchor(inner) ?? own();
 }
 const marginColumn = () => layoutBox() || document.body;
-const railBeside = (scroller) => {
-	if (scroller === pageScroller) return true;
-	const block = boundedBlockOf(scroller);
-	return Boolean(block) && scrollerFor(upFrom(block)) === pageScroller;
+const flowOf = (scroller) => {
+	const blocks = [];
+	for (let block; block = boundedBlockOf(scroller);) {
+		blocks.push(scroller);
+		scroller = scrollerFor(upFrom(block));
+	}
+	return {
+		blocks,
+		flow: scroller
+	};
 };
+const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 const railMeasureRow = document.createElement("div");
 railMeasureRow.className = "lf-margin-cluster";
 railMeasureRow.dataset.lfPlace = "rail";
@@ -1516,7 +1523,7 @@ function commentReference(place, reference) {
 }
 const COMMENT_GAP = 8;
 const LEAST_HEIGHT = 96;
-function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
+function commentBoundary({ scroller = pageScroller, at = null, right = Infinity } = {}) {
 	const room = (within) => {
 		const across = (columns) => shownWindow({
 			within,
@@ -1525,28 +1532,44 @@ function commentBoundary({ scroller = pageScroller, right = Infinity } = {}) {
 		});
 		return Object.assign(across(null), { across });
 	};
-	const bounds = scroller !== pageScroller && shownRect(scroller, /* @__PURE__ */ new Map());
-	const inRegion = bounds && room(bounds);
-	if (inRegion && Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) && inRegion.height >= 96) {
-		const whole = scroller.getBoundingClientRect();
-		return Object.assign(inRegion, {
-			inRegion: bounds,
-			key: [
-				whole.width,
-				whole.height,
-				window.visualViewport.width,
-				window.visualViewport.height
-			]
-		});
+	const { blocks, flow } = flowOf(scroller);
+	const bounds = flow !== pageScroller && shownRect(flow, /* @__PURE__ */ new Map());
+	const region = bounds && room(bounds);
+	const inRegion = region && Math.ceil(region.width) >= Math.ceil(cardMinimum()) && region.height >= 96;
+	const cut = inRegion ? {
+		left: bounds.left,
+		top: bounds.top,
+		right: bounds.right,
+		bottom: bounds.bottom
+	} : {
+		left: -Infinity,
+		top: -Infinity,
+		right: Infinity,
+		bottom: Infinity
+	};
+	for (const block of at ? blocks : []) {
+		const shown = shownRect(block, /* @__PURE__ */ new Map());
+		if (!shown) continue;
+		if (at.y - 8 < shown.top) cut.top = Math.max(cut.top, shown.top);
+		if (at.y > shown.bottom) cut.bottom = Math.min(cut.bottom, shown.bottom);
+		if (at.x < shown.left) cut.left = Math.max(cut.left, shown.left);
+		if (at.x > shown.right) cut.right = Math.min(cut.right, shown.right);
 	}
-	const shell = room({ right: Math.min(shellRight(), right) });
+	const shell = inRegion ? region : room({ right: Math.min(shellRight(), right) });
+	const whole = inRegion ? flow.getBoundingClientRect() : shell;
 	return Object.assign(shell, {
-		inRegion: null,
-		key: [
-			shell.left,
-			shell.top,
-			shell.right,
-			shell.bottom
+		cut: inRegion || Object.values(cut).some(Number.isFinite) ? cut : null,
+		scroller: flow,
+		key: inRegion ? [
+			whole.width,
+			whole.height,
+			window.visualViewport.width,
+			window.visualViewport.height
+		] : [
+			whole.left,
+			whole.top,
+			whole.right,
+			whole.bottom
 		]
 	});
 }
@@ -1580,7 +1603,7 @@ function makeRoom(side, clear, extent, height, boundary, scroller) {
 	moveScrollerBy(scroller, direction * movement / projection);
 	return Math.abs((scroller.scrollTop - before) * projection) > .5;
 }
-const staysClear = (extent, boundary) => !boundary.inRegion && extent.height + 8 + 96 <= boundary.height;
+const staysClear = (extent, boundary) => boundary.scroller === pageScroller && extent.height + 8 + 96 <= boundary.height;
 function commentSide({ clear, extent, boundary, width, scroller, coarse, clearOf = false }) {
 	const fits = (room) => Math.ceil(room) >= Math.ceil(width);
 	if (fits(boundary.right - clear.right - 8)) return "right";
@@ -1768,7 +1791,7 @@ function commentPlacement({ makesRoom = false } = {}) {
 					fit({
 						side,
 						width: Math.max(Math.min(minimumWidth, boundary.width) / scale.x, Math.min(state.availableWidth, lane / scale.x)),
-						height: rises ? shown.height / scale.y : below ?? state.availableHeight,
+						height: below ?? (rises ? shown.height / scale.y : state.availableHeight),
 						room: shown,
 						stood,
 						scale,

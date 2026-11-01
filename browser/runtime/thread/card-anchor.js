@@ -11,14 +11,17 @@
    acted on through that change's fitting, until another input or unrelated change.
    These lifetimes belong to the conversation, not the physical placement solver.
    Above its subject, reading keeps the foot. Writing keeps the top. Beside its
-   subject, a card being written in also rises (`rises`): it may outgrow the room
-   below its top, and the window's foot lifts it, as a chat's composer grows, so the
-   line being typed and the turn it answers stay in view (the user's decision,
-   2026-10-21). Its top stays where it stood, so a shorter draft brings it back
-   down. Rejected: holding the foot once a landing met the window's foot, which kept
-   a shrinking draft's card lifted, detached from where it stood. Below the subject
-   it grows down to keep that subject clear. Adoption keeps the editor's attachment
-   ahead of any conversation hold.
+   subject, a card also rises as it grows (`rises`), read or written in: it may
+   outgrow the room below its top, and the window's foot lifts it, as a chat's
+   composer grows, so the line being typed, or the answer arriving, stays in view with
+   the turn it answers (the user's decisions, 2026-10-21 for writing and 2026-10-31
+   for reading). Its top stays where it stood, so a shorter thread brings it back
+   down. A press and a send's hold still keep their edge. Rejected: holding the foot
+   once a landing met the window's foot, which kept a shrinking draft's card lifted,
+   detached from where it stood; and keeping a read card's top as an answer arrived,
+   which scrolled its transcript once it met the window's foot and hid the question
+   above the answer. Below the subject it grows down to keep that subject clear.
+   Adoption keeps the editor's attachment ahead of any conversation hold.
    A preparation advances the press only when its placement lands and cannot
    overwrite a newer press captured during fitting. */
 import { TEXT_FIELD } from "../control-selectors.js";
@@ -169,7 +172,7 @@ export class CardAnchor {
     const beside = seat.side === "left" || seat.side === "right";
     return {
       edge: seat.adopted ? attachment : (press?.edge ?? ordinary),
-      rises: !seat.adopted && !press?.edge && writing && !this.#sent && beside,
+      rises: !seat.adopted && !press?.edge && !this.#sent && beside,
       commit: () => {
         if (this.#press === captured) this.#press = press;
       },

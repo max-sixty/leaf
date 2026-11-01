@@ -3708,14 +3708,15 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
     expect(chooser).to_have_value("list")
     chooser.select_option("summary")
     summary = view.locator(".lf-fp-work-summary")
-    # Leaf says the summary, and the agent's own line stands in its own face within it.
+    # Leaf says the summary, and the agent's own words, its line and a to-do's title,
+    # stand in its own face within it.
     expect(summary).to_contain_text(
         "Working on 1; 1 up next. Now: Drafting the note's first line."
     )
-    expect(summary.locator('[data-voice="agent"]')).to_have_text(
-        ["Drafting the note's first line"]
-    )
     expect(summary).to_contain_text("Last done: Tidy the wording")
+    expect(summary.locator('[data-voice="agent"]')).to_have_text(
+        ["Drafting the note's first line", "Tidy the wording"]
+    )
     expect(view.locator(".lf-fp-on-line")).to_have_count(0)
 
     page.reload()

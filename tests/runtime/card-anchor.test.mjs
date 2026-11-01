@@ -113,10 +113,6 @@ test("native and restored writing reclaim the reply without comparing draft hist
   field.value = "Words restored after refusal";
   assert.equal(place(), "top");
   assert.equal(anchor.newsMoves(new Set(["answer"])), true);
-  // Written in beside its subject, the card rises from the top it holds; under its
-  // subject it only grows down.
-  assert.equal(anchor.prepare(beside).rises, true);
-  assert.equal(anchor.prepare({ ...beside, side: "bottom" }).rises, false);
   field.value = "";
   anchor.presented(new Set(["sent turn"]));
   assert.equal(place(), "top");
@@ -135,6 +131,26 @@ test("a box written in after Send stays written in once its words are erased", (
   field.value = "A";
   field.value = "";
   assert.equal(anchor.newsMoves(new Set(["answer"])), true);
+});
+
+test("beside its subject a card rises as it grows, unless a press or a send holds it", (t) => {
+  const { anchor, field, press, grow } = card(t);
+  // Read or written in, it rises from the top it holds; under its subject it only
+  // grows down.
+  assert.equal(anchor.prepare(beside).rises, true);
+  assert.equal(anchor.prepare({ ...beside, side: "bottom" }).rises, false);
+  field.value = "A draft";
+  assert.equal(anchor.prepare(beside).rises, true);
+  field.value = "";
+  anchor.sending("sent turn");
+  anchor.presented(new Set(["sent turn"]));
+  assert.equal(anchor.prepare(beside).rises, false);
+  // An answer arriving releases the send's foot, and the card rises to show it.
+  anchor.presented(new Set(["answer"]));
+  assert.equal(anchor.prepare(beside).rises, true);
+  press();
+  grow(160, 80);
+  assert.equal(anchor.prepare(beside).rises, false);
 });
 
 test("a news query before Send masks its words cannot release the sent place", (t) => {

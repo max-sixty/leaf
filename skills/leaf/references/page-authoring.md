@@ -244,6 +244,12 @@ the language's usual indentation and line breaks rather than packing several sta
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
 
+Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
+from a doc or a pull request's description, in `lf-text-document preview="markdown"`
+with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
+Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
+itself the subject, show it literally in `<pre><code>`.
+
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may

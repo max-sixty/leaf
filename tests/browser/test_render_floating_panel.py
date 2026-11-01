@@ -946,6 +946,55 @@ def test_on_a_phone_held_news_gives_way_before_close(browser, serve):
     ) in ("2 new", "+2", True)
 
 
+def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, serve):
+    """On a narrow phone, a thread offering Next unread and Show on page has more
+    presses than its head line holds beside its way back. They take a line of their
+    own under its name, Close still last, so every press stays inside the panel."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Which jobs should start first once the export has landed?",
+        {"section": "p0"},
+        author="agent",
+    )
+    agent_said(
+        serve.page_dir, root, "The export first. " + "The reports read it. " * 120
+    )
+    context = browser.new_context(
+        viewport={"width": 300, "height": 700}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    open_threads(page)
+    page.locator(".lf-fp-thread", has_text="Which jobs should start first").click()
+    expect(page.locator(".lf-fp-head .lf-fp-next-unread")).to_be_visible()
+    expect(page.locator(".lf-fp-head .lf-fp-on-page")).to_be_visible()
+    settled(page)
+    head = page.locator(".lf-fp-head")
+    assert head.evaluate("h => h.scrollWidth <= h.clientWidth"), head.evaluate(
+        "h => [h.scrollWidth, h.clientWidth]"
+    )
+    card = page.locator(".lf-fp-card").bounding_box()
+    back, *presses = (
+        page.locator(f".lf-fp-head {press}").bounding_box()
+        for press in (
+            ".lf-fp-back",
+            ".lf-fp-next-unread",
+            ".lf-fp-on-page",
+            ".lf-fp-settle",
+            ".lf-fp-close",
+        )
+    )
+    for box in (back, *presses):
+        assert (
+            card["x"] <= box["x"]
+            and box["x"] + box["width"] <= card["x"] + card["width"]
+        ), (box, card)
+    middles = [box["y"] + box["height"] / 2 for box in presses]
+    assert max(middles) - min(middles) < 1, presses
+    assert presses[0]["y"] >= back["y"] + back["height"] - 1, (back, presses)
+    assert [box["x"] for box in presses] == sorted(box["x"] for box in presses)
+
+
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):
     """News arriving while the user writes in an open thread waits behind a notice on
     the view's head line, before its presses. It reads whole, and no press and nothing
@@ -1349,6 +1398,14 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     joined = page.locator(".lf-fp-joined .lf-thread-news")
     expect(joined).to_have_attribute("title", "1 new thread")
     settled(page)
+    # The line starts on the words' edge, as the rows' marks do.
+    assert page.locator(".lf-fp-joined").evaluate(
+        """line => {
+          const head = line.parentElement;
+          return line.getBoundingClientRect().left - head.getBoundingClientRect().left
+            - parseFloat(getComputedStyle(head).paddingLeft);
+        }"""
+    ) == pytest.approx(0, abs=0.5)
     expect(rows).to_have_count(4)
     assert rows.evaluate_all(tops) == row_positions
     assert threads_tab.bounding_box() == before
@@ -4830,9 +4887,10 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
 
 
 def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
-    """In a thread's view the head's words, the quote's and each message's start on one
-    edge, the quote's rule standing left of it. A rewrite's frame reaches back only as
-    far as that rule, so its words keep the message's and its frame stays clear of the
+    """In a thread's view the quote's words and each message's start on one edge, the
+    quote's rule standing left of it, and the way back on the head line stands on the
+    rule's edge, the thread's name after it. A rewrite's frame reaches back only as far
+    as that rule, so its words keep the message's and its frame stays clear of the
     panel's edge."""
     url = serve(PAGE_ANNOTATED)
     root = panel_comment(
@@ -4872,8 +4930,11 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
       const quote = view.querySelector('.lf-fp-quote');
       const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
       const text = frame?.querySelector('leaf-text');
+      const back = document.querySelector('.lf-fp-head .lf-fp-back').getBoundingClientRect();
       return {
-        head: words(document.querySelector('.lf-fp-head')),
+        head: words(document.querySelector('.lf-fp-head .lf-fp-title')),
+        back: back.left - edge,
+        backEnd: back.right - edge,
         quote: words(quote),
         message: words(view.querySelector('.lf-msg')),
         rule: quote.getBoundingClientRect().left - edge,
@@ -4883,9 +4944,10 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
       };
     }"""
     at = page.evaluate(starts)
-    assert at["head"] == pytest.approx(at["quote"], abs=0.5), at
-    assert at["message"] == pytest.approx(at["head"], abs=0.5), at
-    assert 0 < at["rule"] < at["head"] - 4, at
+    assert at["message"] == pytest.approx(at["quote"], abs=0.5), at
+    assert 0 < at["rule"] < at["quote"] - 4, at
+    assert at["back"] == pytest.approx(at["rule"], abs=0.5), at
+    assert at["backEnd"] <= at["head"], at
 
     view.locator(".lf-msg-body").dblclick()
     expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()

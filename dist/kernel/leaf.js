@@ -4997,7 +4997,7 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               data-thread=${thread ?? nothing}
               ?data-lf-thread-view=${thread !== null}
             >
-              ${top ? headTemplate(top) : nothing}${initial ? nothing : joinedTemplate()}${top && !closeAtFoot ? viewClose : nothing}
+              ${top ? headTemplate(top, closeAtFoot ? nothing : viewClose) : nothing}${initial ? nothing : joinedTemplate()}
             </div>
             <div class="lf-fp-stage">
               ${initial ? nothing : repeat([...leaving ? [leaving] : [], ...top ? [top] : []], routeKey, (route) => html`<div
@@ -7096,18 +7096,22 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		}
 		focusDestination(threadSearchInput, "move");
 	}
-	const headTemplate = (top) => {
+	const headTemplate = (top, close) => {
 		const view = viewOf(top);
 		const parent = trail.value.at(-2);
-		return html`${parent ? html`<button
-              type="button"
-              ${offeredAction("symbol", "lf-fp-back", `Back to ${titleOf(parent)}`, { action: "back" })}
-              @click=${back}
-            ></button>` : nothing}
-      <h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
-        ${(view.head ?? view.title)(top)}
-      </h2>
-      ${view.presses?.(top) ?? nothing}`;
+		const { facts = nothing, presses = nothing } = view.presses?.(top) ?? {};
+		return html`<div class="lf-fp-name">
+        ${parent ? html`<button
+                type="button"
+                ${offeredAction("symbol", "lf-fp-back", `Back to ${titleOf(parent)}`, { action: "back" })}
+                @click=${back}
+              ></button>` : nothing}
+        <h2 class=${view.quiet?.(top) ? "lf-fp-title lf-quiet" : "lf-fp-title"}>
+          ${(view.head ?? view.title)(top)}
+        </h2>
+        ${facts}
+      </div>
+      ${presses === nothing && close === nothing ? nothing : html`<div class="lf-fp-aux">${presses}${close}</div>`}`;
 	};
 	function controlsTemplate(top) {
 		const { crumb = nothing, aux = nothing } = viewOf(top).controls?.(top) ?? {};
@@ -7177,10 +7181,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 	}
 	function threadPresses(route) {
 		const thread = threadOf(route);
-		if (!thread) return nothing;
+		if (!thread) return {};
 		const inMessage = Boolean(placedAt(thread.id)?.message);
 		opening.onPageSeat ||= Boolean(thread.anchor) && (inMessage || !atLastResort(thread.key));
-		const aux = html`${opening.unreadSeat ? html`<button
+		const presses = html`${opening.unreadSeat ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-next-unread")}
               ?disabled=${!thread.unread.length}
@@ -7221,10 +7225,12 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			}).catch(() => {});
 		}}
       ></button>`;
-		return html`<span class="lf-fp-facts"
+		return {
+			facts: html`<span class="lf-fp-facts"
         >${keyed(thread.key, html`<span class="lf-fp-news-outlet"></span>`)}</span
-      >
-      <div class="lf-fp-aux">${aux}</div>`;
+      >`,
+			presses
+		};
 	}
 	function setRest(rest) {
 		const before = trail.value.at(-1);

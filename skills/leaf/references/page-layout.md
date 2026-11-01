@@ -66,20 +66,12 @@ outline.
 
 ## Document flow
 
-A `layout-column` is a native grid with a centered prose track and the space on
-both sides available to exhibits. Group a nested section with `class="layout-flow"`
-when its children should share those tracks. Ordinary wrappers contain their
-children: a list, callout or custom grid does not grant a nested exhibit room outside
-its own box. The same `data-width` contract applies at every level.
-
-Direct children of `layout-column` and `layout-flow` are grid items: their vertical
-margins add rather than collapse, and `float` does not place them beside prose.
-Automatic inline margins make an unsized item shrink to its content; give it
-`inline-size: 100%` when it should fill its track, up to any `max-inline-size`.
-An item that opens with a heading, or with an eyebrow over one, takes the heading's
-gap as its own top margin, so its box starts at the heading. Set that gap with the
-theme's `--h2-start` and `--h3-start` on `:root`. A top margin page CSS gives the item
-replaces the gap, and one it gives the heading adds to it.
+A `layout-column` is ordinary block flow at the reading measure, centered, with the
+space on both sides available to exhibits. Its blocks' margins collapse and a float
+stands beside the prose, as on any page. Group a nested section with
+`class="layout-flow"` when its children should share that space. Ordinary wrappers
+contain their children: a list, callout or custom grid does not grant a nested exhibit
+room outside its own box. The same `data-width` contract applies at every level.
 
 ```html
 <main class="layout-column">
@@ -92,7 +84,7 @@ replaces the gap, and one it gives the heading adds to it.
 </main>
 ```
 
-Give a tab set `class="layout-flow"` when it should share the document's tracks
+Give a tab set `class="layout-flow"` when it should share the document's space
 without a frame. Each panel is either another `layout-flow` or its own Layout.
 Omit the class for a framed tab set inside a section or another panel; its panels
 stay ordinary boxes too. Placement alone never chooses a set's visual flow.
@@ -241,11 +233,11 @@ works on column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block takes a wider track when it is a child of `layout-column` or `layout-flow`.
+A block widens when it is a child of `layout-column` or `layout-flow`.
 A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
 its children use the room inside it. A wide child alone does not widen its holder,
 and a table scrolls sideways when needed. Use `layout-flow` on unframed section
-wrappers that should share the document's tracks, not on boxes that arrange their
+wrappers that should share the document's space, not on boxes that arrange their
 own contents.
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height

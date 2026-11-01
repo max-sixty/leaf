@@ -1,6 +1,6 @@
 import { LAYOUT, afterScript, atLayoutPrecision, cancelRender, inlineStyle, keeps, layoutPx, nextRender, renderedParent, renderedUnder, sizeObserver, skipped, under, upFrom } from "./bundle-portable.js";
 import { TAB_STOP, coarsePointer, hoveringPointer, move, renderedChildren } from "./bundle-layer-stack.js";
-import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
+import { afterPresentation, anchorBox, anchorElement, anchorFor, anchorName, anchorReading, boundedBlockOf, carriedAnchor, containingReadingRegionFor, cutFrames, headerLevels, moveScrollerBy, nameAnchor, pageScroller, passageBoxes, pointBand, proseMeasure, proseRect, railStands, scrollAxes, scrollLimit, scrollerFor, scrollsWith, targetRange, targetSegments } from "./bundle-content-layout.js";
 import { clamp, clippedContents, clippedRect, clippingAxes, overlaps, overlapsAcross, scrollsContent, shellRight, shownBand, shownExtent, shownParts, shownRect, shownWindow, union, visualViewport } from "./bundle-geometry.js";
 import { inChrome, layoutBox } from "./bundle-passages.js";
 import { visibleTargetParts } from "./bundle-visible-target-parts.js";
@@ -489,7 +489,7 @@ function reach(anchor, box, main, reaches) {
 			const b = el.getBoundingClientRect();
 			const style = getComputedStyle(el);
 			edge = {
-				right: style.gridTemplateColumns.includes("prose-start") || style.gridTemplateColumns.startsWith("subgrid") && style.gridColumnStart === "full" ? -Infinity : b.right,
+				right: proseMeasure(el) > 0 ? -Infinity : b.right,
 				clip: style.overflowX === "visible" ? null : b.left + el.clientLeft + el.clientWidth
 			};
 			reaches.set(el, edge);

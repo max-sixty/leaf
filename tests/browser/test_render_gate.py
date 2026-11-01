@@ -2504,38 +2504,42 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
-def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, serve):
-    """A grid item keeps its first child's margin inside its box, so a section in the
-    reading column would begin a heading's gap above its heading, and the focus ring,
-    margin entry and landing Leaf places by that box would stand in the gap. The item
-    takes the heading's gap instead: its box starts at the heading, which stands as far
-    below the block above as the gap says. An eyebrow over the heading follows the same
-    edge. A callout opening with a heading keeps its own margin, and an item opening with
-    prose keeps its child's margin, so neither one's text moves."""
+def test_a_column_block_starts_at_its_first_line(browser, serve):
+    """The reading column is block flow, so a block's first child's top margin collapses
+    out through it and the block's box starts at its first line, whatever opens it: the
+    focus ring, margin entry and landing Leaf places by that box stand at its text. The
+    gap above stays the larger margin, the heading's. A callout keeps its own margin,
+    since its frame holds its heading's margin in."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Column items",
+                "Column blocks",
                 """<p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
 <section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
-<section id="prose-led"><p>Prose first.</p></section>""",
+<section id="prose-led"><p>Prose first.</p></section>
+<section id="list-led"><ol><li>A list first.</li></ol></section>
+<section class="layout-flow" id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
             )
         ),
     )
     items = page.evaluate(
         """() => Object.fromEntries(
-          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led'].map(id => {
+          ['h2-led', 'h3-led', 'eyebrow-led', 'framed', 'prose-led', 'list-led',
+           'flow-led'].map(id => {
             const item = document.getElementById(id);
             const box = item.getBoundingClientRect();
-            const first = item.firstElementChild.getBoundingClientRect();
-            const above = item.previousElementSibling.getBoundingClientRect();
+            let first = item.firstElementChild;
+            while (first.firstElementChild && !/^(h[1-6]|p)$/.test(first.localName))
+              first = first.firstElementChild;
+            const top = first.getBoundingClientRect().top;
+            const above = item.previousElementSibling?.getBoundingClientRect();
             return [id, {
-              band: first.top - box.top,
-              gap: first.top - above.bottom,
+              band: top - box.top,
+              gap: above ? top - above.bottom : null,
               margin: parseFloat(getComputedStyle(item).marginBlockStart),
             }];
           }))"""
@@ -2548,13 +2552,12 @@ def test_a_column_item_opening_with_a_heading_starts_at_the_heading(browser, ser
     page.close()
 
     h2_start, h3_start, callout_margin = tokens
-    for led in ("h2-led", "h3-led", "eyebrow-led"):
+    for led in ("h2-led", "h3-led", "eyebrow-led", "prose-led", "list-led", "flow-led"):
         assert items[led]["band"] == pytest.approx(0, abs=0.5), (led, items)
     assert items["h2-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
     assert items["h3-led"]["gap"] == pytest.approx(h3_start, abs=0.5), items
     assert items["eyebrow-led"]["gap"] == pytest.approx(h2_start, abs=0.5), items
     assert items["framed"]["margin"] == pytest.approx(callout_margin, abs=0.5), items
-    assert items["prose-led"]["band"] > 0, items
 
 
 def test_the_page_edge_is_no_frame(browser, serve):

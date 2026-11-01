@@ -10,7 +10,7 @@
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
-/* A set authored as layout-flow shares document tracks and draws no frame. Every
+/* A set authored as layout-flow shares the document's space and draws no frame. Every
  * other set is boxed. layouts.css owns the flow declaration the module reads for
  * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
 

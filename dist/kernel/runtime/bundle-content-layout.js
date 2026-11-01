@@ -2552,26 +2552,18 @@ function openDocumentLayout({ onRead }) {
 	window.addEventListener("resize", scheduleDocumentLayout);
 	readDocumentLayout();
 }
+const proseMeasure = (node) => parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
 function proseRect(main = layoutBox()) {
 	if (!main) return null;
-	const grid = [main, ...main.children].find((node) => getComputedStyle(node).gridTemplateColumns.includes("prose-start"));
-	if (!grid) return main.getBoundingClientRect();
-	const style = getComputedStyle(grid);
-	const frame = elementFrame(grid);
-	if (!frame) return grid.getBoundingClientRect();
-	const gap = parseFloat(style.columnGap) || 0;
-	let offset = 0;
-	let start;
-	let end;
-	for (const match of style.gridTemplateColumns.matchAll(/\[([^\]]*)\]|(-?[\d.]+)px/g)) if (match[1] !== void 0) {
-		const names = match[1].split(/\s+/);
-		if (names.includes("prose-start")) start = offset;
-		if (names.includes("prose-end")) end = offset - gap;
-	} else offset += Number(match[2]) + gap;
-	if (start === void 0 || end === void 0) return grid.getBoundingClientRect();
+	const holder = [main, ...main.children].find((node) => proseMeasure(node) > 0);
+	if (!holder) return main.getBoundingClientRect();
+	const style = getComputedStyle(holder);
+	const frame = elementFrame(holder);
+	if (!frame) return holder.getBoundingClientRect();
 	const edge = (side) => parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
-	const left = style.direction === "rtl" ? frame.width - edge("Right") - end : edge("Left") + start;
-	const right = style.direction === "rtl" ? frame.width - edge("Right") - start : edge("Left") + end;
+	const width = Math.min(proseMeasure(holder), frame.width - edge("Left") - edge("Right"));
+	const left = style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
+	const right = left + width;
 	const corner = (x, y) => {
 		const point = frame.matrix.transformPoint({
 			x,
@@ -2624,4 +2616,4 @@ const readDocumentHeaders = () => {
 };
 
 //#endregion
-export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };
+export { ADDRESSABLE, PAGE_CONTROL_RANK, PAGE_INTERFACE, PRESENTATION, UPGRADE, activityTransitionDue, addressableLabel, addressableName, addressableSays, addressableWord, addressedElements, afterPresentation, ago, aimTargetAt, aimTargets, aimedTop, anchorAt, anchorBox, anchorElement, anchorFor, anchorForPassage, anchorForRange, anchorName, anchorReaches, anchorReading, anchorView, anchoringIsReady, annotationAt, atScrollEnd, boundedBlockOf, carriedAnchor, chosenSince, chromeForeground, chromeRoot, claimReachStop, clockValue, commitPoint, compoundReadingRegionId, containingReadingRegionFor, contentRides, cutFrames, datumAimTarget, datumLabel, declaredName, deferredArrival, designPressAt, effectiveScroller, elementFrame, exactTarget, followingItsEnd, fragmentTarget, headerLevels, holdArrivingBounds, isAddressable, leadingTitle, lightSeat, livePoint, localScrollBy, markPagePresented, markPageUpgraded, markStateApplied, moveScrollerBy, nameAnchor, nameable, observeServerNow, observeWorkingGrace, onReadingInput, openDocumentLayout, pageControls, pageControlsChanged, pageReadiness, pageReadingRegion, pageScroller, passageBoxes, passageGeometry, placeKept, placePoints, pointBand, pointInto, preserveReadingRegions, projectedDatum, proseMeasure, proseRect, quietSince, railStands, rangeGeometry, reachScrollers, reachable, readingRegion, readingRegionFor, readingRegions, recentReadingRegion, refreshAnchorView, regionScrollBehavior, regionsSettled, registerPageControl, registerReadingRegion, releaseReachStop, resolveAnchor, resolvedInMessage, revealAddressed, saidNow, scheduleDocumentLayout, scrollAxes, scrollChainOf, scrollChoices, scrollLimit, scrollToEnd, scrollerFor, scrollersOf, scrollsWith, sectionLabel, sectionOf, setAnchoringReady, settleDocumentLayout, settlePageInterface, shortAgo, showReadingSubject, shownRegionBounds, startScroll, stopScroll, targetElement, targetParts, targetPlace, targetRange, targetSegments, targetSurface, tickClock, unclaimedVisualGesture, unconcealedReadingRegions, userReadingRegion, visualAt, visualPartLabel, visualParts, visualSelector, watchReadingRegionTransitions, whenArrived, whileInterfaceConnected, widgetWord };

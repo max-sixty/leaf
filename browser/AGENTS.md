@@ -57,7 +57,7 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   controls sit over the page and take no space, and no rule pads or widens a block to
   make room for them. The rail sits right of `main` when the window is wide enough and
   never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
-  rail and the margin"). Native document tracks and wrapping rows place the page's own
+  rail and the margin"). Native block flow and wrapping rows place the page's own
   sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
   CSS geometry for annotations and never reallocates document space. The chrome opens
   over the page too, in the

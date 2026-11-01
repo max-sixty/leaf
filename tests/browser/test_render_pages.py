@@ -1562,8 +1562,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # Native grid owns the full page width: negative margins can leave the prose
-    # track without leaving the page. Only the padded box exceeds that actual room.
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving the page. Only the padded box exceeds that actual room.
     boxes = column.evaluate("""() => Object.fromEntries(
       ['main', '#pulled', '#spilled'].map(selector => {
         const box = document.querySelector(selector).getBoundingClientRect();
@@ -2074,7 +2074,7 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares document tracks; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",

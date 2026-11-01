@@ -90,7 +90,7 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { proseRect, railStands } from "../content-layout.js";
+import { proseMeasure, proseRect, railStands } from "../content-layout.js";
 import { keeps, layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { coarsePointer, hoveringPointer } from "../pointer.js";
@@ -685,15 +685,11 @@ function reach(anchor, box, main, reaches) {
     if (edge === undefined) {
       const b = el.getBoundingClientRect();
       const style = getComputedStyle(el);
-      // Named document tracks include free margins; a subgrid carrying those
-      // tracks is the page's flow, not a figure extending into its rail. The
+      // A box holding the page's prose, the column or a flow in it, is the page's
+      // flow, not a figure extending into its rail, however wide its box. The
       // target's own box and ordinary framed ancestors still count in full.
-      const tracks =
-        style.gridTemplateColumns.includes("prose-start") ||
-        (style.gridTemplateColumns.startsWith("subgrid") &&
-          style.gridColumnStart === "full");
       edge = {
-        right: tracks ? -Infinity : b.right,
+        right: proseMeasure(el) > 0 ? -Infinity : b.right,
         clip:
           style.overflowX === "visible"
             ? null

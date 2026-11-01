@@ -838,8 +838,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             "</head>",
-            "<style>#reading-split, #other-reading { grid-column: full; }"
-            " #reading-split lf-pane { block-size: 420px; }"
+            "<style>#reading-split lf-pane { block-size: 420px; }"
             " #reading-split lf-pane > :not(header, footer)"
             " { min-block-size: 0; overflow: auto; }</style></head>",
         )

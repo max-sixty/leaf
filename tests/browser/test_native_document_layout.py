@@ -103,8 +103,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
           </section>
         </section>""",
         layout=None,
-        head=f"""<style>body {{margin:0}} main {{direction:{direction}}}
-          #nested, #inner {{grid-column:full}}</style>""",
+        head=f"""<style>body {{margin:0}} main {{direction:{direction}}}</style>""",
     )
     page = open_page(browser, serve(source))
     for width in (1600, 1200, 1152, 1151, 900, 390):
@@ -120,7 +119,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
             assert boxes["plain"]["left"] == max(24, (width - 720) / 2)
             assert boxes["outer-prose"]["left"] == boxes["plain"]["left"]
             inner, inner_note = boxes["inner-prose"], boxes["inner-note"]
-            assert inner["width"] == min(720, width - 96)
+            assert inner["width"] == min(720, width - 48) - 48
             assert inner_note["width"] <= inner["width"]
             nested = boxes["nested"]
             assert boxes["nested-prose"]["left"] == nested["left"] + max(
@@ -136,57 +135,3 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
             else:
                 assert note["top"] - passage["bottom"] == 8
                 assert note["left"] == passage["left"]
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_reading_flow_track_chain_names_only_visible_broken_flows(
-    request, serve, engine
-):
-    """Native computed tracks distinguish broken flows from valid containment/flex."""
-    from leaf import render_checks
-    from leaf.render_gate.readings import swept_faults
-
-    source = leaf_page(
-        "Flow track boundaries",
-        """<section class="layout-column" id="column">
-          <section id="correct" class="layout-flow"><p>Complete tracks.</p></section>
-          <section id="contained" class="layout-flow" style="contain:inline-size"><p>Size containment keeps tracks.</p></section>
-          <section id="container-type" class="layout-flow" style="container-type:inline-size"><p>Container tracks.</p></section>
-          <section id="narrow" class="layout-flow" style="grid-column:prose-start / full-end"><p>Narrowed tracks.</p></section>
-          <section id="explicit" class="layout-flow" style="grid-column:full-start / full-end"><p>Explicit full-track names.</p></section>
-          <section id="no-subgrid" class="layout-flow" style="grid-template-columns:1fr"><p>Independent columns.</p></section>
-          <section id="numeric" class="layout-flow" style="grid-column:1 / -1"><p>Equivalent numeric span.</p></section>
-          <div><section id="standalone" class="layout-flow"><p>Owns the wrapper's room.</p></section></div>
-          <section id="hidden-own" class="layout-flow" hidden="until-found" style="grid-column:prose"><p>Hidden own box.</p></section>
-          <div hidden="until-found"><section id="hidden" class="layout-flow" style="container-type:inline-size"><p>Hidden.</p></section></div>
-        </section>
-        <section class="layout-sidebar"><aside>Navigation</aside>
-          <div class="layout-column"><section id="sidebar" class="layout-flow"><p>Sidebar reading.</p></section></div>
-        </section>
-        <section class="layout-workspace"><div id="workspace" class="layout-flow" style="display:flex"><p>Flex workspace.</p></div></section>""",
-        layout=None,
-    )
-    page = open_page(request.getfixturevalue(engine), serve(source, packages=()))
-    reading = render_checks.evaluate_probe(page, "geometryReading", [])
-    flows = [row for row in reading["contained"] if row["code"] == "flow-tracks"]
-    expected = {"<section id=narrow>", "<section id=no-subgrid>"}
-    # This advice reads the computed track declaration. Engines differ on whether
-    # container-type suppresses that declaration; used-layout validation is separate.
-    columns = page.locator("#container-type").evaluate(
-        "e => getComputedStyle(e).gridTemplateColumns"
-    )
-    if not columns.startswith("subgrid"):
-        expected.add("<section id=container-type>")
-    assert {row["at"] for row in flows} == expected
-    assert (
-        next(row for row in flows if row["at"] == "<section id=narrow>")["start"]
-        == "prose-start"
-    )
-    advice = [
-        finding
-        for finding in swept_faults([(1280, reading)])
-        if finding.code == "flow-tracks"
-    ]
-    assert len(advice) == len(expected)
-    assert all(finding.severity == "advice" for finding in advice)
-    assert "grid-template-columns: subgrid" in str(advice[0])

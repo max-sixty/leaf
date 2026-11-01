@@ -47,41 +47,13 @@ export function geometryReading(open) {
   };
 }
 
-// Advice about document tracks: flows directly inside another flow or column share
-// its tracks. A flow under an ordinary holder owns only that holder's room. Existing
-// containment may be deliberate, so these readings never refuse a page.
+// Advice about a declared space a holder keeps in: a block breaks out only from the
+// column or a flow in it. Existing containment may be deliberate, so this reading never
+// refuses a page.
 export function containedSpace() {
   const main = pageDocument();
   if (!main) return [];
-  /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */
-  const flowElements = main.querySelectorAll(".layout-flow");
-  const flows = [...flowElements].flatMap((el) => {
-    if (el.closest("[hidden]") || skipped(el) || !el.checkVisibility()) return [];
-    const parent = el.parentElement;
-    if (!parent.matches(".layout-column, .layout-flow")) return [];
-    if (!getComputedStyle(parent).getPropertyValue("--lf-measure").trim()) return [];
-    const style = getComputedStyle(el);
-    const start = style.gridColumnStart;
-    const end = style.gridColumnEnd;
-    if (
-      style.gridTemplateColumns.startsWith("subgrid") &&
-      ["full", "full-start", "1"].includes(start) &&
-      ["full", "full-end", "-1"].includes(end)
-    )
-      return [];
-    return [
-      {
-        code: "flow-tracks",
-        at: at(el),
-        place: place(el),
-        parent: at(parent),
-        columns: style.gridTemplateColumns,
-        start,
-        end,
-      },
-    ];
-  });
-  const contained = [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
+  return [...main.querySelectorAll("[data-lf-space]")].flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
@@ -106,7 +78,6 @@ export function containedSpace() {
     }
     return [];
   });
-  return [...flows, ...contained];
 }
 
 // How the page's own arrangement stands: for each flex or grid box the page wrote (a
@@ -273,8 +244,16 @@ export function overflowingRegions() {
 function marginReading(main) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
-  const left = box.left + parseFloat(style.paddingLeft);
-  const right = box.right - parseFloat(style.paddingRight);
+  // The page's room: the Layout's content box and the room beside its prose that it
+  // pads (`--lf-free-start`, `--lf-free-end`, layouts.css), which is the page's too.
+  /** @param {string} name */
+  const free = (name) => parseFloat(style.getPropertyValue(name)) || 0;
+  const [freeLeft, freeRight] =
+    style.direction === "rtl"
+      ? [free("--lf-free-end"), free("--lf-free-start")]
+      : [free("--lf-free-start"), free("--lf-free-end")];
+  const left = box.left + parseFloat(style.paddingLeft) - freeLeft;
+  const right = box.right - parseFloat(style.paddingRight) + freeRight;
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -473,7 +452,7 @@ export function misplacedBoxes() {
   }
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
-  // Notes and sidebars in native document tracks already own their boxes in flow;
+  // Notes and sidebars in the document's native flow already own their boxes;
   // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;

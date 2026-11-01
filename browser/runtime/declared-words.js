@@ -283,7 +283,7 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the Layout assigns its grid tracks:
+// the widget declares its capacity (x-space) and the Layout gives it the room:
 // `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //

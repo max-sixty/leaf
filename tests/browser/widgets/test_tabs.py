@@ -846,7 +846,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
-    # A sidebar's reading body owns the shared document tracks, including its tabs.
+    # A sidebar's reading body owns the document's flow, including its tabs.
     if layout == "sidebar":
         content = f'<div class="layout-column">{content}</div>'
     source = leaf_page(
@@ -2064,7 +2064,8 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
 def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
     browser, serve, subtests
 ):
-    """Shared document tracks and a boxed neighbor keep their own width and face."""
+    """A flow tab set shares the document's prose, and a boxed neighbor keeps its own width
+    and face."""
     source = leaf_page(
         "Authored tab flow",
         '<aside><div class="layout-track"><p>Reading route</p></div></aside>'
@@ -2091,9 +2092,6 @@ def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
             expect(boxed).to_have_css("border-left-width", "1px")
             active = flow.locator(":scope > lf-tab:not([hidden])")
             expect(active).to_have_css("container-type", "normal")
-            assert active.evaluate(
-                "el => getComputedStyle(el).gridTemplateColumns.startsWith('subgrid')"
-            )
             prose = active.locator("p").bounding_box()
             reading = page.locator("#reading").bounding_box()
             assert (prose["x"], prose["width"]) == pytest.approx(

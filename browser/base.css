@@ -53,7 +53,7 @@
    Typography is presentation, not passage permission. A chip or code annotation may look
    like apparatus and still be a page word the user can quote.
 
-   A floor asks about the room its rule governs. Native grid tracks and wrapping flex
+   A floor asks about the room its rule governs. Native block flow and wrapping flex
    layout arrange the reading column, sidebars and notes before modules load. Widgets
    ask their own container; device typography asks the window
    (references/package-themes.md).
@@ -296,7 +296,7 @@
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
      margin-model.js): two entries and the cluster's gap (`--margin-gap`), hung
-     `--rail-hang` from the prose track, including its gutter, with the focus ring's
+     `--rail-hang` from the prose, including its gutter, with the focus ring's
      room at the outer edge. A
      finger's larger entries spend the room the hang would, so it shrinks with them. A
      cluster that unfolds past it stands over whatever lies beyond. The rule that spends
@@ -356,7 +356,7 @@
      last column by a pixel. Registered (below) so it computes to a length where it is
      declared; unregistered, it would reach every reader as the formula. Sharing the
      prose's start edge lets a block this close to the column read as part of it.
-     An `available` surface instead spans the document's full grid tracks. */
+     An `available` surface instead spans the room on both sides of the prose. */
   --wide: calc(109 * 0.61 * var(--code-size) + 10px);
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
@@ -814,18 +814,7 @@ html:not([data-lf-live]) {
  * ask a box for its display, so such a box says so, --lf-holds-edge: 1, and the trim
  * stops at it. Direct frames and propagated edges share one rule per edge, so that
  * boundary holds even when the row draws its own frame. The frame reset remains
- * independent: a row still bounds its content when its children keep their margins.
- *
- * Margins don't collapse through a grid or flex item: each keeps its own children's
- * margins inside its box, so an item opening with a heading would begin the heading's gap
- * above the heading. A grid or flex box says so of its items, --lf-items-keep-margins: 1,
- * and an item of it that opens with a heading takes the heading's gap as its own margin
- * (reading.css). */
-@property --lf-items-keep-margins {
-  syntax: "<integer>";
-  inherits: false;
-  initial-value: 0;
-}
+ * independent: a row still bounds its content when its children keep their margins. */
 @property --lf-frame-start {
   syntax: "<integer>";
   inherits: false;
@@ -1084,7 +1073,7 @@ body {
  * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin element asks the page's
- * readings by, with no Layout, no room to grow into on either side, and the stacking
+ * readings by, with no Layout, and the stacking
  * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). A stacking
  * context also isolates blending, so a page box's `mix-blend-mode` blends with what
  * `main` paints and not with the paper behind it. */
@@ -1092,21 +1081,8 @@ main {
   position: relative;
   z-index: 0;
   container-name: lf-content-frame;
-  --lf-free-l: 0px;
-  --lf-free-r: 0px;
 }
 
-/* The page's width and the free room each side of it are resolved once, on main, and
- * inherited as lengths. Left as expressions, they would be re-resolved wherever a widget
- * reads them, and their 100cqi would then measure the nearest size container rather
- * than the shell: a board in a workspace pane read the pane's width as the window's and
- * grew out of it. Outside the page, where nothing states them, neither side holds a
- * widget back. */
-@property --lf-width {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
-}
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the head room (above). Every other
  * box that scrolls starts it again from its own top. A box the theme makes scroll
@@ -1204,16 +1180,6 @@ main {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
-}
-@property --lf-free-l {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 99999px;
-}
-@property --lf-free-r {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 99999px;
 }
 /* Registered so native layout and annotation placement read widths in pixels,
  * whatever unit a page uses. */

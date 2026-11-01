@@ -319,6 +319,10 @@ def test_a_reopening_waits_where_the_reopened_thread_would_stand(
     told(page)
     rendered(page)
     expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    # The news is Leaf's, in its face, as the thread's own held news is.
+    expect(summary.locator('[data-voice="leaf"]')).to_have_text(
+        "Reopened · 1 new reply"
+    )
     assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 

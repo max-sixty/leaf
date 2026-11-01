@@ -51,7 +51,10 @@ export {
   getTooltip,
   placeholder,
 } from "@codemirror/view";
-export { defaultKeymap, insertNewline } from "@codemirror/commands";
+export {
+  defaultKeymap,
+  insertNewlineAndIndent as insertNewline,
+} from "@codemirror/commands";
 export {
   HighlightStyle,
   syntaxHighlighting,

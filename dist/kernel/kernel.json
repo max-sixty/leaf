@@ -272,7 +272,7 @@
     "runtime/widget-upgrade.js": "79535e0745543df49b6b7be297284a55904008c1b17915acafd9417a9d4cb94c",
     "runtime/words.js": "bb05e0c6e126252bb70d684edc60a93c6acd73d796a0fe1f120549cb5e49eb07",
     "runtime/work.js": "253280e64d8d14e8b063b5d952e14295bfcebbda649fa7030d9059dc7895560f",
-    "vendor/codemirror.esm.js": "f3ad5f9c731e8b831e02571be3dd4be6487099a23203ac9b030cf380d36cb056",
+    "vendor/codemirror.esm.js": "f7711838fcdacbb1b15944afcb8d44d493a876903a2edb2b159680d4eff73010",
     "vendor/floating-ui.esm.js": "60bcb2011ba0ea6db8dba6f4e5019c85644e5e8e13e119013497cdc1a815f1d4",
     "vendor/jsdiff.esm.js": "775e6f3567df0b3455c09c6e521365c5a5e8cf61889c1620bc8eaff783180333",
     "vendor/lit.js": "14fbd8c1834a791b7bf3fc58b968909193eb2f68890d13e125d8403b493d9bb2",

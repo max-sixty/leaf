@@ -1,9 +1,4 @@
-import {
-  offer,
-  offerAction,
-  generatedElement,
-  elementDirective,
-} from "./element-markers.js";
+import { offer, offerAction, generatedElement } from "./element-markers.js";
 export {
   offerElement,
   generatedElement,
@@ -258,9 +253,8 @@ export function searchField(cls, { name, label, placeholder = label }) {
 
 // A role's symbol whose action follows its state, as Expand all turns to Collapse
 // all, takes its new symbol and name from its action:
-// `nameAction(button, action, {label, title, className})`, or in a template
-// `<button class="…" ${namedAction(action)}></button>`. It shows `action`'s symbol
-// first and says the action's name as tooltip and accessible name unless `label` says
+// `nameAction(button, action, {label, title, className})`. It shows `action`'s symbol
+// and says the action's name as tooltip and accessible name unless `label` says
 // more, as a symbol role does, so the name and the symbol can't drift apart.
 /**
  * @param {Element} control @param {string} action
@@ -272,7 +266,6 @@ export function nameAction(control, action, { label, title, className } = {}) {
   keeps(control, "title", title ?? name);
   showAction(control, action, className);
 }
-export const namedAction = elementDirective("namedAction", nameAction);
 
 // What the value above names as a press: the tag for a button, the type for a native
 // choice, or the role for a selectable offer, against the empty string the rest of a

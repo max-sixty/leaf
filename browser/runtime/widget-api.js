@@ -205,7 +205,6 @@ export {
   el,
   motionPreview,
   nameAction,
-  namedAction,
   reachedForWords,
   relabel,
   searchField,

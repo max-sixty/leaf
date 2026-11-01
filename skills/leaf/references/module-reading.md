@@ -135,8 +135,7 @@ symbol instead, so each action looks the same wherever it is offered. `ACTIONS` 
 `offerAction("symbol", className, label, {action: "comment"})` draws one
 (`module-authoring.md`, "Generated controls"). For a symbol whose action follows its
 state, such as Expand all turning to Collapse all, `nameAction(control, action,
-{label, title, className})`, or `namedAction(action, {…})` in a template's element
-part, swaps in the new action's symbol and says its name as the tooltip and accessible
+{label, title, className})` swaps in the new action's symbol and says its name as the tooltip and accessible
 name, unless `label` or `title` says more.
 `actionTemplate(action, className)` draws an action's symbol that isn't a press's whole
 face, such as the second of two symbols a press swaps by CSS.

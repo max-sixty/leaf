@@ -3725,8 +3725,18 @@ def differences(browser, out: Path):
         path = route.request.url.removeprefix(ORIGIN)
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
+        elif path.startswith("/runtime/"):
+            # The module draws through the runtime's portable API, as a page does.
+            route.fulfill(
+                path=ROOT / "browser" / path.lstrip("/"), content_type="text/javascript"
+            )
         elif path.startswith("/vendor/"):
-            route.fulfill(path=ROOT / "packages" / "default" / path.lstrip("/"))
+            served = [
+                root / path.lstrip("/")
+                for root in (ROOT / "packages" / "default", ROOT / "browser")
+                if (root / path.lstrip("/")).is_file()
+            ]
+            route.fulfill(path=served[0], content_type="text/javascript")
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

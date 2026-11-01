@@ -58,24 +58,33 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Use `lf-text-document` to show a text file the user can comment on without copying it
-into your HTML.
+Use `lf-text-document` to show a text file, or a passage of one, that the user can
+comment on. Write a passage that belongs to this version of the page, such as a rule you
+quote, into its `<pre>`, HTML-escaped (& before < and >), and name its origin with
+`label`. Give Markdown `preview="markdown"`:
+
+```html
+<lf-text-document id="changelog-fix" label="CHANGELOG.md" preview="markdown">
+  <pre>**Fixed** a crash when `--config` names a missing file.</pre>
+</lf-text-document>
+```
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
 exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
 discussed; `wt step diff`, when available, often covers a branch.
 `lf-diff` ships in the `diff` package: create the page with
-`leaf page init --package diff <page>`. Bind each widget to a data source:
+`leaf page init --package diff <page>`. Bind text you will refresh, such as a whole
+file or a patch, to a data source, and leave out the `<pre>`:
 
 ```html
 <lf-text-document
   id="skill-source"
   source="leaf-skill"
   label="SKILL.md"
-  language="markdown"
+  preview="markdown"
 ></lf-text-document>
 
-<lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="review-patch" collapsed></lf-diff>
 ```
 
 Then set each source to one JSON string, of a whole file, a line range, or a diff:
@@ -95,9 +104,10 @@ leaf page instructions <page> --contract unified-diff | jq -er '.producer'
 ```
 
 A bound widget always shows its source's current value, in every version of the page
-and every thread that quotes it. To keep evidence exactly as it was reviewed, give it
-its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
-that id again. Evidence that should follow later `data set` calls shares one id.
+and every thread that quotes it. To keep evidence exactly as it was reviewed, write it
+into the widget's `<pre>`, or give it its own source id, such as `pr-patch-8f61c2a`
+for one commit's patch, and never write to that id again. Evidence that should follow
+later `data set` calls shares one id.
 
 Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video

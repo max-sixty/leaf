@@ -3324,7 +3324,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             "Wide calls",
             '<h1 id="t">Call change</h1>'
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
-            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="patch-data"></lf-diff>',
         ),
         packages=("diff",),
     )

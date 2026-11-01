@@ -2615,7 +2615,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
         leaf_page(
             "diff in design mode",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
-            "<pre></pre></lf-diff>",
+            "</lf-diff>",
         )
     )
     data_model.cmd_data_set(

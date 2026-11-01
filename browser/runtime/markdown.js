@@ -17,10 +17,10 @@ let renderInline = escapedSource;
 let tokenize = null;
 let ready;
 
-// `breaks` reads a soft line break as a hard one, since words written in Leaf, such as
-// a message or a draft, keep the breaks their writer typed. A Markdown file's soft
-// breaks are spaces, as CommonMark and GitHub render a file: its lines wrap for its
-// editor, not its reader.
+// `breaks` reads a soft line break as a hard one, since a message keeps the breaks its
+// writer typed. A Markdown file's soft breaks are spaces, as CommonMark and GitHub
+// render a file: its lines wrap for its editor, not its reader. A Markdown body
+// (`paintMarkdown`), such as a draft, reads as a file.
 export const renderMarkdown = (text, breaks = true) => render(text, breaks);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
@@ -101,14 +101,17 @@ export function formatDeclaredMarkdown(scope) {
   }
 }
 // Keep the exact source on its reading surface. Passage capture reads the rendered
-// children; revision comparison reads source, so formatting never becomes state.
+// children; revision comparison reads source, so formatting never becomes state. The
+// body reads as a Markdown file, its soft line breaks spaces, as the server's prepaint
+// draws it (`leaf.passages.markdown_markup`) and the field editing it in place draws
+// them (composing/field-editor.js, `joints`).
 export function paintMarkdown(element, source) {
   if (
     element.dataset.lfSourceWords === source &&
     !element.hasAttribute("data-lf-prepaint")
   )
     return;
-  const markup = renderMarkdown(source);
+  const markup = renderMarkdown(source, false);
   if (element.dataset.lfSourceWords !== source) element.dataset.lfSourceWords = source;
   if (element.innerHTML !== markup) element.innerHTML = markup;
 }

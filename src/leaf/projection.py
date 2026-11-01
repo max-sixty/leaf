@@ -12,8 +12,10 @@ from leaf.events import (
 )
 from leaf.passages import (
     EMPTY,
+    Passages,
     SourceReading,
     enclosing_of,
+    page_passages,
 )
 from leaf.registry.contract import (
     decides,
@@ -198,6 +200,16 @@ class PageReading(NamedTuple):
     @property
     def within(self) -> dict:
         return self.reading.within
+
+    @property
+    def logged_words(self) -> dict:
+        """What the log in force changes in this page's words (`logged_words`)."""
+        return logged_words(self.projection, self.document.ids)
+
+    def passages(self) -> Passages:
+        """The page's words as the user reads them, which `leaf thread create`
+        quotes against."""
+        return page_passages(self.document, self.registry, **self.logged_words)
 
 
 class FrozenThreadReading(NamedTuple):
@@ -696,6 +708,17 @@ def rewritten_bodies(actions: dict) -> dict:
         unit: (e["action"], e["detail"]["value"])
         for (_widget, unit, _verb), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
+    }
+
+
+def logged_words(projection: StateProjection, authored_ids: set) -> dict:
+    """What the log in force changes in a page's words, as `page_passages` takes it:
+    the outcome each decided suggestion stands under, each body the user rewrote,
+    and the children their actions created beside the `authored_ids`."""
+    return {
+        "decided": retirement_outcomes(projection.actions),
+        "rewrites": rewritten_bodies(projection.actions),
+        "additions": generated_children(projection.desired, authored_ids),
     }
 
 

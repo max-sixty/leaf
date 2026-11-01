@@ -25,12 +25,7 @@ from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring
 from leaf.revision_artifact import active_enclosing, read_revision
@@ -193,18 +188,14 @@ def _capture_anchor(
     from leaf.anchor_capture import capture_anchor
 
     page = page_reading(reading, events, revision)
-    decided = retirement_outcomes(page.projection.actions)
-    edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
             page.document,
             page.registry,
             quote,
             section,
-            decided,
-            edited,
-            part,
-            additions=generated_children(page.projection.desired, page.document.ids),
+            part=part,
+            **page.logged_words,
         )
     except ValueError as err:
         held = (

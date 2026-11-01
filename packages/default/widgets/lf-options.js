@@ -127,7 +127,53 @@ import {
   focusDestination,
   scrollIntoView,
   commandsChanged,
+  html,
+  widgetController,
 } from "/runtime/widget-api.js";
+
+// PROTOTYPE (#4, design B; .tmp/iterate-on-me-panel.md): an option's parts as On me's
+// card draws them, read from authored markup only, which may stand inert in a thread
+// message's frozen fragment, so nothing here asks the browser for layout. The picture is
+// cloned once per option, without ids, so a repaint keeps the node it drew.
+const cardPictures = new WeakMap();
+const INLINE_WORDS = new Set(
+  "a abbr b cite code em i kbd mark q s samp span sub sup time u var".split(" "),
+);
+const cardLine = (title) => {
+  let words = "";
+  for (let node = title?.nextSibling ?? null; node; node = node.nextSibling) {
+    if (node.nodeType === Node.TEXT_NODE) words += node.data;
+    else if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    else if (node.localName === "small" || node.localName.includes("-")) continue;
+    else if (node.matches(".lf-key-badge, svg, img, picture")) continue;
+    else if (INLINE_WORDS.has(node.localName)) words += node.textContent;
+    else {
+      if (!words.trim() && node.localName === "p") words = node.textContent ?? "";
+      break;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
+};
+const cardParts = (option) => {
+  const title = option.querySelector(":scope > strong");
+  if (!cardPictures.has(option)) {
+    const source = option.querySelector(":scope > :is(svg, img, figure, picture)");
+    const picture = source ? /** @type {Element} */ (source.cloneNode(true)) : null;
+    if (picture)
+      for (const named of [picture, ...picture.querySelectorAll("[id]")])
+        named.removeAttribute("id");
+    cardPictures.set(option, picture);
+  }
+  return {
+    title: (title ?? option).textContent?.replace(/\s+/g, " ").trim() || option.id,
+    tags: [...option.querySelectorAll(":scope > small.tag")].map((tag) => ({
+      text: tag.textContent?.trim() ?? "",
+      tone: ["ok", "warn", "danger"].find((tone) => tag.classList.contains(tone)) ?? "",
+    })),
+    picture: cardPictures.get(option),
+    says: title ? cardLine(title) : "",
+  };
+};
 
 // What an option is called, in either form: its title where it leads with one, and its
 // own words where the label is all it has. `wrote` rather than `says`, because a picked
@@ -187,6 +233,71 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends LeafElement {
+    // PROTOTYPE (#4, design B): the body of On me's card for this group's obligation,
+    // which On me asks of a widget's class as it asks `answerWords`: `group` is the
+    // authored element standing for it, on the page or frozen in a thread message, so a
+    // closed thread's group answers too. Each option reads as its card on the page does,
+    // title, tags, picture and line, and a press sends the group's own `choose` through
+    // its controller, the one state owner the page's group draws from. `pressed` lets
+    // the caller repaint. A group of `multiple`, or one that can't take `choose` now,
+    // draws none, and On me copies its controls as today.
+    static card(group, { pressed }) {
+      if (group.hasAttribute("multiple")) return null;
+      const controller = widgetController(group);
+      const reading = controller.read();
+      if (!reading?.actions.choose?.available) return null;
+      const options = [...group.querySelectorAll(":scope > lf-option")].filter(
+        (option) => !option.hasAttribute("data-lf-added"),
+      );
+      const picked = new Set(
+        reading.state.choose?.detail?.value ??
+          options.filter((option) => option.hasAttribute("chosen")).map((o) => o.id),
+      );
+      return html`<div class="lf-options-card">
+        <div class="lf-options-card-list">
+          ${options.map((option) => {
+          const parts = cardParts(option);
+          const chosen = picked.has(option.id);
+          return html`<button
+            type="button"
+            class="lf-options-card-option"
+            aria-pressed=${String(chosen)}
+            @click=${() => {
+              controller.dispatch({
+                kind: "action",
+                verb: "choose",
+                detail: { value: chosen ? [] : [option.id] },
+                says: chosen ? "Cleared selection" : `Chose “${parts.title}”`,
+              });
+              pressed();
+            }}
+          >
+            ${
+              parts.picture
+                ? html`<span class="lf-options-card-picture">${parts.picture}</span>`
+                : nothing
+            }<span class="lf-options-card-title">${parts.title}</span>${
+              parts.tags.length
+                ? html`<span class="lf-options-card-tags"
+                    >${parts.tags.map(
+                    (tag) =>
+                      html`<span class="lf-options-card-tag" data-tone=${tag.tone}
+                        >${tag.text}</span
+                      >`,
+                  )}</span
+                  >`
+                : nothing
+            }${
+              parts.says
+                ? html`<span class="lf-options-card-says">${parts.says}</span>`
+                : nothing
+            }
+          </button>`;
+        })}
+        </div>
+      </div>`;
+    }
+
     // What the obligation was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.

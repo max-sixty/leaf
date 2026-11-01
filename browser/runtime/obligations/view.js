@@ -275,9 +275,6 @@ export function createObligationView({
             control.getAttribute("aria-pressed") === "true" ||
             control.getAttribute("aria-checked") === "true" ||
             (control.localName === "input" && control.checked),
-          // PROTOTYPE (on-me panel exploration): the control, so a candidate card can
-          // read the option it stands in.
-          control,
           press: () => presentedActionControl(control).click(),
         }),
     );

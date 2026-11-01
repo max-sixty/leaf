@@ -296,6 +296,7 @@ import { runtime } from "./context.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
+import { widgetElement } from "./widget-descriptors.js";
 
 const prefs = () => document.documentElement.lfChrome;
 
@@ -2951,7 +2952,10 @@ export function createFloatingPanel({
         showing({ view: "queue" }) &&
         queueTab === "you",
     );
-    if (next.length === folded.length && next.every((block, at) => block === folded[at]))
+    if (
+      next.length === folded.length &&
+      next.every((block, at) => block === folded[at])
+    )
       return;
     for (const block of folded) block.removeAttribute("hidden");
     for (const block of next) block.setAttribute("hidden", "until-found");
@@ -2968,26 +2972,16 @@ export function createFloatingPanel({
   new MutationObserver(() => {
     if (showing({ view: "queue" })) paint();
   }).observe(document.documentElement, { attributes: true });
-  // An option's own parts, as the page draws them on its card: its title, its tags, its
-  // picture and its first line of prose.
-  function optionParts(choice) {
-    const option = choice.control?.closest?.("lf-option");
-    if (!option) return null;
-    const own = (selector) => option.querySelector(`:scope > ${selector}`);
-    const picture = own("svg, img, figure, picture")?.cloneNode(true) ?? null;
-    if (picture instanceof Element) {
-      picture.removeAttribute("id");
-      for (const named of picture.querySelectorAll("[id]")) named.removeAttribute("id");
-    }
-    return {
-      title: own("strong")?.textContent?.trim() || choice.label,
-      tags: [...option.querySelectorAll(":scope > small.tag")].map((tag) => ({
-        text: tag.textContent?.trim() ?? "",
-        tone: ["ok", "warn", "danger"].find((tone) => tag.classList.contains(tone)) ?? "",
-      })),
-      picture,
-      says: choice.description || (own("p")?.textContent?.trim() ?? ""),
-    };
+  // PROTOTYPE (#4, design B): the card body a widget's class draws for its own
+  // obligation (`static card`), asked as `answerWords` is asked, with the authored
+  // element standing for it on the page or frozen in a thread message, so the panel
+  // names no widget. None where the class draws none.
+  function ownCard(record) {
+    const element = widgetElement(record.source.id);
+    const draw = /** @type {{card?: Function}} */ (
+      customElements.get(record.source.tag)
+    )?.card;
+    return element && draw ? (draw(element, { pressed: () => paint() }) ?? null) : null;
   }
   // The On me door, as `g M` presses it: the view on the user's list, turned to it where
   // the view shows another tab, else opened or closed.
@@ -3275,15 +3269,8 @@ export function createFloatingPanel({
     // Where the page's package draws its conversations instead, Leaf's reader draws
     // none here, and the message's words stand for it under the thread's name.
     const inWords = record !== null && answeredInWords(record);
-    // PROTOTYPE: a widget a thread message holds, drawn with its message, live.
-    const messageBorne =
-      candidateOf("message-widget", "discuss") === "message" &&
-      record?.source.kind === "widget" &&
-      Boolean(record.message) &&
-      thread !== null &&
-      !inWords;
     const asking =
-      (inWords || messageBorne) && thread
+      inWords && thread
         ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
@@ -3322,13 +3309,16 @@ export function createFloatingPanel({
       record && !answered && record.source.kind === "widget" && !inWords && !message
         ? obligationView.choicesOf(record)
         : null;
-    // PROTOTYPE: each option drawn from its own parts, where the candidate asks for it
-    // and every choice but a commit stands in an option.
-    const drawn =
-      candidateOf("widget-card", "copied") === "parts" && choices?.length
-        ? choices.map((choice) => ({ choice, parts: optionParts(choice) }))
+    // PROTOTYPE (#4, design B): the card the widget draws, where the candidate asks for
+    // it, in place of the controls copied off the page (`choices`).
+    const own =
+      candidateOf("widget-card", "copied") === "parts" &&
+      record &&
+      !answered &&
+      record.source.kind === "widget" &&
+      !inWords
+        ? ownCard(record)
         : null;
-    const cells = drawn?.filter(({ parts }) => parts) ?? [];
     const gesture = answered ? answerGesture(record) : null;
     const discuss = conversation
       ? html`<button
@@ -3397,58 +3387,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    } else if (cells.length)
-      // PROTOTYPE: the options as the page draws them, each a press, then a commit.
-      answers = html`<div class="lf-fp-options">
-          ${cells.map(
-            ({ choice, parts }) =>
-              html`<button
-                type="button"
-                class="lf-fp-option"
-                aria-pressed=${String(choice.chosen)}
-                @click=${() => {
-                  choice.press();
-                  paint();
-                }}
-              >
-                <span class="lf-fp-option-title">${parts.title}</span>${
-                  parts.tags.length
-                    ? html`<span class="lf-fp-option-tags"
-                        >${parts.tags.map(
-                          (tag) =>
-                            html`<span class="lf-fp-option-tag" data-tone=${tag.tone}
-                              >${tag.text}</span
-                            >`,
-                        )}</span
-                      >`
-                    : nothing
-                }${
-                  parts.picture
-                    ? html`<span class="lf-fp-option-picture">${parts.picture}</span>`
-                    : nothing
-                }${
-                  parts.says
-                    ? html`<span class="lf-fp-option-says">${parts.says}</span>`
-                    : nothing
-                }
-              </button>`,
-          )}
-        </div>
-        ${choices
-          .filter((choice) => choice.commits)
-          .map(
-            (choice) =>
-              html`<button
-                ${offeredAction("commit", "lf-fp-commit")}
-                aria-pressed=${String(choice.chosen)}
-                @click=${() => {
-                  choice.press();
-                  paint();
-                }}
-              >
-                ${capital(choice.label)}
-              </button>`,
-          )}`;
+    } else if (own) answers = own;
     else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
@@ -3535,7 +3474,7 @@ export function createFloatingPanel({
     // card's answers already say.
     // PROTOTYPE: how much of a question asked in words its card shows: whole, its
     // first lines with Read all where it runs past what five lines hold, or none of it.
-    const chosen_ = messageBorne ? "whole" : candidateOf("message", "whole");
+    const chosen_ = candidateOf("message", "whole");
     const showing_ = chosen_;
     const asked = (thread_, message_, carriedHere = false) => {
       if (chosen_ === "title")
@@ -3797,7 +3736,9 @@ export function createFloatingPanel({
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     // PROTOTYPE: where the page answers its own widgets, the panel lists the rest.
-    const onPage = foldsPage() ? seated.filter((key) => pageWidgetOf(byKey.get(key))) : [];
+    const onPage = foldsPage()
+      ? seated.filter((key) => pageWidgetOf(byKey.get(key)))
+      : [];
     const items = seated
       .filter((key) => !onPage.includes(key))
       .map((key) => byKey.get(key));

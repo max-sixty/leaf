@@ -4,6 +4,7 @@
 import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
+import { widgetElement } from "../widget-descriptors.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 
@@ -25,7 +26,9 @@ export function answerWords(item) {
   if (item.answer === null) return "";
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
-  const source = elementById(item.source.id);
+  // PROTOTYPE (#4, design B): a widget a closed thread's message holds is its frozen
+  // markup, which still names its options.
+  const source = widgetElement(item.source.id);
   const formatter =
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (
       customElements.get(item.source.tag)

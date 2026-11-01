@@ -3786,6 +3786,33 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert "put data-width on that holder" in str(advice[0])
 
 
+def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, serve):
+    """Blank padding may cross the content edge; paint and words still may not."""
+    source = leaf_page(
+        "Room for focus",
+        """
+<header><h1>Room for focus</h1></header>
+<div id="focus-room" class="probe" style="overflow: auto"><p>Reading stays in the content box.</p></div>
+<div id="offscreen-room" class="probe" style="overflow: auto"><div id="offscreen" style="margin-left: 2000px; width: 100px; background: red">Reach by scrolling.</div></div>
+<div id="tinted" class="probe" style="background: #eee">Tint.</div>
+<div id="bordered" class="probe" style="border: 1px solid">Border.</div>
+<div id="indented" class="probe" style="text-indent: -16px">Words outside.</div>
+<div id="child-room" class="probe" style="overflow: auto"><p id="child" style="transform: translateX(-16px)">Child outside.</p></div>
+""",
+        layout="workspace",
+        head="<style>.probe { margin-inline: -8px; padding-inline: 8px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    findings = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert sorted((finding["code"], finding["at"]) for finding in findings) == [
+        ("clipped-out", "<p id=child>"),
+        ("past-column", "<div id=bordered>"),
+        ("past-column", "<div id=indented>"),
+        ("past-column", "<div id=tinted>"),
+        ("past-column", "<p id=child>"),
+    ], findings
+
+
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An explicitly widened obligation keeps its evidence inside the ring. Boxes
     pulled or sized past the actual page edge remain render-gate findings."""

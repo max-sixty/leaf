@@ -773,7 +773,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch"></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -783,7 +783,7 @@ PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
     '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
-    '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff></lf-pane>',
+    '<lf-diff id="patch" source="review-patch"></lf-diff></lf-pane>',
     layout="workspace",
 )
 
@@ -795,7 +795,7 @@ PANE_DIFF_PAGE = leaf_page(
 MANIFEST_DIFF_PAGE = leaf_page(
     "manifest",
     "<h1 id='t'>Review</h1>"
-    + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
+    + '<lf-diff id="patch" source="review-patch" collapsed></lf-diff>',
 )
 
 # Which of a diff's source lines run past what the user can see. A row is one line of

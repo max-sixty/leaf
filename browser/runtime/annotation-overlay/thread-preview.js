@@ -118,6 +118,8 @@ export function createThreadPreview({
   // It shows while the user is at its target (`followCurrentLocation`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = THREAD_CARD;
+  // A public part a theme restyles (`layer.chrome_restyle`), its ground inside it.
+  preview.setAttribute("part", "card");
   preview.hidden = true;
   preview.setAttribute("role", "dialog");
   const previewOpen = () => previewSession !== null;
@@ -521,13 +523,16 @@ export function createThreadPreview({
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const boundary = commentBoundary({ scroller: place.scroller });
+    const boundary = commentBoundary({
+      scroller: place.scroller,
+      at: { x: place.column ?? place.extent.left, y: place.row },
+    });
     session.scroller = place.scroller;
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
     }
-    const scroller = place.scroller;
+    const { scroller } = boundary;
     const seat = session.side.choose({
       clear: place.clear,
       row: place.row,
@@ -574,9 +579,9 @@ export function createThreadPreview({
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
-            // last moved where that is more. Written beside its subject, it has the
-            // boundary's whole height (`rises`): a growing editor lifts it from the
-            // window's foot, then scrolls internally.
+            // last moved where that is more. Beside its subject, it has the
+            // boundary's whole height (`rises`): a growing editor or an arriving
+            // answer lifts it from the window's foot, then it scrolls internally.
             const fitted = measureThreadCard(room, Math.max(stood, height), reading);
             // Fitting the width settles wrapping before opening the card spends
             // scroll travel. A scroll supersedes this answer's attachment geometry.
@@ -619,11 +624,12 @@ export function createThreadPreview({
         session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing. Each
-        // edge's cut is its own property, which the card's clip and its growth out of
-        // the comment box both read (annotation-chrome.css).
-        const region = boundary.inRegion;
+        // cuts the words, as does the edge of a block its row has crossed (`cut`). An
+        // edge further out than the card paints cuts nothing, and stands at that reach,
+        // so a scroll that moves it there writes nothing. Each edge's cut is its own
+        // property, which the card's clip and its growth out of the comment box both
+        // read (annotation-chrome.css).
+        const region = boundary.cut;
         const cuts = region
           ? [
               (region.top - card.top) / scale.y,

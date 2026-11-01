@@ -265,6 +265,29 @@ def test_an_agent_verb_declaration_is_checked_whole(page_dir, mutate, code, valu
     assert found(findings, code, **values), findings
 
 
+def _second_document_input(registry):
+    inputs = registry["lf-text-document"]["x-data"]
+    inputs["notes"] = {**inputs["document"], "source": "notes-source"}
+
+
+def _markdown_body_input(registry):
+    registry["lf-draft"]["x-data"] = {
+        "text": {"contract": "text-document", "source": "source", "property": "value"}
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutate", "reason"),
+    [(_second_document_input, "inputs"), (_markdown_body_input, "words")],
+)
+def test_a_data_widget_s_pre_feeds_at_most_one_input(page_dir, mutate, reason):
+    """An unbound data widget's <pre> is its one input's text, so two inputs would
+    share it, and an element whose <pre> is already its words takes none."""
+    status, findings = _mutated_registry_check(page_dir, mutate)
+    assert status != 0
+    assert found(findings, "data-input", reason=reason), findings
+
+
 @pytest.mark.parametrize("tag", ["lf-options[", "LF-options", "lf_options"])
 def test_check_refuses_element_schemas_under_selector_names(page_dir, tag):
     registry = vocabulary(page_dir)

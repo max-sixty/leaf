@@ -209,15 +209,11 @@
 
       function candidate(root, format) {
         const figure = root.querySelector(`[data-notification-format="${format}"]`);
-        const feed = element(
-          "div",
-          `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
-        );
+        const feed = figure.querySelector(".notification-demo-feed");
         const metric = figure.querySelector(".notification-demo-metric");
         // Event cards and their measurements are this module's words.
         generatedElement(feed, { says: true });
         generatedElement(metric, { says: true });
-        figure.append(feed);
         return { feed, metric };
       }
 
@@ -413,6 +409,9 @@
                     <figcaption class="notification-demo-caption">
                       <span class="notification-demo-metric" aria-live="polite"></span>
                     </figcaption>
+                    <div
+                      class="notification-demo-feed notification-demo-banner"
+                    ></div>
                   </figure>
                 </lf-playground-choice>
                 <lf-playground-choice value="status strip" label="Status strip">
@@ -423,6 +422,9 @@
                     <figcaption class="notification-demo-caption">
                       <span class="notification-demo-metric" aria-live="polite"></span>
                     </figcaption>
+                    <div
+                      class="notification-demo-feed notification-demo-status-strip"
+                    ></div>
                   </figure>
                 </lf-playground-choice>
               </lf-playground-control>

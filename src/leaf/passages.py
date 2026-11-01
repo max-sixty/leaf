@@ -94,9 +94,10 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
 
 
 @lru_cache(maxsize=2)
-def _markdown_dialect(added: bool):
-    """The browser's safe Markdown dialect; `added` reads soft line breaks as hard
-    ones, as a user-created child and a block body render them."""
+def _markdown_dialect(breaks: bool):
+    """The browser's safe Markdown dialect; `breaks` reads soft line breaks as hard
+    ones, as a user-created child renders them. A block body reads as a Markdown
+    file, its soft breaks spaces."""
     from markdown_it import MarkdownIt
     from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
@@ -106,7 +107,7 @@ def _markdown_dialect(added: bool):
             return True
 
     parser = (
-        PageMarkdown("gfm-like", {"html": False, "breaks": added})
+        PageMarkdown("gfm-like", {"html": False, "breaks": breaks})
         .disable(["lheading", "code"])
         .use(tasklists_plugin)
     )
@@ -175,12 +176,15 @@ def inline_markdown_words(source: str, *, added: bool = False) -> str:
 
 def block_markdown():
     """The shared safe block Markdown dialect: the browser's `makeMarkdown`, with its
-    linkify and task lists, which messages and Markdown bodies render in."""
-    return _markdown_dialect(True)
+    linkify and task lists, which messages and Markdown bodies are parsed in. It
+    renders a Markdown body as a file, its soft line breaks spaces (markdown.js,
+    `paintMarkdown`)."""
+    return _markdown_dialect(False)
 
 
 def markdown_markup(source: str) -> str:
-    """The shared safe block Markdown dialect, as inert markup for passage reading."""
+    """A Markdown body (`x-text-format: markdown`) as the browser paints it, as inert
+    markup for passage reading and a revision's prepaint."""
     return block_markdown().render(source)
 
 

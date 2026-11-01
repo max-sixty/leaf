@@ -1,3 +1,4 @@
+import { isHTML } from "../shadow-tree.js";
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus.
    The strip below a reply's words holds its reactions; its trigger stands with the
@@ -6,33 +7,37 @@ import { html, ref, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
 import { offered, offeredAction } from "../widget-elements.js";
 
+/** @typedef {{registerSurface: ReturnType<typeof import("../reactions.js").createReactionController>["registerReactSurface"],
+ * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,
+ * pressed?: () => void}} ReactionCommands */
+/** @typedef {NonNullable<ReturnType<typeof import("./messages.js").messageReading>["reactions"]>} ReactionReading */
 let ordinal = 0;
 export class ReactionStripView {
   #commands;
+  /** @type {ReturnType<ReactionCommands["registerSurface"]> | null} */
   #registration = null;
-  #model = null;
+  #palette;
   #paletteId = `lf-reactions-${++ordinal}`;
 
+  /** @param {ReactionCommands} commands */
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
     this.node.classList.add("lf-react-strip", "lf-react-surface");
+    this.#palette = document.createElement("span");
+    this.#palette.className = "lf-react-palette";
+    this.#palette.id = this.#paletteId;
+    this.#palette.popover = "auto";
+    this.#palette.setAttribute("role", "group");
+    this.#palette.setAttribute("aria-label", "Reactions for this reply");
+    this.node.append(this.#palette);
   }
 
+  /** @param {ReactionReading} model */
   present(model) {
-    this.#model = model;
     this.node.classList.toggle("lf-open", model.latest);
     render(
-      html`<span
-        class="lf-react-palette"
-        id=${this.#paletteId}
-        popover="auto"
-        role="group"
-        @toggle=${(event) => {
-          if (event.newState === "closed") this.#registration.close();
-        }}
-        aria-label="Reactions for this reply"
-      >
+      html`
         ${repeat(
           model.choices,
           (choice) => choice.name,
@@ -43,13 +48,13 @@ export class ReactionStripView {
               title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
-              @click=${() => this.#press(choice.name)}
+              @click=${() => this.#press(model, choice)}
             >
               <span class="lf-react-glyph">${choice.glyph}</span>
             </button>`,
         )}
-      </span>`,
-      this.node,
+      `,
+      this.#palette,
     );
     return this.node;
   }
@@ -62,27 +67,42 @@ export class ReactionStripView {
     })}
     aria-expanded="false"
     aria-controls=${this.#paletteId}
-    @click=${() => this.#registration.toggle()}
     ${ref((trigger) => {
-      if (trigger)
-        this.#registration = this.#commands.registerSurface(this.node, {
-          trigger,
-          palette: this.node.querySelector(".lf-react-palette"),
-        });
+      if (!isHTML(trigger, "button")) return;
+      const registration = this.#commands.registerSurface(this.node, {
+        trigger,
+        palette: this.#palette,
+      });
+      this.#registration = registration;
+      trigger.addEventListener("click", () => registration.toggle());
+      this.#palette.ontoggle = (event) => {
+        if (event.newState === "closed") registration.close();
+      };
+      this.node.onclick = (event) => {
+        if (
+          !event
+            .composedPath()
+            .some(
+              (node) =>
+                node instanceof HTMLButtonElement &&
+                node.matches(".lf-react[data-token]"),
+            )
+        )
+          return;
+        registration.close();
+        this.#commands.pressed?.();
+      };
     })}
   ></button>`;
 
-  #press(name) {
-    const model = this.#model;
-    const sent = this.#commands.actions.setReaction(
+  /** @param {ReactionReading} model @param {ReactionReading["choices"][number]} choice */
+  #press(model, choice) {
+    void this.#commands.actions.setReaction(
       model.thread,
       model.message,
-      name,
-      !model.choices.find((choice) => choice.name === name).inForce,
+      choice.name,
+      !choice.inForce,
     );
-    this.#registration.close();
-    this.#commands.pressed();
-    void sent;
   }
 
   retire() {

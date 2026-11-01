@@ -15,10 +15,13 @@ import { focusDestination, focused } from "./focus.js";
 // How long a step's position holds the status line against arriving news.
 const HOLD_MS = 900;
 
+/** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition */
+/** @type {{key: string, noun: string | null, read: () => WalkPosition | null, target: unknown} | null} */
 let walking = null; // {key, noun, read, target}; never a list snapshot
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
 // qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
+/** @param {string | null} noun @param {number} position @param {number} total @param {string} [qualifier] */
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -26,6 +29,9 @@ export function walkPositionLabel(noun, position, total, qualifier = "") {
 
 // The common reading for a DOM or model list. `identity` is the owner's stable key;
 // the current item may be a fresh projection of the same destination on a later paint.
+/** @template T @param {readonly T[]} items @param {T | null | undefined} current
+ * @param {{identity?: (item: T) => unknown, qualifier?: string}} [options]
+ * @returns {WalkPosition | null} */
 export function listWalkPosition(
   items,
   current,
@@ -75,15 +81,17 @@ export function walkPosition() {
 // visible markers, where scrolling to the landed row would change the list the walk
 // is over. A walk that comes round at its ends steps with `cycledRow`
 // (keyboard/bindings.js); the page's queue walk steps by document position.
+/** @type {readonly [string, string, string, string]} */
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
-const capital = (word) => word[0].toUpperCase() + word.slice(1);
+/** @param {string} word */
+const capital = (word) => word.slice(0, 1).toUpperCase() + word.slice(1);
 /** @param {{
  *   id: string,
  *   noun: string,
  *   plural: string,
  *   rows: () => HTMLElement[],
  *   position?: () => ReturnType<typeof listWalkPosition>,
- *   steps?: readonly string[],
+ *   steps?: readonly [string, string, string, string],
  *   landed?: (row: HTMLElement) => void,
  *   scroll?: boolean,
  * }} walk */
@@ -98,11 +106,13 @@ export function rowWalk({
   scroll = true,
 }) {
   const [up, down, home, end] = steps;
+  /** @param {string} binding @param {string} step */
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
     title: `${capital(step)} ${noun.toLowerCase()}`,
   });
+  /** @param {(rows: HTMLElement[]) => HTMLElement | undefined} pick */
   const land = (pick) => {
     const was = focused();
     const row = pick(rows());
@@ -120,7 +130,7 @@ export function rowWalk({
       title: `walk the ${plural}`,
       repeat: true,
       travels: scroll,
-      run: (binding) =>
+      runKey: /** @param {string} binding */ (binding) =>
         land((list) =>
           clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0),
         ),
@@ -131,13 +141,15 @@ export function rowWalk({
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
       travels: scroll,
-      run: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
+      runKey: /** @param {string} binding */ (binding) =>
+        land((list) => (binding === "Home" ? list[0] : list.at(-1))),
     },
   ];
 }
 
 // A keyboard walk has arrived. The caller still owns and announces the motion; this
 // records the owner's live reading so every such walk says its position the same way.
+/** @param {string} key @param {string | null} noun @param {() => WalkPosition | null} read */
 export function beginWalk(key, noun, read) {
   const position = read();
   if (!position) {

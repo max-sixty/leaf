@@ -1,5 +1,5 @@
 // Pierre resolves the same Leaf token theme as ordinary code blocks.
-import { leafTheme, normalizeTheme } from "shiki";
+import { leafTheme, normalizeTheme } from "/vendor/syntax.esm.js";
 
 const descriptors = new Map([
   [
@@ -11,4 +11,6 @@ const descriptors = new Map([
   ],
 ]);
 
-export const themes = { getTheme: (name) => descriptors.get(name) };
+export const themes = {
+  getTheme: (/** @type {string} */ name) => descriptors.get(name),
+};

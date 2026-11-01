@@ -3,6 +3,8 @@
 import { html, live, nothing } from "/vendor/lit.js";
 import { offered, offeredAction } from "/runtime/portable-api.js";
 
+/** @param {HTMLElement} host
+ * @param {{time: number, rate: number, label: string, playing: boolean, playable: boolean, failure: string | null}} state */
 export function render(host, { time, rate, label, playing, playable, failure }) {
   return html`
     <div

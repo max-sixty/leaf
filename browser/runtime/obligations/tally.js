@@ -14,6 +14,7 @@
    disabled Next on me once the last one went to the agent. The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
+/** @param {readonly import("../framework/application.js").ObligationRecord[]} held */
 export function tally(held) {
   const open = held.filter((item) => item.status === "open");
   return {
@@ -25,6 +26,7 @@ export function tally(held) {
 }
 
 // The count's words, or that none is open.
+/** @param {{[K in keyof ReturnType<typeof tally>]: number | string}} count @param {string} agent */
 export function tallyWords({ onUser, onAgent, open, total }, agent) {
   if (!total) return "Nothing to answer";
   if (onUser && onAgent) return `${onUser} left to answer · ${onAgent} on ${agent}`;

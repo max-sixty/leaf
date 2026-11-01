@@ -3,31 +3,60 @@ import { generatedElement, keeps } from "/runtime/widget-api.js";
  * The live widget supplies the canonical heading and chrome readings. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 
+/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean, lends: boolean}} HeadingReading */
+/** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
+/** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
 // The outline belongs to the nearest declared view holding it, or the page's main.
 // Scope follows document ownership, not visibility: closed disclosures still contribute
 // headings that a native fragment link can reveal.
+/** @param {HTMLElement} host */
 export const outlineDocument = (host) => host.closest("[data-lf-views] > *, main");
 
 // Delivery and live behavior call this same template, retaining its native disclosure
 // and keyed links. Geometry readers collect the nodes only after its shared render.
+/** @param {HTMLElement} host @param {HeadingReading} [headingReading] */
 export function drawToc(host, headingReading) {
   const open = host.hasAttribute("open");
-  let outline = { start: { label: "Top" }, items: [] };
-  const href = (destination) => (destination?.id ? `#${destination.id}` : nothing);
-  const generated = (says) => ref((node) => node && generatedElement(node, { says }));
+  /** @type {Outline} */
+  let outline = { start: null, items: [] };
+  const href = (/** @type {Element | undefined} */ destination) =>
+    destination?.id ? `#${destination.id}` : nothing;
+  const generated = (/** @type {boolean} */ says) =>
+    ref((node) => node && generatedElement(node, { says }));
   host.replaceChildren();
+  /** @type {ReturnType<typeof readFrame> | undefined} */
+  let frame;
+  const readFrame = () => {
+    const nav = host.querySelector("nav");
+    /** @type {HTMLElement | null} */
+    const track = host.querySelector(".lf-toc-rows");
+    /** @type {HTMLElement | null} */
+    const lens = host.querySelector(".lf-toc-window");
+    const disclosure = nav?.querySelector("details");
+    const summary = disclosure?.querySelector("summary");
+    if (!nav || !track || !lens || !disclosure || !summary)
+      throw new Error("Contents did not draw its frame");
+    return { nav, track, lens, disclosure, summary };
+  };
+  const native = () => (frame ??= readFrame());
   return {
     scope: () => outlineDocument(host),
     get nav() {
-      return host.querySelector("nav");
+      return native().nav;
     },
     get track() {
-      return host.querySelector(".lf-toc-rows");
+      return native().track;
     },
     get lens() {
-      return host.querySelector(".lf-toc-window");
+      return native().lens;
+    },
+    get disclosure() {
+      return native().disclosure;
+    },
+    get summary() {
+      return native().summary;
     },
     render(reading = headingReading) {
       if (reading) {
@@ -49,7 +78,7 @@ export function drawToc(host, headingReading) {
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${href(start.destination)}>${start.label}</a>
+                <a href=${href(start?.destination)}>${start?.label ?? "Top"}</a>
               </div>
               <ol>
                 ${repeat(
@@ -69,18 +98,23 @@ export function drawToc(host, headingReading) {
     },
     sections() {
       const { start, items } = outline;
+      if (!start || !items.length) return [];
+      /** @type {HTMLElement | null} */
       const startRow = host.querySelector(".lf-toc-start");
-      const rows = [...host.querySelector("ol").children];
-      return items.length
-        ? [
-            { ...start, row: startRow, link: startRow.firstElementChild },
-            ...items.map((item, index) => ({
-              ...item,
-              row: rows[index],
-              link: rows[index].firstElementChild,
-            })),
-          ]
-        : [];
+      const list = host.querySelector("ol");
+      if (!list) throw new Error("Contents did not draw its outline");
+      /** @type {NodeListOf<HTMLLIElement>} */
+      const rows = list.querySelectorAll(":scope > li");
+      /** @param {HTMLElement | null | undefined} row */
+      const parts = (row) => {
+        const link = row?.querySelector("a");
+        if (!row || !link) throw new Error("Contents did not draw a section link");
+        return { row, link };
+      };
+      return [
+        { ...start, ...parts(startRow) },
+        ...items.map((item, index) => ({ ...item, ...parts(rows.item(index)) })),
+      ];
     },
   };
 }
@@ -93,6 +127,7 @@ export function drawToc(host, headingReading) {
 // wrote (`ADDRESSABLE`). The id goes on the destination rather than on an element
 // inserted beside it, because an inserted element changes which child a page rule
 // finds first or last and what an `h2 + p` rule finds next to the heading.
+/** @param {HTMLElement} host @param {Element} heading @param {number} position @param {boolean} lends */
 function destinationFor(host, heading, position, lends) {
   const section = heading.closest("section[id]");
   if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
@@ -100,6 +135,7 @@ function destinationFor(host, heading, position, lends) {
   return lend(host, destination, position, lends);
 }
 
+/** @param {HTMLElement} host @param {Element} destination @param {number} position @param {boolean} lends */
 function lend(host, destination, position, lends) {
   if (destination.id || !lends) return destination;
   const doc = host.ownerDocument;
@@ -111,12 +147,14 @@ function lend(host, destination, position, lends) {
   return destination;
 }
 
+/** @param {Element} heading */
 const level = (heading) => Number(heading.localName.slice(1));
 
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
+/** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
 function readOutline(host, { label, chrome, lends }) {
   const main = outlineDocument(host);
-  if (!main) return { start: { label: "Top" }, items: [] };
+  if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
   const headings = [...main.querySelectorAll(HEADING_SELECTOR)]
     .filter(
@@ -132,6 +170,7 @@ function readOutline(host, { label, chrome, lends }) {
     (candidate) => !chrome(candidate),
   );
   const start = {
+    heading: pageTitle ?? null,
     label: (pageTitle ? label(pageTitle) : "") || "Top",
     destination: pageTitle
       ? destinationFor(host, pageTitle, 0, lends)

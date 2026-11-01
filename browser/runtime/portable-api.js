@@ -79,3 +79,5 @@ export {
   generated,
 } from "./element-markers.js";
 export { describeFailure } from "./exception.js";
+
+export { canvas2D } from "./canvas.js";

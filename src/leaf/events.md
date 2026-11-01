@@ -294,6 +294,12 @@ to-do keeps that obligation the agent's even after the thread is resolved
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
 the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
+The agent's `todo_end` also retires a frozen widget's question the user answered in
+words, since no revision can write that widget's state; the delivery of the user's
+reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).
+A message asks by its words or by a widget in its markup, not both: only words answer
+`obligation: true`, so beside a widget it would outlast the user's pick, and
+`thread create` and `thread reply` refuse the pair.
 
 `work_reading.WorkReading.all_obligations` is the one inventory of obligations: page
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside

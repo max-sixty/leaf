@@ -37,7 +37,7 @@ const GAP = 10;
 /** What the chrome mounts: the stands the bars stand in. */
 export const atWorkLayer = el("div", "lf-ui lf-at-work");
 
-/** @param {{ watch: (watcher: (entries: readonly any[]) => void) => () => void, targetFor: (entry: any) => Element | null }} inventory */
+/** @param {ReturnType<typeof import("./annotation-inventory.js").createAnnotationInventory>} inventory */
 export function createAtWork(inventory) {
   const bars = paintSet(atWorkLayer);
   /** @type {Map<Element, HTMLElement>} */
@@ -56,7 +56,9 @@ export function createAtWork(inventory) {
         // At the start edge of the target's column, which is its right in
         // right-to-left text: a table's edge for a cell, so the bar stands in the
         // margin rather than in the cell before it.
-        rect: (/** @type {{rect: DOMRectReadOnly}} */ { rect }) => {
+        rect: (
+          /** @type {import("./target-paint-geometry.js").Placement} */ { rect },
+        ) => {
           const edge = (target.closest("table") ?? target).getBoundingClientRect();
           const left = target.matches(":dir(rtl)")
             ? Math.max(rect.right, edge.right) + GAP

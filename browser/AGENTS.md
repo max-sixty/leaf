@@ -593,8 +593,8 @@ that answer changes (`semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
 (`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
-`pnpm run check:browser` type-checks runtime and widget modules, strictly where a
-module is marked `// @ts-check`, which the build requires of every framework module.
+`pnpm run check:browser` strictly type-checks every maintained runtime and widget
+module; no file pragma is needed.
 `../build/browser/build.mjs` owns checker selection; `types/` holds its configuration
 and declarations. Declare a new
 global, event detail or runtime element tag in `types/runtime-globals.d.ts`.

@@ -24,6 +24,8 @@ on this machine (`local_adapter`), and the local Worker (`local_worker`).
 from __future__ import annotations
 
 import base64
+import gzip
+import hashlib
 import json
 import shutil
 import subprocess
@@ -155,6 +157,73 @@ def await_presentation(
             f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
             + said(failures)
         ) from None
+
+
+@contextmanager
+def capture_script_responses(page: Page):
+    """Keep the reload's actual script responses if its verification fails.
+
+    The CI log is the retained artifact, so bodies are gzip/base64 with short lines.
+    Decode by joining `gzipBase64`, base64-decoding, then gzip-decompressing. These
+    are Playwright's decoded response bytes, not a new request or wire compression.
+    Only delivery headers are retained; cookies and other credentials are excluded.
+    """
+    scripts = []
+    delivery_headers = {
+        "content-type",
+        "content-length",
+        "content-encoding",
+        "etag",
+        "cache-control",
+        "cf-cache-status",
+        "cf-ray",
+        "leaf-release",
+        "leaf-state-source",
+    }
+
+    def finished(request):
+        if request.resource_type != "script":
+            return
+        response = request.response()
+        if response is None:
+            return
+        script = {
+            "url": response.url,
+            "status": response.status,
+            "headers": {
+                name: value
+                for name, value in response.headers.items()
+                if name in delivery_headers
+            },
+        }
+        body = None
+        try:
+            body = response.body()
+        except PlaywrightError as error:
+            script["bodyError"] = str(error)
+        scripts.append((script, body))
+
+    page.on("requestfinished", finished)
+    try:
+        yield
+    except Exception:
+        for script, body in scripts:
+            if body is not None:
+                script["sha256"] = hashlib.sha256(body).hexdigest()
+                encoded = base64.b64encode(gzip.compress(body, mtime=0)).decode("ascii")
+                script["gzipBase64"] = [
+                    encoded[start : start + 4096]
+                    for start in range(0, len(encoded), 4096)
+                ]
+        print(
+            json.dumps(
+                {"scriptResponses": [script for script, _ in scripts]}, indent=2
+            ),
+            file=sys.stderr,
+        )
+        raise
+    finally:
+        page.remove_listener("requestfinished", finished)
 
 
 def activation_url(page_url: str, state: dict) -> str:

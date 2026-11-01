@@ -1,11 +1,13 @@
 /* The user's pointer: the one unrounded position shared by hit-test consumers, and
    whether it is a finger. */
+import { isNode } from "./shadow-tree.js";
 let x = -1;
 let y = -1;
 
 // Read pointer events rather than legacy mouse events, whose client coordinates are
 // rounded away from the point the browser hit-tested. A snapshot keeps consumers from
 // becoming another writer of the position they read.
+/** @param {PointerEvent} ev */
 const remember = (ev) => {
   x = ev.clientX;
   y = ev.clientY;
@@ -34,6 +36,7 @@ export const hoveringPointer = matchMedia("(hover: hover)");
 // belongs to the control it is on, whatever the pointer did a moment ago, and a mode
 // that eats it makes the control unreachable from the keyboard for as long as the claim
 // stands.
+/** @param {UIEvent} event */
 export const pressIsKeyboardActivation = (event) =>
   event.type === "click" && !event.detail;
 
@@ -42,6 +45,7 @@ export const pressIsKeyboardActivation = (event) =>
 // Cmd- or Ctrl-click opens a link elsewhere and Ctrl-click is the Mac's context menu,
 // Shift extends a selection or opens a window, Alt downloads or aims at the item — so a
 // handler that takes over a press leaves a modified one to the browser.
+/** @param {MouseEvent} event */
 export const plainPress = (event) =>
   event.button === 0 &&
   !event.altKey &&
@@ -51,9 +55,15 @@ export const plainPress = (event) =>
 
 // An automatic revision activation replaces the document, not the user's pointer.
 // New input wins over a handoff captured by the departing document.
+/** @param {{x: number, y: number}} point */
 export function restorePointer(point) {
   if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))
     return;
   x = point.x;
   y = point.y;
 }
+
+/** The DOM origin across shadow roots; a window-only event has no DOM source.
+ * @param {Event} event @returns {Node | null} */
+export const eventSource = (event) =>
+  event.composedPath().find((node) => isNode(node)) ?? null;

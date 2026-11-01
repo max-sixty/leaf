@@ -1,3 +1,4 @@
+// @ts-check
 /* Canonical browser reading of one exact message workflow.
 
    Python binds accepted delivery, turn, response, activity and condition evidence to
@@ -17,6 +18,25 @@
    application-facing caller, so this model stays free of application state. */
 import { agentSays, leafSays } from "../voice.js";
 
+/** @typedef {import("../framework/application.js").Workflow} Workflow */
+/** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
+/** @param {Workflow} workflow
+ * @returns {workflow is Extract<Workflow, {subject: {kind: "widget"}}>} */
+const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";
+
+// The server chooses the first open agent to-do in this thread, and publication
+// retains that same order. User gestures can end only user-owned to-dos, which
+// live in userTodos, so local folding cannot remove the to-do this reading names.
+/** @param {ThreadRecord} thread
+ * @returns {thread is ThreadRecord & {todos: readonly [import("../framework/application.js").WireTodo, ...import("../framework/application.js").WireTodo[]]}} */
+const todoAttention = (thread) =>
+  thread.attention?.kind === "waiting" && thread.attention.reason === "todo";
+
+/** The workflow's explicit line and the source position it was said at.
+ * @param {Workflow} workflow
+ * @returns {workflow is Extract<Workflow, {detail: string, detail_seq: number}>} */
+export const hasWorkflowLine = (workflow) => workflow.detail !== null;
+
 // Each stage's word, said by whoever says it (glossary.md, "Reader-facing words";
 // voice.js). Leaf speaks in the agent's voice where what the agent would say is
 // reliable: it started the update (On it), its reply is streaming in (Replying), or it
@@ -28,6 +48,7 @@ import { agentSays, leafSays } from "../voice.js";
 // inference in the agent's mouth, and the same day gave the agent the reply it is
 // streaming; on 27 October they chose Leaf's "Queued for Claude" over the agent's "Not
 // seen yet".
+/** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
 const STAGES = Object.freeze({
   sending: queuedFor,
@@ -54,6 +75,7 @@ export const RESOLVED = leafSays("Resolved");
 // A workflow's word, or null where it says none: an answer says nothing unless
 // `answered` asks for its word, as a title does. An update still waiting past the
 // pickup grace (`activity.PICKUP_GRACE`) says so.
+/** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowWord = (workflow, agent, { answered = false } = {}) => {
   if (!workflow) return null;
   const { condition } = workflow;
@@ -67,6 +89,7 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
   return STAGES[workflow.stage]?.(agent) ?? null;
 };
 
+/** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowTitle = (workflow, agent) =>
   [workflowWord(workflow, agent, { answered: true })?.text, workflow?.detail]
     .filter(Boolean)
@@ -75,6 +98,7 @@ export const workflowTitle = (workflow, agent) =>
 // The face a control paints for the agent's progress on a workflow: delivered, or at
 // work, which a reply still streaming is too. Its word stays the workflow's own
 // (`workflowWord`), so a reply streaming reads Replying under the working face.
+/** @param {Workflow | null | undefined} workflow */
 export const progressFace = (workflow) =>
   !workflow || workflow.condition
     ? null
@@ -84,24 +108,28 @@ export const progressFace = (workflow) =>
         ? "working"
         : null;
 
+/** @param {Workflow | null | undefined} workflow */
 export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
 // the newest it holds. Before it says one, and once the work stalls, the workflow's word.
+/** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowStep = (workflow, agent) =>
-  progressFace(workflow) === "working" && workflow.detail
+  progressFace(workflow) === "working" && workflow?.detail
     ? agentSays(workflow.detail)
     : workflowWord(workflow, agent);
 
+/** @param {Workflow} workflow @param {number | null} revision */
 export const isPageWidgetWorkflow = (workflow, revision) =>
-  workflow.subject.kind === "widget" &&
+  widgetWorkflow(workflow) &&
   workflow.thread === null &&
-  workflow.revision <= revision;
+  workflow.revision <= Number(revision);
 
 // Whether a workflow's update is back with the user to send again: a served one the
 // harness gave up on keeps its failed response at `answered`, the one stage only that
 // reaches, and this tab's refused send failed its delivery.
+/** @param {Workflow} workflow */
 const handedBack = (workflow) =>
   workflow.stage === "answered" ||
   (workflow.stage === "sending" && workflow.condition?.kind === "failed");
@@ -109,11 +137,13 @@ const handedBack = (workflow) =>
 // A send this tab has not delivered is the only workflow at `sending`. It ranks below
 // every served workflow with the same next actor, and an update that is the user's to
 // make still ranks above every one that is the agent's.
+/** @param {Workflow} workflow */
 const tier = (workflow) =>
   (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 
 // The first of the strongest tier. `workflows` keeps the published order, served
 // strongest first and this tab's sends after, so a caller selects by filtering it.
+/** @param {readonly Workflow[]} workflows */
 export function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -124,15 +154,18 @@ export function strongestWorkflow(workflows) {
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
 // which the user chose over "To-do open" (2026-10-27).
+/** @param {import("../framework/application.js").WireTodo["running"]} running */
 export const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 
 // A thread's state while it isn't resolved, and its `word`.
+/** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} thread
+ * @param {string} agent */
 export function threadAttention(thread, agent) {
   if (thread.resolved) return null;
-  const workflow = thread.attention?.workflow
-    ? (thread.workflows.find(
-        (candidate) => candidate.id === thread.attention.workflow,
-      ) ?? null)
+  const attention = thread.attention;
+  const workflow = attention?.workflow
+    ? (thread.workflows.find((candidate) => candidate.id === attention.workflow) ??
+      null)
     : null;
   // The agent hands the turn over with a question, its own act; an update that never
   // reached it is Leaf's to hand back, asking the user to send it again.
@@ -149,7 +182,7 @@ export function threadAttention(thread, agent) {
     });
   // A to-do the agent opened on the thread holds it after the update it answered has
   // settled: the agent's own commitment, in its voice.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo")
+  if (todoAttention(thread))
     return Object.freeze({
       kind: "waiting",
       word: todoWord(thread.todos[0].running),

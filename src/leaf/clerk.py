@@ -20,11 +20,12 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
   or control of its own. A first version marked its to-dos "added by Leaf"; the user
   rejected that as a second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
-  id, as its own, and keeps, ends or replaces it as it would one it wrote. Leaf adds
-  no ask whose title an open or ended to-do on the user already has, and shows the
-  fork the ended ones so it doesn't word one anew. It writes nothing once a turn has
-  opened since the fork read the conversation (`basis`), since that turn's agent, or
-  the user who opened it, has the newer reading.
+  id and words, as its own, and keeps, withdraws or replaces it as it would one it
+  wrote. Leaf opens no thread whose title a thread the agent opened on the page to
+  ask something already has, and shows the fork the questions already answered or
+  withdrawn so it doesn't word one anew. It writes nothing once a turn has opened
+  since the fork read the conversation (`basis`), since that turn's agent, or the
+  user who opened it, has the newer reading.
 
 It asks about one thing: decisions, answers, permissions or steps the agent left to
 the user that no On me item holds. A first version also wrote the status line and
@@ -41,13 +42,32 @@ calls `$.model.fork` from `turn.complete` (`hooks/claude-code.ts`). Codex would 
 with App Server's `thread/fork` (ephemeral) and Pi's extension by resending its
 session, each handing the answer back the same way; neither does yet.
 
-Leaf opens each ask as the agent's to-do on the user, and queues one line for each
-(`QUEUED`) under the same locks as its page's write, so a later page's failure loses
-no earlier page's lines. The next prompt or tool-boundary hook adds the lines to the
-agent's context (`hook_transport.carry_turn`), so the agent knows its records,
+The fork can't author the page, so it writes what the agent would write without a
+widget, choosing per ask as the agent does (`conversation-loop.md`, "The On lists").
+A question goes in a thread of its own, opened by the agent's message with an
+obligation (`threads.md`): the message holds the whole question, On me lists it until
+the user replies or settles it, and their reply reaches the agent as any reply does.
+A step the user takes and confirms with Done, such as running a command, goes On me
+as the agent's to-do on the user, titled as the action. Each stands on the passage
+the ask concerns where the fork names words the page shows once, a to-do on the
+element holding them, and otherwise on the page as a whole, which is also where words
+the page doesn't show once leave it, since the fork has no next attempt.
+
+A first version wrote every ask as a to-do on the user on the page, titled from the
+chat line, and `m` left a long title cut to half a line in the panel (2026-10-31).
+The user asked for the routes a question asked well takes, a widget that asks or a
+thread, then declined to mandate one placement or form, and chose to let the fork
+pick a to-do for a step once `m` opened On me on a to-do, where its title reads whole
+(queue-walk.js). A step asked as a thread question had a cost: a clarifying reply
+such as "where do I run it?" answers it, and the agent has to ask again.
+
+Leaf queues one line for each record (`QUEUED`) under the same locks as its page's
+write, so a later page's failure loses no earlier page's lines. The next prompt or
+tool-boundary hook adds the lines to the agent's context
+(`hook_transport.carry_turn`), so the agent knows its records and their words,
 neither repeats nor contradicts them, and spends no turn on them. A line leaves the
 queue once a hook has printed it (`heard`), so a prompt that Escape drops loses its
-lines: the to-dos stay open and `leaf page state` lists them, but the agent isn't
+lines: the questions stay On me and `leaf page state` lists them, but the agent isn't
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
@@ -75,10 +95,10 @@ from .state import (
     session_record,
 )
 
-# The length of a to-do's title (`todo` in the kernel registry), which the fork is
-# asked to keep a line under. A model can't count characters, so the answer takes a
-# longer line and Leaf shortens a title to fit (`_title`) rather than refusing the
-# answer and every ask it found.
+# The length of a thread's or to-do's title (`comment` and `todo` in the kernel
+# registry), which the fork is asked to keep a title under. A model can't count characters, so the answer takes a
+# longer title and Leaf shortens it to fit (`_title`) rather than refusing the answer
+# and every ask it found.
 TITLE_LIMIT = 80
 
 ANSWER = {
@@ -90,13 +110,21 @@ ANSWER = {
                 "type": "object",
                 "properties": {
                     "page": {"type": "string", "minLength": 1},
+                    "kind": {"enum": ["question", "step"]},
                     "title": {"type": "string", "minLength": 1, "pattern": r"\S"},
+                    # A question's message; a step has none, its title being all
+                    # the user reads of its to-do.
+                    "text": {"type": "string"},
+                    # The page's words the ask concerns, or "" for the page as a whole.
+                    "passage": {"type": "string"},
                     # The agent's words, which ground the ask in the conversation;
-                    # Leaf writes only the title.
+                    # Leaf writes only the title, text and passage.
                     "quote": {"type": "string"},
                 },
-                "required": ["page", "title", "quote"],
+                "required": ["page", "kind", "title", "text", "passage", "quote"],
                 "additionalProperties": False,
+                "if": {"properties": {"kind": {"const": "question"}}},
+                "then": {"properties": {"text": {"minLength": 1, "pattern": r"\S"}}},
             },
         },
     },
@@ -108,8 +136,8 @@ QUEUED = Record(
     "clerk",
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
-        "`sessions/<digest>.clerk` (`state.session_file`): one for each to-do the "
-        "clerk added On me (`clerk`), and one for each reply a fork of the "
+        "`sessions/<digest>.clerk` (`state.session_file`): one for each question or "
+        "step the clerk put On me (`clerk`), and one for each reply a fork of the "
         "conversation posted (`forks`).",
         object_schema({"lines": {"type": "array", "items": STRING}}),
     ),
@@ -122,8 +150,8 @@ OPENING = "<leaf-fork-check>"
 
 def page_facts(state: dict) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it: its On me, and the to-dos on the user that the agent or the user has ended,
-    which the fork must not add again."""
+    it: its On me, and the questions and to-dos on the user that are answered, ended
+    or withdrawn, which the fork must not ask again."""
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
     todos = {todo["id"]: todo for todo in state["todos"]}
@@ -146,11 +174,12 @@ def page_facts(state: dict) -> dict:
         else:
             on_me.append(f"decision: {words(record)}")
     settled = [
-        f"{record['prompt']['text']} ("
-        + ("dropped" if record["status"] == "withdrawn" else "done")
+        f"{words(record)} ("
+        + ("dropped" if record["status"] == "withdrawn" else "answered")
         + ")"
         for record in state["obligations"]
-        if record["source"]["kind"] == "todo" and record["status"] != "open"
+        if record["source"]["kind"] in {"todo", "message"}
+        and record["status"] != "open"
     ]
     return {
         "title": state["title"],
@@ -170,7 +199,7 @@ def _block(facts: dict) -> str:
     ]
     if facts.get("settled"):
         parts.append(
-            "Ended on the page by the agent or the user; don't add these again:\n"
+            "Answered or withdrawn on the page; don't ask these again:\n"
             + lines(facts["settled"])
         )
     return "\n".join(parts)
@@ -181,14 +210,20 @@ def fork_prompt(pages: list[dict]) -> str:
     (`page_facts`), the question and the answer's form (`ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
     return f"""{OPENING}
-This message comes from Leaf, not the user. You are a fork of this session, made as the agent's turn ended, to keep the user's On me list complete. The main session carries on separately and never reads this exchange: Leaf adds what you name to On me as the agent's own to-dos, and tells the agent at its next step, which keeps or ends each. Don't call tools and don't continue the work; answer from the conversation above and the page state below.
+This message comes from Leaf, not the user. You are a fork of this session, made as the agent's turn ended, to keep the user's On me list complete. The main session carries on separately and never reads this exchange: Leaf puts each ask you write On me as the agent's own, a question in a new thread and a step as a to-do, and tells the agent at its next step, which takes the user's answer or withdraws the ask. Don't call tools and don't continue the work; answer from the conversation above and the page state below.
 
 {blocks}
 
-On me is where the user finds everything waiting on them. Name each decision, answer, permission or step the agent left to the user, in its replies or anywhere in the conversation, that no On me item above holds and the user hasn't answered since. Leave out what the agent will settle itself. Give each: "page", the page's path; "title", the ask as a line on the user's list, under {TITLE_LIMIT} characters ("Merge the two mark styles, or keep both?"); "quote", the agent's words that leave it to the user.
+On me is where the user finds everything waiting on them. Name each decision, answer, permission or step the agent left to the user, in its replies or anywhere in the conversation, that no On me item above holds and the user hasn't answered since. Leave out what the agent will settle itself. Give each:
+- "page": the page's path.
+- "kind": "step" for an action the user takes and then confirms with Done, such as running a command or trying a build; "question" for anything they answer, decide or permit.
+- "title": for a question, a few words naming its thread's subject ("Merging the two mark styles"); for a step, the action itself, whole, as the only words the user reads of it ("Run /reload-plugins in this Claude session"). Keep it under {TITLE_LIMIT} characters.
+- "text": for a question, the message that asks it, as the agent would write it. The user reads it on the page, perhaps days later and without the chat, so say what is waiting, why it arises and what each answer leads to, naming things as the page does, and end with the question. It shows in a narrow card, so keep it to three or four short sentences of Markdown; link a pull request or commit by its URL where the conversation gives one. For a step, "".
+- "passage": where the ask concerns one passage of the page, a few of its words, exactly as the page shows them and found nowhere else on it, which the ask then stands on; else "", and it stands on the page as a whole.
+- "quote": the agent's words that leave it to the user.
 
 Reply with only this JSON object, no code fence, with "asks": [] if there are none:
-{{"asks": [{{"page": "<page path>", "title": "<line>", "quote": "<words>"}}]}}
+{{"asks": [{{"page": "<page path>", "kind": "question", "title": "<subject>", "text": "<message>", "passage": "<page words or empty>", "quote": "<words>"}}]}}
 </leaf-fork-check>"""
 
 
@@ -259,7 +294,7 @@ def _facts(page_dir: Path) -> dict | None:
 
 
 def _title(words: str) -> str:
-    """`words` as an On me to-do's title: on one line, and cut at a word to fit
+    """`words` as a thread's title: on one line, and cut at a word to fit
     `TITLE_LIMIT`, ending in an ellipsis where it was cut."""
     title = " ".join(words.split())
     if len(title) <= TITLE_LIMIT:
@@ -268,14 +303,17 @@ def _title(words: str) -> str:
 
 
 def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
-    """Open each of `answer`'s asks as a to-do on the user, on the page it names among
-    those `session_id` holds, unless a to-do on the user there has its title, and
-    queue a line for each for the agent's next step, while the session's turn is
-    still the one `asked` names; what it wrote, and why it stopped if it did."""
-    from .event_contracts import append_admitted
+    """Put each of `answer`'s asks On me as the agent's own, on the page it names among
+    those `session_id` holds: a question in a thread of its own, opened by the agent's
+    message with an obligation, and a step as a to-do on the user; skip one whose
+    title an ask the agent made there already has, and queue a line for each for the
+    agent's next step, while the session's turn is still the one `asked` names; what
+    it wrote, and why it stopped if it did."""
+    from .findings import Rejected
     from .leases import page_locked
     from .service import PageTransaction, owned_pages
     from .todos import TodoReading
+    from .validation.admission import checked_text
 
     wrote: list[dict] = []
     told: list[str] = []
@@ -303,36 +341,48 @@ def apply_answer(session_id: str, answer: dict, asked: dict | None) -> dict:
                 if claim is None or claim["id"] != session_id:
                     continue
                 identity = {"agent": claim["agent"], "session": claim["id"]}
-                listed = {
+                # The asks the agent made there, by title: the threads it opened to
+                # ask something and its to-dos on the user, open or ended.
+                asked_in = {
+                    event["title"].casefold()
+                    for event in page.events
+                    if event["kind"] == "comment"
+                    and event["author"] == "agent"
+                    and event.get("obligation")
+                    and "title" in event
+                } | {
                     todo["title"].casefold()
                     for todo in TodoReading(page.events).todos
                     if todo["owner"] == "user"
                 }
+                # Every message is checked before the first is written, so a refused
+                # one leaves the page as the fork found it.
+                messages = [
+                    (
+                        item["kind"],
+                        _title(item["title"]),
+                        checked_text(page_dir, item["text"])
+                        if item["kind"] == "question"
+                        else "",
+                        item["passage"].strip(),
+                    )
+                    for item in asks
+                ]
                 lines = []
-                for item in asks:
-                    title = _title(item["title"])
-                    if title.casefold() in listed:
+                for kind, title, text, passage in messages:
+                    if title.casefold() in asked_in:
                         continue
-                    listed.add(title.casefold())
-                    record, _ = append_admitted(
-                        page,
-                        {
-                            "kind": "todo",
-                            "author": "agent",
-                            **identity,
-                            "owner": "user",
-                            "subject": {"kind": "page"},
-                            "title": title,
-                        },
-                    )
+                    asked_in.add(title.casefold())
+
+                    ask = (page_dir, page, kind, title, text, identity)
+                    try:
+                        record = _put(*ask, passage)
+                    except Rejected:
+                        if not passage:
+                            raise
+                        record = _put(*ask, "")
                     wrote.append(record)
-                    lines.append(
-                        f'From your last reply, Leaf put "{record["title"]}" On me on '
-                        f"{path} as your to-do {record['id']} on the user. It is yours "
-                        "like any you write: keep it, or if it isn't the user's to "
-                        f"decide, end it with `leaf task end {path} {record['id']} "
-                        "dropped`, and ask it another way if you'd rather."
-                    )
+                    lines.append(_told(path, kind, title, text, passage, record))
                 _append(session_id, lines)
                 told.extend(lines)
         except FileNotFoundError:
@@ -352,6 +402,53 @@ def _append(session_id: str, lines: list[str]) -> None:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
         QUEUED.write(path, {"lines": [*held["lines"], *lines]})
+
+
+def _put(page_dir, page, kind, title, text, identity, passage) -> dict:
+    """The record putting one ask On me as the agent's own in `page`, an open
+    transaction: a question's thread, or a step's to-do on the user, on `passage` where
+    it names one; refused, as `thread create --quote` is, where the page doesn't show
+    `passage` once."""
+    from .thread import current_anchor, open_thread
+    from .todos import open_todo
+
+    if kind == "question":
+        return open_thread(
+            page_dir,
+            page,
+            text,
+            passage,
+            title=title,
+            obligation=True,
+            identity=identity,
+        )
+    _, anchor = current_anchor(page_dir, page.events, passage, "", "", transaction=page)
+    section = (anchor or {}).get("section")
+    subject = {"kind": "element", "id": section} if section else {"kind": "page"}
+    return open_todo(page, subject, title, "user", identity)
+
+
+def _told(path: str, kind: str, title: str, text: str, passage: str, record: dict):
+    """The line telling the agent what Leaf put On me as its own, and where."""
+    placed = "anchor" in record or record.get("subject", {}).get("kind") == "element"
+    where = f'the words "{passage}" in {path}' if placed else f"{path} as a whole"
+    if kind == "step":
+        withdraw = f"leaf task end {path} {record['id']} dropped"
+        return (
+            f'From your last reply, Leaf put the step "{title}" On me as your to-do '
+            f"{record['id']} on the user, on {where}. It is yours like any to-do you "
+            f"write: if it isn't the user's to do, end it with `{withdraw}`, and ask "
+            "it another way if you'd rather."
+        )
+    quoted = "\n".join(f"> {line}" for line in text.splitlines())
+    withdraw = f"leaf task end {path} message:{record['id']} dropped"
+    return (
+        f'From your last reply, Leaf asked the user "{title}" On me, in a new thread '
+        f"on {where}, opened by your message {record['id']}:\n{quoted}\nIt is yours "
+        "like any message you write: the user's reply reaches you as any reply does, "
+        f"and if it isn't theirs to decide, withdraw it with `{withdraw}`, and ask it "
+        "another way if you'd rather."
+    )
 
 
 def queued(session_id: str) -> list[str]:

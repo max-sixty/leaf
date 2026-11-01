@@ -13,8 +13,7 @@ import { generatedElement } from "../widget-elements.js";
 import { focusDestination } from "../focus.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
-import { THREAD } from "./selectors.js";
-import { threadPart, wholeThread } from "./selectors.js";
+import { THREAD, threadPart, wholeThread } from "./selectors.js";
 import { threadRewrites } from "./message-edit.js";
 import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -35,7 +34,10 @@ import { turns } from "./model.js";
    thread's head and reply box itself, as the floating panel's view does; it stands
    instead of message parts of its thread, and grows at its foot, the growing tail
    (`data-lf-append-tail`) of an outlet that declares itself an append region, as the
-   panel's does. A message part offers the user's rewrite of it, and
+   panel's does. Its optional `drawn(answer)` runs after its DOM is placed, before
+   asynchronous widget preparation completes: null unless this draw answers the
+   user's last turn, otherwise its `{turn, reply}` keys, reply null for work alone.
+   A message part offers the user's rewrite of it, and
    a reply part ↑ to the latest, as a thread card does, through the thread's one
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller, a transcript's folds aside. The thread's reply destination is its reply box as
@@ -50,6 +52,29 @@ import { turns } from "./model.js";
    view's controls, after the way back. Where it nominates none, the notice
    stands at the end of the first part's head, in room every such head keeps for it,
    so news arriving moves none of the head's words. */
+/** @typedef {Pick<ReturnType<typeof import("./state.js").readThreads>, "phase" | "threads">} PrimaryCollection */
+/** @typedef {{drawn?: (answer: import("./held-news.js").ThreadChange["answers"] | null) => unknown}} TranscriptOptions */
+/** @typedef {{signal: AbortSignal,
+ * thread: (key: string, outlet: Element) => void,
+ * transcript: (key: string, outlet: Element, options?: TranscriptOptions) => void,
+ * message: (key: string, message: string, outlet: Element) => void,
+ * reply: (key: string, outlet: Element, options?: import("./replies.js").ReplyOptions) => void,
+ * news: (key: string, outlet: Element) => void}} NominationParts */
+/** @typedef {(collection: PrimaryCollection, parts: NominationParts) => unknown} PrimaryRender */
+/** @typedef {ReturnType<typeof newsNotice>} PartNotice */
+/** @typedef {{node: HTMLDivElement, notice: PartNotice, slots?: HTMLSlotElement[], dispose: () => void}} PartBase */
+/** @typedef {PartBase & {kind: "transcript", transcript: Transcript, reading: import("./held-news.js").HeldThread, drawn: boolean, headNotice: boolean, draw: () => void}} TranscriptPart */
+/** @typedef {PartBase & {kind: "message", message: MessageView, messageKey: string, reading: ReturnType<typeof messageReading>, headNotice: boolean, draw: () => void}} MessagePart */
+/** @typedef {PartBase & {kind: "reply", reply: ReturnType<typeof createReplyView>}} ReplyPart */
+/** @typedef {{kind: "news", node: HTMLElement, notice: PartNotice, slots?: HTMLSlotElement[], dispose: () => void}} NewsPart */
+/** @typedef {ThreadView & {kind: "thread", slots?: HTMLSlotElement[]}} WholePart */
+/** @typedef {WholePart | TranscriptPart | MessagePart | ReplyPart | NewsPart} RetainedPart */
+/** @typedef {Exclude<RetainedPart, NewsPart>} DestinationPart */
+/** @typedef {{key: string, outlet: Element} & ({kind: "thread", message: null, options: {}} | {kind: "news", message: null, options: {}} | {kind: "transcript", message: null, options: TranscriptOptions} | {kind: "reply", message: null, options: import("./replies.js").ReplyOptions} | {kind: "message", message: string, options: {}})} PartRequest */
+/** @typedef {PartRequest & {identity: string, thread: import("./thread-card.js").ThreadRecord}} Nomination */
+/** @param {Element} owner @param {PrimaryRender} render
+ * @param {import("./thread-card.js").ThreadCommands} commands @param {() => Promise<unknown>} update
+ * @param {{answersAtOnce?: boolean, onFailure?: () => void}} [options] */
 export function createPrimaryReader(
   owner,
   render,
@@ -64,57 +89,82 @@ export function createPrimaryReader(
   let failing = false;
   let failed = false;
   let generation = 0;
+  /** @type {AbortController | null} */
   let pending = null;
+  /** @type {Nomination[]} */
   let selected = [];
+  /** @type {Map<string, RetainedPart>} */
   const views = new Map();
+  /** @type {Map<string, DestinationPart[]>} */
   const destinations = new Map();
+  /** @type {Set<string>} */
   const nativeMessages = new Set();
   const held = new HeldNews(
     owner,
     (key) => {
       const parts = destinations.get(key);
-      if (!parts?.length) return null;
+      const last = parts?.at(-1);
+      if (!parts || !last) return null;
       const whole = parts.find((part) => part instanceof ThreadView);
       if (whole) return whole;
       return {
-        node: drawingOf(parts) ?? parts.at(-1).node,
-        progressOpen: parts.some((part) => part.transcript?.progressOpen),
+        node: drawingOf(parts) ?? last.node,
+        progressOpen: parts.some(
+          (part) => part.kind === "transcript" && part.transcript.progressOpen,
+        ),
         // A presentation that makes room for the agent's answer to the user's last turn
         // itself (`answersAtOnce`) is handed it whatever it moves. A transcript moves
         // what a card's would (transcript.js, `newsMoves`).
         newsMoves: (held) =>
           !(answersAtOnce && held.answers) &&
           parts.some((part) =>
-            part.transcript
+            part.kind === "transcript"
               ? part.transcript.newsMoves(held)
               : (held.news.appended ||
                   held.news.settled ||
-                  held.changed.has(part.messageKey) ||
-                  held.folds.messages.includes(part.messageKey) ||
-                  held.folds.summaries.length) &&
+                  (part.kind === "message" && held.changed.has(part.messageKey)) ||
+                  (part.kind === "message" &&
+                    held.folds.messages.includes(part.messageKey)) ||
+                  Boolean(held.folds.summaries.length)) &&
                 growthIsSeen(part.node),
           ),
       };
     },
     () => void update().catch(() => {}),
   );
+  /** @type {Map<string, import("./held-news.js").HeldThread>} */
   let shown = new Map();
   // The thread as a whole where the presentation draws one around its parts, as the
   // floating panel's view is a drawing of the thread its messages are drawn in
   // (selectors.js, `wholeThread`): what a keyboard landing on the thread stands on.
+  /** @param {readonly DestinationPart[]} parts */
   const drawingOf = (parts) => {
-    const whole = wholeThread(parts[0].node);
-    return whole === parts[0].node ? null : whole;
+    const first = parts[0];
+    if (!first) return null;
+    const whole = wholeThread(first.node);
+    return whole === first.node ? null : whole;
   };
   // Each thread's rewrites over the parts of it this reader draws (`threadRewrites`):
   // its messages in the thread's order, and its reply box.
+  /** @type {Map<string, ReturnType<typeof threadRewrites>>} */
   const rewrites = new Map();
-  const partsOf = (key, kind) =>
-    selected
-      .filter((item) => item.key === key && item.kind === kind)
-      .flatMap((item) => views.get(item.identity) ?? []);
+  /** @template {RetainedPart["kind"]} K @param {string} key @param {K} kind
+   * @returns {Extract<RetainedPart, {kind: K}>[]} */
+  const partsOf = (key, kind) => {
+    /** @type {Extract<RetainedPart, {kind: K}>[]} */
+    const parts = [];
+    for (const item of selected) {
+      const view = views.get(item.identity);
+      if (item.key === key && view && isKind(view, kind)) parts.push(view);
+    }
+    return parts;
+  };
+  /** @template {RetainedPart["kind"]} K @param {RetainedPart} view @param {K} kind
+   * @returns {view is Extract<RetainedPart, {kind: K}>} */
+  const isKind = (view, kind) => view.kind === kind;
   // The thread's reply box as the parts drawn stand, in a reply part or where the
   // presentation around them declares it.
+  /** @param {string} key */
   const replyOf = (key) => {
     for (const view of destinations.get(key) ?? []) {
       const input = !view.node.hidden && threadPart(view.node, "reply");
@@ -122,41 +172,44 @@ export function createPrimaryReader(
     }
     return null;
   };
+  /** @param {string} key */
   const rewritesOf = (key) => {
-    if (!rewrites.has(key))
-      rewrites.set(
-        key,
-        threadRewrites({
-          thread: () => key,
-          views: () => {
-            const transcript = partsOf(key, "transcript")[0];
-            if (transcript) return transcript.transcript.views;
-            const order = shown.get(key)?.source.msgs.map((message) => message.key);
-            return partsOf(key, "message")
-              .toSorted(
-                (a, b) =>
-                  (order?.indexOf(a.messageKey) ?? 0) -
-                  (order?.indexOf(b.messageKey) ?? 0),
-              )
-              .map((view) => view.message);
-          },
-          send: (id, text, options) =>
-            commands.reply.actions.edit(key, id, text, options),
-          paint: (node) =>
-            [...partsOf(key, "transcript"), ...partsOf(key, "message")]
-              .find((view) => view.transcript || view.message.node === node)
-              ?.draw(),
-          box: () => replyOf(key),
-          home: (node) => node.closest(THREAD),
-          opening: (id) => {
-            shown.get(key)?.news?.open();
-            partsOf(key, "transcript")[0]?.transcript.expandAround(id);
-          },
-          landInThread: commands.reply.landInThread,
-          landSent: commands.reply.landSent,
-        }),
-      );
-    return rewrites.get(key);
+    let rewrite = rewrites.get(key);
+    if (!rewrite) {
+      rewrite = threadRewrites({
+        views: () => {
+          const transcript = partsOf(key, "transcript")[0];
+          if (transcript) return transcript.transcript.views;
+          const order = shown.get(key)?.source.msgs.map((message) => message.key);
+          return partsOf(key, "message")
+            .toSorted(
+              (a, b) =>
+                (order?.indexOf(a.messageKey) ?? 0) -
+                (order?.indexOf(b.messageKey) ?? 0),
+            )
+            .map((view) => view.message);
+        },
+        paint: (node) =>
+          [...partsOf(key, "transcript"), ...partsOf(key, "message")]
+            .find((view) => view.kind === "transcript" || view.message.node === node)
+            ?.draw(),
+        box: () => replyOf(key),
+        home: (node) => {
+          const home = node?.closest(THREAD);
+          if (!home)
+            throw new Error("A primary message must stand in its drawn thread");
+          return home;
+        },
+        opening: (id) => {
+          shown.get(key)?.news?.open();
+          partsOf(key, "transcript")[0]?.transcript.expandAround(id);
+        },
+        landInThread: commands.reply.landInThread,
+        landSent: commands.reply.landSent,
+      });
+      rewrites.set(key, rewrite);
+    }
+    return rewrite;
   };
   const clear = () => {
     for (const view of views.values()) {
@@ -169,6 +222,7 @@ export function createPrimaryReader(
     nativeMessages.clear();
     rewrites.clear();
   };
+  /** @param {PrimaryCollection} collection @param {Promise<unknown>} cancelled */
   function prepare(collection, cancelled) {
     const current = ++generation;
     failing = false;
@@ -191,9 +245,12 @@ export function createPrimaryReader(
       phase: collection.phase,
       threads: Object.freeze([...byKey.values()]),
     });
+    /** @type {Nomination[]} */
     const nominations = [];
     let accepting = true;
-    const nominate = (kind, key, message, outlet, options = {}) => {
+    /** @param {PartRequest} request */
+    const nominate = (request) => {
+      const { kind, key, message } = request;
       if (!accepting || abort.signal.aborted)
         throw new Error("Thread nominations belong to their current render callback");
       const thread = byKey.get(key);
@@ -202,6 +259,7 @@ export function createPrimaryReader(
         throw new Error(`Thread ${key} has no turn ${message}`);
       const identity = JSON.stringify([kind, key, message]);
       // A whole thread draws every part of it, and a transcript every message.
+      /** @param {PartRequest["kind"]} a @param {PartRequest["kind"]} b */
       const covers = (a, b) =>
         a === "thread" || (a === "transcript" && b === "message");
       if (
@@ -212,7 +270,7 @@ export function createPrimaryReader(
         )
       )
         throw new Error("A primary reader may nominate each Thread part only once");
-      nominations.push({ identity, kind, key, message, outlet, thread, options });
+      nominations.push({ ...request, identity, thread });
     };
     const finish = () => {
       accepting = false;
@@ -237,15 +295,18 @@ export function createPrimaryReader(
       return {
         paint: async () => {
           try {
-            await paint(current);
+            await paint(current, () => {
+              if (!active || current !== generation || abort.signal.aborted) return;
+              candidate.commit();
+              for (const item of nominations)
+                if (item.kind === "transcript")
+                  item.options.drawn?.(shown.get(item.key)?.change?.answers ?? null);
+            });
           } catch (error) {
             failing ||= current === generation;
             throw error;
           }
-          if (active && current === generation && !abort.signal.aborted) {
-            candidate.commit();
-            failed = false;
-          }
+          if (active && current === generation && !abort.signal.aborted) failed = false;
         },
         current: () => active && current === generation && !abort.signal.aborted,
       };
@@ -255,15 +316,36 @@ export function createPrimaryReader(
         shownCollection,
         Object.freeze({
           signal: abort.signal,
-          thread: (key, outlet) => nominate("thread", key, null, outlet),
-          transcript: (key, outlet) => nominate("transcript", key, null, outlet),
-          message: (key, id, outlet) => nominate("message", key, id, outlet),
+          thread: (key, outlet) =>
+            nominate({ kind: "thread", key, message: null, outlet, options: {} }),
+          transcript: (key, outlet, options) =>
+            nominate({
+              kind: "transcript",
+              key,
+              message: null,
+              outlet,
+              options: options ?? {},
+            }),
+          message: (key, id, outlet) =>
+            nominate({ kind: "message", key, message: id, outlet, options: {} }),
           reply: (key, outlet, options) =>
-            nominate("reply", key, null, outlet, options),
-          news: (key, outlet) => nominate("news", key, null, outlet),
+            nominate({
+              kind: "reply",
+              key,
+              message: null,
+              outlet,
+              options: options ?? {},
+            }),
+          news: (key, outlet) =>
+            nominate({ kind: "news", key, message: null, outlet, options: {} }),
         }),
       );
-      if (rendering?.then)
+      if (
+        rendering != null &&
+        (typeof rendering === "object" || typeof rendering === "function") &&
+        "then" in rendering &&
+        typeof rendering.then === "function"
+      )
         return Promise.race([rendering, aborted(abort.signal)])
           .then(finish)
           .catch((error) => {
@@ -280,7 +362,23 @@ export function createPrimaryReader(
       throw error;
     }
   }
-  async function paint(current) {
+  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key */
+  const messageSource = (thread, key) => {
+    const message = thread.msgs.find((entry) => entry.key === key);
+    if (!message) throw new Error(`Thread ${thread.key} has no message ${key}`);
+    return message;
+  };
+  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key */
+  const messageModel = (thread, key) => {
+    const message = messageSource(thread, key);
+    return messageReading(message, {
+      authoredRank: 3,
+      reactions: message.reactions,
+      workflows: message.workflows,
+    });
+  };
+  /** @param {number} current @param {() => void} drawn */
+  async function paint(current, drawn) {
     if (!active || generation !== current) return;
     for (const item of selected)
       if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner))
@@ -298,20 +396,29 @@ export function createPrimaryReader(
         views.delete(key);
       }
     destinations.clear();
+    /** @type {Map<Element, Element[]>} */
     const children = new Map();
+    /** @param {Element} parent @param {Element} node */
     const place = (parent, node) => {
       const nodes = children.get(parent) ?? [];
       nodes.push(node);
       children.set(parent, nodes);
     };
     for (const item of selected) {
+      const reading = shown.get(item.key);
+      if (!reading) throw new Error(`No prepared Thread has key ${item.key}`);
       let view = views.get(item.identity);
       if (!view) {
-        if (item.kind === "thread")
-          view = new ThreadView({ ...commands, authoredRank: 3 });
-        else if (item.kind === "news") {
+        if (item.kind === "thread") {
+          /** @type {WholePart} */
+          const whole = Object.assign(
+            new ThreadView(commands, reading),
+            /** @satisfies {{kind: "thread"}} */ ({ kind: "thread" }),
+          );
+          view = whole;
+        } else if (item.kind === "news") {
           const notice = newsNotice();
-          view = { node: notice.node, notice, dispose() {} };
+          view = { kind: "news", node: notice.node, notice, dispose() {} };
         } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ui lf-primary-part";
@@ -320,6 +427,8 @@ export function createPrimaryReader(
           node.dataset.lfRuntime = "";
           generatedElement(node, { says: false });
           node.dataset.lfOffer = "";
+          const notice = newsNotice();
+          notice.node.classList.add("lf-primary-news");
           if (item.kind === "transcript") {
             // A press on a reply's reactions is the user acting in this thread, so
             // what the reader holds of it shows with it, as in a card (thread-card.js).
@@ -333,15 +442,18 @@ export function createPrimaryReader(
                 },
                 edit: rewritesOf(item.key).edit,
               },
-              repaint: () => view.draw(),
+              repaint: () => part.draw(),
               home: () => node,
             });
             node.append(transcript.node);
             node.dataset.lfAppendTail = "";
-            view = {
+            /** @type {TranscriptPart} */
+            const part = {
+              kind: "transcript",
               node,
+              notice,
               transcript,
-              reading: null,
+              reading,
               drawn: false,
               // Whether the thread's notice stands in its first message's head.
               headNotice: true,
@@ -352,12 +464,13 @@ export function createPrimaryReader(
                   arrived: this.drawn,
                   notice: this.headNotice ? this.notice.node : null,
                 });
-                transcript.commit();
+                transcript.commit(this.reading);
                 this.drawn = true;
                 if (handedOn) focusDestination(handedOn, "return");
               },
               dispose: () => transcript.retire(),
             };
+            view = part;
           } else if (item.kind === "message") {
             // A press on a reply's reactions is the user acting in this thread, so
             // what the reader holds of it shows with it, as in a card (thread-card.js).
@@ -370,28 +483,30 @@ export function createPrimaryReader(
               edit: rewritesOf(item.key).edit,
             });
             node.append(message.node);
-            view = {
+            /** @type {MessagePart} */
+            const part = {
+              kind: "message",
               node,
+              notice,
               message,
               messageKey: item.message,
-              reading: null,
+              reading: messageModel(item.thread, item.message),
               // Whether the thread's notice stands in this message's head.
               headNotice: true,
               // Draws the message again at once, as its rewrite opens or closes.
               draw() {
                 message.present(this.reading, {
-                  headerControls: this.headNotice ? this.notice.node : undefined,
+                  ...(this.headNotice ? { headerControls: this.notice.node } : {}),
                 });
                 message.commit();
               },
               dispose: () => message.retire(),
             };
+            view = part;
           } else {
             let joined = false;
             // What the box reads, when it holds its sends and how a send lands are the
             // presentation's (replies.js, `createReplyView`), given with its nomination.
-            const { hint, hintLead, accessibleName, busy, sending, sent } =
-              item.options;
             // The part draws whichever row the view holds: its own, or the session's
             // row it takes from a view that can draw the thread no more, the user
             // still in it (replies.js, `carry`).
@@ -400,31 +515,24 @@ export function createPrimaryReader(
                 if (row !== reply.node) row.remove();
               move(node, reply.node, node.firstChild);
             };
-            const reply = createReplyView(item.key, commands.reply, redraw, {
+            const reply = createReplyView(item.key, node, commands.reply, redraw, {
+              ...item.options,
               onChange: () => {
                 if (joined) void update().catch(() => {});
               },
               editLast: rewritesOf(item.key).editLast,
-              hint,
-              hintLead,
-              accessibleName,
-              busy,
-              sending,
-              sent,
             });
             joined = true;
             node.append(reply.node);
-            view = { node, reply, dispose: reply.dispose };
+            view = { kind: "reply", node, notice, reply, dispose: reply.dispose };
           }
-          view.notice = newsNotice();
-          view.notice.node.classList.add("lf-primary-news");
         }
         views.set(item.identity, view);
       }
-      if (item.kind === "thread") {
-        view.present(shown.get(item.key));
+      if (view.kind === "thread") {
+        view.present(reading);
         view.commit();
-      } else if (item.kind === "news") {
+      } else if (view.kind === "news") {
         const news = shown.get(item.key)?.news;
         if (news) view.notice.set(news);
         keepsHidden(view.node, !news);
@@ -442,20 +550,16 @@ export function createPrimaryReader(
               (part.kind === "message" || part.kind === "transcript"),
           ) ?? selected.find((part) => part.key === item.key);
         const notice = Boolean(news) && !nominated && first === item;
-        if (notice) view.notice.set(news);
+        if (notice && news) view.notice.set(news);
         keepsHidden(view.notice.node, !notice);
-        if (item.kind === "transcript") {
+        if (view.kind === "transcript") {
           view.headNotice = !nominated;
-          view.reading = shown.get(item.key);
+          view.reading = reading;
           view.draw();
-        } else if (item.kind === "message") {
-          const message = item.thread.msgs.find((entry) => entry.key === item.message);
+        } else if (view.kind === "message") {
+          const message = messageSource(item.thread, view.messageKey);
           view.headNotice = !nominated;
-          view.reading = messageReading(message, {
-            authoredRank: 3,
-            reactions: message.reactions,
-            workflows: message.workflows,
-          });
+          view.reading = messageModel(item.thread, view.messageKey);
           view.draw();
           // A reply still streaming at the thread's end grows at its foot as its words
           // come, as in a thread card (thread-card.js, shift_watch.js).
@@ -495,7 +599,7 @@ export function createPrimaryReader(
       keeps(view.node, "slot", previous?.name ?? null);
       place(destination, view.node);
       // The notice is no part of the thread that a reading or a landing stands on.
-      if (item.kind === "news") continue;
+      if (view.kind === "news") continue;
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);
@@ -504,7 +608,12 @@ export function createPrimaryReader(
     // A reply part standing in the document takes the row being written in its thread
     // that no view holds (replies.js, `claim`).
     for (const view of views.values())
-      view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
+      if (view.kind === "reply")
+        view.reply.claim(() => view.node.isConnected && !view.node.hidden);
+    // The transcript is now on screen: it becomes the held-news baseline and its
+    // presentation can land it before the next frame. Widget preparation is separate
+    // readiness; waiting for it cannot postpone what these words already drew.
+    drawn();
     const widgets = [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>
@@ -514,6 +623,8 @@ export function createPrimaryReader(
       .map((descriptor) => descriptor.id);
     await whenWidgetsPresented(widgets);
   }
+  /** @param {string} key
+   * @param {{message?: string | null, part?: import("./destination.js").ThreadPart}} [options] */
   const destination = (key, { message = null, part = null } = {}) => {
     const parts = destinations.get(key) ?? [];
     if (message) {
@@ -535,8 +646,9 @@ export function createPrimaryReader(
     release: () => held.release(),
     prepare,
     destination,
-    ownsMessage: (message) => owner.isConnected && nativeMessages.has(message.id),
-    ownsDestination: (node) =>
+    ownsMessage: /** @param {{id: string}} message */ (message) =>
+      owner.isConnected && nativeMessages.has(message.id),
+    ownsDestination: /** @param {Element} node */ (node) =>
       [...views.values()].some((view) => under(node, view.node)) ||
       [...destinations.keys()].some((key) => replyOf(key) === node) ||
       [...destinations.values()].some((parts) => drawingOf(parts) === node),

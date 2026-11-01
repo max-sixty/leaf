@@ -8,6 +8,7 @@ import { draftOf } from "./input.js";
 import { elementById } from "../passages.js";
 import { composerOpen } from "./selection.js";
 
+/** @param {{hasPending: () => boolean, fabAnchorAt: () => import("./selection.js").Anchor | null, targetPickerOpen: () => boolean}} options */
 export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
   function unaccountedGesture() {
     return hasPending() || dragHeld();
@@ -16,13 +17,13 @@ export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) 
   // Admission supplies the install's native-node retention proof. A selected passage
   // or anchored comment also needs its complete authored anchor scope kept, since
   // preserving a paragraph alone can still leave its durable quote ambiguous.
-  /** @param {(node: Element | null) => boolean} [retains] */
+  /** @param {(node: Element | null | undefined) => boolean} [retains] */
   function midComposition(retains = () => false) {
     const active = focused();
     const replyDraft = replyCompositionHasDraft(active);
     const selection = pageSelection();
     const anchors = [fabAnchorAt(), selection && selectionAnchor(selection)].filter(
-      Boolean,
+      (anchor) => anchor !== null,
     );
     const keptPassages =
       anchors.length > 0 &&

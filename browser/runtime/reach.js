@@ -1,6 +1,7 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
+import { isElement } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
@@ -11,22 +12,30 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
 import { LAYOUT } from "./widget-upgrade.js";
+import { eventSource } from "./pointer.js";
 import { keeps } from "./keeps.js";
 
 // Scroll owners opt into reach with `scroll`. Their CSS owns overflow, including
 // changes at breakpoints; the shared rule contains positioned descendants.
 // Style discovery measures only these surfaces. Stop eligibility still checks the
 // rendered controls inside them. Reading-region registration opts its body in.
+/** @typedef {Document | Element | ShadowRoot} Scope
+ * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
 const SCROLL_SURFACE = ".scroll";
+/** @type {WeakMap<Element, {classes: string | null, style: string | null}>} */
 const seenDeclarations = new WeakMap();
+/** @type {WeakSet<Node>} */
 const scrollAncestors = new WeakSet();
+/** @type {WeakSet<Node>} */
 const styleRoots = new WeakSet();
 const ancestorStyles = new MutationObserver((records) => {
-  for (const { target } of records) if (scrollAncestors.has(target)) reread(target);
+  for (const { target } of records)
+    if (isElement(target) && scrollAncestors.has(target)) reread(target);
 });
+/** @param {Scope} scope */
 function watchAncestorStyles(scope) {
   const tree = scope.getRootNode();
-  const root = tree.nodeType === Node.DOCUMENT_NODE ? tree.documentElement : tree;
+  const root = "documentElement" in tree ? tree.documentElement : tree;
   if (!root || styleRoots.has(root) || !root.isConnected) return;
   styleRoots.add(root);
   ancestorStyles.observe(root, {
@@ -38,34 +47,42 @@ function watchAncestorStyles(scope) {
 let watchingSurfaces = false;
 // until-found retains its own box, unlike its skipped descendants. That hidden
 // box cannot be inspected, so its apparent overflow earns no keyboard stop.
+/** @param {Element} el */
 const overflows = (el) =>
   !el.hasAttribute("hidden") &&
   (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
+/** @param {Element} el */
 const holdsOwnStop = (el) => tabStops(el).length > 0;
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
 // a box that stops scrolling is the box it was before, not one a click can now focus.
 // A box focus.js has lent a `-1` for an arrival goes back to that `-1`, which focus.js
 // takes back on the blur.
+/** @type {Map<Element, string | null>} */
 const mayScroll = new Map();
 // A control beside a scroller can require its stop even when its contents fit.
 // Keep that request with the owner of the stop so a later layout pass cannot
 // take it back as though it were a stop this pass had lent for overflow.
+/** @type {WeakSet<Element>} */
 const claimedStops = new WeakSet();
 // Keep the borrowed state with the lending owner. Consumers of authored working
 // regions must never infer a region from this layout-dependent keyboard stop.
+/** @param {Element} el */
 function lendStop(el) {
   keeps(el, LENT_REACH_STOP, "");
   keeps(el, "tabindex", 0);
 }
+/** @param {Element} el */
 export function claimReachStop(el) {
   if (claimedStops.has(el)) return;
-  const authored = mayScroll.has(el) ? mayScroll.get(el) : el.getAttribute("tabindex");
+  const prior = mayScroll.get(el);
+  const authored = prior === undefined ? el.getAttribute("tabindex") : prior;
   if (authored !== null) return;
   claimedStops.add(el);
   lendStop(el);
 }
 
+/** @param {Element} el */
 export function releaseReachStop(el) {
   if (!claimedStops.has(el)) return;
   claimedStops.delete(el);
@@ -78,6 +95,7 @@ export function releaseReachStop(el) {
 }
 // Takes back the stop this pass lent: to `-1` where focus.js has lent one for an
 // arrival, which it takes back on the blur, and otherwise to the author's value.
+/** @param {Element} el @param {string | null} authored */
 function returnStop(el, authored) {
   keeps(el, LENT_REACH_STOP, null);
   if (el.getAttribute("tabindex") === "0")
@@ -108,6 +126,7 @@ function returnStop(el, authored) {
 // computes to `auto` beside vertical scrolling, but the mark still requires measured
 // horizontal overflow. A board reached through its controls needs no container stop,
 // but still needs the cue when its columns are cut.
+/** @type {Map<Element, string>} */
 const sideways = new Map();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
 // intentional and self-explanatory (a text box, disclosure, or the document itself),
@@ -115,11 +134,14 @@ const sideways = new Map();
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
 // the reading after the user reaches the end.
+/** @type {Map<Element, ((before: boolean) => void) | undefined>} */
 const downwards = new Map();
 watchScrolls((box) => {
+  if (!box) return;
   if (downwards.has(box)) paintReadingReach(box);
   if (sideways.has(box)) paintSidewaysReach(box, true);
 });
+/** @param {Element} el @param {((before: boolean) => void) | undefined} paintContinuation */
 export function reachReadingScroller(el, paintContinuation) {
   el.classList.toggle("scroll", true);
   downwards.set(el, paintContinuation);
@@ -142,7 +164,9 @@ export function reachReadingScroller(el, paintContinuation) {
   };
 }
 
+/** @type {Set<Element>} */
 const readingPaints = new Set();
+/** @param {Element} el */
 function paintReadingReach(el) {
   // End-following owners finish their scroll after registering or resizing the
   // region. Read its final position after this script, including resize delivery,
@@ -170,8 +194,10 @@ function paintReadingReachNow() {
 
 // Hidden surfaces wait for a size delivery. Only a surface's ancestors can be
 // containers whose queries change its overflow; its contents need no style reading.
+/** @type {Set<Element>} */
 const waiting = new Set();
 
+/** @param {Scope} root */
 export function reachScrollers(root) {
   sweep(root);
   paintReach();
@@ -192,21 +218,23 @@ export function reachScrollers(root) {
   });
 }
 
+/** @param {Element} el */
 const wait = (el) => {
   waiting.add(el);
   reachSizes.observe(el);
 };
+/** @param {Scope} root */
 function sweep(root) {
   const scopes = [root];
   for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
   for (const scope of scopes) watchAncestorStyles(scope);
   const surfaces = scopes.flatMap((scope) => [
-    ...(scope.nodeType === Node.ELEMENT_NODE && scope.matches(SCROLL_SURFACE)
-      ? [scope]
-      : []),
+    ...(isElement(scope) && scope.matches(SCROLL_SURFACE) ? [scope] : []),
     ...scope.querySelectorAll(SCROLL_SURFACE),
   ]);
+  /** @type {{el: Element, style: ScrollStyle}[]} */
   const read = [];
+  /** @type {Set<Element>} */
   const containers = new Set();
   for (const el of surfaces) {
     seenDeclarations.set(el, {
@@ -218,28 +246,30 @@ function sweep(root) {
       continue;
     }
     const style = getComputedStyle(el);
-    read.push([
+    read.push({
       el,
-      {
+      style: {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
         position: style.position,
         direction: style.direction,
       },
-    ]);
-    for (let node = el; node?.nodeType === Node.ELEMENT_NODE; node = upFrom(node)) {
+    });
+    /** @type {Element | null} */
+    let node = el;
+    for (; node; node = upFrom(node)) {
       scrollAncestors.add(node);
       if (containers.has(node)) break;
       containers.add(node);
     }
   }
   // Finish all style readings before slot marks invalidate descendants' styles.
-  const queriesRead = [...containers].map((el) => [
+  const queriesRead = [...containers].map((el) => ({
     el,
-    { containerType: getComputedStyle(el).containerType },
-  ]);
-  for (const [el, style] of queriesRead) noteQueries(el, style);
-  for (const [el, style] of read) {
+    containerType: getComputedStyle(el).containerType,
+  }));
+  for (const reading of queriesRead) noteQueries(reading.el, reading);
+  for (const { el, style } of read) {
     const waited = waiting.delete(el);
     classify(el, style);
     if (waited) release(el);
@@ -247,10 +277,11 @@ function sweep(root) {
   asked.add(root);
 }
 
+/** @param {Element} el */
 function forgetSurface(el) {
   seenDeclarations.delete(el);
-  if (mayScroll.has(el)) {
-    const authored = mayScroll.get(el);
+  const authored = mayScroll.get(el);
+  if (authored !== undefined) {
     mayScroll.delete(el);
     if (!claimedStops.has(el)) returnStop(el, authored);
   }
@@ -266,6 +297,7 @@ function forgetSurface(el) {
 // Responsive overflow determines whether the surface restarts the sticky slot.
 // Sideways surfaces preserve covering headers for landings inside them. Sticky
 // owners set their focus inset beside their position declaration in CSS.
+/** @param {Element} el @param {ScrollStyle} style */
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
   const scrolls = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
@@ -273,6 +305,7 @@ function paintSlot(el, style) {
   keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls ? (across ? "across" : "") : null);
 }
 
+/** @param {Element} el @param {ScrollStyle} style */
 function classify(el, style) {
   asked.add(el);
   paintSlot(el, style);
@@ -287,8 +320,8 @@ function classify(el, style) {
     el.hasAttribute("hidden") ||
     (!userScrollport(style.overflowX) && !userScrollport(style.overflowY))
   ) {
-    if (!mayScroll.has(el)) return;
     const authored = mayScroll.get(el);
+    if (authored === undefined) return;
     mayScroll.delete(el);
     if (!claimedStops.has(el)) returnStop(el, authored);
     if (!watched(el)) unwatchReach(el);
@@ -305,7 +338,13 @@ function classify(el, style) {
   // A box that already carries a stop of its own is somewhere the user can be put,
   // whoever put it there; this pass neither adds to it nor takes it away.
   if (!mayScroll.has(el)) {
-    if (el.tabIndex >= 0 && !claimedStops.has(el)) return;
+    if (
+      "tabIndex" in el &&
+      typeof el.tabIndex === "number" &&
+      el.tabIndex >= 0 &&
+      !claimedStops.has(el)
+    )
+      return;
     mayScroll.set(
       el,
       wearsLentStop(el) || claimedStops.has(el) ? null : el.getAttribute("tabindex"),
@@ -323,17 +362,16 @@ function classify(el, style) {
 // widget sizes a pass after its host. So a candidate's children are watched beside it,
 // whichever children it holds: one a widget swaps in is watched from its arrival, which
 // is itself a change to what the box holds, and one it takes out is let go.
+/** @type {WeakSet<Node>} */
 const childrenWatched = new WeakSet();
 const childLists = new MutationObserver((records) => {
   for (const { target, addedNodes, removedNodes } of records) {
     if (!childrenWatched.has(target)) continue;
-    for (const node of removedNodes)
-      if (node.nodeType === Node.ELEMENT_NODE) release(node);
-    for (const node of addedNodes)
-      if (node.nodeType === Node.ELEMENT_NODE)
-        reachSizes.observe(/** @type {Element} */ (node));
+    for (const node of removedNodes) if (isElement(node)) release(node);
+    for (const node of addedNodes) if (isElement(node)) reachSizes.observe(node);
   }
 });
+/** @param {Element} el */
 function watchReach(el) {
   reachSizes.observe(el);
   if (childrenWatched.has(el)) return;
@@ -343,6 +381,7 @@ function watchReach(el) {
 }
 // A MutationObserver lets go of no single target, so a box no longer watched is only
 // left out of what its deliveries do.
+/** @param {Element} el */
 function unwatchReach(el) {
   const heldChildren = childrenWatched.delete(el);
   release(el);
@@ -351,15 +390,23 @@ function unwatchReach(el) {
 // One observation serves every reason to watch a box: a candidate in its own right,
 // and the child of one. It ends only when neither holds, so a nested scroller moved
 // out of its parent keeps the watch it has as a candidate.
+/** @param {Element} node */
 function release(node) {
-  if (!watched(node) && !childrenWatched.has(node.parentElement))
+  if (
+    !watched(node) &&
+    !(node.parentElement && childrenWatched.has(node.parentElement))
+  )
     reachSizes.unobserve(node);
 }
+/** @param {Element} el */
 const depth = (el) => {
   let levels = 0;
-  for (let node = el; node; node = upFrom(node)) levels++;
+  /** @type {Element | null} */
+  let node = el;
+  for (; node; node = upFrom(node)) levels++;
   return levels;
 };
+/** @param {Element} el */
 const watched = (el) =>
   mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
 // Re-read each candidate after layout moves it. A user who widens the window is owed
@@ -373,12 +420,14 @@ const reachSizes = sizeObserver(() => paintReach());
 // wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
+/** @param {Element} el @param {boolean} readStyle */
 function paintSidewaysReach(el, readStyle = false) {
   // An allocating owner can resize a pane before its image or table owner fits the
   // contents. Like vertical reading cues, read the completed layout for this script.
   afterScript(() => {
-    if (!sideways.has(el) || unpainted(el)) return;
-    const direction = readStyle ? getComputedStyle(el).direction : sideways.get(el);
+    const prior = sideways.get(el);
+    if (prior === undefined || unpainted(el)) return;
+    const direction = readStyle ? getComputedStyle(el).direction : prior;
     if (readStyle) sideways.set(el, direction);
     const scrolling = el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
@@ -395,6 +444,7 @@ function paintSidewaysReach(el, readStyle = false) {
     );
   });
 }
+/** @param {Element} el */
 function gone(el) {
   if (el.isConnected) return false;
   mayScroll.delete(el);
@@ -409,6 +459,7 @@ function gone(el) {
 // it would force that content's style, and a box on no screen is no stop and shows no
 // edge. The reading and sideways edge paints ask it themselves, since a reading region
 // is painted as it registers, and a block can register in a hidden panel (bounds.js).
+/** @param {Element} el */
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
   // A retained widget can resize its scroller through several intermediate boxes in
@@ -419,10 +470,12 @@ function paintReachNow() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
   // A box holding a scroller that takes a stop holds a stop, so an outer box's answer
   // waits on its inner boxes': the deepest are asked first, and each box is written once.
-  const levels = new Map([...mayScroll.keys()].map((el) => [el, depth(el)]));
-  for (const [el, authored] of [...mayScroll].sort(
-    ([a], [b]) => levels.get(b) - levels.get(a),
-  )) {
+  const candidates = [...mayScroll].map(([el, authored]) => ({
+    el,
+    authored,
+    depth: depth(el),
+  }));
+  for (const { el, authored } of candidates.sort((a, b) => b.depth - a.depth)) {
     if (unpainted(el)) continue;
     if (claimedStops.has(el)) continue;
     if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
@@ -435,8 +488,10 @@ function paintReachNow() {
 // Overflow may change at a breakpoint without changing a surface's own dimensions.
 // Re-read declared surfaces after a window/container resize or an owner's layout
 // signal. This work scales with scroll surfaces, so it needs no quiet-time scheduler.
+/** @type {Set<Scope>} */
 const rereads = new Set();
 let rereadQueued = false;
+/** @param {Scope} root */
 function reread(root) {
   rereads.add(root);
   if (rereadQueued) return;
@@ -464,8 +519,11 @@ function reread(root) {
 // Each container is held with the size its queries last read, an inline size or both,
 // taken from its first observation. It is observed from the next frame, not as the
 // sweep finds it, since a sweep of a waiting box runs inside a size delivery (above).
+/** @type {Map<Element, {both: boolean, size: string | null}>} */
 const queried = new Map();
+/** @type {Set<Element>} */
 const unobserved = new Set();
+/** @param {Element} el @param {Pick<CSSStyleDeclaration, "containerType">} style */
 function noteQueries(el, { containerType }) {
   const kinds = containerType.split(" ");
   const both = kinds.includes("size");
@@ -487,7 +545,9 @@ const queries = sizeObserver(
     for (const { target, contentBoxSize } of entries) {
       const query = queried.get(target);
       if (!query || gone(target)) continue;
-      const [{ inlineSize, blockSize }] = contentBoxSize;
+      const sizeReading = contentBoxSize[0];
+      if (!sizeReading) continue;
+      const { inlineSize, blockSize } = sizeReading;
       const size = query.both ? `${inlineSize} ${blockSize}` : `${inlineSize}`;
       if (query.size !== null && query.size !== size) reread(target);
       query.size = size;
@@ -503,13 +563,17 @@ addEventListener("resize", () => reread(document.body));
 // has reached yet, itself or through what holds it, is left to the sweep the page's
 // install runs, which a widget rearranging itself as it upgrades would otherwise run
 // early.
+/** @type {WeakSet<Node>} */
 const asked = new WeakSet();
+/** @param {Element} el */
 const reached = (el) => {
-  for (let node = el; node; node = upFrom(node)) if (asked.has(node)) return true;
+  /** @type {Element | null} */
+  let node = el;
+  for (; node; node = upFrom(node)) if (asked.has(node)) return true;
   return false;
 };
 document.addEventListener(LAYOUT, (event) => {
-  const [changed] = /** @type {Node[]} */ (event.composedPath());
-  if (changed?.nodeType === Node.ELEMENT_NODE && reached(changed)) reread(changed);
+  const changed = eventSource(event);
+  if (isElement(changed) && reached(changed)) reread(changed);
   paintReach();
 });

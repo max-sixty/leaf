@@ -5,7 +5,8 @@ import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 const { lastMovedAt, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { threadName, threadSummary } = await import("/runtime/thread/messages.js");
+const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
+  await import("/runtime/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/markdown.js");
 const { createThreadDestinations } = await import("/runtime/thread/destination.js");
 
@@ -328,4 +329,129 @@ test("prepared thread readings consume only their own held-news release", async 
       })(earlier),
       true,
     );
+});
+
+test("a transcript commits when drawn, and abandoned renders call nothing", async (t) => {
+  const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  applicationState.identify(1);
+  applicationState.adopt(servedReading("suggestion closes a thread"));
+  await loadMarkdown();
+  const owner = document.createElement("section");
+  const outlet = document.createElement("div");
+  owner.append(outlet);
+  document.body.append(owner);
+  const root = agent("commit-question", { kind: "comment", author: "user" });
+  const collection = (text = null) => ({
+    phase: "ready",
+    threads: readThreadRecords(
+      [
+        servedThread([
+          root,
+          ...(text ? [agent("commit-answer", { seq: 2, text })] : []),
+        ]),
+      ],
+      NO_DOCUMENT,
+      new Map(),
+      [],
+      [],
+      [],
+      [],
+    ),
+  });
+  let intent = "opening";
+  let deferred = null;
+  const drawn = [];
+  const reader = createPrimaryReader(
+    owner,
+    (reading, parts) => {
+      const captured = intent;
+      parts.transcript(reading.threads[0].key, outlet, {
+        drawn: (answer) => drawn.push({ captured, answer, text: outlet.textContent }),
+      });
+      return deferred?.promise;
+    },
+    {
+      reply: {},
+      reaction: {},
+      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+    },
+    () => Promise.resolve(),
+    { answersAtOnce: true },
+  );
+  t.after(() => {
+    reader.unregister();
+    owner.remove();
+  });
+  const never = new Promise(() => {});
+  await reader.prepare(collection(), never).paint();
+  assert.equal(drawn.length, 1);
+  assert.equal(drawn[0].answer, null);
+
+  for (const abandoned of ["superseded", "cancelled"]) {
+    intent = abandoned;
+    const cancellation = Promise.withResolvers();
+    deferred = Promise.withResolvers();
+    const pending = reader.prepare(collection("Never drawn"), cancellation.promise);
+    deferred = null;
+    intent = "later navigation";
+    const count = drawn.length;
+    let accepted;
+    if (abandoned === "superseded")
+      accepted = reader.prepare(collection("Drawn answer"), never);
+    else cancellation.resolve();
+    assert.equal(await pending, null);
+    assert.equal(drawn.length, count);
+    accepted ??= reader.prepare(collection("Drawn answer"), never);
+    const painted = accepted.paint();
+    // The callback follows synchronous placement, before asynchronous preparation.
+    assert.equal(drawn.at(-1).captured, "later navigation");
+    assert.match(drawn.at(-1).text, /Drawn answer/);
+    assert.deepEqual(drawn.at(-1).answer, {
+      turn: collection().threads[0].msgs[0].key,
+      reply: collection("Drawn answer").threads[0].msgs[1].key,
+    });
+    assert.equal(Object.isFrozen(drawn.at(-1).answer), true);
+    await painted;
+    await reader.prepare(collection(), never).paint();
+  }
+});
+
+test("news answers only a user turn that still stands", async () => {
+  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const root = { id: "question", key: "question", author: "user", body: "Question" };
+  const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
+  const reading = (messages, words) => ({
+    messages,
+    source: { msgs: messages },
+    summaries: [],
+    working: { words },
+  });
+  const before = reading([root, turn], "Working");
+  assert.deepEqual(threadChange(before, reading([root, turn], "More work")).answers, {
+    turn: "followup",
+    reply: null,
+  });
+  // Undo removes the interjection while work on the original question continues.
+  assert.equal(threadChange(before, reading([root], "More work")).answers, null);
+});
+
+test("Copy retains the original authored HTML after the public thread reading", async () => {
+  const { adoptRegistry } = await import("/runtime/registry.js");
+  adoptRegistry({ $layer: { generation: "authored-copy" } });
+  const markup = "<p>A <strong>captured</strong> answer.</p>";
+  const source = agent("authored-copy", {
+    kind: "comment",
+    text: "Agent words",
+    markup,
+  });
+  const prepared = await prepareAuthoredMessage(source, source.id);
+  const [thread] = readThreadRecords(
+    [servedThread([source])],
+    { ...NO_DOCUMENT, messageBodies: new Map([[source.id, prepared.body]]) },
+    new Map(),
+    [],
+  );
+  const message = messageReading(thread.root, { workflows: [], reactions: null });
+  assert.equal(message.markdown, `Agent words\n\n${markup}`);
 });

@@ -17,7 +17,7 @@ import {
   focused,
   takesLetters,
   whenLeft,
-  deepFocus,
+  blurFocused,
 } from "../focus.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
@@ -25,12 +25,17 @@ import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
+import { copyTrigger } from "../copy-control.js";
 import { threadList } from "./state.js";
 import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
 
 export { scrollThreadIntoView } from "./reply-landing.js";
+/** @typedef {{target: Element, line: string}} ReturnRoute */
+/** @typedef {{held?: Element | null, box: Element | null, route?: ReturnRoute | null}} ThreadLanding */
+/** @type {WeakMap<Element, ReturnRoute>} */
 const threadReturns = new WeakMap();
 
+/** @param {Element | null} node */
 export function threadInput(node) {
   const held = node && closestAcross(node, SAYS_IN);
   return threadReplyInput(held);
@@ -42,9 +47,10 @@ const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
 export const currentLocationThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
-  return box ? { held: wholeThread(held), box } : null;
+  return held && box ? { held: wholeThread(held), box } : null;
 };
-const backFromThread = (box) => threadReturns.get(box) ?? null;
+/** @param {Element | null} box */
+const backFromThread = (box) => (box ? (threadReturns.get(box) ?? null) : null);
 
 // Where a box hands the user back, however they reached it. The climb is
 // `heldThreadOrSeat`'s, the same relation contextual `c` uses when it names a thread.
@@ -102,7 +108,7 @@ pageScope("text entry", {
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());
-        /** @type {HTMLElement | null} */ (deepFocus())?.blur();
+        blurFocused();
         const target = back?.target;
         if (!target) return;
         if (!target.matches?.(THREAD)) {
@@ -125,6 +131,7 @@ pageScope("text entry", {
 // and a landing would carry it, by the room the thread's focus ring asks at its foot or
 // by bringing back a head they scrolled above the window. A box the send gave up, as a
 // seat's does to the thread it starts, leaves nothing there to carry.
+/** @param {Element} thread */
 function returnToThread(thread) {
   const shown = alreadyShown(thread);
   if (!fitsWhole(thread) && shown) {
@@ -140,25 +147,31 @@ function returnToThread(thread) {
 // The thread whose card the user is on.
 const cardThread = () => focusedThreadTarget();
 // Settlement belongs to the thread, wherever its view places that control.
+/** @param {Element | null} thread */
 const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
 
 // The Copy of the message the user is in, by focus or by the caret a click on its words
 // leaves, else of the thread's latest message.
+/** @param {Node | null} node */
 const messageAt = (node) =>
   (node instanceof Element ? node : node?.parentElement)?.closest(".lf-msg") ?? null;
+/** @param {Element | null} thread */
 function messageCopy(thread) {
   if (!thread) return null;
-  const caret = getSelection().anchorNode;
+  const caret = getSelection()?.anchorNode ?? null;
   const message =
     messageAt(focused()) ??
     (thread.contains(caret) ? messageAt(caret) : null) ??
     [...thread.querySelectorAll(".lf-msg")].at(-1);
-  return message?.querySelector(":scope > .lf-msg-head .lf-msg-copy") ?? null;
+  /** @type {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} */
+  const copy = message?.querySelector(":scope > .lf-msg-head .lf-msg-copy");
+  return copyTrigger(copy);
 }
 
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
+/** @param {ThreadLanding} destination */
 function prepareLanding({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= closestAcross(box, SAYS_IN);
@@ -170,6 +183,7 @@ function prepareLanding({ held = null, box, route = null }) {
 }
 
 export function createThreadLanding() {
+  /** @param {ThreadLanding} destination */
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
@@ -187,6 +201,7 @@ export function createThreadLanding() {
       });
     return true;
   };
+  /** @param {Element} box @param {ReturnRoute | null} route */
   const landInThread = (box, route = null) => landIn({ box, route });
   // Sending ends text entry while keeping the user in the conversation. Every surface
   // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
@@ -213,6 +228,8 @@ export function createThreadLanding() {
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
  * words selected it keeps the browser's copy. Absent a thread, the reference describes
  * the open state users first meet. */
+/** @param {ReturnType<typeof createThreadLanding>["landIn"]} landIn
+ * @param {() => Element | null} threadHere */
 export function declareThreadKeys(landIn, threadHere) {
   pageScope("thread", {
     title: "In a thread",
@@ -229,18 +246,15 @@ export function declareThreadKeys(landIn, threadHere) {
           resolutionControl(cardThread())?.matches(".lf-reopen")
             ? "reopen"
             : "reply",
-        when: () =>
-          Boolean(threadInput(cardThread())) ||
-          resolutionControl(cardThread())?.matches(
-            '.lf-reopen:not(:disabled, [aria-disabled="true"])',
-          ),
-        // Find the thread's own compose row rather than the first text box: a message may
-        // contain a widget with an editor of its own before the reply box in DOM order.
-        run: () => {
+        // Find the thread's own compose row rather than a widget editor inside it.
+        get run() {
           const thread = cardThread();
           const box = threadInput(thread);
-          if (box) landIn({ held: thread, box });
-          else resolutionControl(thread).click();
+          if (box) return () => landIn({ held: thread, box });
+          const control = resolutionControl(thread);
+          return control?.matches('.lf-reopen:not(:disabled, [aria-disabled="true"])')
+            ? () => control.click()
+            : undefined;
         },
       },
       {
@@ -249,19 +263,24 @@ export function declareThreadKeys(landIn, threadHere) {
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () =>
-          resolutionControl(threadHere())?.matches(
-            ':not(:disabled, [aria-disabled="true"])',
-          ),
-        run: () => resolutionControl(threadHere()).click(),
+        get run() {
+          const control = resolutionControl(threadHere());
+          return control?.matches(':not(:disabled, [aria-disabled="true"])')
+            ? () => control.click()
+            : undefined;
+        },
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        when: () => Boolean(messageCopy(threadHere())) && getSelection().isCollapsed,
-        run: () => messageCopy(threadHere()).shadowRoot.querySelector("button").click(),
+        get run() {
+          const trigger = messageCopy(threadHere());
+          return trigger && getSelection()?.isCollapsed
+            ? () => trigger.click()
+            : undefined;
+        },
       },
     ],
   });

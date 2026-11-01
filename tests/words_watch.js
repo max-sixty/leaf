@@ -1,5 +1,5 @@
 // Watches every page for words the user typed leaving the screen without the user
-// putting them away: the "Words stay where they were typed" rule
+// putting them away: the "Typed words survive" rule
 // (browser/AGENTS.md). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
@@ -24,7 +24,7 @@
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
 // script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
-// a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
+// a modifier, the caret keys, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
 // with no such key or press are reported as a `words-left-screen` record through the
 // fixture's `__leafWatchFinding` binding, a browser problem which
@@ -236,8 +236,13 @@
       if (!owner) return false;
     }
     const { event, node } = source;
+    // A Tab the page takes for a command of its own, as a list's Tab nests its item,
+    // moves no one.
     if (event.type === "keydown")
-      return !MOVES.test(event.key) && !editingKeys.has(event);
+      return (
+        (!MOVES.test(event.key) || (event.key === "Tab" && event.defaultPrevented)) &&
+        !editingKeys.has(event)
+      );
     if (event.type === "storage") return true;
     if (event.type === "close") return stored(words);
     return (

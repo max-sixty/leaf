@@ -94,8 +94,6 @@ rather than stacking past it.
 
 Comment markers appear in the margin or over their targets; the reader hides them with
 `o`, or the leaf's menu → Annotations → Hide annotations, to read what's under one.
-Let the content supply the hierarchy; give a card surface a grouping or interaction to
-express.
 
 ## Contents navigation
 
@@ -245,6 +243,12 @@ grammar's aliases, such as `language-js` and `language-sh`. Format example code 
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
+
+Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
+from a doc or a pull request's description, in `lf-text-document preview="markdown"`
+with its exact text in the `<pre>` (`authoring-evidence.md`, "Source files and media").
+Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syntax is
+itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="scroll"` to that same box. Leaf contains its positioned descendants and

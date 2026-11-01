@@ -55,6 +55,67 @@ def _messages(events: list) -> dict[str, dict]:
     }
 
 
+def asking_widget(fragment, registry: dict) -> dict | None:
+    """The first widget in a message's markup that waits on the user (`x-awaits`),
+    which makes it the message's request for an answer."""
+    return next(
+        (
+            rec
+            for rec in fragment.lf_elements
+            if local_obligation_entry(registry.get(rec["tag"]) or {})
+            and matches_when(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and not shown_in(rec, registry)
+        ),
+        None,
+    )
+
+
+def unasked_widget(fragment, registry: dict) -> dict:
+    """The first widget in the markup that could wait on the user but whose
+    attributes keep it from asking, with the attributes it would ask with, so an
+    undeclared answer's refusal names what to add rather than only the flags."""
+    for rec in fragment.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not local_obligation_entry(entry) or shown_in(rec, registry):
+            continue
+        when = entry["x-awaits"].get("when") or {}
+        needs = [
+            _attribute_written(attr, values)
+            for attr, values in when.items()
+            if not matches_when(rec["attrs"], {attr: values})
+        ]
+        return {
+            "tag": rec["tag"],
+            "id": rec["attrs"].get("id"),
+            "needs": " and ".join(needs),
+        }
+    return {}
+
+
+def _attribute_written(attr: str, values: list) -> str:
+    """How markup meets one `when` condition: a flag's presence or absence, or
+    the first value it allows."""
+    if True in values:
+        return f"`{attr}`"
+    if values == [False]:
+        return f"no `{attr}`"
+    return f'`{attr}="{values[0]}"`'
+
+
+def refuse_second_request(asking: dict | None) -> None:
+    """A message asks once. `--obligation` beside a widget that asks would stay on
+    On me after the user answers the widget, since only their words answer it."""
+    if asking is not None:
+        raise Rejected(
+            [
+                Finding(
+                    "obligation-beside-widget",
+                    values={"tag": asking["tag"], "id": asking["attrs"].get("id")},
+                )
+            ]
+        )
+
+
 def _unknown_message(page_dir: Path, events: list, name: str) -> Never:
     held = logged_id(page_dir, events, name, current_responses(page_dir, events))
     raise Rejected(
@@ -250,33 +311,63 @@ def cmd_comment(
         # Apart from the page lease, since a browser run takes about a second.
         message_check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
-        events = page.events
-        revision, anchor = current_anchor(
-            page_dir, events, quote, section, part, transaction=page
+        return open_thread(
+            page_dir,
+            page,
+            body,
+            quote,
+            section,
+            part,
+            markup,
+            title=title,
+            obligation=obligation,
         )
-        if markup:
-            check_markup(
-                page_dir,
-                "comment",
-                markup,
-                events,
-                publication=revision_publication(page_dir, revision),
-            )
-        event = {
-            "kind": "comment",
-            "author": "agent",
-            "revision": revision,
-            "text": body,
-        }
+
+
+def open_thread(
+    page_dir: Path,
+    page: PageTransaction,
+    body: str,
+    quote: str = "",
+    section: str = "",
+    part: str = "",
+    markup: str = "",
+    *,
+    title: str | None = None,
+    obligation: bool = False,
+    identity: dict | None = None,
+) -> dict:
+    """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
+    describes, from a `body` already checked (`checked_text`); `identity` names the
+    agent and session where the writer isn't the agent's own process, as Leaf's
+    clerk is (`clerk.apply_answer`)."""
+    events = page.events
+    revision, anchor = current_anchor(
+        page_dir, events, quote, section, part, transaction=page
+    )
+    if markup:
+        publication = revision_publication(page_dir, revision)
+        fragment = check_markup(
+            page_dir, "comment", markup, events, publication=publication
+        )
         if obligation:
-            event["obligation"] = True
-        if anchor:
-            event["anchor"] = anchor
-        if markup:
-            event["markup"] = markup
-        if title is not None:
-            event["title"] = title
-        return append_admitted(page, event)[0]
+            refuse_second_request(asking_widget(fragment, publication.registry))
+    event = {
+        "kind": "comment",
+        "author": "agent",
+        **(identity or {}),
+        "revision": revision,
+        "text": body,
+    }
+    if obligation:
+        event["obligation"] = True
+    if anchor:
+        event["anchor"] = anchor
+    if markup:
+        event["markup"] = markup
+    if title is not None:
+        event["title"] = title
+    return append_admitted(page, event)[0]
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
@@ -779,25 +870,14 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
+    asking = asking_widget(fragment, publication.registry) if markup else None
+    if explicit_obligation:
+        refuse_second_request(asking)
     # A markup-only answer must itself request input. Explicit obligations need
     # no widget: the message is their source.
-    if (
-        asks_back
-        and not explicit_obligation
-        and not (
-            markup
-            and any(
-                local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-                and matches_when(
-                    rec["attrs"],
-                    publication.registry[rec["tag"]]["x-awaits"].get("when"),
-                )
-                and not shown_in(rec, publication.registry)
-                for rec in fragment.lf_elements
-            )
-        )
-    ):
-        raise Rejected([Finding("undeclared-answer")])
+    elif asks_back and asking is None:
+        unasked = unasked_widget(fragment, publication.registry) if markup else {}
+        raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:

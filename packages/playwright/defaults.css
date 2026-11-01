@@ -6,7 +6,6 @@ lf-trace {
      the page takes, since they are the widget's own. */
   --lf-reading-face: 1;
   --lf-trace-control-size: 44px;
-  --lf-trace-small-type: max(12px, var(--t-6));
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
   --lf-trace-stage-height: max(
     320px,
@@ -117,7 +116,7 @@ lf-trace[hidden="until-found"] {
   min-block-size: var(--lf-trace-control-size);
   display: inline-flex;
   align-items: center;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-position-row {
   display: grid;
@@ -165,7 +164,10 @@ lf-trace[hidden="until-found"] {
   margin-block-end: var(--sp-2);
   border: 1px solid var(--border-2);
   border-radius: var(--r);
-  font: var(--lf-trace-small-type) / 1 var(--sans);
+  /* The drawing's words stand in lanes and rows of stated heights, so their line is as
+     tall as the words, as a mark's count is. */
+  font: var(--font-small);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-lane-names {
@@ -344,7 +346,7 @@ lf-trace[hidden="until-found"] {
   white-space: nowrap;
   text-overflow: ellipsis;
   padding-inline: 4px;
-  line-height: calc(var(--lf-trace-row-h) - 4px);
+  padding-block: calc((var(--lf-trace-row-h) - 4px - 1lh) / 2);
   border-radius: 0 var(--r-s) var(--r-s) 0;
   background: var(--paper);
   border: 1px solid var(--border-2);
@@ -512,7 +514,7 @@ lf-trace[hidden="until-found"] {
   border-radius: var(--r);
   background: var(--ink);
   color: var(--paper);
-  font: var(--lf-trace-small-type) / 1.4 var(--sans);
+  font: var(--font-tip);
   white-space: pre-line;
   pointer-events: none;
 }
@@ -535,20 +537,19 @@ lf-trace[hidden="until-found"] {
   max-inline-size: 44rem;
 }
 /* A saved moment is a row (controls.css, `.lf-row`), the moment shown its current
- * row, led by its number in the ring its marker wears on the track; the ring stands
- * taller than a line, so the row's parts meet on its middle. */
-.lf-trace-bookmark {
-  align-items: center;
-}
+ * row, led by its number in the ring its marker wears on the track. The number stands
+ * on the baseline the row's name and time share, so the ring, taller than a line,
+ * holds the line on its middle. Centring each part on the ring's middle instead stood
+ * the time, set smaller, half a pixel above the name. */
 .lf-trace-bookmark > .lf-row-lead {
-  align-self: center;
+  align-self: baseline;
 }
 .lf-trace-clock,
 .lf-trace-readout,
 .lf-trace-caption,
 .lf-trace-tree-clock {
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-clock {
@@ -581,7 +582,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-phase {
   margin-block: var(--sp-1) var(--sp-2);
-  font: 500 var(--t-5) / 1.4 var(--sans);
+  font: var(--font-status);
   font-variant-numeric: tabular-nums;
 }
 .lf-trace-no-action :is(.lf-trace-action, .lf-trace-phase, .lf-trace-error) {
@@ -687,7 +688,7 @@ lf-trace[hidden="until-found"] {
 .lf-trace-node-path {
   display: block;
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-code);
 }
 lf-trace-bookmark {
   display: none;
@@ -717,7 +718,7 @@ lf-trace-bookmark {
   min-block-size: var(--lf-trace-control-size);
   display: inline-flex;
   align-items: center;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-image-status {
   display: none;
@@ -762,7 +763,7 @@ lf-trace-bookmark {
   align-items: center;
   gap: var(--sp-1);
   color: var(--muted);
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
 }
 .lf-trace-pace select {
   min-block-size: var(--lf-trace-control-size);
@@ -795,7 +796,7 @@ lf-trace-bookmark {
     order: 1;
   }
   .lf-trace-selection {
-    font-size: var(--lf-trace-small-type);
+    font: var(--font-small);
   }
   /* Lane names give way to the time scale on narrow screens. */
   .lf-trace-timeline {
@@ -865,7 +866,7 @@ lf-trace-bookmark {
   flex: 0 0 auto;
   text-align: end;
   white-space: nowrap;
-  font-size: var(--lf-trace-small-type);
+  font: var(--font-small);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -921,7 +922,7 @@ lf-trace-bookmark {
   padding: var(--sp-1) var(--sp-2);
   background: var(--paper);
   color: var(--accent);
-  font: 600 var(--lf-trace-small-type) / 1.5 var(--sans);
+  font: var(--font-heading);
   pointer-events: none;
 }
 .lf-trace-input-point {

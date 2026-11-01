@@ -128,12 +128,13 @@ from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.commands.verify_site import (
     LocalWorker,
     agent_session,
-    answered,
     await_presentation,
+    capture_script_responses,
     check,
     local_adapter,
     local_worker,
     observe_startup,
+    read_state,
     said,
     start_direct_agent,
     startup_profile,
@@ -392,17 +393,6 @@ def check_turn_answered(
     return published, answer
 
 
-def read_state(session: Session) -> dict:
-    """Read the page's authoritative state, as this session reaches it."""
-    response = answered(
-        session.context.request.get(
-            session.state_url, headers=session.headers, timeout=120_000
-        ),
-        session.state_url,
-    )
-    return response.json()
-
-
 def release_ask(marker: str) -> str:
     """What the user tells the agent: release `marker` passed its checks. It says what
     happened and leaves how the page shows it to the agent, as a user would, so the
@@ -519,7 +509,12 @@ def send_written(
     profile.acknowledge()
     # Read the admitted event from state rather than the intercepted response body,
     # which Playwright can wait on forever once the page has consumed it.
-    accepted = read_state(session)
+    accepted = read_state(
+        session.context.request,
+        session.state_url,
+        headers=session.headers,
+        timeout=120_000,
+    ).json()
     profile.observe(accepted)
     assert posted.request.post_data_json is not None
     attempt = posted.request.post_data_json["attempt"]
@@ -1039,7 +1034,12 @@ class BrowserEnd:
         self.pause = session.pause
 
     def state(self) -> dict:
-        return read_state(self.session)
+        return read_state(
+            self.session.context.request,
+            self.session.state_url,
+            headers=self.session.headers,
+            timeout=120_000,
+        ).json()
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the served revision's authored board names `marker`."""
@@ -1058,65 +1058,66 @@ class BrowserEnd:
     def closing(self, published: dict, answer: dict, marker: str) -> dict:
         """Require a reload to present the published revision naming `marker`, and
         return the reloaded page's profile."""
-        page, url, failures = self.session.page, self.url, self.session.failures
-        reloaded = page.reload(wait_until="load", timeout=120_000)
-        check(
-            reloaded is not None and reloaded.ok,
-            f"{url} did not reload after its agent turn",
-        )
-        await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-        startup = startup_reading(page)
-        # Startup can present the offline authored fallback when its first read fails.
-        # A later answer brings the revision back, with its own wait and timing.
-        # The revision marker advances as the patch begins; its presentation proof
-        # must finish before the text below is a reading of that revision.
-        followed_at = time.monotonic()
-        try:
-            page.wait_for_function(
-                "window.__leafVerifier.revisionAtLeast",
-                arg=published["revision"],
-                timeout=TURN_PRESENTATION,
+        with capture_script_responses(self.session.page):
+            page, url, failures = self.session.page, self.url, self.session.failures
+            reloaded = page.reload(wait_until="load", timeout=120_000)
+            check(
+                reloaded is not None and reloaded.ok,
+                f"{url} did not reload after its agent turn",
             )
-        except PlaywrightTimeout:
-            pass
-        followed_in = (time.monotonic() - followed_at) * 1000
-        # After the wait, so an error on the way there is reported rather than the
-        # revision it never reached.
-        check(not failures, f"{url} reported browser errors: {said(failures)}")
-        shown = page.evaluate("window.__leafVerifier.revision")
-        # The page's status separates a page whose first read answered with an old
-        # revision from one that presented offline and was never told.
-        status = page.evaluate("window.__leafVerifier.status")
-        check(
-            (shown or "").isdigit() and int(shown) >= published["revision"],
-            f"{url} stands on revision {shown} rather than following the published "
-            f"{published['revision']}, with its status reading ‘{status}’",
-        )
-        check(
-            page.evaluate(
-                "window.__leafVerifier.revisionAtLeast", published["revision"]
-            ),
-            f"{url} reached revision {shown} but did not finish presenting it, "
-            f"with its status reading ‘{status}’",
-        )
-        # `inner_text` applies the theme's text-transform, so a release recorded in
-        # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
-        rendered = page.locator("main").inner_text()
-        check(
-            marker.casefold() in rendered.casefold(),
-            f"{url} rendered a page that never names ‘{marker}’, which the agent's "
-            "published revision did",
-        )
-        print(
-            f"  the reloaded page followed it {followed_in:.0f} ms after presentation",
-            file=sys.stderr,
-        )
-        return {
-            "changedPage": {
-                **startup_profile(startup),
-                "followedRevisionMs": followed_in,
+            await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+            startup = startup_reading(page)
+            # Startup can present the offline authored fallback when its first read fails.
+            # A later answer brings the revision back, with its own wait and timing.
+            # The revision marker advances as the patch begins; its presentation proof
+            # must finish before the text below is a reading of that revision.
+            followed_at = time.monotonic()
+            try:
+                page.wait_for_function(
+                    "window.__leafVerifier.revisionAtLeast",
+                    arg=published["revision"],
+                    timeout=TURN_PRESENTATION,
+                )
+            except PlaywrightTimeout:
+                pass
+            followed_in = (time.monotonic() - followed_at) * 1000
+            # After the wait, so an error on the way there is reported rather than the
+            # revision it never reached.
+            check(not failures, f"{url} reported browser errors: {said(failures)}")
+            shown = page.evaluate("window.__leafVerifier.revision")
+            # The page's status separates a page whose first read answered with an old
+            # revision from one that presented offline and was never told.
+            status = page.evaluate("window.__leafVerifier.status")
+            check(
+                (shown or "").isdigit() and int(shown) >= published["revision"],
+                f"{url} stands on revision {shown} rather than following the published "
+                f"{published['revision']}, with its status reading ‘{status}’",
+            )
+            check(
+                page.evaluate(
+                    "window.__leafVerifier.revisionAtLeast", published["revision"]
+                ),
+                f"{url} reached revision {shown} but did not finish presenting it, "
+                f"with its status reading ‘{status}’",
+            )
+            # `inner_text` applies the theme's text-transform, so a release recorded in
+            # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
+            rendered = page.locator("main").inner_text()
+            check(
+                marker.casefold() in rendered.casefold(),
+                f"{url} rendered a page that never names ‘{marker}’, which the agent's "
+                "published revision did",
+            )
+            print(
+                f"  the reloaded page followed it {followed_in:.0f} ms after presentation",
+                file=sys.stderr,
+            )
+            return {
+                "changedPage": {
+                    **startup_profile(startup),
+                    "followedRevisionMs": followed_in,
+                }
             }
-        }
 
     def write(self, name: str) -> Callable[[], tuple[str, AgentProfile]]:
         """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a user
@@ -1399,7 +1400,7 @@ def local_session(browser, url: str) -> Session:
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
     state_url = PageClient(url).state_url
-    state = answered(context.request.get(state_url), state_url).json()
+    state = read_state(context.request, state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 
 

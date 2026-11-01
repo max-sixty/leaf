@@ -264,11 +264,14 @@
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */
+    /* A pre and an hr take the room a draft edited in place gives a fence's and a
+       rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
       background: var(--pre-bg);
       border: 1px solid var(--code-border);
       border-radius: var(--r);
-      padding: 12px var(--pre-inset);
+      padding: var(--code-line) var(--pre-inset)
+        calc(var(--code-line) - var(--lf-text-scroll-clearance));
       font-size: var(--code-size);
       line-height: var(--code-line);
       font-family: var(--mono);
@@ -438,8 +441,9 @@
     }
     hr {
       border: none;
-      border-top: 1px solid var(--rule);
-      margin: var(--hr-margin-block) 0;
+      block-size: 1lh;
+      background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+      margin: calc(var(--hr-margin-block) + 0.5px - 0.5lh) 0;
     }
     /* The headings are the body serif at weight, size and spacing — one face, four
      * volumes — rather than a display face over a text face. A page whose subject is
@@ -549,7 +553,7 @@
      * own — and moves whatever stands after it, which for a metric is the delta riding
      * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
      * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
-     * tabular. That is the movement AGENTS.md's "Layout and motion" forbids,
+     * tabular. That is the movement browser/AGENTS.md's "The page holds still under the user's aim" forbids,
      * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
      * explain where the line went.
      *
@@ -600,7 +604,6 @@
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
-  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -681,8 +684,23 @@ leaf-text.lf-fab-input,
 .lf-msg-body li {
   margin: 2px 0;
 }
+/* A rule takes a line, its stroke through the middle, and a code block a code line
+   above and below its code, so each stands where its draft drew its source: the
+   rule's on its line, a fence's on the line above or below the code
+   (composing/text-field.js). The draft's caret then reveals that source in room it
+   already had, moving nothing. The room kept below for a scrollbar (above) is part of
+   the line below the code. The reading face draws page prose the same way, for a draft
+   edited in place. Rejected: a 1px rule and 8px of block padding, which the draft could
+   draw only by shortening those lines while the caret was away and growing them as it
+   arrived. */
+.lf-msg-body hr {
+  border: none;
+  block-size: 1lh;
+  background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+}
 .lf-msg-body pre {
-  padding-block: var(--pre-pad-block);
+  padding-block: var(--code-line)
+    calc(var(--code-line) - var(--lf-text-scroll-clearance));
 }
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
@@ -759,6 +777,46 @@ details::details-content {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
       --lf-block-frame: 0;
+    }
+  }
+}
+/* A heading's space before it belongs before the block it opens. In block flow its top
+ * margin collapses out through a bare wrapper to that block's edge. An item of a box that
+ * declares --lf-items-keep-margins (base.css), such as a section in the reading column,
+ * keeps it inside instead, so the item's box would begin a heading's gap above the
+ * heading, and every mark Leaf hangs on the box (a focus ring, a margin entry, a
+ * landing) would stand in that gap. So such an item that opens with a heading takes the
+ * heading's gap as its top margin and declares its start edge, which the edge trim below
+ * follows to clear the heading's margin.
+ *
+ * The rules belong to the reading face, so they reach only a page that takes it, and they
+ * stand in the face's layer with zero specificity, so the gap is the item's margin only
+ * where nothing else sets one. A frame's own margin, such as a callout's, outranks them,
+ * and the frame trims its heading anyway. A top margin page CSS gives the item replaces
+ * the gap, where block flow kept the larger of the two. The edge trim outranks them too,
+ * so an item at a frame's edge, such as a column's first section, takes no gap. An item
+ * opening any other way, such as with a list or a paragraph, keeps its child's margin
+ * inside, because moving that margin out would move the text. The reading theme does the
+ * same for an eyebrow over a heading (packages/reading). */
+@layer lf-reading-face {
+  @container style(--lf-reading-face: 1) and style(--lf-items-keep-margins: 1) {
+    :where(
+      :has(
+        > h2:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+        > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h2
+      )
+    ) {
+      margin-block-start: var(--h2-start);
+      --lf-frame-start: 1;
+    }
+    :where(
+      :has(
+        > h3:nth-child(1 of :not(.lf-ui, [data-lf-gen])),
+        > hgroup:nth-child(1 of :not(.lf-ui, [data-lf-gen])) > h3
+      )
+    ) {
+      margin-block-start: var(--h3-start);
+      --lf-frame-start: 1;
     }
   }
 }

@@ -437,13 +437,29 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
             "We don't ship.",
             "<p>Prompt \U000f0001 ready. We don't ship.</p>",
         ),
-        # A fix that would drop a line break: only preformatted text would show it.
+        # In preformatted text, a fix that changes how many words stand beside or
+        # among a line break, since which line each belongs on is a guess.
         (
             "",
             "<pre>step one: build\nstep two: deploy</pre>",
             "build step two",
             "rebuild two",
             None,
+        ),
+        (
+            "",
+            "<pre>make build\nmake deploy</pre>",
+            "build make",
+            "build --fast make",
+            None,
+        ),
+        # Outside one, a line break is a space.
+        (
+            "",
+            "<p>The plan\nships today.</p>",
+            "The plan ships today.",
+            "The plan ships.",
+            "<p>The plan\nships.</p>",
         ),
         # Copies the user never reads: a title, a script, a style and a comment, and
         # a number inside a longer one. The words the page shows cross markup, so
@@ -487,6 +503,8 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
         "named",
         "private",
         "dropped",
+        "inserted",
+        "wrapped",
         "markup",
         "style",
         "comment",
@@ -536,6 +554,17 @@ def test_a_fix_leaf_cant_place_reaches_the_agent_as_the_finding(
     assert done["changed"] == []
     assert (claimed / "index.html").read_text() == source
     assert "Leaf changed nothing for this" in hook(capsys, "PostToolBatch")
+
+
+def test_words_beside_markdown_emphasis_are_whole_words(claimed, capsys):
+    """An option's words are Markdown, where `_` beside a word marks emphasis."""
+    source = PAGE.replace("Ship dark.", "_Ship dark_.")
+    (claimed / "index.html").write_text(source)
+    done = _fixed(capsys, claimed, "Ship dark.", "Launch dark.")
+    assert done["changed"] == [
+        {"page": str(claimed.resolve()), "old": "Ship", "new": "Launch"}
+    ]
+    assert (claimed / "index.html").read_text() == source.replace("_Ship", "_Launch")
 
 
 def test_a_body_the_user_rewrote_keeps_their_words(claimed, capsys):

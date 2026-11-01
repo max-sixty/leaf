@@ -4423,11 +4423,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     )
 
     details = page.locator("lf-diff details").first
-    file_row = page.locator("lf-diff .lf-diff-file").first
+    file_header = details.locator("summary")
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
-    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
+    expect(file_header).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(file_header).to_have_attribute("data-lf-datum-label", "app.py · file")
 
     page.get_by_role("button", name="Comment on app.py", exact=True).click()
     expect(details).not_to_have_attribute("open", "")

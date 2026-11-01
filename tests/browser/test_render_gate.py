@@ -68,6 +68,7 @@ from render_harness import (
     _traffic,
     _until,
     at_rest,
+    close_panel_menu,
     compare_with,
     confirming_resize_notices,
     consume_browser_errors,
@@ -341,14 +342,16 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 
     The same drawing's labels shrink further on a narrower window; large labels are
     clean at desktop and cross the stated threshold on mobile. A closed disclosure's
-    arrangement is no part of the view, so the reading leaves it out. Reading leaves
+    arrangement is no part of the view until opened. The reading includes the native
+    column grid as well as the page's flex rows. Reading leaves
     the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
         "<h1>Rollout</h1>",
         '<h1>Rollout</h1><div id="arrangement" style="display:flex; gap:16px">'
         "<p>Canary</p><p>Global</p></div>"
-        '<details><summary>Later</summary><div style="display:flex; gap:16px">'
+        "<details><summary>Later</summary>"
+        '<div id="later-arrangement" style="display:flex; gap:16px">'
         "<p>Europe</p><p>Asia</p></div></details>",
     )
     page = open_page(browser, serve(source, packages=()))
@@ -388,7 +391,8 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert desktop["unchanged"] and narrow["unchanged"]
     for result in (desktop, narrow):
         reading = result["reading"]
-        (arrangement,) = reading["layout"]["arrangement"]
+        column, arrangement = reading["layout"]["arrangement"]
+        assert column["path"] == "main"
         assert arrangement["at"] == "<div id=arrangement>"
         assert arrangement["rows"] == "2"
         assert page.locator(arrangement["path"]).get_attribute("id") == "arrangement"
@@ -404,6 +408,17 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
         "<svg> in <figure id=large>",
     }
     assert small[0]["drawn"] < drawing["drawn"]
+
+    page.get_by_text("Later", exact=True).click()
+    rendered(page)
+    opened = read()
+    assert opened["unchanged"]
+    column, arrangement, later = opened["reading"]["layout"]["arrangement"]
+    assert column["path"] == "main"
+    assert arrangement["at"] == "<div id=arrangement>"
+    assert later["at"] == "<div id=later-arrangement>"
+    assert later["rows"] == "2"
+    assert page.locator(later["path"]).get_attribute("id") == "later-arrangement"
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.
@@ -1959,9 +1974,7 @@ def other_pages(page):
     are live; the menu is put away again."""
     offered = panel_menu(page, "navigate").locator('.lf-fp-item[data-row="leaves"]')
     count = offered.count()
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-floating-panel")).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
     return count > 0
 
 
@@ -2611,8 +2624,11 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(browser, serve, su
                 "Split rows",
                 "<h1>Rows</h1>"
                 + "".join(rows(display, frame) for display, frame in cases)
+                # Column items declare their end edge; keep the unframed controls
+                # inside one item, followed by text that receives that edge.
+                + "<div>"
                 + deliberate
-                + "<p>Following text keeps the rows away from the page frame's edges.</p>",
+                + "<p>Following text keeps the rows away from the page frame's edges.</p></div>",
             )
         ),
     )

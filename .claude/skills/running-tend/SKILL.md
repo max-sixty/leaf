@@ -83,6 +83,16 @@ before answering. Show before and after for a change, and the relevant alternati
 for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
 change**, for capture and delivery.
 
+Upload screenshots to GitHub with the CLI’s native attachments:
+
+```bash
+gh pr edit NUMBER --body-file .tmp/pr-body.md --attach .tmp/before.png --attach .tmp/after.png
+```
+
+Reference those local paths in the body’s Markdown images; `gh` replaces them
+with uploaded asset URLs. For a reply, use `gh pr comment` with the same flags.
+Read back the published body and open its image URLs to verify the evidence.
+
 ## Reading a red suite
 
 When a change turns a test red, merged or still in a pull request, the change and

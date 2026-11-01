@@ -245,6 +245,26 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def printed_exhibit(page: Page) -> None:
+    """A breakout exhibit within the paper's prose track."""
+    page.emulate_media(media="print")
+
+
+def failed_widget(page: Page) -> None:
+    """A failed full-width exhibit beside the document's prose."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {failSoft} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+        const host = document.createElement('div');
+        host.id = 'failed-exhibit';
+        host.dataset.lfSpace = 'available';
+        document.querySelector('main').prepend(host);
+        failSoft(host, new Error('The exhibit could not render its source.'),
+            'source row: ' + 'unbroken_source_value_'.repeat(12));
+    }""")
+    expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
+
+
 def worktree_summaries(page: Page) -> None:
     """Close the initially open worktree so the list's summary columns stand together.
     Press the widget's summary by its class, since the authored evidence in the row
@@ -430,7 +450,7 @@ def share_link(page: Page) -> None:
         " () => Promise.reject(new Error('refused')); }"
     )
     page.locator(".lf-fp-leaf").click()
-    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
+    page.locator('.lf-fp-item[data-row="share"]').click()
     about = page.get_by_role("dialog", name="About this page", exact=True)
     expect(about).to_contain_text(re.compile(r"Source captured for r\d+"))
     link = about.get_by_label("Link", exact=True)
@@ -847,6 +867,23 @@ def on_me(page: Page) -> None:
     """On me, opened from the floating panel's On me mark."""
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
+
+
+def on_me_todo(page: Page) -> None:
+    """The full to-do title beside its subject after the On me walk arrives."""
+    as_agent(
+        "task",
+        "create",
+        "plan-context",
+        "--title",
+        "Review the change or name a reviewer, then merge it after checking the build",
+        "--on",
+        "user",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    page.locator("#plan-top").click()
+    page.keyboard.press("m")
 
 
 def on_me_choice(page: Page) -> None:
@@ -1622,6 +1659,14 @@ def aim_cut_by_pane(page: Page) -> None:
     )
 
 
+def breakout_captions_scrolled(page: Page) -> None:
+    """Keep the captions visible after scrolling both tables to their far ends."""
+    page.locator("table").evaluate_all("""tables => tables.forEach(table => {
+      table.scrollLeft = table.dir === 'rtl' ? -table.scrollWidth : table.scrollWidth;
+    })""")
+    settle(page)
+
+
 def table_scrolled_sideways(page: Page) -> None:
     """A table whose rows open with their names, scrolled to its far end on a phone."""
     page.locator("#security-deep-record > summary").click()
@@ -1701,8 +1746,8 @@ def option_thread_open(page: Page) -> None:
 
 
 def more_menu(page: Page) -> None:
-    """The leaf's menu, opened: the agent's state at its head over the page's
-    controls."""
+    """The leaf's menu, the On view's first tab, opened: the agent's state at its head
+    over the page's controls, the field its search and the tabs at its foot."""
     page.locator(".lf-fp-leaf").click()
     page.locator(".lf-fp-menu").wait_for()
 
@@ -1742,7 +1787,7 @@ def versions_menu(page: Page) -> None:
     """Versions, opened from the leaf's menu: a row for each version, with its note."""
     more_menu(page)
     page.locator('.lf-fp-item[data-row="versions"]').click()
-    page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version").first.wait_for()
+    page.locator(".lf-fp-version").first.wait_for()
 
 
 def ask_by_keyboard(page: Page) -> None:
@@ -1974,6 +2019,16 @@ class State:
 
 
 STATES = (
+    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
+    State("screen-exhibit", "lost-update", at_rest, region="main"),
+    State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
+    State(
+        "failed-widget-dark",
+        "review-a-plan",
+        failed_widget,
+        viewport=(1600, 900),
+        scheme="dark",
+    ),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "page-about-dark",
@@ -3081,6 +3136,21 @@ STATES = (
         touch=True,
     ),
     State(
+        "breakout-captions", "../tests/fixtures/pages/breakout-table-caption", at_rest
+    ),
+    State(
+        "breakout-captions-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        at_rest,
+        viewport=(390, 844),
+    ),
+    State(
+        "breakout-captions-scrolled-phone",
+        "../tests/fixtures/pages/breakout-table-caption",
+        breakout_captions_scrolled,
+        viewport=(390, 844),
+    ),
+    State(
         "table-scrolled-phone",
         "security-boundary",
         table_scrolled_sideways,
@@ -3275,6 +3345,8 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("on-me-todo", "review-a-plan", on_me_todo),
+    State("on-me-todo-dark", "review-a-plan", on_me_todo, scheme="dark"),
     State("on-me", "corpus", on_me),
     State("on-me-dark", "corpus", on_me, scheme="dark"),
     State("on-agent", "corpus", on_agent),

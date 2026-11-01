@@ -1,8 +1,8 @@
-import { describeFailure, offerAction, offeredAction, scrollBehavior } from "./bundle-portable.js";
-import { closeLayer, closeNativeLayer, currentLocationIn, focusDestination, guard, handBack, html, nothing, offlineInteractive, openLayer, openerOf, pageUrl, render, runtime, showNativeLayer } from "./bundle-layer-stack.js";
-import { closeControl, el, requestJson, reveal, sessionIsActive } from "./bundle-layer-client.js";
+import { closeLayer, closeNativeLayer, currentLocationIn, describeFailure, focusDestination, handBack, offerAction, offeredAction, openLayer, openerOf, retainUserIntent, scrollBehavior, scrollIntoView, showNativeLayer } from "./bundle-portable.js";
+import { closeControl, el, guard, html, nothing, offlineInteractive, pageUrl, render, reveal, runtime } from "./bundle-errors.js";
+import { requestJson, sessionIsActive } from "./bundle-layer-client.js";
 import { chromeForeground, pageControls } from "./bundle-content-layout.js";
-import { copyControl, retainUserIntent, scrollIntoView } from "./bundle-copy-control.js";
+import { copyControl } from "./bundle-data.js";
 import { readCurrentUserView } from "./bundle-user-view.js";
 
 //#region runtime/copyable-text.js

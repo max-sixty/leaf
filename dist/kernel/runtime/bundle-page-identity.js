@@ -1,4 +1,4 @@
-import { DELIVERY, runtime } from "./bundle-layer-stack.js";
+import { DELIVERY, runtime } from "./bundle-errors.js";
 
 //#region runtime/color-scheme.js
 const darkPreference = matchMedia("(prefers-color-scheme: dark)");

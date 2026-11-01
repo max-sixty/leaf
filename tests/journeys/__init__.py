@@ -2,7 +2,14 @@
 
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
-from render_harness import PANEL, open_threads, panel_menu, panel_settled, panel_view
+from render_harness import (
+    PANEL,
+    close_panel_menu,
+    open_threads,
+    panel_menu,
+    panel_settled,
+    panel_view,
+)
 
 from leaf import event_log as events_model
 
@@ -50,4 +57,4 @@ def expect_showing(page, version):
     expect(
         panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
     ).to_contain_text(f"v{version}")
-    page.locator(".lf-fp-leaf").click()
+    close_panel_menu(page)

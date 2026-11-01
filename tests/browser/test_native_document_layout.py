@@ -43,7 +43,7 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         for route in held:
             route.continue_()
         page.unroute("**/leaf.js")
-        wait_until_ready(page, timeout_ms=30000)
+        wait_until_ready(page)
         assert page.evaluate(read) == before
         page.close()
 

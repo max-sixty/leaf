@@ -236,8 +236,14 @@ node holding outlets at another time, such as when its data goes, first calls
 `releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf returns
 the widget's threads to the margin until the next pass.
 
-`threadSurface(this).open(datum)` opens the comment box on one of the widget's data
-items, in its outlet; Leaf keeps the draft and the sending.
+`threadSurface(this).open` is the reactive opener for the comment box on one of the
+widget's data items, or `null` while no surface is registered. Read it while rendering
+and offer comment controls only when it exists; call it with the datum to open its
+outlet. Leaf keeps the draft and the sending. Registration can follow the widget's
+first drawing, and departure retires the opener until the widget returns.
+
+`threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
+registered Leaf surface, there is nothing to update or release, and `open` is `null`.
 
 ### Page annotation presentation
 

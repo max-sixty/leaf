@@ -494,8 +494,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const {left, top, bottom} = subject.getBoundingClientRect();
             return {left, top, bottom};
           };
+          // A native thread's empty composer is the Reply field itself.
           const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
-            .find(button => button.checkVisibility());
+            .find(button => button.checkVisibility()) ?? node.querySelector('leaf-text');
           const actionBox = rect(action);
           // Send fits the draft's last text line; Dictate fills the panel row.
           // They share an aim at the row's centre, rather than a box height.

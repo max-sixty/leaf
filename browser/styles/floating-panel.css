@@ -1646,6 +1646,127 @@
     font: var(--font-small);
     margin-right: 4px;
   }
+  /* PROTOTYPE (on-me panel exploration): candidate cards (floating-panel.js,
+     `candidateOf`). Options drawn from their own parts stand as small cards across
+     the card's width, each as the page's option card reads: title, tags, picture,
+     a line of what it gives. */
+  .lf-fp-options {
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 6px;
+  }
+  .lf-fp-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 9px 9px;
+    border: 0;
+    border-radius: var(--r);
+    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .lf-fp-option:hover {
+    background: var(--lf-fp-hover);
+  }
+  .lf-fp-option[aria-pressed="true"] {
+    background: var(--ok-tint);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+  .lf-fp-option-title {
+    font-weight: 600;
+  }
+  .lf-fp-option[aria-pressed="true"] .lf-fp-option-title::before {
+    content: "✓ ";
+    color: var(--ok-ink);
+  }
+  .lf-fp-option-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .lf-fp-option-tag {
+    padding: var(--chip-pad);
+    border-radius: var(--chip-r);
+    background: var(--lf-fp-faint);
+    font: var(--font-chip);
+    white-space: nowrap;
+  }
+  .lf-fp-option-tag[data-tone="ok"] {
+    background: var(--ok-tint);
+    color: var(--ok-ink);
+  }
+  .lf-fp-option-picture {
+    display: block;
+    width: 100%;
+    color: var(--ink);
+  }
+  .lf-fp-option-picture > :is(svg, img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: 64px;
+  }
+  .lf-fp-option-says {
+    font: var(--font-small);
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  /* In a narrow card, as beside the page, each option is a row: its picture small at
+     the start, its words beside it. */
+  .lf-fp-on-item[data-card]:has(.lf-fp-options) {
+    container-type: inline-size;
+  }
+  @container (width < 420px) {
+    .lf-fp-options {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .lf-fp-option:has(.lf-fp-option-picture) {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      column-gap: 10px;
+      align-items: start;
+    }
+    .lf-fp-option > * {
+      grid-column: 2;
+    }
+    .lf-fp-option > .lf-fp-option-picture {
+      grid-column: 1;
+      grid-row: 1 / span 3;
+    }
+    .lf-fp-option-picture > :is(svg, img) {
+      max-height: 40px;
+    }
+  }
+  .lf-fp-asked[data-clamp] {
+    max-height: calc(6lh + 44px);
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, black 70%, transparent);
+  }
+  .lf-fp-read-all {
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  /* PROTOTYPE: On me beside the page, at the window's end edge and nearly its full
+     height, as wide as the room right of the column, where that room holds it; else at
+     the foot as today. */
+  @media (min-width: 1280px) {
+    .lf-floating-panel[data-onme-side] {
+      --lf-fp-max: clamp(260px, calc((100vw - var(--col)) / 2 - 20px), 380px);
+      --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 24px);
+      left: auto;
+      right: calc(var(--lf-fp-gutter) / 2 + var(--lf-safe-right));
+      margin-inline: 0;
+    }
+  }
   /* The thread's transcript, drawn and spaced as a card's (thread/transcript.js), its
      first author 16px under the quote, the quote head's 12px included. Its box starts
      at the view's padding, as the quote's rule does, and the transcript alone insets

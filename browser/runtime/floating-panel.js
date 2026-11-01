@@ -2896,6 +2896,94 @@ export function createFloatingPanel({
     if (view && trail.value.at(-1)?.view === "queue")
       moveScrollerBy(view, -view.scrollTop);
   }
+  // PROTOTYPE (on-me panel exploration, .tmp/iterate-on-me-panel.md): the candidate
+  // designs the exploration page composes, each chosen by an attribute a playground
+  // sample's root carries (`data-playground-<name>`), today's design without one. A
+  // change repaints On me.
+  // A sample whose page holds an element marked `data-onme-today` shows today's design whatever the
+  // playground sets, and one carrying `data-onme-open` opens On me once it has items.
+  const marked = (name) => document.querySelector(`[${name}]`) !== null;
+  const candidateOf = (name, today) =>
+    marked("data-onme-today")
+      ? today
+      : (document.documentElement.getAttribute(`data-playground-${name}`) ?? today);
+  // PROTOTYPE: where On me shows a page widget's ask. `page` folds the page to the
+  // blocks holding the asks the page draws while On me stands open, so the user answers
+  // each on its own widget, and the panel keeps the rest: to-dos and what threads ask.
+  const foldsPage = () => candidateOf("where", "cards") === "page";
+  // The page widget an item waits on, where the page draws it.
+  const pageWidgetOf = (item) => {
+    const record = carriesObligation(item) ? item.obligation : null;
+    if (record?.source.kind !== "widget" || record.message) return null;
+    const node = obligationPlace(record).node;
+    const main = document.querySelector("main");
+    return node?.isConnected && main?.contains(node) ? node : null;
+  };
+  let folded = [];
+  function foldPage() {
+    const wanted =
+      foldsPage() && showing({ view: "queue" }) && queueTab === "you"
+        ? queueLists().you.map(pageWidgetOf).filter(Boolean)
+        : [];
+    const main = document.querySelector("main");
+    const holding = new Set(
+      wanted.map((node) => {
+        let at = node;
+        while (at.parentElement && at.parentElement !== main) at = at.parentElement;
+        return at;
+      }),
+    );
+    const next = wanted.length
+      ? [...(main?.children ?? [])].filter(
+          (block) => !holding.has(block) && !block.matches("hgroup, header, h1"),
+        )
+      : [];
+    // PROTOTYPE: On me standing beside the page, where the window has room right of
+    // the column, rather than over the column's foot.
+    host.toggleAttribute(
+      "data-onme-side",
+      candidateOf("opens", "foot") === "side" &&
+        showing({ view: "queue" }) &&
+        queueTab === "you",
+    );
+    if (next.length === folded.length && next.every((block, at) => block === folded[at]))
+      return;
+    for (const block of folded) block.removeAttribute("hidden");
+    for (const block of next) block.setAttribute("hidden", "until-found");
+    folded = next;
+  }
+  let openedAtStart = false;
+  function openAtStart() {
+    if (openedAtStart || !marked("data-onme-open")) return;
+    if (readQueues().phase !== "ready" || !onUserCount()) return;
+    openedAtStart = true;
+    open({ view: "queue" }, { focus: false });
+  }
+  const expandedMessages = new Set();
+  new MutationObserver(() => {
+    if (showing({ view: "queue" })) paint();
+  }).observe(document.documentElement, { attributes: true });
+  // An option's own parts, as the page draws them on its card: its title, its tags, its
+  // picture and its first line of prose.
+  function optionParts(choice) {
+    const option = choice.control?.closest?.("lf-option");
+    if (!option) return null;
+    const own = (selector) => option.querySelector(`:scope > ${selector}`);
+    const picture = own("svg, img, figure, picture")?.cloneNode(true) ?? null;
+    if (picture instanceof Element) {
+      picture.removeAttribute("id");
+      for (const named of picture.querySelectorAll("[id]")) named.removeAttribute("id");
+    }
+    return {
+      title: own("strong")?.textContent?.trim() || choice.label,
+      tags: [...option.querySelectorAll(":scope > small.tag")].map((tag) => ({
+        text: tag.textContent?.trim() ?? "",
+        tone: ["ok", "warn", "danger"].find((tone) => tag.classList.contains(tone)) ?? "",
+      })),
+      picture,
+      says: choice.description || (own("p")?.textContent?.trim() ?? ""),
+    };
+  }
   // The On me door, as `g M` presses it: the view on the user's list, turned to it where
   // the view shows another tab, else opened or closed.
   function openOnMe() {
@@ -3182,9 +3270,16 @@ export function createFloatingPanel({
     // Where the page's package draws its conversations instead, Leaf's reader draws
     // none here, and the message's words stand for it under the thread's name.
     const inWords = record !== null && answeredInWords(record);
+    // PROTOTYPE: a widget a thread message holds, drawn with its message, live.
+    const messageBorne =
+      candidateOf("message-widget", "discuss") === "message" &&
+      record?.source.kind === "widget" &&
+      Boolean(record.message) &&
+      thread !== null &&
+      !inWords;
     const asking =
-      inWords && thread
-        ? thread.msgs.find((candidate) => candidate.id === record.message)
+      (inWords || messageBorne) && thread
+        ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message
@@ -3219,9 +3314,16 @@ export function createFloatingPanel({
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
-      record && !answered && record.source.kind === "widget" && !inWords
+      record && !answered && record.source.kind === "widget" && !inWords && !message
         ? obligationView.choicesOf(record)
         : null;
+    // PROTOTYPE: each option drawn from its own parts, where the candidate asks for it
+    // and every choice but a commit stands in an option.
+    const drawn =
+      candidateOf("widget-card", "copied") === "parts" && choices?.length
+        ? choices.map((choice) => ({ choice, parts: optionParts(choice) }))
+        : null;
+    const cells = drawn?.filter(({ parts }) => parts) ?? [];
     const gesture = answered ? answerGesture(record) : null;
     const discuss = conversation
       ? html`<button
@@ -3290,7 +3392,59 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    } else if (choices?.length)
+    } else if (cells.length)
+      // PROTOTYPE: the options as the page draws them, each a press, then a commit.
+      answers = html`<div class="lf-fp-options">
+          ${cells.map(
+            ({ choice, parts }) =>
+              html`<button
+                type="button"
+                class="lf-fp-option"
+                aria-pressed=${String(choice.chosen)}
+                @click=${() => {
+                  choice.press();
+                  paint();
+                }}
+              >
+                <span class="lf-fp-option-title">${parts.title}</span>${
+                  parts.tags.length
+                    ? html`<span class="lf-fp-option-tags"
+                        >${parts.tags.map(
+                          (tag) =>
+                            html`<span class="lf-fp-option-tag" data-tone=${tag.tone}
+                              >${tag.text}</span
+                            >`,
+                        )}</span
+                      >`
+                    : nothing
+                }${
+                  parts.picture
+                    ? html`<span class="lf-fp-option-picture">${parts.picture}</span>`
+                    : nothing
+                }${
+                  parts.says
+                    ? html`<span class="lf-fp-option-says">${parts.says}</span>`
+                    : nothing
+                }
+              </button>`,
+          )}
+        </div>
+        ${choices
+          .filter((choice) => choice.commits)
+          .map(
+            (choice) =>
+              html`<button
+                ${offeredAction("commit", "lf-fp-commit")}
+                aria-pressed=${String(choice.chosen)}
+                @click=${() => {
+                  choice.press();
+                  paint();
+                }}
+              >
+                ${capital(choice.label)}
+              </button>`,
+          )}`;
+    else if (choices?.length)
       // A choice that says more than its name, what choosing it gives and whether the
       // page advises it, stands on a line of its own with those words under its name,
       // two lines at most, so the user can answer here without Show, and whole on
@@ -3374,6 +3528,43 @@ export function createFloatingPanel({
     // a to-do telling itself from a question by its Done. The user chose that on 26
     // October 2026 over a kind word before every card's place, which repeated what the
     // card's answers already say.
+    // PROTOTYPE: how much of a question asked in words its card shows: whole, its
+    // first lines with Read all where it runs past what five lines hold, or none of it.
+    const chosen_ = messageBorne ? "whole" : candidateOf("message", "whole");
+    const showing_ = chosen_;
+    const asked = (thread_, message_, carriedHere = false) => {
+      if (chosen_ === "title")
+        return carriedHere
+          ? html`<p class="lf-fp-prompt">${threadHeading(thread_)}</p>`
+          : nothing;
+      const long =
+        messageReading(message_, { reactions: [], workflows: [] }).body.plainText
+          .length > 320;
+      const at = `${key}:${message_.key}`;
+      const clamps = chosen_ === "clamp" && long;
+      const clamped = clamps && !expandedMessages.has(at);
+      return html`<div
+          class="lf-fp-asked lf-fp-outlet"
+          ?data-clamp=${clamped}
+          data-thread=${thread_.key}
+          data-message=${message_.key}
+        ></div>
+        ${
+          clamps
+            ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-quiet lf-fp-read-all"
+                @click=${() => {
+                  if (expandedMessages.has(at)) expandedMessages.delete(at);
+                  else expandedMessages.add(at);
+                  paint();
+                }}
+              >
+                ${clamped ? "Read all" : "Read less"}
+              </button>`
+            : nothing
+        }`;
+    };
     if (card) {
       const about = [...new Set([group, where])].filter(Boolean);
       return html`<section
@@ -3391,26 +3582,27 @@ export function createFloatingPanel({
             : nothing
         }${
           message
-            ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-                <div
-                  class="lf-fp-asked lf-fp-outlet"
-                  data-thread=${thread.key}
-                  data-message=${message.key}
-                ></div>`
+            ? html`${
+                title
+                  ? html`<h3
+                      class=${showing_ === "title" ? "lf-fp-prompt" : "lf-fp-on-title"}
+                    >
+                      ${heading}
+                    </h3>`
+                  : nothing
+              }
+              ${asked(thread, message)}`
             : prompt
               ? html`<h3 class="lf-fp-on-title">${heading}</h3>
                   <p class="lf-fp-prompt">${prompt}</p>`
               : html`<p class="lf-fp-prompt">${heading}</p>`
-        }${carried.map(({ thread: where, message: asked }) =>
+        }${carried.map(({ thread: where, message: carriedMessage }) =>
           presentation?.primary !== false
-            ? html`<div
-                class="lf-fp-asked lf-fp-outlet"
-                data-thread=${where.key}
-                data-message=${asked.key}
-              ></div>`
+            ? asked(where, carriedMessage, true)
             : html`<p class="lf-fp-prompt">
                 ${
-                  messageReading(asked, { reactions: [], workflows: [] }).body.plainText
+                  messageReading(carriedMessage, { reactions: [], workflows: [] }).body
+                    .plainText
                 }
               </p>`,
         )}
@@ -3599,7 +3791,11 @@ export function createFloatingPanel({
     ];
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items = seated.map((key) => byKey.get(key));
+    // PROTOTYPE: where the page answers its own widgets, the panel lists the rest.
+    const onPage = foldsPage() ? seated.filter((key) => pageWidgetOf(byKey.get(key))) : [];
+    const items = seated
+      .filter((key) => !onPage.includes(key))
+      .map((key) => byKey.get(key));
     const grouping = onMe.grouping();
     const says = grouping === "plan" ? null : grouping;
     // A record a card carries is drawn on that card, ended or not, and not in Done too.
@@ -3622,8 +3818,21 @@ export function createFloatingPanel({
     }));
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
+    const onPageWaiting = onPage.filter((key) => current.includes(key)).length;
     return html`${
-      items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
+      onPage.length
+        ? html`<p class="lf-rows-head lf-fp-on-page">
+            ${voiced(
+              onPageWaiting
+                ? `${onPageWaiting} on the page, each at its own question`
+                : "Nothing left on the page",
+            )}
+          </p>`
+        : nothing
+    }${
+      items.length || onPage.length
+        ? nothing
+        : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
     }${keyedBy(
       grouping,
       groupedItems(
@@ -4046,6 +4255,8 @@ export function createFloatingPanel({
     fitOpened();
     showFromTop();
     landWalked();
+    openAtStart();
+    foldPage();
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
   // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and

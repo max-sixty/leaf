@@ -6298,6 +6298,66 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const view = shownView();
 		if (view && trail.value.at(-1)?.view === "queue") moveScrollerBy(view, -view.scrollTop);
 	}
+	const marked = (name) => document.querySelector(`[${name}]`) !== null;
+	const candidateOf = (name, today) => marked("data-onme-today") ? today : document.documentElement.getAttribute(`data-playground-${name}`) ?? today;
+	const foldsPage = () => candidateOf("where", "cards") === "page";
+	const pageWidgetOf = (item) => {
+		const record = carriesObligation(item) ? item.obligation : null;
+		if (record?.source.kind !== "widget" || record.message) return null;
+		const node = obligationPlace(record).node;
+		const main = document.querySelector("main");
+		return node?.isConnected && main?.contains(node) ? node : null;
+	};
+	let folded = [];
+	function foldPage() {
+		const wanted = foldsPage() && showing({ view: "queue" }) && queueTab === "you" ? queueLists().you.map(pageWidgetOf).filter(Boolean) : [];
+		const main = document.querySelector("main");
+		const holding = new Set(wanted.map((node) => {
+			let at = node;
+			while (at.parentElement && at.parentElement !== main) at = at.parentElement;
+			return at;
+		}));
+		const next = wanted.length ? [...main?.children ?? []].filter((block) => !holding.has(block) && !block.matches("hgroup, header, h1")) : [];
+		host.toggleAttribute("data-onme-side", candidateOf("opens", "foot") === "side" && showing({ view: "queue" }) && queueTab === "you");
+		if (next.length === folded.length && next.every((block, at) => block === folded[at])) return;
+		for (const block of folded) block.removeAttribute("hidden");
+		for (const block of next) block.setAttribute("hidden", "until-found");
+		folded = next;
+	}
+	let openedAtStart = false;
+	function openAtStart() {
+		if (openedAtStart || !marked("data-onme-open")) return;
+		if (readQueues().phase !== "ready" || !onUserCount()) return;
+		openedAtStart = true;
+		open({ view: "queue" }, { focus: false });
+	}
+	const expandedMessages = /* @__PURE__ */ new Set();
+	new MutationObserver(() => {
+		if (showing({ view: "queue" })) paint();
+	}).observe(document.documentElement, { attributes: true });
+	function optionParts(choice) {
+		const option = choice.control?.closest?.("lf-option");
+		if (!option) return null;
+		const own = (selector) => option.querySelector(`:scope > ${selector}`);
+		const picture = own("svg, img, figure, picture")?.cloneNode(true) ?? null;
+		if (picture instanceof Element) {
+			picture.removeAttribute("id");
+			for (const named of picture.querySelectorAll("[id]")) named.removeAttribute("id");
+		}
+		return {
+			title: own("strong")?.textContent?.trim() || choice.label,
+			tags: [...option.querySelectorAll(":scope > small.tag")].map((tag) => ({
+				text: tag.textContent?.trim() ?? "",
+				tone: [
+					"ok",
+					"warn",
+					"danger"
+				].find((tone) => tag.classList.contains(tone)) ?? ""
+			})),
+			picture,
+			says: choice.description || (own("p")?.textContent?.trim() ?? "")
+		};
+	}
 	function openOnMe() {
 		if (chooseQueueTab("you") && showing({ view: "queue" })) paint();
 		else open({ view: "queue" });
@@ -6480,7 +6540,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const record = carriesObligation(item) ? item.obligation : null;
 		const thread = item.thread ? threadByKey(item.thread) : null;
 		const inWords = record !== null && answeredInWords(record);
-		const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
+		const messageBorne = candidateOf("message-widget", "discuss") === "message" && record?.source.kind === "widget" && Boolean(record.message) && thread !== null && !inWords;
+		const asking = (inWords || messageBorne) && thread ? thread.msgs.find((candidate) => candidate.id === record.message) ?? null : null;
 		const message = asking && presentation?.primary !== false ? asking : null;
 		const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
 		const said = message ? "" : asking ? messageReading(asking, {
@@ -6502,7 +6563,11 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const waiting = carried.find(({ record: other }) => other.status === "open" && other.next_actor === "user");
 		const heading = thread && title === threadName(thread) ? threadHeading(thread) : title;
 		const answered = record && record.status !== "open";
-		const choices = record && !answered && record.source.kind === "widget" && !inWords ? obligationView.choicesOf(record) : null;
+		const choices = record && !answered && record.source.kind === "widget" && !inWords && !message ? obligationView.choicesOf(record) : null;
+		const cells = (candidateOf("widget-card", "copied") === "parts" && choices?.length ? choices.map((choice) => ({
+			choice,
+			parts: optionParts(choice)
+		})) : null)?.filter(({ parts }) => parts) ?? [];
 		const gesture = answered ? answerGesture(record) : null;
 		const discuss = conversation ? html`<button
           type="button"
@@ -6549,7 +6614,34 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
               >
                 Reply
               </button>` : nothing}`;
-		} else if (choices?.length) answers = html`${choices.map((choice) => {
+		} else if (cells.length) answers = html`<div class="lf-fp-options">
+          ${cells.map(({ choice, parts }) => html`<button
+                type="button"
+                class="lf-fp-option"
+                aria-pressed=${String(choice.chosen)}
+                @click=${() => {
+			choice.press();
+			paint();
+		}}
+              >
+                <span class="lf-fp-option-title">${parts.title}</span>${parts.tags.length ? html`<span class="lf-fp-option-tags"
+                        >${parts.tags.map((tag) => html`<span class="lf-fp-option-tag" data-tone=${tag.tone}
+                              >${tag.text}</span
+                            >`)}</span
+                      >` : nothing}${parts.picture ? html`<span class="lf-fp-option-picture">${parts.picture}</span>` : nothing}${parts.says ? html`<span class="lf-fp-option-says">${parts.says}</span>` : nothing}
+              </button>`)}
+        </div>
+        ${choices.filter((choice) => choice.commits).map((choice) => html`<button
+                ${offeredAction("commit", "lf-fp-commit")}
+                aria-pressed=${String(choice.chosen)}
+                @click=${() => {
+			choice.press();
+			paint();
+		}}
+              >
+                ${capital(choice.label)}
+              </button>`)}`;
+		else if (choices?.length) answers = html`${choices.map((choice) => {
 			const press = () => {
 				choice.press();
 				paint();
@@ -6600,6 +6692,35 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const kind = item.owner === "user" ? stop.noun : agentNoun(item);
 		const where = says === "place" ? "" : onMe.place(item);
 		const walked = leads && queueTab === "you" && walkedStop() === stop.key;
+		const chosen_ = messageBorne ? "whole" : candidateOf("message", "whole");
+		const showing_ = chosen_;
+		const asked = (thread_, message_, carriedHere = false) => {
+			if (chosen_ === "title") return carriedHere ? html`<p class="lf-fp-prompt">${threadHeading(thread_)}</p>` : nothing;
+			const long = messageReading(message_, {
+				reactions: [],
+				workflows: []
+			}).body.plainText.length > 320;
+			const at = `${key}:${message_.key}`;
+			const clamps = chosen_ === "clamp" && long;
+			const clamped = clamps && !expandedMessages.has(at);
+			return html`<div
+          class="lf-fp-asked lf-fp-outlet"
+          ?data-clamp=${clamped}
+          data-thread=${thread_.key}
+          data-message=${message_.key}
+        ></div>
+        ${clamps ? html`<button
+                type="button"
+                class="lf-fp-face lf-fp-quiet lf-fp-read-all"
+                @click=${() => {
+				if (expandedMessages.has(at)) expandedMessages.delete(at);
+				else expandedMessages.add(at);
+				paint();
+			}}
+              >
+                ${clamped ? "Read all" : "Read less"}
+              </button>` : nothing}`;
+		};
 		if (card) {
 			const about = [.../* @__PURE__ */ new Set([group, where])].filter(Boolean);
 			return html`<section
@@ -6611,18 +6732,14 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
         ?data-walked=${walked}
         style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
       >
-        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${heading}</h3>` : nothing}
-                <div
-                  class="lf-fp-asked lf-fp-outlet"
-                  data-thread=${thread.key}
-                  data-message=${message.key}
-                ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
-                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: asked }) => presentation?.primary !== false ? html`<div
-                class="lf-fp-asked lf-fp-outlet"
-                data-thread=${where.key}
-                data-message=${asked.key}
-              ></div>` : html`<p class="lf-fp-prompt">
-                ${messageReading(asked, {
+        ${about.length ? html`<p class="lf-fp-on-place lf-rows-head">${about.join(" · ")}</p>` : nothing}${message ? html`${title ? html`<h3
+                      class=${showing_ === "title" ? "lf-fp-prompt" : "lf-fp-on-title"}
+                    >
+                      ${heading}
+                    </h3>` : nothing}
+              ${asked(thread, message)}` : prompt ? html`<h3 class="lf-fp-on-title">${heading}</h3>
+                  <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${heading}</p>`}${carried.map(({ thread: where, message: carriedMessage }) => presentation?.primary !== false ? asked(where, carriedMessage, true) : html`<p class="lf-fp-prompt">
+                ${messageReading(carriedMessage, {
 				reactions: [],
 				workflows: []
 			}).body.plainText}
@@ -6739,7 +6856,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		const carried = new Set((seated ?? []).flatMap((key) => carrying.get(key) ?? []));
 		seated = [...(seated ?? []).filter((key) => byKey.has(key)), ...current.filter((key) => !(seated ?? []).includes(key) && !carried.has(byKey.get(key).id))];
 		const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-		const items = seated.map((key) => byKey.get(key));
+		const onPage = foldsPage() ? seated.filter((key) => pageWidgetOf(byKey.get(key))) : [];
+		const items = seated.filter((key) => !onPage.includes(key)).map((key) => byKey.get(key));
 		const grouping = onMe.grouping();
 		const says = grouping === "plan" ? null : grouping;
 		const held = new Set(seated.flatMap((key) => carrying.get(key) ?? []));
@@ -6750,7 +6868,10 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 			headed: group.items.length > 1,
 			count: group.items.filter(waits).length
 		}));
-		return html`${items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
+		const onPageWaiting = onPage.filter((key) => current.includes(key)).length;
+		return html`${onPage.length ? html`<p class="lf-rows-head lf-fp-on-page">
+            ${voiced(onPageWaiting ? `${onPageWaiting} on the page, each at its own question` : "Nothing left on the page")}
+          </p>` : nothing}${items.length || onPage.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`}${keyed(grouping, groupedItems([...groups, ...finished.length ? [{
 			key: "done",
 			title: "Done",
 			items: finished
@@ -7039,6 +7160,8 @@ function createFloatingPanel({ wireInput, threadActions, registerChromeThreadPre
 		fitOpened();
 		showFromTop();
 		landWalked();
+		openAtStart();
+		foldPage();
 	}
 	const asked = /* @__PURE__ */ new WeakSet();
 	function seatOnItems() {
@@ -7970,6 +8093,7 @@ function createObligationView({ prepareNavigationStep, arrive, openPageThread, f
 			recommended,
 			commits,
 			chosen: control.getAttribute("aria-pressed") === "true" || control.getAttribute("aria-checked") === "true" || control.localName === "input" && control.checked,
+			control,
 			press: () => presentedActionControl(control).click()
 		}));
 	}

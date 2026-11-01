@@ -964,10 +964,13 @@ wa-copy-button.lf-icon-action {
    the words a seat's Resolved summary says its threads hold (thread/inline.js). The
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
-   pointer) until the user chose this one on 28 October. A generated control in the
-   document takes the chrome's size (surfaces.css, `.lf-ui-face`), so the face
-   inherits its line's; a press whose box stands beside its line rather than in it
-   states the line's size where it is placed. */
+   pointer) until the user chose this one on 28 October. Words a press says in a
+   speaker's voice take that speaker's face instead (`span[data-voice]`, above), so
+   held news, which is Leaf's, is regular italic and stands apart by its ink: the user
+   kept that over bold news on 31 October. A generated control in the document takes
+   the chrome's size (surfaces.css, `.lf-ui-face`), so the face inherits its line's; a
+   press whose box stands beside its line rather than in it states the line's size
+   where it is placed. */
 :where(button).lf-inline-action {
   border: 0;
   background: none;
@@ -979,9 +982,6 @@ wa-copy-button.lf-icon-action {
 }
 :is(.lf-inline-action, .lf-resolved-summary *)[data-lf-news] {
   color: var(--danger);
-}
-.lf-resolved-summary [data-lf-news] {
-  font-weight: 600;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
    which a finger's tap leaves behind too. */

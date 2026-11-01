@@ -264,11 +264,14 @@
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */
+    /* A pre and an hr take the room a draft edited in place gives a fence's and a
+       rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
       background: var(--pre-bg);
       border: 1px solid var(--code-border);
       border-radius: var(--r);
-      padding: 12px var(--pre-inset);
+      padding: var(--code-line) var(--pre-inset)
+        calc(var(--code-line) - var(--lf-text-scroll-clearance));
       font-size: var(--code-size);
       line-height: var(--code-line);
       font-family: var(--mono);
@@ -438,8 +441,9 @@
     }
     hr {
       border: none;
-      border-top: 1px solid var(--rule);
-      margin: var(--hr-margin-block) 0;
+      block-size: 1lh;
+      background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+      margin: calc(var(--hr-margin-block) + 0.5px - 0.5lh) 0;
     }
     /* The headings are the body serif at weight, size and spacing — one face, four
      * volumes — rather than a display face over a text face. A page whose subject is
@@ -600,7 +604,6 @@
 :is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
-  --pre-pad-block: 8px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
@@ -681,8 +684,23 @@ leaf-text.lf-fab-input,
 .lf-msg-body li {
   margin: 2px 0;
 }
+/* A rule takes a line, its stroke through the middle, and a code block a code line
+   above and below its code, so each stands where its draft drew its source: the
+   rule's on its line, a fence's on the line above or below the code
+   (composing/text-field.js). The draft's caret then reveals that source in room it
+   already had, moving nothing. The room kept below for a scrollbar (above) is part of
+   the line below the code. The reading face draws page prose the same way, for a draft
+   edited in place. Rejected: a 1px rule and 8px of block padding, which the draft could
+   draw only by shortening those lines while the caret was away and growing them as it
+   arrived. */
+.lf-msg-body hr {
+  border: none;
+  block-size: 1lh;
+  background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+}
 .lf-msg-body pre {
-  padding-block: var(--pre-pad-block);
+  padding-block: var(--code-line)
+    calc(var(--code-line) - var(--lf-text-scroll-clearance));
 }
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching

@@ -1,0 +1,47 @@
+diff --git a/index.d.ts b/index.d.ts
+index 9953e03928673371fb18f31a7225813849882a33..f8b305e3b74bd68ada023e76045502d502b4ff92 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -15,6 +15,8 @@ export = Sortable;
+ declare class Sortable {
+     public options: Sortable.Options;
+     public el: HTMLElement;
++    /** Native event dispatch, including a gesture cancelled by its owner. */
++    handleEvent(event: Event): void;
+ 
+     /**
+      * Sortable's main constructor.
+@@ -99,7 +101,10 @@ declare class Sortable {
+ declare namespace Sortable {
+     export interface Options
+         extends SortableOptions, AutoScrollOptions, MultiDragOptions, OnSpillOptions, SwapOptions
+-    {}
++    {
++        /** Leaf's bundled clone adapter (build/vendor.mjs). */
++        cloneElement?: (card: HTMLElement) => HTMLElement;
++    }
+ 
+     /**
+      * A class that all plugins inherit from for the sake of type inference.
+@@ -110,7 +115,12 @@ declare namespace Sortable {
+     export class Swap extends SwapPlugin {}
+     export class OnSpill extends OnSpillPlugin {}
+ 
++    export interface SortableEndEvent extends SortableEvent {
++        oldDraggableIndex: number;
++    }
++
+     export interface SortableEvent extends Event {
++        originalEvent?: Event;
+         clone: HTMLElement;
+         /**
+          * previous list
+@@ -385,7 +395,7 @@ declare namespace Sortable {
+         /**
+          * Element dragging ended
+          */
+-        onEnd?: ((event: SortableEvent) => void) | undefined;
++        onEnd?: ((event: SortableEndEvent) => void) | undefined;
+         /**
+          * Element is dropped into the list from another list
+          */

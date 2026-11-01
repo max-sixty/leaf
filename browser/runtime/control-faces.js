@@ -8,6 +8,7 @@ const ACTION_FACES = {
   row: "lf-row",
 };
 
+/** @param {LeafActionRole} role */
 export function actionClass(role, className = "") {
   const face = ACTION_FACES[role];
   if (!face)

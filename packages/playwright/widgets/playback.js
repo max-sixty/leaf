@@ -2,6 +2,8 @@
  * Explicit important intervals run at 0.35x; quiet intervals run at 3x.
  * Integrating at every boundary prevents a slow frame from jumping over an
  * important interval. Recorded pace uses no intervals and stays at 1x. */
+/** @typedef {[start: number, end: number]} Interval */
+/** @param {number} time @param {number} elapsed @param {Interval[] | null} [intervals] */
 export function advancePlayback(time, elapsed, intervals = null) {
   if (!intervals) return time + elapsed;
   while (elapsed > 0) {
@@ -18,7 +20,9 @@ export function advancePlayback(time, elapsed, intervals = null) {
   return time;
 }
 
+/** @param {Interval[]} intervals */
 export function mergeIntervals(intervals) {
+  /** @type {Interval[]} */
   const merged = [];
   for (const [start, end] of intervals.toSorted((a, b) => a[0] - b[0])) {
     const previous = merged.at(-1);

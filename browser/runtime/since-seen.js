@@ -61,7 +61,7 @@ import {
 
 const HANDOFF_KEY = "lf-seen-handoff";
 
-/** @typedef {{revision: number, version: number | null, url: string, activated_at?: string}} Seen */
+/** @typedef {import("../types/contract.js").ServedRevision} Seen */
 
 /** @param {{ markSeen: (revision: number) => unknown }} capabilities */
 export function createSinceSeen({ markSeen }) {
@@ -77,7 +77,8 @@ export function createSinceSeen({ markSeen }) {
   }
   tabStore.set(HANDOFF_KEY, null);
   // The base of the comparison this owner offered, while it may still stand.
-  let offered = /** @type {number | null} */ (null);
+  /** @type {number | null} */
+  let offered = null;
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
 

@@ -386,6 +386,12 @@
     }
   }
   :is(.layout-column, .layout-flow) {
+    /* A failed upgrade draws prose in place of its exhibit. The source scrolls
+     * inside the error box, while its host returns to the prose track. */
+    > [data-lf-space]:has(> .lf-error) {
+      grid-column: prose;
+      --lf-breakout: 0;
+    }
     > table[data-lf-space] {
       contain: none;
       container-type: normal;

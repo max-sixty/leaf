@@ -77,11 +77,11 @@ import {
   shownWindow,
   visibleBand,
 } from "./geometry.js";
-import { scrollersOf } from "./reading-regions.js";
+import { scrollersOf } from "./scroll-containers.js";
 import { startScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
 import { nextRender } from "./rendering.js";
-import { renderedParent, renderedUnder } from "./shadow.js";
+import { renderedParent, renderedUnder } from "./shadow-tree.js";
 import { setScroll } from "./arrivals.js";
 
 /** @typedef {Element | Range} Destination

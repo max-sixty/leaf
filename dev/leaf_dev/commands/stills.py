@@ -250,6 +250,21 @@ def printed_exhibit(page: Page) -> None:
     page.emulate_media(media="print")
 
 
+def failed_widget(page: Page) -> None:
+    """A failed full-width exhibit beside the document's prose."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {failSoft} = await import(new URL('runtime/widget-api.js', new URL(boot, location.href)));
+        const host = document.createElement('div');
+        host.id = 'failed-exhibit';
+        host.dataset.lfSpace = 'available';
+        document.querySelector('main').prepend(host);
+        failSoft(host, new Error('The exhibit could not render its source.'),
+            'source row: ' + 'unbroken_source_value_'.repeat(12));
+    }""")
+    expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
+
+
 def worktree_summaries(page: Page) -> None:
     """Close the initially open worktree so the list's summary columns stand together.
     Press the widget's summary by its class, since the authored evidence in the row
@@ -2006,6 +2021,14 @@ class State:
 STATES = (
     State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
     State("screen-exhibit", "lost-update", at_rest, region="main"),
+    State("failed-widget", "review-a-plan", failed_widget, viewport=(1600, 900)),
+    State(
+        "failed-widget-dark",
+        "review-a-plan",
+        failed_widget,
+        viewport=(1600, 900),
+        scheme="dark",
+    ),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
         "page-about-dark",

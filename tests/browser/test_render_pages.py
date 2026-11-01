@@ -1115,16 +1115,14 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');
-        const main = document.querySelector('main'), ms = getComputedStyle(main);
-        const mb = main.getBoundingClientRect();
+        const column = document.querySelector('main > h1').getBoundingClientRect();
         return { failed: !!box,
                  box: box ? box.getBoundingClientRect().width : 0,
                  widget: document.getElementById('bad').getBoundingClientRect().width,
                  // What the box would be floored at if nothing said otherwise: the
                  // source is a `pre`, so its longest line is its minimum width.
                  source: box ? box.querySelector('pre').scrollWidth : 0,
-                 column: mb.width - parseFloat(ms.paddingLeft)
-                         - parseFloat(ms.paddingRight) };
+                 column: column.width };
     }""")
     assert at["failed"], "the fixture must fail to render, or this proves nothing"
     assert at["source"] > at["column"], (

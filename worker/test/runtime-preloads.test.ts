@@ -67,9 +67,10 @@ it("bundles each document's static graph without fetching optional modules or ch
         }),
       );
       const sources = {
-        "leaf.js": `import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
+        "leaf.js": `import "./runtime/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
         "runtime/bundle-common.js":
           'import "./bundle-cycle.js"; export const state = 1;',
+        "runtime/document-inputs.js": "(() => { window.inputsInstalled = true; })();",
         "runtime/bundle-cycle.js": 'export * from "./bundle-common.js";',
         "vendor/framework.js":
           'export * from "/vendor/lit.js"; export * from "../runtime/media.js";',
@@ -138,6 +139,7 @@ it("bundles each document's static graph without fetching optional modules or ch
           [
             `${root}/leaf.js`,
             `${root}/runtime/media.js`,
+            `${root}/runtime/document-inputs.js`,
             `${root}/vendor/framework.js`,
             `${root}/vendor/lit.js`,
             `${root}/vendor/revision-${revision}.js`,
@@ -156,7 +158,12 @@ it("bundles each document's static graph without fetching optional modules or ch
       }
     }
     for (const [path, source] of modules) {
-      if (!path.includes("/vendor/") && !path.includes("/page/")) continue;
+      if (
+        !path.includes("/vendor/") &&
+        !path.includes("/page/") &&
+        !path.endsWith("/runtime/document-inputs.js")
+      )
+        continue;
       expect(await readFile(path, "utf8")).toBe(source);
     }
   } finally {

@@ -1052,11 +1052,19 @@
     gap: 2px;
   }
   /* The tabs name the view and keep their room: where the presses after them don't fit
-     beside them, as on a phone, the presses and Close go to a line of their own, at
-     its end. Each tab's view keeps room for one press before Close, Menu's none
-     included, so every tab breaks the line alike and turning them moves nothing. */
+     beside them, as on a phone, the presses and Close go to a line of their own over
+     the tabs, at its end, so the tabs stay on the row and a tab turned to never
+     leaves the finger that turned it. Each tab's view keeps room for one press before
+     Close, Menu's none included, so every tab breaks the line alike and turning them
+     moves nothing; only On <agent>'s plan head, beside its press, may take that line
+     where the others share the tabs'. */
   .lf-fp-controls {
-    flex-wrap: wrap;
+    flex-wrap: wrap-reverse;
+  }
+  /* The tabs' line stands as tall with the presses as without them. */
+  .lf-fp-controls > .lf-fp-crumb {
+    min-height: var(--lf-fp-press);
+    align-items: center;
   }
   .lf-fp-controls > .lf-fp-aux {
     min-width: calc(2 * max(var(--lf-fp-press), var(--aim-floor)) + 2px);

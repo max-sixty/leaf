@@ -999,39 +999,53 @@ def test_on_a_phone_a_thread_s_presses_take_a_line_beside_next_unread(browser, s
     assert [box["x"] for box in presses] == sorted(box["x"] for box in presses)
 
 
-def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve):
+def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
     """On a phone the On view's four tabs keep their words whole, and turning between
-    them, the menu, On me and Threads alike, moves no tab and not Close, whether the
-    presses share the tabs' line or, narrower or in wider faces, stand on their own."""
+    them moves no tab, whether the presses share the tabs' line or, narrower or in
+    wider faces, stand on a line of their own over them; On Claude's plan head may take
+    that line alone. Close stays put on every other tab."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
+    steps = [
+        {"depth": 0, "title": "Ship the migration", "state": "working"},
+        {"depth": 1, "title": "Write the note", "state": "open"},
+    ]
+    written = CliRunner().invoke(
+        cli_model.cli, ["task", "plan", str(serve.page_dir)], input=json.dumps(steps)
+    )
+    assert written.exit_code == 0, written.output
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, url, context=context)
     page.locator(".lf-fp-leaf").tap()
     strip = page.locator(".lf-fp-controls .lf-fp-filters")
-    places = """() => [...document.querySelectorAll(
-      '.lf-fp-controls .lf-fp-filters button, .lf-fp-controls .lf-fp-close'
-    )].map((el) => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width]; })"""
+    close = page.locator(".lf-fp-controls .lf-fp-close")
+    tabs = """() => [...document.querySelectorAll('.lf-fp-controls .lf-fp-filters button')]
+      .map((el) => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width]; })"""
     for width in (390, 340):
-        page.set_viewport_size({"width": width, "height": 844})
-        stood = None
-        for tab, view in (
-            ("Menu", "menu"),
-            ("On me", "queue"),
-            ("Threads", "threads"),
-            ("Menu", "menu"),
-        ):
-            panel_tab(page, tab).tap()
-            panel_settled(page, view=view)
-            assert strip.evaluate("el => el.scrollWidth <= el.clientWidth"), (
-                width,
-                tab,
-            )
-            now = page.evaluate(places)
-            assert stood in (None, now), (width, tab, stood, now)
-            stood = now
+        with subtests.test(width=width):
+            page.set_viewport_size({"width": width, "height": 844})
+            stood = closed = None
+            for tab, view in (
+                ("Menu", "menu"),
+                ("On me", "queue"),
+                ("On Claude", "queue"),
+                ("Threads", "threads"),
+                ("Menu", "menu"),
+            ):
+                panel_tab(page, tab).tap()
+                panel_settled(page, view=view)
+                assert strip.evaluate("el => el.scrollWidth <= el.clientWidth"), tab
+                now = page.evaluate(tabs)
+                assert stood in (None, now), (tab, stood, now)
+                stood = now
+                if tab == "On Claude":
+                    expect(page.locator(".lf-fp-plan-head")).to_be_visible()
+                    continue
+                box = close.bounding_box()
+                assert closed in (None, box), (tab, closed, box)
+                closed = box
 
 
 def test_held_news_reads_whole_among_the_thread_s_controls(browser, serve):

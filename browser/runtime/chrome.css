@@ -161,20 +161,15 @@ html[data-lf-region-capture] main * {
 .lf-react-mark {
   text-align: center;
 }
-.lf-ins-block {
-  background: var(--add-tint);
-  box-shadow: 0 0 0 4px var(--add-tint);
-  border-radius: var(--r-s);
+/* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
+   (margin-bars.js) too. */
+:root[data-lf-annotations="hidden"] {
+  --lf-change-bar: transparent;
 }
 /* A marked block becomes one inline text diff when its Change disclosure opens
-   (version.js): the block wash steps back so the insertion highlight marks only new
-   text; a newly added block keeps it. The version label and deletions wear `.lf-ui`, so
-   comments, copies and the next comparison read the current page; the deletion inherits
-   the document's face. */
-.lf-ins-block.lf-version-inline {
-  background: transparent;
-  box-shadow: none;
-}
+   (version.js). The version label and deletions wear `.lf-ui`, so comments, copies and
+   the next comparison read the current page; the deletion inherits the document's
+   face. */
 .lf-version-inline-deletion {
   font: inherit;
 }
@@ -1206,14 +1201,20 @@ html[data-lf-region-capture] main * {
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
-  /* Where the agent is at work (at-work.js): a bar in the margin beside its target, in
-     the accent its margin entry wears while it works. It comes and goes with the work,
-     whose start the margin entry's pulse acknowledges. */
-  .lf-at-work-bar {
+  /* The margin's bars (margin-bars.js). Where the agent is at work, in the accent its
+     margin entry wears while it works: it comes and goes with the work, whose start the
+     margin entry's pulse acknowledges. What changed since the comparison's base, in
+     green. */
+  :is(.lf-at-work-bar, .lf-change-bar) {
     position: absolute;
     pointer-events: none;
     border-radius: 1.5px;
+  }
+  .lf-at-work-bar {
     background: var(--accent);
+  }
+  .lf-change-bar {
+    background: var(--lf-change-bar, var(--ok));
   }
   .lf-page-search-match {
     position: absolute;

@@ -31,12 +31,10 @@ export const chromeSheet = constructSheet(sheets.chrome);
 // (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
 export const chromeSharedClasses = Object.freeze([
   "lf-aiming",
-  "lf-ins-block",
   "lf-over-item",
   "lf-react-mark",
   "lf-mark-note",
   "lf-ui",
-  "lf-version-inline",
   "lf-version-inline-deletion",
   "lf-visual-action",
 ]);

@@ -1466,7 +1466,6 @@ def judge_preferences(
             )
         )
     subjects = sorted({pair["subject"] for _, pair in records})
-    labels = [label for label, _ in groups]
     symbols = ["circle", "diamond", "square", "triangle", "cross", "star", "wye"]
     glyphs = ["●", "◆", "■", "▲", "+", "★", "Y"]
     points, rows = [], []
@@ -1568,6 +1567,9 @@ def judge_preferences(
                 )
     chart = "<p>No completed Plain HTML/Leaf pair judgments are available to plot.</p>"
     if points:
+        plotted_subjects = sorted({point["task"] for point in points})
+        plotted_labels = {point["checkpoint"] for point in points}
+        labels = [label for label, _ in groups if label in plotted_labels]
         options = r"""({
           ariaLabel: "Overall Plain HTML versus Leaf preferences for both presentation orders, on five ordinal categories. Exact outcomes and sources follow in the table.",
           marginLeft: width < 650 ? 110 : 155, marginRight: 25,
@@ -1586,7 +1588,7 @@ def judge_preferences(
         })"""
         values = {
             "CATEGORIES": categories,
-            "TASKS": subjects,
+            "TASKS": plotted_subjects,
             "LABELS": labels,
             "COLORS": [f"var(--series-{i % 5 + 1})" for i in range(len(labels))],
             "SYMBOLS": [symbols[i % len(symbols)] for i in range(len(labels))],
@@ -1599,7 +1601,7 @@ def judge_preferences(
             f"{glyphs[i % len(glyphs)]} {escape(label)}"
             for i, label in enumerate(labels)
         )
-        chart = f'<p>{legend}</p><lf-chart id="format-preferences" data-height="{max(300, len(subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
+        chart = f'<p>{legend}</p><lf-chart id="format-preferences" data-height="{max(300, len(plotted_subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
     repairs = (review or {}).get("repair_comparisons", [])
     repair_table = ""
     if repairs:

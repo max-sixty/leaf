@@ -228,7 +228,7 @@
     "runtime/thread/folding.js": "5ff549c8fa0c82dde2a0ea02d792959dcd375cd3462e3f9e5b69ac6b9557683c",
     "runtime/thread/held-news.js": "f51d7bae61e27ef31775f938c7b20da2eef8fe994c515bda04756f0e9ed9cf7b",
     "runtime/thread/identity.js": "a108cf62a230a32aa426de09e2dcd11a5102ee0c8c40817585e40a9f97f7c00c",
-    "runtime/thread/inline.js": "548c9b4766a54cb2140f4010f25367674fcf64e9c801f1c28792dc3adb30127b",
+    "runtime/thread/inline.js": "91c00678e41e778ba1c3b1de2afb01d4c3050586a0e71e458bacef274114b5a4",
     "runtime/thread/landing.js": "c9e39efab798400d0cd23b07893a58101f8eee48296987ef7fc704598d601279",
     "runtime/thread/message-edit.js": "cbd90e4eac23a0224d7eadfc8c742bd578bb708eea48f29b76ee5c5c1c1bd1e6",
     "runtime/thread/messages.js": "ebae783842e8821917977655ee58534c07689a96ea2444ced38778e8bbcaccea",

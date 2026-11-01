@@ -55,16 +55,23 @@ from .revision_artifact import (
     RevisionArtifact,
     resource_type,
 )
-from .schema import ASSETS, KERNEL, KERNEL_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
+from .schema import (
+    ASSETS,
+    BROWSER_DIRS,
+    KERNEL,
+    KERNEL_FILES,
+    PACKAGE_FILES,
+    RUNTIME_DIRS,
+    RUNTIME_ENTRY,
+)
 from .state import PLUGIN_ROOT, json_bytes
 from .themes import theme_package
 
-# Non-CSS core inputs and the bundled packages. Core stylesheet identity comes
+# Non-CSS core inputs. Core stylesheet identity comes
 # from the same composition that delivers them, including its imports and roles.
 LAYER_SOURCES = (
     *(f"browser/{name}" for name in KERNEL_FILES if not name.endswith(".css")),
     "browser/widgets",
-    "packages",
 )
 
 
@@ -115,9 +122,10 @@ class ServingRuntime:
 
     @cached_property
     def identity(self) -> str:
-        """Names every runtime input and every layer input this tree holds, so a
+        """Names every runtime input and browser layer contribution this tree holds, so a
         change to a bundled widget, like one to the runtime, gives an open document
-        a server that refuses it."""
+        a server that refuses it. Package scripts, their generated files and author
+        instructions do not change the browser's runtime."""
         return files_identity(
             {
                 **self.source,
@@ -132,6 +140,14 @@ class ServingRuntime:
                 **{
                     f"layer:{path}": data
                     for path, data in _files(PLUGIN_ROOT, *LAYER_SOURCES).items()
+                },
+                **{
+                    f"layer:/packages/{package.name}{path}": data
+                    for package in sorted((PLUGIN_ROOT / "packages").glob("*"))
+                    if package.is_dir()
+                    for path, data in _files(
+                        package, *PACKAGE_FILES, *BROWSER_DIRS
+                    ).items()
                 },
             }
         ).removeprefix("sha256:")[:16]
@@ -255,10 +271,12 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
         artifact.page_dir,
     )
     layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
+    # Agent instructions belong to the composition's fingerprint, but only the
+    # browser's bytes belong to its immutable resource address.
     identity = files_identity(
         {
             "runtime": runtime.identity.encode(),
-            "layer": composition.fingerprint.encode(),
+            **{path: resource.data for path, resource in layer.items()},
         }
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package

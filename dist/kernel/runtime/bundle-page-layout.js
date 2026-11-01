@@ -1444,7 +1444,7 @@ function standBlocks(state, blocks, out, line) {
 }
 let loaded = null;
 const loadFieldEditor = () => loaded ??= Promise.all([import("/vendor/codemirror.esm.js"), loadMarkdown()]).then(([codemirror]) => fieldEditor(codemirror, leafEditorView(codemirror)));
-function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
+function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffect, StateField, Facet, Compartment, WidgetType, Decoration, BlockWrapper, ViewPlugin, keymap, history, standardKeymap, historyKeymap, isolateHistory, invertedEffects }, LeafEditorView) {
 	const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 	const ownerStep = StateEffect.define();
 	const hide = Decoration.replace({});
@@ -1790,24 +1790,119 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		run: lineStep(true, false),
 		shift: lineStep(true, true)
 	}];
+	const reading = StateField.define({
+		create: (state) => ({
+			placed: read(state),
+			judged: markdownReady()
+		}),
+		update(value, tr) {
+			const judged = markdownReady();
+			return tr.docChanged || judged !== value.judged ? {
+				placed: read(tr.state),
+				judged
+			} : value;
+		}
+	});
+	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", ITEM]);
+	const item = (c) => c?.token.type === ITEM;
+	const holding = (placed, line) => (c) => c.from <= line.from && line.from < (item(c) ? itemEnd(placed, c) : c.to);
+	const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
+	const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+	const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
+	const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+	const joint = Decoration.replace({ widget: new Spelled(" ") });
+	const jointsOf = (state) => {
+		if (!state.facet(joinsLines)) return Decoration.none;
+		const { placed } = state.field(reading);
+		const inline = placed.filter(({ token }) => !token.block);
+		const hard = inline.filter(({ token }) => token.type === "hardbreak");
+		const containers = placed.filter(({ token }) => CONTAINERS.has(token.type));
+		const breaks = /* @__PURE__ */ new Set();
+		for (const { from, to } of inline) {
+			const text = state.sliceDoc(from, to);
+			for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) breaks.add(from + at);
+		}
+		const out = [];
+		for (const at of [...breaks].sort((a, b) => a - b)) {
+			if (hard.some(({ from, to }) => from <= at && at < to)) continue;
+			const line = state.doc.lineAt(at);
+			const next = state.doc.line(line.number + 1);
+			const words = opened(next, containers);
+			out.push(joint.range(at - line.text.match(/[ \t]*$/)[0].length, words + state.sliceDoc(words, next.to).match(/^[ \t]*/)[0].length));
+		}
+		return Decoration.set(out);
+	};
+	const joints = StateField.define({
+		create: jointsOf,
+		update: (set, tr) => tr.state.field(reading) === tr.startState.field(reading) && tr.state.facet(joinsLines) === tr.startState.facet(joinsLines) ? set : jointsOf(tr.state),
+		provide: (field) => [EditorView.decorations.from(field), EditorView.atomicRanges.of((view) => view.state.field(field))]
+	});
+	function newLine(view) {
+		const { state } = view;
+		if (!state.facet(joinsLines)) return insertNewline(view);
+		const { from, to } = state.selection.main;
+		const { placed } = state.field(reading);
+		const paragraph = placed.find(({ token, from: a, to: b }) => token.type === "paragraph_open" && a <= from && to <= b);
+		const words = paragraph ? placed.filter(({ token, from: a, to: b }) => !token.block && token.type !== "softbreak" && a >= paragraph.from && b <= paragraph.to) : [];
+		const before = words.some(({ from: a }) => a < from);
+		const after = words.some(({ to: b }) => b > to);
+		const line = state.doc.lineAt(from);
+		const holds = holding(placed, line);
+		const containers = placed.filter((c) => CONTAINERS.has(c.token.type) && holds(c));
+		const inner = containers.at(-1);
+		if (inner && (!before || !after && item(inner)) && continueBlocks(view, true)) return true;
+		if (!before) return insertNewline(view);
+		const prefix = containers.map(carried).join("");
+		let spec;
+		if (after) {
+			let [a, b] = [from, to];
+			a -= state.sliceDoc(Math.min(a, opened(line, containers)), a).match(/[ \t]*$/)[0].length;
+			b += state.sliceDoc(b, state.doc.lineAt(b).to).match(/^[ \t]*/)[0].length;
+			state.field(joints).between(a, b, (jointFrom, jointTo) => {
+				a = Math.min(a, jointFrom);
+				b = Math.max(b, jointTo);
+			});
+			const breaks = placed.filter(({ token }) => token.type === "hardbreak").map(({ from: at, to: end }) => [at - state.sliceDoc(state.doc.lineAt(at).from, at).match(/[ \t]*$/)[0].length, end]);
+			a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
+			const hard = breaks.find(([at, end]) => at <= b && b <= end);
+			const insert = `\\\n${prefix}`;
+			const changes = state.changes(hard ? [{
+				from: Math.min(a, hard[0]),
+				to: hard[0]
+			}, {
+				from: hard[1],
+				insert
+			}] : {
+				from: a,
+				to: b,
+				insert
+			});
+			spec = {
+				changes,
+				selection: { anchor: changes.mapPos(hard?.[1] ?? b, 1) }
+			};
+		} else spec = state.replaceSelection(`\n${prefix.trimEnd()}\n${prefix}`);
+		view.dispatch(state.update(spec, {
+			scrollIntoView: true,
+			userEvent: "input"
+		}));
+		return true;
+	}
 	const livePreview = ViewPlugin.fromClass(class {
 		constructor(view) {
 			this.live = true;
-			this.placed = read(view.state);
-			this.drawn = decorate(view.state, this.placed);
-			this.judged = markdownReady();
-			if (!this.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
+			this.read = view.state.field(reading);
+			this.drawn = decorate(view.state, this.read.placed);
+			if (!this.read.judged) loadMarkdown().then(() => this.live && view.dispatch({}), () => {});
 		}
 		destroy() {
 			this.live = false;
 		}
 		update(update) {
-			const judged = markdownReady();
-			if (update.docChanged || judged !== this.judged) {
-				this.judged = judged;
-				this.placed = read(update.state);
-			} else if (!update.selectionSet) return;
-			this.drawn = decorate(update.state, this.placed);
+			const read = update.state.field(reading);
+			if (read === this.read && !update.selectionSet) return;
+			this.read = read;
+			this.drawn = decorate(update.state, read.placed);
 		}
 	}, {
 		decorations: (plugin) => plugin.drawn.decorations,
@@ -1818,28 +1913,22 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 			Prec.high(keymap.of(LINE_STEPS))
 		]
 	});
-	const CONTAINERS = /* @__PURE__ */ new Set(["blockquote_open", "list_item_open"]);
 	const CHECKBOX = "[ ] ";
-	function continueBlocks(view) {
+	function continueBlocks(view, nextItem = false) {
 		const { state } = view;
-		const placed = view.plugin(livePreview)?.placed ?? [];
+		const { placed } = state.field(reading);
 		const { from, to } = state.selection.main;
 		const line = state.doc.lineAt(from);
 		const all = placed.filter(({ token }) => CONTAINERS.has(token.type));
-		const end = (c) => c.token.type === ITEM ? itemEnd(placed, c) : c.to;
-		const holding = (c) => c.from <= line.from && line.from < end(c);
-		const containers = all.filter(holding);
+		const holds = holding(placed, line);
+		const containers = all.filter(holds);
 		if (!containers.length) return false;
-		const code = placed.some((c) => c.token.type === "fence" && holding(c));
-		const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
-		const opened = (l, among) => Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
+		const code = placed.some((c) => c.token.type === "fence" && holds(c));
 		const bare = (l) => {
 			const rest = state.sliceDoc(opened(l, all), l.to).trim();
 			return !rest || `${rest} ` === CHECKBOX;
 		};
 		if (from < opened(line, containers)) return false;
-		const carried = ({ token }) => token.type === "blockquote_open" ? "> " : " ".repeat(token.meta.indent);
-		const item = (c) => c?.token.type === "list_item_open";
 		const task = ({ token }) => token.attrGet("class")?.split(" ").includes("task-list-item");
 		const next = (c) => `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
 		const inner = containers.at(-1);
@@ -1872,7 +1961,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 				insert: `${kept(line).trimEnd()}\n${around.map(carried).join("")}`
 			};
 		} else {
-			const marker = item(inner) && inner.from === line.from && !code ? next(inner) : carried(inner);
+			const marker = item(inner) && (nextItem || inner.from === line.from) && !code ? next(inner) : carried(inner);
 			change = {
 				from,
 				to,
@@ -1892,7 +1981,7 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 		const { state } = view;
 		if (state.readOnly) return false;
 		const { from, to } = state.selection.main;
-		const placed = view.plugin(livePreview)?.placed ?? [];
+		const { placed } = state.field(reading);
 		const changes = nestItems(state.doc.toString(), placed, from, to, deeper);
 		if (!changes?.length) return Boolean(changes) && deeper;
 		view.dispatch(state.update({
@@ -1964,11 +2053,15 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					},
 					{
 						key: "Enter",
-						run: (view) => field.returned() && insertNewline(view)
+						run: (view) => field.returned() && newLine(view)
 					},
 					{
 						key: "Shift-Enter",
-						run: continueBlocks
+						run: (view) => view.state.facet(joinsLines) && newLine(view)
+					},
+					{
+						key: "Shift-Enter",
+						run: (view) => continueBlocks(view)
 					},
 					{
 						key: "Tab",
@@ -1986,6 +2079,9 @@ function fieldEditor({ EditorView, EditorState, EditorSelection, Prec, StateEffe
 					...standardKeymap.filter(({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"),
 					...historyKeymap
 				]),
+				reading,
+				joinsLines.of(field.joined()),
+				joints,
 				livePreview,
 				EditorView.lineWrapping,
 				editable.of(EditorState.readOnly.of(field.readOnly)),
@@ -2403,6 +2499,7 @@ var LeafText = class extends HTMLElement {
 			attributes: this.#contentAttributes(),
 			returned: () => this.#returned(),
 			oneLine: () => this.#oneLine,
+			joined: () => this.facesOf !== null,
 			focused: () => this.#measureOverflow(),
 			revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(view, pos)),
 			typed: (native, insert) => {

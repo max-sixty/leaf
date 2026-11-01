@@ -644,14 +644,18 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     # Selection and whole-page search are named in the reference.
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    search_command = help_el.locator('[role=row][data-lf-command="page.search.open"]')
-    select_command = help_el.locator('[role=row][data-lf-command="target.picker.open"]')
+    search_command = help_el.locator(
+        '[role=option][data-lf-command="page.search.open"]'
+    )
+    select_command = help_el.locator(
+        '[role=option][data-lf-command="target.picker.open"]'
+    )
     expect(search_command.locator("kbd")).to_have_text("/")
-    expect(search_command.get_by_role("button")).to_have_text("Search page")
+    expect(search_command).to_have_accessible_name("Search page")
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command.get_by_role("button")).to_have_text("Comment on an element")
-    expect(select_command.get_by_role("button")).to_have_attribute(
+    expect(select_command).to_have_accessible_name("Comment on an element")
+    expect(select_command).to_have_attribute(
         "title", "Choose an element by pressing it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
@@ -796,10 +800,10 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(
-        help_el.locator('[role=row][data-lf-command="page.search.next"] kbd')
+        help_el.locator('[role=option][data-lf-command="page.search.next"] kbd')
     ).to_have_text("n")
     expect(
-        help_el.locator('[role=row][data-lf-command="page.search.previous"] kbd')
+        help_el.locator('[role=option][data-lf-command="page.search.previous"] kbd')
     ).to_have_text("N")
     page.keyboard.press("Escape")
 

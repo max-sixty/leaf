@@ -2,7 +2,7 @@
  * every surface (browser/AGENTS.md, "Controls are few and quiet"). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { namedAction, offerAction, offeredAction } from "/runtime/widget-elements.js";
+import { nameAction, offerAction, offeredAction } from "/runtime/widget-elements.js";
 import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>
@@ -58,25 +58,20 @@ test("a template's symbol is drawn once and swaps only when its action's symbol 
   assert.deepEqual(symbolOf(button), ["play"]);
 });
 
-test("a press its surface faces takes its symbol and name from its action too", () => {
-  const box = document.createElement("div");
-  const draw = (action, options, count) =>
-    render(
-      html`<button class="lf-compose-submit" ${namedAction(action, options)}>
-        ${count}
-      </button>`,
-      box,
-    );
-  draw("show", undefined, "");
-  const button = box.querySelector("button");
-  assert.equal(button.className, "lf-compose-submit");
-  assert.deepEqual(symbolOf(button), ["locate"]);
-  assert.equal(button.getAttribute("aria-label"), "Show");
-  assert.equal(button.title, "Show");
-  // A label says more, a title more again, and the template's own content stays.
-  draw("on-me", { label: "On me: 2", title: "On me: 2 (m)" }, "2");
-  assert.deepEqual(symbolOf(button), ["inbox"]);
-  assert.equal(button.getAttribute("aria-label"), "On me: 2");
-  assert.equal(button.title, "On me: 2 (m)");
-  assert.equal(button.textContent.trim(), "2");
+test("a symbol whose action follows its state takes the new action's symbol and name", () => {
+  const button = offerAction("symbol", "lf-x", undefined, { action: "expand-all" });
+  const face = button.className;
+  nameAction(button, "collapse-all");
+  assert.deepEqual(symbolOf(button), ["fold"]);
+  assert.equal(button.getAttribute("aria-label"), "Collapse all");
+  assert.equal(button.title, "Collapse all");
+  // A label says more, a title more again, and the role's face stays as it was.
+  nameAction(button, "expand-all", {
+    label: "Expand all files",
+    title: "Expand all files (o)",
+  });
+  assert.deepEqual(symbolOf(button), ["unfold"]);
+  assert.equal(button.getAttribute("aria-label"), "Expand all files");
+  assert.equal(button.title, "Expand all files (o)");
+  assert.equal(button.className, face);
 });

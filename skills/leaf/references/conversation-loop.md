@@ -11,13 +11,6 @@ opened it. Each thread's `unread` lists your messages the user has not read
 ([threads](threads.md#what-the-user-has-read)). Nothing records whether they saw a
 status.
 
-`seen` is the newest revision a tab showed the user before they left it (its
-`revision` and `label`), or `null` until they first leave the page. It is recorded as
-they leave, so it lags while they are still on the page. When they come back, their
-page marks each block that changed since the newest version stamped at or before
-`seen`, so a reply about the work since that version needs no list of what changed. A
-page you never stamp marks nothing.
-
 ## The user's view
 
 `user_views` in `leaf page state <page>` has one entry per browser page load over the

@@ -2,8 +2,8 @@
 /* The change walk: `h` and Shift+`h` step through the blocks the version comparison
    marks (version.js, `comparisonChanges`), in the page's order, coming round at either
    end, whatever started the comparison: a Compare in Versions, or the page marking what
-   changed since the user was last shown it (since-seen.js). A diff reader's next and
-   previous hunk, which is what the letter stands for.
+   changed since the user was last shown it (since-seen.js, turned off for now). A diff
+   reader's next and previous hunk, which is what the letter stands for.
 
    A step starts from the user's place by the rule every page walk shares
    (current-target.js, `walkOrigin` and `stepFrom`), and lands on the changed block

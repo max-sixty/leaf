@@ -35,9 +35,9 @@ mark it read.
 The page itself is agent content too, one revision at a time. A `seen` event names the
 newest live revision a tab showed the user while they were there (the document visible
 and focused, the evidence a message's exposure waits for too), posted as they leave
-it, and `seen_revision` is the newest one any tab named; the browser marks what
-changed since the newest version stamped at or before it
-(`browser/runtime/since-seen.js`).
+it, and `seen_revision` is the newest one any tab named. The browser's marking of
+what changed since then (`browser/runtime/since-seen.js`) is turned off for now, so no
+tab posts one.
 A hosted copy serves none (`served_state.page`), since its reader is not the page's
 user. It needs no exposure of each passage, as a message's read does: a reader comes
 back to a page to see what moved, and the marks it then shows are the evidence's whole

@@ -1,6 +1,10 @@
 // @ts-check
 /* What the page changed since the user last saw it.
 
+   Turned off: application.js no longer mounts this owner, at the user's request on
+   31 October, while marks tied to Versions are considered. Nothing below runs, and no
+   tab posts `seen`.
+
    A revision counts as seen when it is on the page while the user is there: the
    document visible, holding focus, and its reading continuous (reading-continuity.js).
    Focus is the same evidence a message's read waits for (thread/read.js): a browser

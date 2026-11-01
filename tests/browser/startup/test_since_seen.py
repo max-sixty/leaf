@@ -9,6 +9,7 @@ both through the platform's own readings (`visibility`, `attention`)."""
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -104,29 +105,23 @@ def marked_ids(page):
     )
 
 
-def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
+# Marking what changed since the user last saw the page is turned off (application.js
+# no longer mounts since-seen.js); these tests return with it.
+ARRIVAL_OFF = pytest.mark.skip(reason="since-seen.js is not mounted")
+
+
+def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, serve):
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
-    marked = page.locator("main .lf-ins-block")
-    # Nothing to compare on a first visit; leaving says which revision was seen.
-    expect(marked).to_have_count(0)
-    visibility(page, "hidden")
-    wait_for_seen(d, [1], "leaving the page named no revision it showed")
-
     revise(d, BETA)
     revise(d, DELTA)
-
-    # Coming back reads what the agent revised meanwhile, and marks it.
-    visibility(page, "visible")
+    wait_for_revision(page, 3)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    marked = page.locator("main .lf-ins-block")
     expect(marked).to_have_count(2)
     assert marked_ids(page) == ["b", "d"]
-    # The walk lands on each change in page order and comes round at the end.
-    for expected in ("b", "d", "b"):
-        page.keyboard.press("h")
-        expect(page.locator(f"#{expected}")).to_be_focused()
-    page.keyboard.press("Shift+h")
-    expect(page.locator("#d")).to_be_focused()
     # Each change's mark is a bar beside it, and the block keeps its own paint.
     bars = page.locator(".lf-change-bar")
     expect(bars).to_have_count(2)
@@ -136,6 +131,12 @@ def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
     ]
     clear = "rgba(0, 0, 0, 0)"
     expect(page.locator("#b")).to_have_css("background-color", clear)
+    # The walk lands on each change in page order and comes round at the end.
+    for expected in ("b", "d", "b"):
+        page.keyboard.press("h")
+        expect(page.locator(f"#{expected}")).to_be_focused()
+    page.keyboard.press("Shift+h")
+    expect(page.locator("#d")).to_be_focused()
     # The marks are annotations: Escape lets go of the change and leaves them, and `o`
     # hides them with the rest.
     page.keyboard.press("Escape")
@@ -162,6 +163,33 @@ def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
     assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
 
 
+@ARRIVAL_OFF
+def test_coming_back_marks_what_changed_since_and_h_walks_it(browser, serve):
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    marked = page.locator("main .lf-ins-block")
+    # Nothing to compare on a first visit; leaving says which revision was seen.
+    expect(marked).to_have_count(0)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+
+    revise(d, BETA)
+    revise(d, DELTA)
+
+    # Coming back reads what the agent revised meanwhile, and marks it.
+    visibility(page, "visible")
+    expect(marked).to_have_count(2)
+    assert marked_ids(page) == ["b", "d"]
+    # The walk lands on each change in page order and comes round at the end.
+    for expected in ("b", "d", "b"):
+        page.keyboard.press("h")
+        expect(page.locator(f"#{expected}")).to_be_focused()
+    page.keyboard.press("Shift+h")
+    expect(page.locator("#d")).to_be_focused()
+
+
+@ARRIVAL_OFF
 def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
     browser, serve
 ):
@@ -218,6 +246,7 @@ def test_what_lands_while_the_user_works_elsewhere_is_marked_when_they_return(
     )
 
 
+@ARRIVAL_OFF
 def test_a_chosen_comparison_outranks_the_one_offered(browser, serve):
     url = live_url(serve(PAGE))
     d = serve.page_dir
@@ -237,6 +266,7 @@ def test_a_chosen_comparison_outranks_the_one_offered(browser, serve):
     )
 
 
+@ARRIVAL_OFF
 def test_an_offer_follows_what_another_tab_says_it_saw(browser, serve):
     """A tab's first reading can come before another tab's departing send lands; the
     marks it offered then follow the server's reading as it catches up."""
@@ -259,6 +289,7 @@ def test_an_offer_follows_what_another_tab_says_it_saw(browser, serve):
     expect(marked).to_have_count(0)
 
 
+@ARRIVAL_OFF
 def test_an_offer_that_finds_nothing_says_nothing(browser, serve):
     url = live_url(serve(PAGE))
     d = serve.page_dir
@@ -274,6 +305,7 @@ def test_an_offer_that_finds_nothing_says_nothing(browser, serve):
     assert "No text changes" not in (page.locator(".lf-live").text_content() or "")
 
 
+@ARRIVAL_OFF
 def test_a_revision_that_reloads_the_page_is_marked_in_the_new_document(browser, serve):
     """A revision whose code changed arrives as a fresh document, which can't flash
     what changed, so the new document marks it."""

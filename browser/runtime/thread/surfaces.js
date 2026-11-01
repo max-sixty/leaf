@@ -42,7 +42,7 @@ import { whenDocumentPresented } from "../semantic-state.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
 
-const registrations = new Map();
+import { registrations, updateSurface } from "./surface-handles.js";
 let claimedIds = new Set();
 let renderGeneration = 0;
 // Moves when the answer `claimed` or `heldOut` gives changes, so a paint reading either
@@ -52,15 +52,6 @@ const ownership = signal(0);
 const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item));
 const holdsOut = (id) =>
   [...registrations.values()].some(({ held }) => held?.holds(id));
-
-function update(registration) {
-  if (registration.reconcileQueued) return;
-  registration.reconcileQueued = true;
-  queueMicrotask(() => {
-    registration.reconcileQueued = false;
-    void registration.invalidate();
-  });
-}
 
 export function watchThreadSurfaces(commands) {
   const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
@@ -89,18 +80,6 @@ export function watchThreadSurfaces(commands) {
   });
 }
 
-// The registered surface of a widget declaring `x-thread-surface`, as the widget reads
-// it: before the runtime has registered it, or after it left, there is nothing to update
-// and nothing it can open.
-export const threadSurface = (owner) =>
-  Object.freeze({
-    update() {
-      const registration = registrations.get(owner);
-      if (registration) update(registration);
-    },
-    open: (node) => registrations.get(owner)?.handle.open(node) ?? false,
-  });
-
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
 // widget nominations survived, and gives those seats priority over page nominations.
@@ -126,7 +105,8 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     // The datums where the widget drew a thread last, and the threads it holds out of
     // the seats it has not opened.
     drawn: new Set(),
-    held: kind === "widget" ? new HeldArrivals(() => update(registration)) : null,
+    held:
+      kind === "widget" ? new HeldArrivals(() => updateSurface(registration)) : null,
     // The keys the last hold kept out, to tell a hold that changed from one that didn't.
     heldKeys: new Set(),
     reconcileQueued: false,
@@ -146,7 +126,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       : null;
   });
   registrations.set(owner, registration);
-  update(registration);
+  updateSurface(registration);
   let active = true;
   registration.handle = {
     read: readThreads,
@@ -171,13 +151,13 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       composition.open(target);
       return true;
     },
-    update: () => update(registration),
+    update: () => updateSurface(registration),
     unregister() {
       if (!active) return;
       active = false;
       registrations.delete(owner);
       clearRegistration(registration);
-      update(registration);
+      updateSurface(registration);
     },
   };
   return registration.handle;
@@ -192,17 +172,6 @@ function clearOutlets(outlets) {
 
 function reportFailure({ owner }, error) {
   reportPageError(error, `thread surface ${owner.localName}#${owner.id} failed`);
-}
-
-// A widget removes a node that may hold an outlet only through its placement's
-// `onCommit`, or after this: core's composer, the one node it carries from outlet to
-// outlet, leaves every outlet under `node` now, for where the next commit would put
-// it once `node` is gone, so the removal cannot take the user's editor with it.
-export function releaseOutlets(node) {
-  for (const { outlets, composition } of registrations.values()) {
-    const outlet = composition.outlet();
-    if (outlets.has(outlet) && under(outlet, node)) composition.restore();
-  }
 }
 
 function clearRegistration(registration) {

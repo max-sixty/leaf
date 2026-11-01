@@ -2311,11 +2311,11 @@ function tokenLines(tokens) {
 
 //#endregion
 //#region runtime/visual-parts.js
-const registrations = /* @__PURE__ */ new WeakMap();
+const registrations$1 = /* @__PURE__ */ new WeakMap();
 const words = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 function registerVisualParts(source, read, { reveal = null, label = null } = {}) {
-	if (registrations.has(source)) throw new TypeError("A visual source may register its parts only once");
-	registrations.set(source, {
+	if (registrations$1.has(source)) throw new TypeError("A visual source may register its parts only once");
+	registrations$1.set(source, {
 		read,
 		reveal,
 		label
@@ -2328,15 +2328,15 @@ function visualPartAdmission(visual, declaration) {
 	if (prefixes) return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
 	return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
-const revealsVisualParts = (source) => Boolean(registrations.get(source)?.reveal);
+const revealsVisualParts = (source) => Boolean(registrations$1.get(source)?.reveal);
 function revealRegisteredVisualPart(source, id) {
-	const reveal = registrations.get(source)?.reveal;
+	const reveal = registrations$1.get(source)?.reveal;
 	if (reveal) reveal(id);
 	return registeredVisualPart(source, id);
 }
 function visualPartProblems(source, declaration) {
 	if (!declaration || typeof declaration !== "object") return [];
-	if (!registrations.has(source)) return [{ kind: "unregistered" }];
+	if (!registrations$1.has(source)) return [{ kind: "unregistered" }];
 	const parts = registeredVisualParts(source);
 	const admission = visualPartAdmission(source, declaration);
 	const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
@@ -2346,7 +2346,7 @@ function visualPartProblems(source, declaration) {
 	}] : [];
 }
 function registeredVisualParts(source) {
-	const read = registrations.get(source)?.read;
+	const read = registrations$1.get(source)?.read;
 	if (!read) return [];
 	const seenIds = /* @__PURE__ */ new Set();
 	const seenElements = /* @__PURE__ */ new Set();
@@ -2379,7 +2379,7 @@ const registeredVisualPart = (source, id) => registeredVisualParts(source).find(
 const registeredVisualPartLabel = (source, id) => {
 	const current = registeredVisualPart(source, id)?.label;
 	if (current) return current;
-	const label = registrations.get(source)?.label?.(id);
+	const label = registrations$1.get(source)?.label?.(id);
 	return words(label) || null;
 };
 function registeredVisualPartAt(source, target, admits = () => true) {
@@ -2444,6 +2444,31 @@ function textWidth(text, font) {
 }
 
 //#endregion
+//#region runtime/thread/surface-handles.js
+const registrations = /* @__PURE__ */ new Map();
+function updateSurface(registration) {
+	if (registration.reconcileQueued) return;
+	registration.reconcileQueued = true;
+	queueMicrotask(() => {
+		registration.reconcileQueued = false;
+		registration.invalidate();
+	});
+}
+const threadSurface = (owner) => Object.freeze({
+	update() {
+		const registration = registrations.get(owner);
+		if (registration) updateSurface(registration);
+	},
+	open: (node) => registrations.get(owner)?.handle.open(node) ?? false
+});
+function releaseOutlets(node) {
+	for (const { outlets, composition } of registrations.values()) {
+		const outlet = composition.outlet();
+		if (outlets.has(outlet) && under(outlet, node)) composition.restore();
+	}
+}
+
+//#endregion
 //#region runtime/tab-store.js
 const tabStore = document.documentElement.lfStorage?.tabStore ?? {
 	read: () => ({
@@ -2495,4 +2520,4 @@ async function loadDeferred(value, key) {
 }
 
 //#endregion
-export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, tokenLines, under, upFrom, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };
+export { ANNOUNCE, COMMANDS, J, LAYOUT, LeafElement, OUTPUT, PAGE_PAINT_ATTRIBUTE, PENDING_TASK, PendingTaskEvent, ROLE_BUTTON_OFFER, RUNTIME_PAINT_ATTRIBUTE, W, Z, actionClass, actionElement, actionIcon, actionName, actionTemplate, afterScript, afterSettling, agentArrivalDuration, announce, assignRows, atLayoutPrecision, attachDeferredLoader, axisTicks, backgroundFlash, bindQueuedWork, bodyText, byRenderedOrder, cancelAnimation, cancelRender, commandsChanged, commandsChangedOn, composedParentNode, d, dataBody, describeFailure, elementBox, elementDirective, ensureSyntaxLanguage, exceptionRecord, exceptionText, excludedByInert, failSoft, failSoftUnreported, failureContext, failureOf, flashDuration, foldBlock, foldDuration, frameFor, frameVisibility, generated, generatedElement, holdRendering, iconElement, iconTemplate, inBaseLayer, installElementIntegration, installMoveFocus, installStageIntegration, isNativeLayer, isStage, keeps, keepsHidden, keepsText, layoutChanged, layoutPx, liveStages, loadDeferred, measure, motion, motionEasing, motionPlays, motionTime, move, nativeLayerHolding, nativeLayerKind, nextAnimation, nextFrame, nextRender, observePreparations, observeQueuedWork, offer, offerAction, offerElement, offered, offeredAction, offeredActionElement, onFrameVisibility, onMotionPreferenceChange, once, orderChildren, outputProducer, pagePresented, pageUpgraded, patchRetains, patchTree, placesFailure, playMotion, publishOutput, q, readSampleVisibility, reducedMotion, refuseCommands, refuseOutput, registerVisualParts, registeredVisualPart, registeredVisualPartAt, registeredVisualPartLabel, registeredVisualParts, registrations, releaseOutlets, renderedOrder, renderedParent, renderedUnder, renderingState, reportFailure, returnDuration, revealRegisteredVisualPart, revealsVisualParts, roomPx, scrollBehavior, scrollGlides, scrolling, selectableOffer, selectableOffered, setChildLists, setChildren, setRenderedChildren, setScroll, shadowHost, shadowStage, showAction, sizeObserver, skipped, synNodes, syntax, syntaxLanguageNames, tabStore, textWidth, threadSurface, tokenLines, under, upFrom, updateSurface, visualPartAdmission, visualPartProblems, watchArrivals, watchFrame, watchOwner, watchScrollEnds, watchScrolls, whileConnected, x };

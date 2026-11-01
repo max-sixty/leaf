@@ -15,7 +15,7 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ LeafElement, html, shadowStage, whileConnected, publishOutput, loadDeferred }} = await import("/runtime/portable-api.js");
+  const {{ LeafElement, html, shadowStage, whileConnected, publishOutput, loadDeferred, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
   window.reading = document.querySelector("#reading");
   shadowStage(document.querySelector("#host"), [reading]);
   customElements.define("host-reading", class extends LeafElement {{
@@ -34,6 +34,11 @@ try {{
       this.dispatchEvent(new CustomEvent("drawn", {{detail: {{value: this.value}}}}));
     }}
   }});
+  // The same thread handle can be kept before a host registers a surface.
+  window.surface = threadSurface(reading);
+  surface.update();
+  window.opened = surface.open(reading);
+  releaseOutlets(reading);
   window.outputs = [];
   reading.addEventListener("lf-output", event => outputs.push(event.detail));
   window.publish = value => publishOutput(reading, "rows", value);
@@ -70,6 +75,8 @@ try {{
         page.evaluate("document.querySelector('#host').shadowRoot.append(reading)")
         expect(page.locator("#reading p")).to_have_text("Away reading")
         assert page.evaluate("reading.setups") == 1
+        assert page.evaluate("opened") is False
+        assert page.evaluate("surface.open(reading)") is False
         assert page.evaluate("reading.connections") == [
             "connected",
             "disconnected",

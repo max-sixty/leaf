@@ -234,6 +234,10 @@ the widget's threads to the margin until the next pass.
 `threadSurface(this).open(datum)` opens the comment box on one of the widget's data
 items, in its outlet; Leaf keeps the draft and the sending.
 
+`threadSurface` and `releaseOutlets` also load through `portable-api.js`. Without a
+registered Leaf surface, there is nothing to update or release, and `open` returns
+`false`.
+
 ### Page annotation presentation
 
 On a page whose `body` has `data-annotations="page"`, one element may supply the outlets
